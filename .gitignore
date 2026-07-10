@@ -1,6 +1,8 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================================
+# Desarrollo local (NO se versiona)
+# ============================================================
 
-# dependencies
+# dependencias
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +12,82 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# next.js build
 /.next/
 /out/
-
-# production
 /build
+next-env.d.ts
 
-# misc
-.DS_Store
-*.pem
+# testing / coverage
+/coverage
 
-# debug
+# TypeScript incremental
+*.tsbuildinfo
+
+# variables de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# misc de SO
+.DS_Store
+Thumbs.db
 
-# vercel
+# credenciales
+*.pem
+*.key
+
+# ============================================================
+# Vercel
+# ============================================================
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ============================================================
+# Documentacion .md — politica de versionado
+# ============================================================
+# SI suben al repo (documentacion NECESARIA del proyecto):
+#   - README.md, AGENTS.md, CLAUDE.md
+#   - docs/**/*.md (endpoints, modelo-datos, requerimientos, etc.)
+#
+# NO suben (borradores / notas personales / insumos raw):
+
+# Carpetas de notas y borradores personales
+/notas/
+/personal/
+/borradores/
+/scratch/
+
+# Sufijos para archivos personales o borradores (en cualquier carpeta)
+*.local.md
+*.personal.md
+*.draft.md
+*.wip.md
+
+# Insumos/fuentes raw (no son documentacion final del proyecto)
+conversacionequipotecnico.md
+LINEAMIENTO BD.pdf
+planogess.png
+
+# Proteccion explicita: la documentacion base del proyecto NUNCA se ignora
+# (los .md normales de docs/ suben por defecto; los *.draft/*.wip/*.local no)
+!README.md
+!AGENTS.md
+!CLAUDE.md
+
+# ============================================================
+# opencode: solo reglas/skills/agentes (el resto es cache local)
+# ============================================================
+# NO ignorar la carpeta completa — se trackea lo que el equipo comparte
+.opencode/*
+!.opencode/agent/
+!.opencode/reglas/
+!.opencode/skills/

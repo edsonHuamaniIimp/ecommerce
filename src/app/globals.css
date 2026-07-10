@@ -1,26 +1,118 @@
 @import "tailwindcss";
+@import "@nrivera-iimp/ui-kit-iimp/styles.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@config "../../tailwind.config.ts";
+
+@source "../../node_modules/@nrivera-iimp/ui-kit-iimp/dist";
+
+@theme {
+  --font-sans: var(--font-poppins);
+
+  @keyframes pulse-refined {
+    0% {
+      transform: scale3d(0.7, 0.7, 1);
+      border-color: var(--pulse-color, rgba(34, 197, 94, 0.5));
+      opacity: 0.8;
+    }
+    50% {
+      border-color: var(--pulse-color, rgba(34, 197, 94, 0.3));
+      opacity: 0.5;
+    }
+    100% {
+      border-color: transparent;
+      transform: scale3d(1.5, 1.5, 1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes pulse-dot {
+    0% { transform: scale(0.8); }
+    50% { transform: scale(1); }
+    100% { transform: scale(0.8); }
+  }
+
+  --animate-pulse-refined: pulse-refined 1.05s ease-out 1s infinite;
+  --animate-pulse-dot: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -0.4s infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  body {
+    top: 0 !important;
+    position: static !important;
+    @apply bg-background text-foreground;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  button,
+  a {
+    cursor: pointer;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Google Translate compatibility */
+body > .skiptranslate,
+iframe.skiptranslate,
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+.goog-logo-link,
+.goog-te-gadget,
+.goog-te-gadget span,
+.goog-te-spinner-pos,
+.VIpgJd-ZVi9od-ORHb-OEVmcd,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-yAWNEb-L7lbkb,
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+html.translated-ltr body,
+html.translated-rtl body {
+  top: 0 !important;
+}
+
+/* Scrollbar corporativo */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Fix para dropdowns Radix del UI Kit */
+[data-radix-select-content] {
+  max-height: 350px !important;
+  overflow-y: auto !important;
+}
+
+[role="listbox"] {
+  background-color: white !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+}
+
+/* Fix global para botones en tablas — override variant="default" de shadcn */
+tr button.bg-primary:not(.text-primary-foreground):not(.text-white),
+button.p-2.bg-primary:not(.text-primary-foreground):not(.text-white),
+button.p-1.bg-primary:not(.text-white) {
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+tr button.bg-primary:not(.text-primary-foreground):not(.text-white):not(:hover),
+button.p-2.bg-primary:not(.text-primary-foreground):not(.text-white):not(:hover),
+button.p-1.bg-primary:not(.text-white):not(:hover) {
+  background-color: transparent !important;
 }

@@ -3,3 +3,46 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+# Skills y reglas del proyecto
+
+Este proyecto define skills y reglas en `.opencode/`. opencode las descubre
+automáticamente (las de `.opencode/reglas/` están registradas en `opencode.json`
+vía `skills.paths`).
+
+## Cómo usar las reglas (biblioteca on-demand)
+
+Las reglas son una **biblioteca de consulta**, NO material de lectura obligatoria en
+cada prompt. Para ahorrar tokens:
+
+1. **No leas todas las reglas por defecto.** Solo tienes visible su `description`.
+2. Antes de actuar, **pregúntate**: "¿esta tarea toca el área de alguna regla?".
+3. Si la respuesta es sí, **entonces** carga esa regla concreta con la tool `skill`
+   y profundiza. Si no, procede sin cargarla.
+4. Carga la regla en el momento en que la necesitas (p. ej. `lineamientos-bd` justo
+   antes de modelar tablas), no "por si acaso".
+
+## Reglas disponibles (`.opencode/reglas/`)
+
+- `code-production-process` — pipeline de calidad para cualquier implementación no trivial.
+- `code-review-standards` — estándares de revisión de código.
+- `test-driven-development` — escribir tests antes/junto al código.
+- `systematic-debugging` — diagnóstico de bugs guiado por causa raíz.
+- `verification-before-completion` — verificar antes de declarar algo terminado.
+- `pre-merge` — checklist antes de integrar cambios.
+- `security-scanning` — revisión de seguridad.
+- `api-design-patterns` — diseño de APIs (REST/route handlers). Documentar las APIs con **Swagger/OpenAPI** (`docs/openapi.yaml`). Patrones obligatorios: Fachada de Servicios, DTO/Mapper, constantes para validaciones (nunca strings hardcodeados).
+- `lineamientos-bd` — estándares/buenas prácticas de persistencia y BD (nomenclatura, PK, normalización, índices). Cargar al modelar tablas/entidades/migraciones.
+- `iimp-ui-kit` — lineamientos de estilo/frontend IIMP: UI Kit (`@nrivera-iimp/ui-kit-iimp`), verticales/theming, tipado estricto y regla Radix + Google Translate. Usar SIEMPRE al construir UI.
+
+## Skills de stack (`.opencode/skills/`) — cómo construir
+
+Invoca la skill del stack al tocar su área:
+
+- `nextjs-core` — patrones de App Router, Server Components, Server Actions, caching.
+- `nextjs-v16` — novedades de Next.js 16 (Turbopack, cache components).
+- `typescript-core` — patrones y buenas prácticas de TypeScript.
+- `tailwind` — estilado utility-first con Tailwind.
+
+Regla práctica: antes de codificar una tarea, carga la skill de stack aplicable
+y la regla de metodología correspondiente.
