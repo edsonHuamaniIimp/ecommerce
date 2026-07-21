@@ -79,7 +79,7 @@ async function main() {
 
   /* ---------- Roles ---------- */
   const roles = [
-    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "read:reservas", "write:reservas", "approve:all"] },
+    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all"] },
     { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["read:reservas", "approve:logistica"] },
     { nombre: "legal", descripcion: "Area Legal", permisos: ["read:reservas", "approve:legal"] },
     { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["read:reservas", "approve:comunicacion"] },

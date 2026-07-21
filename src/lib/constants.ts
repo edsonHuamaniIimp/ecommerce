@@ -115,11 +115,26 @@ export const ROLES = {
 export type Rol = (typeof ROLES)[keyof typeof ROLES];
 
 export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
-  [ROLES.ADMIN]: ["admin:full", "read:reservas", "write:reservas", "approve:all"],
+  [ROLES.ADMIN]: ["admin:full", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all"],
   [ROLES.LOGISTICA]: ["read:reservas", "approve:logistica"],
   [ROLES.LEGAL]: ["read:reservas", "approve:legal"],
   [ROLES.COMUNICACION]: ["read:reservas", "approve:comunicacion"],
 };
+
+export const ALL_PERMISSIONS = [
+  "admin:full",
+  "read:reservas",
+  "write:reservas",
+  "approve:all",
+  "approve:logistica",
+  "approve:legal",
+  "approve:comunicacion",
+  "events:create",
+  "events:edit",
+  "events:toggle",
+] as const;
+
+export type Permission = (typeof ALL_PERMISSIONS)[number];
 
 /* ================================================================
    Estados de aprobación individual

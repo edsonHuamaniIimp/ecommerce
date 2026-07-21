@@ -31,6 +31,7 @@ cada prompt. Para ahorrar tokens:
 - `verification-before-completion` — verificar antes de declarar algo terminado.
 - `pre-merge` — checklist antes de integrar cambios.
 - `security-scanning` — revisión de seguridad.
+- `constants-first` — **CRITICAL**: usar SIEMPRE constantes de `src/lib/constants.ts` para validaciones, estados, roles y permisos. Nunca strings o numeros hardcodeados.
 - `api-design-patterns` — diseño de APIs (REST/route handlers). Documentar las APIs con **Swagger/OpenAPI** (`docs/openapi.yaml`). Patrones obligatorios: Fachada de Servicios, DTO/Mapper, constantes para validaciones (nunca strings hardcodeados).
 - `lineamientos-bd` — estándares/buenas prácticas de persistencia y BD (nomenclatura, PK, normalización, índices). Cargar al modelar tablas/entidades/migraciones.
 - `iimp-ui-kit` — lineamientos de estilo/frontend IIMP: UI Kit (`@nrivera-iimp/ui-kit-iimp`), verticales/theming, tipado estricto y regla Radix + Google Translate. Usar SIEMPRE al construir UI.
