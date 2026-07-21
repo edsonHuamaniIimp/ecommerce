@@ -13,15 +13,6 @@ import { ESTADOS_STAND } from "@/lib/constants";
 const COLS = 4;         // 4 stands por fila
 const AISLE_AFTER = 2;  // pasillo entre columna 2 y 3
 
-const COLOR_MAP: Record<string, string> = {
-  [ESTADOS_STAND.DISPONIBLE]:
-    "bg-white border-slate-300 text-slate-700 hover:border-primary hover:bg-primary/5",
-  [ESTADOS_STAND.EN_EVALUACION]:
-    "bg-slate-200 border-slate-400 text-slate-600",
-  [ESTADOS_STAND.RESERVADO]:
-    "bg-emerald-100 border-emerald-400 text-emerald-800",
-};
-
 interface PlanoGridProps {
   stands: PlanoStand[];
 }
@@ -99,9 +90,10 @@ export function PlanoGrid({ stands }: PlanoGridProps) {
 
               {/* Leyenda */}
               <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                <Legend color="bg-white border-slate-300" label="Disponible" />
-                <Legend color="bg-slate-200 border-slate-400" label="En evaluación" />
-                <Legend color="bg-emerald-100 border-emerald-400" label="Reservado" />
+                <Legend color="#FFD700" label="Columna Extrema (S)" />
+                <Legend color="#32CD32" label="Preferencial (P)" />
+                <Legend color="#90EE90" label="Estándar A (C)" />
+                <Legend color="#006400" label="Isla Grande (BG)" />
                 <Legend color="bg-primary border-primary text-primary-foreground" label="Seleccionado" />
               </div>
             </div>
@@ -170,19 +162,20 @@ function Seat({
   onToggle: (id: string) => void;
 }) {
   const disabled = stand.estado !== ESTADOS_STAND.DISPONIBLE;
-  const base = COLOR_MAP[stand.estado] ?? COLOR_MAP[ESTADOS_STAND.DISPONIBLE];
-  const variant = selected
+  const hex = stand.color ?? "#e2e8f0";
+  const base = selected
     ? "bg-primary border-primary text-primary-foreground shadow-sm scale-105 z-10"
-    : base;
+    : "";
 
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={() => onToggle(stand.id)}
+      style={selected ? {} : { backgroundColor: hex, borderColor: hex, color: isLight(hex) ? "#0f172a" : "#ffffff" }}
       className={`flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border-2 text-center text-[11px] font-bold leading-tight transition-all ${
         disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:shadow-md"
-      } ${variant}`}
+      } ${base}`}
     >
       <span className="text-[9px] uppercase tracking-wider opacity-60">
         {stand.tipoStand.slice(0, 4)}
@@ -190,6 +183,14 @@ function Seat({
       <span>{stand.numero}</span>
     </button>
   );
+}
+
+/** Detecta si un color hex es claro para elegir texto oscuro o blanco */
+function isLight(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return r * 0.299 + g * 0.587 + b * 0.114 > 150;
 }
 
 function Legend({ color, label }: { color: string; label: string }) {

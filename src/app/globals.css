@@ -36,6 +36,12 @@
 }
 
 @layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border, #e5e7eb);
+  }
+
   body {
     top: 0 !important;
     position: static !important;
