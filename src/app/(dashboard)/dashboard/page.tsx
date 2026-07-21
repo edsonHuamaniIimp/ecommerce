@@ -2,12 +2,31 @@ import { eventosService, planoService, reservasService } from "@/lib/api/service
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { AprobacionesSection } from "@/components/dashboard/aprobaciones-section";
 import { ESTADOS_STAND, ESTADOS_RESERVA } from "@/lib/constants";
+import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  let eventoId = "ev-perumin39";
+  let eventoPadreNombre = "PERUMIN";
+  let eventoAnio = "2026";
+
+  if (session?.eventoId) {
+    const evento = await prisma.evento.findUnique({
+      where: { id: session.eventoId },
+      include: { eventoPadre: { select: { nombre: true } } },
+    });
+    if (evento) {
+      eventoId = evento.id;
+      eventoPadreNombre = evento.eventoPadre.nombre;
+      eventoAnio = evento.anio;
+    }
+  }
+
   const [contexto, stands, reservas] = await Promise.all([
     eventosService.getEventoActual(),
-    planoService.getPlano("ev-perumin38"),
-    reservasService.list("ev-perumin38"),
+    planoService.getPlano(eventoId),
+    reservasService.list(eventoId),
   ]);
   const eventos = await eventosService.listEventos(contexto.evento.eventoPadreId);
 
@@ -33,6 +52,7 @@ export default async function DashboardPage() {
         eventos={eventos}
         eventoActual={contexto.evento}
         stats={stats}
+        eventoNombre={`${eventoPadreNombre} ${eventoAnio}`}
       />
       <div className="px-6 pb-10 lg:px-10">
         <AprobacionesSection reservas={reservas} />

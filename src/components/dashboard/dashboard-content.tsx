@@ -18,6 +18,7 @@ interface DashboardContentProps {
     montoTotal: string;
     procesoCount: string;
   };
+  eventoNombre?: string;
 }
 
 export function DashboardContent({
@@ -25,13 +26,14 @@ export function DashboardContent({
   eventos,
   eventoActual,
   stats,
+  eventoNombre,
 }: DashboardContentProps) {
   return (
     <main className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-6">
         <div className="flex-1">
           <p className="text-sm font-semibold tracking-tight text-slate-700">
-            Panel de Control — {eventoActual.eventoPadreId.toUpperCase()} {eventoActual.anio}
+            Panel de Control — {eventoNombre ?? `${eventoActual.eventoPadreId.toUpperCase()} ${eventoActual.anio}`}
           </p>
         </div>
         <EventoSelector

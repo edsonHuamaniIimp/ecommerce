@@ -46,7 +46,7 @@ export default function PresalaPage() {
     })();
   }, []);
 
-  const handleSelect = async (eventoId: string) => {
+  const handleSelect = async (eventoId: string, vertical: string) => {
     setSelecting(eventoId);
     try {
       const res = await fetch("/api/auth/seleccionar-evento", {
@@ -55,6 +55,12 @@ export default function PresalaPage() {
         body: JSON.stringify({ eventoId }),
       });
       if (!res.ok) throw new Error("Error");
+      localStorage.setItem("iimp-vertical", vertical);
+      document.documentElement.classList.forEach((c) => {
+        if (c.startsWith("vert-")) document.documentElement.classList.remove(c);
+      });
+      document.documentElement.classList.add(`vert-${vertical}`);
+      document.documentElement.setAttribute("data-vertical", vertical);
       router.push("/dashboard");
     } catch {
       // ignore
@@ -97,7 +103,7 @@ export default function PresalaPage() {
                         key={ver.id}
                         type="button"
                         disabled={selecting === ver.id}
-                        onClick={() => handleSelect(ver.id)}
+                        onClick={() => handleSelect(ver.id, ep.vertical)}
                         className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all hover:border-primary hover:shadow-md active:bg-slate-50"
                       >
                         <span className="text-sm font-semibold text-slate-800">{ep.nombre} {ver.anio}</span>

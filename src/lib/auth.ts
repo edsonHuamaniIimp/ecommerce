@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { ROLES, ROLES_PERMISSIONS } from "@/lib/constants";
 import type { Rol } from "@/lib/constants";
 import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret-cambiar-en-produccion");
 const ISSUER = "contratos-stands";
@@ -62,4 +63,15 @@ export function hasRole(payload: JwtPayload, ...roles: Rol[]): boolean {
 
 export function hasPermission(payload: JwtPayload, permission: string): boolean {
   return payload.permissions.includes(permission) || payload.roles.includes(ROLES.ADMIN);
+}
+
+export async function getSession(): Promise<JwtPayload | null> {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    if (!token) return null;
+    return verifyToken(token);
+  } catch {
+    return null;
+  }
 }

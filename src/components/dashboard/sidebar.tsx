@@ -4,6 +4,7 @@ import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -18,6 +19,21 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [eventoNombre, setEventoNombre] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        const json = await res.json();
+        if (json.authenticated && json.eventoNombre) {
+          setEventoNombre(json.eventoNombre);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -36,7 +52,12 @@ export function Sidebar() {
         <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
           IIMP
         </span>
-        <span className="text-sm font-semibold text-slate-700">Contratos Stands</span>
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-semibold text-slate-700">Contratos Stands</span>
+          {eventoNombre && (
+            <p className="truncate text-[10px] text-muted-foreground">{eventoNombre}</p>
+          )}
+        </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         <p className="px-3 py-2 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-slate-400">
