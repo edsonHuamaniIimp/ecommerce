@@ -40,7 +40,7 @@
 | GET | `/reservas` | Lista reservas (dashboard). |
 | GET | `/reservas/{reservaId}` | Detalle de reserva. |
 | GET | `/reservas/{reservaId}/contrato` | Descarga contrato (PDF) por tipo de stand. |
-| POST | `/reservas/{reservaId}/aprobaciones` | Resolución de un área (Legal/Logística/Eventos). |
+| POST | `/reservas/{reservaId}/aprobaciones` | Resolución de un área (Legal/Logística/Comunicación). |
 | POST | `/reservas/{reservaId}/facturacion` | Envía reserva a facturación (SAP/John). |
 | POST | `/interop/facturacion/callback` | Callback con orden/comprobante y ocupados. |
 | GET | `/empresas?q=` | Búsqueda de empresas (proxy a fuente única). |

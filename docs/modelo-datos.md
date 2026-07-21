@@ -104,7 +104,7 @@ erDiagram
     APROBACION {
         string id PK
         string reservaId FK
-        string area "legal|logistica|eventos"
+        string area "legal|logistica|comunicacion"
         string estado "pendiente|aprobado|rechazado"
         string responsable
         string comentario
@@ -219,7 +219,7 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 | --- | --- | --- | --- |
 | id | id/uuid | No | PK. |
 | reservaId | FK | No | → reserva. |
-| area | enum | No | legal/logistica/eventos. |
+| area | enum | No | legal/logistica/comunicacion. |
 | estado | enum | No | pendiente/aprobado/rechazado. |
 | responsable | string | Sí | Usuario que resuelve. |
 | comentario | string | Sí | Observación. |
