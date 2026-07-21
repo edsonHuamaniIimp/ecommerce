@@ -42,6 +42,11 @@ export function Header() {
           })}
         </nav>
         <div className="flex-1" />
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/auth/login">
+            <span>Ingresar</span>
+          </Link>
+        </Button>
         <VerticalSwitcher />
       </div>
     </header>

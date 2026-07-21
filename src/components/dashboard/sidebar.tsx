@@ -1,9 +1,9 @@
 "use client";
 
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, LogOut } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -17,6 +17,13 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/auth/login");
+    router.refresh();
+  };
   const isDashboard = pathname.startsWith("/dashboard");
 
   return (
@@ -55,11 +62,10 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-slate-200 p-3">
-        <Button variant="ghost" size="sm" className="w-full justify-start text-slate-400" asChild>
-          <Link href="/">
-            <span>Salir</span>
-          </Link>
+      <div className="border-t p-3">
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleLogout}>
+          <LogOut className="h-4 w-4" />
+          <span>Cerrar sesion</span>
         </Button>
       </div>
     </aside>
