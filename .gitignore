@@ -18,6 +18,9 @@
 /build
 next-env.d.ts
 
+# prisma generated client
+/prisma/generated/
+
 # testing / coverage
 /coverage
 

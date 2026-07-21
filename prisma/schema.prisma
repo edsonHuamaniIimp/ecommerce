@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/* ================================================================
+   1. MAESTRAS — catálogos que rara vez cambian
+   ================================================================ */
+
+model EventoPadre {
+  id       String   @id @default(uuid())
+  codigo   String   @unique @db.VarChar(20)
+  vertical String   @db.VarChar(20)
+  nombre   String   @db.VarChar(100)
+  eventos  Evento[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("evento_padre")
+}
+
+model Evento {
+  id             String      @id @default(uuid())
+  eventoPadreId  String      @map("evento_padre_id")
+  tipoEvento     Int         @map("tipo_evento")
+  codigoEvento   Int         @map("codigo_evento")
+  anio           String      @db.VarChar(4)
+  estado         String      @default("active") @db.VarChar(20)
+  planoRef       String?     @map("plano_ref") @db.VarChar(255)
+
+  eventoPadre    EventoPadre    @relation(fields: [eventoPadreId], references: [id])
+  tiposStand     TipoStand[]
+  stands         Stand[]
+  gessStands     GessStand[]
+  reservas       Reserva[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([eventoPadreId])
+  @@index([estado])
+  @@map("evento")
+}
+
+model TipoStand {
+  id        String @id @default(uuid())
+  eventoId  String @map("evento_id")
+  nombre    String @db.VarChar(50)
+  medidas   String? @db.VarChar(50)
+  montoBase Float  @map("monto_base")
+  moneda    String @default("USD") @db.VarChar(3)
+
+  evento    Evento          @relation(fields: [eventoId], references: [id])
+  stands    Stand[]
+  plantillas ContratoPlantilla[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([eventoId])
+  @@map("tipo_stand")
+}
+
+model ContratoPlantilla {
+  id         String    @id @default(uuid())
+  tipoStandId String   @map("tipo_stand_id")
+  nombre     String    @db.VarChar(100)
+  url        String?   @db.VarChar(500)
+
+  tipoStand  TipoStand @relation(fields: [tipoStandId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("contrato_plantilla")
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  nombre      String     @unique @db.VarChar(50)
+  descripcion String?    @db.VarChar(200)
+  permisos    String[]   @default([])
+
+  usuarios    UserRole[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("role")
+}
+
+model UserRole {
+  id       String @id @default(uuid())
+  userId   String @map("user_id") @db.VarChar(100)
+  roleId   String @map("role_id")
+  email    String @db.VarChar(200)
+
+  role     Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([email])
+  @@map("user_role")
+}
+
+/* ================================================================
+   2. TRANSACCIONALES — datos que cambian con frecuencia
+   ================================================================ */
+
+model Stand {
+  id           String     @id @default(uuid())
+  eventoId     String     @map("evento_id")
+  tipoStandId  String     @map("tipo_stand_id")
+  numero       String     @db.VarChar(20)
+  monto        Float
+  moneda       String     @default("USD") @db.VarChar(3)
+  estado       String     @default("disponible") @db.VarChar(20)
+  tipoCamara   String?    @map("tipo_camara") @db.VarChar(20)
+  numeroCamara String?    @map("numero_camara") @db.VarChar(20)
+
+  evento       Evento        @relation(fields: [eventoId], references: [id])
+  tipoStand    TipoStand     @relation(fields: [tipoStandId], references: [id])
+  posicion     PlanoPosicion?
+  reservas     ReservaStand[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([eventoId, estado])
+  @@map("stand")
+}
+
+model PlanoPosicion {
+  id      String @id @default(uuid())
+  standId String @unique @map("stand_id")
+  x       Float
+  y       Float
+
+  stand   Stand  @relation(fields: [standId], references: [id])
+
+  @@map("plano_posicion")
+}
+
+model GessStand {
+  id          String  @id @default(uuid())
+  eventoId    String  @map("evento_id")
+  standApiId  String  @map("stand_api_id") @db.VarChar(50)
+  standCode   String  @map("stand_code") @db.VarChar(50)
+  tipoStand   String? @map("tipo_stand") @db.VarChar(100)
+  medidas     String? @db.VarChar(100)
+  estado      String? @db.VarChar(50)
+  empresa     String? @db.VarChar(200)
+  pabellon    String? @db.VarChar(50)
+  ubicacion   String? @db.VarChar(100)
+  rawData     Json?   @map("raw_data")
+  bloqueId    String? @map("bloque_id") @db.VarChar(50)
+
+  evento      Evento  @relation(fields: [eventoId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([eventoId, standApiId])
+  @@index([eventoId])
+  @@index([bloqueId])
+  @@map("gess_stand")
+}
+
+/* ================================================================
+   3. RESERVAS — ciclo completo de reserva
+   ================================================================ */
+
+model Reserva {
+  id                String           @id @default(uuid())
+  eventoId          String           @map("evento_id")
+  empresaRef        String           @map("empresa_ref") @db.VarChar(100)
+  tipoComprobante   String           @map("tipo_comprobante") @db.VarChar(20)
+  datosFacturacion  Json            @map("datos_facturacion")
+  responsablePago   Json?           @map("responsable_pago")
+  estado            String           @default("registrada") @db.VarChar(20)
+
+  evento            Evento           @relation(fields: [eventoId], references: [id])
+  stands            ReservaStand[]
+  cuotas            Cuota[]
+  aprobaciones      Aprobacion[]
+  interop           InteropFacturacion?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([eventoId])
+  @@index([estado])
+  @@index([empresaRef])
+  @@map("reserva")
+}
+
+model ReservaStand {
+  id        String @id @default(uuid())
+  reservaId String @map("reserva_id")
+  standId   String @map("stand_id")
+  tipoStand String @map("tipo_stand") @db.VarChar(50)
+  monto     Float
+  moneda    String @default("USD") @db.VarChar(3)
+
+  reserva   Reserva @relation(fields: [reservaId], references: [id])
+  stand     Stand   @relation(fields: [standId], references: [id])
+
+  @@index([reservaId])
+  @@index([standId])
+  @@map("reserva_stand")
+}
+
+model Cuota {
+  id        String @id @default(uuid())
+  reservaId String @map("reserva_id")
+  numero    Int
+  porcentaje Float
+  monto     Float
+  fechaPago DateTime? @map("fecha_pago")
+
+  reserva   Reserva @relation(fields: [reservaId], references: [id])
+
+  @@index([reservaId])
+  @@map("cuota")
+}
+
+model Aprobacion {
+  id          String    @id @default(uuid())
+  reservaId   String    @map("reserva_id")
+  area        String    @db.VarChar(20)
+  estado      String    @default("pendiente") @db.VarChar(20)
+  responsable String?   @db.VarChar(100)
+  comentario  String?
+  fecha       DateTime?
+
+  reserva     Reserva   @relation(fields: [reservaId], references: [id])
+
+  @@index([reservaId])
+  @@map("aprobacion")
+}
+
+model InteropFacturacion {
+  id          String  @id @default(uuid())
+  reservaId   String  @unique @map("reserva_id")
+  ordenVenta  String? @map("orden_venta") @db.VarChar(50)
+  comprobante String? @db.VarChar(50)
+  estado      String  @default("enviado") @db.VarChar(20)
+  requestRef  Json?   @map("request_ref")
+  responseRef Json?   @map("response_ref")
+
+  reserva     Reserva @relation(fields: [reservaId], references: [id])
+
+  @@map("interop_facturacion")
+}
+
+/* ================================================================
+   4. AUDITORÍA
+   ================================================================ */
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tipo      String   @db.VarChar(30)
+  entidad   String?  @db.VarChar(100)
+  actor     String?  @db.VarChar(100)
+  mensaje   String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tipo])
+  @@index([entidad])
+  @@index([createdAt])
+  @@map("audit_log")
+}
