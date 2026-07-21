@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { ROLES, ALL_PERMISSIONS } from "@/lib/constants";
-import type { Rol } from "@/lib/constants";
 
 interface UsuarioRow {
   id: string;
@@ -25,7 +24,7 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<string>(ROLES.ADMIN);
   const [saving, setSaving] = useState(false);
-  const [editingPerms, setEditingPerms] = useState<Record<string, string[]>>({});
+  const [expandedRole, setExpandedRole] = useState<string | null>(null);
 
   const handleAddUser = async () => {
     if (!newUserEmail.trim()) return;
@@ -55,7 +54,9 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
       if (!res.ok) throw new Error("Error");
       setRows((prev) =>
         prev.map((r) =>
-          r.id === roleId ? { ...r, usuarios: r.usuarios.filter((u) => u.id !== userId), count: r.count - 1 } : r,
+          r.id === roleId
+            ? { ...r, usuarios: r.usuarios.filter((u) => u.id !== userId), count: r.count - 1 }
+            : r,
         ),
       );
     } catch {
@@ -63,45 +64,28 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
     }
   };
 
-  const startEditPerms = (roleId: string, permisos: string[]) => {
-    setEditingPerms((prev) => ({ ...prev, [roleId]: [...permisos] }));
-  };
+  const togglePerm = async (roleId: string, perm: string) => {
+    const role = rows.find((r) => r.id === roleId);
+    if (!role) return;
+    const next = role.permisos.includes(perm)
+      ? role.permisos.filter((p) => p !== perm)
+      : [...role.permisos, perm];
 
-  const togglePerm = (roleId: string, perm: string) => {
-    setEditingPerms((prev) => {
-      const current = prev[roleId] ?? [];
-      const next = current.includes(perm) ? current.filter((p) => p !== perm) : [...current, perm];
-      return { ...prev, [roleId]: next };
-    });
-  };
+    setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: next } : r)));
 
-  const savePerms = async (roleId: string) => {
-    const perms = editingPerms[roleId];
-    if (!perms) return;
     try {
-      const res = await fetch("/api/roles", {
+      await fetch("/api/roles", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: roleId, permisos: perms }),
-      });
-      if (!res.ok) throw new Error("Error");
-      setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: perms } : r)));
-      setEditingPerms((prev) => {
-        const next = { ...prev };
-        delete next[roleId];
-        return next;
+        body: JSON.stringify({ id: roleId, permisos: next }),
       });
     } catch {
-      // ignore
+      setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: role.permisos } : r)));
     }
   };
 
-  const cancelEdit = (roleId: string) => {
-    setEditingPerms((prev) => {
-      const next = { ...prev };
-      delete next[roleId];
-      return next;
-    });
+  const toggleExpand = (id: string) => {
+    setExpandedRole((prev) => (prev === id ? null : id));
   };
 
   return (
@@ -120,8 +104,8 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
           <Select value={newUserRole} onValueChange={setNewUserRole}>
             <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {Object.values(ROLES).map((r) => (
-                <SelectItem key={r} value={rows.find((row) => row.nombre === r)?.id ?? r}><span>{r}</span></SelectItem>
+              {rows.map((r) => (
+                <SelectItem key={r.id} value={r.id}><span className="capitalize">{r.nombre}</span></SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -131,70 +115,100 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
         </CardContent>
       </Card>
 
-      {rows.map((role) => {
-        const isEditing = role.id in editingPerms;
-        const currentPerms = isEditing ? editingPerms[role.id] : role.permisos;
-        return (
-          <Card key={role.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle><span className="capitalize">{role.nombre}</span></CardTitle>
-                <Badge variant="secondary"><span>{role.count} usuarios</span></Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">{role.descripcion ?? "Sin descripcion"}</p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Permisos</p>
-                  {isEditing ? (
-                    <div className="flex gap-1">
-                      <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => savePerms(role.id)}><span>Guardar</span></Button>
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => cancelEdit(role.id)}><span>Cancelar</span></Button>
-                    </div>
-                  ) : (
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => startEditPerms(role.id, role.permisos)}><span>Editar permisos</span></Button>
-                  )}
-                </div>
-                {isEditing ? (
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_PERMISSIONS.map((perm) => {
-                      const checked = currentPerms.includes(perm);
-                      return (
-                        <label key={perm} className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${checked ? "border-primary bg-primary/10 text-primary" : "border-slate-200 text-muted-foreground hover:border-slate-300"}`}>
-                          <input type="checkbox" checked={checked} onChange={() => togglePerm(role.id, perm)} className="h-3 w-3" />
-                          <span>{perm}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {role.permisos.map((p) => (
-                      <Badge key={p} variant="outline" className="text-[10px]"><span>{p}</span></Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {role.usuarios.length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Usuarios asignados</p>
-                  <div className="space-y-1">
-                    {role.usuarios.map((u) => (
-                      <div key={u.id} className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-1.5 text-xs">
-                        <span className="text-muted-foreground">{u.email}</span>
-                        <Button variant="ghost" size="sm" className="h-6 text-xs text-red-500 hover:text-red-700" onClick={() => handleRemoveUser(u.id, role.id)}>
-                          <span>Quitar</span>
-                        </Button>
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-slate-50 text-left text-xs font-semibold uppercase text-muted-foreground">
+              <th className="w-8 p-3"></th>
+              <th className="p-3">Rol</th>
+              <th className="p-3 hidden sm:table-cell">Descripcion</th>
+              <th className="p-3">Permisos</th>
+              <th className="p-3">Usuarios</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((role) => {
+              const isOpen = expandedRole === role.id;
+              return (
+                <Fragment key={role.id}>
+                  <tr className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(role.id)}>
+                    <td className="p-3 text-xs text-muted-foreground">{isOpen ? "▾" : "▸"}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[10px] font-bold text-primary-foreground">
+                          {role.nombre.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="font-medium capitalize">{role.nombre}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+                    </td>
+                    <td className="p-3 hidden sm:table-cell">
+                      <span className="text-xs text-muted-foreground">{role.descripcion ?? "—"}</span>
+                    </td>
+                    <td className="p-3">
+                      <span className="text-xs text-muted-foreground">{role.permisos.length} de {ALL_PERMISSIONS.length}</span>
+                    </td>
+                    <td className="p-3">
+                      <Badge variant="secondary" className="text-[10px]"><span>{role.count}</span></Badge>
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr key={`${role.id}-expanded`}>
+                      <td colSpan={5} className="border-b bg-slate-50/50 p-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Permisos</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ALL_PERMISSIONS.map((perm) => {
+                                const checked = role.permisos.includes(perm);
+                                return (
+                                  <button
+                                    key={perm}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); togglePerm(role.id, perm); }}
+                                    className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${
+                                      checked
+                                        ? "border-primary/40 bg-primary/10 text-primary font-medium"
+                                        : "border-slate-200 text-muted-foreground hover:border-slate-300"
+                                    }`}
+                                  >
+                                    {perm}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Usuarios ({role.count})</p>
+                            {role.usuarios.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">Sin usuarios asignados</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {role.usuarios.map((u) => (
+                                  <div key={u.id} className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-xs border">
+                                    <span className="truncate text-muted-foreground">{u.email}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="ml-2 h-6 text-[10px] text-red-500 hover:text-red-700"
+                                      onClick={(e) => { e.stopPropagation(); handleRemoveUser(u.id, role.id); }}
+                                    >
+                                      <span>Quitar</span>
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
