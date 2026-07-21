@@ -37,23 +37,28 @@ async function main() {
   /* ---------- Eventos ---------- */
   const evPerumin = await prisma.evento.upsert({
     where: { id: "ev-perumin38" },
+    update: { estado: "closed", fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") },
+    create: { id: "ev-perumin38", eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 1, anio: "2025", estado: "closed", fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") },
+  });
+  await prisma.evento.upsert({
+    where: { id: "ev-perumin39" },
     update: {},
-    create: { id: "ev-perumin38", eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 1, anio: "2026", estado: "active" },
+    create: { id: "ev-perumin39", eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 2, anio: "2026", estado: "active", fechaInicio: new Date("2026-09-21"), fechaFin: new Date("2026-09-25") },
   });
   await prisma.evento.upsert({
     where: { id: "ev-proexplo2026" },
     update: {},
-    create: { id: "ev-proexplo2026", eventoPadreId: proexplo.id, tipoEvento: 5, codigoEvento: 1, anio: "2026", estado: "active" },
+    create: { id: "ev-proexplo2026", eventoPadreId: proexplo.id, tipoEvento: 5, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-05-11"), fechaFin: new Date("2026-05-14") },
   });
   await prisma.evento.upsert({
     where: { id: "ev-wmc2026" },
     update: {},
-    create: { id: "ev-wmc2026", eventoPadreId: wmc.id, tipoEvento: 7, codigoEvento: 1, anio: "2026", estado: "active" },
+    create: { id: "ev-wmc2026", eventoPadreId: wmc.id, tipoEvento: 7, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-10-05"), fechaFin: new Date("2026-10-08") },
   });
   await prisma.evento.upsert({
     where: { id: "ev-gess2026" },
     update: {},
-    create: { id: "ev-gess2026", eventoPadreId: gess.id, tipoEvento: 3, codigoEvento: 1, anio: "2026", estado: "active" },
+    create: { id: "ev-gess2026", eventoPadreId: gess.id, tipoEvento: 3, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-06-15"), fechaFin: new Date("2026-06-17") },
   });
 
   /* ---------- Tipos de Stand ---------- */

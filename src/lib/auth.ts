@@ -13,11 +13,18 @@ export interface JwtPayload {
   name: string;
   roles: Rol[];
   permissions: string[];
+  eventoId?: string;
+  eventoPadreId?: string;
 }
 
-export async function signToken(payload: Omit<JwtPayload, "permissions"> & { permissions?: string[] }): Promise<string> {
+export async function signToken(payload: Omit<JwtPayload, "permissions"> & {
+  permissions?: string[];
+  eventoId?: string;
+  eventoPadreId?: string;
+}): Promise<string> {
   const permissions = payload.roles.flatMap((r) => ROLES_PERMISSIONS[r] ?? []);
-  return new SignJWT({ ...payload, permissions } as unknown as Record<string, unknown>)
+  const tokenPayload: Record<string, unknown> = { ...payload, permissions };
+  return new SignJWT(tokenPayload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)

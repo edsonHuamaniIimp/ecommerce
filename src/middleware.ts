@@ -6,6 +6,8 @@ const PROTECTED: { path: string; roles: string[] }[] = [
   { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
   { path: "/gess-mantenedor", roles: [ROLES.ADMIN] },
   { path: "/admin-roles", roles: [ROLES.ADMIN] },
+  { path: "/admin-eventos", roles: [ROLES.ADMIN] },
+  { path: "/api/eventos", roles: [ROLES.ADMIN] },
   { path: "/planogess", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
   { path: "/api/roles", roles: [ROLES.ADMIN] },
 ];
@@ -13,22 +15,22 @@ const PROTECTED: { path: string; roles: string[] }[] = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/auth/login" || pathname.startsWith("/api/auth/")) {
+  if (pathname === "/auth/login" || pathname === "/presala" || pathname.startsWith("/api/auth/") || pathname === "/api/eventos/presala") {
     return NextResponse.next();
   }
 
   for (const route of PROTECTED) {
     if (pathname.startsWith(route.path)) {
       const token = getTokenFromRequest(request);
-      if (!token) {
-        return redirectToLogin(request);
-      }
+      if (!token) return redirectToLogin(request);
       const payload = await verifyToken(token);
-      if (!payload) {
-        return redirectToLogin(request);
-      }
+      if (!payload) return redirectToLogin(request);
       if (!hasRole(payload, ...(route.roles as typeof ROLES[keyof typeof ROLES][]))) {
         return NextResponse.redirect(new URL("/403", request.url));
+      }
+      if (payload.roles.includes(ROLES.ADMIN)) break;
+      if (!payload.eventoId) {
+        return NextResponse.redirect(new URL("/presala", request.url));
       }
       break;
     }

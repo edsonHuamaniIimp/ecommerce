@@ -32,12 +32,16 @@ model Evento {
   anio           String      @db.VarChar(4)
   estado         String      @default("active") @db.VarChar(20)
   planoRef       String?     @map("plano_ref") @db.VarChar(255)
+  fechaInicio    DateTime?   @map("fecha_inicio")
+  fechaFin       DateTime?   @map("fecha_fin")
+  imagen         String?     @db.VarChar(500)
 
   eventoPadre    EventoPadre    @relation(fields: [eventoPadreId], references: [id])
   tiposStand     TipoStand[]
   stands         Stand[]
   gessStands     GessStand[]
   reservas       Reserva[]
+  plantillas     ContratoPlantilla[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -69,10 +73,12 @@ model TipoStand {
 model ContratoPlantilla {
   id         String    @id @default(uuid())
   tipoStandId String   @map("tipo_stand_id")
+  eventoId   String?   @map("evento_id")
   nombre     String    @db.VarChar(100)
   url        String?   @db.VarChar(500)
 
   tipoStand  TipoStand @relation(fields: [tipoStandId], references: [id])
+  evento     Evento?   @relation(fields: [eventoId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
