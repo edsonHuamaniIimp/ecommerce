@@ -119,19 +119,21 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
                         <TableCell colSpan={5} className="bg-muted/30">
                           <div className="flex flex-wrap gap-1.5 py-1">
                             {ALL_PERMISSIONS.map((perm) => {
-                              const checked = role.permisos.includes(perm);
+                              const checked = role.permisos.includes(perm.key);
                               return (
-                                <button
-                                  key={perm}
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); togglePerm(role.id, perm); }}
-                                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                                <label
+                                  key={perm.key}
+                                  className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
                                     checked ? "border-primary/40 bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/30"
                                   }`}
                                 >
-                                  <Checkbox checked={checked} className="pointer-events-none h-3 w-3" />
-                                  <span>{perm}</span>
-                                </button>
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => togglePerm(role.id, perm.key)}
+                                    className="h-3 w-3"
+                                  />
+                                  <span>{perm.label}</span>
+                                </label>
                               );
                             })}
                           </div>

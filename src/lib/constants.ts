@@ -122,19 +122,19 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
 };
 
 export const ALL_PERMISSIONS = [
-  "admin:full",
-  "read:reservas",
-  "write:reservas",
-  "approve:all",
-  "approve:logistica",
-  "approve:legal",
-  "approve:comunicacion",
-  "events:create",
-  "events:edit",
-  "events:toggle",
+  { key: "admin:full", label: "Acceso total", descripcion: "Control completo del sistema" },
+  { key: "read:reservas", label: "Ver reservas", descripcion: "Consultar lista y detalle de reservas" },
+  { key: "write:reservas", label: "Crear reservas", descripcion: "Registrar nuevas reservas de stands" },
+  { key: "approve:all", label: "Aprobar todo", descripcion: "Aprobar en cualquier area" },
+  { key: "approve:logistica", label: "Aprobar Logistica", descripcion: "Resolver aprobaciones del area de Logistica" },
+  { key: "approve:legal", label: "Aprobar Legal", descripcion: "Resolver aprobaciones del area Legal" },
+  { key: "approve:comunicacion", label: "Aprobar Comunicacion", descripcion: "Resolver aprobaciones del area de Comunicacion" },
+  { key: "events:create", label: "Crear eventos", descripcion: "Crear nuevas versiones de eventos" },
+  { key: "events:edit", label: "Editar eventos", descripcion: "Modificar fechas e informacion de eventos" },
+  { key: "events:toggle", label: "Activar/Cerrar eventos", descripcion: "Alternar estado activo/cerrado de versiones" },
 ] as const;
 
-export type Permission = (typeof ALL_PERMISSIONS)[number];
+export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
 
 /* ================================================================
    Estados de aprobación individual
