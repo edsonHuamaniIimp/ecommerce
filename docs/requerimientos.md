@@ -434,4 +434,45 @@ Lineamientos de despliegue:
 2. Cerrar el **contrato de interoperabilidad** (endpoints, X/Y, campos de stand/cámara).
 3. Definir la **fuente única de empresas** y el modelo de consumo.
 4. Confirmar **infraestructura** de Dev/QA y estrategia de despliegue.
-5. Detallar **validaciones por área** (Legal/Logística/Eventos).
+5. Detallar **validaciones por área** (Legal/Logística/Comunicación).
+
+---
+
+## 15. Estado actual de implementación (v0.2)
+
+### 15.1 Funcionalidades implementadas
+
+| Funcionalidad | Estado |
+|---|---|
+| Plano isométrico 3D (52 bloques, multi-select, reserva 3 pasos) | Completo |
+| Plano grid 2D (52 bloques, selección, reserva) | Completo |
+| Personas 3D en plano isométrico (capsula geometry) | Completo |
+| Selección de evento (ProExplo/WMC/GESS/PERUMIN) con dialog | Completo |
+| Proxy API planogess (KBEventos) con SSL self-signed | Completo |
+| Sincronización API→BD (GessStand) con auto-detección de campos | Completo |
+| Mantenedor GESS: importar + vincular stands a bloques 3D | Completo |
+| Vinculación GessStand ↔ bloques isométricos (bloqueId) | Completo |
+| Dashboard KPIs + pipeline de aprobaciones | Completo |
+| Autenticación JWT (login, middleware, roles) | Completo |
+| Gestión de roles y permisos (admin/logistica/legal/comunicacion) | Completo |
+| Fachada de servicios (mock/http) + DTO/Mapper | Completo |
+| PostgreSQL + Prisma v7 + Docker | Completo |
+| Multi-ambiente (local/qa/production) | Completo |
+
+### 15.2 Áreas de aprobación
+
+| Área | Rol | Permisos |
+|---|---|---|
+| Logística | `logistica` | `read:reservas`, `approve:logistica` |
+| Legal | `legal` | `read:reservas`, `approve:legal` |
+| Comunicación | `comunicacion` | `read:reservas`, `approve:comunicacion` |
+| Admin | `admin` | `admin:full`, todos los anteriores |
+
+### 15.3 Pendientes
+
+- **(PC)** Contrato de interoperabilidad con John/SAP
+- **(PC)** Fuente única de empresas (integración con sistema de Niel)
+- **(PC)** Endpoint real de planogess en producción
+- Emisión de comprobantes vía SAP
+- Notificaciones por correo
+- Testing automatizado (unit + e2e)

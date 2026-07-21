@@ -246,6 +246,44 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 | metadata | json | Sí | Contexto. |
 | creadoEn | datetime | No | Timestamp. |
 
+### 4.12 `gess_stand` (Datos del API planogess)
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| eventoId | FK | No | → evento. |
+| standApiId | string(50) | No | UID del stand en el API externo. |
+| standCode | string(50) | No | Código visible (01, 02, ...). |
+| tipoStand | string(100) | Sí | PREFERENCIAL / ESTANDAR_01 / ISLAS. |
+| medidas | string(100) | Sí | Ej: "3000.00 US$". |
+| estado | string(50) | Sí | Disponible / Reservado. |
+| empresa | string(200) | Sí | Nombre de la empresa que reservó. |
+| pabellon | string(50) | Sí | Coordenadas X,Y. |
+| bloqueId | string(50) | Sí | ID del bloque 3D vinculado (EXT-IZQ-01, ...). |
+| rawData | json | Sí | Respuesta completa del API externo. |
+
+Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
+
+### 4.13 `role` (Roles del sistema)
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| nombre | string(50) | No | Único: admin/logistica/legal/comunicacion. |
+| descripcion | string(200) | Sí | Descripción del rol. |
+| permisos | string[] | No | Array de permisos asignados. |
+
+### 4.14 `user_role` (Asignación rol ↔ usuario)
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| userId | string(100) | No | ID del usuario (ej: `user\|email`). |
+| roleId | FK | No | → role. |
+| email | string(200) | No | Email del usuario. |
+
+Unique: `[userId, roleId]`. Índices: `userId`, `email`.
+
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 
 - **`empresa` / `persona_contacto`** — origen: sistema de John o base centralizada de
@@ -255,7 +293,7 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 
 ## 6. Pendientes (PC)
 
-- Confirmar **motor de BD** (relacional vs. documental) y ORM.
+- ~~Confirmar **motor de BD** (relacional vs. documental) y ORM.~~ → **PostgreSQL + Prisma v7**.
 - Confirmar **fuente única** de empresas/personas y estrategia de sincronización.
 - Confirmar si `plano_posicion` se persiste o solo se consume del servicio de John.
 - Definir reglas de unicidad/bloqueo para prevenir doble reserva (concurrencia).

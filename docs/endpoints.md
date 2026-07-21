@@ -44,6 +44,15 @@
 | POST | `/reservas/{reservaId}/facturacion` | Envía reserva a facturación (SAP/John). |
 | POST | `/interop/facturacion/callback` | Callback con orden/comprobante y ocupados. |
 | GET | `/empresas?q=` | Búsqueda de empresas (proxy a fuente única). |
+| POST | `/auth/login` | Login JWT. Recibe `{email}`, retorna token + roles. |
+| GET | `/gess?eventoId=` | Lista stands GESS vinculados por evento. |
+| GET | `/gess?bloqueId=` | Busca stand vinculado a un bloque 3D. |
+| PATCH | `/gess` | Vincula/desvincula `{id, bloqueId}`. |
+| POST | `/gess/sync` | Sincroniza stands desde API planogess externo. |
+| POST | `/planogess` | Proxy al API externo KBEventos (planogess). |
+| POST | `/roles/usuarios` | Asigna rol a usuario `{email, roleId}`. |
+| DELETE | `/roles/usuarios?userId=&roleId=` | Quita rol a usuario. |
+| GET | `/auth/login` | Página de login (renderiza UI). |
 
 ## 4. Flujos cubiertos
 
