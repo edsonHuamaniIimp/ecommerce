@@ -21,6 +21,8 @@ tags:
     description: Eventos padre y versiones (multievento)
   - name: Plano
     description: Plano interactivo y stands
+  - name: Gess
+    description: Proxy y vínculo con API planogess (KBEventos)
   - name: Reservas
     description: Registro y consulta de reservas
   - name: Aprobaciones
@@ -96,6 +98,82 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/TipoStand"
+  /gess:
+    get:
+      tags: [Gess]
+      summary: Lista stands GESS vinculados o busca por bloqueId
+      parameters:
+        - name: eventoId
+          in: query
+          schema:
+            type: string
+        - name: bloqueId
+          in: query
+          description: ID del bloque del plano isométrico (EXT-IZQ-01, ...)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/GessStand"
+                  - $ref: "#/components/schemas/GessStand"
+                  - type: "null"
+    patch:
+      tags: [Gess]
+      summary: Vincula o desvincula un stand GESS a un bloque del plano isométrico
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+                bloqueId:
+                  type: string
+                  nullable: true
+                  description: ID del bloque 3D o null para desvincular
+      responses:
+        "200":
+          description: Vínculo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GessStand"
+  /gess/sync:
+    post:
+      tags: [Gess]
+      summary: Sincroniza stands desde el API externo planogess (KBEventos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventoId]
+              properties:
+                eventoId: { type: string }
+                tipoEvento: { type: integer }
+                codigoEvento: { type: integer }
+                seleccionadas:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        "200":
+          description: Resultado de la sincronización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GessSyncResult"
   /reservas:
     post:
       tags: [Reservas]
@@ -443,7 +521,7 @@ components:
         origen:
           type: string
           enum: [john, niel, local]
-    ApiError:
+     ApiError:
       type: object
       required: [error]
       properties:
@@ -452,3 +530,27 @@ components:
         detalles:
           type: array
           items: { type: string }
+    GessStand:
+      type: object
+      required: [id, eventoId, standApiId, standCode]
+      properties:
+        id: { type: string }
+        eventoId: { type: string }
+        standApiId: { type: string, description: "UID del stand en el API externo" }
+        standCode: { type: string, description: "Código visible (01, 02, ...)" }
+        tipoStand: { type: string, nullable: true, example: "PREFERENCIAL" }
+        medidas: { type: string, nullable: true, example: "3000.00 US$" }
+        estado: { type: string, nullable: true, example: "Reservado" }
+        empresa: { type: string, nullable: true, example: "CETEMIN" }
+        pabellon: { type: string, nullable: true }
+        ubicacion: { type: string, nullable: true }
+        bloqueId: { type: string, nullable: true, description: "ID del bloque 3D vinculado" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GessSyncResult:
+      type: object
+      required: [creados, actualizados, total]
+      properties:
+        creados: { type: integer }
+        actualizados: { type: integer }
+        total: { type: integer }

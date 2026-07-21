@@ -1,5 +1,6 @@
 import { eventosService, planoService, reservasService } from "@/lib/api/services/facade";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
+import { AprobacionesSection } from "@/components/dashboard/aprobaciones-section";
 import { ESTADOS_STAND, ESTADOS_RESERVA } from "@/lib/constants";
 
 export default async function DashboardPage() {
@@ -26,11 +27,16 @@ export default async function DashboardPage() {
   };
 
   return (
-    <DashboardContent
-      reservas={reservas}
-      eventos={eventos}
-      eventoActual={contexto.evento}
-      stats={stats}
-    />
+    <>
+      <DashboardContent
+        reservas={reservas}
+        eventos={eventos}
+        eventoActual={contexto.evento}
+        stats={stats}
+      />
+      <div className="px-6 pb-10 lg:px-10">
+        <AprobacionesSection reservas={reservas} />
+      </div>
+    </>
   );
 }

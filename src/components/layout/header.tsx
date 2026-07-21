@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { Button, VerticalSwitcher } from "@nrivera-iimp/ui-kit-iimp";
 
 const links = [
-  { href: "/plano-grid", label: "Grid" },
-  { href: "/plano-gess-3d", label: "GESS 3D" },
   { href: "/plano-isometrico", label: "Isométrico" },
   { href: "/dashboard", label: "Dashboard" },
 ] as const;
