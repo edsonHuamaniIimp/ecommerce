@@ -1,13 +1,16 @@
 "use client";
 
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2 } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard },
+  { href: "/planogess", label: "Plano GESS", icon: Map },
+  { href: "/gess-mantenedor", label: "Mantenedor GESS", icon: Wrench },
+  { href: "/admin-roles", label: "Roles y Permisos", icon: Shield },
   { href: "/plano", label: "Plano de Stands", icon: Building2 },
 ] as const;
 

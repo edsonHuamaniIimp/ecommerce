@@ -12,6 +12,7 @@ export type { Vertical, EstadoStand, EstadoReserva, TipoComprobante, AreaAprobac
 
 export type { ResultadoAprobacion };
 
+/* ---------- Eventos ---------- */
 export interface EventoPadre {
   id: string;
   codigo: string;
@@ -28,6 +29,7 @@ export interface Evento {
   estado: EstadoEvento;
 }
 
+/* ---------- Tipos de Stand ---------- */
 export interface TipoStand {
   id: string;
   nombre: string;
@@ -36,6 +38,25 @@ export interface TipoStand {
   moneda: string;
 }
 
+/* ---------- GessStand (datos del API planogess) ---------- */
+export interface GessStand {
+  id: string;
+  eventoId: string;
+  standApiId: string;
+  standCode: string;
+  tipoStand: string | null;
+  medidas: string | null;
+  estado: string | null;
+  empresa: string | null;
+  pabellon: string | null;
+  ubicacion: string | null;
+  rawData: unknown;
+  bloqueId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ---------- Plano ---------- */
 export interface PlanoStand {
   id: string;
   numero: string;
@@ -52,6 +73,7 @@ export interface PlanoStand {
   empresa: string | null;
   tipoCamara: string | null;
   numeroCamara: string | null;
+  color?: string;
 }
 
 export interface Cuota {
