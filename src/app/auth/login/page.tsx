@@ -1,0 +1,60 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Error");
+      const returnTo = params.get("returnTo") ?? "/dashboard";
+      router.push(returnTo);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al iniciar sesion");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle><span>Iniciar sesion</span></CardTitle>
+          <CardDescription>
+            <span>Ingresa tu correo para acceder al sistema.</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email"><span>Correo electronico</span></Label>
+              <Input id="email" type="email" placeholder="usuario@iimp.org.pe" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" disabled={loading} className="w-full">
+              <span>{loading ? "Ingresando..." : "Ingresar"}</span>
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
