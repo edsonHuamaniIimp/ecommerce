@@ -3,13 +3,12 @@ import { getTokenFromRequest, verifyToken, hasRole } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
 const PROTECTED: { path: string; roles: string[] }[] = [
-  { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
-  { path: "/gess-mantenedor", roles: [ROLES.ADMIN] },
-  { path: "/admin-roles", roles: [ROLES.ADMIN] },
-  { path: "/admin-eventos", roles: [ROLES.ADMIN] },
-  { path: "/api/eventos", roles: [ROLES.ADMIN] },
-  { path: "/planogess", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
+  { path: "/dashboard/gess", roles: [ROLES.ADMIN] },
+  { path: "/dashboard/roles", roles: [ROLES.ADMIN] },
+  { path: "/dashboard/eventos", roles: [ROLES.ADMIN] },
   { path: "/api/roles", roles: [ROLES.ADMIN] },
+  { path: "/api/eventos", roles: [ROLES.ADMIN] },
+  { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
 ];
 
 export async function middleware(request: NextRequest) {

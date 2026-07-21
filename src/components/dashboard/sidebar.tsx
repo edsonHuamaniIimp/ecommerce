@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard },
-  { href: "/planogess", label: "Plano GESS", icon: Map },
-  { href: "/gess-mantenedor", label: "Mantenedor GESS", icon: Wrench },
-  { href: "/admin-roles", label: "Roles y Permisos", icon: Shield },
-  { href: "/admin-eventos", label: "Eventos y Versiones", icon: Calendar },
+  { href: "/dashboard/planogess", label: "Plano GESS", icon: Map },
+  { href: "/dashboard/gess", label: "Mantenedor GESS", icon: Wrench },
+  { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield },
+  { href: "/dashboard/eventos", label: "Eventos y Versiones", icon: Calendar },
   { href: "/plano", label: "Plano de Stands", icon: Building2 },
 ] as const;
 
@@ -36,7 +36,9 @@ export function Sidebar() {
           General
         </p>
         {navItems.map((item) => {
-          const active = item.href === "/dashboard" ? isDashboard || pathname === item.href : pathname === item.href;
+          const active = item.href === "/dashboard" 
+            ? pathname === "/dashboard" 
+            : pathname.startsWith(item.href);
           return (
             <Button
               key={item.href}
