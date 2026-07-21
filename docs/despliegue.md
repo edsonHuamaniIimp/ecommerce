@@ -106,7 +106,31 @@ npm run build
 npm start
 ```
 
-## 5. Asignación de roles (primer admin)
+## 5. Cuentas de prueba (seed)
+
+Al ejecutar `npm run db:seed`, se crean automáticamente:
+
+| Email | Rol | Permisos |
+|---|---|---|
+| `admin@iimp.org.pe` | admin | `admin:full`, `read:reservas`, `write:reservas`, `approve:all` |
+| `logistica@iimp.org.pe` | logistica | `read:reservas`, `approve:logistica` |
+| `legal@iimp.org.pe` | legal | `read:reservas`, `approve:legal` |
+| `comunicacion@iimp.org.pe` | comunicacion | `read:reservas`, `approve:comunicacion` |
+
+Para iniciar sesión: ir a `/auth/login`, ingresar el email, sin contraseña (solo validación por email en dev).
+
+### 5.1 Rutas por rol
+
+| Ruta | admin | logistica | legal | comunicacion | público |
+|---|---|---|---|---|---|
+| `/plano-isometrico` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/dashboard` | ✓ | ✓ | ✓ | ✓ | |
+| `/planogess` | ✓ | ✓ | ✓ | ✓ | |
+| `/gess-mantenedor` | ✓ | | | | |
+| `/admin-roles` | ✓ | | | | |
+| `/auth/login` | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+## 6. Asignación manual de roles
 
 Después del primer deploy, poblar la BD con los roles seed:
 

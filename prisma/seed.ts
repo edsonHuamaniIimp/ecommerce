@@ -88,6 +88,24 @@ async function main() {
     });
   }
 
+  /* ---------- Usuarios de prueba ---------- */
+  const testUsers: { email: string; role: string }[] = [
+    { email: "admin@iimp.org.pe", role: "admin" },
+    { email: "logistica@iimp.org.pe", role: "logistica" },
+    { email: "legal@iimp.org.pe", role: "legal" },
+    { email: "comunicacion@iimp.org.pe", role: "comunicacion" },
+  ];
+
+  for (const tu of testUsers) {
+    const role = await prisma.role.findUnique({ where: { nombre: tu.role } });
+    if (!role) continue;
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
+      update: {},
+      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id },
+    });
+  }
+
   console.log("Seed completado.");
 }
 
