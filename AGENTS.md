@@ -41,8 +41,18 @@ Invoca la skill del stack al tocar su área:
 
 - `nextjs-core` — patrones de App Router, Server Components, Server Actions, caching.
 - `nextjs-v16` — novedades de Next.js 16 (Turbopack, cache components).
+- `next-dev-loop` — ciclo de desarrollo Next.js: errores, fast refresh, debugging.
+- `next-cache-components-optimizer` — optimizar `"use cache"`, cacheLife, cacheTag.
+- `next-cache-components-adoption` — migrar componentes a `"use cache"`.
+- `next-partial-prefetching-adoption` — Partial Prefetching (PPR).
 - `typescript-core` — patrones y buenas prácticas de TypeScript.
 - `tailwind` — estilado utility-first con Tailwind.
+- `prisma-database-setup` — configuración de Prisma con PostgreSQL, driver adapters.
+- `prisma-client-api` — API del cliente Prisma: queries, mutaciones, transacciones.
+- `prisma-postgres` — patrones específicos de PostgreSQL con Prisma.
+- `prisma-cli` — comandos: `db push`, `migrate`, `generate`, `studio`, `seed`.
+- `prisma-upgrade-v7` — referencia de migración a Prisma v7.
+- `auth0` — autenticación y autorización con Auth0 (Next.js). Roles, permisos, middleware.
 
 Regla práctica: antes de codificar una tarea, carga la skill de stack aplicable
 y la regla de metodología correspondiente.
