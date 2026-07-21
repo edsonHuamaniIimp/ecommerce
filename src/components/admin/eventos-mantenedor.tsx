@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@nrivera-iimp/ui-kit-iimp";
 
 interface EventoRow {
   id: string;
@@ -109,47 +109,47 @@ export function EventosMantenedor() {
               <CardTitle><span>{nombre}</span></CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs font-semibold uppercase text-muted-foreground">
-                      <th className="p-2">Version</th>
-                      <th className="p-2">Fechas</th>
-                      <th className="p-2">Estado</th>
-                      <th className="p-2">Stands</th>
-                      <th className="p-2">Reservas</th>
-                      <th className="p-2 text-right">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eventos.map((ev) => (
-                      <tr key={ev.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="p-2 font-mono text-xs font-medium">{ev.anio}</td>
-                        <td className="p-2 text-xs text-muted-foreground">
-                          {ev.fechaInicio ? new Date(ev.fechaInicio).toLocaleDateString("es-PE") : "—"} —{" "}
-                          {ev.fechaFin ? new Date(ev.fechaFin).toLocaleDateString("es-PE") : "—"}
-                        </td>
-                        <td className="p-2">
-                          <Badge variant={ev.estado === "active" ? "default" : ev.estado === "draft" ? "secondary" : "outline"}>
-                            <span>{ev.estado}</span>
-                          </Badge>
-                        </td>
-                        <td className="p-2 text-xs">{ev._count.stands + ev._count.gessStands}</td>
-                        <td className="p-2 text-xs">{ev._count.reservas}</td>
-                        <td className="p-2 text-right">
-                          <Button
-                            variant={ev.estado === "active" ? "outline" : "default"}
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => handleToggle(ev.id, ev.estado)}
-                          >
-                            <span>{ev.estado === "active" ? "Cerrar" : "Activar"}</span>
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead><span>Version</span></TableHead>
+                        <TableHead><span>Fechas</span></TableHead>
+                        <TableHead><span>Estado</span></TableHead>
+                        <TableHead><span>Stands</span></TableHead>
+                        <TableHead><span>Reservas</span></TableHead>
+                        <TableHead className="text-right"><span>Accion</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {eventos.map((ev) => (
+                        <TableRow key={ev.id}>
+                          <TableCell className="font-mono text-xs font-medium">{ev.anio}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {ev.fechaInicio ? new Date(ev.fechaInicio).toLocaleDateString("es-PE") : "—"} —{" "}
+                            {ev.fechaFin ? new Date(ev.fechaFin).toLocaleDateString("es-PE") : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={ev.estado === "active" ? "default" : ev.estado === "draft" ? "secondary" : "outline"}>
+                              <span>{ev.estado}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">{ev._count.stands + ev._count.gessStands}</TableCell>
+                          <TableCell className="text-xs">{ev._count.reservas}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant={ev.estado === "active" ? "outline" : "default"}
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => handleToggle(ev.id, ev.estado)}
+                            >
+                              <span>{ev.estado === "active" ? "Cerrar" : "Activar"}</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
               </div>
             </CardContent>
           </Card>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { ROLES, ALL_PERMISSIONS } from "@/lib/constants";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
+import { ALL_PERMISSIONS } from "@/lib/constants";
 
 interface UsuarioRow {
   id: string;
@@ -33,9 +33,7 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
   const togglePerm = async (roleId: string, perm: string) => {
     const role = rows.find((r) => r.id === roleId);
     if (!role) return;
-    const next = role.permisos.includes(perm)
-      ? role.permisos.filter((p) => p !== perm)
-      : [...role.permisos, perm];
+    const next = role.permisos.includes(perm) ? role.permisos.filter((p) => p !== perm) : [...role.permisos, perm];
     setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: next } : r)));
     try {
       await fetch("/api/roles", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: roleId, permisos: next }) });
@@ -55,7 +53,6 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
       });
       if (!res.ok) throw new Error("Error");
       const created = await res.json();
-      const role = rows.find((r) => r.id === newRoleId);
       const newU: UsuarioRow = { id: created.id, userId: created.userId, email: created.email };
       setRows((prev) => prev.map((r) => (r.id === newRoleId ? { ...r, usuarios: [...r.usuarios, newU], count: r.count + 1 } : r)));
       setNewEmail("");
@@ -85,41 +82,42 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
         <TabsTrigger value="usuarios"><span>Usuarios ({allUsuarios.length})</span></TabsTrigger>
       </TabsList>
 
-      {/* ===== TAB: ROLES ===== */}
+      {/* ===== ROLES ===== */}
       <TabsContent value="roles">
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-slate-50 text-left text-xs font-semibold uppercase text-muted-foreground">
-                <th className="w-8 p-3"></th>
-                <th className="p-3">Rol</th>
-                <th className="p-3 hidden sm:table-cell">Descripcion</th>
-                <th className="p-3">Permisos</th>
-                <th className="p-3">Usuarios</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-x-auto rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8"></TableHead>
+                <TableHead><span>Rol</span></TableHead>
+                <TableHead className="hidden sm:table-cell"><span>Descripcion</span></TableHead>
+                <TableHead><span>Permisos</span></TableHead>
+                <TableHead><span>Usuarios</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((role) => {
                 const isOpen = expandedRole === role.id;
                 return (
                   <Fragment key={role.id}>
-                    <tr className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(role.id)}>
-                      <td className="p-3 text-xs text-muted-foreground">{isOpen ? "▾" : "▸"}</td>
-                      <td className="p-3">
+                    <TableRow className="cursor-pointer" onClick={() => toggleExpand(role.id)}>
+                      <TableCell className="text-xs text-muted-foreground">{isOpen ? "▾" : "▸"}</TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[10px] font-bold text-primary-foreground">{role.nombre.charAt(0).toUpperCase()}</span>
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[10px] font-bold text-primary-foreground">
+                            {role.nombre.charAt(0).toUpperCase()}
+                          </span>
                           <span className="font-medium capitalize">{role.nombre}</span>
                         </div>
-                      </td>
-                      <td className="p-3 hidden sm:table-cell"><span className="text-xs text-muted-foreground">{role.descripcion ?? "—"}</span></td>
-                      <td className="p-3"><span className="text-xs text-muted-foreground">{role.permisos.length} de {ALL_PERMISSIONS.length}</span></td>
-                      <td className="p-3"><Badge variant="secondary" className="text-[10px]"><span>{role.count}</span></Badge></td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell"><span className="text-xs text-muted-foreground">{role.descripcion ?? "—"}</span></TableCell>
+                      <TableCell><span className="text-xs text-muted-foreground">{role.permisos.length} de {ALL_PERMISSIONS.length}</span></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-[10px]"><span>{role.count}</span></Badge></TableCell>
+                    </TableRow>
                     {isOpen && (
-                      <tr key={`${role.id}-p`}>
-                        <td colSpan={5} className="border-b bg-slate-50/50 p-4">
-                          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Permisos del rol</p>
-                          <div className="flex flex-wrap gap-1.5">
+                      <TableRow>
+                        <TableCell colSpan={5} className="bg-muted/30">
+                          <div className="flex flex-wrap gap-1.5 py-1">
                             {ALL_PERMISSIONS.map((perm) => {
                               const checked = role.permisos.includes(perm);
                               return (
@@ -127,25 +125,28 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
                                   key={perm}
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); togglePerm(role.id, perm); }}
-                                  className={`rounded-md border px-2 py-0.5 text-[11px] transition-colors ${checked ? "border-primary/40 bg-primary/10 text-primary font-medium" : "border-slate-200 text-muted-foreground hover:border-slate-300"}`}
+                                  className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                                    checked ? "border-primary/40 bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/30"
+                                  }`}
                                 >
-                                  {perm}
+                                  <Checkbox checked={checked} className="pointer-events-none h-3 w-3" />
+                                  <span>{perm}</span>
                                 </button>
                               );
                             })}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
                   </Fragment>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </TabsContent>
 
-      {/* ===== TAB: USUARIOS ===== */}
+      {/* ===== USUARIOS ===== */}
       <TabsContent value="usuarios">
         <Card>
           <CardHeader>
@@ -168,33 +169,31 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
         </Card>
 
         {allUsuarios.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Sin usuarios asignados.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground"><span>Sin usuarios asignados.</span></p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-slate-50 text-left text-xs font-semibold uppercase text-muted-foreground">
-                  <th className="p-3">Email</th>
-                  <th className="p-3">Rol</th>
-                  <th className="p-3 w-20 text-right">Accion</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-x-auto rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead><span>Email</span></TableHead>
+                  <TableHead><span>Rol</span></TableHead>
+                  <TableHead className="w-20 text-right"><span>Accion</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {allUsuarios.map((u) => (
-                  <tr key={`${u.roleId}-${u.id}`} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 font-mono text-xs">{u.email}</td>
-                    <td className="p-3">
-                      <Badge variant="outline" className="text-[10px]"><span className="capitalize">{u.roleNombre}</span></Badge>
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500 hover:text-red-700" onClick={() => handleRemoveUser(u.id, u.roleId)}>
+                  <TableRow key={`${u.roleId}-${u.id}`}>
+                    <TableCell className="font-mono text-xs">{u.email}</TableCell>
+                    <TableCell><Badge variant="outline" className="text-[10px]"><span className="capitalize">{u.roleNombre}</span></Badge></TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => handleRemoveUser(u.id, u.roleId)}>
                         <span>Quitar</span>
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </TabsContent>

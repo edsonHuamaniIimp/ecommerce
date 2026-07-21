@@ -11,7 +11,7 @@ const navItems = [
   { href: "/dashboard/planogess", label: "Plano GESS", icon: Map },
   { href: "/dashboard/gess", label: "Mantenedor GESS", icon: Wrench },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield },
-  { href: "/dashboard/eventos", label: "Eventos y Versiones", icon: Calendar },
+  { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar },
   { href: "/plano", label: "Plano de Stands", icon: Building2 },
 ] as const;
 
