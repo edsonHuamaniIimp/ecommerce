@@ -25,6 +25,24 @@ export const VERTICALES = {
 export type Vertical = (typeof VERTICALES)[keyof typeof VERTICALES];
 
 /* ================================================================
+   Ambientes de despliegue
+   ================================================================ */
+export const APP_ENVS = {
+  LOCAL: "local",
+  QA: "qa",
+  PRODUCTION: "production",
+} as const;
+
+export type AppEnv = (typeof APP_ENVS)[keyof typeof APP_ENVS];
+
+export function getAppEnv(): AppEnv {
+  const env = process.env.NEXT_PUBLIC_APP_ENV;
+  if (env === APP_ENVS.QA) return APP_ENVS.QA;
+  if (env === APP_ENVS.PRODUCTION) return APP_ENVS.PRODUCTION;
+  return APP_ENVS.LOCAL;
+}
+
+/* ================================================================
    Estados de stand (plano)
    ================================================================ */
 export const ESTADOS_STAND = {
@@ -77,12 +95,31 @@ export type TipoComprobante = (typeof TIPOS_COMPROBANTE)[keyof typeof TIPOS_COMP
    Áreas de aprobación
    ================================================================ */
 export const AREAS_APROBACION = {
-  LEGAL: "legal",
   LOGISTICA: "logistica",
-  EVENTOS: "eventos",
+  LEGAL: "legal",
+  COMUNICACION: "comunicacion",
 } as const;
 
 export type AreaAprobacion = (typeof AREAS_APROBACION)[keyof typeof AREAS_APROBACION];
+
+/* ================================================================
+   Roles de usuario
+   ================================================================ */
+export const ROLES = {
+  ADMIN: "admin",
+  LOGISTICA: "logistica",
+  LEGAL: "legal",
+  COMUNICACION: "comunicacion",
+} as const;
+
+export type Rol = (typeof ROLES)[keyof typeof ROLES];
+
+export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
+  [ROLES.ADMIN]: ["admin:full", "read:reservas", "write:reservas", "approve:all"],
+  [ROLES.LOGISTICA]: ["read:reservas", "approve:logistica"],
+  [ROLES.LEGAL]: ["read:reservas", "approve:legal"],
+  [ROLES.COMUNICACION]: ["read:reservas", "approve:comunicacion"],
+};
 
 /* ================================================================
    Estados de aprobación individual

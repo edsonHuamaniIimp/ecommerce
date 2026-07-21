@@ -21,6 +21,68 @@ export const eventoDTO: EventoDTO = {
   estado: "active",
 };
 
+export const eventoPadreProexploDTO: EventoPadreDTO = {
+  id: "ep-proexplo",
+  codigo: "PROEXPLO",
+  vertical: "proexplo",
+  nombre: "ProExplo",
+};
+
+export const eventoProexploDTO: EventoDTO = {
+  id: "ev-proexplo2026",
+  evento_padre_id: "ep-proexplo",
+  tipo_evento: 5,
+  codigo_evento: 1,
+  anio: "2026",
+  estado: "active",
+};
+
+export const eventoPadreWmcDTO: EventoPadreDTO = {
+  id: "ep-wmc",
+  codigo: "WMC",
+  vertical: "wmc",
+  nombre: "WMC",
+};
+
+export const eventoWmcDTO: EventoDTO = {
+  id: "ev-wmc2026",
+  evento_padre_id: "ep-wmc",
+  tipo_evento: 7,
+  codigo_evento: 1,
+  anio: "2026",
+  estado: "active",
+};
+
+export const eventoPadreGessDTO: EventoPadreDTO = {
+  id: "ep-gess",
+  codigo: "GESS",
+  vertical: "gess",
+  nombre: "GESS",
+};
+
+export const eventoGessDTO: EventoDTO = {
+  id: "ev-gess2026",
+  evento_padre_id: "ep-gess",
+  tipo_evento: 3,
+  codigo_evento: 1,
+  anio: "2026",
+  estado: "active",
+};
+
+export const todosEventosPadreDTO: EventoPadreDTO[] = [
+  eventoPadreDTO,
+  eventoPadreProexploDTO,
+  eventoPadreWmcDTO,
+  eventoPadreGessDTO,
+];
+
+export const todosEventosDTO: EventoDTO[] = [
+  eventoDTO,
+  eventoProexploDTO,
+  eventoWmcDTO,
+  eventoGessDTO,
+];
+
 export const planoTiposDTO = [
   { id: "ts-estandar", nombre: "Estándar", medidas: "3x3 m", montoBase: 5000, moneda: "USD" },
   { id: "ts-isla", nombre: "Isla", medidas: "6x6 m", montoBase: 12000, moneda: "USD" },
@@ -61,7 +123,7 @@ export const reservasDTO: ReservaDTO[] = [
     aprobaciones: [
       { area: "legal", estado: "aprobado", responsable: "María Torres", comentario: "Contrato revisado", fecha: "2026-02-10T10:00:00Z" },
       { area: "logistica", estado: "aprobado", responsable: "Carlos Vega", comentario: "Empresa homologada", fecha: "2026-02-12T09:00:00Z" },
-      { area: "eventos", estado: "aprobado", responsable: "Diana Ruiz", comentario: null, fecha: "2026-02-14T11:30:00Z" },
+      { area: "comunicacion", estado: "aprobado", responsable: "Diana Ruiz", comentario: null, fecha: "2026-02-14T11:30:00Z" },
     ],
     estado: "facturada", creado_en: "2026-02-05T14:00:00Z",
   },
@@ -77,7 +139,7 @@ export const reservasDTO: ReservaDTO[] = [
     aprobaciones: [
       { area: "legal", estado: "aprobado", responsable: "María Torres", comentario: null, fecha: "2026-03-01T10:00:00Z" },
       { area: "logistica", estado: "aprobado", responsable: "Carlos Vega", comentario: null, fecha: "2026-03-03T08:00:00Z" },
-      { area: "eventos", estado: "pendiente", responsable: null, comentario: null, fecha: null },
+      { area: "comunicacion", estado: "pendiente", responsable: null, comentario: null, fecha: null },
     ],
     estado: "en_aprobacion", creado_en: "2026-02-28T09:30:00Z",
   },
@@ -97,7 +159,7 @@ export const reservasDTO: ReservaDTO[] = [
     aprobaciones: [
       { area: "legal", estado: "aprobado", responsable: "Roberto Campos", comentario: null, fecha: "2026-03-10T09:00:00Z" },
       { area: "logistica", estado: "pendiente", responsable: null, comentario: null, fecha: null },
-      { area: "eventos", estado: "pendiente", responsable: null, comentario: null, fecha: null },
+      { area: "comunicacion", estado: "pendiente", responsable: null, comentario: null, fecha: null },
     ],
     estado: "en_aprobacion", creado_en: "2026-03-07T16:15:00Z",
   },
@@ -110,7 +172,7 @@ export const reservasDTO: ReservaDTO[] = [
     aprobaciones: [
       { area: "legal", estado: "aprobado", responsable: "María Torres", comentario: null, fecha: "2026-03-18T10:00:00Z" },
       { area: "logistica", estado: "rechazado", responsable: "Carlos Vega", comentario: "RUC con estado no habido", fecha: "2026-03-19T09:00:00Z" },
-      { area: "eventos", estado: "pendiente", responsable: null, comentario: null, fecha: null },
+      { area: "comunicacion", estado: "pendiente", responsable: null, comentario: null, fecha: null },
     ],
     estado: "rechazada", creado_en: "2026-03-16T11:00:00Z",
   },
