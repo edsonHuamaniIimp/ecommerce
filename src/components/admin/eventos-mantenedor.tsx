@@ -77,6 +77,7 @@ export function EventosMantenedor() {
   };
 
   const handleEdit = async () => {
+    if (!editId) return;
     try {
       await eventosServiceClient.patch(editId, {
         fechaInicio: editInicio || null,
@@ -84,8 +85,10 @@ export function EventosMantenedor() {
         flgActivo: editFlgActivo,
       });
       setRows((prev) => prev.map((r) => (r.id === editId ? { ...r, fechaInicio: editInicio || null, fechaFin: editFin || null, flgActivo: editFlgActivo } : r)));
-      setEditDialog(false);
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
+    setEditDialog(false);
   };
 
   const grouped = rows.reduce<Record<string, EventoRow[]>>((acc, row) => {
