@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { authService } from "@/lib/api/services/auth-service";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
+import { ROLES } from "@/lib/constants";
+import Link from "next/link";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 
 interface VersionItem extends EventoPresalaDTO {}
@@ -20,13 +22,22 @@ export default function PresalaPage() {
   const router = useRouter();
   const [eventos, setEventos] = useState<EventoItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [selecting, setSelecting] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const json = await eventosServiceClient.listPresala();
+        const [json, session] = await Promise.all([
+          eventosServiceClient.listPresala(),
+          authService.getSession(),
+        ]);
         setEventos(json as EventoItem[]);
+        setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
+        if (session.authenticated && session.eventoId) {
+          router.replace("/dashboard");
+          return;
+        }
       } catch {
         // ignore
       } finally {
@@ -64,8 +75,17 @@ export default function PresalaPage() {
         {loading ? (
           <p className="py-16 text-center text-sm text-muted-foreground">Cargando eventos...</p>
         ) : eventos.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-sm text-muted-foreground">No hay eventos vigentes. Contacta al administrador.</p>
+          <div className="py-16 text-center space-y-4">
+            {isAdmin ? (
+              <>
+                <p className="text-sm text-muted-foreground">No hay eventos vigentes. Crea uno para comenzar.</p>
+                <Button asChild>
+                  <Link href="/dashboard/eventos"><span>Ir a Gestion de Eventos</span></Link>
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No hay eventos vigentes. Contacta al administrador.</p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
