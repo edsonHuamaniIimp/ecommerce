@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
+import { authService } from "@/lib/api/services/auth-service";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,13 +18,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error");
+      await authService.login({ email: email.trim() });
       const returnTo = params.get("returnTo") ?? "/presala";
       router.push(returnTo);
     } catch (err) {

@@ -3,6 +3,7 @@
 import { useState, Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
 import { ALL_PERMISSIONS } from "@/lib/constants";
+import { rolesService } from "@/lib/api/services/roles-service";
 
 interface UsuarioRow {
   id: string;
@@ -36,7 +37,7 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
     const next = role.permisos.includes(perm) ? role.permisos.filter((p) => p !== perm) : [...role.permisos, perm];
     setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: next } : r)));
     try {
-      await fetch("/api/roles", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: roleId, permisos: next }) });
+      await rolesService.updatePermisos(roleId, next);
     } catch {
       setRows((prev) => prev.map((r) => (r.id === roleId ? { ...r, permisos: role.permisos } : r)));
     }
@@ -46,14 +47,8 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
     if (!newEmail.trim() || !newRoleId) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/roles/usuarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newEmail.trim(), roleId: newRoleId }),
-      });
-      if (!res.ok) throw new Error("Error");
-      const created = await res.json();
-      const newU: UsuarioRow = { id: created.id, userId: created.userId, email: created.email };
+      const created = await rolesService.addUser(newEmail.trim(), newRoleId);
+      const newU: UsuarioRow = { id: created.id, userId: created.user_id, email: created.email };
       setRows((prev) => prev.map((r) => (r.id === newRoleId ? { ...r, usuarios: [...r.usuarios, newU], count: r.count + 1 } : r)));
       setNewEmail("");
     } catch {
@@ -65,8 +60,7 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
 
   const handleRemoveUser = async (userId: string, roleId: string) => {
     try {
-      const res = await fetch(`/api/roles/usuarios?userId=${encodeURIComponent(userId)}&roleId=${encodeURIComponent(roleId)}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Error");
+      await rolesService.removeUser(userId, roleId);
       setRows((prev) =>
         prev.map((r) => (r.id === roleId ? { ...r, usuarios: r.usuarios.filter((u) => u.id !== userId), count: r.count - 1 } : r)),
       );

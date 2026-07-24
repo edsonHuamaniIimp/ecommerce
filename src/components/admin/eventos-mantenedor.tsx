@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@nrivera-iimp/ui-kit-iimp";
+import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 
 interface EventoRow {
   id: string;
@@ -20,7 +21,12 @@ interface EventoRow {
 export function EventosMantenedor() {
   const [rows, setRows] = useState<EventoRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [padres, setPadres] = useState<{ id: string; nombre: string }[]>([]);
+  const [padres] = useState<{ id: string; nombre: string }[]>([
+    { id: "ep-perumin", nombre: "PERUMIN" },
+    { id: "ep-proexplo", nombre: "ProExplo" },
+    { id: "ep-wmc", nombre: "WMC" },
+    { id: "ep-gess", nombre: "GESS" },
+  ]);
   const [newDialog, setNewDialog] = useState(false);
   const [newPadreId, setNewPadreId] = useState("");
   const [newAnio, setNewAnio] = useState("");
@@ -30,17 +36,8 @@ export function EventosMantenedor() {
   const load = async () => {
     setLoading(true);
     try {
-      const [ev, ep] = await Promise.all([
-        fetch("/api/eventos").then((r) => r.json()),
-        fetch("/eventos-padre").then((r) => r.json()).catch(() => [
-          { id: "ep-perumin", nombre: "PERUMIN" },
-          { id: "ep-proexplo", nombre: "ProExplo" },
-          { id: "ep-wmc", nombre: "WMC" },
-          { id: "ep-gess", nombre: "GESS" },
-        ]),
-      ]);
-      setRows(Array.isArray(ev) ? ev : []);
-      setPadres(Array.isArray(ep) ? ep : []);
+      const [ev] = await Promise.all([eventosServiceClient.list()]);
+      setRows(Array.isArray(ev) ? ev as unknown as EventoRow[] : []);
     } catch {
       // ignore
     } finally {
@@ -53,17 +50,7 @@ export function EventosMantenedor() {
   const handleCreate = async () => {
     if (!newPadreId || !newAnio) return;
     try {
-      const res = await fetch("/api/eventos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventoPadreId: newPadreId,
-          anio: newAnio,
-          fechaInicio: newInicio || undefined,
-          fechaFin: newFin || undefined,
-        }),
-      });
-      if (!res.ok) throw new Error("Error");
+      await eventosServiceClient.create({ evento_padre_id: newPadreId, anio: newAnio, fecha_inicio: newInicio || undefined, fecha_fin: newFin || undefined });
       await load();
       setNewDialog(false);
       setNewAnio("");
@@ -79,11 +66,7 @@ export function EventosMantenedor() {
       ? { flgActivo: !current }
       : { estado: current === "active" ? "closed" : "active" };
     try {
-      await fetch("/api/eventos", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...data }),
-      });
+      await eventosServiceClient.patch(id, data);
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...data } as EventoRow : r)));
     } catch {
       // ignore

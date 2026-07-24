@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button, VerticalSwitcher } from "@nrivera-iimp/ui-kit-iimp";
 import { useEffect, useState } from "react";
+import { authService } from "@/lib/api/services/auth-service";
 
 const links = [
   { href: "/plano-isometrico", label: "Isometrico" },
@@ -18,8 +19,7 @@ export function Header() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/auth/session");
-        const json = await res.json();
+        const json = await authService.getSession();
         setSession(json);
       } catch {
         setSession({ authenticated: false });
@@ -28,7 +28,7 @@ export function Header() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await authService.logout();
     router.push("/auth/login");
     router.refresh();
   };

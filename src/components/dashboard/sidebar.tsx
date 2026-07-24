@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { authService } from "@/lib/api/services/auth-service";
 
 const navItems = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard },
@@ -24,8 +25,7 @@ export function Sidebar() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/auth/session");
-        const json = await res.json();
+        const json = await authService.getSession();
         if (json.authenticated && json.eventoNombre) {
           setEventoNombre(json.eventoNombre);
         }
@@ -36,7 +36,7 @@ export function Sidebar() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await authService.logout();
     router.push("/auth/login");
     router.refresh();
   };

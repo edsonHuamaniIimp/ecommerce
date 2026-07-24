@@ -4,6 +4,8 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useMemo, useState, useEffect, Fragment } from "react";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Input, Label, Separator } from "@nrivera-iimp/ui-kit-iimp";
+import { gessService } from "@/lib/api/services/gess-service";
+import { mapGessStandFromDTO } from "@/lib/mappers/gess-mapper";
 import * as THREE from "three";
 
 /* ================================================================
@@ -350,11 +352,11 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/gess?eventoId=${encodeURIComponent(eventoId)}`);
-        const json = await res.json();
+        const json = await gessService.list(eventoId);
         if (!cancelled && Array.isArray(json)) {
+          const list = json.map(mapGessStandFromDTO);
           const map = new Map<string, GessInfoFull>();
-          for (const row of json) {
+          for (const row of list) {
             if (row.bloqueId) {
               map.set(row.bloqueId, {
                 standCode: row.standCode,

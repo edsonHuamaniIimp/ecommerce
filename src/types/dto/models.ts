@@ -134,3 +134,60 @@ export interface GessSyncResultDTO {
   actualizados: number;
   total: number;
 }
+
+/* ---------- Auth ---------- */
+export interface LoginRequestDTO {
+  email: string;
+}
+
+export interface LoginResponseDTO {
+  token: string;
+  roles: string[];
+  email: string;
+}
+
+export interface SessionDTO {
+  authenticated: boolean;
+  email?: string;
+  roles?: string[];
+  eventoId?: string | null;
+  eventoPadreId?: string | null;
+  eventoNombre?: string | null;
+}
+
+export interface SeleccionarEventoRequestDTO {
+  eventoId: string;
+}
+
+/* ---------- Eventos ---------- */
+export interface EventoPresalaDTO {
+  id: string;
+  anio: string;
+  estado: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  imagen: string | null;
+}
+
+export interface EventoPadrePresalaDTO {
+  id: string;
+  nombre: string;
+  codigo: string;
+  vertical: string;
+  versiones: EventoPresalaDTO[];
+}
+
+export interface CreateEventoDTO {
+  evento_padre_id: string;
+  anio: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+}
+
+/* ---------- Roles ---------- */
+export interface UserRoleDTO {
+  id: string;
+  user_id: string;
+  email: string;
+  role_id: string;
+}

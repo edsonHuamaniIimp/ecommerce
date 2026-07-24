@@ -3,19 +3,14 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox } from "@nrivera-iimp/ui-kit-iimp";
 import { BLOQUE_IDS } from "@/lib/bloques";
+import { gessService } from "@/lib/api/services/gess-service";
+import { mapGessStandFromDTO } from "@/lib/mappers/gess-mapper";
+import type { GessStandDomain } from "@/lib/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
 
-interface GessStandRow {
-  id: string;
-  standApiId: string;
-  standCode: string;
-  tipoStand: string | null;
-  medidas: string | null;
-  estado: string | null;
-  empresa: string | null;
-  pabellon: string | null;
-  bloqueId: string | null;
+interface GessStandRow extends GessStandDomain {
+  createdAt: string;
 }
 
 interface Props {
@@ -117,13 +112,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
     setApiError(null);
     try {
       const selected = apiRows.filter((_, i) => apiSelected.has(i));
-      const res = await fetch("/api/gess/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventoId, tipoEvento, codigoEvento, seleccionadas: selected }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
+      const json = await gessService.sync({ eventoId, tipoEvento, codigoEvento, seleccionadas: selected });
       setApiSelected(new Set());
       setApiError(`Importado: ${json.creados} nuevos, ${json.actualizados} actualizados de ${json.total}`);
       await loadDb();
@@ -138,10 +127,9 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
     setDbLoading(true);
     setDbError(null);
     try {
-      const res = await fetch(`/api/gess?eventoId=${eventoId}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
-      setDbRows(json as GessStandRow[]);
+      const list = await gessService.list(eventoId);
+      const mapped = list.map(mapGessStandFromDTO) as GessStandRow[];
+      setDbRows(mapped);
     } catch (err) {
       setDbError(err instanceof Error ? err.message : "Error al cargar BD");
     } finally {
@@ -152,38 +140,20 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
   useEffect(() => { loadDb(); }, [loadDb]);
 
   const handleVincular = async (bloqueId: string, gessStandId: string | null) => {
-    if (gessStandId) {
-      setSaving((prev) => ({ ...prev, [bloqueId]: true }));
-      try {
-        const res = await fetch("/api/gess", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: gessStandId, bloqueId }),
-        });
-        if (!res.ok) throw new Error("Error");
-        await loadDb();
-      } catch {
-        // ignore
-      } finally {
-        setSaving((prev) => ({ ...prev, [bloqueId]: false }));
+    setSaving((prev) => ({ ...prev, [bloqueId]: true }));
+    try {
+      if (gessStandId) {
+        await gessService.vincular(gessStandId, bloqueId);
+      } else {
+        const current = bloqueMap.get(bloqueId);
+        if (!current) return;
+        await gessService.vincular(current.id, null);
       }
-    } else {
-      const current = bloqueMap.get(bloqueId);
-      if (!current) return;
-      setSaving((prev) => ({ ...prev, [bloqueId]: true }));
-      try {
-        const res = await fetch("/api/gess", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: current.id, bloqueId: null }),
-        });
-        if (!res.ok) throw new Error("Error");
-        await loadDb();
-      } catch {
-        // ignore
-      } finally {
-        setSaving((prev) => ({ ...prev, [bloqueId]: false }));
-      }
+      await loadDb();
+    } catch {
+      // ignore
+    } finally {
+      setSaving((prev) => ({ ...prev, [bloqueId]: false }));
     }
   };
 

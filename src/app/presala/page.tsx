@@ -3,22 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { authService } from "@/lib/api/services/auth-service";
+import { eventosServiceClient } from "@/lib/api/services/eventos-service";
+import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 
-interface VersionItem {
-  id: string;
-  anio: string;
-  estado: string;
-  fechaInicio: string | null;
-  fechaFin: string | null;
-}
-
-interface EventoItem {
-  id: string;
-  nombre: string;
-  codigo: string;
-  vertical: string;
-  versiones: VersionItem[];
-}
+interface VersionItem extends EventoPresalaDTO {}
+interface EventoItem extends Omit<EventoPadrePresalaDTO, "versiones"> { versiones: VersionItem[] }
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -35,9 +25,8 @@ export default function PresalaPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/eventos/presala");
-        const json = await res.json();
-        if (Array.isArray(json)) setEventos(json);
+        const json = await eventosServiceClient.listPresala();
+        setEventos(json as EventoItem[]);
       } catch {
         // ignore
       } finally {
@@ -49,12 +38,7 @@ export default function PresalaPage() {
   const handleSelect = async (eventoId: string, vertical: string) => {
     setSelecting(eventoId);
     try {
-      const res = await fetch("/api/auth/seleccionar-evento", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventoId }),
-      });
-      if (!res.ok) throw new Error("Error");
+      await authService.seleccionarEvento({ eventoId });
       localStorage.setItem("iimp-vertical", vertical);
       document.documentElement.classList.forEach((c) => {
         if (c.startsWith("vert-")) document.documentElement.classList.remove(c);
@@ -89,9 +73,7 @@ export default function PresalaPage() {
               <Card key={ep.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-                      {ep.nombre.charAt(0)}
-                    </span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">{ep.nombre.charAt(0)}</span>
                     <span>{ep.nombre}</span>
                     <Badge variant="outline" className="ml-1 text-[10px]"><span>{ep.vertical}</span></Badge>
                   </CardTitle>
@@ -107,9 +89,9 @@ export default function PresalaPage() {
                         className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all hover:border-primary hover:shadow-md active:bg-slate-50"
                       >
                         <span className="text-sm font-semibold text-slate-800">{ep.nombre} {ver.anio}</span>
-                        {(ver.fechaInicio || ver.fechaFin) && (
+                        {(ver.fecha_inicio || ver.fecha_fin) && (
                           <span className="text-xs text-muted-foreground">
-                            {formatDate(ver.fechaInicio)} — {formatDate(ver.fechaFin)}
+                            {formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}
                           </span>
                         )}
                         <div className="mt-2 flex items-center justify-between">
