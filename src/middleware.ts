@@ -14,7 +14,7 @@ const PROTECTED: { path: string; roles: string[] }[] = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/auth/login" || pathname === "/presala" || pathname.startsWith("/api/auth/") || pathname === "/api/eventos/presala") {
+  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/eventos/presala") {
     return NextResponse.next();
   }
 
