@@ -28,16 +28,14 @@ export default function PresalaPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [json, session] = await Promise.all([
-          eventosServiceClient.listPresala(),
-          authService.getSession(),
-        ]);
-        setEventos(json as EventoItem[]);
-        setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
+        const session = await authService.getSession();
         if (session.authenticated && session.eventoId) {
           router.replace("/dashboard");
           return;
         }
+        setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
+        const json = await eventosServiceClient.listPresala();
+        setEventos(json as EventoItem[]);
       } catch {
         // ignore
       } finally {
