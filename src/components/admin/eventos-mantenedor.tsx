@@ -12,6 +12,7 @@ interface EventoRow {
   fechaInicio: string | null;
   fechaFin: string | null;
   imagen: string | null;
+  flgActivo: boolean;
   eventoPadre: { id: string; nombre: string; codigo: string };
   _count: { stands: number; gessStands: number; reservas: number };
 }
@@ -73,15 +74,17 @@ export function EventosMantenedor() {
     }
   };
 
-  const handleToggle = async (id: string, estado: string) => {
-    const nuevo = estado === "active" ? "closed" : "active";
+  const handleToggle = async (id: string, key: "estado" | "flgActivo", current: string | boolean) => {
+    const data: Record<string, unknown> = key === "flgActivo"
+      ? { flgActivo: !current }
+      : { estado: current === "active" ? "closed" : "active" };
     try {
       await fetch("/api/eventos", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, estado: nuevo }),
+        body: JSON.stringify({ id, ...data }),
       });
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, estado: nuevo } : r)));
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...data } as EventoRow : r)));
     } catch {
       // ignore
     }
@@ -116,8 +119,7 @@ export function EventosMantenedor() {
                         <TableHead><span>Version</span></TableHead>
                         <TableHead><span>Fechas</span></TableHead>
                         <TableHead><span>Estado</span></TableHead>
-                        <TableHead><span>Stands</span></TableHead>
-                        <TableHead><span>Reservas</span></TableHead>
+                        <TableHead><span>Activo</span></TableHead>
                         <TableHead className="text-right"><span>Accion</span></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -134,16 +136,27 @@ export function EventosMantenedor() {
                               <span>{ev.estado}</span>
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs">{ev._count.stands + ev._count.gessStands}</TableCell>
-                          <TableCell className="text-xs">{ev._count.reservas}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell>
+                            <Badge variant={ev.flgActivo ? "default" : "secondary"}>
+                              <span>{ev.flgActivo ? "Si" : "No"}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right flex gap-1 justify-end">
                             <Button
                               variant={ev.estado === "active" ? "outline" : "default"}
                               size="sm"
                               className="h-7 text-xs"
-                              onClick={() => handleToggle(ev.id, ev.estado)}
+                              onClick={() => handleToggle(ev.id, "estado", ev.estado)}
                             >
                               <span>{ev.estado === "active" ? "Cerrar" : "Activar"}</span>
+                            </Button>
+                            <Button
+                              variant={ev.flgActivo ? "outline" : "default"}
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => handleToggle(ev.id, "flgActivo", ev.flgActivo)}
+                            >
+                              <span>{ev.flgActivo ? "Desactivar" : "Activar"}</span>
                             </Button>
                           </TableCell>
                         </TableRow>

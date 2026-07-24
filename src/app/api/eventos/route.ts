@@ -63,6 +63,7 @@ export async function PATCH(request: Request) {
       fechaInicio?: string | null;
       fechaFin?: string | null;
       imagen?: string | null;
+      flgActivo?: boolean;
     };
     if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
@@ -72,6 +73,7 @@ export async function PATCH(request: Request) {
     if (body.fechaInicio !== undefined) data.fechaInicio = body.fechaInicio ? new Date(body.fechaInicio) : null;
     if (body.fechaFin !== undefined) data.fechaFin = body.fechaFin ? new Date(body.fechaFin) : null;
     if (body.imagen !== undefined) data.imagen = body.imagen;
+    if (body.flgActivo !== undefined) data.flgActivo = body.flgActivo;
 
     const updated = await prisma.evento.update({ where: { id: body.id }, data });
     return NextResponse.json(updated);

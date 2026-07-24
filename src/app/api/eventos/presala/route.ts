@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
+  const now = new Date();
+
   const eventosPadre = await prisma.eventoPadre.findMany({
     include: {
       eventos: {
-        where: { estado: { in: ["active", "draft"] } },
-        orderBy: { anio: "desc" },
+        where: {
+          estado: "active",
+          flgActivo: true,
+          OR: [
+            { fechaInicio: null },
+            { fechaFin: null },
+            { fechaInicio: { lte: now }, fechaFin: { gte: now } },
+          ],
+        },
+        orderBy: { anio: "asc" },
       },
     },
     orderBy: { nombre: "asc" },
@@ -28,6 +38,7 @@ export async function GET() {
         fechaInicio: ev.fechaInicio?.toISOString() ?? null,
         fechaFin: ev.fechaFin?.toISOString() ?? null,
         imagen: ev.imagen,
+        flgActivo: ev.flgActivo,
       })),
     }));
 
