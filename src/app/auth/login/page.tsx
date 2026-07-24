@@ -24,7 +24,7 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Error");
-      const returnTo = params.get("returnTo") ?? "/dashboard";
+      const returnTo = params.get("returnTo") ?? "/presala";
       router.push(returnTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesion");
