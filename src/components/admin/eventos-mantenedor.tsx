@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
 import { Pencil, Power, PowerOff } from "lucide-react";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 
@@ -72,7 +72,7 @@ export function EventosMantenedor() {
     setEditId(row.id);
     setEditInicio(row.fechaInicio ? row.fechaInicio.slice(0, 10) : "");
     setEditFin(row.fechaFin ? row.fechaFin.slice(0, 10) : "");
-    setEditFlgActivo(row.flgActivo);
+    setEditFlgActivo(row.flgActivo === true);
     setEditDialog(true);
   };
 
@@ -200,7 +200,7 @@ export function EventosMantenedor() {
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={editFlgActivo} onChange={(e) => setEditFlgActivo(e.target.checked)} className="h-4 w-4" />
+              <Checkbox checked={editFlgActivo} onCheckedChange={(v) => setEditFlgActivo(v === true)} />
               <span>Version activa</span>
             </label>
           </div>
