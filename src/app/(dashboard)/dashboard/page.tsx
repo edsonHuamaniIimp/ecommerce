@@ -1,4 +1,4 @@
-import { eventosService, planoService, reservasService } from "@/lib/api/services/facade";
+import { planoService, reservasService } from "@/lib/api/services/facade";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { AprobacionesSection } from "@/components/dashboard/aprobaciones-section";
 import { ESTADOS_STAND, ESTADOS_RESERVA } from "@/lib/constants";
@@ -8,8 +8,7 @@ import { prisma } from "@/lib/db";
 export default async function DashboardPage() {
   const session = await getSession();
   let eventoId = "ev-perumin39";
-  let eventoPadreNombre = "PERUMIN";
-  let eventoAnio = "2026";
+  let eventoNombre = "PERUMIN 2026";
 
   if (session?.eventoId) {
     const evento = await prisma.evento.findUnique({
@@ -18,17 +17,14 @@ export default async function DashboardPage() {
     });
     if (evento) {
       eventoId = evento.id;
-      eventoPadreNombre = evento.eventoPadre.nombre;
-      eventoAnio = evento.anio;
+      eventoNombre = `${evento.eventoPadre.nombre} ${evento.anio}`;
     }
   }
 
-  const [contexto, stands, reservas] = await Promise.all([
-    eventosService.getEventoActual(),
+  const [stands, reservas] = await Promise.all([
     planoService.getPlano(eventoId),
     reservasService.list(eventoId),
   ]);
-  const eventos = await eventosService.listEventos(contexto.evento.eventoPadreId);
 
   const reservados = stands.filter((s) => s.estado === ESTADOS_STAND.RESERVADO).length;
   const disponibles = stands.filter((s) => s.estado === ESTADOS_STAND.DISPONIBLE).length;
@@ -49,10 +45,8 @@ export default async function DashboardPage() {
     <>
       <DashboardContent
         reservas={reservas}
-        eventos={eventos}
-        eventoActual={contexto.evento}
         stats={stats}
-        eventoNombre={`${eventoPadreNombre} ${eventoAnio}`}
+        eventoNombre={eventoNombre}
       />
       <div className="px-6 pb-10 lg:px-10">
         <AprobacionesSection reservas={reservas} />
