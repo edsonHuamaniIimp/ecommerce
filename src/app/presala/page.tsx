@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nriver
 import { authService } from "@/lib/api/services/auth-service";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 import { ROLES } from "@/lib/constants";
+import { dateUtils } from "@/lib/utils/date";
 import Link from "next/link";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
 import { Pencil, Power, PowerOff } from "lucide-react";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
+import { dateUtils } from "@/lib/utils/date";
 
 interface EventoRow {
   id: string;
@@ -70,8 +71,8 @@ export function EventosMantenedor() {
 
   const openEdit = (row: EventoRow) => {
     setEditId(row.id);
-    setEditInicio(row.fechaInicio ? row.fechaInicio.slice(0, 10) : "");
-    setEditFin(row.fechaFin ? row.fechaFin.slice(0, 10) : "");
+    setEditInicio(dateUtils.toInputValue(row.fechaInicio));
+    setEditFin(dateUtils.toInputValue(row.fechaFin));
     setEditFlgActivo(row.flgActivo === true);
     setEditDialog(true);
   };
@@ -127,8 +128,7 @@ export function EventosMantenedor() {
                     <TableRow key={ev.id}>
                       <TableCell className="font-mono text-xs font-medium">{ev.anio}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {ev.fechaInicio ? new Date(ev.fechaInicio + "T00:00:00").toLocaleDateString("es-PE") : "—"} —{" "}
-                        {ev.fechaFin ? new Date(ev.fechaFin + "T00:00:00").toLocaleDateString("es-PE") : "—"}
+                        {dateUtils.format(ev.fechaInicio)} — {dateUtils.format(ev.fechaFin)}
                       </TableCell>
                       <TableCell>
                         <Badge variant={ev.estado === "active" && ev.flgActivo ? "default" : "secondary"}>
