@@ -1,44 +1,25 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { services } from "@/lib/services";
 
 export async function GET() {
-  const now = new Date();
-
-  const eventosPadre = await prisma.eventoPadre.findMany({
-    include: {
-      eventos: {
-        where: {
-          estado: "active",
-          flgActivo: true,
-          OR: [
-            { fechaInicio: null },
-            { fechaFin: null },
-            { fechaInicio: { lte: now }, fechaFin: { gte: now } },
-          ],
-        },
-        orderBy: { anio: "asc" },
-      },
-    },
-    orderBy: { nombre: "asc" },
-  });
+  const eventosPadre = await services.eventos.listarPresala();
 
   const result = eventosPadre
-    .filter((ep) => ep.eventos.length > 0)
+    .filter((ep) => ep.versiones.length > 0)
     .map((ep) => ({
       id: ep.id,
       nombre: ep.nombre,
       codigo: ep.codigo,
       vertical: ep.vertical,
-      versiones: ep.eventos.map((ev) => ({
+      versiones: ep.versiones.map((ev) => ({
         id: ev.id,
         anio: ev.anio,
         tipoEvento: ev.tipoEvento,
         codigoEvento: ev.codigoEvento,
         estado: ev.estado,
-        fechaInicio: ev.fechaInicio?.toISOString() ?? null,
-        fechaFin: ev.fechaFin?.toISOString() ?? null,
+        fecha_inicio: ev.fechaInicio?.toISOString() ?? null,
+        fecha_fin: ev.fechaFin?.toISOString() ?? null,
         imagen: ev.imagen,
-        flgActivo: ev.flgActivo,
       })),
     }));
 
