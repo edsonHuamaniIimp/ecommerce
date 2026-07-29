@@ -85,7 +85,7 @@ export function EventosMantenedor() {
         fechaFin: editFin || null,
         flgActivo: editFlgActivo,
       });
-      setRows((prev) => prev.map((r) => (r.id === editId ? { ...r, fechaInicio: editInicio || null, fechaFin: editFin || null, flgActivo: editFlgActivo } : r)));
+      await load();
     } catch {
       // ignore
     }
