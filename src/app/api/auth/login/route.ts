@@ -14,13 +14,13 @@ export async function POST(request: Request) {
     const userRoles = await prisma.userRole.findMany({
       where: { email: body.email },
       include: { role: { select: { nombre: true, permisos: true } } },
-    });
+    }) as { role: { nombre: string; permisos: string[] } }[];
 
     if (userRoles.length === 0) {
       return NextResponse.json({ error: "Usuario sin roles asignados" }, { status: 403 });
     }
 
-    const roles = userRoles.map((ur: (typeof userRoles)[number]) => ur.role.nombre as Rol);
+    const roles = userRoles.map((ur) => ur.role.nombre as Rol);
 
     const token = await signToken({
       sub: `user|${body.email}`,

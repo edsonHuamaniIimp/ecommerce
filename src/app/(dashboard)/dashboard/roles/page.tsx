@@ -16,14 +16,14 @@ export default async function RolesMantenedorPage() {
     const roles = await prisma.role.findMany({
       include: { usuarios: { select: { id: true, userId: true, email: true } } },
       orderBy: { nombre: "asc" },
-    });
+    }) as { id: string; nombre: string; descripcion: string | null; permisos: string[]; usuarios: { id: string; userId: string; email: string }[] }[];
 
-    const rows: RoleRow[] = roles.map((r: typeof roles[number]) => ({
+    const rows: RoleRow[] = roles.map((r) => ({
       id: r.id,
       nombre: r.nombre as Rol,
       descripcion: r.descripcion,
       permisos: r.permisos,
-      usuarios: r.usuarios.map((u: typeof r.usuarios[number]) => ({ id: u.id, userId: u.userId, email: u.email })),
+      usuarios: r.usuarios.map((u) => ({ id: u.id, userId: u.userId, email: u.email })),
       count: r.usuarios.length,
     }));
 
