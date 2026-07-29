@@ -46,7 +46,8 @@ export async function PATCH(request: Request) {
     const updated = await services.eventos.obtenerPorId(body.id);
     return NextResponse.json(updated);
   } catch (err) {
+    console.error("PATCH /api/eventos:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message, detail: err instanceof Error ? String(err.stack).slice(0, 300) : "" }, { status: 500 });
   }
 }
