@@ -78,6 +78,7 @@ export async function PATCH(request: Request) {
     const updated = await prisma.evento.update({ where: { id: body.id }, data });
     return NextResponse.json(updated);
   } catch (err) {
+    console.error("PATCH /api/eventos:", err);
     const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
