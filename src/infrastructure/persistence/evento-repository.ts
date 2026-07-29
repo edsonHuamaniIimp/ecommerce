@@ -51,7 +51,15 @@ export class EventoPrismaRepository implements IEventoRepository {
   }
 
   async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo">>) {
-    const row = await prisma.evento.update({ where: { id }, data: data as Record<string, unknown> as never });
+    const updateData: Record<string, unknown> = {};
+    if (data.estado !== undefined) updateData.estado = data.estado;
+    if (data.anio !== undefined) updateData.anio = data.anio;
+    if (data.fechaInicio !== undefined) updateData.fechaInicio = data.fechaInicio;
+    if (data.fechaFin !== undefined) updateData.fechaFin = data.fechaFin;
+    if (data.imagen !== undefined) updateData.imagen = data.imagen;
+    if (data.flgActivo !== undefined) updateData.flgActivo = data.flgActivo;
+
+    const row = await prisma.evento.update({ where: { id }, data: updateData });
     return row as unknown as EventoEntity;
   }
 }
