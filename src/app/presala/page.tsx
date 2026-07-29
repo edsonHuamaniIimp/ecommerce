@@ -46,7 +46,7 @@ export default function PresalaPage() {
           } catch { /* fall through to show presala */ }
         }
 
-        const json = await eventosServiceClient.listPresala();
+        const json = await eventosServiceClient.listarPresala();
         setEventos(json as EventoItem[]);
       } catch {
         // ignore

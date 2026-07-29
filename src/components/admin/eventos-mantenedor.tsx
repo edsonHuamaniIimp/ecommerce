@@ -41,7 +41,7 @@ export function EventosMantenedor() {
   const load = async () => {
     setLoading(true);
     try {
-      const [ev] = await Promise.all([eventosServiceClient.list()]);
+      const [ev] = await Promise.all([eventosServiceClient.listar()]);
       setRows(Array.isArray(ev) ? ev as unknown as EventoRow[] : []);
     } catch { /* ignore */ }
     setLoading(false);
@@ -52,7 +52,7 @@ export function EventosMantenedor() {
   const handleCreate = async () => {
     if (!newPadreId || !newAnio) return;
     try {
-      await eventosServiceClient.create({ evento_padre_id: newPadreId, anio: newAnio, fecha_inicio: newInicio || undefined, fecha_fin: newFin || undefined });
+      await eventosServiceClient.crear({ evento_padre_id: newPadreId, anio: newAnio, fecha_inicio: newInicio || undefined, fecha_fin: newFin || undefined });
       await load();
       setNewDialog(false);
       setNewAnio(""); setNewInicio(""); setNewFin("");
@@ -64,7 +64,7 @@ export function EventosMantenedor() {
     if (!row) return;
     const nextEstado = row.estado === "active" ? "closed" : "active";
     try {
-      await eventosServiceClient.patch(id, { estado: nextEstado });
+      await eventosServiceClient.actualizar({ id, estado: nextEstado });
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, estado: nextEstado } : r)));
     } catch { /* ignore */ }
   };
@@ -80,10 +80,11 @@ export function EventosMantenedor() {
   const handleEdit = async () => {
     if (!editId) return;
     try {
-      await eventosServiceClient.patch(editId, {
-        fechaInicio: editInicio || null,
-        fechaFin: editFin || null,
-        flgActivo: editFlgActivo,
+      await eventosServiceClient.actualizar({
+        id: editId,
+        fecha_inicio: editInicio || null,
+        fecha_fin: editFin || null,
+        flg_activo: editFlgActivo,
       });
       await load();
     } catch {

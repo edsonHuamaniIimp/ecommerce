@@ -33,7 +33,7 @@ export default function HomePage() {
         }
       } catch { /* public */ }
       try {
-        const json = await eventosServiceClient.listPresala();
+        const json = await eventosServiceClient.listarPresala();
         setEventos(json);
       } catch { /* ignore */ }
       setLoading(false);

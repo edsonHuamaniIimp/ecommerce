@@ -11,55 +11,56 @@ const pool = new Pool({ connectionString, max: 1 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+async function upsertEventoPadre(codigo: string, vertical: string, nombre: string) {
+  const exist = await prisma.eventoPadre.findUnique({ where: { codigo } });
+  if (exist) return exist;
+  return prisma.eventoPadre.create({ data: { codigo, vertical, nombre } });
+}
+
+async function upsertEvento(params: {
+  eventoPadreId: string;
+  tipoEvento: number;
+  codigoEvento: number;
+  anio: string;
+  estado: string;
+  flgActivo: boolean;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+}) {
+  const exist = await prisma.evento.findFirst({
+    where: { eventoPadreId: params.eventoPadreId, anio: params.anio },
+  });
+  if (exist) {
+    return prisma.evento.update({
+      where: { id: exist.id },
+      data: { estado: params.estado, flgActivo: params.flgActivo, fechaInicio: params.fechaInicio ?? null, fechaFin: params.fechaFin ?? null },
+    });
+  }
+  return prisma.evento.create({ data: params });
+}
+
+async function upsertTipoStand(eventoId: string, nombre: string, medidas: string, montoBase: number, moneda: string) {
+  const exist = await prisma.tipoStand.findFirst({ where: { eventoId, nombre } });
+  if (exist) return exist;
+  return prisma.tipoStand.create({ data: { eventoId, nombre, medidas, montoBase, moneda } });
+}
+
 async function main() {
   /* ---------- Eventos Padre ---------- */
-  const perumin = await prisma.eventoPadre.upsert({
-    where: { codigo: "PERUMIN" },
-    update: {},
-    create: { codigo: "PERUMIN", vertical: "perumin", nombre: "PERUMIN" },
-  });
-  const proexplo = await prisma.eventoPadre.upsert({
-    where: { codigo: "PROEXPLO" },
-    update: {},
-    create: { codigo: "PROEXPLO", vertical: "proexplo", nombre: "ProExplo" },
-  });
-  const wmc = await prisma.eventoPadre.upsert({
-    where: { codigo: "WMC" },
-    update: {},
-    create: { codigo: "WMC", vertical: "wmc", nombre: "WMC" },
-  });
-  const gess = await prisma.eventoPadre.upsert({
-    where: { codigo: "GESS" },
-    update: {},
-    create: { codigo: "GESS", vertical: "gess", nombre: "GESS" },
-  });
+  const perumin = await upsertEventoPadre("PERUMIN", "perumin", "PERUMIN");
+  const proexplo = await upsertEventoPadre("PROEXPLO", "proexplo", "ProExplo");
+  const wmc = await upsertEventoPadre("WMC", "wmc", "WMC");
+  const gess = await upsertEventoPadre("GESS", "gess", "GESS");
 
-  /* ---------- Eventos ---------- */
-  const evPerumin = await prisma.evento.upsert({
-    where: { id: "ev-perumin38" },
-    update: { estado: "closed", fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") },
-    create: { id: "ev-perumin38", eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 1, anio: "2025", estado: "closed", fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") },
-  });
-  await prisma.evento.upsert({
-    where: { id: "ev-perumin39" },
-    update: {},
-    create: { id: "ev-perumin39", eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 2, anio: "2026", estado: "active", fechaInicio: new Date("2026-07-01"), fechaFin: new Date("2026-12-31"), flgActivo: true },
-  });
-  await prisma.evento.upsert({
-    where: { id: "ev-proexplo2026" },
-    update: {},
-    create: { id: "ev-proexplo2026", eventoPadreId: proexplo.id, tipoEvento: 5, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-07-01"), fechaFin: new Date("2026-12-31"), flgActivo: true },
-  });
-  await prisma.evento.upsert({
-    where: { id: "ev-wmc2026" },
-    update: {},
-    create: { id: "ev-wmc2026", eventoPadreId: wmc.id, tipoEvento: 7, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-07-01"), fechaFin: new Date("2026-12-31"), flgActivo: true },
-  });
-  await prisma.evento.upsert({
-    where: { id: "ev-gess2026" },
-    update: {},
-    create: { id: "ev-gess2026", eventoPadreId: gess.id, tipoEvento: 3, codigoEvento: 1, anio: "2026", estado: "active", fechaInicio: new Date("2026-07-01"), fechaFin: new Date("2026-12-31"), flgActivo: true },
-  });
+  /* ---------- Eventos (versiones) ---------- */
+  const jul = new Date("2026-07-01");
+  const dic = new Date("2026-12-31");
+
+  const evPerumin = await upsertEvento({ eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 1, anio: "2025", estado: "closed", flgActivo: false, fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") });
+  await upsertEvento({ eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 2, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
+  await upsertEvento({ eventoPadreId: proexplo.id, tipoEvento: 5, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
+  await upsertEvento({ eventoPadreId: wmc.id, tipoEvento: 7, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
+  await upsertEvento({ eventoPadreId: gess.id, tipoEvento: 3, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
 
   /* ---------- Tipos de Stand ---------- */
   const tipos = [
@@ -67,14 +68,9 @@ async function main() {
     { nombre: "Isla", medidas: "6x6 m", montoBase: 12000, moneda: "USD" },
     { nombre: "Preferencial", medidas: "4x4 m", montoBase: 8000, moneda: "USD" },
     { nombre: "Esquina", medidas: "3x3 m", montoBase: 6500, moneda: "USD" },
-  ] as const;
-
+  ];
   for (const t of tipos) {
-    await prisma.tipoStand.upsert({
-      where: { id: `ts-${t.nombre.toLowerCase()}` },
-      update: {},
-      create: { id: `ts-${t.nombre.toLowerCase()}`, eventoId: evPerumin.id, ...t },
-    });
+    await upsertTipoStand(evPerumin.id, t.nombre, t.medidas, t.montoBase, t.moneda);
   }
 
   /* ---------- Roles ---------- */
@@ -84,23 +80,17 @@ async function main() {
     { nombre: "legal", descripcion: "Area Legal", permisos: ["read:reservas", "approve:legal"] },
     { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["read:reservas", "approve:comunicacion"] },
   ];
-
   for (const r of roles) {
-    await prisma.role.upsert({
-      where: { nombre: r.nombre },
-      update: { descripcion: r.descripcion, permisos: r.permisos },
-      create: r,
-    });
+    await prisma.role.upsert({ where: { nombre: r.nombre }, update: { descripcion: r.descripcion, permisos: r.permisos }, create: r });
   }
 
   /* ---------- Usuarios de prueba ---------- */
-  const testUsers: { email: string; role: string }[] = [
+  const testUsers = [
     { email: "admin@iimp.org.pe", role: "admin" },
     { email: "logistica@iimp.org.pe", role: "logistica" },
     { email: "legal@iimp.org.pe", role: "legal" },
     { email: "comunicacion@iimp.org.pe", role: "comunicacion" },
   ];
-
   for (const tu of testUsers) {
     const role = await prisma.role.findUnique({ where: { nombre: tu.role } });
     if (!role) continue;
