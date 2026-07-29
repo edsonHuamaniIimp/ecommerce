@@ -1,7 +1,6 @@
 # Modelo de Datos — ContratosStands
 
-> **Estado:** BORRADOR v0.1 — derivado del onboarding técnico. Motor de BD **por
-> confirmar (PC)**. Se aplican los `lineamientos-bd` del proyecto.
+> **Estado:** v0.3 — incluye modelos GessStand, Role, UserRole. Motor confirmado: PostgreSQL + Prisma v7.
 > **Relacionado:** `docs/requerimientos.md`, `.opencode/reglas/lineamientos-bd`.
 
 ## 1. Alcance del modelo

@@ -1,8 +1,6 @@
 # Requerimientos del Sistema — ContratosStands (Reserva de Stands IIMP)
 
-> **Estado:** BORRADOR v0.1 — derivado **únicamente** del onboarding técnico
-> (`conversacionequipotecnico.md`). **Aún no se ha validado con el usuario/área de
-> negocio interesada.** Todo lo marcado con **(PC)** = *Por Confirmar*.
+> **Estado:** v0.3 — sección 15 actualizada con 20 funcionalidades implementadas.
 >
 > **Fecha:** 2026-07-08
 > **Fuente:** Reunión técnica de onboarding (Edson Huamani ↔ John Morón).

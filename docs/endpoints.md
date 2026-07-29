@@ -1,6 +1,6 @@
 # Endpoints / Contrato de API — ContratosStands
 
-> **Estado:** BORRADOR v0.1. La **fuente de verdad** del contrato es
+> **Estado:** v0.3 — actualizado con endpoints de auth, eventos, roles y gess.
 > [`docs/openapi.yaml`](./openapi.yaml) (Swagger/OpenAPI 3.0). Este documento es la
 > guía legible; ante discrepancias, prevalece el OpenAPI.
 
@@ -36,23 +36,28 @@
 | GET | `/eventos?eventoPadreId=` | Lista versiones de un evento padre. |
 | GET | `/eventos/{eventoId}/plano` | Stands con X/Y y estado (plano interactivo). |
 | GET | `/eventos/{eventoId}/tipos-stand` | Tipos de stand (monto + contrato). |
-| POST | `/reservas` | Registra reserva de 1..N stands. |
-| GET | `/reservas` | Lista reservas (dashboard). |
-| GET | `/reservas/{reservaId}` | Detalle de reserva. |
-| GET | `/reservas/{reservaId}/contrato` | Descarga contrato (PDF) por tipo de stand. |
-| POST | `/reservas/{reservaId}/aprobaciones` | Resolución de un área (Legal/Logística/Comunicación). |
-| POST | `/reservas/{reservaId}/facturacion` | Envía reserva a facturación (SAP/John). |
-| POST | `/interop/facturacion/callback` | Callback con orden/comprobante y ocupados. |
-| GET | `/empresas?q=` | Búsqueda de empresas (proxy a fuente única). |
-| POST | `/auth/login` | Login JWT. Recibe `{email}`, retorna token + roles. |
+| **POST** | **`/auth/login`** | **Login JWT. `{email}` → token + roles. Cookie httpOnly.** |
+| **POST** | **`/auth/logout`** | **Cierra sesión (borra cookie).** |
+| **GET** | **`/auth/session`** | **Datos del usuario autenticado (JWT).** |
+| **POST** | **`/auth/seleccionar-evento`** | **Selecciona versión de evento. Re-firma JWT con eventoId.** |
+| **GET** | **`/eventos/presala`** | **Versiones vigentes de eventos (activo + flgActivo + en fecha).** |
+| **POST** | **`/eventos`** | **Crea nueva versión de evento (admin).** |
+| **PATCH** | **`/eventos`** | **Actualiza estado, fechas, flgActivo (admin).** |
+| **PATCH** | **`/roles`** | **Actualiza permisos de un rol (admin).** |
+| POST | `/roles/usuarios` | Asigna rol a usuario `{email, roleId}`. |
+| DELETE | `/roles/usuarios?userId=&roleId=` | Quita rol a usuario. |
 | GET | `/gess?eventoId=` | Lista stands GESS vinculados por evento. |
 | GET | `/gess?bloqueId=` | Busca stand vinculado a un bloque 3D. |
 | PATCH | `/gess` | Vincula/desvincula `{id, bloqueId}`. |
 | POST | `/gess/sync` | Sincroniza stands desde API planogess externo. |
 | POST | `/planogess` | Proxy al API externo KBEventos (planogess). |
-| POST | `/roles/usuarios` | Asigna rol a usuario `{email, roleId}`. |
-| DELETE | `/roles/usuarios?userId=&roleId=` | Quita rol a usuario. |
-| GET | `/auth/login` | Página de login (renderiza UI). |
+| POST | `/reservas` | Registra reserva de 1..N stands. |
+| GET | `/reservas` | Lista reservas (dashboard). |
+| GET | `/reservas/{reservaId}` | Detalle de reserva. |
+| GET | `/reservas/{reservaId}/contrato` | Descarga contrato (PDF) por tipo de stand. |
+| POST | `/reservas/{reservaId}/aprobaciones` | Resolución de un área (Legal/Logística/Comunicación). |
+
+**Nuevos en v0.3** resaltados en **negrita**.
 
 ## 4. Flujos cubiertos
 
