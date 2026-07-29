@@ -1,15 +1,26 @@
+import type { ApiResult } from "@/lib/api-response";
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
   });
+  const json = await res.json().catch(() => ({})) as ApiResult<T> | { error?: string } | null;
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Error ${res.status}`);
+    if (json && typeof json === "object" && "success" in json && json.success === false && "error" in json) {
+      throw new Error((json as ApiResult<T> & { success: false }).error.message);
+    }
+    if (json && "error" in json && typeof json.error === "string") {
+      throw new Error(json.error);
+    }
+    throw new Error(`Error ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  if (json && typeof json === "object" && "success" in json && json.success === true && "data" in json) {
+    return json.data as T;
+  }
+  return json as T;
 }
 
 export const internalApi = {

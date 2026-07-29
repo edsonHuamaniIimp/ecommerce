@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/services";
+import { ok, err } from "@/lib/api-response";
 
 export async function GET() {
   try {
     const eventos = await services.eventos.listarTodas();
-    return NextResponse.json(eventos);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(ok(eventos));
+  } catch (error) {
+    return NextResponse.json(err("INTERNAL", error instanceof Error ? error.message : "Error desconocido"), { status: 500 });
   }
 }
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as { evento_padre_id?: string; anio?: string; fecha_inicio?: string; fecha_fin?: string };
     if (!body.evento_padre_id || !body.anio) {
-      return NextResponse.json({ error: "evento_padre_id y anio requeridos" }, { status: 400 });
+      return NextResponse.json(err("VALIDATION", "evento_padre_id y anio requeridos"), { status: 400 });
     }
     const evento = await services.eventos.crear({
       eventoPadreId: body.evento_padre_id,
@@ -23,17 +23,18 @@ export async function POST(request: Request) {
       fechaInicio: body.fecha_inicio,
       fechaFin: body.fecha_fin,
     });
-    return NextResponse.json(evento, { status: 201 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(ok(evento), { status: 201 });
+  } catch (error) {
+    return NextResponse.json(err("INTERNAL", error instanceof Error ? error.message : "Error desconocido"), { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   try {
     const body = await request.json() as { id?: string; estado?: string; anio?: string; fechaInicio?: string | null; fechaFin?: string | null; flgActivo?: boolean };
-    if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    if (!body.id) {
+      return NextResponse.json(err("VALIDATION", "id requerido"), { status: 400 });
+    }
 
     await services.eventos.actualizar(body.id, {
       estado: body.estado,
@@ -44,10 +45,12 @@ export async function PATCH(request: Request) {
     });
 
     const updated = await services.eventos.obtenerPorId(body.id);
-    return NextResponse.json(updated);
-  } catch (err) {
-    console.error("PATCH /api/eventos:", err);
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ error: message, detail: err instanceof Error ? String(err.stack).slice(0, 300) : "" }, { status: 500 });
+    return NextResponse.json(ok(updated));
+  } catch (error) {
+    console.error("PATCH /api/eventos:", error);
+    return NextResponse.json(
+      err("INTERNAL", error instanceof Error ? error.message : "Error desconocido", error instanceof Error ? String(error.stack).slice(0, 300) : undefined),
+      { status: 500 },
+    );
   }
 }
