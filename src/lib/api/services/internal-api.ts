@@ -1,10 +1,14 @@
 import type { ApiResult } from "@/lib/api-response";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const hasBody = options?.body !== undefined;
   const res = await fetch(url, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    headers: {
+      "Content-Type": hasBody ? "application/json" : undefined,
+      ...options?.headers,
+    } as Record<string, string>,
   });
   const json = await res.json().catch(() => ({})) as ApiResult<T> | { error?: string } | null;
   if (!res.ok) {
