@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
-import { Pencil, Power, PowerOff } from "lucide-react";
+import { Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 import { dateUtils } from "@/lib/utils/date";
 
@@ -15,6 +15,7 @@ interface EventoRow {
   fechaInicio: string | null;
   fechaFin: string | null;
   flgActivo: boolean;
+  flgVisible: boolean;
   eventoPadre: { id: string; nombre: string };
   _count: { stands: number; gessStands: number; reservas: number };
 }
@@ -38,6 +39,8 @@ export function EventosMantenedor() {
   const [editFin, setEditFin] = useState("");
   const [editFlgActivo, setEditFlgActivo] = useState(false);
 
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -59,21 +62,29 @@ export function EventosMantenedor() {
     } catch { /* ignore */ }
   };
 
-  const handleToggle = async (id: string) => {
+  const handleToggleVisible = async (id: string) => {
     const row = rows.find((r) => r.id === id);
     if (!row) return;
-    const nextEstado = row.estado === "active" ? "closed" : "active";
     try {
-      await eventosServiceClient.actualizar({ id, estado: nextEstado });
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, estado: nextEstado } : r)));
+      await eventosServiceClient.actualizar({ id, flg_visible: !row.flgVisible });
+      await load();
     } catch { /* ignore */ }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await eventosServiceClient.actualizar({ id: deleteId, flg_activo: false });
+      await load();
+    } catch { /* ignore */ }
+    setDeleteId(null);
   };
 
   const openEdit = (row: EventoRow) => {
     setEditId(row.id);
     setEditInicio(dateUtils.toInputValue(row.fechaInicio));
     setEditFin(dateUtils.toInputValue(row.fechaFin));
-    setEditFlgActivo(row.flgActivo === true);
+    setEditFlgActivo(Boolean(row.flgActivo));
     setEditDialog(true);
   };
 
@@ -132,19 +143,32 @@ export function EventosMantenedor() {
                         {dateUtils.format(ev.fechaInicio)} — {dateUtils.format(ev.fechaFin)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={ev.estado === "active" && ev.flgActivo ? "default" : "secondary"}>
-                          <span>{ev.estado === "active" && ev.flgActivo ? "Si" : "No"}</span>
+                        <Badge variant={ev.flgActivo ? "default" : "secondary"}>
+                          <span>{ev.flgActivo ? "Si" : "No"}</span>
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(ev)} title="Editar fechas">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(ev)} title="Editar">
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleToggle(ev.id)} title={ev.estado === "active" ? "Cerrar" : "Abrir"}>
-                            {ev.estado === "active" ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleToggleVisible(ev.id)} title={ev.flgVisible ? "Ocultar de presala" : "Mostrar en presala"}>
+                            {ev.flgVisible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                           </Button>
-                        </div>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setDeleteId(ev.id)} title="Eliminar">
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+      <Dialog open={!!deleteId} onOpenChange={(v) => { if (!v) setDeleteId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle><span>Confirmar eliminacion</span></DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">La version se ocultara de la presala. Esta accion es reversible desde el icono de visibilidad.</p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteId(null)}><span>Cancelar</span></Button>
+            <Button variant="destructive" onClick={handleDelete}><span>Eliminar</span></Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
                       </TableCell>
                     </TableRow>
                   ))}

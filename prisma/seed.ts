@@ -24,6 +24,7 @@ async function upsertEvento(params: {
   anio: string;
   estado: string;
   flgActivo: boolean;
+  flgVisible?: boolean;
   fechaInicio?: Date;
   fechaFin?: Date;
 }) {
@@ -33,10 +34,10 @@ async function upsertEvento(params: {
   if (exist) {
     return prisma.evento.update({
       where: { id: exist.id },
-      data: { estado: params.estado, flgActivo: params.flgActivo, fechaInicio: params.fechaInicio ?? null, fechaFin: params.fechaFin ?? null },
+      data: { estado: params.estado, flgActivo: params.flgActivo, flgVisible: params.flgVisible ?? true, fechaInicio: params.fechaInicio ?? null, fechaFin: params.fechaFin ?? null },
     });
   }
-  return prisma.evento.create({ data: params });
+  return prisma.evento.create({ data: { ...params, flgVisible: params.flgVisible ?? true } });
 }
 
 async function upsertTipoStand(eventoId: string, nombre: string, medidas: string, montoBase: number, moneda: string) {

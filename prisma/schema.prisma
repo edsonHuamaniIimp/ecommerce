@@ -35,6 +35,7 @@ model Evento {
   fechaFin       DateTime?   @map("fecha_fin")
   imagen         String?     @db.VarChar(500)
   flgActivo      Boolean     @default(true) @map("flg_activo")
+  flgVisible     Boolean     @default(true) @map("flg_visible")
 
   eventoPadre    EventoPadre    @relation(fields: [eventoPadreId], references: [id])
   tiposStand     TipoStand[]

@@ -6,7 +6,7 @@ export class EventoApplicationService {
 
   async listarPresala() {
     const now = new Date();
-    return this.repo.findPadresConVersiones({ estado: "active", flgActivo: true, fechaVigente: now });
+    return this.repo.findPadresConVersiones({ estado: "active", flgActivo: true, flgVisible: true, fechaVigente: now });
   }
 
   async listarTodas() {
@@ -26,7 +26,7 @@ export class EventoApplicationService {
     });
   }
 
-  async actualizar(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo">>) {
+  async actualizar(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible">>) {
     return this.repo.update(id, data);
   }
 }

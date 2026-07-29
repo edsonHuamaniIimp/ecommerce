@@ -3,6 +3,7 @@ import type { EventoEntity, EventoPadreEntity } from "../models/entities";
 export interface EventoCriteria {
   estado?: string;
   flgActivo?: boolean;
+  flgVisible?: boolean;
   fechaVigente?: Date;
 }
 
@@ -18,5 +19,5 @@ export interface IEventoRepository {
     fechaInicio?: Date;
     fechaFin?: Date;
   }): Promise<EventoEntity>;
-  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo">>): Promise<EventoEntity>;
+  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible">>): Promise<EventoEntity>;
 }

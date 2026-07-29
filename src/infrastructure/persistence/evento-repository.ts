@@ -7,6 +7,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     const whereEvento: Record<string, unknown> = {};
     if (criteria?.estado) whereEvento.estado = criteria.estado;
     if (criteria?.flgActivo !== undefined) whereEvento.flgActivo = criteria.flgActivo;
+    if (criteria?.flgVisible !== undefined) whereEvento.flgVisible = criteria.flgVisible;
     if (criteria?.fechaVigente) {
       whereEvento.OR = [
         { fechaInicio: null },
@@ -50,7 +51,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     return row as unknown as EventoEntity;
   }
 
-  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo">>) {
+  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible">>) {
     const updateData: Record<string, unknown> = {};
     if (data.estado !== undefined) updateData.estado = data.estado;
     if (data.anio !== undefined) updateData.anio = data.anio;
@@ -58,6 +59,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     if (data.fechaFin !== undefined) updateData.fechaFin = data.fechaFin;
     if (data.imagen !== undefined) updateData.imagen = data.imagen;
     if (data.flgActivo !== undefined) updateData.flgActivo = data.flgActivo;
+    if (data.flgVisible !== undefined) updateData.flgVisible = data.flgVisible;
 
     const row = await prisma.evento.update({ where: { id }, data: updateData });
     return row as unknown as EventoEntity;

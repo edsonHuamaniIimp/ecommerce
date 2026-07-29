@@ -18,6 +18,7 @@ export interface EventoEntity {
   fechaFin: Date | null;
   imagen: string | null;
   flgActivo: boolean;
+  flgVisible: boolean;
   eventoPadre?: EventoPadreEntity;
   createdAt?: Date;
   updatedAt?: Date;
