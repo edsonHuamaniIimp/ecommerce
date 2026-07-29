@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuario sin roles asignados" }, { status: 403 });
     }
 
-    const roles = userRoles.map((ur) => ur.role.nombre as Rol);
+    const roles = userRoles.map((ur: (typeof userRoles)[number]) => ur.role.nombre as Rol);
 
     const token = await signToken({
       sub: `user|${body.email}`,

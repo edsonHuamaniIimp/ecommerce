@@ -18,12 +18,12 @@ export default async function RolesMantenedorPage() {
       orderBy: { nombre: "asc" },
     });
 
-    const rows: RoleRow[] = roles.map((r) => ({
+    const rows: RoleRow[] = roles.map((r: typeof roles[number]) => ({
       id: r.id,
       nombre: r.nombre as Rol,
       descripcion: r.descripcion,
       permisos: r.permisos,
-      usuarios: r.usuarios.map((u) => ({ id: u.id, userId: u.userId, email: u.email })),
+      usuarios: r.usuarios.map((u: typeof r.usuarios[number]) => ({ id: u.id, userId: u.userId, email: u.email })),
       count: r.usuarios.length,
     }));
 
