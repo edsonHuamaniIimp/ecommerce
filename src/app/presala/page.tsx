@@ -35,6 +35,17 @@ export default function PresalaPage() {
           return;
         }
         setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
+
+        const pendingEvento = localStorage.getItem("iimp-pending-evento");
+        if (session.authenticated && pendingEvento) {
+          localStorage.removeItem("iimp-pending-evento");
+          try {
+            await authService.seleccionarEvento({ eventoId: pendingEvento });
+            router.replace("/dashboard");
+            return;
+          } catch { /* fall through to show presala */ }
+        }
+
         const json = await eventosServiceClient.listPresala();
         setEventos(json as EventoItem[]);
       } catch {

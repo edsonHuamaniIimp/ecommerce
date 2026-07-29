@@ -42,6 +42,11 @@ export default function HomePage() {
 
   const handleSelect = async (eventoId: string, vertical: string) => {
     if (!isAuth) {
+      localStorage.setItem("iimp-pending-evento", eventoId);
+      localStorage.setItem("iimp-vertical", vertical);
+      document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
+      document.documentElement.classList.add(`vert-${vertical}`);
+      document.documentElement.setAttribute("data-vertical", vertical);
       router.push("/auth/login");
       return;
     }
