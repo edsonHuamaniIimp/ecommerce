@@ -67,15 +67,28 @@ export async function PATCH(request: Request) {
     };
     if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-    const data: Record<string, unknown> = {};
-    if (body.estado !== undefined) data.estado = body.estado;
-    if (body.anio !== undefined) data.anio = body.anio;
-    if (body.fechaInicio !== undefined) data.fechaInicio = body.fechaInicio ? new Date(body.fechaInicio) : null;
-    if (body.fechaFin !== undefined) data.fechaFin = body.fechaFin ? new Date(body.fechaFin) : null;
-    if (body.imagen !== undefined) data.imagen = body.imagen;
-    if (body.flgActivo !== undefined) data.flgActivo = body.flgActivo;
+    const updateData: {
+      estado?: string;
+      anio?: string;
+      fechaInicio?: Date | null;
+      fechaFin?: Date | null;
+      imagen?: string | null;
+      flgActivo?: boolean;
+    } = {};
 
-    const updated = await prisma.evento.update({ where: { id: body.id }, data });
+    if (body.estado !== undefined) updateData.estado = body.estado;
+    if (body.anio !== undefined) updateData.anio = body.anio;
+    if (body.fechaInicio !== undefined) updateData.fechaInicio = body.fechaInicio ? new Date(body.fechaInicio) : null;
+    if (body.fechaFin !== undefined) updateData.fechaFin = body.fechaFin ? new Date(body.fechaFin) : null;
+    if (body.imagen !== undefined) updateData.imagen = body.imagen;
+    if (body.flgActivo !== undefined) updateData.flgActivo = body.flgActivo;
+
+    await prisma.evento.update({ where: { id: body.id }, data: updateData });
+
+    const updated = await prisma.evento.findUnique({
+      where: { id: body.id },
+      include: { eventoPadre: { select: { nombre: true } } },
+    });
     return NextResponse.json(updated);
   } catch (err) {
     console.error("PATCH /api/eventos:", err);
