@@ -39,22 +39,38 @@ cada prompt. Para ahorrar tokens:
 
 ## Skills de stack (`.opencode/skills/`) — cómo construir
 
-Invoca la skill del stack al tocar su área:
+**Misma regla que las reglas: NO cargues todas las skills en cada prompt.** Cada
+skill tiene una `description` en su `SKILL.md`. Usala para decidir si cargarla o no.
 
+### Skills de Next.js
+Cargar solo al tocar App Router, Server Components, Server Actions, caching, o `"use cache"`:
 - `nextjs-core` — patrones de App Router, Server Components, Server Actions, caching.
 - `nextjs-v16` — novedades de Next.js 16 (Turbopack, cache components).
 - `next-dev-loop` — ciclo de desarrollo Next.js: errores, fast refresh, debugging.
 - `next-cache-components-optimizer` — optimizar `"use cache"`, cacheLife, cacheTag.
 - `next-cache-components-adoption` — migrar componentes a `"use cache"`.
 - `next-partial-prefetching-adoption` — Partial Prefetching (PPR).
+
+### Skills de TypeScript y estilos
 - `typescript-core` — patrones y buenas prácticas de TypeScript.
 - `tailwind` — estilado utility-first con Tailwind.
+
+### Skills de Prisma
+Cargar solo al tocar BD, migraciones, queries o schema:
 - `prisma-database-setup` — configuración de Prisma con PostgreSQL, driver adapters.
 - `prisma-client-api` — API del cliente Prisma: queries, mutaciones, transacciones.
 - `prisma-postgres` — patrones específicos de PostgreSQL con Prisma.
 - `prisma-cli` — comandos: `db push`, `migrate`, `generate`, `studio`, `seed`.
 - `prisma-upgrade-v7` — referencia de migración a Prisma v7.
+
+### Skills de Auth
 - `auth0` — autenticación y autorización con Auth0 (Next.js). Roles, permisos, middleware.
 
-Regla práctica: antes de codificar una tarea, carga la skill de stack aplicable
-y la regla de metodología correspondiente.
+## Regla de oro para ahorrar tokens
+
+1. **Lees la `description` de cada skill/regla** (visible sin cargarla).
+2. **Solo cargas con `skill` la que aplica a la tarea actual.**
+3. **Si la tarea es simple** (fix de un texto, ajuste de CSS, commit), **no cargues ninguna.**
+4. **Si la tarea toca arquitectura** (nuevo endpoint, nuevo modelo, refactor), carga
+   `api-design-patterns` o la skill de stack relevante.
+5. **Nunca cargues skills "por si acaso".**
