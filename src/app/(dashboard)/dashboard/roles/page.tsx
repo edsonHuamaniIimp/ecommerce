@@ -2,6 +2,8 @@ import { RolesMantenedor } from "@/components/admin/roles-mantenedor";
 import { prisma } from "@/lib/db";
 import type { Rol } from "@/lib/constants";
 
+type RoleWithUsuarios = { id: string; nombre: string; descripcion: string | null; permisos: string[]; usuarios: { id: string; userId: string; email: string }[] };
+
 interface RoleRow {
   id: string;
   nombre: string;
@@ -16,7 +18,7 @@ export default async function RolesMantenedorPage() {
     const roles = await prisma.role.findMany({
       include: { usuarios: { select: { id: true, userId: true, email: true } } },
       orderBy: { nombre: "asc" },
-    }) as { id: string; nombre: string; descripcion: string | null; permisos: string[]; usuarios: { id: string; userId: string; email: string }[] }[];
+    }) as RoleWithUsuarios[];
 
     const rows: RoleRow[] = roles.map((r) => ({
       id: r.id,
