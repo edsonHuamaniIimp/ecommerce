@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import type { Prisma } from "../../../../../prisma/generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { GessSyncResultDTO } from "@/types/dto/models";
 
 const API_URL = process.env.PLANOGESS_API_URL ?? "https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess";
