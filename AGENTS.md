@@ -29,7 +29,7 @@ cada prompt. Para ahorrar tokens:
 - `test-driven-development` — escribir tests antes/junto al código.
 - `systematic-debugging` — diagnóstico de bugs guiado por causa raíz.
 - `verification-before-completion` — verificar antes de declarar algo terminado.
-- `pre-merge` — checklist antes de integrar cambios.
+- `pre-merge` — checklist antes de integrar cambios. **Incluye regla de analisis de impacto para upgrades de dependencias (Prisma, Next.js, React, TypeScript).**
 - `security-scanning` — revisión de seguridad.
 - `constants-first` — **CRITICAL**: usar SIEMPRE constantes de `src/lib/constants.ts` para validaciones, estados, roles y permisos. Nunca strings o numeros hardcodeados.
 - `utility-services` — usar servicios utilitarios centralizados (singleton) en `src/lib/utils/` para funciones reutilizables. Prohibe duplicar logica de formato/parseo en componentes.
