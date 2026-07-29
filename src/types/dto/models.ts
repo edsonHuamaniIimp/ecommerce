@@ -45,146 +45,20 @@ export interface PlanoStandDTO {
 }
 
 /* ---------- Reservas ---------- */
-export interface CuotaDTO {
-  numero: number;
-  porcentaje: number;
-  monto: number;
-  fecha_pago: string | null;
-}
+export interface CuotaDTO { numero: number; porcentaje: number; monto: number; fecha_pago: string | null; }
+export interface DatosFacturacionDTO { tipo_comprobante: TipoComprobante; razon_social: string; ruc: string; nombre: string; numero_documento: string; direccion: string; correo: string; }
+export interface AprobacionDTO { area: AreaAprobacion; estado: ResultadoAprobacion; responsable: string | null; comentario: string | null; fecha: string | null; }
+export interface StandResumenDTO { id: string; numero: string; tipo_stand: string; monto: number; moneda: string; }
+export interface ReservaDTO { id: string; evento_id: string; empresa_ref: string; empresa_nombre: string; stand_ids: string[]; stands: StandResumenDTO[]; monto_total: number; moneda: string; facturacion: DatosFacturacionDTO; cuotas: CuotaDTO[]; aprobaciones: AprobacionDTO[]; estado: EstadoReserva; creado_en: string; }
+export interface ReservaCreateDTO { evento_id: string; stand_ids: string[]; empresa_ref: string; empresa_nombre: string; facturacion: DatosFacturacionDTO; cuotas: Omit<CuotaDTO, "monto">[]; }
+export interface InteropCallbackDTO { reserva_id: string; estado: "confirmado" | "error"; orden_venta: string | null; comprobante: string | null; stands_ocupados: string[]; }
 
-export interface DatosFacturacionDTO {
-  tipo_comprobante: TipoComprobante;
-  razon_social: string;
-  ruc: string;
-  nombre: string;
-  numero_documento: string;
-  direccion: string;
-  correo: string;
-}
+/* Re-export from domain DTOs */
+export type { LoginRequestDTO, LoginResponseDTO, SessionDTO, SeleccionarEventoRequestDTO } from "./auth";
+export type { EventoPresalaDTO, EventoPadrePresalaDTO, CreateEventoRequestDTO as CreateEventoDTO } from "./eventos";
+export type { GessStandDTO, GessSyncResultDTO } from "./gess";
 
-export interface AprobacionDTO {
-  area: AreaAprobacion;
-  estado: ResultadoAprobacion;
-  responsable: string | null;
-  comentario: string | null;
-  fecha: string | null;
-}
-
-export interface StandResumenDTO {
-  id: string;
-  numero: string;
-  tipo_stand: string;
-  monto: number;
-  moneda: string;
-}
-
-export interface ReservaDTO {
-  id: string;
-  evento_id: string;
-  empresa_ref: string;
-  empresa_nombre: string;
-  stand_ids: string[];
-  stands: StandResumenDTO[];
-  monto_total: number;
-  moneda: string;
-  facturacion: DatosFacturacionDTO;
-  cuotas: CuotaDTO[];
-  aprobaciones: AprobacionDTO[];
-  estado: EstadoReserva;
-  creado_en: string;
-}
-
-export interface ReservaCreateDTO {
-  evento_id: string;
-  stand_ids: string[];
-  empresa_ref: string;
-  empresa_nombre: string;
-  facturacion: DatosFacturacionDTO;
-  cuotas: Omit<CuotaDTO, "monto">[];
-}
-
-export interface InteropCallbackDTO {
-  reserva_id: string;
-  estado: "confirmado" | "error";
-  orden_venta: string | null;
-  comprobante: string | null;
-  stands_ocupados: string[];
-}
-
-/* ---------- GESS Stand (API planogess proxy) ---------- */
-export interface GessStandDTO {
-  id: string;
-  evento_id: string;
-  stand_api_id: string;
-  stand_code: string;
-  tipo_stand: string | null;
-  medidas: string | null;
-  estado: string | null;
-  empresa: string | null;
-  pabellon: string | null;
-  ubicacion: string | null;
-  raw_data: unknown;
-  bloque_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GessSyncResultDTO {
-  creados: number;
-  actualizados: number;
-  total: number;
-}
-
-/* ---------- Auth ---------- */
-export interface LoginRequestDTO {
-  email: string;
-}
-
-export interface LoginResponseDTO {
-  token: string;
-  roles: string[];
-  email: string;
-}
-
-export interface SessionDTO {
-  authenticated: boolean;
-  email?: string;
-  roles?: string[];
-  eventoId?: string | null;
-  eventoPadreId?: string | null;
-  eventoNombre?: string | null;
-}
-
-export interface SeleccionarEventoRequestDTO {
-  eventoId: string;
-}
-
-/* ---------- Eventos ---------- */
-export interface EventoPresalaDTO {
-  id: string;
-  anio: string;
-  estado: string;
-  fecha_inicio: string | null;
-  fecha_fin: string | null;
-  imagen: string | null;
-}
-
-export interface EventoPadrePresalaDTO {
-  id: string;
-  nombre: string;
-  codigo: string;
-  vertical: string;
-  versiones: EventoPresalaDTO[];
-}
-
-export interface CreateEventoDTO {
-  evento_padre_id: string;
-  anio: string;
-  fecha_inicio?: string;
-  fecha_fin?: string;
-}
-
-/* ---------- Roles ---------- */
+/* UserRole DTO */
 export interface UserRoleDTO {
   id: string;
   user_id: string;
