@@ -1,6 +1,6 @@
 # Arquitectura — ContratosStands
 
-> **Estado:** BORRADOR v0.2 — refleja la implementación actual.
+> **Estado:** v0.3 — refleja la implementación con arquitectura hexagonal.
 > **Relacionado:** `docs/requerimientos.md`, `docs/modelo-datos.md`, `docs/despliegue.md`.
 
 ## 1. Stack tecnológico
@@ -18,110 +18,165 @@
 | Auth | JWT (`jose`) | — |
 | Runtime | Node.js | 20+ |
 
-## 2. Estructura del proyecto
+---
+
+## 2. Backend — Arquitectura Hexagonal (Ports & Adapters)
+
+### 2.1 Principio
+
+El dominio (reglas de negocio) es independiente de cualquier framework, base de datos o protocolo HTTP. Las dependencias apuntan hacia adentro: `infrastructure → application → domain`.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   API Routes (HTTP)                      │
+│  src/app/api/**/route.ts                                 │
+│  Solo parsean request/response, delegan a application    │
+└───────────────────────┬─────────────────────────────────┘
+                        │ depende de
+┌───────────────────────▼─────────────────────────────────┐
+│              Application (Casos de Uso)                  │
+│  src/application/                                        │
+│  Orquestan la lógica de negocio usando puertos           │
+└───────────────────────┬─────────────────────────────────┘
+                        │ depende de
+┌───────────────────────▼─────────────────────────────────┐
+│              Domain (Núcleo puro)                        │
+│  src/domain/                                             │
+│  Entidades + Puertos (interfaces) — CERO dependencias    │
+└───────────────────────▲─────────────────────────────────┘
+                        │ implementa
+┌───────────────────────┴─────────────────────────────────┐
+│         Infrastructure (Adaptadores)                     │
+│  src/infrastructure/                                     │
+│  Prisma repositories, JWT service                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Estructura de directorios
+
+```
+src/
+├── domain/                         ← Núcleo (sin dependencias externas)
+│   ├── models/entities.ts          ← Entidades de dominio puras
+│   └── ports/                      ← Interfaces (contratos)
+│       ├── evento-repository.ts
+│       ├── gess-repository.ts
+│       └── role-repository.ts
+│
+├── application/                    ← Casos de uso
+│   └── eventos/evento-service.ts   ← Lógica de negocio de eventos
+│
+├── infrastructure/                 ← Adaptadores concretos
+│   └── persistence/                ← Prisma ORM
+│       ├── evento-repository.ts
+│       ├── gess-repository.ts
+│       └── role-repository.ts
+│
+├── lib/
+│   ├── services.ts                 ← DI container (wiring)
+│   ├── auth.ts                     ← JWT (sign/verify/hasRole)
+│   ├── db.ts                       ← PrismaClient singleton
+│   ├── constants.ts                ← Fuente única de constantes
+│   └── utils/date.ts               ← dateUtils (singleton)
+│
+└── app/api/                        ← Route handlers (HTTP)
+    ├── eventos/route.ts            ← GET/POST/PATCH → services.eventos
+    ├── eventos/presala/route.ts    ← GET → services.eventos
+    ├── auth/                       ← login, logout, session, seleccionar-evento
+    ├── gess/                       ← GET/PATCH stands
+    ├── gess/sync/                  ← POST sincronizar
+    └── roles/                      ← CRUD roles y usuarios
+```
+
+### 2.3 Patrones
+
+**Ports & Adapters:** El dominio define interfaces (`IEventoRepository`). La infraestructura las implementa (`EventoPrismaRepository`). La aplicación usa las interfaces sin conocer Prisma.
+
+**Dependency Injection:** `src/lib/services.ts` instancia los repositorios y servicios, inyectándolos manualmente (sin contenedor pesado).
+
+**DTO (Data Transfer Object):** Las API routes reciben/retornan DTOs en `src/types/dto/`. Cada DTO en su propio archivo siguiendo SOLID (Single Responsibility):
+
+```
+src/types/dto/
+├── auth/          ← login-request, login-response, session, seleccionar-evento
+├── eventos/       ← presala, create-evento-request
+├── gess/          ← gess-stand, sync-result
+└── models.ts      ← re-exports (compatibilidad)
+```
+
+**Mapper:** `src/lib/mappers/gess-mapper.ts` convierte GessStandDTO (snake_case) a GessStandDomain (camelCase) para uso en la UI.
+
+---
+
+## 3. Frontend — Arquitectura
+
+### 3.1 Estructura
 
 ```
 src/
 ├── app/
-│   ├── (public)/              ← Rutas públicas (plano, login)
-│   │   ├── layout.tsx          ← Header público + VerticalSwitcher
-│   │   ├── plano-isometrico/   ← Plano 3D interactivo
-│   │   └── plano-grid/         ← Plano 2D (oculto del menú)
-│   ├── (dashboard)/            ← Rutas protegidas (sidebar)
-│   │   ├── layout.tsx          ← Sidebar
-│   │   ├── dashboard/          ← KPIs + aprobaciones
-│   │   ├── planogess/          ← Vista datos API planogess
-│   │   ├── gess-mantenedor/    ← Importar + vincular stands
-│   │   └── admin-roles/        ← Gestión de roles (admin)
-│   ├── auth/login/             ← Página de login
-│   ├── api/                    ← Route Handlers (REST)
-│   │   ├── auth/login/         ← POST login JWT
-│   │   ├── roles/usuarios/     ← CRUD usuarios por rol
-│   │   ├── gess/               ← GET/PATCH stands vinculados
-│   │   ├── gess/sync/          ← POST sincronizar API externo
-│   │   └── planogess/          ← POST proxy KBEventos
-│   ├── layout.tsx              ← Root layout + Providers + anti-flash vertical
-│   └── globals.css             ← Tailwind v4 + UI Kit
+│   ├── (public)/                  ← Rutas públicas
+│   │   ├── layout.tsx             ← Header + VerticalSwitcher
+│   │   ├── page.tsx               ← Home (presala pública)
+│   │   └── plano-isometrico/      ← Plano 3D interactivo
+│   ├── (dashboard)/               ← Rutas protegidas (login requerido)
+│   │   ├── layout.tsx             ← Sidebar + DashboardHeader
+│   │   └── dashboard/             ← KPIs, planogess, gess, roles, eventos
+│   ├── auth/login/                ← Login page
+│   └── presala/                   ← Post-login event version selector
+│
 ├── components/
-│   ├── plano/                  ← Isométrico 3D, grid 2D, planogess-view
-│   ├── dashboard/              ← Sidebar, KPIs, aprobaciones
-│   ├── layout/                 ← Header público
-│   ├── evento/                 ← EventSelectionDialog
-│   ├── gess/                   ← GessMantenedor (2 pasos)
-│   └── admin/                  ← RolesMantenedor
-├── lib/
-│   ├── api/services/           ← Fachada (facade → mock/http)
-│   ├── mappers/                ← DTO ↔ dominio (snake_case ↔ camelCase)
-│   ├── auth.ts                 ← JWT (sign, verify, hasRole, hasPermission)
-│   ├── db.ts                   ← PrismaClient (singleton, adapter pg)
-│   ├── constants.ts            ← Fuente única (verticales, estados, roles)
-│   └── bloques.ts              ← IDs de bloques del plano isométrico
-├── contexts/
-│   └── evento-context.tsx      ← EventoProvider + useEvento (persistencia)
-├── types/
-│   ├── dto/models.ts           ← DTOs (snake_case, forma exacta del backend)
-│   └── reserva.ts              ← Modelos de dominio (camelCase)
-└── middleware.ts               ← Protección de rutas por rol JWT
+│   ├── dashboard/                 ← Sidebar, DashboardHeader, StatsCard, Aprobaciones
+│   ├── plano/                     ← PlanoIsometrico (3D), GessMantenedor
+│   ├── admin/                     ← RolesMantenedor, EventosMantenedor
+│   ├── gess/                      ← GessMantenedor
+│   └── layout/                    ← Header (público)
+│
+├── lib/api/services/              ← Client services (nunca fetch directo)
+│   ├── internal-api.ts            ← Fetch wrapper tipado
+│   ├── auth-service.ts
+│   ├── eventos-service.ts
+│   ├── gess-service.ts
+│   └── roles-service.ts
+│
+└── contexts/evento-context.tsx    ← EventoProvider
 ```
 
-## 3. Patrones de arquitectura
+### 3.2 Patrones frontend
 
-### 3.1 Fachada de Servicios (`api-design-patterns`)
-
-```
-Componente → facade.ts → mock.ts (NEXT_PUBLIC_API_MOCK=1)  ← datos fake
-                       → http.ts  (NEXT_PUBLIC_API_MOCK=0)  ← API real
-```
-
-Ningún componente hace `fetch` directo. Todo pasa por la fachada.
-
-### 3.2 DTO + Mapper
+**Service Pattern:** Ningún componente hace `fetch()` directo. Todos usan servicios tipados de `src/lib/api/services/`.
 
 ```
-Backend (snake_case) → DTO → Mapper → Dominio (camelCase) → Componente
+Componente → authService.login() → internalApi.post() → fetch()
 ```
 
-DTOs en `src/types/dto/models.ts`, modelos en `src/types/reserva.ts`, mappers en `src/lib/mappers/`.
-
-### 3.3 Autenticación y autorización
+**DTO + Mapper:** El backend retorna snake_case. El mapper convierte a camelCase para la UI.
 
 ```
-POST /api/auth/login → valida email en user_role → firma JWT → cookie httpOnly
-middleware.ts → lee cookie → verifyToken → hasRole → permite/deniega
+API response (snake_case) → GessStandDTO → mapGessStandFromDTO() → GessStandDomain (camelCase) → Component
 ```
 
-Roles: `admin`, `logistica`, `legal`, `comunicacion`. Permisos por rol en `ROLES_PERMISSIONS`.
+**Singleton Utilities:** `dateUtils` en `src/lib/utils/date.ts` centraliza formato de fechas. Prohibido duplicar lógica de formato en componentes.
 
-### 3.4 Evento y vertical (multi-evento)
+**Constants First:** Validaciones, estados, roles y permisos siempre desde `src/lib/constants.ts`. Nunca strings hardcodeados.
 
-```
-EventSelectionDialog (primer ingreso) → localStorage → EventoProvider
-  → actualiza vertical CSS (anti-flash en <head>)
-  → las páginas server leen getEventoActual() (mock → default Perumin)
-```
+---
 
-### 3.5 Proxy a API externa (planogess)
+## 4. Flujo de autenticación y eventos
 
 ```
-POST /api/planogess → fetch server-side → https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess
-  → extrae array recursivo → devuelve datos al cliente
+1. Público: / → grid de eventos → clic versión → localStorage guarda eventId → /auth/login
+2. Login: POST /api/auth/login → valida email en user_role → firma JWT → cookie httpOnly
+3. Presala: /presala → lee evento pendiente → auto-selecciona → JWT se re-firma con eventoId
+4. Dashboard: middleware verifica JWT → getSession() → filtra por eventoId
+5. Cambio de evento: clic en nombre evento (top bar) → /presala → re-selección
 ```
 
-SSL self-signed manejado con `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+---
 
-### 3.6 Plano 3D interactivo
+## 5. Base de datos
 
-```
-Three.js + R3F → Canvas con OrbitControls → 52 bloques desde buildItems()
-  → multi-select (toggle) → sidebar "Mi selección"
-  → modal reserva 3 pasos (Datos, Documentos, Confirmación)
-  → vinculación GessStand (bloqueId) → muestra empresa/estado
-  → bloques reservados en gris, no seleccionables para reserva
-```
-
-## 4. Base de datos
-
-12 tablas PostgreSQL gestionadas con Prisma v7:
+14 tablas PostgreSQL gestionadas con Prisma v7:
 
 | Categoría | Tablas |
 |---|---|
@@ -129,7 +184,21 @@ Three.js + R3F → Canvas con OrbitControls → 52 bloques desde buildItems()
 | Transaccionales | `stand`, `plano_posicion`, `gess_stand`, `reserva`, `reserva_stand`, `cuota`, `aprobacion`, `interop_facturacion`, `user_role` |
 | Auditoría | `audit_log` |
 
-## 5. Variables de entorno
+---
+
+## 6. Reglas de desarrollo (`.opencode/reglas/`)
+
+| Regla | Severidad | Descripción |
+|---|---|---|
+| `constants-first` | CRITICAL | Usar `src/lib/constants.ts` para validaciones, nunca strings sueltos |
+| `utility-services` | HIGH | Funciones reutilizables en `src/lib/utils/`, singleton, DRY |
+| `api-design-patterns` | HIGH | Fachada de servicios, DTO/Mapper, Zod validation |
+| `iimp-ui-kit` | HIGH | Componentes del UI Kit, tokens semánticos, `<span>` en Select |
+| `lineamientos-bd` | MEDIUM | PK obligatoria, FK, índices, nomenclatura |
+
+---
+
+## 7. Variables de entorno
 
 | Variable | Descripción |
 |---|---|
@@ -137,4 +206,4 @@ Three.js + R3F → Canvas con OrbitControls → 52 bloques desde buildItems()
 | `NEXT_PUBLIC_API_MOCK` | `1` = mock, `0` = API real |
 | `DATABASE_URL` | Connection string PostgreSQL |
 | `PLANOGESS_API_URL` | URL del API externo KBEventos |
-| `JWT_SECRET` | Clave de firma JWT (cambiar en producción) |
+| `JWT_SECRET` | Clave de firma JWT |
