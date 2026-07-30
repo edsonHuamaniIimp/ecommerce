@@ -22,6 +22,7 @@ export async function GET() {
       authenticated: true,
       email: session.email,
       roles: session.roles,
+      permissions: session.permissions,
       eventoId: session.eventoId ?? null,
       eventoPadreId: session.eventoPadreId ?? null,
       eventoNombre,

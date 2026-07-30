@@ -167,3 +167,24 @@ export const MONEDAS = {
 } as const;
 
 export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
+
+/* ================================================================
+   Claves de localStorage
+   ================================================================ */
+export const LS_KEYS = {
+  VERTICAL: "iimp-vertical",
+  EVENTO_PUBLICO: "iimp-evento-publico",
+  EVENTO_PENDIENTE: "iimp-pending-evento",
+  PLANO_SELECCION: "iimp-plano-seleccion",
+} as const;
+
+/* ================================================================
+   Steps del modal de reserva
+   ================================================================ */
+export const RESERVA_STEPS = {
+  DATOS: 0,
+  DOCUMENTOS: 1,
+  CONFIRMACION: 2,
+} as const;
+
+export type ReservaStep = (typeof RESERVA_STEPS)[keyof typeof RESERVA_STEPS];

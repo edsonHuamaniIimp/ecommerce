@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, verifyToken, hasRole } from "@/lib/auth";
+import { getTokenFromRequest, verifyToken, hasRole, hasPermission } from "@/lib/auth";
 import { ROLES } from "@/lib/constants";
 
-const PROTECTED: { path: string; roles: string[] }[] = [
-  { path: "/dashboard/gess", roles: [ROLES.ADMIN] },
+const PROTECTED: { path: string; roles: string[]; permission?: string }[] = [
+  { path: "/dashboard/vinculacion", roles: [ROLES.ADMIN] },
+  { path: "/dashboard/reservas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION], permission: "read:reservas" },
+  { path: "/dashboard/stands", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
   { path: "/dashboard/roles", roles: [ROLES.ADMIN] },
   { path: "/dashboard/eventos", roles: [ROLES.ADMIN] },
   { path: "/api/roles", roles: [ROLES.ADMIN] },
@@ -14,7 +16,7 @@ const PROTECTED: { path: string; roles: string[] }[] = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/eventos/presala") {
+  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/eventos/presala" || pathname === "/api/eventos/publico") {
     return NextResponse.next();
   }
 
@@ -25,6 +27,9 @@ export async function middleware(request: NextRequest) {
       const payload = await verifyToken(token);
       if (!payload) return redirectToLogin(request);
       if (!hasRole(payload, ...(route.roles as typeof ROLES[keyof typeof ROLES][]))) {
+        return NextResponse.redirect(new URL("/403", request.url));
+      }
+      if (route.permission && !hasPermission(payload, route.permission)) {
         return NextResponse.redirect(new URL("/403", request.url));
       }
       if (payload.roles.includes(ROLES.ADMIN)) break;

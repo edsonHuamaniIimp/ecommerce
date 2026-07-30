@@ -1,18 +1,20 @@
 "use client";
 
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard },
-  { href: "/dashboard/planogess", label: "Plano GESS", icon: Map },
-  { href: "/dashboard/gess", label: "Mantenedor GESS", icon: Wrench },
+  { href: "/dashboard/datos-evento", label: "Datos del Evento", icon: Map },
+  { href: "/dashboard/vinculacion", label: "Vinculacion de Stands", icon: Wrench },
+  { href: "/dashboard/stands", label: "Gestion de Stands", icon: FileText },
+  { href: "/dashboard/reservas", label: "Gestion de Reservas", icon: ClipboardList },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar },
-  { href: "/plano-isometrico", label: "Plano de Stands", icon: Building2 },
+  { href: "/plano", label: "Plano de Stands", icon: Building2 },
 ] as const;
 
 export function Sidebar() {

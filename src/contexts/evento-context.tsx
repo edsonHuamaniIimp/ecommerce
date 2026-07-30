@@ -2,6 +2,7 @@
 
 import type { EventoPadre, Evento } from "@/types/reserva";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { LS_KEYS } from "@/lib/constants";
 
 const STORAGE_KEY = "iimp-evento";
 
@@ -35,7 +36,7 @@ function writeToStorage(sel: EventoSelection | null) {
   try {
     if (sel) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sel));
-      localStorage.setItem("iimp-vertical", sel.eventoPadre.vertical);
+      localStorage.setItem(LS_KEYS.VERTICAL, sel.eventoPadre.vertical);
       document.documentElement.classList.forEach((c) => {
         if (c.startsWith("vert-")) document.documentElement.classList.remove(c);
       });

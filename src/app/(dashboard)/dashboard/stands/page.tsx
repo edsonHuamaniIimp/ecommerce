@@ -1,0 +1,34 @@
+import { getSession } from "@/lib/auth";
+import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { StandsManager } from "@/components/stands/stands-manager";
+import Link from "next/link";
+
+export default async function StandsPage() {
+  const session = await getSession();
+  const eventoId = session?.eventoId ?? "";
+
+  if (!eventoId) {
+    return (
+      <main className="flex-1 px-6 py-6 lg:px-10">
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16">
+            <p className="text-sm text-muted-foreground">Selecciona un evento en la presala para continuar.</p>
+            <Button asChild><Link href="/presala?change=1"><span>Ir a la presala</span></Link></Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex-1 px-6 py-6 lg:px-10">
+      <div className="mx-auto w-full max-w-7xl space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Gestion de Stands</h1>
+          <p className="text-sm text-muted-foreground">Documentos e imagenes por stand vinculado.</p>
+        </div>
+        <StandsManager eventoId={eventoId} />
+      </div>
+    </main>
+  );
+}

@@ -11,6 +11,8 @@ export interface GessStandDTO {
   ubicacion: string | null;
   raw_data: unknown;
   bloque_id: string | null;
+  documentos: string[];
+  imagenes: string[];
   created_at: string;
   updated_at: string;
 }

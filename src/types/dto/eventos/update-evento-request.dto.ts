@@ -6,4 +6,5 @@ export interface UpdateEventoRequestDTO {
   fecha_fin?: string | null;
   flg_activo?: boolean;
   flg_visible?: boolean;
+  plano?: string;
 }

@@ -36,6 +36,7 @@ model Evento {
   imagen         String?     @db.VarChar(500)
   flgActivo      Boolean     @default(true) @map("flg_activo")
   flgVisible     Boolean     @default(true) @map("flg_visible")
+  plano          String      @default("gess") @db.VarChar(50)
 
   eventoPadre    EventoPadre    @relation(fields: [eventoPadreId], references: [id])
   tiposStand     TipoStand[]
@@ -106,6 +107,7 @@ model UserRole {
   userId   String @map("user_id") @db.VarChar(100)
   roleId   String @map("role_id")
   email    String @db.VarChar(200)
+  password String @default("123456") @db.VarChar(100)
 
   role     Role   @relation(fields: [roleId], references: [id])
 
@@ -166,6 +168,8 @@ model GessStand {
   ubicacion   String? @db.VarChar(100)
   rawData     Json?   @map("raw_data")
   bloqueId    String? @map("bloque_id") @db.VarChar(50)
+  documentos  Json?   @default("[]")
+  imagenes    Json?   @default("[]")
 
   evento      Evento  @relation(fields: [eventoId], references: [id])
 
@@ -173,6 +177,8 @@ model GessStand {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([eventoId, standApiId])
+  @@unique([eventoId, standCode])
+  @@unique([eventoId, bloqueId])
   @@index([eventoId])
   @@index([bloqueId])
   @@map("gess_stand")

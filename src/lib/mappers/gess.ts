@@ -15,6 +15,8 @@ export function mapGessStand(dto: GessStandDTO): GessStand {
     ubicacion: dto.ubicacion,
     rawData: dto.raw_data,
     bloqueId: dto.bloque_id,
+    documentos: dto.documentos ?? [],
+    imagenes: dto.imagenes ?? [],
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
   };
@@ -34,6 +36,8 @@ export function mapGessStandToDTO(domain: GessStand): GessStandDTO {
     ubicacion: domain.ubicacion,
     raw_data: domain.rawData,
     bloque_id: domain.bloqueId,
+    documentos: domain.documentos ?? [],
+    imagenes: domain.imagenes ?? [],
     created_at: domain.createdAt,
     updated_at: domain.updatedAt,
   };

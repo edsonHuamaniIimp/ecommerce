@@ -45,8 +45,8 @@ export async function POST(request: Request) {
       rows = Array.isArray(data) ? data : Array.isArray(data.payload) ? data.payload : [];
     }
 
-    let creados = 0;
-    let actualizados = 0;
+    const standApiIds: string[] = [];
+    const operaciones: Prisma.PrismaPromise<unknown>[] = [];
 
     for (const row of rows) {
       if (!row || typeof row !== "object") continue;
@@ -56,10 +56,7 @@ export async function POST(request: Request) {
       if (!uid) continue;
 
       const standApiId = uid;
-
-      const existing = await prisma.gessStand.findUnique({
-        where: { eventoId_standApiId: { eventoId: body.eventoId, standApiId } },
-      });
+      standApiIds.push(standApiId);
 
       const tipo = String(r.type ?? r.tipo ?? r.tipo_stand ?? "");
       const medidas = tipo
@@ -83,14 +80,31 @@ export async function POST(request: Request) {
         rawData: row as Prisma.InputJsonValue,
       };
 
-      if (existing) {
-        await prisma.gessStand.update({ where: { id: existing.id }, data: gessData });
-        actualizados++;
-      } else {
-        await prisma.gessStand.create({ data: gessData });
-        creados++;
-      }
+      operaciones.push(
+        prisma.gessStand.upsert({
+          where: { eventoId_standApiId: { eventoId: body.eventoId, standApiId } },
+          create: gessData,
+          update: gessData,
+        }),
+      );
     }
+
+    if (operaciones.length === 0) {
+      return NextResponse.json({ creados: 0, actualizados: 0, total: 0 } satisfies GessSyncResultDTO);
+    }
+
+    const existentesAntes = await prisma.gessStand.count({
+      where: { eventoId: body.eventoId, standApiId: { in: standApiIds } },
+    });
+
+    await prisma.$transaction(operaciones);
+
+    const existentesDespues = await prisma.gessStand.count({
+      where: { eventoId: body.eventoId, standApiId: { in: standApiIds } },
+    });
+
+    const creados = existentesDespues - existentesAntes;
+    const actualizados = existentesAntes;
 
     const result: GessSyncResultDTO = { creados, actualizados, total: rows.length };
     return NextResponse.json(result);

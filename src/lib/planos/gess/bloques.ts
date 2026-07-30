@@ -1,4 +1,4 @@
-export const BLOQUE_IDS = [
+export const GESS_BLOQUE_IDS = [
   "EXT-IZQ-01","EXT-IZQ-02","EXT-IZQ-03","EXT-IZQ-04","EXT-IZQ-05","EXT-IZQ-06",
   "EXT-IZQ-07","EXT-IZQ-08","EXT-IZQ-09","EXT-IZQ-10",
   "EXT-DER-01","EXT-DER-02","EXT-DER-03","EXT-DER-04","EXT-DER-05","EXT-DER-06",
@@ -9,4 +9,4 @@ export const BLOQUE_IDS = [
   "ISLA-GRANDE-1","ISLA-GRANDE-2","ISLA-GRANDE-3","ISLA-GRANDE-4",
 ] as const;
 
-export type BloqueId = (typeof BLOQUE_IDS)[number];
+export type GessBloqueId = (typeof GESS_BLOQUE_IDS)[number];

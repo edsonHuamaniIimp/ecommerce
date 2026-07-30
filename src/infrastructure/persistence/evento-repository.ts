@@ -17,17 +17,22 @@ export class EventoPrismaRepository implements IEventoRepository {
     }
 
     const rows = await prisma.eventoPadre.findMany({
-      include: {
-        eventos: { where: whereEvento, orderBy: { anio: "asc" } },
-      },
+      include: { eventos: { orderBy: { anio: "asc" }, where: whereEvento as never } },
       orderBy: { nombre: "asc" },
     });
 
-    return rows as unknown as (EventoPadreEntity & { versiones: EventoEntity[] })[];
+    return rows.map((r) => ({
+      ...r,
+      versiones: r.eventos,
+    })) as unknown as (EventoPadreEntity & { versiones: EventoEntity[] })[];
   }
 
-  async findAll() {
+  async findAll(activos?: boolean) {
+    const where: Record<string, unknown> = {};
+    if (activos) where.flgActivo = true;
+
     const rows = await prisma.evento.findMany({
+      where,
       include: { eventoPadre: { select: { id: true, nombre: true, codigo: true } }, _count: { select: { stands: true, gessStands: true, reservas: true } } },
       orderBy: [{ eventoPadre: { nombre: "asc" } }, { anio: "desc" }],
     });
@@ -51,7 +56,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     return row as unknown as EventoEntity;
   }
 
-  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible">>) {
+  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>) {
     const updateData: Record<string, unknown> = {};
     if (data.estado !== undefined) updateData.estado = data.estado;
     if (data.anio !== undefined) updateData.anio = data.anio;
@@ -60,6 +65,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     if (data.imagen !== undefined) updateData.imagen = data.imagen;
     if (data.flgActivo !== undefined) updateData.flgActivo = data.flgActivo;
     if (data.flgVisible !== undefined) updateData.flgVisible = data.flgVisible;
+    if (data.plano !== undefined) updateData.plano = data.plano;
 
     const row = await prisma.evento.update({ where: { id }, data: updateData });
     return row as unknown as EventoEntity;

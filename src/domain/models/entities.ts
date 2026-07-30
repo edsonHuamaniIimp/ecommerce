@@ -19,6 +19,7 @@ export interface EventoEntity {
   imagen: string | null;
   flgActivo: boolean;
   flgVisible: boolean;
+  plano: string;
   eventoPadre?: EventoPadreEntity;
   createdAt?: Date;
   updatedAt?: Date;

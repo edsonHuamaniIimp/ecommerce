@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { authService } from "@/lib/api/services/auth-service";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
-import { ROLES } from "@/lib/constants";
+import { ROLES, LS_KEYS } from "@/lib/constants";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 
 function formatDate(iso: string | null): string {
@@ -42,8 +42,8 @@ export default function HomePage() {
 
   const handleSelect = async (eventoId: string, vertical: string) => {
     if (!isAuth) {
-      localStorage.setItem("iimp-pending-evento", eventoId);
-      localStorage.setItem("iimp-vertical", vertical);
+      localStorage.setItem(LS_KEYS.EVENTO_PENDIENTE, eventoId);
+      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
       document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
       document.documentElement.classList.add(`vert-${vertical}`);
       document.documentElement.setAttribute("data-vertical", vertical);
@@ -52,7 +52,7 @@ export default function HomePage() {
     }
     try {
       await authService.seleccionarEvento({ eventoId });
-      localStorage.setItem("iimp-vertical", vertical);
+      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
       document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
       document.documentElement.classList.add(`vert-${vertical}`);
       document.documentElement.setAttribute("data-vertical", vertical);

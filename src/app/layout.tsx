@@ -19,23 +19,13 @@ const verticalInitScript = `
   try {
     var allowed = ["proexplo", "wmc", "gess", "perumin"];
     var savedV = localStorage.getItem("iimp-vertical");
-    var savedE = localStorage.getItem("iimp-evento");
-    var verticalFromEvent = null;
-    if (savedE) {
-      try { var parsed = JSON.parse(savedE); verticalFromEvent = parsed.eventoPadre && parsed.eventoPadre.vertical; } catch(e){}
-    }
     var params = new URLSearchParams(window.location.search);
     var themeParam = params.get("theme");
     var vertical = allowed.indexOf(themeParam) !== -1
       ? themeParam
-      : (verticalFromEvent && allowed.indexOf(verticalFromEvent) !== -1
-        ? verticalFromEvent
-        : (allowed.indexOf(savedV) !== -1 ? savedV : "proexplo"));
+      : (allowed.indexOf(savedV) !== -1 ? savedV : "proexplo");
     document.documentElement.classList.add("vert-" + vertical);
     document.documentElement.setAttribute("data-vertical", vertical);
-    if (!savedV || savedV !== vertical) {
-      try { localStorage.setItem("iimp-vertical", vertical); } catch(e){}
-    }
   } catch (e) {}
 })();
 `;

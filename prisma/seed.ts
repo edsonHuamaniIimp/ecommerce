@@ -4,6 +4,12 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
+const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
+if (APP_ENV === "production") {
+  console.log("Seed bloqueado: no se ejecuta en produccion.");
+  process.exit(0);
+}
+
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL no definida");
 
@@ -87,18 +93,18 @@ async function main() {
 
   /* ---------- Usuarios de prueba ---------- */
   const testUsers = [
-    { email: "admin@iimp.org.pe", role: "admin" },
-    { email: "logistica@iimp.org.pe", role: "logistica" },
-    { email: "legal@iimp.org.pe", role: "legal" },
-    { email: "comunicacion@iimp.org.pe", role: "comunicacion" },
+    { email: "admin@iimp.org.pe", role: "admin", password: "admin123" },
+    { email: "logistica@iimp.org.pe", role: "logistica", password: "logistica123" },
+    { email: "legal@iimp.org.pe", role: "legal", password: "legal123" },
+    { email: "comunicacion@iimp.org.pe", role: "comunicacion", password: "comunicacion123" },
   ];
   for (const tu of testUsers) {
     const role = await prisma.role.findUnique({ where: { nombre: tu.role } });
     if (!role) continue;
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
-      update: {},
-      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id },
+      update: { password: tu.password },
+      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password },
     });
   }
 

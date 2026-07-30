@@ -52,6 +52,8 @@ export interface GessStand {
   ubicacion: string | null;
   rawData: unknown;
   bloqueId: string | null;
+  documentos: string[];
+  imagenes: string[];
   createdAt: string;
   updatedAt: string;
 }

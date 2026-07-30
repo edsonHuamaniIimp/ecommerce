@@ -3,14 +3,14 @@ import { prisma } from "@/lib/db";
 import { signToken } from "@/lib/auth";
 import type { Rol } from "@/lib/constants";
 
-type UserRoleWithRole = { role: { nombre: string; permisos: string[] } };
+type UserRoleWithRole = { role: { nombre: string; permisos: string[] }; password: string };
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { email?: string; provider?: string };
+    const body = await request.json() as { email?: string; password?: string };
 
-    if (!body.email) {
-      return NextResponse.json({ error: "email es requerido" }, { status: 400 });
+    if (!body.email || !body.password) {
+      return NextResponse.json({ error: "email y password requeridos" }, { status: 400 });
     }
 
     const userRoles = await prisma.userRole.findMany({
@@ -20,6 +20,10 @@ export async function POST(request: Request) {
 
     if (userRoles.length === 0) {
       return NextResponse.json({ error: "Usuario sin roles asignados" }, { status: 403 });
+    }
+
+    if (userRoles[0].password !== body.password) {
+      return NextResponse.json({ error: "Contrasena incorrecta" }, { status: 401 });
     }
 
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);

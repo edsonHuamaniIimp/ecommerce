@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { gessService } from "@/lib/api/services/gess-service";
 
 type PlanogessRow = Record<string, unknown>;
 
@@ -43,13 +44,7 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/planogess", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipoEvento, codigoEvento }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
+        const json = await gessService.fetchFromApi(tipoEvento, codigoEvento);
         if (!cancelled) setData(Array.isArray(json) ? json as PlanogessRow[] : []);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Error desconocido");
@@ -75,11 +70,14 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
   }
 
   if (error) {
+    const is404 = error.includes("404") || error.includes("respondio con 404");
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-16">
-          <p className="text-sm font-semibold text-red-600"><span>Error al cargar datos</span></p>
-          <p className="text-xs text-muted-foreground">{error}</p>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {is404 ? "Este evento no tiene datos en KBEventos" : "Error al cargar datos"}
+          </p>
+          <p className="text-xs text-muted-foreground">{is404 ? "El API externo no tiene planos configurados para este tipo y codigo de evento." : error}</p>
         </CardContent>
       </Card>
     );

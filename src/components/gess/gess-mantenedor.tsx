@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox } from "@nrivera-iimp/ui-kit-iimp";
-import { BLOQUE_IDS } from "@/lib/bloques";
+import { getPlano } from "@/lib/planos/registry";
 import { gessService } from "@/lib/api/services/gess-service";
-import { mapGessStandFromDTO } from "@/lib/mappers/gess-mapper";
 import type { GessStandDomain } from "@/lib/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
@@ -17,10 +16,11 @@ interface Props {
   eventoId: string;
   tipoEvento: number;
   codigoEvento: number;
+  plano: string;
 }
 
 function getId(row: ApiRow): string {
-  return String(row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.stand ?? row.standCode ?? "");
+  return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
 }
 
 function formatValue(val: unknown): string {
@@ -29,20 +29,17 @@ function formatValue(val: unknown): string {
   return String(val);
 }
 
-const BLOQUE_LABEL: Record<string, string> = {
-  "EXT-IZQ": "Columna izq", "EXT-DER": "Columna der",
-  "INT-IZQ-A": "Matriz izq A", "INT-IZQ-B": "Matriz izq B",
-  "INT-DER": "Matriz der", "ISLA-GRANDE": "Isla grande",
-};
+export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: planoId }: Props) {
+  const plano = getPlano(planoId) ?? getPlano("gess")!;
+  const BLOQUE_IDS = plano.bloqueIds;
+  const bloqueLabel = (id: string): string => {
+    const labels = plano.blockLabel;
+    for (const prefix of Object.keys(labels)) {
+      if (id.startsWith(prefix)) return labels[prefix as keyof typeof labels].nombre;
+    }
+    return "Bloque";
+  };
 
-function bloqueLabel(id: string): string {
-  for (const [prefix, label] of Object.entries(BLOQUE_LABEL)) {
-    if (id.startsWith(prefix)) return label;
-  }
-  return "Bloque";
-}
-
-export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
   const [apiRows, setApiRows] = useState<ApiRow[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiSelected, setApiSelected] = useState<Set<number>>(new Set());
@@ -53,6 +50,8 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+
+  const importadosApiIds = useMemo(() => new Set(dbRows.map((r) => r.standApiId)), [dbRows]);
 
   /* -- Bloque -> GessStand lookup -- */
   const bloqueMap = useMemo(() => {
@@ -73,18 +72,12 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
     setApiLoading(true);
     setApiError(null);
     try {
-      const res = await fetch("/api/planogess", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipoEvento, codigoEvento }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `Error ${res.status}`);
-      const list = Array.isArray(json) ? json as ApiRow[] : [];
+      const list = await gessService.fetchFromApi(tipoEvento, codigoEvento);
       setApiRows(list);
       setApiSelected(new Set());
     } catch (err) {
-      setApiError(err instanceof Error ? err.message : "Error");
+      const msg = err instanceof Error ? err.message : "Error";
+      setApiError(msg.includes("404") ? "Este evento no tiene datos en KBEventos." : msg);
     } finally {
       setApiLoading(false);
     }
@@ -127,9 +120,8 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
     setDbLoading(true);
     setDbError(null);
     try {
-      const list = await gessService.list(eventoId);
-      const mapped = list.map(mapGessStandFromDTO) as GessStandRow[];
-      setDbRows(mapped);
+      const list = await gessService.all(eventoId);
+      setDbRows(list as unknown as GessStandRow[]);
     } catch (err) {
       setDbError(err instanceof Error ? err.message : "Error al cargar BD");
     } finally {
@@ -142,12 +134,12 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
   const handleVincular = async (bloqueId: string, gessStandId: string | null) => {
     setSaving((prev) => ({ ...prev, [bloqueId]: true }));
     try {
+      const previous = bloqueMap.get(bloqueId);
+      if (previous && previous.id !== gessStandId) {
+        await gessService.vincular(previous.id, null);
+      }
       if (gessStandId) {
         await gessService.vincular(gessStandId, bloqueId);
-      } else {
-        const current = bloqueMap.get(bloqueId);
-        if (!current) return;
-        await gessService.vincular(current.id, null);
       }
       await loadDb();
     } catch {
@@ -199,19 +191,31 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento }: Props) {
                         {apiCols.map((col) => (
                           <th key={col} className="p-2">{col}</th>
                         ))}
+                        <th className="p-2">Estado</th>
                       </tr>
                     </thead>
                     <tbody>
                       {apiRows.map((row, i) => {
                         const selected = apiSelected.has(i);
+                        const rowId = getId(row);
+                        const yaImportado = importadosApiIds.has(rowId);
                         return (
-                          <tr key={getId(row) || i} className={`border-b border-slate-100 hover:bg-slate-50 ${selected ? "bg-primary/5" : ""}`}>
+                          <tr key={rowId || i} className={`border-b border-slate-100 hover:bg-slate-50 ${selected ? "bg-primary/5" : ""} ${yaImportado ? "opacity-70" : ""}`}>
                             <td className="p-2">
                               <input type="checkbox" checked={selected} onChange={() => toggleApiSelect(i)} className="h-3.5 w-3.5" />
                             </td>
                             {apiCols.map((col) => (
-                              <td key={col} className="max-w-[200px] truncate p-2 text-xs">{formatValue(row[col])}</td>
+                              <td key={col} className="max-w-[200px] truncate p-2 text-xs">
+                                <span>{formatValue(row[col])}</span>
+                              </td>
                             ))}
+                            <td className="p-2">
+                              {yaImportado ? (
+                                <Badge variant="outline" className="text-[10px]"><span>Ya importado</span></Badge>
+                              ) : (
+                                <Badge variant="default" className="text-[10px]"><span>Nuevo</span></Badge>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}

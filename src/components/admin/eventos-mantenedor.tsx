@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Label, 
 import { Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 import { dateUtils } from "@/lib/utils/date";
+import { listPlanos } from "@/lib/planos/registry";
 
 interface EventoRow {
   id: string;
@@ -16,6 +17,7 @@ interface EventoRow {
   fechaFin: string | null;
   flgActivo: boolean;
   flgVisible: boolean;
+  plano: string;
   eventoPadre: { id: string; nombre: string };
   _count: { stands: number; gessStands: number; reservas: number };
 }
@@ -37,7 +39,8 @@ export function EventosMantenedor() {
   const [editId, setEditId] = useState("");
   const [editInicio, setEditInicio] = useState("");
   const [editFin, setEditFin] = useState("");
-  const [editFlgActivo, setEditFlgActivo] = useState(false);
+  const [editFlgVisible, setEditFlgVisible] = useState(false);
+  const [editPlano, setEditPlano] = useState("gess");
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -84,7 +87,8 @@ export function EventosMantenedor() {
     setEditId(row.id);
     setEditInicio(dateUtils.toInputValue(row.fechaInicio));
     setEditFin(dateUtils.toInputValue(row.fechaFin));
-    setEditFlgActivo(Boolean(row.flgActivo));
+    setEditFlgVisible(Boolean(row.flgVisible));
+    setEditPlano(row.plano ?? "gess");
     setEditDialog(true);
   };
 
@@ -95,7 +99,8 @@ export function EventosMantenedor() {
         id: editId,
         fecha_inicio: editInicio || null,
         fecha_fin: editFin || null,
-        flg_activo: editFlgActivo,
+        flg_visible: editFlgVisible,
+        plano: editPlano,
       });
       await load();
     } catch {
@@ -131,7 +136,7 @@ export function EventosMantenedor() {
                   <TableRow>
                     <TableHead><span>Version</span></TableHead>
                     <TableHead><span>Fechas</span></TableHead>
-                    <TableHead className="w-20"><span>Activo</span></TableHead>
+                    <TableHead className="w-20"><span>Visible</span></TableHead>
                     <TableHead className="w-28 text-right"><span>Accion</span></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -143,8 +148,8 @@ export function EventosMantenedor() {
                         {dateUtils.format(ev.fechaInicio)} — {dateUtils.format(ev.fechaFin)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={ev.flgActivo ? "default" : "secondary"}>
-                          <span>{ev.flgActivo ? "Si" : "No"}</span>
+                        <Badge variant={ev.flgVisible ? "default" : "secondary"}>
+                          <span>{ev.flgVisible ? "Si" : "No"}</span>
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -227,9 +232,21 @@ export function EventosMantenedor() {
                 <Input type="date" value={editFin} onChange={(e) => setEditFin(e.target.value)} />
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label><span>Plano 3D</span></Label>
+              <Select value={editPlano} onValueChange={setEditPlano}>
+                <SelectTrigger><SelectValue><span>{editPlano ? listPlanos().find(p => p.id === editPlano)?.nombre ?? editPlano : "Sin asignar"}</span></SelectValue></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=""><span>— Sin asignar —</span></SelectItem>
+                  {listPlanos().map((p) => (
+                    <SelectItem key={p.id} value={p.id}><span>{p.nombre}</span></SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox checked={editFlgActivo} onCheckedChange={(v) => setEditFlgActivo(v === true)} />
-              <span>Version activa</span>
+              <Checkbox checked={editFlgVisible} onCheckedChange={(v) => setEditFlgVisible(v === true)} />
+              <span>Visible en presala</span>
             </label>
           </div>
           <DialogFooter>

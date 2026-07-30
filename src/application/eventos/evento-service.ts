@@ -9,8 +9,8 @@ export class EventoApplicationService {
     return this.repo.findPadresConVersiones({ estado: "active", flgActivo: true, flgVisible: true, fechaVigente: now });
   }
 
-  async listarTodas() {
-    return this.repo.findAll();
+  async listarTodas(activos?: boolean) {
+    return this.repo.findAll(activos);
   }
 
   async obtenerPorId(id: string) {
@@ -26,7 +26,7 @@ export class EventoApplicationService {
     });
   }
 
-  async actualizar(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible">>) {
+  async actualizar(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible" | "plano">>) {
     return this.repo.update(id, data);
   }
 }

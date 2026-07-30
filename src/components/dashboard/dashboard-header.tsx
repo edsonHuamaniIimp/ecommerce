@@ -6,6 +6,7 @@ import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMe
 import { LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { authService } from "@/lib/api/services/auth-service";
+import { LS_KEYS } from "@/lib/constants";
 
 export function DashboardHeader() {
   const router = useRouter();
@@ -28,6 +29,9 @@ export function DashboardHeader() {
 
   const handleLogout = async () => {
     await authService.logout();
+    localStorage.removeItem(LS_KEYS.EVENTO_PUBLICO);
+    localStorage.removeItem(LS_KEYS.EVENTO_PENDIENTE);
+    localStorage.removeItem(LS_KEYS.VERTICAL);
     router.push("/auth/login");
     router.refresh();
   };
@@ -35,7 +39,7 @@ export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-40 flex h-12 items-center justify-end gap-3 border-b bg-background px-4">
       {eventoNombre && (
-        <Link href="/presala" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/presala?change=1" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
           <span>{eventoNombre}</span>
         </Link>
       )}

@@ -9,7 +9,7 @@ export interface EventoCriteria {
 
 export interface IEventoRepository {
   findPadresConVersiones(criteria?: EventoCriteria): Promise<(EventoPadreEntity & { versiones: EventoEntity[] })[]>;
-  findAll(): Promise<EventoEntity[]>;
+  findAll(activos?: boolean): Promise<EventoEntity[]>;
   findById(id: string): Promise<EventoEntity | null>;
   create(data: {
     eventoPadreId: string;
@@ -19,5 +19,5 @@ export interface IEventoRepository {
     fechaInicio?: Date;
     fechaFin?: Date;
   }): Promise<EventoEntity>;
-  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible">>): Promise<EventoEntity>;
+  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>): Promise<EventoEntity>;
 }

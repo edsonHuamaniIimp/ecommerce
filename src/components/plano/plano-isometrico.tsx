@@ -2,131 +2,26 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useState, useEffect, Fragment } from "react";
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Input, Label, Separator } from "@nrivera-iimp/ui-kit-iimp";
+import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Badge, Button, Dialog, DialogContent } from "@nrivera-iimp/ui-kit-iimp";
+import { Image, FileText, Eye, X } from "lucide-react";
 import { gessService } from "@/lib/api/services/gess-service";
-import { mapGessStandFromDTO } from "@/lib/mappers/gess-mapper";
+import { authService } from "@/lib/api/services/auth-service";
+import { getPlano } from "@/lib/planos/registry";
+import type { PlanoDefinition } from "@/lib/planos/registry";
+import type { Item } from "@/lib/planos/gess";
+import { LS_KEYS, ESTADOS_STAND } from "@/lib/constants";
+import type { ReservaStep } from "@/lib/constants";
+import { useReservaForm } from "./reserva/use-reserva-form";
+import { ReservaModal } from "./reserva/reserva-modal";
+import type { GessLinkedInfo, FormDatos } from "./reserva/types";
 import * as THREE from "three";
 
 /* ================================================================
-   PLANO ISOMÉTRICO — coordenadas centradas en origen (eje 0).
-   Cada bloque lleva un ID de debug (assigned_ids del JSON), en
-   orden de generación. El ID se muestra al hacer clic (panel HTML).
+   PLANO ISOMÉTRICO — GESS edition.
+   Construcción del layout en src/lib/planos/gess/construccion.ts
    ================================================================ */
-
-interface Dim { w: number; d: number; h: number; color: string; }
-
-const D: Record<string, Dim> = {
-  S_vert:  { w:3.2, d:2.5, h:2.4, color:"#FFD700" },
-  BG:      { w:3.5, d:3.5, h:3.0, color:"#006400" },
-  P:       { w:2, d:2, h:2.4, color:"#32CD32" },
-  C:       { w:2, d:2, h:2.0, color:"#90EE90" },
-};
-
-type BlockType = "S" | "BG" | "P" | "C";
-
-interface Item { id: string; dim: Dim; type: BlockType; x: number; z: number; }
-
-const BLOCK_LABEL: Record<BlockType, { label: string; nombre: string }> = {
-  S:  { label: "S",  nombre: "Columna" },
-  BG: { label: "BG", nombre: "Isla Grande" },
-  P:  { label: "P",  nombre: "Preferencial" },
-  C:  { label: "C",  nombre: "Estándar A" },
-};
-
-/* ---------- Placement (y del JSON → z de la escena) ---------- */
-
-/** Columna vertical CENTRADA en yCenter (anchor: center). IDs en orden de generación. */
-function vColumn(type: BlockType, key: string, x: number, yCenter: number, ids: string[]): Item[] {
-  const dim = D[key];
-  const out: Item[] = [];
-  const totalDepth = ids.length * dim.d;
-  let y = yCenter + totalDepth / 2; // borde superior a partir del centro
-  for (const id of ids) {
-    out.push({ id, dim, type, x, z: -(y - dim.d / 2) });
-    y -= dim.d;
-  }
-  return out;
-}
-
-/** Matriz 2×4: col1 [P,C,C,P] luego col2 [P,C,C,P]. 8 IDs en ese orden. */
-function matrix2x4(cx: number, cy: number, ids: string[]): Item[] {
-  const col: string[] = ["P", "C", "C", "P"];
-  const colDepth = col.reduce((s, k) => s + D[k].d, 0);
-  const colW = D.P.w;
-  const totalW = colW * 2;
-  const x1 = cx - totalW / 2 + colW / 2;
-  const x2 = cx + totalW / 2 - colW / 2;
-  const yTop = cy + colDepth / 2;
-
-  const out: Item[] = [];
-  let idx = 0;
-  for (const x of [x1, x2]) {
-    let y = yTop;
-    for (const k of col) {
-      const dim = D[k];
-      out.push({ id: ids[idx++] ?? `?${idx}`, dim, type: k as BlockType, x, z: -(y - dim.d / 2) });
-      y -= dim.d;
-    }
-  }
-  return out;
-}
-
-/* ---------- Layout desde clusters (con assigned_ids) ---------- */
-
-function buildItems(): Item[] {
-  const items: Item[] = [];
-
-  // left_edge (x=-18.5)
-  items.push(...vColumn("S", "S_vert", -18.5, 8.0,
-    ["EXT-IZQ-01","EXT-IZQ-02","EXT-IZQ-03","EXT-IZQ-04","EXT-IZQ-05","EXT-IZQ-06"]));
-  items.push(...vColumn("S", "S_vert", -18.5, -8.0,
-    ["EXT-IZQ-07","EXT-IZQ-08","EXT-IZQ-09","EXT-IZQ-10"]));
-  // right_edge (x=18.5)
-  items.push(...vColumn("S", "S_vert", 18.5, 8.0,
-    ["EXT-DER-01","EXT-DER-02","EXT-DER-03","EXT-DER-04","EXT-DER-05","EXT-DER-06"]));
-  items.push(...vColumn("S", "S_vert", 18.5, -8.0,
-    ["EXT-DER-07","EXT-DER-08","EXT-DER-09","EXT-DER-10"]));
-
-  // interior_groups.left_zone
-  items.push(...matrix2x4(-11.0, 10.0,
-    ["INT-IZQ-A1","INT-IZQ-A2","INT-IZQ-A3","INT-IZQ-A4","INT-IZQ-A5","INT-IZQ-A6","INT-IZQ-A7","INT-IZQ-A8"]));
-  items.push(...matrix2x4(-11.0, -6.0,
-    ["INT-IZQ-B1","INT-IZQ-B2","INT-IZQ-B3","INT-IZQ-B4","INT-IZQ-B5","INT-IZQ-B6","INT-IZQ-B7","INT-IZQ-B8"]));
-
-  // interior_groups.right_zone (group3 en Y=0.0 exacto)
-  items.push(...matrix2x4(11.0, 2.0,
-    ["INT-DER-1","INT-DER-2","INT-DER-3","INT-DER-4","INT-DER-5","INT-DER-6","INT-DER-7","INT-DER-8"]));
-
-  // central_core islands (4 BG)
-  const islands: { id: string; x: number; y: number }[] = [
-    { id: "ISLA-GRANDE-1", x: -3.5, y: 6 },
-    { id: "ISLA-GRANDE-2", x: 3.5, y: 6 },
-    { id: "ISLA-GRANDE-3", x: -3.5, y: -6 },
-    { id: "ISLA-GRANDE-4", x: 3.5, y: -6 },
-  ];
-  for (const isl of islands) items.push({ id: isl.id, dim: D.BG, type: "BG", x: isl.x, z: -isl.y });
-
-  return items;
-}
-
-/* ---------- Bounds ---------- */
-function computeBounds(items: Item[]) {
-  let minX=1/0,maxX=-1/0,minZ=1/0,maxZ=-1/0;
-  for(const it of items){
-    minX=Math.min(minX,it.x-it.dim.w/2); maxX=Math.max(maxX,it.x+it.dim.w/2);
-    minZ=Math.min(minZ,it.z-it.dim.d/2); maxZ=Math.max(maxZ,it.z+it.dim.d/2);
-  }
-  const pad=4; return {minX:minX-pad,maxX:maxX+pad,minZ:minZ-pad,maxZ:maxZ+pad};
-}
-
-/* ---------- Mobiliario (kioskos unicamente. Plaza = ConjuntoPlaza aparte) ---------- */
-function buildFurniture(): { id:string; type:"kiosko"; x:number; z:number; rotY:number }[] {
-  return [
-    {id:"KIOSKO_IZQ", type:"kiosko", x:-4.9, z:-0.0, rotY:1.6},
-    {id:"KIOSKO_DER", type:"kiosko", x:4.9, z:-0.0, rotY:-1.6},
-  ];
-}
 
 /* ---------- 3D ---------- */
 function Bloque3D({ item, selected, reserved, onSelect }: {
@@ -317,7 +212,7 @@ function ConjuntoPlaza() {
   );
 }
 
-function Floor({bnd}:{bnd:ReturnType<typeof computeBounds>}){const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,w=bnd.maxX-bnd.minX,d=bnd.maxZ-bnd.minZ;return(
+function Floor({bnd}:{bnd:ReturnType<PlanoDefinition["computeBounds"]>}){const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,w=bnd.maxX-bnd.minX,d=bnd.maxZ-bnd.minZ;return(
   <group>
     <mesh rotation={[-Math.PI/2,0,0]} position={[cx,-.04,cz]} receiveShadow><planeGeometry args={[w,d]}/><meshStandardMaterial color="#E8E0D5"/></mesh>
     <mesh rotation={[-Math.PI/2,0,0]} position={[0,.004,0]} receiveShadow><planeGeometry args={[11,7]}/><meshStandardMaterial color="#C8BCA7"/></mesh>
@@ -331,57 +226,152 @@ interface GessLinked {
   empresa: string | null;
   estado: string | null;
   medidas: string | null;
+  documentos: string[];
+  imagenes: string[];
 }
 
 interface GessInfoFull extends GessLinked {
   reserved: boolean;
+  dbId: string;
 }
 
-export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
-  const items=useMemo(()=>buildItems(),[]);
-  const bnd=useMemo(()=>computeBounds(items),[items]);
-  const furniture=useMemo(()=>buildFurniture(),[]);
+function getIdApi(row: Record<string, unknown>): string {
+  return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
+}
+
+export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserva }: { eventoId: string; tipoEvento: number; codigoEvento: number; openReserva?: boolean }) {
+  const router = useRouter();
+  const plano = getPlano("gess")!;
+  const items=useMemo(()=>plano.buildItems(),[plano]);
+  const bnd=useMemo(()=>plano.computeBounds(items),[items, plano]);
+  const furniture=useMemo(()=>plano.buildFurniture(),[plano]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [reservaOpen, setReservaOpen] = useState(false);
-  const [reservaStep, setReservaStep] = useState(0);
   const [gessInfo, setGessInfo] = useState<GessLinked | null>(null);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
+  const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
+  const [dataReady, setDataReady] = useState(false);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const json = await gessService.list(eventoId);
-        if (!cancelled && Array.isArray(json)) {
-          const list = json.map(mapGessStandFromDTO);
-          const map = new Map<string, GessInfoFull>();
-          for (const row of list) {
-            if (row.bloqueId) {
-              map.set(row.bloqueId, {
-                standCode: row.standCode,
-                tipoStand: row.tipoStand,
-                empresa: row.empresa,
-                estado: row.estado,
-                medidas: row.medidas,
-                reserved: row.estado === "Reservado",
-              });
-            }
-          }
-          setLinkedMap(map);
+        const [dbList, apiList] = await Promise.all([
+          gessService.all(eventoId),
+          gessService.fetchFromApi(tipoEvento, codigoEvento).catch(() => [] as Record<string, unknown>[]),
+        ]);
+
+        if (cancelled) return;
+
+        // Index API rows by their ID (same logic as sync route: uid > UID > codigo > stand)
+        const apiById = new Map<string, Record<string, unknown>>();
+        for (const row of apiList) {
+          const id = String((row as Record<string, unknown>).uid ?? (row as Record<string, unknown>).UID ?? (row as Record<string, unknown>).codigo ?? (row as Record<string, unknown>).stand ?? "");
+          if (id) apiById.set(id, row as Record<string, unknown>);
         }
+
+        const map = new Map<string, GessInfoFull>();
+        for (const row of dbList) {
+          const r = row as unknown as Record<string, unknown>;
+          const bloqueId = r.bloqueId ?? r.bloque_id ?? null;
+          if (!bloqueId) continue;
+
+          const standApiId = String(r.standApiId ?? r.stand_api_id ?? "");
+          const apiRow = apiById.get(standApiId);
+
+          const tipoStand = (apiRow ? (apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand) : (r.tipoStand ?? r.tipo_stand ?? null)) as string | null;
+          const estado = (apiRow ? (apiRow.status ?? apiRow.estado) : (r.estado ?? null)) as string | null;
+          const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
+          const precio = apiRow ? String(apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand ?? "") : null;
+          const medidas = precio
+            ? precio.startsWith("PREFERENCIAL") ? "3000.00 US$"
+            : precio.startsWith("ESTANDAR_01") ? "2000.00 US$"
+            : precio.startsWith("ESTANDAR_02") ? "2500.00 US$"
+            : precio.startsWith("ISLAS") ? "ISLA"
+            : (r.medidas ?? null) as string | null
+            : (r.medidas ?? null) as string | null;
+
+          map.set(String(bloqueId), {
+            standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
+            tipoStand,
+            empresa,
+            estado,
+            medidas,
+            documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
+            imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
+            reserved: (estado ?? "") === "Reservado" || (estado ?? "") === "En evaluacion" || estado === ESTADOS_STAND.EN_EVALUACION,
+            dbId: String(r.id ?? ""),
+          });
+        }
+        setLinkedMap(map);
+        if (!cancelled) setDataReady(true);
       } catch {
-        // ignore
+        if (!cancelled) setDataReady(true);
       }
     })();
     return () => { cancelled = true; };
-  }, [eventoId]);
+  }, [eventoId, tipoEvento, codigoEvento]);
 
   useEffect(() => {
     if (selectedIds.length !== 1) { setGessInfo(null); return; }
     const linked = linkedMap.get(selectedIds[0]);
     setGessInfo(linked ?? null);
   }, [selectedIds, linkedMap]);
+
+  useEffect(() => {
+    if (!openReserva || !dataReady) return;
+    try {
+      const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
+      if (raw) {
+        const ids = JSON.parse(raw) as string[];
+        const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
+        if (valid.length > 0) {
+          setSelectedIds(valid);
+          setReservaOpen(true);
+          setReservaStep(0);
+        }
+      }
+    } catch { /* ignore */ }
+    localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
+    router.replace("/plano", { scroll: false });
+  }, [openReserva, dataReady, linkedMap, router]);
+
+  const {
+    reservaOpen, setReservaOpen,
+    reservaStep, setReservaStep,
+    formDatos, setFormDatos,
+    formDocs,
+    uploading,
+    submitting,
+    selectedCount,
+    singleStand,
+    stepDone,
+    canGoStep,
+    handleOpenChange,
+    addDoc,
+    removeDoc,
+    handleSubmit,
+    reset: resetForm,
+  } = useReservaForm(selectedIds, linkedMap as unknown as Map<string, GessLinkedInfo>);
+
+  // Override: auto-open + restore selection from login redirect
+  useEffect(() => {
+    if (!openReserva || !dataReady) return;
+    try {
+      const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
+      if (raw) {
+        const ids = JSON.parse(raw) as string[];
+        const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
+        if (valid.length > 0) {
+          setSelectedIds(valid);
+        }
+      }
+    } catch { /* ignore */ }
+    localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
+    setReservaOpen(true);
+    setReservaStep(0);
+    router.replace("/plano", { scroll: false });
+  }, [openReserva, dataReady]);
 
   const handleSelect = (id: string) => {
     const reserved = linkedMap.get(id)?.reserved;
@@ -393,6 +383,11 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
   };
   const selected = items.filter(it => selectedIds.includes(it.id));
   const hayReservados = selected.some(s => linkedMap.get(s.id)?.reserved);
+
+  const selectedLabels = selected.map(s => plano.blockLabel[s.type]?.label ?? "?").join(", ");
+  const gessInfoForSelected = selectedIds.length === 1 ? linkedMap.get(selectedIds[0]) : null;
+
+  const onDatosChange = (update: Partial<FormDatos>) => setFormDatos(d => ({ ...d, ...update }));
 
   return (
     <div className="flex h-[calc(100vh-7rem)] w-full flex-col gap-4 lg:flex-row">
@@ -418,6 +413,16 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
         <Persona x={3.2} z={-1.5} rotY={2.0} colorIdx={5} />
         <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}/>
       </Canvas>
+
+        <div className="absolute bottom-3 right-3 rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
+          <div className="space-y-1">
+            <Legend color="#FFD700" label="S (Columna)" />
+            <Legend color="#32CD32" label="P (Preferencial)" />
+            <Legend color="#90EE90" label="C (Estándar A)" />
+            <Legend color="#006400" label="BG (Isla Grande)" />
+            <Legend color="#9ca3af" label="Reservado" />
+          </div>
+        </div>
       </div>
 
       <div className="w-full shrink-0 rounded-xl border bg-white p-5 lg:w-72">
@@ -426,20 +431,28 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
           <p className="text-sm text-muted-foreground"><span>Haz clic en un bloque. Rota/zoom con el mouse.</span></p>
         ) : (
           <>
-            <div className="space-y-2">
+            <div className="space-y-1 max-h-48 overflow-y-auto">
                   {selected.map(sel => {
                     const selReserved = linkedMap.get(sel.id)?.reserved;
+                    const info = linkedMap.get(sel.id);
                     return (
-                      <div key={sel.id} className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          {selReserved ? (
-                            <Badge variant="destructive"><span>No disponible</span></Badge>
-                          ) : (
-                            <Badge variant="secondary"><span>{BLOCK_LABEL[sel.type]?.label ?? "?"}</span></Badge>
-                          )}
-                          <span className="text-muted-foreground">{selReserved ? "Reservado" : BLOCK_LABEL[sel.type]?.nombre ?? sel.type}</span>
-                        </div>
-                        <span className="font-mono text-xs text-slate-500">{sel.id}</span>
+                      <div key={sel.id} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${selReserved ? "bg-red-50/70 border border-red-100" : "bg-muted/40 border"}`}>
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border"
+                          style={{ backgroundColor: selReserved ? "#9ca3af" : sel.dim.color }}
+                        />
+                        <span className="font-mono font-medium text-slate-700">{sel.id}</span>
+                        <span className="text-[10px] text-muted-foreground">{plano.blockLabel[sel.type]?.label ?? "?"}</span>
+                        {info?.empresa && (
+                          <span className="truncate text-[10px] text-slate-400" title={info.empresa}>{info.empresa}</span>
+                        )}
+                        <button
+                          className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
+                          title="Quitar de la seleccion"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
                     );
                   })}
@@ -463,6 +476,27 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
                       <p className="text-xs font-medium">{gessInfo.empresa}</p>
                     </div>
                   )}
+                  {gessInfo.imagenes.length > 0 && (
+                    <button
+                      className="mt-1 flex w-full items-center gap-2 rounded bg-white/70 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors"
+                      onClick={() => setImgCarousel({ images: gessInfo.imagenes, idx: 0 })}
+                      title="Ver imagenes"
+                    >
+                      <Image className="h-3.5 w-3.5" />
+                      <span>{gessInfo.imagenes.length} {gessInfo.imagenes.length === 1 ? "imagen" : "imagenes"}</span>
+                    </button>
+                  )}
+                  {gessInfo.documentos.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {gessInfo.documentos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-primary hover:bg-primary/5 transition-colors">
+                          <FileText className="h-3 w-3" />
+                          <span className="truncate">{url.split("/").pop()}</span>
+                          <Eye className="ml-auto h-3 w-3 opacity-50" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -471,88 +505,72 @@ export function PlanoIsometrico({ eventoId }: { eventoId: string }) {
               <span>{selected.length} bloques</span>
             </div>
             <Button variant="default" className="mt-2 w-full" disabled={selected.length === 0 || hayReservados}
-              onClick={() => { setReservaOpen(true); setReservaStep(0); }}>
+              onClick={async () => {
+                const session = await authService.getSession();
+                if (!session.authenticated) {
+                  localStorage.setItem(LS_KEYS.PLANO_SELECCION, JSON.stringify(selectedIds));
+                  router.push(`/auth/login?returnTo=${encodeURIComponent("/plano?openReserva=1")}`);
+                  return;
+                }
+                setReservaOpen(true);
+                setReservaStep(0);
+              }}>
               <span>{hayReservados ? "Hay bloques no disponibles" : `Reservar (${selected.length})`}</span>
             </Button>
           </>
         )}
-        <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
-          <Legend color="#FFD700" label="S (Columna)" />
-          <Legend color="#32CD32" label="P (Preferencial)" />
-          <Legend color="#90EE90" label="C (Estándar A)" />
-          <Legend color="#006400" label="BG (Isla Grande)" />
-          <Legend color="#9ca3af" label="Reservado" />
-        </div>
       </div>
 
-      <Dialog open={reservaOpen} onOpenChange={setReservaOpen}>
-        <DialogContent className="sm:max-w-lg">
-          {/* Step Indicator */}
-          <div className="mb-4 flex items-center justify-center gap-2">
-            {["Datos", "Documentos", "Confirmación"].map((label, idx) => (
-              <Fragment key={idx}>
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                  reservaStep >= idx ? "bg-primary text-primary-foreground shadow-sm" : "bg-slate-200 text-slate-500"
-                }`}>{idx + 1}</div>
-                <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-                  reservaStep >= idx ? "text-slate-700" : "text-slate-400"
-                }`}>{label}</span>
-                {idx < 2 && <div className={`h-px w-8 ${reservaStep > idx ? "bg-primary" : "bg-slate-200"}`} />}
-              </Fragment>
-            ))}
-          </div>
+      <ReservaModal
+        open={reservaOpen}
+        onOpenChange={handleOpenChange}
+        step={reservaStep as ReservaStep}
+        onGoStep={(s) => setReservaStep(s)}
+        stepDone={stepDone}
+        canGoStep={canGoStep}
+        formDatos={formDatos}
+        onDatosChange={onDatosChange}
+        formDocs={formDocs}
+        uploading={uploading}
+        submitting={submitting}
+        selectedCount={selectedCount}
+        singleStand={singleStand}
+        selectedLabels={selectedLabels}
+        existingDocs={gessInfoForSelected?.documentos ?? []}
+        onAddDoc={addDoc}
+        onRemoveDoc={removeDoc}
+        onSubmit={async () => {
+          const ok = await handleSubmit();
+          if (ok) {
+            setSelectedIds([]);
+            resetForm();
+          }
+          return ok;
+        }}
+      />
 
-          <DialogHeader>
-            <DialogTitle><span>Reserva de {selected.length} stand(s)</span></DialogTitle>
-            <DialogDescription>
-              {reservaStep === 0 && <span>Completá los datos de la empresa para iniciar la reserva.</span>}
-              {reservaStep === 1 && <span>Descargá el formato de contrato, completalo, y adjuntalo firmado.</span>}
-              {reservaStep === 2 && <span>Reserva enviada al flujo de aprobaciones.</span>}
-            </DialogDescription>
-          </DialogHeader>
-          {reservaStep === 0 && (
-            <div className="flex flex-col gap-3">
-              <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-                <span className="font-semibold text-slate-700">Stands seleccionados:</span>{" "}
-                {selected.map(s => BLOCK_LABEL[s.type]?.label ?? "?").join(", ")} · {selected.length} bloque(s)
-              </div>
-              <div className="space-y-1.5"><Label htmlFor="empresa"><span>Razón social</span></Label><Input id="empresa" placeholder="Ej. Corporación Minera S.A." /></div>
-              <div className="flex gap-3"><div className="flex-1 space-y-1.5"><Label htmlFor="ruc"><span>RUC</span></Label><Input id="ruc" placeholder="20123456789" /></div><div className="flex-1 space-y-1.5"><Label htmlFor="contacto"><span>Persona de contacto</span></Label><Input id="contacto" placeholder="Nombre y apellido" /></div></div>
-              <div className="space-y-1.5"><Label htmlFor="email"><span>Correo electrónico</span></Label><Input id="email" type="email" placeholder="contacto@empresa.pe" /></div>
-            </div>
-          )}
-          {reservaStep === 1 && (
-            <div className="flex flex-col gap-3">
-              <div className="rounded-lg border bg-amber-50 p-3 text-xs text-amber-800">
-                <span className="font-semibold">①</span> <span>Descargá el formato de contrato correspondiente al tipo de stand.</span>
-              </div>
-              <Button variant="outline" className="w-full"><span>📄 Descargar formato de contrato</span></Button>
-              <Separator />
-              <div className="rounded-lg border bg-amber-50 p-3 text-xs text-amber-800">
-                <span className="font-semibold">②</span> <span>Completá el formato con los datos de la empresa y adjuntalo firmado.</span>
-              </div>
-              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-muted-foreground hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors">
-                <span className="text-2xl">📎</span>
-                <p className="mt-1 font-medium"><span>Adjuntar contrato firmado</span></p>
-                <p className="text-xs"><span>PDF, JPG o PNG — máx. 10 MB</span></p>
-              </div>
-              <Button className="w-full" onClick={() => setReservaStep(2)}><span>Enviar reserva</span></Button>
-            </div>
-          )}
-          {reservaStep === 2 && (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-xl">✓</div>
-              <p className="text-sm font-semibold text-slate-800"><span>Reserva registrada</span></p>
-              <p className="text-xs text-muted-foreground"><span>Legal → Logística → Eventos/Asociados. Seguimiento en el Dashboard.</span></p>
-            </div>
-          )}
-          <DialogFooter>
-            {reservaStep === 0 && <Button onClick={() => setReservaStep(1)} className="w-full"><span>Continuar</span></Button>}
-            {reservaStep === 1 && <Button variant="secondary" onClick={() => setReservaStep(0)}><span>Volver</span></Button>}
-            {reservaStep === 2 && <Button onClick={() => { setReservaOpen(false); setSelectedIds([]); }} variant="secondary" className="w-full"><span>Cerrar</span></Button>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {imgCarousel && (
+        <Dialog open={true} onOpenChange={() => setImgCarousel(null)}>
+          <DialogContent className="sm:max-w-2xl bg-black/90 border-slate-700">
+            <button
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
+              onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
+              disabled={imgCarousel.idx === 0}
+            >
+              <span className="text-lg">‹</span>
+            </button>
+            <img src={imgCarousel.images[imgCarousel.idx]} className="max-h-[70vh] w-full object-contain" />
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
+              onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
+              disabled={imgCarousel.idx === imgCarousel.images.length - 1}
+            >
+              <span className="text-lg">›</span>
+            </button>
+            <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

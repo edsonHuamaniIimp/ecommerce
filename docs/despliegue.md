@@ -110,12 +110,12 @@ npm start
 
 Al ejecutar `npm run db:seed`, se crean automáticamente:
 
-| Email | Rol | Permisos |
+| Email | Rol | Contraseña |
 |---|---|---|
-| `admin@iimp.org.pe` | admin | `admin:full`, `read:reservas`, `write:reservas`, `approve:all` |
-| `logistica@iimp.org.pe` | logistica | `read:reservas`, `approve:logistica` |
-| `legal@iimp.org.pe` | legal | `read:reservas`, `approve:legal` |
-| `comunicacion@iimp.org.pe` | comunicacion | `read:reservas`, `approve:comunicacion` |
+| `admin@iimp.org.pe` | admin | `admin123` |
+| `logistica@iimp.org.pe` | logistica | `logistica123` |
+| `legal@iimp.org.pe` | legal | `legal123` |
+| `comunicacion@iimp.org.pe` | comunicacion | `comunicacion123` |
 
 Para iniciar sesión: ir a `/auth/login`, ingresar el email, sin contraseña (solo validación por email en dev).
 
@@ -123,7 +123,7 @@ Para iniciar sesión: ir a `/auth/login`, ingresar el email, sin contraseña (so
 
 | Ruta | admin | logistica | legal | comunicacion | público |
 |---|---|---|---|---|---|
-| `/plano-isometrico` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/plano` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `/dashboard` | ✓ | ✓ | ✓ | ✓ | |
 | `/planogess` | ✓ | ✓ | ✓ | ✓ | |
 | `/gess-mantenedor` | ✓ | | | | |
@@ -151,5 +151,5 @@ FROM role r WHERE r.nombre = 'admin';
 - [ ] `GET /api/gess?eventoId=...` responde 200
 - [ ] `POST /api/auth/login` con email válido retorna JWT
 - [ ] `/dashboard` redirige a `/auth/login` sin cookie
-- [ ] `/plano-isometrico` carga el Canvas 3D
+- [ ] `/plano` carga el Canvas 3D
 - [ ] `docker compose ps` muestra PostgreSQL healthy
