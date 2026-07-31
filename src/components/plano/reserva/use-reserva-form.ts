@@ -1,22 +1,27 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { internalApi } from "@/lib/api/services/internal-api";
 import { reservaBorradorDB } from "@/lib/indexed-db";
-import { ESTADOS_STAND } from "@/lib/constants";
-import type { FormDatos, GessLinkedInfo } from "./types";
+import { gessService } from "@/lib/api/services/gess-service";
+import { isStepDatosCompleto } from "@/lib/utils/form-validator";
+import type { FormDatos, GessLinkedInfo } from "./interfaces";
 
 function standIdsKey(ids: string[]): string {
   return [...ids].sort().join("|");
 }
 
+function emptyDatos(): FormDatos {
+  return { razonSocial: "", tipoDocumento: "", numeroDocumento: "", direccion: "", telefono: "", contacto: "", email: "", tipoComprobante: "" };
+}
+
 export function useReservaForm(selectedIds: string[], linkedMap: Map<string, GessLinkedInfo>) {
   const [reservaOpen, setReservaOpen] = useState(false);
   const [reservaStep, setReservaStep] = useState(0);
-  const [formDatos, setFormDatos] = useState<FormDatos>({ razonSocial: "", ruc: "", contacto: "", email: "" });
+  const [formDatos, setFormDatos] = useState<FormDatos>(emptyDatos);
   const [formDocs, setFormDocs] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
@@ -25,7 +30,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   keyRef.current = currentKey;
 
   const stepDone = useCallback((step: number): boolean => {
-    if (step === 0) return !!(formDatos.razonSocial && formDatos.ruc && formDatos.contacto && formDatos.email);
+    if (step === 0) return isStepDatosCompleto(formDatos);
     if (step === 1) return !singleStand || formDocs.length > 0;
     if (step === 2) return stepDone(0) && stepDone(1);
     return false;
@@ -44,10 +49,10 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     (async () => {
       const draft = await reservaBorradorDB.cargar(selectedIds);
       if (draft) {
-        setFormDatos(draft.datos);
+        setFormDatos({ ...emptyDatos(), ...draft.datos });
         setFormDocs(draft.documentos);
       } else {
-        setFormDatos({ razonSocial: "", ruc: "", contacto: "", email: "" });
+        setFormDatos(emptyDatos());
         setFormDocs([]);
       }
     })();
@@ -56,7 +61,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   // Auto-save to IndexedDB on form changes (using ref for stable key)
   useEffect(() => {
     if (!reservaOpen || selectedIds.length === 0) return;
-    const hasData = formDatos.razonSocial || formDatos.ruc || formDatos.contacto || formDatos.email || formDocs.length > 0;
+    const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || formDocs.length > 0;
     if (!hasData) return;
     reservaBorradorDB.guardar(keyRef.current.split("|"), formDatos, formDocs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,7 +70,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   // Persist on close without submit
   const handleOpenChange = (open: boolean) => {
     if (!open && !submitting) {
-      if (formDatos.razonSocial || formDocs.length > 0) {
+      if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || formDocs.length > 0) {
         reservaBorradorDB.guardar(selectedIds, formDatos, formDocs);
       }
       setReservaStep(0);
@@ -93,30 +98,36 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   const removeDoc = (idx: number) => setFormDocs((prev) => prev.filter((_, i) => i !== idx));
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<boolean | string> => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      for (const id of selectedIds) {
-        const info = linkedMap.get(id);
-        if (!info || !info.dbId) continue;
-        await internalApi.patch("/api/gess", {
-          id: info.dbId,
-          estado: ESTADOS_STAND.EN_EVALUACION,
-          documentos: singleStand ? formDocs : undefined,
-        });
-      }
+      const standIds = selectedIds.map((id) => linkedMap.get(id)?.dbId).filter(Boolean) as string[];
+      const json = await gessService.reservar({
+        standIds,
+        documentos: singleStand ? formDocs : undefined,
+        datos: {
+          razonSocial: formDatos.razonSocial || formDatos.numeroDocumento,
+          tipoDocumento: formDatos.tipoComprobante === "factura" ? "RUC" : (formDatos.tipoDocumento || "DNI"),
+          numeroDocumento: formDatos.numeroDocumento,
+          email: formDatos.email,
+        },
+      });
+
       await reservaBorradorDB.eliminar(selectedIds);
       setReservaOpen(false);
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error de conexion";
+      setSubmitError(msg);
+      return msg;
     } finally {
       setSubmitting(false);
     }
   };
 
   const reset = () => {
-    setFormDatos({ razonSocial: "", ruc: "", contacto: "", email: "" });
+    setFormDatos(emptyDatos());
     setFormDocs([]);
     setReservaStep(0);
     setReservaOpen(false);
@@ -129,6 +140,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     formDocs,
     uploading,
     submitting,
+    submitError,
     selectedCount,
     singleStand,
     stepDone,

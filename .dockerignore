@@ -1,0 +1,69 @@
+# Git
+.git/
+.gitattributes
+.gitignore
+
+# Tests
+tests/
+
+# Dev tools
+.editorconfig
+
+# Docs
+README.md
+AGENTS.md
+CLAUDE.md
+bitacora.md
+workspace/
+docs/
+
+# Dependencies (ya instaladas en la imagen)
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+.fleet/
+
+# Env
+.env
+.env.local
+.env.*.local
+.env.prod
+
+# Next.js build (se regenera en el entrypoint)
+.next/
+out/
+
+# Prisma
+prisma/generated/
+
+# Build artifacts
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Uploads (runtime data)
+public/uploads/
+
+# Credentials
+*.pem
+*.key
+
+# Docker (solo ignorar el Dockerfile, no los configs)
+Dockerfile
+.dockerignore
+
+# Vercel
+.vercel
+
+# Notas personales
+notas/
+personal/
+borradores/
+scratch/
+*.local.md
+*.personal.md
+*.draft.md
+*.wip.md

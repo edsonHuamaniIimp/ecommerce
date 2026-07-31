@@ -1,16 +1,22 @@
 const DB_NAME = "contratos-stands";
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORE_NAME = "reserva-borrador";
+
+interface FormDatosDB {
+  razonSocial: string;
+  tipoDocumento: string;
+  numeroDocumento: string;
+  direccion: string;
+  telefono: string;
+  contacto: string;
+  email: string;
+  tipoComprobante: string;
+}
 
 interface ReservaBorrador {
   id: string;
   standIds: string[];
-  datos: {
-    razonSocial: string;
-    ruc: string;
-    contacto: string;
-    email: string;
-  };
+  datos: FormDatosDB;
   documentos: string[];
   updatedAt: number;
 }
@@ -20,9 +26,10 @@ function openDB(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME);
       }
+      db.createObjectStore(STORE_NAME, { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

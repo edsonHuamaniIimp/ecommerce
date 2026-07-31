@@ -1,3 +1,7 @@
+import { NextResponse } from "next/server";
+import { API_ERROR_CODES } from "@/lib/constants";
+import type { ApiErrorCode } from "@/lib/constants";
+
 export interface ApiResponse<T> {
   success: true;
   data: T;
@@ -6,7 +10,7 @@ export interface ApiResponse<T> {
 export interface ApiErrorResponse {
   success: false;
   error: {
-    code: string;
+    code: ApiErrorCode;
     message: string;
     detail?: string;
   };
@@ -18,10 +22,16 @@ export function ok<T>(data: T): ApiResponse<T> {
   return { success: true, data };
 }
 
-export function err(code: string, message: string, detail?: string): ApiErrorResponse {
+export function err(code: ApiErrorCode, message: string, detail?: string): ApiErrorResponse {
   return { success: false, error: { code, message, detail } };
 }
 
-export function apiError(code: string, message: string, status: number, detail?: string) {
-  return Response.json(err(code, message, detail), { status });
+/** Retorna un ApiResponse envuelto en NextResponse. */
+export function success<T>(data: T, init?: ResponseInit): NextResponse<ApiResponse<T>> {
+  return NextResponse.json(ok(data), init);
+}
+
+/** Retorna un ApiErrorResponse envuelto en NextResponse con el status adecuado. */
+export function error(code: ApiErrorCode, message: string, status: number, detail?: string): NextResponse<ApiErrorResponse> {
+  return NextResponse.json(err(code, message, detail), { status });
 }

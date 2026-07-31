@@ -6,6 +6,9 @@ import { Eye, Trash2, Search } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { gessService } from "@/lib/api/services/gess-service";
 import { internalApi } from "@/lib/api/services/internal-api";
+import { maestraService } from "@/lib/api/services/maestra-service";
+import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID } from "@/lib/constants";
+import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 interface StandDoc {
   id: string;
@@ -31,6 +34,25 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [pagination, setPagination] = useState({ page: 1, perPage: 10, total: 0, totalPages: 0 });
+  const [estadoLabels, setEstadoLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    maestraService.listar(MAESTRA_TABLAS.STAND_ESTADO).then((items) => {
+      const map: Record<string, string> = {};
+      for (const item of items) {
+        if (item.itemId !== null) {
+          map[String(item.itemId)] = item.nombre;
+        }
+      }
+      // Map constant keys to maestra labels
+      for (const [key, itemId] of Object.entries(ESTADOS_STAND_MAESTRA_ID)) {
+        if (map[String(itemId)]) {
+          map[key] = map[String(itemId)];
+        }
+      }
+      setEstadoLabels(map);
+    }).catch(() => {});
+  }, []);
 
   const load = async (p?: number, pp?: number, s?: string) => {
     setLoading(true);
@@ -145,8 +167,8 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{row.bloqueId}</TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={row.estado === "Reservado" ? "destructive" : "default"}>
-                            <span>{row.estado ?? "—"}</span>
+                          <Badge variant={row.estado === "Reservado" ? "destructive" : row.estado === "en_evaluacion" || row.estado === "En evaluacion" ? "default" : "default"} className={row.estado === "en_evaluacion" || row.estado === "En evaluacion" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}>
+                            <span>{estadoLabels[row.estado ?? ""] ?? row.estado ?? "—"}</span>
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell max-w-[120px] truncate text-xs text-muted-foreground">{row.empresa ?? "—"}</TableCell>

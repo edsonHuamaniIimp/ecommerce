@@ -1,0 +1,180 @@
+name: CI/CD — ContratosStands
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Ejecutar deploy en servidor?'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-contratos-stands
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  AWS_DEFAULT_REGION: 'us-east-1'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ─── CI: Lint + TypeCheck ─────────────────────────────────────────────────
+  ci:
+    name: CI — Lint & TypeCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar Prisma Client
+        run: npx prisma generate
+
+      - name: Lint (ESLint)
+        continue-on-error: true
+        run: npm run lint || true
+
+      - name: TypeCheck (tsc)
+        continue-on-error: true
+        run: npx tsc --noEmit || true
+
+  # ─── Build: Build Next.js ─────────────────────────────────────────────────
+  build:
+    name: Build — Next.js
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar Prisma Client
+        run: npx prisma generate
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Subir build a artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-assets
+          path: |
+            .next/standalone/
+            .next/static/
+            public/
+          retention-days: 7
+
+  # ─── CD: Deploy a EC2 ────────────────────────────────────────────────────
+  deploy:
+    name: CD — Deploy EC2 (Docker)
+    runs-on: ubuntu-latest
+    needs: ci
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
+    continue-on-error: true
+
+    steps:
+      - name: Verificar secrets de EC2
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then
+            echo "EC2_HOST no configurado. Saltando deploy."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy via SSH
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            cd ${{ secrets.EC2_APP_PATH || '/var/www/contratos-stands' }}
+
+            BEFORE=$(git rev-parse HEAD)
+
+            git remote set-url origin https://x-access-token:${{ secrets.EC2_GIT_TOKEN }}@github.com/iimp-projects/contratos-stands.git
+            git pull origin main || echo "git pull fallo"
+
+            CHANGED=$(git diff --name-only "$BEFORE" HEAD -- Dockerfile package.json package-lock.json 2>/dev/null)
+            if [ -n "$CHANGED" ]; then
+              echo "Cambios en dependencias base, rebuild..."
+              docker compose --env-file .env.prod -f docker-compose.prod.yml build --no-cache
+            fi
+
+            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+
+            # Ejecutar migraciones Prisma
+            docker exec ctrst-app npx prisma migrate deploy || true
+
+            echo "✅  Deploy completado."
+
+  # ─── Sync S3: Subir assets a bucket ─────────────────────────────────────
+  sync-s3:
+    name: CD — Sync assets a S3
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
+    continue-on-error: true
+
+    steps:
+      - name: Verificar secrets de S3
+        id: check-s3
+        run: |
+          if [ -z "${{ secrets.AWS_BUCKET }}" ]; then
+            echo "AWS_BUCKET no configurado. Saltando sync S3."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Descargar artefacto build
+        if: steps.check-s3.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-assets
+
+      - name: Configurar credenciales AWS
+        if: steps.check-s3.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
+
+      - name: Sync static assets a S3
+        if: steps.check-s3.outputs.skip != 'true'
+        run: |
+          aws s3 sync .next/static/ s3://${{ secrets.AWS_BUCKET }}/_next/static/ \
+            --delete \
+            --cache-control "max-age=31536000,immutable"

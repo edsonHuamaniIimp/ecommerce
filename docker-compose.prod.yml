@@ -1,0 +1,75 @@
+# ─── docker-compose.prod.yml — ContratosStands ─────────────────────────────
+# Uso: docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+#
+# El codigo de la app se monta como volumen desde el host.
+# Sin --build en cada deploy: los cambios de codigo son instantaneos al reiniciar.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ctrst-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ctrst
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: contratos_stands
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - ctrst-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ctrst"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: contratos-stands:latest
+    container_name: ctrst-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env.prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    volumes:
+      # Codigo fuente (cambios instantaneos sin rebuild)
+      - .:/app
+      # Certificados SSL (montar todo letsencrypt para que symlinks funcionen)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Aislar dependencias (usar las de la imagen, no las del host)
+      - /app/node_modules
+      # Aislar .next (permisos del contenedor, no del host)
+      - /app/.next
+      # Aislar prisma/generated
+      - /app/prisma/generated
+    networks:
+      - ctrst-net
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  ctrst-net:
+    driver: bridge
+
+volumes:
+  pgdata_prod:

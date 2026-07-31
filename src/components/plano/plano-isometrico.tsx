@@ -4,8 +4,8 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Dialog, DialogContent } from "@nrivera-iimp/ui-kit-iimp";
-import { Image, FileText, Eye, X } from "lucide-react";
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { FileText, Eye, X, Info, Image } from "lucide-react";
 import { gessService } from "@/lib/api/services/gess-service";
 import { authService } from "@/lib/api/services/auth-service";
 import { getPlano } from "@/lib/planos/registry";
@@ -15,7 +15,8 @@ import { LS_KEYS, ESTADOS_STAND } from "@/lib/constants";
 import type { ReservaStep } from "@/lib/constants";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
-import type { GessLinkedInfo, FormDatos } from "./reserva/types";
+import type { GessLinkedInfo, FormDatos } from "./reserva/interfaces";
+import { toast } from "sonner";
 import * as THREE from "three";
 
 /* ================================================================
@@ -246,11 +247,15 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const bnd=useMemo(()=>plano.computeBounds(items),[items, plano]);
   const furniture=useMemo(()=>plano.buildFurniture(),[plano]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [gessInfo, setGessInfo] = useState<GessLinked | null>(null);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const [dataReady, setDataReady] = useState(false);
+  const [detailModal, setDetailModal] = useState<GessInfoFull | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [standDocs, setStandDocs] = useState<string[]>([]);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
+
+  const blockLabel = (type: Item["type"]) => plano.blockLabel[type] ?? { label: "?", nombre: "?" };
 
   useEffect(() => {
     let cancelled = false;
@@ -313,12 +318,6 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   }, [eventoId, tipoEvento, codigoEvento]);
 
   useEffect(() => {
-    if (selectedIds.length !== 1) { setGessInfo(null); return; }
-    const linked = linkedMap.get(selectedIds[0]);
-    setGessInfo(linked ?? null);
-  }, [selectedIds, linkedMap]);
-
-  useEffect(() => {
     if (!openReserva || !dataReady) return;
     try {
       const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
@@ -343,6 +342,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     formDocs,
     uploading,
     submitting,
+    submitError,
     selectedCount,
     singleStand,
     stepDone,
@@ -387,6 +387,21 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const selectedLabels = selected.map(s => plano.blockLabel[s.type]?.label ?? "?").join(", ");
   const gessInfoForSelected = selectedIds.length === 1 ? linkedMap.get(selectedIds[0]) : null;
 
+  useEffect(() => {
+    if (!reservaOpen) {
+      setStandDocs([]);
+      return;
+    }
+    if (!gessInfoForSelected?.dbId) return;
+    (async () => {
+      try {
+        const stand = await gessService.findByBloque(selectedIds[0]);
+        const docs = (stand as unknown as Record<string, unknown> | null)?.documentos;
+        setStandDocs(Array.isArray(docs) ? docs as string[] : []);
+      } catch { /* ignore */ }
+    })();
+  }, [reservaOpen, gessInfoForSelected?.dbId]);
+
   const onDatosChange = (update: Partial<FormDatos>) => setFormDatos(d => ({ ...d, ...update }));
 
   return (
@@ -414,112 +429,200 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}/>
       </Canvas>
 
-        <div className="absolute bottom-3 right-3 rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
-          <div className="space-y-1">
-            <Legend color="#FFD700" label="S (Columna)" />
-            <Legend color="#32CD32" label="P (Preferencial)" />
-            <Legend color="#90EE90" label="C (Estándar A)" />
-            <Legend color="#006400" label="BG (Isla Grande)" />
-            <Legend color="#9ca3af" label="Reservado" />
+        <div className="absolute bottom-2 right-2 z-10">
+          {/* Desktop: always visible */}
+          <div className="hidden sm:block rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
+            <div className="space-y-1">
+              <Legend color="#FFD700" label="S (Columna)" />
+              <Legend color="#32CD32" label="P (Preferencial)" />
+              <Legend color="#90EE90" label="C (Estandar A)" />
+              <Legend color="#006400" label="BG (Isla Grande)" />
+              <Legend color="#9ca3af" label="Reservado" />
+            </div>
+          </div>
+          {/* Mobile: toggle button + panel */}
+          <div className="sm:hidden">
+            {!legendOpen ? (
+              <button
+                className="rounded-lg border bg-white/90 px-2 py-1.5 text-[10px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm"
+                onClick={() => setLegendOpen(true)}
+              >
+                <span>Leyenda</span>
+              </button>
+            ) : (
+              <div className="rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-slate-600">Leyenda</span>
+                  <button onClick={() => setLegendOpen(false)} className="text-muted-foreground hover:text-slate-700">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <Legend color="#FFD700" label="S (Columna)" />
+                  <Legend color="#32CD32" label="P (Preferencial)" />
+                  <Legend color="#90EE90" label="C (Estandar A)" />
+                  <Legend color="#006400" label="BG (Isla Grande)" />
+                  <Legend color="#9ca3af" label="Reservado" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="w-full shrink-0 rounded-xl border bg-white p-5 lg:w-72">
-        <h3 className="mb-3 font-semibold text-slate-900"><span>Mi selección</span></h3>
+      <div className="flex w-full shrink-0 flex-col rounded-xl border bg-white lg:w-80">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-900"><span>Mi seleccion</span></h3>
+          {selected.length > 0 && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{selected.length}</span>
+          )}
+        </div>
+
         {selected.length === 0 ? (
-          <p className="text-sm text-muted-foreground"><span>Haz clic en un bloque. Rota/zoom con el mouse.</span></p>
+          <div className="flex flex-1 items-center justify-center p-6">
+            <p className="text-center text-xs text-muted-foreground leading-relaxed">
+              <span>Haz clic en un bloque del plano.<br />Rota/zoom con el mouse.</span>
+            </p>
+          </div>
         ) : (
           <>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {selected.map(sel => {
-                    const selReserved = linkedMap.get(sel.id)?.reserved;
-                    const info = linkedMap.get(sel.id);
-                    return (
-                      <div key={sel.id} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${selReserved ? "bg-red-50/70 border border-red-100" : "bg-muted/40 border"}`}>
-                        <span
-                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border"
-                          style={{ backgroundColor: selReserved ? "#9ca3af" : sel.dim.color }}
-                        />
-                        <span className="font-mono font-medium text-slate-700">{sel.id}</span>
-                        <span className="text-[10px] text-muted-foreground">{plano.blockLabel[sel.type]?.label ?? "?"}</span>
-                        {info?.empresa && (
-                          <span className="truncate text-[10px] text-slate-400" title={info.empresa}>{info.empresa}</span>
-                        )}
-                        <button
-                          className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground hover:bg-slate-200 hover:text-slate-700 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
-                          title="Quitar de la seleccion"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-            </div>
-            {selectedIds.length === 1 && gessInfo && (
-              <div className={`rounded-lg border p-3 text-xs ${gessInfo.estado === "Reservado" ? "border-red-200 bg-red-50/70" : "border-emerald-200 bg-emerald-50/70"}`}>
-                <p className={`mb-2 font-semibold ${gessInfo.estado === "Reservado" ? "text-red-800" : "text-emerald-800"}`}>Stand vinculado</p>
-                <div className="space-y-1">
-                  <p className="flex justify-between"><span className="text-muted-foreground">Codigo</span><span className="font-mono font-medium">{gessInfo.standCode}</span></p>
-                  {gessInfo.tipoStand && <p className="flex justify-between"><span className="text-muted-foreground">Tipo</span><span className="font-medium">{gessInfo.tipoStand}</span></p>}
-                  {gessInfo.medidas && <p className="flex justify-between"><span className="text-muted-foreground">Precio</span><span className="font-medium">{gessInfo.medidas}</span></p>}
-                  {gessInfo.estado && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Estado</span>
-                      <Badge variant={gessInfo.estado === "Reservado" ? "destructive" : "default"}><span>{gessInfo.estado}</span></Badge>
-                    </div>
-                  )}
-                  {gessInfo.empresa && (
-                    <div className="mt-1 rounded bg-white/70 p-2">
-                      <p className="text-[10px] uppercase text-muted-foreground">Empresa</p>
-                      <p className="text-xs font-medium">{gessInfo.empresa}</p>
-                    </div>
-                  )}
-                  {gessInfo.imagenes.length > 0 && (
+            <div className="flex-1 divide-y overflow-y-auto">
+              {selected.map((sel) => {
+                const info = linkedMap.get(sel.id);
+                const selReserved = info?.reserved;
+                const lbl = blockLabel(sel.type);
+                return (
+                  <div
+                    key={sel.id}
+                    className="group flex cursor-pointer items-center gap-2.5 px-4 py-2.5 text-xs transition-colors hover:bg-slate-50"
+                    onClick={() => info && setDetailModal(info)}
+                  >
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border"
+                      style={{ backgroundColor: selReserved ? "#9ca3af" : sel.dim.color }}
+                    />
+                    <span className="font-mono text-[11px] font-medium text-slate-700">{sel.id}</span>
+                    <span className="text-[10px] text-muted-foreground">{lbl.label}</span>
+                    {info?.medidas && (
+                      <span className="ml-auto text-[11px] font-medium text-emerald-700">{info.medidas}</span>
+                    )}
+                    <span className="hidden rounded p-0.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100">
+                      <Info className="h-3 w-3" />
+                    </span>
                     <button
-                      className="mt-1 flex w-full items-center gap-2 rounded bg-white/70 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors"
-                      onClick={() => setImgCarousel({ images: gessInfo.imagenes, idx: 0 })}
-                      title="Ver imagenes"
+                      className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
+                      title="Quitar de la seleccion"
                     >
-                      <Image className="h-3.5 w-3.5" />
-                      <span>{gessInfo.imagenes.length} {gessInfo.imagenes.length === 1 ? "imagen" : "imagenes"}</span>
+                      <X className="h-3 w-3" />
                     </button>
-                  )}
-                  {gessInfo.documentos.length > 0 && (
-                    <div className="mt-1 space-y-0.5">
-                      {gessInfo.documentos.map((url, i) => (
-                        <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-primary hover:bg-primary/5 transition-colors">
-                          <FileText className="h-3 w-3" />
-                          <span className="truncate">{url.split("/").pop()}</span>
-                          <Eye className="ml-auto h-3 w-3 opacity-50" />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            <div className="flex items-center justify-between border-t pt-3 text-sm font-bold">
-              <span>Total</span>
-              <span>{selected.length} bloques</span>
+                  </div>
+                );
+              })}
             </div>
-            <Button variant="default" className="mt-2 w-full" disabled={selected.length === 0 || hayReservados}
-              onClick={async () => {
-                const session = await authService.getSession();
-                if (!session.authenticated) {
-                  localStorage.setItem(LS_KEYS.PLANO_SELECCION, JSON.stringify(selectedIds));
-                  router.push(`/auth/login?returnTo=${encodeURIComponent("/plano?openReserva=1")}`);
-                  return;
-                }
-                setReservaOpen(true);
-                setReservaStep(0);
-              }}>
-              <span>{hayReservados ? "Hay bloques no disponibles" : `Reservar (${selected.length})`}</span>
-            </Button>
+
+            <div className="border-t px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-bold text-slate-800">{selected.length} {selected.length === 1 ? "bloque" : "bloques"}</span>
+              </div>
+              <Button
+                variant="default"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={selected.length === 0 || hayReservados}
+                onClick={async () => {
+                  const session = await authService.getSession();
+                  if (!session.authenticated) {
+                    localStorage.setItem(LS_KEYS.PLANO_SELECCION, JSON.stringify(selectedIds));
+                    router.push(`/auth/login?returnTo=${encodeURIComponent("/plano?openReserva=1")}`);
+                    return;
+                  }
+                  setReservaOpen(true);
+                  setReservaStep(0);
+                }}
+              >
+                <span>{hayReservados ? "Hay bloques no disponibles" : `Reservar (${selected.length})`}</span>
+              </Button>
+            </div>
           </>
         )}
       </div>
+
+      {/* Detail Modal */}
+      <Dialog open={detailModal !== null} onOpenChange={() => setDetailModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {detailModal ? (() => {
+                const bid = [...linkedMap.entries()].find(([, v]) => v === detailModal)?.[0];
+                const item = items.find((it) => it.id === bid);
+                const label = item ? blockLabel(item.type).label : "";
+                return <span>Detalles: {label} — {bid ?? detailModal.standCode}</span>;
+              })() : <span>Detalles</span>}
+            </DialogTitle>
+          </DialogHeader>
+          {detailModal && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
+                <div><span className="text-muted-foreground">Codigo</span><p className="font-mono font-medium">{detailModal.standCode}</p></div>
+                <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Precio</span><p className="font-medium text-emerald-700">{detailModal.medidas ?? "—"}</p></div>
+                <div>
+                  <span className="text-muted-foreground">Estado</span>
+                  <div className="mt-0.5">
+                    <Badge variant={detailModal.estado === "Reservado" ? "destructive" : "default"} className="text-[10px]">
+                      <span>{detailModal.estado ?? "—"}</span>
+                    </Badge>
+                  </div>
+                </div>
+                {detailModal.empresa && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Empresa</span>
+                    <p className="font-medium">{detailModal.empresa}</p>
+                  </div>
+                )}
+              </div>
+
+              {detailModal.imagenes.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Imagenes ({detailModal.imagenes.length})</p>
+                  <button
+                    className="group relative flex w-full items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      const imgs = detailModal.imagenes;
+                      setImgCarousel({ images: imgs, idx: 0 });
+                    }}
+                    title="Haz clic para ver las imagenes en carrusel"
+                  >
+                    <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Ver {detailModal.imagenes.length} {detailModal.imagenes.length === 1 ? "imagen" : "imagenes"}</span>
+                    <Eye className="ml-auto h-3 w-3 opacity-0 transition-opacity group-hover:opacity-50" />
+                  </button>
+                </div>
+              )}
+
+              {detailModal.documentos.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Documentos ({detailModal.documentos.length})</p>
+                  <div className="space-y-0.5 rounded-md border p-2">
+                    {detailModal.documentos.map((url, i) => (
+                      <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-primary hover:bg-primary/5 transition-colors">
+                        <FileText className="h-3 w-3" />
+                        <span className="truncate">{url.split("/").pop()}</span>
+                        <Eye className="ml-auto h-3 w-3 opacity-50" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button variant="outline" size="sm" className="w-full" onClick={() => setDetailModal(null)}>
+                <span>Cerrar</span>
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ReservaModal
         open={reservaOpen}
@@ -533,19 +636,40 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         formDocs={formDocs}
         uploading={uploading}
         submitting={submitting}
+        submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
         selectedLabels={selectedLabels}
-        existingDocs={gessInfoForSelected?.documentos ?? []}
+        selectedItems={selected.map(sel => {
+          const info = linkedMap.get(sel.id);
+          return {
+            id: sel.id,
+            typeLabel: blockLabel(sel.type).label,
+            precio: info?.medidas ?? null,
+            reserved: info?.reserved ?? false,
+          };
+        })}
+        existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
         onAddDoc={addDoc}
         onRemoveDoc={removeDoc}
         onSubmit={async () => {
-          const ok = await handleSubmit();
-          if (ok) {
+          const result = await handleSubmit();
+          if (result === true) {
+            toast.success("Reserva enviada correctamente", {
+              description: "Recibiras un correo de confirmacion. El stand pasa a estado En evaluacion.",
+            });
+            setLinkedMap(prev => {
+              const next = new Map(prev);
+              for (const id of selectedIds) {
+                const info = next.get(id);
+                if (info) next.set(id, { ...info, reserved: true, estado: "En evaluacion" });
+              }
+              return next;
+            });
             setSelectedIds([]);
             resetForm();
           }
-          return ok;
+          return result === true;
         }}
       />
 

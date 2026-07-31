@@ -1,6 +1,7 @@
 "use client";
 
-import type { FormDatos } from "./types";
+import { AlertTriangle } from "lucide-react";
+import type { FormDatos } from "./interfaces";
 
 interface Props {
   datos: FormDatos;
@@ -8,22 +9,52 @@ interface Props {
   docsCount: number;
 }
 
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 px-2.5 rounded even:bg-slate-50/50">
+      <span className="text-[11px] text-slate-400">{label}</span>
+      <span className="text-[11px] font-medium text-slate-700 text-right max-w-[55%] truncate">{value}</span>
+    </div>
+  );
+}
+
 export function StepConfirmacion({ datos, selectedLabels, docsCount }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-1">
-        <p className="font-semibold text-slate-700">Resumen de la reserva</p>
-        <div className="flex justify-between"><span className="text-muted-foreground">Stands</span><span className="font-mono">{selectedLabels}</span></div>
-        <div className="flex justify-between"><span className="text-muted-foreground">Razon social</span><span className="font-medium">{datos.razonSocial}</span></div>
-        <div className="flex justify-between"><span className="text-muted-foreground">RUC</span><span className="font-medium">{datos.ruc}</span></div>
-        <div className="flex justify-between"><span className="text-muted-foreground">Contacto</span><span className="font-medium">{datos.contacto}</span></div>
-        <div className="flex justify-between"><span className="text-muted-foreground">Correo</span><span className="font-medium">{datos.email}</span></div>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="bg-slate-50/80 px-3 py-2 border-b border-slate-100">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Resumen</p>
+        </div>
+        <Row label="Stands" value={selectedLabels} />
+        <Row label="Comprobante" value={datos.tipoComprobante === "factura" ? "Factura" : datos.tipoComprobante === "boleta" ? "Boleta" : "—"} />
+
+        <div className="border-t border-slate-100 px-3 py-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Comercial</p>
+        </div>
+        {datos.tipoComprobante === "factura" && <Row label="Razon social" value={datos.razonSocial} />}
+        <Row label="Documento" value={`${datos.tipoComprobante === "factura" ? "RUC" : "DNI"} ${datos.numeroDocumento}`} />
+        <Row label="Direccion" value={datos.direccion} />
+
+        <div className="border-t border-slate-100 px-3 py-1.5">
+          <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Contacto</p>
+        </div>
+        <Row label="Persona" value={datos.contacto} />
+        <Row label="Telefono" value={datos.telefono} />
+        <Row label="Correo" value={datos.email} />
+
         {docsCount > 0 && (
-          <div className="flex justify-between"><span className="text-muted-foreground">Documentos</span><span className="font-medium">{docsCount} adjunto(s)</span></div>
+          <>
+            <div className="border-t border-slate-100 px-3 py-1.5">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Documentos</p>
+            </div>
+            <Row label="Adjuntos" value={`${docsCount} archivo(s)`} />
+          </>
         )}
       </div>
-      <div className="rounded-lg border bg-amber-50 p-3 text-xs text-amber-800">
-        <p>Al enviar la solicitud, el stand pasara a estado <strong>En evaluacion</strong> y no podra ser reservado por otra empresa hasta que el flujo de aprobaciones concluya.</p>
+
+      <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+        <p className="text-[11px] text-amber-700/90">Al enviar, el stand pasara a <strong>En evaluacion</strong> y no podra ser reservado hasta que las aprobaciones concluyan.</p>
       </div>
     </div>
   );

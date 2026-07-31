@@ -12,15 +12,15 @@ interface RoleData {
 
 export const rolesService = {
   list() {
-    return internalApi.get<RoleData[]>("/api/roles/list");
+    return internalApi.get<RoleData[]>("/api/roles/listar");
   },
   addUser(email: string, roleId: string) {
-    return internalApi.post<UserRoleDTO>("/api/roles/usuarios", { email, roleId });
+    return internalApi.post<UserRoleDTO>("/api/roles/add-user", { email, roleId });
   },
   removeUser(userId: string, roleId: string) {
-    return internalApi.delete<void>(`/api/roles/usuarios?userId=${encodeURIComponent(userId)}&roleId=${encodeURIComponent(roleId)}`);
+    return internalApi.delete<void>(`/api/roles/remove-user?userId=${encodeURIComponent(userId)}&roleId=${encodeURIComponent(roleId)}`);
   },
   updatePermisos(id: string, permisos: string[]) {
-    return internalApi.patch<RoleData>("/api/roles", { id, permisos });
+    return internalApi.patch<RoleData>("/api/roles/update-permisos", { id, permisos });
   },
 };

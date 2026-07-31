@@ -53,6 +53,20 @@ model Evento {
   @@map("evento")
 }
 
+model EventoMetadata {
+  tipoEvento   Int     @map("tipo_evento")
+  codigoEvento Int     @map("codigo_evento")
+  plano        String? @db.VarChar(50)
+  flgVisible   Boolean @default(false) @map("flg_visible")
+  imagen       String? @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([tipoEvento, codigoEvento])
+  @@map("evento_metadata")
+}
+
 model TipoStand {
   id        String @id @default(uuid())
   eventoId  String @map("evento_id")
@@ -103,11 +117,17 @@ model Role {
 }
 
 model UserRole {
-  id       String @id @default(uuid())
-  userId   String @map("user_id") @db.VarChar(100)
-  roleId   String @map("role_id")
-  email    String @db.VarChar(200)
-  password String @default("123456") @db.VarChar(100)
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id") @db.VarChar(100)
+  roleId            String    @map("role_id")
+  email             String    @db.VarChar(200)
+  password          String    @default("123456") @db.VarChar(100)
+  nombre            String?   @db.VarChar(200)
+  apellidos         String?   @db.VarChar(200)
+  telefono          String?   @db.VarChar(20)
+  tipoUsuarioId     Int?      @map("tipo_usuario_id")
+  resetToken        String?   @map("reset_token") @db.VarChar(200)
+  resetTokenExpires DateTime? @map("reset_token_expires")
 
   role     Role   @relation(fields: [roleId], references: [id])
 
@@ -287,5 +307,27 @@ model AuditLog {
   @@index([tipo])
   @@index([entidad])
   @@index([createdAt])
-  @@map("audit_log")
+   @@map("audit_log")
+}
+
+/* ================================================================
+   5. MAESTRA — diccionario jerarquico de valores lookup
+   ================================================================ */
+
+model Maestra {
+  id               Int       @id @default(autoincrement())
+  nidMaestraPadre  Int       @default(0) @map("nid_maestra_padre")
+  tabla            String    @db.VarChar(100)
+  itemId           Int?      @map("item_id")
+  numOrden         Int       @default(0) @map("num_orden")
+  nombre           String    @db.VarChar(250)
+  descripcion      String?   @db.VarChar(500)
+  activo           Boolean   @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tabla])
+  @@index([nidMaestraPadre])
+  @@map("maestra")
 }

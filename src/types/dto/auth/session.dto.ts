@@ -6,4 +6,6 @@ export interface SessionDTO {
   eventoId?: string | null;
   eventoPadreId?: string | null;
   eventoNombre?: string | null;
+  tipoEvento?: number;
+  codigoEvento?: number;
 }

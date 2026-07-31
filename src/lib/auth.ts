@@ -16,12 +16,18 @@ export interface JwtPayload {
   permissions: string[];
   eventoId?: string;
   eventoPadreId?: string;
+  tipoEvento?: number;
+  codigoEvento?: number;
+  eventoNombre?: string;
 }
 
 export async function signToken(payload: Omit<JwtPayload, "permissions"> & {
   permissions?: string[];
   eventoId?: string;
   eventoPadreId?: string;
+  tipoEvento?: number;
+  codigoEvento?: number;
+  eventoNombre?: string;
 }): Promise<string> {
   const permissions = payload.roles.flatMap((r) => ROLES_PERMISSIONS[r] ?? []);
   const tokenPayload: Record<string, unknown> = { ...payload, permissions };

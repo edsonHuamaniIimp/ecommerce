@@ -103,15 +103,58 @@ async function main() {
     if (!role) continue;
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
-      update: { password: tu.password },
-      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password },
+      update: { password: tu.password, tipoUsuarioId: 2 },
+      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2 },
     });
   }
 
   console.log("Seed completado.");
 }
 
+// Seed maestra datos
+async function seedMaestra() {
+  // Upsert via transaction: try update, if 0 rows affected, create
+  const padres = [
+    { id: 1, tabla: "comprobante_tipo", nombre: "Tipos de comprobante", orden: 1 },
+    { id: 2, tabla: "documento_tipo", nombre: "Tipos de documento", orden: 2 },
+    { id: 3, tabla: "usuario_tipo", nombre: "Tipos de usuario", orden: 3 },
+    { id: 4, tabla: "stand_estado", nombre: "Estados de stand", orden: 4 },
+  ];
+  for (const p of padres) {
+    const updated = await prisma.maestra.updateMany({
+      where: { id: p.id },
+      data: { nombre: p.nombre, numOrden: p.orden },
+    });
+    if (updated.count === 0) {
+      await prisma.maestra.create({ data: { id: p.id, nidMaestraPadre: 0, tabla: p.tabla, nombre: p.nombre, numOrden: p.orden } });
+    }
+  }
+
+  const hijos = [
+    { id: 10, padre: 1, itemId: 1, nombre: "Factura", descripcion: "Comprobante fiscal", orden: 1 },
+    { id: 11, padre: 1, itemId: 2, nombre: "Boleta", descripcion: "Comprobante consumidor final", orden: 2 },
+    { id: 20, padre: 2, itemId: 1, nombre: "DNI", descripcion: "Documento Nacional de Identidad", orden: 1 },
+    { id: 21, padre: 2, itemId: 2, nombre: "RUC", descripcion: "Registro Unico de Contribuyentes", orden: 2 },
+    { id: 30, padre: 3, itemId: 1, nombre: "Asociado", descripcion: "Miembro del IIMP", orden: 1 },
+    { id: 31, padre: 3, itemId: 2, nombre: "Cliente", descripcion: "Expositor o empresa externa", orden: 2 },
+    { id: 40, padre: 4, itemId: 1, nombre: "Disponible", descripcion: "Stand disponible", orden: 1 },
+    { id: 41, padre: 4, itemId: 2, nombre: "En evaluacion", descripcion: "Solicitud en aprobacion", orden: 2 },
+    { id: 42, padre: 4, itemId: 3, nombre: "Reservado", descripcion: "Stand reservado", orden: 3 },
+  ];
+  for (const h of hijos) {
+    const updated = await prisma.maestra.updateMany({
+      where: { id: h.id },
+      data: { nombre: h.nombre, itemId: h.itemId, numOrden: h.orden },
+    });
+    if (updated.count === 0) {
+      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padres.find(p => p.id === h.padre)!.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
+    }
+  }
+  console.log("Maestra seeded");
+}
+
 main()
+  .then(() => seedMaestra())
   .catch((e) => {
     console.error(e);
     process.exit(1);

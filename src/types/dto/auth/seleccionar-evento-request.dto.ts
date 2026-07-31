@@ -1,3 +1,6 @@
 export interface SeleccionarEventoRequestDTO {
-  eventoId: string;
+  eventoId?: string;
+  tipoEvento?: number;
+  codigoEvento?: number;
+  eventoNombre?: string;
 }

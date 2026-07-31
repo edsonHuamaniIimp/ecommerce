@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHe
 import { Search, Eye, FileText } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/api/services/auth-service";
-import { ESTADOS_STAND } from "@/lib/constants";
+import { maestraService } from "@/lib/api/services/maestra-service";
+import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID } from "@/lib/constants";
 
 interface ReservaRow {
   id: string;
@@ -31,6 +32,24 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
   const [detailRow, setDetailRow] = useState<ReservaRow | null>(null);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const [hasPermiso, setHasPermiso] = useState(false);
+  const [estadoLabels, setEstadoLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    maestraService.listar(MAESTRA_TABLAS.STAND_ESTADO).then((items) => {
+      const map: Record<string, string> = {};
+      for (const item of items) {
+        if (item.itemId !== null) {
+          map[String(item.itemId)] = item.nombre;
+        }
+      }
+      for (const [key, itemId] of Object.entries(ESTADOS_STAND_MAESTRA_ID)) {
+        if (map[String(itemId)]) {
+          map[key] = map[String(itemId)];
+        }
+      }
+      setEstadoLabels(map);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -50,7 +69,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
       });
       if (s) qs.set("search", s);
 
-      const res = await fetch(`/api/gess?${qs.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/gess/listar?${qs.toString()}`, { credentials: "include" });
       const json = await res.json() as { data: ReservaRow[]; pagination: { page: number; total: number; total_pages: number } };
       setRows(json.data ?? []);
       setPagination({ page: json.pagination.page, total: json.pagination.total, totalPages: json.pagination.total_pages });
@@ -112,7 +131,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                         <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell>
                           <Badge variant="default" className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">
-                            <span>En evaluacion</span>
+                            <span>{estadoLabels[row.estado ?? ""] ?? estadoLabels[ESTADOS_STAND.EN_EVALUACION]}</span>
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell max-w-[140px] truncate text-xs text-muted-foreground" title={row.empresa ?? ""}>

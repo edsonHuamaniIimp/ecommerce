@@ -1,5 +1,7 @@
 export interface UpdateEventoRequestDTO {
   id?: string;
+  tipo_evento?: number;
+  codigo_evento?: number;
   estado?: string;
   anio?: string;
   fecha_inicio?: string | null;

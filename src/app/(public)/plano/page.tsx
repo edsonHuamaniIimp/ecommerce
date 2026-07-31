@@ -22,39 +22,41 @@ export default function PlanoIsometricoPage() {
     (async () => {
       const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
       let eid: string | null = null;
+      let te: number | undefined;
+      let ce: number | undefined;
 
       if (raw) {
         try {
-          const pub = JSON.parse(raw) as { eventoId: string };
-          eid = pub.eventoId;
+          const pub = JSON.parse(raw) as { eventoId: string; tipoEvento?: number; codigoEvento?: number };
+          eid = pub.eventoId; te = pub.tipoEvento; ce = pub.codigoEvento;
         } catch { /* ignore */ }
       }
-
       if (!eid) {
-        const session = await authService.getSession();
-        eid = session.eventoId ?? null;
+        const s = await authService.getSession();
+        eid = s.eventoId ?? null; te = s.tipoEvento; ce = s.codigoEvento;
       }
-
       if (!eid) {
         const returnTo = openReserva ? "/plano?openReserva=1" : "/plano";
         router.replace(`/presala?returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
-
       setEventoId(eid);
 
-      const res = await fetch(`/api/eventos/publico?id=${encodeURIComponent(eid)}`);
-      const json = await res.json();
-      if (json.success && json.data) {
-        setPlanoId(json.data.plano || null);
-        setEventoParams({
-          tipoEvento: json.data.tipoEvento ?? 0,
-          codigoEvento: json.data.codigoEvento ?? 1,
-        });
-      }
+      // Buscar plano desde evento_metadata via API
+      let plano = "gess";
+      try {
+        const res = await fetch("/api/eventos/listar").then((r) => r.json());
+        const grupos = (res.data ?? []) as Array<{ versiones: Array<{ tipoEvento: number; codigoEvento: number; plano: string | null }> }>;
+        for (const g of grupos) {
+          const v = g.versiones.find((x) => x.tipoEvento === te && x.codigoEvento === ce);
+          if (v?.plano) { plano = v.plano; break; }
+        }
+      } catch { /* ignore */ }
+      setPlanoId(plano);
+      setEventoParams({ tipoEvento: te ?? 0, codigoEvento: ce ?? 1 });
       setLoading(false);
     })();
-  }, [router]);
+  }, [router, openReserva]);
 
   if (loading || !eventoId) return null;
 

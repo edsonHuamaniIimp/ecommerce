@@ -12,10 +12,16 @@ import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models
 
 const VERTICAL_COLORS: Record<string, string> = {
   proexplo: "#d97706",
-  wmc: "#0891b2",
+  "world-mining-congress": "#0891b2",
   gess: "#16a34a",
   perumin: "#b45309",
+  "difusion-minera": "#7c3aed",
+  eventos: "#0ea5e9",
 };
+
+function verticalColor(vertical: string): string {
+  return VERTICAL_COLORS[vertical] ?? "#6b7280";
+}
 
 interface VersionItem extends EventoPresalaDTO {}
 interface EventoItem extends Omit<EventoPadrePresalaDTO, "versiones"> { versiones: VersionItem[] }
@@ -76,15 +82,16 @@ export default function PresalaPage() {
 
   const [isAuth, setIsAuth] = useState(false);
 
-  const handleSelect = async (eventoId: string, vertical: string, nombre: string) => {
+  const handleSelect = async (eventoId: string, vertical: string, nombre: string, tipoEvento?: number, codigoEvento?: number) => {
+    const safeVertical = vertical.toLowerCase().replace(/\s+/g, "-");
     const returnTo = searchParams.get("returnTo");
 
     if (!isAuth) {
-      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
-      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId, nombre }));
+      localStorage.setItem(LS_KEYS.VERTICAL, safeVertical);
+      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId, nombre, tipoEvento, codigoEvento }));
       document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
-      document.documentElement.classList.add(`vert-${vertical}`);
-      document.documentElement.setAttribute("data-vertical", vertical);
+      document.documentElement.classList.add(`vert-${safeVertical}`);
+      document.documentElement.setAttribute("data-vertical", safeVertical);
       if (returnTo && returnTo !== "/presala") {
         router.push(returnTo);
       } else {
@@ -96,14 +103,14 @@ export default function PresalaPage() {
 
     setSelecting(eventoId);
     try {
-      await authService.seleccionarEvento({ eventoId });
-      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
+      await authService.seleccionarEvento({ eventoId, tipoEvento, codigoEvento, eventoNombre: nombre });
+      localStorage.setItem(LS_KEYS.VERTICAL, safeVertical);
       document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
-      document.documentElement.classList.add(`vert-${vertical}`);
-      document.documentElement.setAttribute("data-vertical", vertical);
+      document.documentElement.classList.add(`vert-${safeVertical}`);
+      document.documentElement.setAttribute("data-vertical", safeVertical);
       router.push(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("[presala] Error al seleccionar evento:", err);
     } finally {
       setSelecting(null);
     }
@@ -135,7 +142,7 @@ export default function PresalaPage() {
         ) : (
           <div className="space-y-4">
             {eventos.map((ep) => {
-              const vColor = VERTICAL_COLORS[ep.vertical] ?? "#6b7280";
+              const vColor = verticalColor(ep.vertical);
               return (
                 <Card key={ep.id} className="overflow-hidden" style={{ borderColor: vColor + "40" }}>
                   <div className="h-1 w-full" style={{ backgroundColor: vColor }} />
@@ -153,30 +160,32 @@ export default function PresalaPage() {
                           key={ver.id}
                           type="button"
                           disabled={selecting === ver.id}
-                          onClick={() => handleSelect(ver.id, ep.vertical, `${ep.nombre} ${ver.anio}`)}
-                          className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-4 text-left transition-all hover:shadow-md active:bg-slate-50"
-                          style={{ borderColor: `${vColor}40` }}
+                          onClick={() => handleSelect(ver.id, ep.vertical, `${ep.nombre} ${ver.anio}`, ver.tipoEvento, ver.codigoEvento)}
+                          className="flex flex-col gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition-all hover:shadow-md active:bg-slate-50"
                         >
-                          <span className="text-sm font-semibold text-slate-800">{ep.nombre} {ver.anio}</span>
-                          {(ver.fecha_inicio || ver.fecha_fin) && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}
-                            </span>
-                          )}
-                          <div className="mt-2 flex items-center justify-between">
-                            <Badge
-                              className="text-[10px]"
-                              style={{
-                                backgroundColor: ver.estado === "active" ? vColor + "1A" : undefined,
-                                color: ver.estado === "active" ? vColor : undefined,
-                                borderColor: ver.estado === "active" ? vColor + "40" : undefined,
-                              }}
-                            >
-                              <span>{ver.estado === "active" ? "Vigente" : ver.estado}</span>
-                            </Badge>
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={selecting === ver.id} asChild>
-                              <span>{selecting === ver.id ? "..." : "Ingresar"}</span>
-                            </Button>
+                          <div className="h-1 w-full shrink-0" style={{ backgroundColor: vColor }} />
+                          <div className="flex flex-col gap-1 px-4 pb-4 pt-3">
+                            <span className="text-sm font-semibold text-slate-800">{ep.nombre} {ver.anio}</span>
+                            {(ver.fecha_inicio || ver.fecha_fin) && (
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}
+                              </span>
+                            )}
+                            <div className="mt-2 flex items-center justify-between">
+                              <Badge
+                                className="text-[10px]"
+                                style={{
+                                  backgroundColor: ver.estado === "active" ? vColor + "1A" : undefined,
+                                  color: ver.estado === "active" ? vColor : undefined,
+                                  borderColor: ver.estado === "active" ? vColor + "40" : undefined,
+                                }}
+                              >
+                                <span>{ver.estado === "active" ? "Vigente" : ver.estado}</span>
+                              </Badge>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={selecting === ver.id} asChild>
+                                <span>{selecting === ver.id ? "..." : "Ingresar"}</span>
+                              </Button>
+                            </div>
                           </div>
                         </button>
                       ))}

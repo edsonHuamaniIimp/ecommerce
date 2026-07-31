@@ -7,8 +7,8 @@ import type { ReservaStep } from "@/lib/constants";
 
 const STEPS = [
   { key: RESERVA_STEPS.DATOS, label: "Datos" },
-  { key: RESERVA_STEPS.DOCUMENTOS, label: "Documentos" },
-  { key: RESERVA_STEPS.CONFIRMACION, label: "Confirmacion" },
+  { key: RESERVA_STEPS.DOCUMENTOS, label: "Docs" },
+  { key: RESERVA_STEPS.CONFIRMACION, label: "Confirmar" },
 ] as const;
 
 interface Props {
@@ -20,31 +20,42 @@ interface Props {
 
 export function StepIndicator({ currentStep, stepDone, canGoStep, onGoStep }: Props) {
   return (
-    <div className="mb-4 flex items-center justify-center gap-2">
+    <div className="mb-3 flex items-start justify-between">
       {STEPS.map((step, idx) => {
         const active = currentStep >= step.key;
         const done = stepDone(step.key);
         const clickable = canGoStep(step.key);
+        const isCurrent = currentStep === step.key;
         return (
           <Fragment key={step.key}>
             <button
               type="button"
               disabled={!clickable}
               onClick={() => clickable && onGoStep(step.key)}
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                done ? "bg-emerald-500 text-white shadow-sm" :
-                active ? "bg-primary text-primary-foreground shadow-sm" :
-                "bg-slate-200 text-slate-500"
-              } ${clickable ? "cursor-pointer hover:scale-105" : "cursor-default"}`}
+              className={`flex flex-col items-center gap-1 transition-all duration-200 ${
+                clickable ? "cursor-pointer group" : "cursor-default"
+              }`}
               title={step.label}
             >
-              {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                done
+                  ? "bg-emerald-500 text-white shadow-sm shadow-emerald-200"
+                  : isCurrent
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-200 group-hover:scale-105"
+                  : active
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-400"
+              }`}>
+                {done ? <Check className="h-4 w-4" /> : idx + 1}
+              </span>
+              <span className={`text-[10px] font-medium transition-colors ${
+                isCurrent ? "text-slate-800" : active ? "text-slate-500" : "text-slate-400"
+              }`}>{step.label}</span>
             </button>
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-              active ? "text-slate-700" : "text-slate-400"
-            }`}>{step.label}</span>
             {idx < 2 && (
-              <div className={`h-px w-8 ${currentStep > step.key ? "bg-primary" : "bg-slate-200"}`} />
+              <div className={`mt-4 h-px flex-1 rounded-full transition-colors ${
+                currentStep > step.key ? "bg-emerald-400" : "bg-slate-200"
+              }`} />
             )}
           </Fragment>
         );

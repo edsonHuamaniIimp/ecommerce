@@ -15,4 +15,8 @@ export const dateUtils = {
     if (!iso) return "";
     return iso.slice(0, 10);
   },
+
+  extractYear(iso: string): number {
+    return new Date(iso).getFullYear();
+  },
 };

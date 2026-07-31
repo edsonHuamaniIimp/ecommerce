@@ -53,6 +53,13 @@ export const ESTADOS_STAND = {
 
 export type EstadoStand = (typeof ESTADOS_STAND)[keyof typeof ESTADOS_STAND];
 
+/** item_id en maestra (tabla stand_estado) para cada estado */
+export const ESTADOS_STAND_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_STAND.DISPONIBLE]: 1,
+  [ESTADOS_STAND.EN_EVALUACION]: 2,
+  [ESTADOS_STAND.RESERVADO]: 3,
+};
+
 /* ================================================================
    Estados de reserva (ciclo de vida)
    ================================================================ */
@@ -188,3 +195,30 @@ export const RESERVA_STEPS = {
 } as const;
 
 export type ReservaStep = (typeof RESERVA_STEPS)[keyof typeof RESERVA_STEPS];
+
+/* ================================================================
+   Tablas de maestra (diccionario)
+   ================================================================ */
+export const MAESTRA_TABLAS = {
+  COMPROBANTE_TIPO: "comprobante_tipo",
+  DOCUMENTO_TIPO: "documento_tipo",
+  USUARIO_TIPO: "usuario_tipo",
+  STAND_ESTADO: "stand_estado",
+} as const;
+
+export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
+
+/* ================================================================
+   Codigos de error API
+   ================================================================ */
+export const API_ERROR_CODES = {
+  VALIDATION: "VALIDATION",
+  NOT_FOUND: "NOT_FOUND",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  CONFLICT: "CONFLICT",
+  INTERNAL: "INTERNAL",
+  BAD_GATEWAY: "BAD_GATEWAY",
+} as const;
+
+export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];

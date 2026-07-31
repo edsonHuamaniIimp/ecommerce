@@ -6,18 +6,18 @@ import Link from "next/link";
 
 export default async function VinculacionPage() {
   const session = await getSession();
-  let eventoId = "";
+  const eventoId = session?.eventoId ?? "";
+  const tipoEvento = session?.tipoEvento ?? 0;
+  const codigoEvento = session?.codigoEvento ?? 0;
+
   let plano = "gess";
 
-  if (session?.eventoId) {
-    const evento = await prisma.evento.findUnique({
-      where: { id: session.eventoId },
-      select: { plano: true },
-    });
-    if (evento) {
-      eventoId = session.eventoId;
-      plano = evento.plano;
-    }
+  if (tipoEvento && codigoEvento) {
+    const meta = await prisma.$queryRawUnsafe<Array<{ plano: string | null }>>(
+      `SELECT plano FROM evento_metadata WHERE tipo_evento = $1 AND codigo_evento = $2`,
+      tipoEvento, codigoEvento,
+    );
+    if (meta.length > 0 && meta[0].plano) plano = meta[0].plano;
   }
 
   if (!eventoId) {
@@ -37,14 +37,10 @@ export default async function VinculacionPage() {
     <main className="flex-1 px-6 py-6 lg:px-10">
       <div className="mx-auto w-full max-w-7xl space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Vinculacion de Stands
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Vincular datos del API externo con bloques del plano isometrico.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">Vinculacion de Stands</h1>
+          <p className="text-sm text-muted-foreground">Vincular datos del API externo con bloques del plano isometrico.</p>
         </div>
-        <GessMantenedor eventoId={eventoId} tipoEvento={14} codigoEvento={1} plano={plano} />
+        <GessMantenedor eventoId={eventoId} tipoEvento={tipoEvento} codigoEvento={codigoEvento} plano={plano} />
       </div>
     </main>
   );

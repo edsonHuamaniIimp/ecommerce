@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
 import { LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { authService } from "@/lib/api/services/auth-service";
@@ -45,16 +45,23 @@ export function DashboardHeader() {
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8">
-            <User className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline text-xs">{email ?? "Usuario"}</span>
+          <Button variant="ghost" size="sm" className="gap-1.5 h-8 max-w-[200px]">
+            <User className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline text-xs truncate">{email ?? "Usuario"}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           {email && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">{email}</div>
+            <div className="px-2 py-1.5 text-[10px] text-muted-foreground border-b mb-1 truncate">{email}</div>
           )}
-          <DropdownMenuItem onClick={handleLogout} className="text-xs">
+          <DropdownMenuItem asChild className="text-xs cursor-pointer">
+            <Link href="/dashboard/perfil">
+              <User className="h-3.5 w-3.5 mr-2" />
+              <span>Perfil</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLogout} className="text-xs cursor-pointer text-red-600">
             <LogOut className="h-3.5 w-3.5 mr-2" />
             <span>Cerrar sesion</span>
           </DropdownMenuItem>
