@@ -31,10 +31,14 @@ export default function PlanoIsometricoPage() {
           eid = pub.eventoId; te = pub.tipoEvento; ce = pub.codigoEvento;
         } catch { /* ignore */ }
       }
+
+      const s = await authService.getSession();
       if (!eid) {
-        const s = await authService.getSession();
-        eid = s.eventoId ?? null; te = s.tipoEvento; ce = s.codigoEvento;
+        eid = s.eventoId ?? null;
       }
+      if (te === undefined) te = s.tipoEvento;
+      if (ce === undefined) ce = s.codigoEvento;
+
       if (!eid) {
         const returnTo = openReserva ? "/plano?openReserva=1" : "/plano";
         router.replace(`/presala?returnTo=${encodeURIComponent(returnTo)}`);

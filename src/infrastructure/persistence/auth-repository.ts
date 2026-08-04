@@ -26,21 +26,24 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async findOrCreateEvento(tipoEvento: number, codigoEvento: number) {
-    let ev = await prisma.evento.findFirst({
-      where: { tipoEvento, codigoEvento },
-      select: { id: true },
-    });
-    if (ev) return ev;
-
-    // Create a minimal Evento record
-    const padre = await prisma.eventoPadre.findFirst({ where: { codigo: String(tipoEvento) } })
-      ?? await prisma.eventoPadre.create({ data: { codigo: String(tipoEvento), vertical: "api", nombre: `Evento ${tipoEvento}` } });
-
-    ev = await prisma.evento.create({
-      data: { eventoPadreId: padre.id, tipoEvento, codigoEvento, anio: String(new Date().getFullYear()) },
+    const ev = await prisma.evento.upsert({
+      where: { tipoEvento_codigoEvento: { tipoEvento, codigoEvento } },
+      update: {},
+      create: {
+        tipoEvento, codigoEvento,
+        anio: String(new Date().getFullYear()),
+        eventoPadreId: await this.ensureEventoPadre(tipoEvento),
+      },
       select: { id: true },
     });
     return ev;
+  }
+
+  private async ensureEventoPadre(tipoEvento: number) {
+    const exist = await prisma.eventoPadre.findFirst({ where: { codigo: String(tipoEvento) }, select: { id: true } });
+    if (exist) return exist.id;
+    const created = await prisma.eventoPadre.create({ data: { codigo: String(tipoEvento), vertical: "api", nombre: `Evento ${tipoEvento}` }, select: { id: true } });
+    return created.id;
   }
 
   async findPerfilByEmail(email: string) {

@@ -49,7 +49,7 @@ export const authController = {
     if (!tokenCookie) return error(API_ERROR_CODES.UNAUTHORIZED, "No autenticado", 401);
       const result: SeleccionarEventoResult = await services.auth.seleccionarEvento(dto, tokenCookie);
       const res = NextResponse.json({ ok: true, eventoId: result.eventoId, tipoEvento: result.tipoEvento, codigoEvento: result.codigoEvento });
-      setTokenCookie(res, result.token);
+      res.headers.set("Set-Cookie", `token=${result.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${24 * 60 * 60}`);
       return res;
   },
 

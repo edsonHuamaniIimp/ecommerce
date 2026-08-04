@@ -9,6 +9,20 @@ import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 import { ROLES, LS_KEYS } from "@/lib/constants";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 
+const VERTICAL_COLORS: Record<string, string> = {
+  proexplo: "#d97706",
+  wmc: "#0891b2",
+  "world-mining-congress": "#0891b2",
+  gess: "#16a34a",
+  perumin: "#b45309",
+  "difusion-minera": "#7c3aed",
+  eventos: "#0ea5e9",
+};
+
+function verticalColor(vertical: string): string {
+  return VERTICAL_COLORS[vertical] ?? "#6b7280";
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
@@ -87,7 +101,7 @@ export default function HomePage() {
               <Card key={ep.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">{ep.nombre.charAt(0)}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-bold text-white" style={{ backgroundColor: verticalColor(ep.vertical) }}>{ep.nombre.charAt(0)}</span>
                     <span>{ep.nombre}</span>
                     <Badge variant="outline" className="ml-1 text-[10px]"><span>{ep.vertical}</span></Badge>
                   </CardTitle>
@@ -99,7 +113,10 @@ export default function HomePage() {
                         key={ver.id}
                         type="button"
                         onClick={() => handleSelect(ver.id, ep.vertical)}
-                        className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-all hover:border-primary hover:shadow-md"
+                        className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-all hover:shadow-md"
+                        style={{ borderColor: "transparent", ...({ "--hover-color": verticalColor(ep.vertical) } as React.CSSProperties) }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = verticalColor(ep.vertical); }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "transparent"; }}
                       >
                         <span className="text-sm font-semibold">{ep.nombre} {ver.anio}</span>
                         {(ver.fecha_inicio || ver.fecha_fin) && (
@@ -109,9 +126,9 @@ export default function HomePage() {
                           <Badge variant={ver.estado === "active" ? "default" : "secondary"} className="text-[10px]">
                             <span>{ver.estado === "active" ? "Vigente" : ver.estado}</span>
                           </Badge>
-                          <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
-                            <span>{isAuth ? "Ingresar" : "Ver"}</span>
-                          </Button>
+                          <span className="rounded-md px-2 py-1 text-xs font-medium text-white transition-colors" style={{ backgroundColor: verticalColor(ep.vertical) }}>
+                            {isAuth ? "Ingresar" : "Ver"}
+                          </span>
                         </div>
                       </button>
                     ))}

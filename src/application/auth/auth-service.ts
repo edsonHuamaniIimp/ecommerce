@@ -42,6 +42,7 @@ export class AuthApplicationService {
       authenticated: true, email: session.email, roles: session.roles,
       permissions: session.permissions, eventoId: session.eventoId ?? null,
       eventoPadreId: session.eventoPadreId ?? null, eventoNombre,
+      eventoPadreNombre: session.eventoPadreNombre ?? null,
       tipoEvento: session.tipoEvento, codigoEvento: session.codigoEvento,
     };
   }
@@ -51,21 +52,10 @@ export class AuthApplicationService {
     const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret");
     const { payload } = await jwtVerify(tokenCookie, SECRET);
 
-    // If old eventoId provided, look up the Evento record
     let eventoId = dto.eventoId;
     let tipoEvento = dto.tipoEvento ?? payload.tipoEvento as number | undefined;
     let codigoEvento = dto.codigoEvento ?? payload.codigoEvento as number | undefined;
 
-    if (dto.eventoId && !tipoEvento) {
-      const ev = await this.repo.findEventoById(dto.eventoId);
-      if (ev) {
-        tipoEvento = ev.tipoEvento;
-        codigoEvento = ev.codigoEvento;
-        eventoId = ev.id;
-      }
-    }
-
-    // If new IDs provided, find/create Evento record
     if (tipoEvento && codigoEvento) {
       const ev = await this.repo.findOrCreateEvento(tipoEvento, codigoEvento);
       eventoId = ev.id;
@@ -76,7 +66,9 @@ export class AuthApplicationService {
     const newToken = await signToken({
       sub: payload.sub as string, email: payload.email as string,
       name: payload.name as string, roles: payload.roles as Rol[],
-      eventoId, tipoEvento, codigoEvento, eventoNombre: dto.eventoNombre,
+      eventoId, tipoEvento, codigoEvento,
+      eventoNombre: dto.eventoNombre,
+      eventoPadreNombre: dto.eventoPadreNombre ?? payload.eventoPadreNombre as string | undefined,
     });
 
     return { token: newToken, eventoId, tipoEvento, codigoEvento };

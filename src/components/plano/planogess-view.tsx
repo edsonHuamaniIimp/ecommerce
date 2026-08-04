@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Search, RefreshCw } from "lucide-react";
+import { Pagination } from "@/components/shared/pagination";
 import { gessService } from "@/lib/api/services/gess-service";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 
 type PlanogessRow = Record<string, unknown>;
 
@@ -11,83 +14,106 @@ interface Props {
   codigoEvento: number;
 }
 
-const COL_LABELS: Record<string, string> = {
-  STANDID: "ID",
-  STAND: "Stand",
-  TIPO_STAND: "Tipo",
-  MEDIDAS: "Medidas",
-  ESTADO: "Estado",
-  EMPRESA: "Empresa",
-  NOMBRE: "Nombre",
-  UBICACION: "Ubicacion",
-  PABELLON: "Pabellon",
-};
-
-function renderCell(key: string, value: unknown) {
-  if (value === null || value === undefined) return "—";
-  if (key === "ESTADO") {
-    const v = String(value).toLowerCase();
-    const variant = v === "disponible" ? "default" : v === "reservado" ? "destructive" : "secondary";
-    return <Badge variant={variant}><span>{String(value)}</span></Badge>;
-  }
-  return String(value);
-}
+const PER_PAGE = 15;
 
 export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
-  const [data, setData] = useState<PlanogessRow[] | null>(null);
+  const [allData, setAllData] = useState<PlanogessRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const json = await gessService.fetchFromApi(tipoEvento, codigoEvento);
-        if (!cancelled) setData(Array.isArray(json) ? json as PlanogessRow[] : []);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Error desconocido");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [tipoEvento, codigoEvento]);
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const json = await gessService.fetchFromApi(tipoEvento, codigoEvento);
+      setAllData(Array.isArray(json) ? json as PlanogessRow[] : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const columns = data && data.length > 0
-    ? Object.keys(data[0]).filter((k) => typeof data[0][k] !== "object")
-    : null;
+  useEffect(() => { load(); }, [tipoEvento, codigoEvento]);
+
+  const columns = useMemo(() => {
+    if (!allData || allData.length === 0) return null;
+    const first = allData[0];
+    return Object.keys(first).filter((k) => typeof first[k] !== "object");
+  }, [allData]);
+
+  const filtered = useMemo(() => {
+    if (!allData || !columns) return [];
+    if (!search.trim()) return allData;
+    const term = search.toLowerCase();
+    return allData.filter((row) =>
+      columns.some((col) => String(row[col] ?? "").toLowerCase().includes(term))
+    );
+  }, [allData, columns, search]);
+
+  useEffect(() => { setPage(1); }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  const renderCell = (key: string, value: unknown) => {
+    if (value === null || value === undefined) return "—";
+    if (key === "status" || key === "estado" || key === "ESTADO" || key === "Estado") {
+      const v = String(value).toLowerCase();
+      return (
+        <Badge variant="default" className={`text-[10px] ${
+          v === "disponible" || v === "available" ? "bg-green-100 text-green-800 border-green-200"
+          : v === "reservado" || v === "reserved" ? "bg-red-100 text-red-800 border-red-200"
+          : "bg-slate-100 text-slate-600 border-slate-200"
+        }`}>
+          {String(value)}
+        </Badge>
+      );
+    }
+    if (key === "precio" || key === "monto" || key === "y") {
+      const num = Number(value);
+      if (!isNaN(num) && num > 0) return `USD ${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    }
+    return String(value);
+  };
+
+  const columnLabel = (col: string) => col.charAt(0).toUpperCase() + col.slice(1).replace(/_/g, " ");
 
   if (loading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-16">
-          <p className="text-sm text-muted-foreground"><span>Cargando datos del plano...</span></p>
+          <p className="text-sm text-muted-foreground">Cargando datos del plano...</p>
         </CardContent>
       </Card>
     );
   }
 
   if (error) {
-    const is404 = error.includes("404") || error.includes("respondio con 404");
+    const is404 = error.includes("404");
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-16">
-          <p className="text-sm font-semibold text-muted-foreground">
-            {is404 ? "Este evento no tiene datos en KBEventos" : "Error al cargar datos"}
+          <p className="text-sm font-semibold text-slate-600">
+            {is404 ? "Sin datos en KBEventos" : "Error al cargar datos"}
           </p>
-          <p className="text-xs text-muted-foreground">{is404 ? "El API externo no tiene planos configurados para este tipo y codigo de evento." : error}</p>
+          <p className="text-xs text-muted-foreground">
+            {is404 ? "El API externo no tiene planos para este tipo/codigo de evento." : error}
+          </p>
         </CardContent>
       </Card>
     );
   }
 
-  if (!columns || data!.length === 0) {
+  if (!columns || filtered.length === 0) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-16">
-          <p className="text-sm text-muted-foreground"><span>Sin datos para este evento.</span></p>
+          <p className="text-sm text-muted-foreground">
+            {search ? "Sin resultados para tu busqueda." : "Sin datos para este evento."}
+          </p>
         </CardContent>
       </Card>
     );
@@ -96,30 +122,63 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle><span>Stands del plano ({data!.length})</span></CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>Stands del plano ({filtered.length})</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={load} disabled={loading}>
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><span>Recargar</span></TooltipContent>
+          </Tooltip>
+        </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 text-xs h-8"
+          />
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs font-semibold uppercase text-muted-foreground">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {columns.map((col) => (
-                  <th key={col} className="whitespace-nowrap p-2">{COL_LABELS[col] ?? col}</th>
+                  <TableHead key={col} className="whitespace-nowrap text-[10px] uppercase">
+                    {columnLabel(col)}
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data!.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paged.map((row, i) => (
+                <TableRow key={i}>
                   {columns.map((col) => (
-                    <td key={col} className="whitespace-nowrap p-2 text-xs">
+                    <TableCell key={col} className="whitespace-nowrap text-xs">
                       {renderCell(col, row[col])}
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-muted-foreground">
+            {filtered.length} resultados — pagina {page} de {totalPages}
+          </span>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
         </div>
       </CardContent>
     </Card>

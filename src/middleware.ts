@@ -3,20 +3,28 @@ import { getTokenFromRequest, verifyToken, hasRole, hasPermission } from "@/lib/
 import { ROLES } from "@/lib/constants";
 
 const PROTECTED: { path: string; roles: string[]; permission?: string }[] = [
-  { path: "/dashboard/vinculacion", roles: [ROLES.ADMIN] },
-  { path: "/dashboard/reservas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION], permission: "read:reservas" },
-  { path: "/dashboard/stands", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
-  { path: "/dashboard/roles", roles: [ROLES.ADMIN] },
-  { path: "/dashboard/eventos", roles: [ROLES.ADMIN] },
-  { path: "/api/roles", roles: [ROLES.ADMIN] },
-  { path: "/api/eventos", roles: [ROLES.ADMIN] },
-  { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION] },
+  { path: "/dashboard/vinculacion", roles: [ROLES.ADMIN], permission: "stands:vinculacion" },
+  { path: "/dashboard/datos-evento", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "eventos:datos" },
+  { path: "/dashboard/solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
+  { path: "/dashboard/mis-solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
+  { path: "/dashboard/stands", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION], permission: "stands:manage" },
+  { path: "/dashboard/reservas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "read:reservas" },
+  { path: "/dashboard/auspicios", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "auspicios:view" },
+  { path: "/api/auspicios", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "auspicios:view" },
+  { path: "/dashboard/roles", roles: [ROLES.ADMIN], permission: "roles:manage" },
+  { path: "/dashboard/eventos", roles: [ROLES.ADMIN], permission: "events:manage" },
+  { path: "/api/roles", roles: [ROLES.ADMIN], permission: "roles:manage" },
+  { path: "/api/eventos", roles: [ROLES.ADMIN], permission: "events:manage" },
+  { path: "/api/solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
+  { path: "/api/alertas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "dashboard:view" },
+  { path: "/plano", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "stands:plano" },
+  { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE] },
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/maestra") {
+  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/maestra" || (pathname === "/api/eventos/listar" && request.nextUrl.searchParams.get("presala") === "1") || pathname.startsWith("/api/maestra/")) {
     return NextResponse.next();
   }
 
@@ -45,7 +53,8 @@ export async function middleware(request: NextRequest) {
 
 function redirectToLogin(request: NextRequest) {
   const loginUrl = new URL("/auth/login", request.url);
-  loginUrl.searchParams.set("returnTo", request.nextUrl.pathname);
+  const returnTo = request.nextUrl.pathname + request.nextUrl.search;
+  loginUrl.searchParams.set("returnTo", returnTo);
   return NextResponse.redirect(loginUrl);
 }
 

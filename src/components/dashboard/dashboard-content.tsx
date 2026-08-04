@@ -15,21 +15,14 @@ interface DashboardContentProps {
     montoTotal: string;
     procesoCount: string;
   };
-  eventoNombre?: string;
 }
 
 export function DashboardContent({
   reservas,
   stats,
-  eventoNombre,
 }: DashboardContentProps) {
   return (
-    <div className="space-y-8 p-6 lg:p-10">
-      {eventoNombre && (
-        <p className="text-sm text-muted-foreground">
-          Evento: <span className="font-medium text-slate-700">{eventoNombre}</span>
-        </p>
-      )}
+    <div className="space-y-8 pt-6 sm:pt-8 lg:pt-10">
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard

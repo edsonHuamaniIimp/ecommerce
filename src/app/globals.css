@@ -122,3 +122,22 @@ button.p-2.bg-primary:not(.text-primary-foreground):not(.text-white):not(:hover)
 button.p-1.bg-primary:not(.text-white):not(:hover) {
   background-color: transparent !important;
 }
+
+/* Quill rich text editor — notificar modal */
+.quill-notify .ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 6px 10px !important;
+}
+.quill-notify .ql-container.ql-snow {
+  border: none !important;
+  font-family: inherit;
+}
+.quill-notify .ql-editor {
+  min-height: 180px;
+  font-size: 13px;
+}
+.quill-notify .ql-editor.ql-blank::before {
+  color: #94a3b8;
+  font-style: normal;
+}

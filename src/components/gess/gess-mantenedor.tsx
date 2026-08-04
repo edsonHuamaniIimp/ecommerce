@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Search } from "lucide-react";
+import { Pagination } from "@/components/shared/pagination";
 import { getPlano } from "@/lib/planos/registry";
 import { gessService } from "@/lib/api/services/gess-service";
+import { ESTADOS_STAND } from "@/lib/constants";
 import type { GessStandDomain } from "@/lib/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
@@ -32,6 +35,8 @@ function formatValue(val: unknown): string {
 export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: planoId }: Props) {
   const plano = getPlano(planoId) ?? getPlano("gess")!;
   const BLOQUE_IDS = plano.bloqueIds;
+  const PER_PAGE = 15;
+
   const bloqueLabel = (id: string): string => {
     const labels = plano.blockLabel;
     for (const prefix of Object.keys(labels)) {
@@ -51,9 +56,11 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   const [dbError, setDbError] = useState<string | null>(null);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+
   const importadosApiIds = useMemo(() => new Set(dbRows.map((r) => r.standApiId)), [dbRows]);
 
-  /* -- Bloque -> GessStand lookup -- */
   const bloqueMap = useMemo(() => {
     const m = new Map<string, GessStandRow>();
     for (const r of dbRows) {
@@ -151,6 +158,23 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
 
   const vinculados = dbRows.filter((r) => r.bloqueId).length;
 
+  const filteredBloques = useMemo(() => {
+    if (!search.trim()) return BLOQUE_IDS;
+    const term = search.toLowerCase();
+    return BLOQUE_IDS.filter((bid) => {
+      const linked = bloqueMap.get(bid);
+      return bid.toLowerCase().includes(term)
+        || (linked?.standCode?.toLowerCase().includes(term))
+        || (linked?.empresa?.toLowerCase().includes(term))
+        || (linked?.tipoStand?.toLowerCase().includes(term));
+    });
+  }, [BLOQUE_IDS, bloqueMap, search]);
+
+  useEffect(() => { setPage(1); }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBloques.length / PER_PAGE));
+  const paged = filteredBloques.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
   return (
     <Tabs defaultValue="paso1" className="space-y-4">
       <TabsList>
@@ -239,40 +263,47 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
         </Card>
       </TabsContent>
 
-      {/* ============== PASO 2 ============== */}
       <TabsContent value="paso2">
         <Card>
           <CardHeader>
             <CardTitle><span>Vincular bloques del plano isometrico con registros BD</span></CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="mb-3 text-xs text-muted-foreground">
-              {BLOQUE_IDS.length} bloques 3D — {dbRows.length} registros en BD — {vinculados} vinculados
-            </p>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {BLOQUE_IDS.length} bloques 3D — {dbRows.length} registros en BD — {vinculados} vinculados
+              </p>
+              <div className="relative max-w-xs">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 text-xs h-8" />
+              </div>
+            </div>
             {dbLoading ? (
               <p className="py-8 text-center text-sm text-muted-foreground"><span>Cargando...</span></p>
             ) : dbError ? (
               <p className="py-8 text-center text-sm text-red-600">{dbError}</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs font-semibold uppercase text-muted-foreground">
-                      <th className="p-2">Bloque 3D</th>
-                      <th className="p-2">Tipo</th>
-                      <th className="p-2">Registro BD vinculado</th>
-                      <th className="p-2">Empresa</th>
-                      <th className="p-2">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {BLOQUE_IDS.map((bid) => {
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[10px]">Bloque 3D</TableHead>
+                        <TableHead className="text-[10px]">Tipo</TableHead>
+                        <TableHead className="text-[10px]">Registro BD vinculado</TableHead>
+                        <TableHead className="text-[10px]">Empresa</TableHead>
+                        <TableHead className="text-[10px]">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paged.map((bid) => {
                         const linked = bloqueMap.get(bid);
                         return (
-                          <tr key={bid} className={`border-b border-slate-100 hover:bg-slate-50 ${linked ? "bg-emerald-50/50" : ""}`}>
-                            <td className="p-2 font-mono text-xs font-bold">{bid}</td>
-                            <td className="p-2 text-xs text-muted-foreground">{bloqueLabel(bid)}</td>
-                            <td className="p-2">
+                          <TableRow key={bid}>
+                            <TableCell className="font-mono text-xs font-bold">{bid}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{bloqueLabel(bid)}</TableCell>
+                            <TableCell>
                               <Combobox
                                 items={[
                                   { value: "__none__", label: "— Sin vincular —" },
@@ -288,21 +319,33 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                                 onSelect={(value) => handleVincular(bid, value === "__none__" ? null : value)}
                                 className="w-[260px]"
                               />
-                            </td>
-                            <td className="max-w-[160px] truncate p-2 text-xs text-muted-foreground">{linked?.empresa ?? "—"}</td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground">{linked?.empresa ?? "—"}</TableCell>
+                            <TableCell>
                               {linked?.estado ? (
-                                <Badge variant={linked.estado === "RESERVADO" ? "destructive" : "default"}>
-                                  <span>{linked.estado}</span>
+                                <Badge className={`text-[10px] border pointer-events-none ${
+                                  (linked.estado?.toLowerCase()) === ESTADOS_STAND.DISPONIBLE ? "bg-green-100 text-green-800 border-green-200"
+                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.RESERVADO ? "bg-red-100 text-red-800 border-red-200"
+                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.EN_EVALUACION ? "bg-amber-100 text-amber-800 border-amber-200"
+                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}>
+                                  {linked.estado}
                                 </Badge>
                               ) : <span className="text-xs text-muted-foreground">—</span>}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
-                  </tbody>
-                </table>
-              </div>
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs text-muted-foreground">
+                    {filteredBloques.length} bloques — pagina {page} de {totalPages}
+                  </span>
+                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

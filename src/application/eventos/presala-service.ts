@@ -4,16 +4,15 @@ import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/evento
 import { dateUtils } from "@/lib/utils/date";
 
 const VERTICAL_BY_CODE: Record<number, string> = {
-  1: "proexplo",
   2: "perumin",
-  8: "difusion-minera",
-  9: "eventos",
+  5: "proexplo",
+  7: "wmc",
   13: "wmc",
   14: "gess",
 };
 
-function verticalFromCode(code: number, eventName: string): string {
-  return VERTICAL_BY_CODE[code] ?? eventName.toLowerCase().replace(/\s+/g, "-");
+function verticalFromCode(code: number): string {
+  return VERTICAL_BY_CODE[code] ?? "eventos";
 }
 
 interface ApiEvent { codeEvent: number; event: string; inicio: string; fin: string; active: boolean; }
@@ -42,6 +41,14 @@ export class PresalaApplicationService {
     }
 
     const result: EventoPadrePresalaDTO[] = [];
+
+    const eventosDb = await this.eventoRepo.findAll();
+    const eventoIdMap = new Map<string, string>();
+    for (const ev of eventosDb) {
+      const key = `${ev.tipoEvento}:${ev.codigoEvento}`;
+      if (!eventoIdMap.has(key)) eventoIdMap.set(key, ev.id);
+    }
+
     for (const tipo of tipos) {
       try {
         const eventos = await this.kbApi.listarEventos(tipo.code);
@@ -52,12 +59,13 @@ export class PresalaApplicationService {
           id: `api-${tipo.code}`,
           nombre: tipo.event,
           codigo: String(tipo.code),
-          vertical: verticalFromCode(tipo.code, tipo.event),
+          vertical: verticalFromCode(tipo.code),
           versiones: filtrados.map((ev): EventoPresalaDTO | null => {
             const meta = metaMap.get(`${tipo.code}:${ev.codeEvent}`);
             if (soloVisibles && !meta?.flgVisible) return null;
+            const realId = eventoIdMap.get(`${tipo.code}:${ev.codeEvent}`) ?? `${tipo.code}-${ev.codeEvent}`;
             return {
-              id: meta ? `${tipo.code}-${ev.codeEvent}` : `api-${tipo.code}-${ev.codeEvent}`,
+              id: realId,
               anio: (meta?.anio && meta.anio !== "") ? meta.anio : dateUtils.extractYear(ev.inicio).toString(),
               tipoEvento: tipo.code,
               codigoEvento: ev.codeEvent,

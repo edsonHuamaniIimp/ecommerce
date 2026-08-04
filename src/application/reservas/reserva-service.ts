@@ -1,4 +1,5 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import { ESTADOS_STAND } from "@/lib/constants";
 import { sendEmail, buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/email";
 
@@ -6,15 +7,22 @@ const BLOQUEADOS = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, "Reser
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
 
 export class ReservaApplicationService {
-  constructor(private readonly gessRepo: IGessRepository) {}
+  constructor(
+    private readonly gessRepo: IGessRepository,
+    private readonly solicitudesRepo?: ISolicitudesRepository,
+  ) {}
 
   async crear(request: {
     standIds: string[];
     documentos?: string[];
     datos?: { razonSocial: string; tipoDocumento: string; numeroDocumento: string; email: string };
+    userEmail?: string;
+    userSub?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[] }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
+    const createdStandIds: string[] = [];
+    const contactEmail = request.userEmail || request.datos?.email;
 
     for (const dbId of request.standIds) {
       const stand = await this.gessRepo.findById(dbId);
@@ -25,26 +33,66 @@ export class ReservaApplicationService {
         continue;
       }
       standCodes.push(stand.standCode);
-      const data: Record<string, unknown> = { estado: ESTADOS_STAND.EN_EVALUACION };
-      if (request.documentos) data.documentos = request.documentos;
-      await this.gessRepo.update(stand.id, data as never);
+      createdStandIds.push(stand.id);
+      await this.gessRepo.update(stand.id, {
+        estado: ESTADOS_STAND.EN_EVALUACION,
+        email: contactEmail ?? null,
+        userId: request.userSub ?? null,
+        documentos: request.documentos,
+      } as never);
     }
 
     if (conflicted.length > 0) {
       return { ok: false, message: "Conflicto", conflicted };
     }
 
-    // Enviar correos en background
-    if (request.datos?.email) {
+    if (this.solicitudesRepo) {
+      try {
+        const solicitudId = await this.solicitudesRepo.crearSolicitud(
+          createdStandIds,
+          request.userSub,
+          contactEmail ?? undefined,
+        );
+        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "comunicacion");
+        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "legal");
+        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "logistica");
+
+        const esMultiple = createdStandIds.length > 1;
+        if (esMultiple && request.userSub) {
+          try {
+            await this.solicitudesRepo.crearAlertaReserva({
+              userId: request.userSub,
+              tipo: "reserva_multiple",
+              titulo: "Solicitud multiple enviada",
+              mensaje: `Se ha creado una solicitud multiple con ${createdStandIds.length} stands (${standCodes.join(", ")}). Adjunta los documentos requeridos para continuar.`,
+              url: `/dashboard/mis-solicitudes?id=${solicitudId}`,
+            });
+            await this.solicitudesRepo.crearAlertaReserva({
+              userId: "admin",
+              tipo: "reserva_multiple",
+              titulo: "Nueva solicitud multiple",
+              mensaje: `Se ha recibido una solicitud multiple de ${createdStandIds.length} stands (${standCodes.join(", ")}).`,
+              url: `/dashboard/solicitudes?id=${solicitudId}`,
+            });
+          } catch { /* ok */ }
+        }
+      } catch { /* ok */ }
+    }
+
+    if (contactEmail) {
       const emailData = {
         standCodes: standCodes.join(", "),
-        razonSocial: request.datos.razonSocial || "—",
-        documento: `${request.datos.tipoDocumento || ""} ${request.datos.numeroDocumento || ""}`.trim() || "—",
-        emailCliente: request.datos.email,
+        razonSocial: request.datos?.razonSocial || "—",
+        documento: `${request.datos?.tipoDocumento || ""} ${request.datos?.numeroDocumento || ""}`.trim() || "—",
+        emailCliente: contactEmail,
       };
-      const clientEmail = buildReservaConfirmationEmail({ ...emailData, email: request.datos.email });
-      sendEmail({ to: request.datos.email, ...clientEmail }).catch(() => {});
-      if (ADMIN_EMAIL && ADMIN_EMAIL !== request.datos.email) {
+      const clientEmail = buildReservaConfirmationEmail({
+        ...emailData,
+        email: contactEmail,
+        esMultiple: createdStandIds.length > 1,
+      });
+      sendEmail({ to: contactEmail, ...clientEmail }).catch(() => {});
+      if (ADMIN_EMAIL && ADMIN_EMAIL !== contactEmail) {
         const adminEmail = buildAdminNotificacionEmail(emailData);
         sendEmail({ to: ADMIN_EMAIL, ...adminEmail }).catch(() => {});
       }

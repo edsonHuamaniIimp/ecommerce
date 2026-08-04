@@ -50,6 +50,7 @@ model Evento {
 
   @@index([eventoPadreId])
   @@index([estado])
+  @@unique([tipoEvento, codigoEvento])
   @@map("evento")
 }
 
@@ -188,10 +189,14 @@ model GessStand {
   ubicacion   String? @db.VarChar(100)
   rawData     Json?   @map("raw_data")
   bloqueId    String? @map("bloque_id") @db.VarChar(50)
+  email       String? @db.VarChar(200)
+  userId      String? @map("user_id") @db.VarChar(100)
   documentos  Json?   @default("[]")
   imagenes    Json?   @default("[]")
 
-  evento      Evento  @relation(fields: [eventoId], references: [id])
+  evento      Evento      @relation(fields: [eventoId], references: [id])
+  solicitudes Solicitud[]
+  solicitudStands SolicitudStand[] @relation("SolicitudStandGess")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -202,6 +207,31 @@ model GessStand {
   @@index([eventoId])
   @@index([bloqueId])
   @@map("gess_stand")
+}
+
+/* ================================================================
+   2.5 SOLICITUDES — ciclo de reserva
+   ================================================================ */
+
+model Solicitud {
+  id          String    @id @default(uuid())
+  gessStandId String?   @map("gess_stand_id")
+  userId      String?   @map("user_id") @db.VarChar(100)
+  email       String?   @db.VarChar(200)
+  documentos  Json?     @default("[]")
+  flgActivo   Boolean   @default(true) @map("flg_activo")
+  estado      String?   @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  gessStand   GessStand?      @relation(fields: [gessStandId], references: [id])
+  revisiones  Revision[]
+  reevaluaciones Reevaluacion[]
+  docsAdjuntos SolicitudDocumento[] @relation("SolicitudDocs")
+  stands      SolicitudStand[]
+
+  @@index([gessStandId])
+  @@map("solicitud")
 }
 
 /* ================================================================
@@ -277,6 +307,57 @@ model Aprobacion {
   @@map("aprobacion")
 }
 
+model Revision {
+  id          String    @id @default(uuid())
+  solicitudId String    @map("solicitud_id")
+  area        String    @db.VarChar(20)
+  estado      String    @default("pendiente") @db.VarChar(20)
+  comentario  String?
+  createdBy   String?   @map("created_by") @db.VarChar(100)
+  updatedBy   String?   @map("updated_by") @db.VarChar(100)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+
+  @@unique([solicitudId, area])
+  @@map("revision")
+}
+
+model RevisionHistorial {
+  id               String   @id @default(uuid())
+  solicitudId      String   @map("solicitud_id")
+  area             String   @db.VarChar(20)
+  estadoAnterior   String   @map("estado_anterior") @db.VarChar(20)
+  comentarioAnterior String? @map("comentario_anterior")
+  motivo           String   @db.VarChar(500)
+  createdBy        String?  @map("created_by") @db.VarChar(100)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([solicitudId])
+  @@index([solicitudId, area])
+  @@index([createdAt])
+  @@map("revision_historial")
+}
+
+model Reevaluacion {
+  id          String   @id @default(uuid())
+  solicitudId String   @map("solicitud_id")
+  estado      String   @default("pendiente") @db.VarChar(20)
+  motivo      String?  @db.VarChar(1000)
+  documentos  Json?    @default("[]")
+  createdBy   String?  @map("created_by") @db.VarChar(100)
+  updatedBy   String?  @map("updated_by") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+
+  @@index([solicitudId])
+  @@index([estado])
+  @@map("reevaluacion")
+}
+
 model InteropFacturacion {
   id          String  @id @default(uuid())
   reservaId   String  @unique @map("reserva_id")
@@ -308,6 +389,53 @@ model AuditLog {
   @@index([entidad])
   @@index([createdAt])
    @@map("audit_log")
+}
+
+model Alerta {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id") @db.VarChar(100)
+  tipo         String   @db.VarChar(30)
+  titulo       String   @db.VarChar(200)
+  mensaje      String   @db.VarChar(1000)
+  leida        Boolean  @default(false)
+  url          String?  @db.VarChar(500)
+  solicitudId  String?  @map("solicitud_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([userId, leida])
+  @@index([createdAt])
+  @@map("alerta")
+}
+
+model SolicitudDocumento {
+  id          String   @id @default(uuid())
+  solicitudId String   @map("solicitud_id")
+  url         String   @db.VarChar(500)
+  nombre      String   @db.VarChar(200)
+  uploadedBy  String?  @map("uploaded_by") @db.VarChar(100)
+  userId      String?  @map("user_id") @db.VarChar(100)
+  flgActivo   Boolean  @default(true) @map("flg_activo")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], name: "SolicitudDocs")
+
+  @@index([solicitudId])
+  @@map("solicitud_documento")
+}
+
+model SolicitudStand {
+  id          String @id @default(uuid())
+  solicitudId String @map("solicitud_id")
+  gessStandId String @map("gess_stand_id")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+  gessStand   GessStand @relation(fields: [gessStandId], references: [id], name: "SolicitudStandGess")
+
+  @@unique([solicitudId, gessStandId])
+  @@index([solicitudId])
+  @@index([gessStandId])
+  @@map("solicitud_stand")
 }
 
 /* ================================================================

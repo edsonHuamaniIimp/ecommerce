@@ -1,0 +1,480 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil } from "lucide-react";
+import {
+  REVISION_AREAS,
+  REVISION_AREA_LABELS,
+  REVISION_AREA_PERMISSIONS,
+  REVISION_AREA_ORDER,
+  REVISION_STEPS,
+  RESULTADOS_APROBACION,
+} from "@/lib/constants";
+import { solicitudesService } from "@/lib/api/services/solicitudes-service";
+import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
+import { RevisionStepIndicator } from "./revision-step-indicator";
+import { dateUtils } from "@/lib/utils/date";
+
+type SolicitudRow = SolicitudDTO;
+
+interface RevisionData {
+  id: string;
+  solicitudId: string;
+  area: string;
+  estado: string;
+  comentario: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+}
+
+const STEP_AREAS: Record<number, string> = {
+  [REVISION_STEPS.COMUNICACION]: REVISION_AREAS.COMUNICACION,
+  [REVISION_STEPS.LEGAL]: REVISION_AREAS.LEGAL,
+  [REVISION_STEPS.LOGISTICA]: REVISION_AREAS.LOGISTICA,
+};
+
+const STEPS = [REVISION_STEPS.COMUNICACION, REVISION_STEPS.LEGAL, REVISION_STEPS.LOGISTICA] as const;
+
+function getRevision(row: SolicitudRow, area: string): RevisionData | null {
+  return row.revisiones.find((r) => r.area === area) ?? null;
+}
+
+function canReviewArea(permissions: string[], area: string): boolean {
+  const perm = REVISION_AREA_PERMISSIONS[area as keyof typeof REVISION_AREA_PERMISSIONS];
+  if (!perm) return false;
+  return permissions.includes(perm) || permissions.includes("admin:full");
+}
+
+export function SolicitudReview({
+  row,
+  userPermissions,
+  onSaved,
+  onClose,
+  onOrdenPago,
+}: {
+  row: SolicitudRow;
+  userPermissions: string[];
+  onSaved: (updated: SolicitudRow) => void;
+  onClose: () => void;
+  onOrdenPago?: () => void;
+}) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [reviewState, setReviewState] = useState<Record<string, { accion: string; comentario: string }>>({
+    [REVISION_AREAS.COMUNICACION]: { accion: row.revisionComunicacion?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionComunicacion?.comentario ?? "" },
+    [REVISION_AREAS.LEGAL]: { accion: row.revisionLegal?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLegal?.comentario ?? "" },
+    [REVISION_AREAS.LOGISTICA]: { accion: row.revisionLogistica?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLogistica?.comentario ?? "" },
+  });
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setEditing(false);
+    setSubmitError(null);
+  }, [currentStep]);
+
+  const totalSteps = REVISION_AREA_ORDER.length;
+  const isAdmin = userPermissions.includes("admin:full");
+  const isLast = currentStep === totalSteps - 1;
+  const isFirst = currentStep === 0;
+
+  const stepState = (area: string): "pendiente" | "aprobado" | "rechazado" => {
+    const rev = getRevision(row, area);
+    return (rev?.estado as "pendiente" | "aprobado" | "rechazado") ?? RESULTADOS_APROBACION.PENDIENTE;
+  };
+
+  const handleReview = async (area: string, accion: string) => {
+    const state = reviewState[area];
+    if (!state) return;
+
+    if (accion === RESULTADOS_APROBACION.RECHAZADO && !state.comentario.trim()) {
+      setValidationErrors((prev) => ({ ...prev, [area]: "La justificacion es obligatoria para rechazar" }));
+      return;
+    }
+
+    setValidationErrors((prev) => ({ ...prev, [area]: "" }));
+    setSubmitting(area);
+    setSubmitError(null);
+    try {
+      const saved = await solicitudesService.revisar({
+        solicitudId: row.id,
+        area,
+        estado: accion,
+        comentario: state.comentario || undefined,
+      });
+      const updated = { ...row };
+      const idx = updated.revisiones.findIndex((r) => r.area === area);
+      const mappedRev: RevisionData = {
+        id: saved.id,
+        solicitudId: saved.solicitudId,
+        area: saved.area,
+        estado: saved.estado,
+        comentario: saved.comentario,
+        createdBy: saved.createdBy,
+        updatedBy: saved.updatedBy,
+        createdAt: saved.createdAt,
+      };
+      if (idx >= 0) {
+        updated.revisiones = [...updated.revisiones];
+        updated.revisiones[idx] = mappedRev as SolicitudRow["revisiones"][number];
+      } else {
+        updated.revisiones = [...updated.revisiones, mappedRev as SolicitudRow["revisiones"][number]];
+      }
+      updated.revisionComunicacion = updated.revisiones.find((r) => r.area === REVISION_AREAS.COMUNICACION) ?? null;
+      updated.revisionLegal = updated.revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null;
+      updated.revisionLogistica = updated.revisiones.find((r) => r.area === REVISION_AREAS.LOGISTICA) ?? null;
+      onSaved(updated);
+      setEditing(false);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Error al guardar la revision");
+    }
+    setSubmitting(null);
+  };
+
+  const handleRechazar = () => {
+    const state = reviewState[currentArea];
+    if (!state || !state.comentario.trim()) {
+      setValidationErrors((prev) => ({ ...prev, [currentArea]: "La justificacion es obligatoria para rechazar" }));
+      return;
+    }
+    setConfirmReject({ area: currentArea, accion: RESULTADOS_APROBACION.RECHAZADO });
+  };
+
+  const currentArea = STEP_AREAS[currentStep];
+  const currentRev = getRevision(row, currentArea);
+  const canReview = canReviewArea(userPermissions, currentArea);
+  const todasAprobadas = REVISION_AREA_ORDER.every((area) => {
+    const rev = getRevision(row, area);
+    return rev?.estado === RESULTADOS_APROBACION.APROBADO;
+  });
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* ===== HEADER ===== */}
+      <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
+        <RevisionStepIndicator
+          currentStep={currentStep}
+          stepState={stepState}
+          onGoStep={setCurrentStep}
+        />
+
+        {/* Stand info line */}
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span className="font-mono font-medium text-slate-700">{row.standCode}</span>
+          {row.bloqueId && <span className="text-slate-400">{row.bloqueId}</span>}
+          {row.tipoStand && <span className="text-slate-400">{row.tipoStand}</span>}
+          {row.empresa && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span className="truncate max-w-[160px]">{row.empresa}</span>
+            </>
+          )}
+        </div>
+
+        {/* Client documents */}
+        {(() => {
+          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string }> = [];
+
+          // Single-stand: documentos JSON field (client-submitted at solicitud creation)
+          const jsonDocs = (row.documentos as string[]) ?? [];
+          for (const url of jsonDocs) {
+            docs.push({ url, nombre: url.split("/").pop() ?? url, origen: "solicitud" });
+          }
+
+          // Multi-stand: client's docsAdjuntos
+          const clienteDocs = (row.docsAdjuntos ?? []).filter(d => d.userId === row.userId);
+          for (const d of clienteDocs) {
+            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto" });
+          }
+
+          // Re-evaluacion documents
+          for (const reev of row.reevaluaciones ?? []) {
+            const reevDocs = (reev.documentos as string[]) ?? [];
+            for (const url of reevDocs) {
+              docs.push({ url, nombre: url.split("/").pop() ?? url, fecha: reev.createdAt, origen: "reevaluacion" });
+            }
+          }
+
+          // Deduplicate by URL
+          const seen = new Set<string>();
+          const unique = docs.filter(d => { if (seen.has(d.url)) return false; seen.add(d.url); return true; });
+
+          if (unique.length === 0) return null;
+
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Documentos del cliente ({unique.length})</p>
+              <div className="space-y-0.5">
+                {unique.map((doc, i) => (
+                  <a
+                    key={i}
+                    href={doc.url}
+                    target="_blank"
+                    className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50/50 px-2.5 py-1.5 text-xs hover:bg-emerald-50 hover:border-emerald-200 transition-colors group"
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-emerald-600" />
+                    <span className="truncate flex-1 font-medium text-slate-700 group-hover:text-emerald-800">{doc.nombre}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ===== BODY ===== */}
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+        {submitError && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {submitError}
+          </div>
+        )}
+
+        {/* Step title + status badge */}
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-800">
+            Revision de {REVISION_AREA_LABELS[currentArea as keyof typeof REVISION_AREA_LABELS]}
+          </h3>
+          <Badge
+            variant={
+              currentRev?.estado === RESULTADOS_APROBACION.APROBADO
+                ? "default"
+                : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO
+                ? "destructive"
+                : "secondary"
+            }
+            className="text-[10px]"
+          >
+            {currentRev?.estado === RESULTADOS_APROBACION.APROBADO ? (
+              <><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado</>
+            ) : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO ? (
+              <><XCircle className="mr-0.5 h-2.5 w-2.5" /> Rechazado</>
+            ) : (
+              <><Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente</>
+            )}
+          </Badge>
+        </div>
+
+        {/* Audit info */}
+        {currentRev?.createdBy && (
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <UserCircle2 className="h-3 w-3" />
+              Revisado por: {currentRev.createdBy}
+            </span>
+            {currentRev.updatedBy && currentRev.updatedBy !== currentRev.createdBy && (
+              <span className="flex items-center gap-1">
+                <UserCircle2 className="h-3 w-3" />
+                Modificado por: {currentRev.updatedBy}
+              </span>
+            )}
+            <span>{dateUtils.formatDateTime(currentRev.createdAt)}</span>
+          </div>
+        )}
+
+        {/* Already reviewed — read-only view */}
+        {currentRev && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE && !editing && (
+          <div className="space-y-3">
+            {currentRev.comentario && (
+              <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
+                <p className="text-[10px] font-semibold text-slate-500 mb-1">Justificacion:</p>
+                <p className="text-xs text-slate-600 whitespace-pre-wrap">{currentRev.comentario}</p>
+              </div>
+            )}
+            {canReview && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil className="mr-1 h-3 w-3" />
+                <span>Cambiar estado</span>
+              </Button>
+            )}
+            {!canReview && (
+              <p className="text-xs text-muted-foreground">
+                No tienes permisos para revisar esta area.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Pending or editing — show form */}
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Comentario / Justificacion</Label>
+              <Textarea
+                value={reviewState[currentArea]?.comentario ?? ""}
+                onChange={(e) => {
+                  setReviewState((prev) => ({
+                    ...prev,
+                    [currentArea]: { ...prev[currentArea], comentario: e.target.value },
+                  }));
+                  setValidationErrors((prev) => ({ ...prev, [currentArea]: "" }));
+                }}
+                placeholder="Escribe tu descargo o justificacion..."
+                className="mt-1 text-xs min-h-[100px]"
+              />
+              {validationErrors[currentArea] && (
+                <p className="mt-1 text-[11px] text-red-600 font-medium">{validationErrors[currentArea]}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {editing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full px-3 text-xs font-medium"
+                  onClick={() => setEditing(false)}
+                >
+                  <span>Cancelar</span>
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={!!submitting}
+                className="rounded-full px-4 text-xs font-medium"
+                onClick={handleRechazar}
+              >
+                <XCircle className="mr-1 h-3.5 w-3.5" />
+                {submitting === currentArea ? "..." : "Rechazar"}
+              </Button>
+              <Button
+                size="sm"
+                disabled={!!submitting}
+                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
+              >
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                {submitting === currentArea ? "..." : "Aprobar"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Pending or editing but no permission */}
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && !canReview && (
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground">
+              No tienes permisos para revisar esta area.
+            </p>
+            {!isAdmin && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                <p className="font-medium">Puedes revisar:</p>
+                <div className="flex gap-2 mt-1">
+                  {REVISION_AREA_ORDER.filter((a) => canReviewArea(userPermissions, a)).map((a) => (
+                    <button
+                      key={a}
+                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                      onClick={() => {
+                        const idx = REVISION_AREA_ORDER.indexOf(a);
+                        setCurrentStep(idx);
+                      }}
+                    >
+                      {REVISION_AREA_LABELS[a]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ===== FOOTER ===== */}
+      <div className="shrink-0 border-t border-slate-100 px-5 py-3">
+        <div className="flex w-full items-center justify-between gap-2">
+          <div>
+            {!isFirst && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!submitting}
+                className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                onClick={() => setCurrentStep((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                <span>Anterior</span>
+              </Button>
+            )}
+          </div>
+          <div>
+            {!isLast && (
+              <Button
+                size="sm"
+                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => setCurrentStep((p) => Math.min(totalSteps - 1, p + 1))}
+              >
+                <span>Siguiente</span>
+                <ChevronRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            )}
+            {isLast && todasAprobadas && onOrdenPago ? (
+              <Button
+                size="sm"
+                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                onClick={onOrdenPago}
+              >
+                <span>Generar orden de pago</span>
+              </Button>
+            ) : isLast && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full px-4 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                onClick={onClose}
+              >
+                <span>Cerrar</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation dialog for rejection */}
+      <Dialog open={!!confirmReject} onOpenChange={() => setConfirmReject(null)}>
+        <DialogContent className="sm:max-w-sm rounded-2xl border-0 shadow-xl">
+          <DialogHeader>
+            <DialogTitle><span>Confirmar rechazo</span></DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600">
+            Estas seguro de <strong>rechazar</strong> la revision de{" "}
+            <strong>{REVISION_AREA_LABELS[confirmReject?.area as keyof typeof REVISION_AREA_LABELS] ?? ""}</strong>?
+            Esta accion quedara registrada con tu justificacion.
+          </p>
+          <DialogFooter className="!mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full px-3 text-xs"
+              onClick={() => setConfirmReject(null)}
+            >
+              <span>Cancelar</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="rounded-full px-4 text-xs font-medium"
+              onClick={() => {
+                if (confirmReject) {
+                  handleReview(confirmReject.area, confirmReject.accion);
+                  setConfirmReject(null);
+                }
+              }}
+            >
+              <span>Si, rechazar</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

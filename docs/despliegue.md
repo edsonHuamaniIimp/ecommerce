@@ -116,19 +116,20 @@ Al ejecutar `npm run db:seed`, se crean automáticamente:
 | `logistica@iimp.org.pe` | logistica | `logistica123` |
 | `legal@iimp.org.pe` | legal | `legal123` |
 | `comunicacion@iimp.org.pe` | comunicacion | `comunicacion123` |
+| `cliente@iimp.org.pe` | cliente | `cliente123` |
 
 Para iniciar sesión: ir a `/auth/login`, ingresar el email, sin contraseña (solo validación por email en dev).
 
 ### 5.1 Rutas por rol
 
-| Ruta | admin | logistica | legal | comunicacion | público |
-|---|---|---|---|---|---|
-| `/plano` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `/dashboard` | ✓ | ✓ | ✓ | ✓ | |
-| `/planogess` | ✓ | ✓ | ✓ | ✓ | |
-| `/gess-mantenedor` | ✓ | | | | |
-| `/admin-roles` | ✓ | | | | |
-| `/auth/login` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Ruta | admin | logistica | legal | comunicacion | cliente | público |
+|---|---|---|---|---|---|---|---|
+| `/plano` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/dashboard` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `/dashboard/solicitudes` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `/dashboard/roles` | ✓ | | | | | |
+| `/dashboard/eventos` | ✓ | | | | | |
+| `/auth/login` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## 6. Asignación manual de roles
 

@@ -15,13 +15,13 @@ export interface GessStandDomain {
 export function mapGessStandFromDTO(dto: GessStandDTO): GessStandDomain {
   return {
     id: dto.id,
-    standApiId: dto.stand_api_id,
-    standCode: dto.stand_code,
-    tipoStand: dto.tipo_stand,
+    standApiId: dto.standApiId,
+    standCode: dto.standCode,
+    tipoStand: dto.tipoStand,
     medidas: dto.medidas,
     estado: dto.estado,
     empresa: dto.empresa,
-    bloqueId: dto.bloque_id,
+    bloqueId: dto.bloqueId,
     pabellon: dto.pabellon,
   };
 }

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { Eye, Trash2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { gessService } from "@/lib/api/services/gess-service";
 import { internalApi } from "@/lib/api/services/internal-api";
 import { maestraService } from "@/lib/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID } from "@/lib/constants";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 interface StandDoc {
@@ -112,10 +114,14 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
 
   const handleSave = async () => {
     try {
-      await internalApi.patch("/api/gess", { id: editId, documentos: editDocs, imagenes: editImgs });
+      await internalApi.patch("/api/gess/actualizar", { id: editId, documentos: editDocs, imagenes: editImgs });
       setRows((prev) => prev.map((r) => (r.id === editId ? { ...r, documentos: editDocs, imagenes: editImgs } : r)));
+      toast.success("Documentos guardados");
       setEditOpen(false);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error("Error al guardar documentos del stand:", err);
+      toast.error("Error al guardar los cambios");
+    }
   };
 
   const removeDoc = (idx: number) => setEditDocs((prev) => prev.filter((_, i) => i !== idx));
@@ -142,7 +148,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
           </div>
 
           {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Cargando...</p>
+            <TableSkeleton rows={perPage} columns={7} />
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No hay stands vinculados. Vincula en Vinculacion de Stands primero.</p>
           ) : (
@@ -161,14 +167,16 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row) => (
+                    {rows.map((row) => {
+                      const est = row.estado?.toLowerCase();
+                      return (
                       <TableRow key={row.id}>
                         <TableCell className="font-mono text-xs font-medium">{row.standCode}</TableCell>
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{row.bloqueId}</TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={row.estado === "Reservado" ? "destructive" : row.estado === "en_evaluacion" || row.estado === "En evaluacion" ? "default" : "default"} className={row.estado === "en_evaluacion" || row.estado === "En evaluacion" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}>
-                            <span>{estadoLabels[row.estado ?? ""] ?? row.estado ?? "—"}</span>
+                          <Badge className={`text-[10px] pointer-events-none ${est === ESTADOS_STAND.DISPONIBLE ? "bg-green-100 text-green-800 border-green-200" : est === ESTADOS_STAND.RESERVADO ? "bg-red-100 text-red-800 border-red-200" : "bg-amber-100 text-amber-800 border-amber-200"}`}>
+                            {estadoLabels[est ?? ""] ?? row.estado ?? "—"}
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell max-w-[120px] truncate text-xs text-muted-foreground">{row.empresa ?? "—"}</TableCell>
@@ -177,7 +185,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                           <Button variant="outline" size="sm" onClick={() => openEdit(row)}><span>Docs</span></Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               </div>

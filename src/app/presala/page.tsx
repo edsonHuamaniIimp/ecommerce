@@ -82,7 +82,7 @@ export default function PresalaPage() {
 
   const [isAuth, setIsAuth] = useState(false);
 
-  const handleSelect = async (eventoId: string, vertical: string, nombre: string, tipoEvento?: number, codigoEvento?: number) => {
+  const handleSelect = async (eventoId: string, vertical: string, nombre: string, tipoEvento?: number, codigoEvento?: number, eventoPadreNombre?: string) => {
     const safeVertical = vertical.toLowerCase().replace(/\s+/g, "-");
     const returnTo = searchParams.get("returnTo");
 
@@ -103,7 +103,7 @@ export default function PresalaPage() {
 
     setSelecting(eventoId);
     try {
-      await authService.seleccionarEvento({ eventoId, tipoEvento, codigoEvento, eventoNombre: nombre });
+      await authService.seleccionarEvento({ eventoId, tipoEvento, codigoEvento, eventoNombre: nombre, eventoPadreNombre });
       localStorage.setItem(LS_KEYS.VERTICAL, safeVertical);
       document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
       document.documentElement.classList.add(`vert-${safeVertical}`);
@@ -160,7 +160,7 @@ export default function PresalaPage() {
                           key={ver.id}
                           type="button"
                           disabled={selecting === ver.id}
-                          onClick={() => handleSelect(ver.id, ep.vertical, `${ep.nombre} ${ver.anio}`, ver.tipoEvento, ver.codigoEvento)}
+                          onClick={() => handleSelect(ver.id, ep.vertical, `${ep.nombre} ${ver.anio}`, ver.tipoEvento, ver.codigoEvento, ep.nombre)}
                           className="flex flex-col gap-1 overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition-all hover:shadow-md active:bg-slate-50"
                         >
                           <div className="h-1 w-full shrink-0" style={{ backgroundColor: vColor }} />

@@ -103,6 +103,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setSubmitError(null);
     try {
       const standIds = selectedIds.map((id) => linkedMap.get(id)?.dbId).filter(Boolean) as string[];
+      if (standIds.length === 0) {
+        const msg = "No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.";
+        setSubmitError(msg);
+        return msg;
+      }
       const json = await gessService.reservar({
         standIds,
         documentos: singleStand ? formDocs : undefined,

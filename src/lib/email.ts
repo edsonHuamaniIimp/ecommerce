@@ -48,15 +48,18 @@ export function buildReservaConfirmationEmail(datos: {
   razonSocial: string;
   documento: string;
   email: string;
+  esMultiple?: boolean;
 }): { subject: string; html: string } {
-  const subject = "Reserva de stands registrada — IIMP Contratos Stands";
+  const subject = datos.esMultiple
+    ? "Solicitud multiple registrada — IIMP Contratos Stands"
+    : "Reserva de stands registrada — IIMP Contratos Stands";
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333">
       <div style="background:#059669;padding:16px;border-radius:8px 8px 0 0">
         <h1 style="color:#fff;margin:0;font-size:20px">IIMP — Contratos Stands</h1>
       </div>
       <div style="border:1px solid #e2e8f0;border-top:0;padding:24px;border-radius:0 0 8px 8px">
-        <h2 style="color:#059669;margin-top:0">Reserva registrada</h2>
+        <h2 style="color:#059669;margin-top:0">${datos.esMultiple ? "Solicitud multiple registrada" : "Reserva registrada"}</h2>
         <p>Hola, tu solicitud de reserva ha sido registrada exitosamente.</p>
 
         <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
@@ -66,6 +69,7 @@ export function buildReservaConfirmationEmail(datos: {
         </table>
 
         <p style="color:#64748b;font-size:13px">El stand pasa a estado <strong>En evaluacion</strong>. Recibiras una notificacion cuando el flujo de aprobaciones concluya.</p>
+        ${datos.esMultiple ? `<p style="color:#64748b;font-size:13px">La administracion del IIMP te enviara el <strong>formato de contrato</strong> a tu correo. Deberas completarlo y reenviarlo para continuar con el proceso de alquiler de stands.</p>` : ""}
         <p style="color:#94a3b8;font-size:12px;margin-top:24px">Este es un correo automatico, por favor no responder a este mensaje.</p>
       </div>
     </div>

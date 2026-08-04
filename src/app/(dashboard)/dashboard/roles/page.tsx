@@ -30,8 +30,8 @@ export default async function RolesMantenedorPage() {
     }));
 
     return (
-      <main className="flex-1 px-6 py-6 lg:px-10">
-        <div className="mx-auto w-full max-w-5xl space-y-4">
+      <main className="flex-1 py-6">
+        <div className="mx-auto w-full max-w-7xl space-y-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Mantenedor de Roles
@@ -47,8 +47,8 @@ export default async function RolesMantenedorPage() {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido";
     return (
-      <main className="flex-1 px-6 py-6 lg:px-10">
-        <div className="mx-auto w-full max-w-5xl space-y-4">
+      <main className="flex-1 py-6">
+        <div className="mx-auto w-full max-w-7xl space-y-4">
           <h1 className="text-2xl font-semibold tracking-tight">Mantenedor de Roles</h1>
           <p className="text-sm text-red-600">Error al cargar roles: {message}</p>
         </div>

@@ -75,7 +75,7 @@ export default function PerfilPage() {
   if (loading) return null;
 
   return (
-    <main className="flex-1 px-6 py-6 lg:px-10">
+    <main className="flex-1 py-6">
       <div className="mx-auto w-full max-w-lg space-y-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Perfil</h1>

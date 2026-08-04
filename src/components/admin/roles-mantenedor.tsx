@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
-import { ALL_PERMISSIONS } from "@/lib/constants";
+import { ALL_PERMISSIONS, PERMISSION_SECTION_LABELS } from "@/lib/constants";
 import { rolesService } from "@/lib/api/services/roles-service";
 
 interface UsuarioRow {
@@ -28,6 +28,16 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
   const [saving, setSaving] = useState(false);
 
   const allUsuarios = rows.flatMap((r) => r.usuarios.map((u) => ({ ...u, roleId: r.id, roleNombre: r.nombre })));
+
+  const permissionSections = useMemo(() => {
+    const sections: Record<string, { key: string; label: string; descripcion: string; section?: string }[]> = {};
+    for (const perm of ALL_PERMISSIONS) {
+      const section = (perm as { section?: string }).section ?? "general";
+      if (!sections[section]) sections[section] = [];
+      sections[section].push({ ...perm });
+    }
+    return sections;
+  }, []);
 
   const toggleExpand = (id: string) => setExpandedRole((p) => (p === id ? null : id));
 
@@ -111,25 +121,34 @@ export function RolesMantenedor({ initialRows }: { initialRows: RoleRow[] }) {
                     {isOpen && (
                       <TableRow>
                         <TableCell colSpan={5} className="bg-muted/30">
-                          <div className="flex flex-wrap gap-1.5 py-1">
-                            {ALL_PERMISSIONS.map((perm) => {
-                              const checked = role.permisos.includes(perm.key);
-                              return (
-                                <label
-                                  key={perm.key}
-                                  className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
-                                    checked ? "border-primary/40 bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/30"
-                                  }`}
-                                >
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={() => togglePerm(role.id, perm.key)}
-                                    className="h-3 w-3"
-                                  />
-                                  <span>{perm.label}</span>
-                                </label>
-                              );
-                            })}
+                          <div className="space-y-3 py-2">
+                            {Object.entries(permissionSections).map(([section, perms]) => (
+                              <div key={section}>
+                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                  {PERMISSION_SECTION_LABELS[section] ?? section}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {perms.map((perm) => {
+                                    const checked = role.permisos.includes(perm.key);
+                                    return (
+                                      <label
+                                        key={perm.key}
+                                        className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                                          checked ? "border-primary/40 bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/30"
+                                        }`}
+                                      >
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={() => togglePerm(role.id, perm.key)}
+                                          className="h-3 w-3"
+                                        />
+                                        <span>{perm.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </TableCell>
                       </TableRow>

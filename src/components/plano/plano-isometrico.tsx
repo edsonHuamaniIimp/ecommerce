@@ -5,7 +5,7 @@ import { OrbitControls } from "@react-three/drei";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Eye, X, Info, Image } from "lucide-react";
+import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
 import { gessService } from "@/lib/api/services/gess-service";
 import { authService } from "@/lib/api/services/auth-service";
 import { getPlano } from "@/lib/planos/registry";
@@ -253,6 +253,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const [detailModal, setDetailModal] = useState<GessInfoFull | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [standDocs, setStandDocs] = useState<string[]>([]);
+  const [postSubmitOpen, setPostSubmitOpen] = useState(false);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   const blockLabel = (type: Item["type"]) => plano.blockLabel[type] ?? { label: "?", nombre: "?" };
@@ -267,6 +268,12 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         ]);
 
         if (cancelled) return;
+
+        if (dbList.length === 0 && apiList.length > 0) {
+          await gessService.sync({ eventoId, tipoEvento, codigoEvento });
+          const fresh = await gessService.all(eventoId);
+          dbList.splice(0, dbList.length, ...fresh);
+        }
 
         // Index API rows by their ID (same logic as sync route: uid > UID > codigo > stand)
         const apiById = new Map<string, Record<string, unknown>>();
@@ -285,7 +292,10 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           const apiRow = apiById.get(standApiId);
 
           const tipoStand = (apiRow ? (apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand) : (r.tipoStand ?? r.tipo_stand ?? null)) as string | null;
-          const estado = (apiRow ? (apiRow.status ?? apiRow.estado) : (r.estado ?? null)) as string | null;
+          // DB tiene prioridad sobre API para estado (refleja cambios locales como en_evaluacion)
+          const estadoDb = (r.estado ?? null) as string | null;
+          const estadoApi = apiRow ? (apiRow.status ?? apiRow.estado) as string | null : null;
+          const estado = estadoDb ?? estadoApi;
           const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
           const precio = apiRow ? String(apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand ?? "") : null;
           const medidas = precio
@@ -655,9 +665,14 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {
-            toast.success("Reserva enviada correctamente", {
-              description: "Recibiras un correo de confirmacion. El stand pasa a estado En evaluacion.",
-            });
+            const esMultiple = selectedCount > 1;
+            if (esMultiple) {
+              setPostSubmitOpen(true);
+            } else {
+              toast.success("Reserva enviada correctamente", {
+                description: "Recibiras un correo de confirmacion. El stand pasa a estado En evaluacion.",
+              });
+            }
             setLinkedMap(prev => {
               const next = new Map(prev);
               for (const id of selectedIds) {
@@ -695,6 +710,55 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Post-submit modal — multi-stand flow explanation */}
+      <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-xl">
+          <DialogHeader>
+            <DialogTitle><span>Solicitud multiple enviada</span></DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-center">
+              <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-emerald-800">Tu solicitud ha sido registrada con exito</p>
+              <p className="text-xs text-emerald-600 mt-1">Sigue estos pasos para completar el proceso:</p>
+            </div>
+
+            <div className="space-y-0">
+              {[
+                { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: "Solicitud creada", desc: "El administrador del IIMP ha sido notificado y revisara tu solicitud multiple." },
+                { icon: Upload, color: "bg-blue-100 text-blue-600", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial. Recibiras un correo cuando este listo para que puedas continuar." },
+                { icon: FileText, color: "bg-amber-100 text-amber-600", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard y adjunta los documentos requeridos para tu solicitud." },
+                { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: "Revision por areas", desc: "Tres areas (Comunicacion, Legal y Logistica) revisaran tu documentacion y emitiran su veredicto." },
+                { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion." },
+              ].map((s, i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.color}`}>
+                      <s.icon className="h-4 w-4" />
+                    </div>
+                    {i < 4 && <div className="w-0.5 flex-1 bg-slate-200 my-0.5" />}
+                  </div>
+                  <div className="pb-2">
+                    <p className="text-xs font-semibold text-slate-700">{s.title}</p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-[11px] text-slate-500">
+                Monitorea el estado en <span className="font-mono text-emerald-600 font-medium">Mis solicitudes</span> desde el menu lateral del dashboard.
+              </p>
+            </div>
+
+            <Button className="w-full rounded-full" onClick={() => setPostSubmitOpen(false)}>
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

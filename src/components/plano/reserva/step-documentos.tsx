@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Eye, X, Check, Upload, Download } from "lucide-react";
+import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell } from "lucide-react";
 
 interface Props {
   singleStand: boolean;
@@ -18,13 +18,47 @@ function getFileName(url: string): string {
 
 export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading, onAddDoc, onRemoveDoc }: Props) {
   if (!singleStand) {
+    const steps = [
+      { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: "Solicitud creada", desc: "Al confirmar, tu solicitud multiple se registrara y el administrador del IIMP sera notificado." },
+      { icon: Upload, color: "bg-blue-100 text-blue-600", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial en tu solicitud. Recibiras un correo cuando este listo." },
+      { icon: FileText, color: "bg-amber-100 text-amber-600", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard, busca tu solicitud y adjunta los documentos requeridos." },
+      { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: "Revision por areas", desc: "Tres areas del IIMP (Comunicacion, Legal y Logistica) revisaran tu solicitud." },
+      { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion adjuntando nuevos documentos." },
+    ];
+
     return (
-      <div className="flex flex-col items-center gap-3 py-6 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-          <Check className="h-5 w-5" />
+      <div className="space-y-4">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-center">
+          <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-emerald-800">Reserva multiple — no necesitas adjuntar documentos ahora</p>
+          <p className="text-xs text-emerald-600 mt-1">Al confirmar la reserva, sigue este flujo para completar tu solicitud:</p>
         </div>
-        <p className="text-sm font-medium text-slate-700">No se requiere adjuntar documentos</p>
-        <p className="text-xs text-muted-foreground">Reserva multiple. Continua para confirmar.</p>
+
+        <div className="space-y-0">
+          {steps.map((s, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.color}`}>
+                  <s.icon className="h-4 w-4" />
+                </div>
+                {i < steps.length - 1 && (
+                  <div className="w-0.5 flex-1 bg-slate-200 my-0.5" />
+                )}
+              </div>
+              <div className={`pb-3 ${i === steps.length - 1 ? "" : ""}`}>
+                <p className="text-xs font-semibold text-slate-700">{s.title}</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+          <p className="text-[11px] text-slate-500">
+            <span className="font-semibold text-slate-600">Importante:</span> puedes monitorear el estado de tu solicitud en cualquier momento desde{" "}
+            <span className="font-mono text-emerald-600 font-medium">Mis solicitudes</span> en el menu del dashboard.
+          </p>
+        </div>
       </div>
     );
   }

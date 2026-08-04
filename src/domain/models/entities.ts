@@ -35,6 +35,8 @@ export interface GessStandEntity {
   estado: string | null;
   empresa: string | null;
   bloqueId: string | null;
+  email: string | null;
+  userId: string | null;
   rawData: unknown;
 }
 
@@ -61,4 +63,66 @@ export interface AuthUser {
   permissions: string[];
   eventoId?: string;
   eventoPadreId?: string;
+}
+
+export interface RevisionEntity {
+  id: string;
+  solicitudId: string;
+  area: string;
+  estado: string;
+  comentario: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReevaluacionEntity {
+  id: string;
+  solicitudId: string;
+  estado: string;
+  motivo: string | null;
+  documentos: unknown;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RevisionHistorialEntity {
+  id: string;
+  solicitudId: string;
+  area: string;
+  estadoAnterior: string;
+  comentarioAnterior: string | null;
+  motivo: string;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface SolicitudRow {
+  id: string;
+  gessStandId: string | null;
+  standCode: string;
+  standCodes: string[];
+  tipoStand: string | null;
+  medidas: string | null;
+  empresa: string | null;
+  email: string | null;
+  userId: string | null;
+  bloqueId: string | null;
+  estado: string | null;
+  estadoSolicitud: string;
+  flgActivo: boolean;
+  documentos: unknown;
+  imagenes: unknown;
+  docsAdjuntosCount: number;
+  clienteDocsAdjuntosCount: number;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; createdAt: Date }>;
+  updatedAt: Date;
+  revisiones: RevisionEntity[];
+  reevaluaciones: ReevaluacionEntity[];
+  revisionComunicacion: RevisionEntity | null;
+  revisionLegal: RevisionEntity | null;
+  revisionLogistica: RevisionEntity | null;
 }

@@ -198,6 +198,8 @@ export const authController = {
 5. **Retorno: `success(data)` o `error(code, msg, status)`. Nunca `NextResponse.json()` directo.**
 6. **Retorno tipado: `Promise<NextResponse>`.** El `Request` y `NextResponse` son tipos del framework.
 7. **Nunca `prisma`, `signToken`, `sendEmail`, `fetch` en el controlador.** Solo llama a `services`.
+7b. **Nunca lógica de permisos (`session.permissions`, `session.roles`) en el controlador.** El controller pasa `session.sub`, `session.email` y `session.permissions` como parámetros planos al Application Service, que decide la lógica de negocio (ej. si un documento se marca como admin o cliente). El controlador solo transporta datos de sesión, no los evalúa.
+7c. **Nunca `prisma` directo en el controlador para validar propiedad de un recurso.** Usa un método del repositorio (`findDocumento`, `findSolicitud`, etc.) o del Application Service que encapsule esa validación.
 8. **Nunca try/catch.** El manejo de errores está en `createRouter()`.
 9. **DTOs en archivos separados:** un archivo por interfaz. El nombre del archivo = nombre de la interfaz (`login-request.dto.ts` → `LoginRequestDTO`).
 10. **DTOs de request vs result separados:** `login-request.dto.ts` (entrada) ≠ `login-result.dto.ts` (salida del servicio).

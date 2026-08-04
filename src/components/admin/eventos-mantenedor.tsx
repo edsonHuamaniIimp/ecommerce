@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
 import { RefreshCw, Pencil, ChevronRight, Eye, EyeOff, Calendar, Map, Hash } from "lucide-react";
 import { eventosServiceClient } from "@/lib/api/services/eventos-service";
 import { listPlanos } from "@/lib/planos/registry";
@@ -74,7 +74,34 @@ export function EventosMantenedor() {
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => <Card key={i} className="animate-pulse"><CardContent className="p-6"><div className="h-4 w-24 rounded bg-slate-200 mb-3" /><div className="h-3 w-16 rounded bg-slate-100" /></CardContent></Card>)}
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i} className="overflow-hidden border-slate-200">
+              <Skeleton className="h-1.5 w-full rounded-none" />
+              <CardContent className="p-5 space-y-3">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-slate-50 p-2 space-y-1">
+                    <Skeleton className="h-3 w-3 mx-auto rounded" />
+                    <Skeleton className="h-5 w-6 mx-auto" />
+                    <Skeleton className="h-2.5 w-12 mx-auto" />
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2 space-y-1">
+                    <Skeleton className="h-3 w-3 mx-auto rounded" />
+                    <Skeleton className="h-5 w-6 mx-auto" />
+                    <Skeleton className="h-2.5 w-12 mx-auto" />
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2 space-y-1">
+                    <Skeleton className="h-3 w-3 mx-auto rounded" />
+                    <Skeleton className="h-4 w-10 mx-auto" />
+                    <Skeleton className="h-2.5 w-16 mx-auto" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : grupos.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No se pudieron cargar eventos del API.</CardContent></Card>

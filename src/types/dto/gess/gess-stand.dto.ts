@@ -1,18 +1,20 @@
 export interface GessStandDTO {
   id: string;
-  evento_id: string;
-  stand_api_id: string;
-  stand_code: string;
-  tipo_stand: string | null;
+  eventoId: string;
+  standApiId: string;
+  standCode: string;
+  tipoStand: string | null;
   medidas: string | null;
   estado: string | null;
   empresa: string | null;
   pabellon: string | null;
   ubicacion: string | null;
-  raw_data: unknown;
-  bloque_id: string | null;
-  documentos: string[];
-  imagenes: string[];
-  created_at: string;
-  updated_at: string;
+  rawData: unknown;
+  bloqueId: string | null;
+  email?: string | null;
+  userId?: string | null;
+  documentos: unknown;
+  imagenes: unknown;
+  createdAt: string;
+  updatedAt: string;
 }

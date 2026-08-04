@@ -17,75 +17,14 @@ const pool = new Pool({ connectionString, max: 1 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-async function upsertEventoPadre(codigo: string, vertical: string, nombre: string) {
-  const exist = await prisma.eventoPadre.findUnique({ where: { codigo } });
-  if (exist) return exist;
-  return prisma.eventoPadre.create({ data: { codigo, vertical, nombre } });
-}
-
-async function upsertEvento(params: {
-  eventoPadreId: string;
-  tipoEvento: number;
-  codigoEvento: number;
-  anio: string;
-  estado: string;
-  flgActivo: boolean;
-  flgVisible?: boolean;
-  fechaInicio?: Date;
-  fechaFin?: Date;
-}) {
-  const exist = await prisma.evento.findFirst({
-    where: { eventoPadreId: params.eventoPadreId, anio: params.anio },
-  });
-  if (exist) {
-    return prisma.evento.update({
-      where: { id: exist.id },
-      data: { estado: params.estado, flgActivo: params.flgActivo, flgVisible: params.flgVisible ?? true, fechaInicio: params.fechaInicio ?? null, fechaFin: params.fechaFin ?? null },
-    });
-  }
-  return prisma.evento.create({ data: { ...params, flgVisible: params.flgVisible ?? true } });
-}
-
-async function upsertTipoStand(eventoId: string, nombre: string, medidas: string, montoBase: number, moneda: string) {
-  const exist = await prisma.tipoStand.findFirst({ where: { eventoId, nombre } });
-  if (exist) return exist;
-  return prisma.tipoStand.create({ data: { eventoId, nombre, medidas, montoBase, moneda } });
-}
-
 async function main() {
-  /* ---------- Eventos Padre ---------- */
-  const perumin = await upsertEventoPadre("PERUMIN", "perumin", "PERUMIN");
-  const proexplo = await upsertEventoPadre("PROEXPLO", "proexplo", "ProExplo");
-  const wmc = await upsertEventoPadre("WMC", "wmc", "WMC");
-  const gess = await upsertEventoPadre("GESS", "gess", "GESS");
-
-  /* ---------- Eventos (versiones) ---------- */
-  const jul = new Date("2026-07-01");
-  const dic = new Date("2026-12-31");
-
-  const evPerumin = await upsertEvento({ eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 1, anio: "2025", estado: "closed", flgActivo: false, fechaInicio: new Date("2025-09-22"), fechaFin: new Date("2025-09-26") });
-  await upsertEvento({ eventoPadreId: perumin.id, tipoEvento: 14, codigoEvento: 2, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
-  await upsertEvento({ eventoPadreId: proexplo.id, tipoEvento: 5, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
-  await upsertEvento({ eventoPadreId: wmc.id, tipoEvento: 7, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
-  await upsertEvento({ eventoPadreId: gess.id, tipoEvento: 3, codigoEvento: 1, anio: "2026", estado: "active", flgActivo: true, fechaInicio: jul, fechaFin: dic });
-
-  /* ---------- Tipos de Stand ---------- */
-  const tipos = [
-    { nombre: "Estándar", medidas: "3x3 m", montoBase: 5000, moneda: "USD" },
-    { nombre: "Isla", medidas: "6x6 m", montoBase: 12000, moneda: "USD" },
-    { nombre: "Preferencial", medidas: "4x4 m", montoBase: 8000, moneda: "USD" },
-    { nombre: "Esquina", medidas: "3x3 m", montoBase: 6500, moneda: "USD" },
-  ];
-  for (const t of tipos) {
-    await upsertTipoStand(evPerumin.id, t.nombre, t.medidas, t.montoBase, t.moneda);
-  }
-
   /* ---------- Roles ---------- */
   const roles = [
-    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all"] },
-    { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["read:reservas", "approve:logistica"] },
-    { nombre: "legal", descripcion: "Area Legal", permisos: ["read:reservas", "approve:legal"] },
-    { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["read:reservas", "approve:comunicacion"] },
+    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "dashboard:view", "eventos:datos", "stands:vinculacion", "stands:manage", "stands:plano", "auspicios:view", "roles:manage", "events:manage", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all", "solicitudes:view", "solicitudes:review:comunicacion", "solicitudes:review:legal", "solicitudes:review:logistica", "solicitudes:notify", "solicitudes:upload"] },
+    { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:review:logistica"] },
+    { nombre: "legal", descripcion: "Area Legal", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:review:legal"] },
+    { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:review:comunicacion"] },
+    { nombre: "cliente", descripcion: "Cliente expositor", permisos: ["eventos:datos", "solicitudes:view", "stands:plano", "read:reservas", "write:reservas"] },
   ];
   for (const r of roles) {
     await prisma.role.upsert({ where: { nombre: r.nombre }, update: { descripcion: r.descripcion, permisos: r.permisos }, create: r });
@@ -93,18 +32,20 @@ async function main() {
 
   /* ---------- Usuarios de prueba ---------- */
   const testUsers = [
-    { email: "admin@iimp.org.pe", role: "admin", password: "admin123" },
-    { email: "logistica@iimp.org.pe", role: "logistica", password: "logistica123" },
-    { email: "legal@iimp.org.pe", role: "legal", password: "legal123" },
-    { email: "comunicacion@iimp.org.pe", role: "comunicacion", password: "comunicacion123" },
+    { email: "admin@iimp.org.pe", role: "admin", password: "admin123", nombre: "Admin", apellidos: "IIMP" },
+    { email: "logistica@iimp.org.pe", role: "logistica", password: "logistica123", nombre: "Carlos", apellidos: "Logistica" },
+    { email: "legal@iimp.org.pe", role: "legal", password: "legal123", nombre: "Maria", apellidos: "Legal" },
+    { email: "comunicacion@iimp.org.pe", role: "comunicacion", password: "comunicacion123", nombre: "Pedro", apellidos: "Comunicacion" },
+    { email: "cliente@iimp.org.pe", role: "cliente", password: "cliente123", nombre: "Cliente", apellidos: "General" },
+    { email: "ext_analistaprogramador3@iimp.org.pe", role: "admin", password: "admin123", nombre: "Edson", apellidos: "Huamani" },
   ];
   for (const tu of testUsers) {
     const role = await prisma.role.findUnique({ where: { nombre: tu.role } });
     if (!role) continue;
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
-      update: { password: tu.password, tipoUsuarioId: 2 },
-      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2 },
+      update: { password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
+      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
     });
   }
 
@@ -119,6 +60,9 @@ async function seedMaestra() {
     { id: 2, tabla: "documento_tipo", nombre: "Tipos de documento", orden: 2 },
     { id: 3, tabla: "usuario_tipo", nombre: "Tipos de usuario", orden: 3 },
     { id: 4, tabla: "stand_estado", nombre: "Estados de stand", orden: 4 },
+    { id: 5, tabla: "solicitud_estado", nombre: "Estados de solicitud", orden: 5 },
+    { id: 6, tabla: "revision_estado", nombre: "Estados de revision", orden: 6 },
+    { id: 7, tabla: "reevaluacion_estado", nombre: "Estados de re-evaluacion", orden: 7 },
   ];
   for (const p of padres) {
     const updated = await prisma.maestra.updateMany({
@@ -140,6 +84,17 @@ async function seedMaestra() {
     { id: 40, padre: 4, itemId: 1, nombre: "Disponible", descripcion: "Stand disponible", orden: 1 },
     { id: 41, padre: 4, itemId: 2, nombre: "En evaluacion", descripcion: "Solicitud en aprobacion", orden: 2 },
     { id: 42, padre: 4, itemId: 3, nombre: "Reservado", descripcion: "Stand reservado", orden: 3 },
+    { id: 50, padre: 5, itemId: 1, nombre: "Pendiente", descripcion: "Sin respuesta de las areas", orden: 1 },
+    { id: 51, padre: 5, itemId: 2, nombre: "En proceso", descripcion: "Al menos un area ha respondido", orden: 2 },
+    { id: 52, padre: 5, itemId: 3, nombre: "Aprobado", descripcion: "Todas las areas aprobaron", orden: 3 },
+    { id: 53, padre: 5, itemId: 4, nombre: "Rechazado", descripcion: "Al menos un area rechazo", orden: 4 },
+    { id: 54, padre: 5, itemId: 5, nombre: "Pendiente Pago", descripcion: "Aprobado, esperando pago", orden: 5 },
+    { id: 60, padre: 6, itemId: 1, nombre: "Pendiente", descripcion: "Revision pendiente", orden: 1 },
+    { id: 61, padre: 6, itemId: 2, nombre: "Aprobado", descripcion: "Revision aprobada", orden: 2 },
+    { id: 62, padre: 6, itemId: 3, nombre: "Rechazado", descripcion: "Revision rechazada", orden: 3 },
+    { id: 70, padre: 7, itemId: 1, nombre: "Pendiente", descripcion: "Re-evaluacion pendiente", orden: 1 },
+    { id: 71, padre: 7, itemId: 2, nombre: "Aprobado", descripcion: "Re-evaluacion aprobada", orden: 2 },
+    { id: 72, padre: 7, itemId: 3, nombre: "Rechazado", descripcion: "Re-evaluacion rechazada", orden: 3 },
   ];
   for (const h of hijos) {
     const updated = await prisma.maestra.updateMany({
