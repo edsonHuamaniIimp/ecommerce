@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { rolesController } from "@/controllers/roles.controller";
 
 export const { GET, POST, PATCH, DELETE } = createRouter({

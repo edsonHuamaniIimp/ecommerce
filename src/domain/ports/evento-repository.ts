@@ -32,4 +32,7 @@ export interface IEventoRepository {
   }): Promise<EventoEntity>;
   update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>): Promise<EventoEntity>;
   upsertByTipoCodigo(tipoEvento: number, codigoEvento: number, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>): Promise<EventoEntity>;
+
+  /** Un mapa 3D solo puede estar asignado a un evento a la vez */
+  findEventoPorPlano(planoCodigo: string, exceptTipoEvento?: number, exceptCodigoEvento?: number): Promise<{ tipoEvento: number; codigoEvento: number } | null>;
 }

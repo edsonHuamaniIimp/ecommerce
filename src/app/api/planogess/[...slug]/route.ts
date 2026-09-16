@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createRouter } from "@/lib/router";
-import { services } from "@/lib/services";
+import { createRouter } from "@/lib/server/router";
+import { services } from "@/lib/server/services";
 
 export const { POST } = createRouter({
   POST: {

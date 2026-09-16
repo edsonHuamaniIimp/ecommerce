@@ -1,5 +1,7 @@
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { EventoEntity } from "@/domain/models/entities";
+import { DomainError } from "@/lib/server/router";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 
 export class EventoApplicationService {
   constructor(private readonly repo: IEventoRepository) {}
@@ -51,6 +53,18 @@ export class EventoApplicationService {
 
     const tipoEvento = data.tipo_evento;
     const codigoEvento = data.codigo_evento;
+
+    // Un mapa 3D solo puede estar asignado a un evento a la vez ("" desasigna, no valida)
+    if (data.plano !== undefined && data.plano && tipoEvento !== undefined && codigoEvento !== undefined) {
+      const dueno = await this.repo.findEventoPorPlano(data.plano, tipoEvento, codigoEvento);
+      if (dueno) {
+        throw new DomainError(
+          `El mapa "${data.plano}" ya esta asignado al evento ${dueno.tipoEvento}/${dueno.codigoEvento}. Desasigna el mapa de ese evento primero.`,
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
 
     if (tipoEvento !== undefined && codigoEvento !== undefined) {
       return this.repo.upsertByTipoCodigo(tipoEvento, codigoEvento, mapped);

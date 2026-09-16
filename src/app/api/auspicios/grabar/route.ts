@@ -1,8 +1,8 @@
-import { getSession } from "@/lib/auth";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
+import { getSession } from "@/lib/server/auth";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 
-const KBS_URL = process.env.KBSERVICIOS_URL ?? "";
+const KBS_URL = process.env.AUSPICIOS_API_URL ?? process.env.KBSERVICIOS_URL ?? "";
 const API_KEY = process.env.KBSERVICIOS_API_KEY ?? "";
 
 export async function POST(request: Request) {

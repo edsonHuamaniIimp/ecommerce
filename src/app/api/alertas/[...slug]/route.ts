@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { alertasController } from "@/controllers/alertas.controller";
 
 export const { GET, POST } = createRouter({

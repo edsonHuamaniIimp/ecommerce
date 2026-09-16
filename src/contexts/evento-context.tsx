@@ -2,7 +2,7 @@
 
 import type { EventoPadre, Evento } from "@/types/reserva";
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { LS_KEYS } from "@/lib/constants";
+import { LS_KEYS } from "@/lib/shared/constants";
 
 const STORAGE_KEY = "iimp-evento";
 

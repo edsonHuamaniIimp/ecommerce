@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { authController } from "@/controllers/auth.controller";
 
 export const { GET, POST, PATCH } = createRouter({

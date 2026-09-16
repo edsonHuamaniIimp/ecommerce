@@ -1,7 +1,7 @@
 import type { IKbServiciosClient } from "@/domain/ports/kbservicios-client";
 import type { IEventoRepository, EventoMetadata } from "@/domain/ports/evento-repository";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/eventos";
-import { dateUtils } from "@/lib/utils/date";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 const VERTICAL_BY_CODE: Record<number, string> = {
   2: "perumin",

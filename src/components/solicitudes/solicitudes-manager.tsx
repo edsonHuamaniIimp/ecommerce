@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
-import { authService } from "@/lib/api/services/auth-service";
-import { maestraService } from "@/lib/api/services/maestra-service";
-import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_REEVALUACION } from "@/lib/constants";
-import { solicitudesService } from "@/lib/api/services/solicitudes-service";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { maestraService } from "@/lib/client/api/services/maestra-service";
+import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { SolicitudReview } from "./solicitud-review";
@@ -16,7 +16,7 @@ import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { useSearchParams } from "next/navigation";
-import { dateUtils } from "@/lib/utils/date";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 
 type SolicitudRow = SolicitudDTO;
@@ -134,8 +134,8 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
       for (const item of items) {
         if (item.itemId !== null) map[String(item.itemId)] = item.nombre;
       }
-      for (const [key] of Object.entries(ESTADOS_SOLICITUD)) {
-        map[key] = String(map[key] ?? key);
+      for (const [key, itemId] of Object.entries(ESTADOS_SOLICITUD_MAESTRA_ID)) {
+        if (map[String(itemId)]) map[key] = map[String(itemId)];
       }
       setSolicitudEstadoLabels(map);
     }).catch(() => {});
@@ -160,6 +160,10 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
       if (autoOpenId && !reviewOpen) {
         const found = data.data?.find((r) => r.id === autoOpenId);
         if (found) { setReviewRow(found); setReviewOpen(true); }
+        // Clean URL to avoid re-opening on reload
+        const next = new URL(window.location.href);
+        next.searchParams.delete("id");
+        window.history.replaceState({}, "", next.toString());
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -368,32 +372,32 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                           <TableCell>
-                            {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-green-100 text-green-800 border-green-200">
-                                <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
-                                {solicitudEstadoLabels[ESTADOS_SOLICITUD.APROBADO] ?? "Aprobado"}
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-red-100 text-red-800 border-red-200">
-                                <XCircle className="mr-0.5 h-2.5 w-2.5" />
-                                {solicitudEstadoLabels[ESTADOS_SOLICITUD.RECHAZADO] ?? "Rechazado"}
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-blue-100 text-blue-800 border-blue-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-indigo-100 text-indigo-800 border-indigo-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
-                              </Badge>
-                            ) : (
-                              <Badge className="text-[10px] pointer-events-none bg-amber-100 text-amber-800 border-amber-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
-                              </Badge>
-                            )}
+                             {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.APROBADO] ?? "Aprobado"}
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>
+                                 <XCircle className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.RECHAZADO] ?? "Rechazado"}
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
+                               </Badge>
+                             ) : (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
+                               </Badge>
+                             )}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs">
                             {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
@@ -478,6 +482,23 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
                                   <TooltipContent side="top"><span>Solicitud de re-evaluacion pendiente</span></TooltipContent>
                                 </Tooltip>
                               )}
+                              {estaPendientePago(row) && !row.tieneFacturacion && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-indigo-500 hover:bg-indigo-600"
+                                      onClick={async () => {
+                                        try {
+                                          await solicitudesService.ordenPago({ solicitudId: row.id });
+                                          toast.success("Facturacion generada");
+                                          load(page, search, perPage);
+                                        } catch { toast.error("Error al generar facturacion"); }
+                                      }}>
+                                      <CreditCard className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><span>Generar facturacion</span></TooltipContent>
+                                </Tooltip>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -522,11 +543,11 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
                   <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "—"}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Estado:</span>{" "}
                     <Badge className={`text-[10px] ${
-                      detailRow.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? "bg-green-100 text-green-800 border-green-200"
-                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? "bg-red-100 text-red-800 border-red-200"
-                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? "bg-blue-100 text-blue-800 border-blue-200"
-                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? "bg-indigo-100 text-indigo-800 border-indigo-200"
-                      : "bg-amber-100 text-amber-800 border-amber-200"
+                      detailRow.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? BADGE_STYLES.SUCCESS
+                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE
+                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? BADGE_STYLES.INFO
+                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? BADGE_STYLES.INDIGO
+                      : BADGE_STYLES.WARNING
                     }`}>
                       {solicitudEstadoLabels[detailRow.estadoSolicitud] ?? detailRow.estadoSolicitud}
                     </Badge>
@@ -642,9 +663,9 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">Solicitud de re-evaluacion</span>
                           <Badge className={`text-[10px] pointer-events-none ${
-                            reev.estado === ESTADOS_REEVALUACION.APROBADO ? "bg-green-100 text-green-800 border-green-200"
-                            : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "bg-red-100 text-red-800 border-red-200"
-                            : "bg-amber-100 text-amber-800 border-amber-200"
+                            reev.estado === ESTADOS_REEVALUACION.APROBADO ? BADGE_STYLES.SUCCESS
+                            : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE
+                            : BADGE_STYLES.WARNING
                           }`}>
                             {reev.estado === ESTADOS_REEVALUACION.APROBADO ? "Aprobada"
                               : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "Rechazada"
@@ -685,7 +706,7 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
                     return (
                       <div key={area} className="flex items-center justify-between rounded bg-muted/30 px-2 py-1 text-xs">
                         <span className="font-medium">{REVISION_AREA_LABELS[area]}</span>
-                        <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? "bg-green-100 text-green-800 border-green-200" : estado === RESULTADOS_APROBACION.RECHAZADO ? "bg-red-100 text-red-800 border-red-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                        <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? BADGE_STYLES.SUCCESS : estado === RESULTADOS_APROBACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
                           {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente"}
                         </Badge>
                       </div>
@@ -764,7 +785,7 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
               <div className="rounded-lg border bg-muted/20 p-3 text-xs">
                 <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{reevaluacionRow.standCode}</span></div>
                 {reevaluacionRow.empresa && <div><span className="text-muted-foreground">Empresa:</span> <span>{reevaluacionRow.empresa}</span></div>}
-                <div><span className="text-muted-foreground">Estado:</span> <Badge className="text-[10px] pointer-events-none bg-red-100 text-red-800 border-red-200">Rechazado</Badge></div>
+                <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>Rechazado</Badge></div>
               </div>
               {(() => {
                 const reev = reevaluacionRow.reevaluaciones?.find((r: { estado: string }) => r.estado === ESTADOS_REEVALUACION.PENDIENTE);
@@ -838,7 +859,7 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
           {bajaRow && (
             <div className="space-y-3 text-sm">
               <div className="text-xs text-slate-600">
-                La solicitud del stand <strong className="font-mono">{bajaRow.standCode}</strong> esta en estado <Badge className="text-[10px] pointer-events-none bg-red-100 text-red-800 border-red-200">Rechazado</Badge>.
+                La solicitud del stand <strong className="font-mono">{bajaRow.standCode}</strong> esta en estado <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>Rechazado</Badge>.
               </div>
               <p className="text-xs text-slate-500">Al darla de baja, se eliminara logicamente y el stand volvera a estar disponible.</p>
               <div className="flex gap-2 pt-2">

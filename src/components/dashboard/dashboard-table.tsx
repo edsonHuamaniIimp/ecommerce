@@ -2,7 +2,7 @@
 
 import { DataTable } from "@nrivera-iimp/ui-kit-iimp";
 import type { ColumnDef } from "@tanstack/react-table";
-import { TIPOS_COMPROBANTE } from "@/lib/constants";
+import { TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { EstadoReservaBadge } from "@/components/estado-badge";
 import type { Reserva } from "@/types/reserva";
 

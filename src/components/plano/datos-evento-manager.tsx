@@ -6,8 +6,8 @@ import { Search, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
-import { gessService } from "@/lib/api/services/gess-service";
-import { ESTADOS_STAND } from "@/lib/constants";
+import { gessService } from "@/lib/client/api/services/gess-service";
+import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
 import type { GessStandDTO } from "@/types/dto/gess/gess-stand.dto";
 
 export function DatosEventoManager({ eventoId }: { eventoId: string }) {
@@ -93,10 +93,10 @@ export function DatosEventoManager({ eventoId }: { eventoId: string }) {
                           const est = r.estado?.toLowerCase();
                           return (
                             <Badge className={`text-[10px] pointer-events-none ${
-                              est === ESTADOS_STAND.DISPONIBLE ? "bg-green-100 text-green-800 border-green-200"
-                              : est === ESTADOS_STAND.RESERVADO ? "bg-red-100 text-red-800 border-red-200"
-                              : est === ESTADOS_STAND.EN_EVALUACION ? "bg-amber-100 text-amber-800 border-amber-200"
-                              : "bg-slate-100 text-slate-600 border-slate-200"
+                              est === ESTADOS_STAND.DISPONIBLE ? BADGE_STYLES.SUCCESS
+                              : est === ESTADOS_STAND.RESERVADO ? BADGE_STYLES.DESTRUCTIVE
+                              : est === ESTADOS_STAND.EN_EVALUACION ? BADGE_STYLES.WARNING
+                              : BADGE_STYLES.NEUTRAL
                             }`}>
                               {est === ESTADOS_STAND.EN_EVALUACION ? "En evaluacion" : est === ESTADOS_STAND.DISPONIBLE ? "Disponible" : est === ESTADOS_STAND.RESERVADO ? "Reservado" : r.estado ?? "—"}
                             </Badge>

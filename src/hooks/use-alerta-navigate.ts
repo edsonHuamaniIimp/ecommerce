@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { solicitudesService } from "@/lib/api/services/solicitudes-service";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 
 type ModalOpener = (row: Record<string, unknown>) => void;
 

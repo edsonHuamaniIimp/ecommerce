@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PlanoIsometrico } from "@/components/plano/plano-isometrico";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
-import { getPlano } from "@/lib/planos/registry";
-import { LS_KEYS } from "@/lib/constants";
-import { authService } from "@/lib/api/services/auth-service";
+import { getPlano } from "@/lib/shared/planos/registry";
+import { LS_KEYS } from "@/lib/shared/constants";
+import { authService } from "@/lib/client/api/services/auth-service";
 
 export default function PlanoIsometricoPage() {
   const router = useRouter();

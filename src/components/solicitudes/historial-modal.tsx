@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { Clock, UserCircle2, History } from "lucide-react";
-import { REVISION_AREA_LABELS } from "@/lib/constants";
+import { REVISION_AREA_LABELS, BADGE_STYLES } from "@/lib/shared/constants";
 
 interface HistorialItem {
   fecha: string;
@@ -97,7 +97,7 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
                                 ? "bg-amber-50 text-amber-700 border-amber-200"
                                 : item.accion === "Cambio de estado"
                                 ? "bg-blue-50 text-blue-700 border-blue-200"
-                                : "bg-slate-100 text-slate-600 border-slate-200"
+                                : BADGE_STYLES.NEUTRAL
                             }`}
                           >
                             {item.accion}

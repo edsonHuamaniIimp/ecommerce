@@ -1,4 +1,4 @@
-import { eventosService } from "@/lib/api/services/facade";
+import { eventosService } from "@/lib/client/api/services/facade";
 import { PlanoGrid2D } from "@/components/plano/plano-grid-2d";
 
 export default async function PlanoGridPage() {

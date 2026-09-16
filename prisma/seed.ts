@@ -3,6 +3,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { TIPOLOGIAS_STAND, TIPOS_PLANO } from "../src/lib/shared/constants";
 
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
 if (APP_ENV === "production") {
@@ -20,7 +21,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   /* ---------- Roles ---------- */
   const roles = [
-    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "dashboard:view", "eventos:datos", "stands:vinculacion", "stands:manage", "stands:plano", "auspicios:view", "roles:manage", "events:manage", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all", "solicitudes:view", "solicitudes:review:comunicacion", "solicitudes:review:legal", "solicitudes:review:logistica", "solicitudes:notify", "solicitudes:upload"] },
+    { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "dashboard:view", "eventos:datos", "stands:vinculacion", "stands:manage", "stands:plano", "auspicios:view", "facturacion:view", "laboratorio:view", "laboratorio:manage", "roles:manage", "events:manage", "events:create", "events:edit", "events:toggle", "read:reservas", "write:reservas", "approve:all", "solicitudes:view", "solicitudes:review:comunicacion", "solicitudes:review:legal", "solicitudes:review:logistica", "solicitudes:notify", "solicitudes:upload"] },
     { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:review:logistica"] },
     { nombre: "legal", descripcion: "Area Legal", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:review:legal"] },
     { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:review:comunicacion"] },
@@ -54,7 +55,7 @@ async function main() {
 
 // Seed maestra datos
 async function seedMaestra() {
-  // Upsert via transaction: try update, if 0 rows affected, create
+  // Upsert: intenta update; si no existe, crea
   const padres = [
     { id: 1, tabla: "comprobante_tipo", nombre: "Tipos de comprobante", orden: 1 },
     { id: 2, tabla: "documento_tipo", nombre: "Tipos de documento", orden: 2 },
@@ -63,6 +64,10 @@ async function seedMaestra() {
     { id: 5, tabla: "solicitud_estado", nombre: "Estados de solicitud", orden: 5 },
     { id: 6, tabla: "revision_estado", nombre: "Estados de revision", orden: 6 },
     { id: 7, tabla: "reevaluacion_estado", nombre: "Estados de re-evaluacion", orden: 7 },
+    { id: 8, tabla: "facturacion_estado", nombre: "Estados de facturacion", orden: 8 },
+    { id: 9, tabla: "facturacion_tipo", nombre: "Tipos de facturacion", orden: 9 },
+    { id: 10, tabla: "cuota_estado", nombre: "Estados de cuota", orden: 10 },
+    { id: 11, tabla: "stand_tipologia", nombre: "Tipologias de stand", orden: 11 },
   ];
   for (const p of padres) {
     const updated = await prisma.maestra.updateMany({
@@ -89,12 +94,29 @@ async function seedMaestra() {
     { id: 52, padre: 5, itemId: 3, nombre: "Aprobado", descripcion: "Todas las areas aprobaron", orden: 3 },
     { id: 53, padre: 5, itemId: 4, nombre: "Rechazado", descripcion: "Al menos un area rechazo", orden: 4 },
     { id: 54, padre: 5, itemId: 5, nombre: "Pendiente Pago", descripcion: "Aprobado, esperando pago", orden: 5 },
+    { id: 55, padre: 5, itemId: 6, nombre: "Pagado", descripcion: "Pago completado", orden: 6 },
     { id: 60, padre: 6, itemId: 1, nombre: "Pendiente", descripcion: "Revision pendiente", orden: 1 },
     { id: 61, padre: 6, itemId: 2, nombre: "Aprobado", descripcion: "Revision aprobada", orden: 2 },
     { id: 62, padre: 6, itemId: 3, nombre: "Rechazado", descripcion: "Revision rechazada", orden: 3 },
     { id: 70, padre: 7, itemId: 1, nombre: "Pendiente", descripcion: "Re-evaluacion pendiente", orden: 1 },
     { id: 71, padre: 7, itemId: 2, nombre: "Aprobado", descripcion: "Re-evaluacion aprobada", orden: 2 },
     { id: 72, padre: 7, itemId: 3, nombre: "Rechazado", descripcion: "Re-evaluacion rechazada", orden: 3 },
+    // facturacion_estado
+    { id: 80, padre: 8, itemId: 1, nombre: "Pendiente", descripcion: "Facturacion pendiente de pago", orden: 1 },
+    { id: 81, padre: 8, itemId: 2, nombre: "Pagado", descripcion: "Facturacion pagada", orden: 2 },
+    { id: 82, padre: 8, itemId: 3, nombre: "Cancelado", descripcion: "Facturacion cancelada", orden: 3 },
+    { id: 83, padre: 8, itemId: 4, nombre: "Archivado", descripcion: "Facturacion archivada", orden: 4 },
+    // facturacion_tipo
+    { id: 90, padre: 9, itemId: 1, nombre: "Manual", descripcion: "Pago manual registrado por admin", orden: 1 },
+    { id: 91, padre: 9, itemId: 2, nombre: "Niubizz", descripcion: "Pago via pasarela Niubizz", orden: 2 },
+    // cuota_estado
+    { id: 100, padre: 10, itemId: 1, nombre: "Pendiente", descripcion: "Cuota pendiente de pago", orden: 1 },
+    { id: 101, padre: 10, itemId: 2, nombre: "Pagado", descripcion: "Cuota pagada", orden: 2 },
+    { id: 102, padre: 10, itemId: 3, nombre: "Vencido", descripcion: "Cuota vencida", orden: 3 },
+    // stand_tipologia
+    { id: 110, padre: 11, itemId: 1, nombre: "Complejo", descripcion: "2 niveles o >2.5m de altura", orden: 1 },
+    { id: 111, padre: 11, itemId: 2, nombre: "Simple", descripcion: "1 nivel", orden: 2 },
+    { id: 112, padre: 11, itemId: 3, nombre: "Octanorm simple", descripcion: "Solo viniles", orden: 3 },
   ];
   for (const h of hijos) {
     const updated = await prisma.maestra.updateMany({
@@ -108,8 +130,96 @@ async function seedMaestra() {
   console.log("Maestra seeded");
 }
 
+/* ---------- Plano GESS → BD (Laboratorio 3D) ---------- */
+async function seedPlanoGess() {
+  const { buildItems, buildFurniture } = await import("../src/lib/shared/planos/gess/construccion");
+  const { DIMENSIONES, BLOCK_LABEL } = await import("../src/lib/shared/planos/gess/tipos");
+
+  const plano = await prisma.plano.upsert({
+    where: { codigo: "gess" },
+    update: { nombre: "GESS", descripcion: "Plano isometrico del evento GESS — 52 bloques con kioskos rusticos y plaza central" },
+    create: {
+      codigo: "gess",
+      nombre: "GESS",
+      descripcion: "Plano isometrico del evento GESS — 52 bloques con kioskos rusticos y plaza central",
+    },
+  });
+
+  // Tipos de bloque
+  const tipoMap = new Map<string, string>();
+  // Alias explicito: la clave de DIMENSIONES ("S_vert") no coincide con el BlockType ("S")
+  const TIPO_ALIAS: Record<string, string> = { S_vert: "S" };
+  for (const [codigo, dim] of Object.entries(DIMENSIONES)) {
+    const blockType = TIPO_ALIAS[codigo] ?? codigo;
+    const label = BLOCK_LABEL[blockType as keyof typeof BLOCK_LABEL];
+    const tipo = await prisma.planoTipoBloque.upsert({
+      where: { planoId_codigo: { planoId: plano.id, codigo: blockType } },
+      update: { w: dim.w, d: dim.d, h: dim.h, color: dim.color, label: label?.label ?? blockType, nombre: label?.nombre ?? blockType },
+      create: {
+        planoId: plano.id,
+        codigo: blockType,
+        label: label?.label ?? blockType,
+        nombre: label?.nombre ?? blockType,
+        w: dim.w, d: dim.d, h: dim.h, color: dim.color,
+      },
+    });
+    tipoMap.set(codigo, tipo.id);
+  }
+
+  // Bloques
+  const items = buildItems();
+  await prisma.planoBloque.deleteMany({ where: { planoId: plano.id } });
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const dimCodigo = Object.entries(DIMENSIONES).find(([, d]) => d === item.dim)?.[0];
+    const tipoId = dimCodigo ? tipoMap.get(dimCodigo) : undefined;
+    await prisma.planoBloque.create({
+      data: {
+        planoId: plano.id,
+        tipoId: tipoId ?? null,
+        bloqueId: item.id,
+        tipoCodigo: item.type,
+        tipologia: TIPOLOGIAS_STAND.SIMPLE,
+        x: item.x,
+        z: item.z,
+        rotY: 0,
+        orden: i,
+      },
+    });
+  }
+
+  // Furniture
+  const furniture = buildFurniture();
+  await prisma.planoFurniture.deleteMany({ where: { planoId: plano.id } });
+  for (const f of furniture) {
+    await prisma.planoFurniture.create({
+      data: { planoId: plano.id, refId: f.id, tipo: f.type, x: f.x, z: f.z, rotY: f.rotY },
+    });
+  }
+
+  console.log(`Plano GESS seeded: ${items.length} bloques, ${furniture.length} furniture`);
+}
+
+/* ---------- Plano MACRO PERUMIN (pabellones) ---------- */
+async function seedPlanoMacroPerumin() {
+  await prisma.plano.upsert({
+    where: { codigo: "perumin" },
+    update: { tipo: TIPOS_PLANO.MACRO, imagenFondo: "/uploads/perumin-mapa-pabellones.jpg" },
+    create: {
+      codigo: "perumin",
+      nombre: "PERUMIN",
+      descripcion: "Mapa de pabellones PERUMIN — vista macro con secciones navegables a planos 3D",
+      tipo: TIPOS_PLANO.MACRO,
+      imagenFondo: "/uploads/perumin-mapa-pabellones.jpg",
+    },
+  });
+  console.log("Plano macro PERUMIN seeded (imagen pabellones)");
+}
+
 main()
   .then(() => seedMaestra())
+  .then(() => seedPlanoGess())
+  .then(() => seedPlanoMacroPerumin())
   .catch((e) => {
     console.error(e);
     process.exit(1);

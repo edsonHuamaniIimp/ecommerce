@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
 import { Eye, EyeOff } from "lucide-react";
-import { authService } from "@/lib/api/services/auth-service";
+import { authService } from "@/lib/client/api/services/auth-service";
 
 export default function LoginPage() {
   const router = useRouter();

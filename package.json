@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -14,7 +14,9 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma generate",
-    "db:reset": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma db push --accept-data-loss && npx prisma generate && npx tsx prisma/seed.ts"
+    "db:reset": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma db push --accept-data-loss && npx prisma generate && npx tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,6 +28,7 @@
     "@prisma/client": "^7.8.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "client-only": "^0.0.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.42.2",
@@ -39,6 +42,7 @@
     "react-hook-form": "^7.81.0",
     "react-quill-new": "^3.8.3",
     "recharts": "^3.9.2",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "three": "^0.185.1",
@@ -51,11 +55,13 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@/lib/api-response";
+import type { ApiResponse } from "@/lib/server/api-response";
 
 interface ReevaluacionDTO {
   id: string;
@@ -47,6 +47,9 @@ export interface SolicitudDTO {
   revisionComunicacion: RevisionDTO | null;
   revisionLegal: RevisionDTO | null;
   revisionLogistica: RevisionDTO | null;
+  tieneFacturacion: boolean;
+  tipoFacturacion: string | null;
+  facturacionId: string | null;
 }
 
 export interface SolicitudesPaginatedDTO {

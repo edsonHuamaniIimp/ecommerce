@@ -1,7 +1,7 @@
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { AprobacionesSection } from "@/components/dashboard/aprobaciones-section";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/server/auth";
+import { prisma } from "@/lib/server/db";
 
 export const dynamic = "force-dynamic";
 

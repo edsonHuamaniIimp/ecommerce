@@ -6,13 +6,12 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
-import { gessService } from "@/lib/api/services/gess-service";
-import { authService } from "@/lib/api/services/auth-service";
-import { getPlano } from "@/lib/planos/registry";
-import type { PlanoDefinition } from "@/lib/planos/registry";
-import type { Item } from "@/lib/planos/gess";
-import { LS_KEYS, ESTADOS_STAND } from "@/lib/constants";
-import type { ReservaStep } from "@/lib/constants";
+import { gessService } from "@/lib/client/api/services/gess-service";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { getPlano } from "@/lib/shared/planos/registry";
+import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
+import { LS_KEYS, ESTADOS_STAND } from "@/lib/shared/constants";
+import type { ReservaStep } from "@/lib/shared/constants";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import type { GessLinkedInfo, FormDatos } from "./reserva/interfaces";
@@ -26,7 +25,7 @@ import * as THREE from "three";
 
 /* ---------- 3D ---------- */
 function Bloque3D({ item, selected, reserved, onSelect }: {
-  item: Item; selected: boolean; reserved: boolean; onSelect: (id: string) => void;
+  item: PlanoItem; selected: boolean; reserved: boolean; onSelect: (id: string) => void;
 }) {
   const {w,d,h,color}=item.dim;
   return (
@@ -256,7 +255,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
-  const blockLabel = (type: Item["type"]) => plano.blockLabel[type] ?? { label: "?", nombre: "?" };
+  const blockLabel = (type: PlanoItem["type"]) => plano.blockLabel[type] ?? { label: "?", nombre: "?" };
 
   useEffect(() => {
     let cancelled = false;
@@ -362,6 +361,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     removeDoc,
     handleSubmit,
     reset: resetForm,
+    confirmado, setConfirmado,
   } = useReservaForm(selectedIds, linkedMap as unknown as Map<string, GessLinkedInfo>);
 
   // Override: auto-open + restore selection from login redirect
@@ -662,6 +662,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
         onAddDoc={addDoc}
         onRemoveDoc={removeDoc}
+        confirmado={confirmado}
+        onConfirmadoChange={setConfirmado}
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {

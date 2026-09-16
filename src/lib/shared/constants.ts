@@ -1,0 +1,505 @@
+/**
+ * Constantes compartidas FRONTEND + BACKEND.
+ *
+ * NUNCA usar strings hardcodeados para validaciones, estados, roles, áreas,
+ * verticales ni tipos de comprobante. Siempre referenciar desde este archivo.
+ *
+ * Ejemplo:
+ *   ❌ if (estado === "aprobado") { ... }
+ *   ✅ if (estado === ESTADOS_RESERVA.APROBADA) { ... }
+ *
+ *   ❌ { area: "legal", ... }
+ *   ✅ { area: AREAS_APROBACION.LEGAL, ... }
+ */
+
+/** Rutas publicas que el middleware no protege. */
+export const PUBLIC_ROUTES = [
+  "/auth/login",
+  "/presala",
+  "/",
+  "/403",
+] as const;
+
+/** Prefijos de API publicos (startsWith). */
+export const PUBLIC_API_PREFIXES = [
+  "/api/auth/",
+  "/api/maestra/",
+] as const;
+
+/** Rutas API publicas exactas. */
+export const PUBLIC_API_ROUTES = [
+  "/api/maestra",
+  "/api/exhibidoras",
+  "/api/stands/exhibidora",
+  "/api/stands/contrato",
+  "/api/planos/publico",
+] as const;
+
+/** URL base de la aplicacion. En produccion se configura via variable de entorno. */
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+/* ================================================================
+   Verticales (alineadas con UI Kit y theming)
+   ================================================================ */
+export const VERTICALES = {
+  PROEXPLO: "proexplo",
+  WMC: "wmc",
+  GESS: "gess",
+  PERUMIN: "perumin",
+} as const;
+
+export type Vertical = (typeof VERTICALES)[keyof typeof VERTICALES];
+
+/* ================================================================
+   Ambientes de despliegue
+   ================================================================ */
+export const APP_ENVS = {
+  LOCAL: "local",
+  QA: "qa",
+  PRODUCTION: "production",
+} as const;
+
+export type AppEnv = (typeof APP_ENVS)[keyof typeof APP_ENVS];
+
+export function getAppEnv(): AppEnv {
+  const env = process.env.NEXT_PUBLIC_APP_ENV;
+  if (env === APP_ENVS.QA) return APP_ENVS.QA;
+  if (env === APP_ENVS.PRODUCTION) return APP_ENVS.PRODUCTION;
+  return APP_ENVS.LOCAL;
+}
+
+/* ================================================================
+   Estados de stand (plano)
+   ================================================================ */
+export const ESTADOS_STAND = {
+  DISPONIBLE: "disponible",
+  EN_EVALUACION: "en_evaluacion",
+  RESERVADO: "reservado",
+} as const;
+
+export type EstadoStand = (typeof ESTADOS_STAND)[keyof typeof ESTADOS_STAND];
+
+/** item_id en maestra (tabla stand_estado) para cada estado */
+export const ESTADOS_STAND_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_STAND.DISPONIBLE]: 1,
+  [ESTADOS_STAND.EN_EVALUACION]: 2,
+  [ESTADOS_STAND.RESERVADO]: 3,
+};
+
+/* ================================================================
+   Tipologias de stand (maestra: stand_tipologia)
+   Clasificacion tecnica que determina la matriz documental del
+   expediente tecnico en el Sistema de Montaje (SM)
+   ================================================================ */
+export const TIPOLOGIAS_STAND = {
+  COMPLEJO: "1",
+  SIMPLE: "2",
+  OCTANORM: "3",
+} as const;
+
+export type TipologiaStand = (typeof TIPOLOGIAS_STAND)[keyof typeof TIPOLOGIAS_STAND];
+
+export const TIPOLOGIAS_STAND_LABELS: Record<string, { label: string; nombre: string }> = {
+  [TIPOLOGIAS_STAND.COMPLEJO]: { label: "1", nombre: "Complejo" },
+  [TIPOLOGIAS_STAND.SIMPLE]: { label: "2", nombre: "Simple" },
+  [TIPOLOGIAS_STAND.OCTANORM]: { label: "3", nombre: "Octanorm simple" },
+};
+
+/** tabla maestra donde viven las tipologias */
+export const MAESTRA_TABLA_STAND_TIPOLOGIA = "stand_tipologia";
+
+/* ================================================================
+   Tipos de plano (Laboratorio 3D)
+   ================================================================ */
+export const TIPOS_PLANO = {
+  SIMPLE: "simple",
+  MACRO: "macro",
+} as const;
+
+export type TipoPlano = (typeof TIPOS_PLANO)[keyof typeof TIPOS_PLANO];
+
+/* ================================================================
+   Estados de reserva (ciclo de vida)
+   ================================================================ */
+export const ESTADOS_RESERVA = {
+  BORRADOR: "borrador",
+  REGISTRADA: "registrada",
+  EN_APROBACION: "en_aprobacion",
+  APROBADA: "aprobada",
+  ENVIADA_FACTURACION: "enviada_facturacion",
+  FACTURADA: "facturada",
+  RECHAZADA: "rechazada",
+  CANCELADA: "cancelada",
+} as const;
+
+export type EstadoReserva = (typeof ESTADOS_RESERVA)[keyof typeof ESTADOS_RESERVA];
+
+/* ================================================================
+   Estados de evento
+   ================================================================ */
+export const ESTADOS_EVENTO = {
+  DRAFT: "draft",
+  ACTIVE: "active",
+  CLOSED: "closed",
+  CANCELLED: "cancelled",
+} as const;
+
+export type EstadoEvento = (typeof ESTADOS_EVENTO)[keyof typeof ESTADOS_EVENTO];
+
+/* ================================================================
+   Tipos de comprobante
+   ================================================================ */
+export const TIPOS_COMPROBANTE = {
+  FACTURA: "factura",
+  BOLETA: "boleta",
+} as const;
+
+export type TipoComprobante = (typeof TIPOS_COMPROBANTE)[keyof typeof TIPOS_COMPROBANTE];
+
+/* ================================================================
+   Áreas de aprobación
+   ================================================================ */
+export const AREAS_APROBACION = {
+  LOGISTICA: "logistica",
+  LEGAL: "legal",
+  COMUNICACION: "comunicacion",
+} as const;
+
+export type AreaAprobacion = (typeof AREAS_APROBACION)[keyof typeof AREAS_APROBACION];
+
+/* ================================================================
+   Roles de usuario
+   ================================================================ */
+export const ROLES = {
+  ADMIN: "admin",
+  LOGISTICA: "logistica",
+  LEGAL: "legal",
+  COMUNICACION: "comunicacion",
+  CLIENTE: "cliente",
+} as const;
+
+export type Rol = (typeof ROLES)[keyof typeof ROLES];
+
+export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
+  [ROLES.ADMIN]: [
+    "admin:full",
+    "dashboard:view",
+    "eventos:datos",
+    "stands:vinculacion",
+    "stands:manage",
+    "stands:plano",
+    "roles:manage",
+    "events:manage",
+    "events:create",
+    "events:edit",
+    "events:toggle",
+    "read:reservas",
+    "write:reservas",
+    "approve:all",
+    "solicitudes:view",
+    "solicitudes:review:comunicacion",
+    "solicitudes:review:legal",
+    "solicitudes:review:logistica",
+    "solicitudes:notify",
+    "solicitudes:upload",
+    "auspicios:view",
+    "laboratorio:view",
+    "laboratorio:manage",
+  ],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:review:logistica"],
+  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:review:legal"],
+  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:review:comunicacion"],
+  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "read:reservas", "write:reservas"],
+};
+
+export const ALL_PERMISSIONS = [
+  { key: "admin:full", label: "Acceso total", descripcion: "Control completo del sistema", section: "sistema" },
+  // Dashboard general
+  { key: "dashboard:view", label: "Panel de Control", descripcion: "Acceder al panel de control principal", section: "dashboard" },
+  { key: "eventos:datos", label: "Datos del Evento", descripcion: "Ver datos y precios de la version del evento", section: "dashboard" },
+  // Stands
+  { key: "stands:vinculacion", label: "Vinculacion de Stands", descripcion: "Vincular stands de GESS como disponibles", section: "stands" },
+  { key: "stands:manage", label: "Gestion de Stands", descripcion: "Administrar y editar stands del evento", section: "stands" },
+  { key: "stands:plano", label: "Plano de Stands", descripcion: "Ver el plano interactivo de stands del evento", section: "stands" },
+  // Auspicios
+  { key: "auspicios:view", label: "Ver auspicios", descripcion: "Ver listado y registrar auspicios", section: "auspicios" },
+  // Laboratorio 3D
+  { key: "laboratorio:view", label: "Ver Laboratorio 3D", descripcion: "Ver mapas 3D guardados en el laboratorio", section: "laboratorio" },
+  { key: "laboratorio:manage", label: "Editar Laboratorio 3D", descripcion: "Crear, editar, importar y exportar mapas 3D", section: "laboratorio" },
+  // Facturacion
+  { key: "facturacion:view", label: "Ver facturacion", descripcion: "Gestionar facturacion y pagos de solicitudes", section: "facturacion" },
+  // Solicitudes de alquiler
+  { key: "solicitudes:view", label: "Ver solicitudes", descripcion: "Ver bandeja de solicitudes de alquiler", section: "solicitudes" },
+  { key: "solicitudes:review:comunicacion", label: "Revisar Comunicacion", descripcion: "Aprobar/rechazar desde area de Comunicacion", section: "solicitudes" },
+  { key: "solicitudes:review:legal", label: "Revisar Legal", descripcion: "Aprobar/rechazar desde area Legal", section: "solicitudes" },
+  { key: "solicitudes:review:logistica", label: "Revisar Logistica", descripcion: "Aprobar/rechazar desde area de Logistica", section: "solicitudes" },
+  { key: "solicitudes:notify", label: "Notificar solicitudes", descripcion: "Enviar notificacion al cliente cuando todas las areas revisaron", section: "solicitudes" },
+  { key: "solicitudes:upload", label: "Subir documentos", descripcion: "Subir documentos a solicitudes de alquiler", section: "solicitudes" },
+  // Reservas (legacy)
+  { key: "read:reservas", label: "Ver reservas", descripcion: "Consultar lista y detalle de reservas", section: "reservas" },
+  { key: "write:reservas", label: "Crear reservas", descripcion: "Registrar nuevas reservas de stands", section: "reservas" },
+  { key: "approve:all", label: "Aprobar todo", descripcion: "Aprobar en cualquier area", section: "reservas" },
+  { key: "approve:logistica", label: "Aprobar Logistica", descripcion: "Resolver aprobaciones del area de Logistica", section: "reservas" },
+  { key: "approve:legal", label: "Aprobar Legal", descripcion: "Resolver aprobaciones del area Legal", section: "reservas" },
+  { key: "approve:comunicacion", label: "Aprobar Comunicacion", descripcion: "Resolver aprobaciones del area de Comunicacion", section: "reservas" },
+  // Roles y Eventos
+  { key: "roles:manage", label: "Roles y Permisos", descripcion: "Administrar roles, usuarios y permisos del sistema", section: "admin" },
+  { key: "events:manage", label: "Gestion de Eventos", descripcion: "Administrar eventos y sus versiones", section: "admin" },
+  { key: "events:create", label: "Crear eventos", descripcion: "Crear nuevas versiones de eventos", section: "eventos" },
+  { key: "events:edit", label: "Editar eventos", descripcion: "Modificar fechas e informacion de eventos", section: "eventos" },
+  { key: "events:toggle", label: "Activar/Cerrar eventos", descripcion: "Alternar estado activo/cerrado de versiones", section: "eventos" },
+] as const;
+
+export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
+
+export const PERMISSION_SECTIONS = {
+  SISTEMA: "sistema",
+  DASHBOARD: "dashboard",
+  STANDS: "stands",
+  AUSPICIOS: "auspicios",
+  LABORATORIO: "laboratorio",
+  SOLICITUDES: "solicitudes",
+  RESERVAS: "reservas",
+  EVENTOS: "eventos",
+  ADMIN: "admin",
+} as const;
+
+export const PERMISSION_SECTION_LABELS: Record<string, string> = {
+  [PERMISSION_SECTIONS.SISTEMA]: "Sistema",
+  [PERMISSION_SECTIONS.DASHBOARD]: "Panel de Control",
+  [PERMISSION_SECTIONS.STANDS]: "Gestion de Stands",
+  [PERMISSION_SECTIONS.AUSPICIOS]: "Auspicios",
+  [PERMISSION_SECTIONS.LABORATORIO]: "Laboratorio 3D",
+  [PERMISSION_SECTIONS.SOLICITUDES]: "Solicitudes de alquiler",
+  [PERMISSION_SECTIONS.RESERVAS]: "Reservas",
+  [PERMISSION_SECTIONS.EVENTOS]: "Eventos",
+  [PERMISSION_SECTIONS.ADMIN]: "Administracion",
+};
+
+/* ================================================================
+   Flujo de revisión (Solicitudes de alquiler)
+   ================================================================ */
+export const REVISION_AREAS = {
+  COMUNICACION: "comunicacion",
+  LEGAL: "legal",
+  LOGISTICA: "logistica",
+} as const;
+
+export type RevisionArea = (typeof REVISION_AREAS)[keyof typeof REVISION_AREAS];
+
+export const REVISION_AREA_ORDER: RevisionArea[] = [
+  REVISION_AREAS.LOGISTICA,
+  REVISION_AREAS.COMUNICACION,
+  REVISION_AREAS.LEGAL,
+];
+
+export const REVISION_AREA_LABELS: Record<RevisionArea, string> = {
+  [REVISION_AREAS.COMUNICACION]: "Comunicacion",
+  [REVISION_AREAS.LEGAL]: "Legal",
+  [REVISION_AREAS.LOGISTICA]: "Logistica",
+};
+
+export const REVISION_AREA_PERMISSIONS: Record<RevisionArea, string> = {
+  [REVISION_AREAS.COMUNICACION]: "solicitudes:review:comunicacion",
+  [REVISION_AREAS.LEGAL]: "solicitudes:review:legal",
+  [REVISION_AREAS.LOGISTICA]: "solicitudes:review:logistica",
+};
+
+/** Rol que debe ser notificado cuando un area completa su revision.
+    Si es null, significa que es la ultima area y se notifica al admin. */
+export const REVISION_AREA_NEXT_ROLE: Record<RevisionArea, string | null> = {
+  [REVISION_AREAS.LOGISTICA]: ROLES.COMUNICACION,
+  [REVISION_AREAS.COMUNICACION]: ROLES.LEGAL,
+  [REVISION_AREAS.LEGAL]: null, // ultima area → notificar admin
+} as const;
+
+/* ================================================================
+   Facturacion
+   ================================================================ */
+export const TIPOS_FACTURACION = {
+  NIU_BIZZ: "niubizz",
+  MANUAL: "manual",
+} as const;
+export type TipoFacturacion = (typeof TIPOS_FACTURACION)[keyof typeof TIPOS_FACTURACION];
+
+export const ESTADOS_FACTURACION = {
+  PENDIENTE: "pendiente",
+  PAGADO: "pagado",
+  ARCHIVADO: "archivado",
+  CANCELADO: "cancelado",
+} as const;
+export type EstadoFacturacion = (typeof ESTADOS_FACTURACION)[keyof typeof ESTADOS_FACTURACION];
+
+export const ESTADOS_CUOTA = {
+  PENDIENTE: "pendiente",
+  PAGADO: "pagado",
+  VENCIDO: "vencido",
+} as const;
+
+export const REVISION_STEPS = {
+  COMUNICACION: 0,
+  LEGAL: 1,
+  LOGISTICA: 2,
+} as const;
+
+export type RevisionStep = (typeof REVISION_STEPS)[keyof typeof REVISION_STEPS];
+
+/* ================================================================
+   Estados de aprobacion individual
+   ================================================================ */
+export const RESULTADOS_APROBACION = {
+  PENDIENTE: "pendiente",
+  APROBADO: "aprobado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type ResultadoAprobacion = (typeof RESULTADOS_APROBACION)[keyof typeof RESULTADOS_APROBACION];
+
+/* ================================================================
+   Estados de solicitud (pipeline de revision)
+   ================================================================ */
+export const ESTADOS_SOLICITUD = {
+  PENDIENTE: "pendiente",
+  EN_PROCESO: "en_proceso",
+  APROBADO: "aprobado",
+  RECHAZADO: "rechazado",
+  PENDIENTE_PAGO: "pendiente_pago",
+  PAGADO: "pagado",
+} as const;
+
+export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[keyof typeof ESTADOS_SOLICITUD];
+
+export const ESTADOS_SOLICITUD_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_SOLICITUD.PENDIENTE]: 1,
+  [ESTADOS_SOLICITUD.EN_PROCESO]: 2,
+  [ESTADOS_SOLICITUD.APROBADO]: 3,
+  [ESTADOS_SOLICITUD.RECHAZADO]: 4,
+  [ESTADOS_SOLICITUD.PENDIENTE_PAGO]: 5,
+  [ESTADOS_SOLICITUD.PAGADO]: 6,
+};
+
+/* ================================================================
+   Estados de revision (por area)
+   ================================================================ */
+export const ESTADOS_REVISION = {
+  PENDIENTE: "pendiente",
+  APROBADO: "aprobado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type EstadoRevision = (typeof ESTADOS_REVISION)[keyof typeof ESTADOS_REVISION];
+
+export const ESTADOS_REVISION_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_REVISION.PENDIENTE]: 1,
+  [ESTADOS_REVISION.APROBADO]: 2,
+  [ESTADOS_REVISION.RECHAZADO]: 3,
+};
+
+/* ================================================================
+   Estados de re-evaluacion
+   ================================================================ */
+export const ESTADOS_REEVALUACION = {
+  PENDIENTE: "pendiente",
+  APROBADO: "aprobado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type EstadoReevaluacion = (typeof ESTADOS_REEVALUACION)[keyof typeof ESTADOS_REEVALUACION];
+
+export const ESTADOS_REEVALUACION_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_REEVALUACION.PENDIENTE]: 1,
+  [ESTADOS_REEVALUACION.APROBADO]: 2,
+  [ESTADOS_REEVALUACION.RECHAZADO]: 3,
+};
+
+/* ================================================================
+   Estados de interoperabilidad (facturación)
+   ================================================================ */
+export const ESTADOS_INTEROP = {
+  ENVIADO: "enviado",
+  CONFIRMADO: "confirmado",
+  ERROR: "error",
+} as const;
+
+export type EstadoInterop = (typeof ESTADOS_INTEROP)[keyof typeof ESTADOS_INTEROP];
+
+/* ================================================================
+   Monedas
+   ================================================================ */
+export const MONEDAS = {
+  USD: "USD",
+  PEN: "PEN",
+  US_DOLAR: "US$",
+} as const;
+
+export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
+
+/* ================================================================
+   Claves de localStorage
+   ================================================================ */
+export const LS_KEYS = {
+  VERTICAL: "iimp-vertical",
+  EVENTO_PUBLICO: "iimp-evento-publico",
+  EVENTO_PENDIENTE: "iimp-pending-evento",
+  PLANO_SELECCION: "iimp-plano-seleccion",
+} as const;
+
+/* ================================================================
+   Steps del modal de reserva
+   ================================================================ */
+export const RESERVA_STEPS = {
+  DATOS: 0,
+  DOCUMENTOS: 1,
+  CONFIRMACION: 2,
+} as const;
+
+export type ReservaStep = (typeof RESERVA_STEPS)[keyof typeof RESERVA_STEPS];
+
+/* ================================================================
+   Tablas de maestra (diccionario)
+   ================================================================ */
+export const MAESTRA_TABLAS = {
+  COMPROBANTE_TIPO: "comprobante_tipo",
+  DOCUMENTO_TIPO: "documento_tipo",
+  USUARIO_TIPO: "usuario_tipo",
+  STAND_ESTADO: "stand_estado",
+  SOLICITUD_ESTADO: "solicitud_estado",
+  REVISION_ESTADO: "revision_estado",
+  REEVALUACION_ESTADO: "reevaluacion_estado",
+  FACTURACION_ESTADO: "facturacion_estado",
+  FACTURACION_TIPO: "facturacion_tipo",
+  CUOTA_ESTADO: "cuota_estado",
+} as const;
+
+export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
+
+/* ================================================================
+   Codigos de error API
+   ================================================================ */
+export const API_ERROR_CODES = {
+  VALIDATION: "VALIDATION",
+  NOT_FOUND: "NOT_FOUND",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  CONFLICT: "CONFLICT",
+  INTERNAL: "INTERNAL",
+  BAD_GATEWAY: "BAD_GATEWAY",
+} as const;
+
+/* ================================================================
+   Estilos de Badge (colores semanticos por estado)
+   — Usar en lugar de strings hardcodeados para mantener consistencia visual
+   — Formato: Tailwind classes (bg-*, text-*, border-*)
+   ================================================================ */
+export const BADGE_STYLES = {
+  SUCCESS: "bg-green-100 text-green-800 border-green-200",
+  DESTRUCTIVE: "bg-red-100 text-red-800 border-red-200",
+  NEUTRAL: "bg-slate-100 text-slate-600 border-slate-200",
+  WARNING: "bg-amber-100 text-amber-800 border-amber-200",
+  INFO: "bg-blue-100 text-blue-800 border-blue-200",
+  INDIGO: "bg-indigo-100 text-indigo-800 border-indigo-200",
+} as const;
+
+export type BadgeStyle = (typeof BADGE_STYLES)[keyof typeof BADGE_STYLES];
+
+export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];

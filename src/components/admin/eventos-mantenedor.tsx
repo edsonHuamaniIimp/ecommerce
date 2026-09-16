@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
 import { RefreshCw, Pencil, ChevronRight, Eye, EyeOff, Calendar, Map, Hash } from "lucide-react";
-import { eventosServiceClient } from "@/lib/api/services/eventos-service";
-import { listPlanos } from "@/lib/planos/registry";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
+import { planosService } from "@/lib/client/api/services/planos-service";
+import { listPlanos } from "@/lib/shared/planos/registry";
+import { toast } from "sonner";
+import { TIPOS_PLANO } from "@/lib/shared/constants";
+
+interface PlanoOpcion { id: string; nombre: string; tipo: string; eventoAsignado: { tipoEvento: number; codigoEvento: number } | null; }
 
 interface VersionItem {
   id: string; anio: string; tipoEvento: number; codigoEvento: number; estado: string;
@@ -22,12 +27,23 @@ export function EventosMantenedor() {
   const [editItem, setEditItem] = useState<VersionItem | null>(null);
   const [editPlano, setEditPlano] = useState("gess");
   const [editFlgVisible, setEditFlgVisible] = useState(false);
+  const [planosOpciones, setPlanosOpciones] = useState<PlanoOpcion[]>(listPlanos().map((p) => ({ id: p.id, nombre: p.nombre, tipo: TIPOS_PLANO.SIMPLE, eventoAsignado: null })));
+
+  useEffect(() => {
+    planosService.listar()
+      .then((data) => {
+        if (data.length > 0) setPlanosOpciones(data.map((p) => ({ id: p.codigo, nombre: p.nombre, tipo: p.tipo, eventoAsignado: p.eventoAsignado })));
+      })
+      .catch(() => { /* fallback a lista en codigo */ });
+  }, []);
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await eventosServiceClient.listar();
-      setGrupos(Array.isArray(data) ? (data as unknown as EventoGrupo[]) : []);
+      const list = Array.isArray(data) ? (data as unknown as EventoGrupo[]) : [];
+      setGrupos(list);
+      setSelectedGrupo((prev) => (prev ? (list.find((g) => g.id === prev.id) ?? prev) : prev));
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -36,7 +52,7 @@ export function EventosMantenedor() {
 
   const openEdit = (ver: VersionItem) => {
     setEditItem(ver);
-    setEditPlano(ver.plano ?? "gess");
+    setEditPlano(ver.plano ?? "");
     setEditFlgVisible(ver.flgVisible ?? false);
     setEditDialog(true);
   };
@@ -47,12 +63,23 @@ export function EventosMantenedor() {
       await eventosServiceClient.actualizar({
         tipo_evento: editItem.tipoEvento,
         codigo_evento: editItem.codigoEvento,
-        plano: editPlano || undefined,
+        plano: editPlano,
         flg_visible: editFlgVisible,
       });
+      toast.success("Evento actualizado");
+      setSelectedGrupo((prev) => (prev ? {
+        ...prev,
+        versiones: prev.versiones.map((v) =>
+          v.tipoEvento === editItem.tipoEvento && v.codigoEvento === editItem.codigoEvento
+            ? { ...v, plano: editPlano || null, flgVisible: editFlgVisible }
+            : v,
+        ),
+      } : prev));
       await load();
-    } catch { /* ignore */ }
-    setEditDialog(false);
+      setEditDialog(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al actualizar el evento");
+    }
   };
 
   const formatDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -203,14 +230,24 @@ export function EventosMantenedor() {
               </div>
             )}
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-slate-600">Plano 3D</p>
+              <p className="text-xs font-semibold text-slate-600">Plano 3D / Mapa</p>
               <Select value={editPlano} onValueChange={setEditPlano}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value=""><span>Sin asignar</span></SelectItem>
-                  {listPlanos().map((p) => (<SelectItem key={p.id} value={p.id}><span>{p.nombre}</span></SelectItem>))}
+                  {planosOpciones.map((p) => {
+                    const enUsoPorOtro = p.eventoAsignado !== null
+                      && !(editItem && p.eventoAsignado.tipoEvento === editItem.tipoEvento && p.eventoAsignado.codigoEvento === editItem.codigoEvento);
+                    const etiqueta = `${p.nombre}${p.tipo === TIPOS_PLANO.MACRO ? " (macro)" : ""}${enUsoPorOtro ? ` — en uso en ${p.eventoAsignado?.tipoEvento}/${p.eventoAsignado?.codigoEvento}` : ""}`;
+                    return (
+                      <SelectItem key={p.id} value={p.id} disabled={enUsoPorOtro}>
+                        <span className={enUsoPorOtro ? "text-slate-400" : ""}>{etiqueta}</span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              <p className="text-[10px] text-slate-400">Un mapa 3D solo puede estar asignado a un evento a la vez.</p>
             </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox checked={editFlgVisible} onCheckedChange={(v) => setEditFlgVisible(v === true)} />

@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { maestraController } from "@/controllers/maestra.controller";
 
 export const { GET } = createRouter({

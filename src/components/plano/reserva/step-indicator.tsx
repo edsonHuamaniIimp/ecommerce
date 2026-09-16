@@ -2,12 +2,12 @@
 
 import { Fragment } from "react";
 import { Check } from "lucide-react";
-import { RESERVA_STEPS } from "@/lib/constants";
-import type { ReservaStep } from "@/lib/constants";
+import { RESERVA_STEPS } from "@/lib/shared/constants";
+import type { ReservaStep } from "@/lib/shared/constants";
 
 const STEPS = [
-  { key: RESERVA_STEPS.DATOS, label: "Datos" },
-  { key: RESERVA_STEPS.DOCUMENTOS, label: "Docs" },
+  { key: RESERVA_STEPS.DATOS, label: "Tus datos" },
+  { key: RESERVA_STEPS.DOCUMENTOS, label: "Documentos" },
   { key: RESERVA_STEPS.CONFIRMACION, label: "Confirmar" },
 ] as const;
 

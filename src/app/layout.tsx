@@ -14,22 +14,6 @@ export const metadata: Metadata = {
   description: "Gestión de contratos de stands para eventos IIMP",
 };
 
-const verticalInitScript = `
-(function () {
-  try {
-    var allowed = ["proexplo", "wmc", "gess", "perumin"];
-    var savedV = localStorage.getItem("iimp-vertical");
-    var params = new URLSearchParams(window.location.search);
-    var themeParam = params.get("theme");
-    var vertical = allowed.indexOf(themeParam) !== -1
-      ? themeParam
-      : (allowed.indexOf(savedV) !== -1 ? savedV : "proexplo");
-    document.documentElement.classList.add("vert-" + vertical);
-    document.documentElement.setAttribute("data-vertical", vertical);
-  } catch (e) {}
-})();
-`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -41,13 +25,10 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${poppins.variable} h-full antialiased`}
     >
-      <head>
-        <script
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: verticalInitScript }}
-        />
-      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {/* Anti-flash de vertical: script externo hoistable (React 19 lo
+            eleva al <head> y lo ejecuta antes del primer paint) */}
+        <script async src="/vertical-init.js" />
         <Providers>{children}</Providers>
       </body>
     </html>

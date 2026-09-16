@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession } from "@/lib/server/auth";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { DatosEventoManager } from "@/components/plano/datos-evento-manager";
 import Link from "next/link";

@@ -6,7 +6,7 @@ import type {
   AreaAprobacion,
   ResultadoAprobacion,
   EstadoEvento,
-} from "@/lib/constants";
+} from "@/lib/shared/constants";
 
 export type { Vertical, EstadoStand, EstadoReserva, TipoComprobante, AreaAprobacion, EstadoEvento };
 

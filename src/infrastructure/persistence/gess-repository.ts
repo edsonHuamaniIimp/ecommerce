@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/server/db";
 import type { IGessRepository, GessPaginationParams, GessPaginatedResult } from "@/domain/ports/gess-repository";
 import type { GessStandEntity } from "@/domain/models/entities";
 

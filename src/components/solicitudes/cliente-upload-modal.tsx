@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Upload, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { solicitudesService } from "@/lib/api/services/solicitudes-service";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {

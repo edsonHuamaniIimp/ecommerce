@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getSession } from "@/lib/server/auth";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ReservasManager } from "@/components/reservas/reservas-manager";
 import Link from "next/link";

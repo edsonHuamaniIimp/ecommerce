@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getStorage } from "@/lib/storage";
-import { ok, err } from "@/lib/api-response";
+import { getStorage } from "@/lib/server/storage";
+import { ok, err } from "@/lib/server/api-response";
 
 export async function POST(request: Request) {
   try {

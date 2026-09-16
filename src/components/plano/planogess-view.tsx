@@ -1,10 +1,11 @@
 "use client";
 
+import { BADGE_STYLES } from "@/lib/shared/constants";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
-import { gessService } from "@/lib/api/services/gess-service";
+import { gessService } from "@/lib/client/api/services/gess-service";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 
 type PlanogessRow = Record<string, unknown>;
@@ -64,9 +65,9 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
       const v = String(value).toLowerCase();
       return (
         <Badge variant="default" className={`text-[10px] ${
-          v === "disponible" || v === "available" ? "bg-green-100 text-green-800 border-green-200"
-          : v === "reservado" || v === "reserved" ? "bg-red-100 text-red-800 border-red-200"
-          : "bg-slate-100 text-slate-600 border-slate-200"
+          v === "disponible" || v === "available" ? BADGE_STYLES.SUCCESS
+          : v === "reservado" || v === "reserved" ? BADGE_STYLES.DESTRUCTIVE
+          : BADGE_STYLES.NEUTRAL
         }`}>
           {String(value)}
         </Badge>

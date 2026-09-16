@@ -3,8 +3,8 @@
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
 import { ChevronRight, ChevronLeft, Building2, X } from "lucide-react";
 import { useState } from "react";
-import { RESERVA_STEPS } from "@/lib/constants";
-import type { ReservaStep } from "@/lib/constants";
+import { RESERVA_STEPS } from "@/lib/shared/constants";
+import type { ReservaStep } from "@/lib/shared/constants";
 import { StepIndicator } from "./step-indicator";
 import { StepDatos } from "./step-datos";
 import { StepDocumentos } from "./step-documentos";
@@ -32,6 +32,8 @@ interface Props {
   onAddDoc: (file: File) => Promise<void>;
   onRemoveDoc: (idx: number) => void;
   onSubmit: () => Promise<boolean>;
+  confirmado: boolean;
+  onConfirmadoChange: (v: boolean) => void;
 }
 
 const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.DOCUMENTOS, RESERVA_STEPS.CONFIRMACION] as const;
@@ -42,6 +44,7 @@ export function ReservaModal(props: Props) {
     formDatos, onDatosChange, formDocs, uploading, submitting, submitError,
     selectedCount, singleStand, selectedLabels, selectedItems,
     existingDocs, onAddDoc, onRemoveDoc, onSubmit,
+    confirmado, onConfirmadoChange,
   } = props;
 
   const isLast = step === RESERVA_STEPS.CONFIRMACION;
@@ -89,7 +92,7 @@ export function ReservaModal(props: Props) {
             />
           )}
           {step === RESERVA_STEPS.CONFIRMACION && (
-            <StepConfirmacion datos={formDatos} selectedLabels={selectedLabels} docsCount={formDocs.length} />
+            <StepConfirmacion datos={formDatos} selectedLabels={selectedLabels} docsCount={formDocs.length} confirmado={confirmado} onConfirmadoChange={onConfirmadoChange} />
           )}
         </div>
 
@@ -122,7 +125,7 @@ export function ReservaModal(props: Props) {
                 </Button>
               )}
               {isLast && (
-                <Button size="sm" disabled={submitting}
+                <Button size="sm" disabled={submitting || !stepDone(step)}
                   className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
                   onClick={onSubmit}>
                   {submitting ? <span>Enviando...</span> : <span>Enviar solicitud</span>}

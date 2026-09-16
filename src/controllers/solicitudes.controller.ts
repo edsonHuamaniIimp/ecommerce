@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { services } from "@/lib/services";
-import { prisma } from "@/lib/db";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
-import { sendEmail } from "@/lib/email";
-import { getSession } from "@/lib/auth";
+import { services } from "@/lib/server/services";
+import { prisma } from "@/lib/server/db";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { sendEmail } from "@/lib/server/email";
+import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION } from "@/lib/constants";
-import { buildRevisionEmail } from "@/lib/email-templates";
+import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION } from "@/lib/shared/constants";
+import { buildRevisionEmail } from "@/lib/server/email-templates";
 
 export const solicitudesController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -49,6 +49,11 @@ export const solicitudesController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     if (!session.permissions.includes("solicitudes:notify") && !session.permissions.includes("admin:full")) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para notificar", 403);
+    }
+    // Validar contra BD (el JWT puede estar desactualizado si se editaron permisos)
+    const { hasDBPermission } = await import("@/lib/server/auth");
+    if (!(await hasDBPermission(session, "solicitudes:notify"))) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Permiso revocado. Cierra sesion y vuelve a ingresar.", 403);
     }
     const raw = await request.json() as { solicitudId: string; to: string; modo: "automatico" | "personalizado"; mensaje?: string };
     if (!raw.solicitudId || !raw.to || !raw.modo) return error(API_ERROR_CODES.VALIDATION, "Campos requeridos", 400);

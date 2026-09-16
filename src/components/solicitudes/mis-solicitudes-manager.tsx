@@ -2,21 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Info, Upload, Trash2, ChevronDown } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Info, Upload, Trash2, ChevronDown, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Pagination } from "@/components/shared/pagination";
-import { authService } from "@/lib/api/services/auth-service";
+import { authService } from "@/lib/client/api/services/auth-service";
 import { useSearchParams } from "next/navigation";
-import { solicitudesService } from "@/lib/api/services/solicitudes-service";
-import { dateUtils } from "@/lib/utils/date";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { HistorialModal } from "./historial-modal";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_SOLICITUD, MAESTRA_TABLAS, ESTADOS_REEVALUACION } from "@/lib/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_SOLICITUD, MAESTRA_TABLAS, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
@@ -28,6 +28,9 @@ function puedeAdjuntarDocumentos(row: SolicitudRow) { return esMultiStand(row) &
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function estaDadaDeBaja(row: SolicitudRow) { return row.flgActivo === false; }
+function puedePagarNiubizz(row: SolicitudRow) {
+  return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO && row.tipoFacturacion === "niubizz";
+}
 function puedeSolicitarReevaluacion(row: SolicitudRow) {
   if (estaDadaDeBaja(row) || !estaRechazada(row) || tieneReevaluacionPendiente(row)) return false;
   if (esMultiStand(row) && (row.clienteDocsAdjuntosCount ?? 0) === 0) return false;
@@ -115,6 +118,9 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
       if (autoOpenId) {
         const found = data.data.find((r) => r.id === autoOpenId);
         if (found) { setDetailRow(found); setDetailOpen(true); }
+        const next = new URL(window.location.href);
+        next.searchParams.delete("id");
+        window.history.replaceState({}, "", next.toString());
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -189,26 +195,26 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
                           <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                           <TableCell>
                             {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-green-100 text-green-800 border-green-200">
-                                <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-red-100 text-red-800 border-red-200">
-                                <XCircle className="mr-0.5 h-2.5 w-2.5" /> Rechazado
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-blue-100 text-blue-800 border-blue-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" /> En proceso
-                              </Badge>
-                            ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
-                              <Badge className="text-[10px] pointer-events-none bg-indigo-100 text-indigo-800 border-indigo-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente Pago
-                              </Badge>
-                            ) : (
-                              <Badge className="text-[10px] pointer-events-none bg-amber-100 text-amber-800 border-amber-200">
-                                <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente
-                              </Badge>
-                            )}
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>
+                                 <XCircle className="mr-0.5 h-2.5 w-2.5" /> Rechazado
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> En proceso
+                               </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente Pago
+                               </Badge>
+                             ) : (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente
+                               </Badge>
+                             )}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs">
                             {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
@@ -273,6 +279,20 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
                                     </TooltipTrigger>
                                     <TooltipContent side="top"><span>Ver estado</span></TooltipContent>
                                   </Tooltip>
+                                  {puedePagarNiubizz(row) && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-emerald-600 hover:bg-emerald-700"
+                                          onClick={() => {
+                                            if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
+                                            window.location.href = `/dashboard/facturacion/pago?facturacionId=${row.facturacionId}`;
+                                          }}>
+                                          <CreditCard className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top"><span>Pagar con Niubizz</span></TooltipContent>
+                                    </Tooltip>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -473,7 +493,7 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
                       <div key={area} className="rounded bg-muted/30 px-3 py-2 text-xs">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">{REVISION_AREA_LABELS[area]}</span>
-                          <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? "bg-green-100 text-green-800 border-green-200" : estado === RESULTADOS_APROBACION.RECHAZADO ? "bg-red-100 text-red-800 border-red-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                          <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? BADGE_STYLES.SUCCESS : estado === RESULTADOS_APROBACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
                             {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente"}
                           </Badge>
                         </div>
@@ -529,6 +549,15 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
           )}
           </div>
           {/* Footer */}
+          {detailRow && puedePagarNiubizz(detailRow) && (
+            <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex justify-end">
+              <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => toast.info("Redirigiendo a la pasarela de pago Niubizz...")}>
+                <CreditCard className="mr-1 h-3.5 w-3.5" />
+                Pagar con Niubizz
+              </Button>
+            </div>
+          )}
           {detailRow && puedeSolicitarReevaluacion(detailRow) && (
             <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex justify-end">
               <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold"

@@ -1,6 +1,6 @@
 import { RolesMantenedor } from "@/components/admin/roles-mantenedor";
-import { prisma } from "@/lib/db";
-import type { Rol } from "@/lib/constants";
+import { prisma } from "@/lib/server/db";
+import type { Rol } from "@/lib/shared/constants";
 
 type RoleWithUsuarios = { id: string; nombre: string; descripcion: string | null; permisos: string[]; usuarios: { id: string; userId: string; email: string }[] };
 

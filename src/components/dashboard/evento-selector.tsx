@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { ESTADOS_EVENTO } from "@/lib/constants";
+import { ESTADOS_EVENTO } from "@/lib/shared/constants";
 import type { Evento } from "@/types/reserva";
 
 interface EventoSelectorProps {

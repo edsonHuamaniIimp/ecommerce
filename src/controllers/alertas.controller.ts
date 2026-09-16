@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
-import { getSession } from "@/lib/auth";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { getSession } from "@/lib/server/auth";
 import { alertasService } from "@/application/alertas/alertas-service";
 
 export const alertasController = {

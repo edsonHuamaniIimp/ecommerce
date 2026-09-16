@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/server/db";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 
 export class AuthPrismaRepository implements IAuthRepository {
@@ -49,11 +49,11 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findPerfilByEmail(email: string) {
     return prisma.userRole.findFirst({
       where: { email },
-      select: { email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true },
+      select: { email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true, idEmpresa: true, nombreEmpresa: true },
     });
   }
 
-  async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null }) {
+  async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null }) {
     await prisma.userRole.updateMany({ where: { email }, data });
   }
 

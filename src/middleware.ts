@@ -1,30 +1,49 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, verifyToken, hasRole, hasPermission } from "@/lib/auth";
-import { ROLES } from "@/lib/constants";
+import { getTokenFromRequest, verifyToken, hasPermission } from "@/lib/server/auth";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES } from "@/lib/shared/constants";
 
-const PROTECTED: { path: string; roles: string[]; permission?: string }[] = [
-  { path: "/dashboard/vinculacion", roles: [ROLES.ADMIN], permission: "stands:vinculacion" },
-  { path: "/dashboard/datos-evento", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "eventos:datos" },
-  { path: "/dashboard/solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
-  { path: "/dashboard/mis-solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
-  { path: "/dashboard/stands", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION], permission: "stands:manage" },
-  { path: "/dashboard/reservas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "read:reservas" },
-  { path: "/dashboard/auspicios", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "auspicios:view" },
-  { path: "/api/auspicios", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "auspicios:view" },
-  { path: "/dashboard/roles", roles: [ROLES.ADMIN], permission: "roles:manage" },
-  { path: "/dashboard/eventos", roles: [ROLES.ADMIN], permission: "events:manage" },
-  { path: "/api/roles", roles: [ROLES.ADMIN], permission: "roles:manage" },
-  { path: "/api/eventos", roles: [ROLES.ADMIN], permission: "events:manage" },
-  { path: "/api/solicitudes", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "solicitudes:view" },
-  { path: "/api/alertas", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "dashboard:view" },
-  { path: "/plano", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE], permission: "stands:plano" },
-  { path: "/dashboard", roles: [ROLES.ADMIN, ROLES.LOGISTICA, ROLES.LEGAL, ROLES.COMUNICACION, ROLES.CLIENTE] },
+interface ProtectedRoute {
+  /** Prefijo de ruta (startsWith) */
+  path: string;
+  /** Permiso requerido. Si se omite, cualquier rol autenticado accede. */
+  permission?: string;
+}
+
+const PROTECTED: ProtectedRoute[] = [
+  { path: "/dashboard/vinculacion", permission: "stands:vinculacion" },
+  { path: "/dashboard/datos-evento", permission: "eventos:datos" },
+  { path: "/dashboard/solicitudes", permission: "solicitudes:view" },
+  { path: "/dashboard/mis-solicitudes", permission: "solicitudes:view" },
+  { path: "/dashboard/stands", permission: "stands:manage" },
+  { path: "/dashboard/reservas", permission: "read:reservas" },
+  { path: "/dashboard/auspicios", permission: "auspicios:view" },
+  { path: "/dashboard/facturacion", permission: "facturacion:view" },
+  { path: "/api/facturacion", permission: "facturacion:view" },
+  { path: "/dashboard/laboratorio", permission: "laboratorio:view" },
+  { path: "/api/planos", permission: "laboratorio:view" },
+  { path: "/dashboard/roles", permission: "roles:manage" },
+  { path: "/dashboard/eventos", permission: "events:manage" },
+  { path: "/api/roles", permission: "roles:manage" },
+  { path: "/api/eventos", permission: "events:manage" },
+  { path: "/api/solicitudes", permission: "solicitudes:view" },
+  { path: "/api/auspicios", permission: "auspicios:view" },
+  { path: "/api/entidades" },
+  { path: "/api/exhibidoras" },
+  { path: "/api/alertas" },
+  { path: "/plano", permission: "stands:plano" },
+  { path: "/mapa", permission: "stands:plano" },
+  { path: "/dashboard" },
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/auth/login" || pathname === "/presala" || pathname === "/" || pathname.startsWith("/api/auth/") || pathname === "/api/maestra" || (pathname === "/api/eventos/listar" && request.nextUrl.searchParams.get("presala") === "1") || pathname.startsWith("/api/maestra/")) {
+  const isPublicRoute = PUBLIC_ROUTES.some(r => r === pathname);
+  const isPublicApiPrefix = PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p));
+  const isPublicApiExact = PUBLIC_API_ROUTES.some(r => r === pathname);
+  const isPresalaListar = pathname === "/api/eventos/listar" && request.nextUrl.searchParams.get("presala") === "1";
+
+  if (isPublicRoute || isPublicApiPrefix || isPublicApiExact || isPresalaListar) {
     return NextResponse.next();
   }
 
@@ -32,15 +51,17 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith(route.path)) {
       const token = getTokenFromRequest(request);
       if (!token) return redirectToLogin(request);
+
       const payload = await verifyToken(token);
       if (!payload) return redirectToLogin(request);
-      if (!hasRole(payload, ...(route.roles as typeof ROLES[keyof typeof ROLES][]))) {
-        return NextResponse.redirect(new URL("/403", request.url));
-      }
+
       if (route.permission && !hasPermission(payload, route.permission)) {
         return NextResponse.redirect(new URL("/403", request.url));
       }
-      if (payload.roles.includes(ROLES.ADMIN)) break;
+
+      // Admin bypass eventoId check
+      if (payload.roles.includes("admin")) break;
+
       if (!payload.eventoId) {
         return NextResponse.redirect(new URL("/presala", request.url));
       }

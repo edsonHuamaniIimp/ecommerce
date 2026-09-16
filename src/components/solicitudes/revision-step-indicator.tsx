@@ -2,15 +2,16 @@
 
 import { Fragment } from "react";
 import { Check, X } from "lucide-react";
-import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION } from "@/lib/constants";
+import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION } from "@/lib/shared/constants";
 
 interface Props {
   currentStep: number;
   stepState: (area: string) => "pendiente" | "aprobado" | "rechazado";
   onGoStep: (step: number) => void;
+  stepCanGo: (step: number) => boolean;
 }
 
-export function RevisionStepIndicator({ currentStep, stepState, onGoStep }: Props) {
+export function RevisionStepIndicator({ currentStep, stepState, onGoStep, stepCanGo }: Props) {
   return (
     <div className="mb-4 flex items-start justify-between px-2">
       {REVISION_AREA_ORDER.map((area, idx) => {
@@ -19,13 +20,16 @@ export function RevisionStepIndicator({ currentStep, stepState, onGoStep }: Prop
         const isDone = estado === RESULTADOS_APROBACION.APROBADO;
         const isRejected = estado === RESULTADOS_APROBACION.RECHAZADO;
         const isActive = isDone || isRejected;
-
+        const canClick = stepCanGo(idx);
         return (
           <Fragment key={area}>
             <button
               type="button"
-              onClick={() => onGoStep(idx)}
-              className="flex flex-col items-center gap-1.5 cursor-pointer group"
+              onClick={() => canClick && onGoStep(idx)}
+              disabled={!canClick}
+              className={`flex flex-col items-center gap-1.5 transition-all duration-200 ${
+                canClick ? "cursor-pointer group" : "cursor-default opacity-60"
+              }`}
               title={REVISION_AREA_LABELS[area]}
             >
               <span

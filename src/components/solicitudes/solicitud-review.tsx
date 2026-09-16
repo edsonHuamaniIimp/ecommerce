@@ -10,11 +10,12 @@ import {
   REVISION_AREA_ORDER,
   REVISION_STEPS,
   RESULTADOS_APROBACION,
-} from "@/lib/constants";
-import { solicitudesService } from "@/lib/api/services/solicitudes-service";
+  BADGE_STYLES,
+} from "@/lib/shared/constants";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
-import { dateUtils } from "@/lib/utils/date";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -29,13 +30,11 @@ interface RevisionData {
   createdAt: string;
 }
 
-const STEP_AREAS: Record<number, string> = {
-  [REVISION_STEPS.COMUNICACION]: REVISION_AREAS.COMUNICACION,
-  [REVISION_STEPS.LEGAL]: REVISION_AREAS.LEGAL,
-  [REVISION_STEPS.LOGISTICA]: REVISION_AREAS.LOGISTICA,
-};
+const STEP_AREAS: Record<number, string> = Object.fromEntries(
+  REVISION_AREA_ORDER.map((area, idx) => [idx, area])
+);
 
-const STEPS = [REVISION_STEPS.COMUNICACION, REVISION_STEPS.LEGAL, REVISION_STEPS.LOGISTICA] as const;
+const STEPS = REVISION_AREA_ORDER.map((_, idx) => idx);
 
 function getRevision(row: SolicitudRow, area: string): RevisionData | null {
   return row.revisiones.find((r) => r.area === area) ?? null;
@@ -152,6 +151,15 @@ export function SolicitudReview({
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
 
+  // Linear flow: can only go to step N if step N-1 is done
+  const stepCanGo = (step: number): boolean => {
+    if (step === 0) return true;
+    const prevArea = STEP_AREAS[step - 1];
+    const prevRev = getRevision(row, prevArea);
+    return prevRev !== null && prevRev.estado !== RESULTADOS_APROBACION.PENDIENTE;
+  };
+  const canAdvance = currentRev !== null && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE;
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* ===== HEADER ===== */}
@@ -160,6 +168,7 @@ export function SolicitudReview({
           currentStep={currentStep}
           stepState={stepState}
           onGoStep={setCurrentStep}
+          stepCanGo={stepCanGo}
         />
 
         {/* Stand info line */}
@@ -240,16 +249,13 @@ export function SolicitudReview({
           <h3 className="text-sm font-semibold text-slate-800">
             Revision de {REVISION_AREA_LABELS[currentArea as keyof typeof REVISION_AREA_LABELS]}
           </h3>
-          <Badge
-            variant={
-              currentRev?.estado === RESULTADOS_APROBACION.APROBADO
-                ? "default"
-                : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO
-                ? "destructive"
-                : "secondary"
-            }
-            className="text-[10px]"
-          >
+          <Badge className={`text-[10px] pointer-events-none ${
+            currentRev?.estado === RESULTADOS_APROBACION.APROBADO
+              ? BADGE_STYLES.SUCCESS
+              : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO
+                ? BADGE_STYLES.DESTRUCTIVE
+                : BADGE_STYLES.WARNING
+          }`}>
             {currentRev?.estado === RESULTADOS_APROBACION.APROBADO ? (
               <><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado</>
             ) : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO ? (
@@ -410,6 +416,7 @@ export function SolicitudReview({
             {!isLast && (
               <Button
                 size="sm"
+                disabled={!canAdvance}
                 className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
                 onClick={() => setCurrentStep((p) => Math.min(totalSteps - 1, p + 1))}
               >

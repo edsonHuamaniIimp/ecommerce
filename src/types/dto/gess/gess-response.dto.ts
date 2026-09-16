@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@/lib/api-response";
+import type { ApiResponse } from "@/lib/server/api-response";
 import type { GessStandDTO } from "./gess-stand.dto";
 import type { GessSyncResultDTO } from "./sync-result.dto";
 

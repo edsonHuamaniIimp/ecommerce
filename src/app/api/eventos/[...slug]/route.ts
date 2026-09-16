@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { eventosController } from "@/controllers/eventos.controller";
 
 export const { GET, POST, PATCH } = createRouter({

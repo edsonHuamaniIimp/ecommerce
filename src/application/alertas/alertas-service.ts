@@ -1,6 +1,6 @@
-import { prisma } from "@/lib/db";
-import { ROLES } from "@/lib/constants";
-import type { Rol } from "@/lib/constants";
+import { prisma } from "@/lib/server/db";
+import { ROLES } from "@/lib/shared/constants";
+import type { Rol } from "@/lib/shared/constants";
 
 interface JwtPayload {
   sub: string;

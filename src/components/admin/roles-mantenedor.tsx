@@ -2,8 +2,8 @@
 
 import { useState, Fragment, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
-import { ALL_PERMISSIONS, PERMISSION_SECTION_LABELS } from "@/lib/constants";
-import { rolesService } from "@/lib/api/services/roles-service";
+import { ALL_PERMISSIONS, PERMISSION_SECTION_LABELS } from "@/lib/shared/constants";
+import { rolesService } from "@/lib/client/api/services/roles-service";
 
 interface UsuarioRow {
   id: string;

@@ -1,7 +1,7 @@
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
-import { signToken } from "@/lib/auth";
-import { sendEmail } from "@/lib/email";
-import type { Rol } from "@/lib/constants";
+import { signToken } from "@/lib/server/auth";
+import { sendEmail } from "@/lib/server/email";
+import type { Rol } from "@/lib/shared/constants";
 import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
 import type { SessionResult } from "@/types/dto/auth/session-result.dto";
@@ -23,12 +23,13 @@ export class AuthApplicationService {
     if (userRoles[0].password !== dto.password) return { error: "Contrasena incorrecta", status: 401 } as const;
 
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);
-    const token = await signToken({ sub: `user|${dto.email}`, email: dto.email, name: dto.email.split("@")[0] ?? dto.email, roles });
+    const permissions = userRoles[0].role.permisos;
+    const token = await signToken({ sub: `user|${dto.email}`, email: dto.email, name: dto.email.split("@")[0] ?? dto.email, roles, permissions });
     return { token, roles, email: dto.email };
   }
 
   async getSession(): Promise<SessionResult> {
-    const { getSession } = await import("@/lib/auth");
+    const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return { authenticated: false } as const;
 
@@ -66,6 +67,7 @@ export class AuthApplicationService {
     const newToken = await signToken({
       sub: payload.sub as string, email: payload.email as string,
       name: payload.name as string, roles: payload.roles as Rol[],
+      permissions: payload.permissions as string[],
       eventoId, tipoEvento, codigoEvento,
       eventoNombre: dto.eventoNombre,
       eventoPadreNombre: dto.eventoPadreNombre ?? payload.eventoPadreNombre as string | undefined,
@@ -75,15 +77,15 @@ export class AuthApplicationService {
   }
 
   async getPerfil(): Promise<PerfilResult | null> {
-    const { getSession } = await import("@/lib/auth");
+    const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return null;
     const u = await this.repo.findPerfilByEmail(session.email);
-    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null };
+    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null };
   }
 
   async updatePerfil(dto: PerfilUpdateRequestDTO): Promise<boolean> {
-    const { getSession } = await import("@/lib/auth");
+    const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return false;
     await this.repo.updatePerfil(session.email, dto);

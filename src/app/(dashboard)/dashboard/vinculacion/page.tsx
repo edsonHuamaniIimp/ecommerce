@@ -1,5 +1,5 @@
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/server/auth";
+import { prisma } from "@/lib/server/db";
 import { GessMantenedor } from "@/components/gess/gess-mantenedor";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";

@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Dialog, Dialog
 import { Eye, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
-import { gessService } from "@/lib/api/services/gess-service";
-import { internalApi } from "@/lib/api/services/internal-api";
-import { maestraService } from "@/lib/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID } from "@/lib/constants";
+import { gessService } from "@/lib/client/api/services/gess-service";
+import { internalApi } from "@/lib/client/api/services/internal-api";
+import { maestraService } from "@/lib/client/api/services/maestra-service";
+import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
@@ -175,7 +175,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{row.bloqueId}</TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge className={`text-[10px] pointer-events-none ${est === ESTADOS_STAND.DISPONIBLE ? "bg-green-100 text-green-800 border-green-200" : est === ESTADOS_STAND.RESERVADO ? "bg-red-100 text-red-800 border-red-200" : "bg-amber-100 text-amber-800 border-amber-200"}`}>
+                          <Badge className={`text-[10px] pointer-events-none ${est === ESTADOS_STAND.DISPONIBLE ? BADGE_STYLES.SUCCESS : est === ESTADOS_STAND.RESERVADO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
                             {estadoLabels[est ?? ""] ?? row.estado ?? "—"}
                           </Badge>
                         </TableCell>

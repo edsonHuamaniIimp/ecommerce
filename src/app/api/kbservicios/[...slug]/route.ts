@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { kbServiciosController } from "@/controllers/kbservicios.controller";
 
 export const { POST } = createRouter({

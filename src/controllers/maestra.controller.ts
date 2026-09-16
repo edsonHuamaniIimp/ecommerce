@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
+import { prisma } from "@/lib/server/db";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 
 async function listar(request: Request): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/server/db";
 import type { IEventoRepository, EventoCriteria, EventoMetadata } from "@/domain/ports/evento-repository";
 import type { EventoEntity, EventoPadreEntity } from "@/domain/models/entities";
 
@@ -67,7 +67,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     if (data.imagen !== undefined) updateData.imagen = data.imagen;
     if (data.flgActivo !== undefined) updateData.flgActivo = data.flgActivo;
     if (data.flgVisible !== undefined) updateData.flgVisible = data.flgVisible;
-    if (data.plano !== undefined) updateData.plano = data.plano;
+    if (data.plano !== undefined) updateData.plano = data.plano === "" ? null : data.plano;
     const row = await prisma.evento.update({ where: { id }, data: updateData });
     return row as unknown as EventoEntity;
   }
@@ -84,7 +84,11 @@ export class EventoPrismaRepository implements IEventoRepository {
         `INSERT INTO evento_metadata (tipo_evento, codigo_evento, plano, flg_visible, imagen, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
          ON CONFLICT (tipo_evento, codigo_evento)
-         DO UPDATE SET plano = COALESCE(EXCLUDED.plano, evento_metadata.plano), flg_visible = EXCLUDED.flg_visible, imagen = COALESCE(EXCLUDED.imagen, evento_metadata.imagen), updated_at = NOW()`,
+         DO UPDATE SET
+           plano = CASE WHEN EXCLUDED.plano = '' THEN NULL ELSE COALESCE(EXCLUDED.plano, evento_metadata.plano) END,
+           flg_visible = EXCLUDED.flg_visible,
+           imagen = COALESCE(EXCLUDED.imagen, evento_metadata.imagen),
+           updated_at = NOW()`,
         tipoEvento,
         codigoEvento,
         upsertData.plano ?? null,
@@ -97,5 +101,18 @@ export class EventoPrismaRepository implements IEventoRepository {
     }
 
     return { id: `${tipoEvento}-${codigoEvento}` } as unknown as EventoEntity;
+  }
+
+  async findEventoPorPlano(planoCodigo: string, exceptTipoEvento?: number, exceptCodigoEvento?: number): Promise<{ tipoEvento: number; codigoEvento: number } | null> {
+    const meta = await prisma.eventoMetadata.findFirst({
+      where: {
+        plano: planoCodigo,
+        ...(exceptTipoEvento !== undefined && exceptCodigoEvento !== undefined
+          ? { NOT: { tipoEvento: exceptTipoEvento, codigoEvento: exceptCodigoEvento } }
+          : {}),
+      },
+      select: { tipoEvento: true, codigoEvento: true },
+    });
+    return meta ? { tipoEvento: meta.tipoEvento, codigoEvento: meta.codigoEvento } : null;
   }
 }

@@ -4,15 +4,22 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
-import { getPlano } from "@/lib/planos/registry";
-import { gessService } from "@/lib/api/services/gess-service";
-import { ESTADOS_STAND } from "@/lib/constants";
-import type { GessStandDomain } from "@/lib/mappers/gess-mapper";
+import { getPlano } from "@/lib/shared/planos/registry";
+import { gessService } from "@/lib/client/api/services/gess-service";
+import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
+import type { GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
 
 interface GessStandRow extends GessStandDomain {
   createdAt: string;
+}
+
+interface BloqueEvento {
+  bloqueId: string;
+  tipoCodigo: string;
+  tipologia: string | null;
+  plano: string;
 }
 
 interface Props {
@@ -33,16 +40,41 @@ function formatValue(val: unknown): string {
 }
 
 export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: planoId }: Props) {
-  const plano = getPlano(planoId) ?? getPlano("gess")!;
-  const BLOQUE_IDS = plano.bloqueIds;
+  const planoFallback = getPlano(planoId) ?? getPlano("gess")!;
+  const [bloquesEvento, setBloquesEvento] = useState<BloqueEvento[]>([]);
+  const [bloquesCargados, setBloquesCargados] = useState(false);
+
+  // Carga TODOS los bloques de los planos del evento (macro + pabellones hijos, o simple)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/planos/planos-evento?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`);
+        const json = (await res.json()) as { success?: boolean; data?: Array<{ codigo: string; bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia: string | null }> }> };
+        if (json.success && json.data) {
+          const items: BloqueEvento[] = [];
+          for (const p of json.data) {
+            for (const b of p.bloques) {
+              items.push({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, plano: p.codigo });
+            }
+          }
+          if (!cancelled) setBloquesEvento(items);
+        }
+      } catch { /* fallback al registro en codigo */ }
+      if (!cancelled) setBloquesCargados(true);
+    })();
+    return () => { cancelled = true; };
+  }, [tipoEvento, codigoEvento]);
+
+  const BLOQUE_IDS = bloquesCargados && bloquesEvento.length > 0 ? bloquesEvento.map((b) => b.bloqueId) : planoFallback.bloqueIds;
   const PER_PAGE = 15;
 
   const bloqueLabel = (id: string): string => {
-    const labels = plano.blockLabel;
-    for (const prefix of Object.keys(labels)) {
-      if (id.startsWith(prefix)) return labels[prefix as keyof typeof labels].nombre;
-    }
-    return "Bloque";
+    const b = bloquesEvento.find((x) => x.bloqueId === id);
+    if (b) return `[${b.plano}] ${b.tipoCodigo}${b.tipologia ? ` · Tip.${b.tipologia}` : ""}`;
+    const labels = planoFallback.blockLabel;
+    const prefix = Object.keys(labels).find((p) => id.startsWith(p));
+    return prefix ? labels[prefix].nombre : "Bloque";
   };
 
   const [apiRows, setApiRows] = useState<ApiRow[]>([]);
@@ -89,6 +121,20 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
       setApiLoading(false);
     }
   }, [tipoEvento, codigoEvento]);
+
+  const handleMockup = async () => {
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      const json = await gessService.mockup({ eventoId, tipoEvento, codigoEvento });
+      setApiError(`Datos demo generados: ${json.creados} nuevos, ${json.actualizados} actualizados de ${json.total} (planos: ${(json.planos ?? []).join(", ")})`);
+      await loadDb();
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "Error al generar datos demo");
+    } finally {
+      setApiLoading(false);
+    }
+  };
 
   const toggleApiSelect = (idx: number) => {
     setApiSelected((prev) => {
@@ -192,6 +238,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
               <Button onClick={fetchApi} disabled={apiLoading}>
                 <span>{apiLoading ? "Cargando..." : "Cargar datos del API"}</span>
               </Button>
+              <Button variant="outline" onClick={handleMockup} disabled={apiLoading}>
+                <span>{apiLoading ? "Generando..." : "Generar datos demo"}</span>
+              </Button>
+              <p className="text-[10px] text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa "Generar datos demo" — crea stands vinculados a los bloques de tus planos.</p>
               {apiRows.length > 0 && (
                 <>
                   <Button variant="outline" size="sm" onClick={selectAllApi}>
@@ -324,10 +374,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                             <TableCell>
                               {linked?.estado ? (
                                 <Badge className={`text-[10px] border pointer-events-none ${
-                                  (linked.estado?.toLowerCase()) === ESTADOS_STAND.DISPONIBLE ? "bg-green-100 text-green-800 border-green-200"
-                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.RESERVADO ? "bg-red-100 text-red-800 border-red-200"
-                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.EN_EVALUACION ? "bg-amber-100 text-amber-800 border-amber-200"
-                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                                  (linked.estado?.toLowerCase()) === ESTADOS_STAND.DISPONIBLE ? BADGE_STYLES.SUCCESS
+                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.RESERVADO ? BADGE_STYLES.DESTRUCTIVE
+                                  : (linked.estado?.toLowerCase()) === ESTADOS_STAND.EN_EVALUACION ? BADGE_STYLES.WARNING
+                                  : BADGE_STYLES.NEUTRAL
                                 }`}>
                                   {linked.estado}
                                 </Badge>

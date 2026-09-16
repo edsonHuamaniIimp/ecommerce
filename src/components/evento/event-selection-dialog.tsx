@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@nrivera-iimp/ui-kit-iimp";
-import { eventosService } from "@/lib/api/services/facade";
+import { eventosService } from "@/lib/client/api/services/facade";
 import { useEvento } from "@/contexts/evento-context";
 import type { EventoPadre, Evento } from "@/types/reserva";
-import type { Vertical } from "@/lib/constants";
+import type { Vertical } from "@/lib/shared/constants";
 
 interface EventoOption {
   evento: Evento;

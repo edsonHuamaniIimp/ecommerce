@@ -4,8 +4,8 @@ import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { PlanoStands } from "@/components/plano/plano-stands";
 import { ReservaForm } from "@/components/reserva/reserva-form";
-import { reservasService } from "@/lib/api/services/facade";
-import type { ReservaCreateInput } from "@/lib/api/services/types";
+import { reservasService } from "@/lib/client/api/services/facade";
+import type { ReservaCreateInput } from "@/lib/client/api/services/types";
 import type { PlanoStand, Evento, EventoPadre } from "@/types/reserva";
 
 interface ReservaWorkspaceProps {

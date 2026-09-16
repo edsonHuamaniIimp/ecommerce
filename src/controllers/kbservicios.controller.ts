@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { services } from "@/lib/services";
-import { success } from "@/lib/api-response";
+import { services } from "@/lib/server/services";
+import { success } from "@/lib/server/api-response";
 
 async function listarTipos(): Promise<NextResponse> {
   return success(await services.kbServicios.listarTiposEvento());

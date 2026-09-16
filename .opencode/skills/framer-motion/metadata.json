@@ -1,0 +1,34 @@
+{
+  "name": "framer-motion",
+  "version": "1.0.0",
+  "category": "frontend",
+  "toolchain": "ui",
+  "framework": "react",
+  "tags": [
+    "framer-motion",
+    "animation",
+    "react",
+    "nextjs",
+    "spring-physics",
+    "gestures",
+    "scroll-animations",
+    "layout-animations",
+    "page-transitions",
+    "animate-presence",
+    "accessibility",
+    "performance"
+  ],
+  "entry_point_tokens": 120,
+  "full_tokens": 9500,
+  "requires": ["nextjs-core"],
+  "related_skills": [
+    "three-fiber",
+    "tailwind",
+    "typescript-core",
+    "nextjs-core"
+  ],
+  "author": "iimp",
+  "updated": "2026-08-04",
+  "license": "MIT",
+  "description": "Framer Motion para animaciones 2D complejas en Next.js App Router: variants, layout animations, AnimatePresence, scroll-triggered con useScroll/useTransform, spring physics, gestures, page transitions, y patrones de performance."
+}

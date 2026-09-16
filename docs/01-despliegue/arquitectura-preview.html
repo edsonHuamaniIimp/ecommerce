@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContratosStands — Arquitectura AWS v3 (vista previa)</title>
+<!-- ARCHIVO GENERADO — NO editar a mano.
+     Fuente: docs/01-despliegue/arquitectura-aws.md
+     Regenerar: node scripts/build-arquitectura-preview.mjs -->
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; background: #f1f5f9; color: #0f172a;
+         max-width: 1240px; margin: 0 auto; padding: 24px; }
+  h1 { margin: 0 0 4px; }
+  .sub { color: #475569; margin: 0 0 8px; }
+  h2 { margin-top: 44px; border-bottom: 2px solid #cbd5e1; padding-bottom: 6px; color: #0c4a6e; }
+  pre.mermaid { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px;
+                overflow: auto; box-shadow: 0 1px 4px rgba(15, 23, 42, .08); }
+  footer { margin-top: 48px; color: #64748b; font-size: 12px; border-top: 1px solid #cbd5e1; padding-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>ContratosStands — Arquitectura AWS v3</h1>
+  <p class="sub">Vista previa generada desde <code>docs/01-despliegue/arquitectura-aws.md</code> · 3 diagramas · 2026-09-15</p>
+  <h2>1.3 Perfil de carga modelado</h2>
+  <pre class="mermaid">flowchart LR
+    V["VALLE (18 meses)&lt;br/&gt;1 tarea · BD auto-pausa&lt;br/&gt;~1 reserva/día"]
+    AP["APERTURA (1 mes)&lt;br/&gt;pico de ~5 días&lt;br/&gt;concurrencia desconocida"]
+    EV["EVENTO (3 meses)&lt;br/&gt;campaña/cobranza&lt;br/&gt;uso laboral + staff"]
+
+    V --&gt;|"oct-2026: inicio de venta"| AP
+    AP --&gt;|"cola larga de venta + seguimiento"| EV
+    EV --&gt;|"cierre jul-2028"| V
+
+    classDef valle fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef ap fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef ev fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    class V valle
+    class AP ap
+    class EV ev</pre>
+  <h2>5. Arquitectura recomendada (Opción B endurecida)</h2>
+  <pre class="mermaid">flowchart TB
+    U([Empresa / Staff IIMP]) --&gt; DNS["Route 53&lt;br/&gt;ecommerce.sistemasiimp.org.pe"]
+    DNS --&gt; CF["CloudFront + ACM&lt;br/&gt;estáticos · plano 3D · uploads"]
+    WAF["WAF&lt;br/&gt;rate-limit + reglas"] -.-&gt; CF
+    CF --&gt;|"API / SSR"| EIP["Elastic IP (fija)"]
+    EIP --&gt; EC2
+
+    subgraph VPC["VPC 10.20.0.0/16 — 2 AZ"]
+        subgraph ASG["Auto Scaling Group (ARM t4g, min 1 / max 3)"]
+            EC2["EC2 t4g + Nginx&lt;br/&gt;Next.js standalone (Docker)"]
+        end
+        EC2 --&gt; RDS[("RDS PostgreSQL t4g&lt;br/&gt;micro → medium · Multi-AZ en campaña")]
+        EC2 --&gt; DOC[("S3 documentos&lt;br/&gt;SSE-S3 + lifecycle")]
+        DOC -.-&gt;|"Gateway Endpoint S3 — GRATIS"| EC2
+    end
+
+    EC2 --&gt; EXT["Niubiz · KBEventos · KBServicios&lt;br/&gt;SUNAT/RENIEC · Resend"]
+
+    classDef edge fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef compute fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef data fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef ext fill:#fae8ff,stroke:#a21caf,color:#701a75
+    class DNS,CF,WAF,EIP edge
+    class EC2 compute
+    class RDS,DOC data
+    class EXT ext
+    style VPC fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+    style ASG fill:#f0fdf4,stroke:#16a34a,color:#14532d</pre>
+  <h2>7. Flujo de despliegue</h2>
+  <pre class="mermaid">flowchart LR
+    DEV["git push main"] --&gt; CI["GitHub Actions&lt;br/&gt;build ARM64 + prisma generate"]
+    CI --&gt; REG["ECR&lt;br/&gt;tag de revisión"]
+    REG --&gt; TF["terraform apply&lt;br/&gt;image_tag=revisión"]
+    TF --&gt; ASGUP["ASG instancia nueva&lt;br/&gt;(rolling / replace)"]
+    ASGUP --&gt; HC{"GET /api/health&lt;br/&gt;= 200"}
+    HC --&gt;|sí| OK["Nueva revisión en servicio"]
+    HC --&gt;|no| RB["Rollback&lt;br/&gt;(revisión anterior)"]
+
+    classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef bad fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    class OK ok
+    class RB bad</pre>
+  <footer>Archivo generado. Editar el Markdown y regenerar con
+    <code>node scripts/build-arquitectura-preview.mjs</code>. Requiere conexión para cargar Mermaid (CDN).</footer>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });</script>
+</body>
+</html>

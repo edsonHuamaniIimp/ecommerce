@@ -1,4 +1,4 @@
-import type { Rol } from "@/lib/constants";
+import type { Rol } from "@/lib/shared/constants";
 
 export interface EventoPadreEntity {
   id: string;
@@ -75,6 +75,7 @@ export interface RevisionEntity {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  fuePrimeraRevision: boolean;
 }
 
 export interface ReevaluacionEntity {
@@ -125,4 +126,7 @@ export interface SolicitudRow {
   revisionComunicacion: RevisionEntity | null;
   revisionLegal: RevisionEntity | null;
   revisionLogistica: RevisionEntity | null;
+  tieneFacturacion: boolean;
+  tipoFacturacion: string | null;
+  facturacionId: string | null;
 }

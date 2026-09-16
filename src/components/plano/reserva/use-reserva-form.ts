@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { reservaBorradorDB } from "@/lib/indexed-db";
-import { gessService } from "@/lib/api/services/gess-service";
-import { isStepDatosCompleto } from "@/lib/utils/form-validator";
+import { reservaBorradorDB } from "@/lib/client/indexed-db";
+import { gessService } from "@/lib/client/api/services/gess-service";
+import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
 import type { FormDatos, GessLinkedInfo } from "./interfaces";
 
 function standIdsKey(ids: string[]): string {
@@ -22,6 +22,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmado, setConfirmado] = useState(false);
 
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
@@ -32,9 +33,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const stepDone = useCallback((step: number): boolean => {
     if (step === 0) return isStepDatosCompleto(formDatos);
     if (step === 1) return !singleStand || formDocs.length > 0;
-    if (step === 2) return stepDone(0) && stepDone(1);
+    if (step === 2) return stepDone(0) && stepDone(1) && confirmado;
     return false;
-  }, [formDatos, formDocs, singleStand]);
+  }, [formDatos, formDocs, singleStand, confirmado]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -51,10 +52,15 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       if (draft) {
         setFormDatos({ ...emptyDatos(), ...draft.datos });
         setFormDocs(draft.documentos);
+        if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= 2) {
+          setReservaStep(draft.step);
+        }
       } else {
         setFormDatos(emptyDatos());
         setFormDocs([]);
+        setReservaStep(0);
       }
+      setConfirmado(false);
     })();
   }, [reservaOpen, currentKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -62,16 +68,16 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   useEffect(() => {
     if (!reservaOpen || selectedIds.length === 0) return;
     const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || formDocs.length > 0;
-    if (!hasData) return;
-    reservaBorradorDB.guardar(keyRef.current.split("|"), formDatos, formDocs);
+    if (!hasData && reservaStep === 0) return;
+    reservaBorradorDB.guardar(keyRef.current.split("|"), formDatos, formDocs, reservaStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formDatos, formDocs]);
+  }, [formDatos, formDocs, reservaStep]);
 
   // Persist on close without submit
   const handleOpenChange = (open: boolean) => {
     if (!open && !submitting) {
       if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || formDocs.length > 0) {
-        reservaBorradorDB.guardar(selectedIds, formDatos, formDocs);
+        reservaBorradorDB.guardar(selectedIds, formDatos, formDocs, reservaStep);
       }
       setReservaStep(0);
     }
@@ -135,6 +141,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setFormDatos(emptyDatos());
     setFormDocs([]);
     setReservaStep(0);
+    setConfirmado(false);
     setReservaOpen(false);
   };
 
@@ -155,5 +162,6 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     removeDoc,
     handleSubmit,
     reset,
+    confirmado, setConfirmado,
   };
 }

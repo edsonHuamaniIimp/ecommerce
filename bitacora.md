@@ -461,15 +461,18 @@ npm run db:reset         # Borrar .next + db push --force-reset + generate + see
 
 ### Variables de entorno clave (`.env`)
 ```
-DATABASE_URL=postgresql://ctrst:ctrst_dev@localhost:5432/contratos_stands
+DATABASE_URL=postgresql://ctrst:<PASSWORD>@localhost:5432/contratos_stands
 PLANOGESS_API_URL=https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess
 KBSERVICIOS_URL=https://secure2.iimp.org:8443/KBServiciosIIMPJavaEnvironment
-KBSERVICIOS_API_KEY=REDACTED_API_KEY
-JWT_SECRET=dev-secret-cambiar-en-produccion
-RESEND_API_KEY=re_xxx
+KBSERVICIOS_API_KEY=<API_KEY>          # solicitar al area de sistemas / gestor de secretos
+JWT_SECRET=<JWT_SECRET>                # openssl rand -base64 32
+RESEND_API_KEY=<RESEND_API_KEY>        # https://resend.com/api-keys
 ADMIN_EMAIL=ext_analistaprogramador3@iimp.org.pe
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+> ⚠️ **Nunca versionar credenciales reales.** Los valores viven en `.env` (ignorado por git)
+> y en producción en **AWS Secrets Manager**. Este documento solo lista los nombres.
 
 ---
 

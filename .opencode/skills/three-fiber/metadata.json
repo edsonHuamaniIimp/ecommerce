@@ -1,0 +1,34 @@
+{
+  "name": "three-fiber",
+  "version": "1.0.0",
+  "category": "frontend",
+  "toolchain": "ui",
+  "framework": "react",
+  "tags": [
+    "threejs",
+    "react-three-fiber",
+    "drei",
+    "3d",
+    "webgl",
+    "animation",
+    "particles",
+    "post-processing",
+    "gltf",
+    "shaders",
+    "scroll-3d",
+    "performance",
+    "nextjs"
+  ],
+  "entry_point_tokens": 110,
+  "full_tokens": 8800,
+  "requires": ["nextjs-core"],
+  "related_skills": [
+    "framer-motion",
+    "tailwind",
+    "typescript-core"
+  ],
+  "author": "iimp",
+  "updated": "2026-08-04",
+  "license": "MIT",
+  "description": "React Three Fiber + Drei para animaciones 3D en Next.js: Canvas SSR-safe, useFrame, sistemas de partículas, post-processing, modelos GLTF, scroll-driven 3D, instancing y adaptive quality."
+}

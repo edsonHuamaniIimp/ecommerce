@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { authService } from "@/lib/api/services/auth-service";
-import { eventosServiceClient } from "@/lib/api/services/eventos-service";
-import { ROLES, LS_KEYS } from "@/lib/constants";
-import { dateUtils } from "@/lib/utils/date";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
+import { ROLES, LS_KEYS } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 import Link from "next/link";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 

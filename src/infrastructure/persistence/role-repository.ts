@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/server/db";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { RoleEntity, UserRoleEntity } from "@/domain/models/entities";
 

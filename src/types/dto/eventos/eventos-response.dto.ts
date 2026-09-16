@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@/lib/api-response";
+import type { ApiResponse } from "@/lib/server/api-response";
 import type { EventoPadrePresalaDTO } from "./presala.dto";
 import type { EventoEntity } from "@/domain/models/entities";
 

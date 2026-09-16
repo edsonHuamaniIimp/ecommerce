@@ -2,5 +2,6 @@
   "$schema": "https://opencode.ai/config.json",
   "skills": {
     "paths": [".opencode/reglas", ".opencode/skills"]
-  }
+  },
+  "model": "kimi-open/kimi-k3"
 }

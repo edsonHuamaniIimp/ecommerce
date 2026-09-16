@@ -1,0 +1,53 @@
+# Dockerfile ECS — Next.js standalone (multi-stage) para Fargate
+# Sin nginx: el ALB termina TLS y hace el health check en /api/health.
+# La imagen final solo lleva lo que produce `next build` (output: standalone).
+
+FROM node:20-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci && npm cache clean --force
+
+FROM node:20-bookworm-slim AS builder
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate && npm run build
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+# Standalone server (next.config.ts output: "standalone")
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+# node_modules COMPLETO: el standalone no incluye .bin/prisma ni deps del CLI
+# (necesarios para `prisma migrate deploy` en el entrypoint).
+# El cliente Prisma (prisma-client-js) vive en node_modules/.prisma + @prisma/client.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+
+COPY docker/entrypoint-ecs.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && chown -R nextjs:nodejs /app
+
+USER nextjs
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

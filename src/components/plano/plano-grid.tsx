@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
 import type { PlanoStand } from "@/types/reserva";
-import { ESTADOS_STAND } from "@/lib/constants";
+import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 /* ================================================================
    Layout tipo sistema de viajes interprovinciales:

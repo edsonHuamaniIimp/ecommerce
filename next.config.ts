@@ -5,6 +5,9 @@ import { fileURLToPath } from "url";
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Empaquetado standalone para ECS Fargate (frontend + API en un solo contenedor).
+  // Es aditivo: genera .next/standalone sin afectar el flujo actual (next start / EC2).
+  output: "standalone",
   turbopack: {
     root: path.resolve(projectRoot),
   },

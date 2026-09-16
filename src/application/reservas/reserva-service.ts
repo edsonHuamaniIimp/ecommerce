@@ -1,7 +1,7 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
-import { ESTADOS_STAND } from "@/lib/constants";
-import { sendEmail, buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/email";
+import { ESTADOS_STAND, APP_URL } from "@/lib/shared/constants";
+import { sendEmail, buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/server/email";
 
 const BLOQUEADOS = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, "Reservado", "En evaluacion"];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
@@ -46,9 +46,10 @@ export class ReservaApplicationService {
       return { ok: false, message: "Conflicto", conflicted };
     }
 
+    let solicitudId: string | undefined;
     if (this.solicitudesRepo) {
       try {
-        const solicitudId = await this.solicitudesRepo.crearSolicitud(
+        solicitudId = await this.solicitudesRepo.crearSolicitud(
           createdStandIds,
           request.userSub,
           contactEmail ?? undefined,
@@ -56,6 +57,15 @@ export class ReservaApplicationService {
         await this.solicitudesRepo.crearRevisionInicial(solicitudId, "comunicacion");
         await this.solicitudesRepo.crearRevisionInicial(solicitudId, "legal");
         await this.solicitudesRepo.crearRevisionInicial(solicitudId, "logistica");
+
+        // Notify first reviewers (logistica)
+        this.solicitudesRepo.crearAlertaRevision({
+          rol: "logistica",
+          solicitudId,
+          titulo: "Nueva solicitud para revision",
+          mensaje: `Se ha creado una nueva solicitud de los stands ${standCodes.join(", ")}. Eres el primer revisor.`,
+          standCodes: standCodes.join(", "),
+        }).catch(() => {});
 
         const esMultiple = createdStandIds.length > 1;
         if (esMultiple && request.userSub) {
@@ -65,14 +75,14 @@ export class ReservaApplicationService {
               tipo: "reserva_multiple",
               titulo: "Solicitud multiple enviada",
               mensaje: `Se ha creado una solicitud multiple con ${createdStandIds.length} stands (${standCodes.join(", ")}). Adjunta los documentos requeridos para continuar.`,
-              url: `/dashboard/mis-solicitudes?id=${solicitudId}`,
+              url: `${APP_URL}/dashboard/mis-solicitudes?id=${solicitudId}`,
             });
             await this.solicitudesRepo.crearAlertaReserva({
               userId: "admin",
               tipo: "reserva_multiple",
               titulo: "Nueva solicitud multiple",
               mensaje: `Se ha recibido una solicitud multiple de ${createdStandIds.length} stands (${standCodes.join(", ")}).`,
-              url: `/dashboard/solicitudes?id=${solicitudId}`,
+              url: `${APP_URL}/dashboard/solicitudes?id=${solicitudId}`,
             });
           } catch { /* ok */ }
         }
@@ -90,6 +100,7 @@ export class ReservaApplicationService {
         ...emailData,
         email: contactEmail,
         esMultiple: createdStandIds.length > 1,
+        solicitudId,
       });
       sendEmail({ to: contactEmail, ...clientEmail }).catch(() => {});
       if (ADMIN_EMAIL && ADMIN_EMAIL !== contactEmail) {

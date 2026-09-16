@@ -2,7 +2,7 @@
 
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
 import type { EstadoStand, EstadoReserva } from "@/types/reserva";
-import { ESTADOS_STAND, ESTADOS_RESERVA } from "@/lib/constants";
+import { ESTADOS_STAND, ESTADOS_RESERVA } from "@/lib/shared/constants";
 
 function badgeVariant(
   estado: EstadoStand | EstadoReserva,

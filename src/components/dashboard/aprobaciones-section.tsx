@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import type { Reserva } from "@/types/reserva";
-import { ESTADOS_RESERVA, AREAS_APROBACION, RESULTADOS_APROBACION } from "@/lib/constants";
+import { ESTADOS_RESERVA, AREAS_APROBACION, RESULTADOS_APROBACION } from "@/lib/shared/constants";
 
 interface AprobacionesSectionProps {
   reservas: Reserva[];

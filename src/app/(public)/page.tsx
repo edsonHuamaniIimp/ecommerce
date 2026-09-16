@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { authService } from "@/lib/api/services/auth-service";
-import { eventosServiceClient } from "@/lib/api/services/eventos-service";
-import { ROLES, LS_KEYS } from "@/lib/constants";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
+import { ROLES, LS_KEYS } from "@/lib/shared/constants";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
 
 const VERTICAL_COLORS: Record<string, string> = {

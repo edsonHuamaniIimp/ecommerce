@@ -6,7 +6,7 @@ import type {
   AreaAprobacion,
   ResultadoAprobacion,
   EstadoEvento,
-} from "@/lib/constants";
+} from "@/lib/shared/constants";
 
 /* ---------- Eventos ---------- */
 export interface EventoPadreDTO {

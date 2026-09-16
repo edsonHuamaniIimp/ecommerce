@@ -90,6 +90,18 @@ planogess.png
 !CLAUDE.md
 
 # ============================================================
+# Terraform (IaC — estado y secretos NO se versionan)
+# Nota: .terraform.lock.hcl SI se versiona (recomendacion HashiCorp)
+# ============================================================
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+# Los perfiles de escalado SI se versionan (no contienen secretos, solo capacidades)
+!terraform/perfiles/*.tfvars
+
+# ============================================================
 # opencode: solo reglas/skills/agentes (el resto es cache local)
 # ============================================================
 # NO ignorar la carpeta completa — se trackea lo que el equipo comparte

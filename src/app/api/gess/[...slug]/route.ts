@@ -1,4 +1,4 @@
-import { createRouter } from "@/lib/router";
+import { createRouter } from "@/lib/server/router";
 import { gessController } from "@/controllers/gess.controller";
 
 export const { GET, POST, PATCH } = createRouter({
@@ -7,6 +7,7 @@ export const { GET, POST, PATCH } = createRouter({
   },
   POST: {
     sync: (req) => gessController.sync(req),
+    mockup: (req) => gessController.mockup(req),
   },
   PATCH: {
     actualizar: (req) => gessController.actualizar(req),

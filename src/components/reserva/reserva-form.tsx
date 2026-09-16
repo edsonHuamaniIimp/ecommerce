@@ -20,8 +20,8 @@ import {
   Separator,
 } from "@nrivera-iimp/ui-kit-iimp";
 import type { PlanoStand, TipoComprobante } from "@/types/reserva";
-import type { ReservaCreateInput } from "@/lib/api/services/types";
-import { TIPOS_COMPROBANTE } from "@/lib/constants";
+import type { ReservaCreateInput } from "@/lib/client/api/services/types";
+import { TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 
 interface ReservaFormProps {
   selectedStands: PlanoStand[];

@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ContratosStands — IIMP
 
-## Getting Started
+Sistema web de **reserva de stands** para los eventos corporativos del
+**Instituto de Ingenieros de Minas del Perú (IIMP)**: PERUMIN, ProExplo,
+World Mining Congress (WMC) y GESS.
 
-First, run the development server:
+> **Documentación completa:** ver la carpeta [`docs/`](./docs) y el portal en
+> Confluence: `https://iimp-team-ejhn.atlassian.net/wiki/spaces/CTRS`
+> (publicado con `node scripts/publish-confluence.mjs --space CTRS`).
+
+## Inicio rápido (desarrollo)
+
+Requisitos: **Node.js 20+**, **Docker** (para PostgreSQL) y Git.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repo>
+cd ContratosStands
+cp .env.example .env
+npm install
+docker compose up -d        # PostgreSQL 16 en localhost:5433
+npm run db:push             # Crear/actualizar tablas
+npm run db:seed             # Datos iniciales (roles, usuarios, maestra)
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Login de prueba (seed): `admin@iimp.org.pe` (ver `docs/despliegue.md` para el resto).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 + UI Kit IIMP ·
+PostgreSQL 16 + Prisma v7 · JWT (`jose`) · Three.js (plano isométrico) ·
+Resend (correo) · Docker + GitHub Actions.
 
-## Learn More
+## Arquitectura
 
-To learn more about Next.js, take a look at the following resources:
+Arquitectura **hexagonal** en backend (`domain` / `application` /
+`infrastructure` / `controllers`), fachada de servicios + DTO/Mapper en
+frontend. Detalle en [`docs/arquitectura.md`](./docs/arquitectura.md).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Documentación del proyecto (`docs/`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Documento | Contenido |
+|---|---|
+| [resumen-ejecutivo.md](./docs/resumen-ejecutivo.md) | Resumen, alcance, estado y traspaso |
+| [requerimientos.md](./docs/requerimientos.md) | Requerimientos funcionales y no funcionales |
+| [arquitectura.md](./docs/arquitectura.md) | Estructura completa del código |
+| [stack-tecnologico.md](./docs/stack-tecnologico.md) | Dependencias y versiones |
+| [modelo-datos.md](./docs/modelo-datos.md) | Modelo de datos (ER + diccionario) |
+| [api-inventario.md](./docs/api-inventario.md) | Inventario real de endpoints |
+| [endpoints.md](./docs/endpoints.md) | Contrato de API propuesto |
+| [openapi.yaml](./docs/openapi.yaml) | Especificación OpenAPI 3.0 |
+| [flujos.md](./docs/flujos.md) | Flujos de negocio detallados |
+| [api-sistema-montaje.md](./docs/api-sistema-montaje.md) | Integración sistema de montaje |
+| [GUIA-CONSUMO.md](./docs/GUIA-CONSUMO.md) | Guía del servicio-persona (externo) |
+| [infraestructura-devops.md](./docs/infraestructura-devops.md) | Docker, CI/CD y variables |
+| [despliegue.md](./docs/despliegue.md) | Guía de despliegue por ambiente |
+| [convenciones-codigo.md](./docs/convenciones-codigo.md) | Reglas y estándares obligatorios |
 
-## Deploy on Vercel
+## Calidad (pipeline ZERO ERRORS)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx tsc --noEmit   # tipos
+npx eslint         # lint
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Antes de escribir código, revisar `AGENTS.md` y las reglas de `.opencode/reglas/`
+> (Next.js 16 tiene breaking changes: consultar `node_modules/next/dist/docs/`).

@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Copiar a terraform.tfvars y ajustar valores reales.
+# terraform.tfvars NO se sube al repo (contiene decisiones de entorno).
+#
+# Uso por perfil (ver docs/01-despliegue/arquitectura-aws.md §1.3):
+#   terraform apply -var-file=terraform.tfvars -var-file=perfiles/valle.tfvars
+# ─────────────────────────────────────────────────────────────────────────────
+
+# R1: prod SOLO con autorización del usuario. Entorno de trabajo diario = qa.
+environment = "qa"
+
+# R4: cuenta del proyecto = sistemas.iimp (517839275515).
+# El provider usa este perfil; el backend S3 NO admite perfil variable:
+# para uso local, exportar AWS_PROFILE="sistemas-aws" antes de terraform init.
+aws_profile = "sistemas-aws"
+aws_region  = "us-east-1"
+
+# Dominio y DNS
+app_domain = "ecommerce.sistemasiimp.org.pe"
+# ID de la hosted zone de Route53. Si el DNS se administra fuera, dejar vacío:
+# Terraform emitira los CNAME de validacion ACM (output acm_validation_records).
+route53_zone_id = ""
+
+# NAT: en qa se desactiva (las tareas van a subnets publicas). En prod = true
+# (IP de salida fija para las integraciones IIMP).
+enable_nat_gateway = false
+
+# Integraciones externas
+planogess_api_url = "https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess"
+kbservicios_url   = "https://secure2.iimp.org:8443/KBServiciosPruebaIIMPJavaEnvironment"
+admin_email       = ""
+
+# Secretos (dejar vacio = no crear el secreto)
+sunat_api_token = ""
+resend_api_key  = ""
+
+# Presupuesto y alarmas (gobierno de costo)
+budget_amount_usd   = 0
+budget_alert_email  = ""

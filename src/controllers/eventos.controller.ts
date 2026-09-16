@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { services } from "@/lib/services";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
+import { services } from "@/lib/server/services";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { createEventoSchema, updateEventoSchema } from "@/validators/eventos.validator";
 
 export const eventosController = {

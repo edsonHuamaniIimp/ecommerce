@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell } from "lucide-react";
+import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell, FileCheck, PenLine } from "lucide-react";
 
 interface Props {
   singleStand: boolean;
@@ -92,13 +92,28 @@ export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading,
         </div>
       )}
 
-      <div className="flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5">
-        <Upload className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-        <div>
-          <p className="text-xs font-semibold text-amber-800">Adjunta el contrato firmado</p>
-          <p className="text-[10px] text-amber-700/80">
-            {contratosDescargables.length > 0 ? "Descarga, completa, firma y adjunta." : "Adjunta el contrato firmado."}
-          </p>
+      {/* Visual flow explanation */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+        <p className="text-xs font-semibold text-blue-700 mb-3">Como completar tu solicitud:</p>
+        <div className="space-y-0">
+          {[
+            { icon: Download, title: "Descarga el formato", desc: "Descarga el documento .docx de la seccion superior. Es el contrato oficial del IIMP." },
+            { icon: PenLine, title: "Completa y firma", desc: "Abre el archivo descargado, completa tus datos y firma digital o manualmente." },
+            { icon: Upload, title: "Sube el documento", desc: "Adjunta el archivo firmado en el area inferior. Formatos aceptados: PDF, JPG, PNG, DOCX." },
+          ].map((s, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <s.icon className="h-3.5 w-3.5" />
+                </div>
+                {i < 2 && <div className="w-0.5 flex-1 bg-blue-200 my-0.5" />}
+              </div>
+              <div className="pb-2">
+                <p className="text-xs font-semibold text-blue-800">{i + 1}. {s.title}</p>
+                <p className="text-[11px] text-blue-600/70 leading-relaxed mt-0.5">{s.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

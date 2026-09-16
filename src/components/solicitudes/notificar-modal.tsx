@@ -4,9 +4,8 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Button, Label, RadioGroup, RadioGroupItem } from "@nrivera-iimp/ui-kit-iimp";
 import {
-  REVISION_AREA_LABELS,
   RESULTADOS_APROBACION,
-} from "@/lib/constants";
+} from "@/lib/shared/constants";
 import "react-quill-new/dist/quill.snow.css";
 
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
@@ -47,12 +46,16 @@ export function NotificarModal({ standCode, empresa, tipoStand, email, revisione
   };
 
   const buildAutoPreview = () => {
-    return revisiones.map((r) => {
-      const label = REVISION_AREA_LABELS[r.area as keyof typeof REVISION_AREA_LABELS];
-      const estadoLabel = r.estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : r.estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente";
-      const color = r.estado === RESULTADOS_APROBACION.APROBADO ? "#16a34a" : r.estado === RESULTADOS_APROBACION.RECHAZADO ? "#dc2626" : "#94a3b8";
-      return `<p style="margin:4px 0"><strong style="color:${color}">${label}: ${estadoLabel}</strong>${r.comentario ? `<br/><em>"${r.comentario}"</em>` : ""}</p>`;
-    }).join("");
+    const algunaRechazada = revisiones.some(r => r.estado === RESULTADOS_APROBACION.RECHAZADO);
+    const todasAprobadas = revisiones.every(r => r.estado === RESULTADOS_APROBACION.APROBADO);
+    if (todasAprobadas) {
+      return `<p style="margin:4px 0;color:#16a34a;font-weight:600">Tu solicitud ha sido aprobada por todas las areas del IIMP.</p>`;
+    }
+    if (algunaRechazada) {
+      return `<p style="margin:4px 0;color:#dc2626;font-weight:600">Lamentamos informarte que tu solicitud no ha sido aprobada en esta ocasion.</p>
+        <p style="margin:8px 0 0;color:#64748b">Puedes solicitar una re-evaluacion desde la seccion <strong>Mis solicitudes</strong> adjuntando documentacion adicional.</p>`;
+    }
+    return `<p style="margin:4px 0;color:#64748b">Tu solicitud se encuentra en proceso de revision.</p>`;
   };
 
   return (
@@ -96,7 +99,7 @@ export function NotificarModal({ standCode, empresa, tipoStand, email, revisione
               <RadioGroupItem value="automatico" className="mt-0.5" />
               <div className="flex-1">
                 <p className="text-xs font-medium text-slate-700">Automatico</p>
-                <p className="text-[11px] text-slate-500">Se anexan las justificaciones de cada area automaticamente.</p>
+                <p className="text-[11px] text-slate-500">Se envia un resumen generico sin detallar el resultado de cada area.</p>
                 <div className="mt-2 rounded-md bg-slate-50 border border-slate-100 p-2.5">
                   <p className="text-[10px] font-semibold text-slate-500 mb-1">Vista previa:</p>
                   <div className="text-[11px] text-slate-600" dangerouslySetInnerHTML={{ __html: buildAutoPreview() }} />

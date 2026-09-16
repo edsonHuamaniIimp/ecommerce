@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { services } from "@/lib/services";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
+import { services } from "@/lib/server/services";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { updateGessStandSchema } from "@/validators/gess.validator";
 
 export const gessController = {
@@ -45,5 +45,16 @@ export const gessController = {
       return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);
     }
     return success(await services.gess.sync(body.eventoId, body.tipoEvento ?? 0, body.codigoEvento ?? 0, body.seleccionadas));
+  },
+
+  async mockup(request: Request): Promise<NextResponse> {
+    const body = await request.json() as { tipoEvento?: number; codigoEvento?: number; eventoId?: string };
+    if (!body.eventoId) {
+      return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);
+    }
+    if (body.tipoEvento === undefined || body.codigoEvento === undefined) {
+      return error(API_ERROR_CODES.VALIDATION, "tipoEvento y codigoEvento son requeridos", 400);
+    }
+    return success(await services.gess.mockup(body.eventoId, body.tipoEvento, body.codigoEvento));
   },
 };

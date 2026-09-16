@@ -5,11 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { useEffect, useState, useRef } from "react";
 import { LogOut, LogIn, Menu, User, ChevronDown } from "lucide-react";
-import { authService } from "@/lib/api/services/auth-service";
-import { LS_KEYS } from "@/lib/constants";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { LS_KEYS } from "@/lib/shared/constants";
 
 const links = [
   { href: "/plano", label: "Isometrico" },
+  { href: "/mapa", label: "Dinamico" },
   { href: "/dashboard", label: "Dashboard" },
 ] as const;
 

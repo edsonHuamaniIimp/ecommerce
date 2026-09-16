@@ -1,7 +1,7 @@
 "use client";
 
 import type { PlanoStand } from "@/types/reserva";
-import { ESTADOS_STAND } from "@/lib/constants";
+import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 const COLORS: Record<string, string> = {
   [ESTADOS_STAND.RESERVADO]: "#16a34a",

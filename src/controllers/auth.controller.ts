@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { services } from "@/lib/services";
-import { success, error } from "@/lib/api-response";
-import { API_ERROR_CODES } from "@/lib/constants";
-import { setTokenCookie, clearTokenCookie, getTokenFromHeaders } from "@/lib/utils/cookie";
-import type { ApiErrorCode } from "@/lib/constants";
+import { services } from "@/lib/server/services";
+import { success, error } from "@/lib/server/api-response";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { setTokenCookie, clearTokenCookie, getTokenFromHeaders } from "@/lib/server/utils/cookie";
+import type { ApiErrorCode } from "@/lib/shared/constants";
 import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResponseDTO } from "@/types/dto/auth/login-response.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";

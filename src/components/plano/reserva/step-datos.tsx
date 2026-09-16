@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { onlyDigits, onlyPhoneDigits } from "@/lib/utils/form-validator";
-import { maestraService } from "@/lib/api/services/maestra-service";
-import { sunatService } from "@/lib/api/services/sunat-service";
-import { MAESTRA_TABLAS } from "@/lib/constants";
+import { onlyDigits, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
+import { maestraService } from "@/lib/client/api/services/maestra-service";
+import { sunatService } from "@/lib/client/api/services/sunat-service";
+import { MAESTRA_TABLAS } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 import type { FormDatos } from "./interfaces";
 

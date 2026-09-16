@@ -127,6 +127,8 @@ model UserRole {
   apellidos         String?   @db.VarChar(200)
   telefono          String?   @db.VarChar(20)
   tipoUsuarioId     Int?      @map("tipo_usuario_id")
+  idEmpresa         String?   @map("id_empresa") @db.VarChar(50)
+  nombreEmpresa     String?   @map("nombre_empresa") @db.VarChar(200)
   resetToken        String?   @map("reset_token") @db.VarChar(200)
   resetTokenExpires DateTime? @map("reset_token_expires")
 
@@ -229,6 +231,7 @@ model Solicitud {
   reevaluaciones Reevaluacion[]
   docsAdjuntos SolicitudDocumento[] @relation("SolicitudDocs")
   stands      SolicitudStand[]
+  facturaciones Facturacion[]
 
   @@index([gessStandId])
   @@map("solicitud")
@@ -391,6 +394,71 @@ model AuditLog {
    @@map("audit_log")
 }
 
+model ErrorLog {
+  id        String   @id @default(uuid())
+  message   String
+  stack     String?
+  digest    String?
+  url       String?
+  userId    String?  @map("user_id") @db.VarChar(100)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("error_log")
+}
+
+model Facturacion {
+  id          String   @id @default(uuid())
+  solicitudId String   @map("solicitud_id")
+  tipo        String   @default("manual") @db.VarChar(20)  // "niubizz" | "manual"
+  estado      String   @default("pendiente") @db.VarChar(20) // pendiente, pagado, cancelado
+  montoTotal  Decimal  @map("monto_total") @db.Decimal(12, 2)
+  moneda      String   @default("US$") @db.VarChar(5)
+  modoPago    String   @default("cuotas") @map("modo_pago") @db.VarChar(10) // "completo" | "cuotas"
+  createdBy   String?  @map("created_by") @db.VarChar(100)
+  flgActivo   Boolean  @default(true) @map("flg_activo")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  cuotas      FacturacionCuota[]
+
+  @@index([solicitudId])
+  @@index([estado])
+  @@map("facturacion")
+}
+
+model FacturacionCuota {
+  id             String   @id @default(uuid())
+  facturacionId  String   @map("facturacion_id")
+  numero         Int
+  monto          Decimal  @db.Decimal(12, 2)
+  fechaVencimiento DateTime? @map("fecha_vencimiento")
+  estado         String   @default("pendiente") @db.VarChar(20) // pendiente, pagado, vencido
+  comprobante    String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  facturacion    Facturacion @relation(fields: [facturacionId], references: [id], onDelete: Cascade)
+
+  @@index([facturacionId])
+  @@map("facturacion_cuota")
+}
+
+model FacturacionHistorial {
+  id            String   @id @default(uuid())
+  facturacionId String   @map("facturacion_id")
+  accion        String   @db.VarChar(20) // "actualizar", "eliminar", "agregar_cuota", "pagar_cuota"
+  detalle       String   @db.VarChar(500)
+  metadata      Json?
+  createdBy     String?  @map("created_by") @db.VarChar(100)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([facturacionId])
+  @@index([createdAt])
+  @@map("facturacion_historial")
+}
+
 model Alerta {
   id           String   @id @default(uuid())
   userId       String   @map("user_id") @db.VarChar(100)
@@ -458,4 +526,107 @@ model Maestra {
   @@index([tabla])
   @@index([nidMaestraPadre])
   @@map("maestra")
+}
+
+/* ================================================================
+   6. PLANOS 3D — Laboratorio 3D: mapas editables almacenados en BD
+      plano.codigo es lo que guarda evento_metadata.plano
+   ================================================================ */
+
+model Plano {
+  id          String   @id @default(uuid())
+  codigo      String   @unique @db.VarChar(50)         // "gess", "perumin"
+  nombre      String   @db.VarChar(100)
+  descripcion String?  @db.VarChar(300)
+  tipo        String   @default("simple") @db.VarChar(10) // "simple" | "macro"
+  imagenFondo String?  @map("imagen_fondo") @db.VarChar(500) // mapa de pabellones (macro)
+  config      Json?                                      // { floor, camera, legend } opcional
+  flgActivo   Boolean  @default(true) @map("flg_activo")
+
+  tipos       PlanoTipoBloque[]
+  bloques     PlanoBloque[]
+  furniture   PlanoFurniture[]
+  secciones   PlanoSeccion[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("plano")
+}
+
+model PlanoSeccion {
+  id          String  @id @default(uuid())
+  planoId     String  @map("plano_id")
+  codigo      String  @db.VarChar(50)                  // "PAB-A"
+  nombre      String  @db.VarChar(100)                 // "Pabellon A"
+  x           Float   @db.Real                         // coords normalizadas 0-1 sobre la imagen
+  y           Float   @db.Real
+  w           Float   @db.Real
+  h           Float   @db.Real
+  rotacion    Float   @default(0) @db.Real @map("rotacion") // grados (0-360), rotacion del rect sobre la imagen
+  color       String  @db.VarChar(10) @default("#3b82f6")
+  planoHijoId String? @map("plano_hijo_id")            // FK logica → plano 3D del pabellon
+  orden       Int     @default(0)
+
+  plano       Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
+
+  @@unique([planoId, codigo])
+  @@index([planoId])
+  @@map("plano_seccion")
+}
+
+model PlanoTipoBloque {
+  id       String  @id @default(uuid())
+  planoId  String  @map("plano_id")
+  codigo   String  @db.VarChar(20)                     // "S", "BG", "P", "C"
+  label    String  @db.VarChar(20)
+  nombre   String  @db.VarChar(50)                     // "Columna", "Preferencial"
+  w        Float   @db.Real
+  d        Float   @db.Real
+  h        Float   @db.Real
+  color    String  @db.VarChar(10)                     // "#FFD700"
+
+  plano    Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  bloques  PlanoBloque[]
+
+  @@unique([planoId, codigo])
+  @@map("plano_tipo_bloque")
+}
+
+model PlanoBloque {
+  id         String   @id @default(uuid())
+  planoId    String   @map("plano_id")
+  tipoId     String?  @map("tipo_id")
+  bloqueId   String   @db.VarChar(50)                  // "EXT-IZQ-01" — join key a gess_stand.bloque_id
+  tipoCodigo String   @db.VarChar(20)                  // redundante para queries rapidas
+  tipologia  String?  @db.VarChar(1) @map("tipologia") // "1"=Complejo, "2"=Simple, "3"=Octanorm (maestra stand_tipologia)
+  x          Float    @db.Real
+  z          Float    @db.Real
+  rotY       Float    @default(0) @map("rot_y") @db.Real
+  orden      Int      @default(0)
+  flgActivo  Boolean  @default(true) @map("flg_activo")
+
+  plano      Plano          @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  tipo       PlanoTipoBloque? @relation(fields: [tipoId], references: [id], onDelete: SetNull)
+
+  @@unique([planoId, bloqueId])
+  @@index([planoId])
+  @@map("plano_bloque")
+}
+
+model PlanoFurniture {
+  id      String  @id @default(uuid())
+  planoId String  @map("plano_id")
+  refId   String  @db.VarChar(50) @map("ref_id")       // "KIOSKO_IZQ"
+  tipo    String  @db.VarChar(30)                      // "kiosko" (extensible)
+  x       Float   @db.Real
+  z       Float   @db.Real
+  rotY    Float   @default(0) @map("rot_y") @db.Real
+  config  Json?
+
+  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
+
+  @@unique([planoId, refId])
+  @@index([planoId])
+  @@map("plano_furniture")
 }

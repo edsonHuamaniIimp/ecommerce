@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { authService } from "@/lib/api/services/auth-service";
+import { cn } from "@/lib/shared/utils";
+import { authService } from "@/lib/client/api/services/auth-service";
 
 const navItems = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard, permission: "dashboard:view" },
@@ -18,6 +18,8 @@ const navItems = [
   { href: "/dashboard/stands", label: "Gestion de Stands", icon: FileText, permission: "stands:manage" },
   { href: "/dashboard/reservas", label: "Gestion de Reservas", icon: ClipboardList, permission: "read:reservas" },
   { href: "/dashboard/auspicios", label: "Auspicios", icon: Gem, permission: "auspicios:view" },
+  { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: "laboratorio:view" },
+  { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: "facturacion:view" },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: "roles:manage" },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: "events:manage" },
   { href: "/plano", label: "Plano de Stands", icon: Building2, permission: "stands:plano" },

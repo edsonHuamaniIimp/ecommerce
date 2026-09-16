@@ -39,4 +39,5 @@ export interface ISolicitudesRepository {
   crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string): Promise<Record<string, unknown>>;
   findDocumento(docId: string): Promise<{ id: string; userId: string | null } | null>;
   eliminarDocumento(docId: string): Promise<void>;
+  crearAlertaRevision(data: { rol: string; solicitudId: string; titulo: string; mensaje: string; standCodes: string }): Promise<void>;
 }

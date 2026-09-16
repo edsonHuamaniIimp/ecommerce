@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
 import { LogOut, User, Bell } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
-import { authService } from "@/lib/api/services/auth-service";
-import { alertasService } from "@/lib/api/services/alertas-service";
-import { LS_KEYS } from "@/lib/constants";
-import { dateUtils } from "@/lib/utils/date";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { alertasService } from "@/lib/client/api/services/alertas-service";
+import { LS_KEYS } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 interface AlertaItem {
   id: string;
@@ -46,8 +46,8 @@ export function DashboardHeader() {
   const loadAlertas = useCallback(async () => {
     try {
       const data = await alertasService.listar();
-      setAlertas(data.alertas);
-      setNoLeidas(data.noLeidas);
+      setAlertas(data.alertas ?? []);
+      setNoLeidas(data.noLeidas ?? 0);
     } catch { /* ignore */ }
   }, []);
 

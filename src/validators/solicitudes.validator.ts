@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REVISION_AREAS, RESULTADOS_APROBACION } from "@/lib/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),

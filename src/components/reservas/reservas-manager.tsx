@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
-import { authService } from "@/lib/api/services/auth-service";
-import { maestraService } from "@/lib/api/services/maestra-service";
-import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID } from "@/lib/constants";
+import { authService } from "@/lib/client/api/services/auth-service";
+import { maestraService } from "@/lib/client/api/services/maestra-service";
+import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
 
 interface ReservaRow {
   id: string;
@@ -130,7 +130,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{row.bloqueId ?? "—"}</TableCell>
                         <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant="default" className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">
+                          <Badge variant="default" className={`text-[10px] ${BADGE_STYLES.WARNING}`}>
                             <span>{estadoLabels[row.estado ?? ""] ?? estadoLabels[ESTADOS_STAND.EN_EVALUACION]}</span>
                           </Badge>
                         </TableCell>

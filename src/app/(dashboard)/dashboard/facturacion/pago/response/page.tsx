@@ -1,0 +1,45 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import Link from "next/link";
+import { internalApi } from "@/lib/client/api/services/internal-api";
+
+export default function NiubizzResponsePage() {
+  const searchParams = useSearchParams();
+  const facturacionId = searchParams.get("facturacionId");
+  const transactionToken = searchParams.get("transactionToken");
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+
+  useEffect(() => {
+    if (!facturacionId || !transactionToken) {
+      setStatus("error");
+      return;
+    }
+    internalApi.post("/api/facturacion/niubizz/confirmar", { facturacionId, transactionToken })
+      .then(() => setStatus("success"))
+      .catch(() => setStatus("error"));
+  }, [facturacionId, transactionToken]);
+
+  return (
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardContent className="flex flex-col items-center gap-4 py-8 text-center">
+          {status === "loading" && <Loader2 className="h-10 w-10 animate-spin text-amber-500" />}
+          {status === "success" && <CheckCircle2 className="h-10 w-10 text-emerald-500" />}
+          {status === "error" && <XCircle className="h-10 w-10 text-red-500" />}
+          <p className="text-sm font-medium">
+            {status === "loading" ? "Procesando pago..." :
+             status === "success" ? "Pago procesado correctamente" :
+             "Error al procesar el pago"}
+          </p>
+          <Link href="/dashboard/mis-solicitudes" className="text-sm text-primary hover:underline">
+            Volver a Mis solicitudes
+          </Link>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
