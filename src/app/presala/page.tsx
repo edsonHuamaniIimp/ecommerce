@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -32,7 +32,7 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function PresalaPage() {
+function PresalaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [eventos, setEventos] = useState<EventoItem[]>([]);
@@ -198,5 +198,13 @@ export default function PresalaPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function PresalaPage() {
+  return (
+    <Suspense fallback={null}>
+      <PresalaPageContent />
+    </Suspense>
   );
 }

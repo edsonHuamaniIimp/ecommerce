@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
@@ -84,7 +84,7 @@ function DetailSection({ id, title, open, onToggle, children }: { id: string; ti
   );
 }
 
-export function SolicitudesManager({ eventoId }: { eventoId: string }) {
+function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<SolicitudRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -932,5 +932,13 @@ export function SolicitudesManager({ eventoId }: { eventoId: string }) {
         </Dialog>
       )}
     </>
+  );
+}
+
+export function SolicitudesManager({ eventoId }: { eventoId: string }) {
+  return (
+    <Suspense fallback={null}>
+      <SolicitudesManagerContent eventoId={eventoId} />
+    </Suspense>
   );
 }

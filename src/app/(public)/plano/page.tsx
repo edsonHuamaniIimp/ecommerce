@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlanoIsometrico } from "@/components/plano/plano-isometrico";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
@@ -9,7 +9,7 @@ import { getPlano } from "@/lib/shared/planos/registry";
 import { LS_KEYS } from "@/lib/shared/constants";
 import { authService } from "@/lib/client/api/services/auth-service";
 
-export default function PlanoIsometricoPage() {
+function PlanoIsometricoPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [eventoId, setEventoId] = useState<string | null>(null);
@@ -89,5 +89,13 @@ export default function PlanoIsometricoPage() {
         <PlanoIsometrico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} openReserva={openReserva} />
       </div>
     </main>
+  );
+}
+
+export default function PlanoIsometricoPage() {
+  return (
+    <Suspense fallback={null}>
+      <PlanoIsometricoPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2 } from "lucide-react";
@@ -14,7 +14,7 @@ interface NiubizData {
   urlJs: string;
 }
 
-export default function PagarNiubizzPage() {
+function PagarNiubizzPageContent() {
   const searchParams = useSearchParams();
   const facturacionId = searchParams.get("facturacionId");
   const [data, setData] = useState<NiubizData | null>(null);
@@ -104,5 +104,13 @@ export default function PagarNiubizzPage() {
         }}
       />
     </main>
+  );
+}
+
+export default function PagarNiubizzPage() {
+  return (
+    <Suspense fallback={null}>
+      <PagarNiubizzPageContent />
+    </Suspense>
   );
 }

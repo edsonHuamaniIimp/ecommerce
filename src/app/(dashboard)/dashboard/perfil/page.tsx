@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { MAESTRA_TABLAS } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
-export default function PerfilPage() {
+function PerfilPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resetToken = searchParams.get("reset");
@@ -259,5 +259,13 @@ export default function PerfilPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+export default function PerfilPage() {
+  return (
+    <Suspense fallback={null}>
+      <PerfilPageContent />
+    </Suspense>
   );
 }

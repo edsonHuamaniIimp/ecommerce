@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlanoDinamico } from "@/components/plano/plano-dinamico";
 import { MacroMapaView } from "@/components/plano/macro-mapa-view";
@@ -12,7 +12,7 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import type { PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
 
-export default function MapaDinamicoPage() {
+function MapaDinamicoPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [eventoId, setEventoId] = useState<string | null>(null);
@@ -116,5 +116,13 @@ export default function MapaDinamicoPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function MapaDinamicoPage() {
+  return (
+    <Suspense fallback={null}>
+      <MapaDinamicoPageContent />
+    </Suspense>
   );
 }

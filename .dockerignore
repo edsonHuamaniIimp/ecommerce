@@ -25,11 +25,12 @@ node_modules/
 .vscode/
 .fleet/
 
-# Env
+# Env — NUNCA dentro de la imagen.
+# En producción los valores llegan por variables de entorno (ECS + Secrets Manager).
 .env
-.env.local
-.env.*.local
-.env.prod
+.env.*
+!.env.example
+!.env.prod.example
 
 # Next.js build (se regenera en el entrypoint)
 .next/

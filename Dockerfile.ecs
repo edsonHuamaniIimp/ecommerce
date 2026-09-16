@@ -41,7 +41,10 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 COPY docker/entrypoint-ecs.sh /usr/local/bin/entrypoint.sh
+# Defensa en profundidad: NUNCA dejar archivos .env dentro de la imagen
+# (los secretos se inyectan como variables de entorno desde Secrets Manager).
 RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && rm -f /app/.env /app/.env.* \
     && chown -R nextjs:nodejs /app
 
 USER nextjs

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Info, Upload, Trash2, ChevronDown, CreditCard } from "lucide-react";
 import Link from "next/link";
@@ -66,7 +66,7 @@ function DetailSection({ id, title, open, onToggle, children }: { id: string; ti
   );
 }
 
-export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; userId: string }) {
+function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; userId: string }) {
   const searchParams = useSearchParams();
   const autoOpenId = searchParams.get("id");
 
@@ -643,5 +643,13 @@ export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; 
         </Dialog>
       )}
     </>
+  );
+}
+
+export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; userId: string }) {
+  return (
+    <Suspense fallback={null}>
+      <MisSolicitudesManagerContent eventoId={eventoId} userId={userId} />
+    </Suspense>
   );
 }

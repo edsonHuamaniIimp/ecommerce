@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 
-export default function NiubizzResponsePage() {
+function NiubizzResponsePageContent() {
   const searchParams = useSearchParams();
   const facturacionId = searchParams.get("facturacionId");
   const transactionToken = searchParams.get("transactionToken");
@@ -41,5 +41,13 @@ export default function NiubizzResponsePage() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function NiubizzResponsePage() {
+  return (
+    <Suspense fallback={null}>
+      <NiubizzResponsePageContent />
+    </Suspense>
   );
 }
