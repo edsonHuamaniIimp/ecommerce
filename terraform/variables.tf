@@ -516,6 +516,42 @@ variable "budget_alert_percentages" {
   default     = [80, 100]
 }
 
+# ── Integracion SGC (Sistema de Gestion de Contratos) ─────────────────────
+variable "sgc_enabled" {
+  description = "Activar la integracion SGC (1 = dispara el expediente al aprobar Comunicacion)"
+  type        = bool
+  default     = false
+}
+
+variable "sgc_mode" {
+  description = "Modo del cliente SGC: mock (sin red) | real"
+  type        = string
+  default     = "mock"
+
+  validation {
+    condition     = contains(["mock", "real"], var.sgc_mode)
+    error_message = "sgc_mode debe ser 'mock' o 'real'."
+  }
+}
+
+variable "sgc_area_code" {
+  description = "Codigo de area del expediente SGC (lo define el SGC) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "sgc_contract_type_code" {
+  description = "Codigo del tipo de contrato del expediente SGC (lo define el SGC) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "sgc_timeout_ms" {
+  description = "Timeout de las llamadas al SGC (ms)"
+  type        = number
+  default     = 10000
+}
+
 # ── Estado remoto (R5 — bootstrap) ──────────────────────────────────────────
 variable "state_bucket_name" {
   description = "Bucket S3 del estado remoto (R5)"

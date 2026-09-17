@@ -163,8 +163,39 @@ variable "ecr_keep_last_images" {
 }
 
 variable "image_tag" {
-  description = "Tag de la imagen a desplegar (revisión — rollback) (R2)"
+  description = "Tag de la imagen ECR a desplegar (revision — rollback = cambiar este valor)"
   type        = string
+  default     = "latest"
+}
+
+variable "sgc_enabled" {
+  description = "Activar la integracion SGC en la tarea (SGC_ENABLED)"
+  type        = bool
+  default     = false
+}
+
+variable "sgc_mode" {
+  description = "Modo del cliente SGC (SGC_MODE): mock | real"
+  type        = string
+  default     = "mock"
+}
+
+variable "sgc_area_code" {
+  description = "SGC_AREA_CODE — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "sgc_contract_type_code" {
+  description = "SGC_CONTRACT_TYPE_CODE — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "sgc_timeout_ms" {
+  description = "SGC_TIMEOUT_MS"
+  type        = number
+  default     = 10000
 }
 
 variable "container_port" {
@@ -328,6 +359,11 @@ locals {
     var.niubizz_url_js != "" ? [{ name = "NIUBIZZ_URL_JS", value = var.niubizz_url_js }] : [],
     var.iimp_proxy_url != "" ? [{ name = "IIMP_PROXY_URL", value = var.iimp_proxy_url }] : [],
     var.iimp_proxy_ip != "" ? [{ name = "IIMP_PROXY_IP", value = var.iimp_proxy_ip }] : [],
+    [{ name = "SGC_ENABLED", value = var.sgc_enabled ? "1" : "0" }],
+    [{ name = "SGC_MODE", value = var.sgc_mode }],
+    [{ name = "SGC_TIMEOUT_MS", value = tostring(var.sgc_timeout_ms) }],
+    var.sgc_area_code != "" ? [{ name = "SGC_AREA_CODE", value = var.sgc_area_code }] : [],
+    var.sgc_contract_type_code != "" ? [{ name = "SGC_CONTRACT_TYPE_CODE", value = var.sgc_contract_type_code }] : [],
   )
 }
 
