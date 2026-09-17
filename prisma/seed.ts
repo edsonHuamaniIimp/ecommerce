@@ -6,8 +6,9 @@ import { Pool } from "pg";
 import { TIPOLOGIAS_STAND, TIPOS_PLANO } from "../src/lib/shared/constants";
 
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
-if (APP_ENV === "production") {
+if (APP_ENV === "production" && process.env.SEED_ALLOW_PROD !== "1") {
   console.log("Seed bloqueado: no se ejecuta en produccion.");
+  console.log("Si es intencional (pruebas controladas), usar SEED_ALLOW_PROD=1.");
   process.exit(0);
 }
 
