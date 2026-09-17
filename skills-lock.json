@@ -7,6 +7,12 @@
       "skillPath": "plugins/auth0/skills/auth0/SKILL.md",
       "computedHash": "bb93a7f7733a47b04264ff9886fabfb36f04683f5b0dc6f3e2f4530b1e6bf02b"
     },
+    "caveman": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman/SKILL.md",
+      "computedHash": "43ab924e4422a09c24d16dc81349771513bc801c1be21077c252952fe753e6b6"
+    },
     "next-cache-components-adoption": {
       "source": "vercel/next.js",
       "sourceType": "github",
