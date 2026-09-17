@@ -21,7 +21,7 @@ fi
 if [ -n "${DATABASE_URL}" ]; then
     echo "⏳  Esperando PostgreSQL..."
     for i in $(seq 1 30); do
-        if npx prisma db push --skip-generate 2>/dev/null; then
+        if node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:3000});p.query('SELECT 1').then(()=>process.exit(0)).catch(()=>process.exit(1))"; then
             echo "✅  PostgreSQL listo."
             break
         fi

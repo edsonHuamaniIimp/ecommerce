@@ -2,14 +2,16 @@
 # Pensado para probar el flujo en un servidor donde 80/443 ya estan ocupados
 # (p. ej. el EC2 del montaje). No monta certificados ni redirige a HTTPS.
 #
+# Los puertos se controlan desde .env.prod (APP_HTTP_PORT / APP_HTTPS_PORT):
+#   APP_HTTP_PORT=8080
+#   APP_HTTPS_PORT=8443
+#
 # Uso:
 #   docker compose --env-file .env.prod \
 #     -f docker-compose.prod.yml -f docker-compose.prod.test.yml up -d --build
 
 services:
   app:
-    ports:
-      - "${APP_HTTP_PORT:-8080}:80"
     volumes:
       # Config nginx sin TLS (reemplaza la config con SSL de la imagen)
       - ./docker/nginx.nossl.conf:/etc/nginx/sites-enabled/default:ro
