@@ -100,6 +100,9 @@ planogess.png
 !*.tfvars.example
 # Los perfiles de escalado SI se versionan (no contienen secretos, solo capacidades)
 !terraform/perfiles/*.tfvars
+# Artefactos de plan (pueden contener valores sensibles: nunca versionar)
+tfplan*
+plan-*.json
 
 # ============================================================
 # opencode: solo reglas/skills/agentes (el resto es cache local)

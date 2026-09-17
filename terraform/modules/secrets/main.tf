@@ -42,6 +42,41 @@ variable "resend_api_key" {
   sensitive   = true
 }
 
+variable "kbservicios_api_key" {
+  description = "API key de KBServicios (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "niubizz_user" {
+  description = "Usuario de Niubiz (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "niubizz_password" {
+  description = "Password de Niubiz (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "iimp_proxy_pass" {
+  description = "Password del proxy IIMP (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "integracion_api_key" {
+  description = "Clave M2M con el sistema de montaje (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 locals {
   tags = merge(var.common_tags, { component = "secrets" })
   name = "iimp-ctrst-${var.environment}"
@@ -106,6 +141,70 @@ resource "aws_secretsmanager_secret_version" "resend_api_key" {
   secret_string = var.resend_api_key
 }
 
+# ── KBServicios (auspicios) ─────────────────────────────────────────────────
+resource "aws_secretsmanager_secret" "kbservicios_api_key" {
+  count = var.kbservicios_api_key != "" ? 1 : 0
+  name  = "${local.name}-kbservicios-api-key"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "kbservicios_api_key" {
+  count         = var.kbservicios_api_key != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.kbservicios_api_key[0].id
+  secret_string = var.kbservicios_api_key
+}
+
+# ── Niubiz (pasarela de pagos) ──────────────────────────────────────────────
+resource "aws_secretsmanager_secret" "niubizz_user" {
+  count = var.niubizz_user != "" ? 1 : 0
+  name  = "${local.name}-niubizz-user"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "niubizz_user" {
+  count         = var.niubizz_user != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.niubizz_user[0].id
+  secret_string = var.niubizz_user
+}
+
+resource "aws_secretsmanager_secret" "niubizz_password" {
+  count = var.niubizz_password != "" ? 1 : 0
+  name  = "${local.name}-niubizz-password"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "niubizz_password" {
+  count         = var.niubizz_password != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.niubizz_password[0].id
+  secret_string = var.niubizz_password
+}
+
+# ── Proxy IIMP ──────────────────────────────────────────────────────────────
+resource "aws_secretsmanager_secret" "iimp_proxy_pass" {
+  count = var.iimp_proxy_pass != "" ? 1 : 0
+  name  = "${local.name}-iimp-proxy-pass"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "iimp_proxy_pass" {
+  count         = var.iimp_proxy_pass != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.iimp_proxy_pass[0].id
+  secret_string = var.iimp_proxy_pass
+}
+
+# ── Clave M2M con montaje ───────────────────────────────────────────────────
+resource "aws_secretsmanager_secret" "integracion_api_key" {
+  count = var.integracion_api_key != "" ? 1 : 0
+  name  = "${local.name}-integracion-api-key"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "integracion_api_key" {
+  count         = var.integracion_api_key != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.integracion_api_key[0].id
+  secret_string = var.integracion_api_key
+}
+
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
   value = merge(
@@ -115,6 +214,11 @@ output "secret_arns" {
     },
     var.sunat_api_token != "" ? { sunat_api_token = aws_secretsmanager_secret.sunat_api_token[0].arn } : {},
     var.resend_api_key != "" ? { resend_api_key = aws_secretsmanager_secret.resend_api_key[0].arn } : {},
+    var.kbservicios_api_key != "" ? { kbservicios_api_key = aws_secretsmanager_secret.kbservicios_api_key[0].arn } : {},
+    var.niubizz_user != "" ? { niubizz_user = aws_secretsmanager_secret.niubizz_user[0].arn } : {},
+    var.niubizz_password != "" ? { niubizz_password = aws_secretsmanager_secret.niubizz_password[0].arn } : {},
+    var.iimp_proxy_pass != "" ? { iimp_proxy_pass = aws_secretsmanager_secret.iimp_proxy_pass[0].arn } : {},
+    var.integracion_api_key != "" ? { integracion_api_key = aws_secretsmanager_secret.integracion_api_key[0].arn } : {},
   )
 }
 

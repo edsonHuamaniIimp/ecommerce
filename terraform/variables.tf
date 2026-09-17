@@ -74,9 +74,9 @@ variable "db_username" {
 }
 
 variable "aurora_engine_version" {
-  description = "Version del motor Aurora PostgreSQL"
+  description = "Version del motor Aurora PostgreSQL (verificar disponibles: aws rds describe-db-engine-versions --engine aurora-postgresql)"
   type        = string
-  default     = "16.4"
+  default     = "16.14"
 }
 
 variable "aurora_min_acu" {
@@ -153,6 +153,83 @@ variable "resend_api_key" {
   type        = string
   default     = ""
   sensitive   = true
+}
+
+variable "kbservicios_api_key" {
+  description = "API key de KBServicios (auspicios) (secreto) — vacio = no crear secreto"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "auspicios_api_url" {
+  description = "URL del servicio de auspicios — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_merchant_id" {
+  description = "Merchant ID de Niubiz — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_user" {
+  description = "Usuario de Niubiz (secreto)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "niubizz_password" {
+  description = "Password de Niubiz (secreto)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "niubizz_url_api" {
+  description = "URL de la API de Niubiz — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_url_js" {
+  description = "URL del JS de checkout de Niubiz — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "iimp_proxy_url" {
+  description = "URL del proxy IIMP (salida a internet) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "iimp_proxy_ip" {
+  description = "IP del proxy IIMP — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "iimp_proxy_pass" {
+  description = "Password del proxy IIMP (secreto)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "integracion_api_key" {
+  description = "Clave M2M con el sistema de montaje (secreto)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "public_api_url" {
+  description = "NEXT_PUBLIC_API_URL (URL base de la API para el navegador). Vacio = '/api' (mismo origen, recomendado)"
+  type        = string
+  default     = "/api"
 }
 
 variable "admin_email" {

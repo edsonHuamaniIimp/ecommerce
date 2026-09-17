@@ -4,6 +4,15 @@ set -e
 
 echo "[entrypoint] ContratosStands ECS - iniciando..."
 
+# Tareas one-off de mantenimiento: si se pasa un comando, se ejecuta y termina
+# (no arranca la app). Ejemplo:
+#   aws ecs run-task ... --overrides '{"containerOverrides":[{"name":"app",
+#     "command":["npx","prisma","migrate","resolve","--rolled-back","0002_add_revision_table"]}]}'
+if [ "$#" -gt 0 ]; then
+    echo "[entrypoint] Comando puntual: $*"
+    exec "$@"
+fi
+
 # Aplica migraciones versionadas con reintentos. NUNCA recrea ni borra la base:
 # prohibido `migrate reset --force` / `db push --force-reset` / `--accept-data-loss`.
 # Si las migraciones no se pueden aplicar, se ABORTA el arranque (ECS conserva la

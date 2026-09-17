@@ -10,6 +10,32 @@ RUN npm ci && npm cache clean --force
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# ── Variables NEXT_PUBLIC_* (se inlinean en el bundle del navegador) ─────────
+# Deben existir EN EL BUILD, no solo en runtime. Valores por defecto seguros:
+#   NEXT_PUBLIC_API_URL=/api   -> mismo origen (funciona en cualquier dominio)
+#   NEXT_PUBLIC_API_MOCK=0     -> datos reales (nunca mocks en produccion)
+ARG NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_API_MOCK=0
+ARG NEXT_PUBLIC_APP_ENV=production
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_API_MOCK=$NEXT_PUBLIC_API_MOCK \
+    NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+
+# ── Placeholders SOLO para el build ─────────────────────────────────────────
+# `next build` evalúa los route handlers ("collect page data") y varios clientes
+# (kbservicios, planogess, consultas) lanzan error al importar si falta su variable.
+# Estos valores son FALSOS y sirven unicamente para que el build compile:
+# en runtime la app recibe los reales como variables de entorno (Secrets Manager).
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public" \
+    KBSERVICIOS_URL="https://build.invalid" \
+    PLANOGESS_API_URL="https://build.invalid" \
+    AUSPICIOS_API_URL="https://build.invalid" \
+    SUNAT_API_TOKEN="build-placeholder" \
+    JWT_SECRET="build-time-placeholder"
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate && npm run build

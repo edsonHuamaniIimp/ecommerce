@@ -82,6 +82,48 @@ variable "admin_email" {
   default     = ""
 }
 
+variable "auspicios_api_url" {
+  description = "URL del servicio de auspicios (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_merchant_id" {
+  description = "Merchant ID de Niubiz (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_url_api" {
+  description = "URL de la API de Niubiz (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "niubizz_url_js" {
+  description = "URL del JS de checkout de Niubiz (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "iimp_proxy_url" {
+  description = "URL del proxy IIMP (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "iimp_proxy_ip" {
+  description = "IP del proxy IIMP (R2) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "public_api_url" {
+  description = "NEXT_PUBLIC_API_URL (URL base de la API en el navegador) (R2)"
+  type        = string
+  default     = "/api"
+}
+
 variable "app_domain" {
   description = "Dominio público (APP_URL) (R2) — vacio = usar el DNS del ALB"
   type        = string
@@ -96,6 +138,11 @@ variable "certificate_arn" {
 
 variable "enable_https" {
   description = "Crear listener HTTPS + redirección 80→443 (debe ser un valor conocido en plan; el certificado debe estar validado) (R2)"
+  type        = bool
+}
+
+variable "http_redirect_to_https" {
+  description = "Redirigir 80→443 en el ALB. DEBE ser false cuando CloudFront consume el origen por HTTP (si no, se produce un loop de redirecciones)"
   type        = bool
 }
 
@@ -250,6 +297,11 @@ locals {
     ],
     can(var.secret_arns["sunat_api_token"]) ? [{ name = "SUNAT_API_TOKEN", valueFrom = var.secret_arns["sunat_api_token"] }] : [],
     can(var.secret_arns["resend_api_key"]) ? [{ name = "RESEND_API_KEY", valueFrom = var.secret_arns["resend_api_key"] }] : [],
+    can(var.secret_arns["kbservicios_api_key"]) ? [{ name = "KBSERVICIOS_API_KEY", valueFrom = var.secret_arns["kbservicios_api_key"] }] : [],
+    can(var.secret_arns["niubizz_user"]) ? [{ name = "NIUBIZZ_USER", valueFrom = var.secret_arns["niubizz_user"] }] : [],
+    can(var.secret_arns["niubizz_password"]) ? [{ name = "NIUBIZZ_PASSWORD", valueFrom = var.secret_arns["niubizz_password"] }] : [],
+    can(var.secret_arns["iimp_proxy_pass"]) ? [{ name = "IIMP_PROXY_PASS", valueFrom = var.secret_arns["iimp_proxy_pass"] }] : [],
+    can(var.secret_arns["integracion_api_key"]) ? [{ name = "INTEGRACION_API_KEY", valueFrom = var.secret_arns["integracion_api_key"] }] : [],
   )
 
   env_list = concat(
@@ -265,10 +317,17 @@ locals {
       { name = "RUN_MIGRATIONS", value = "true" },
       { name = "NEXT_PUBLIC_APP_URL", value = local.app_url },
       { name = "APP_URL", value = local.app_url },
+      { name = "NEXT_PUBLIC_API_URL", value = var.public_api_url },
     ],
     var.planogess_api_url != "" ? [{ name = "PLANOGESS_API_URL", value = var.planogess_api_url }] : [],
     var.kbservicios_url != "" ? [{ name = "KBSERVICIOS_URL", value = var.kbservicios_url }] : [],
+    var.auspicios_api_url != "" ? [{ name = "AUSPICIOS_API_URL", value = var.auspicios_api_url }] : [],
     var.admin_email != "" ? [{ name = "ADMIN_EMAIL", value = var.admin_email }] : [],
+    var.niubizz_merchant_id != "" ? [{ name = "NIUBIZZ_MERCHANT_ID", value = var.niubizz_merchant_id }] : [],
+    var.niubizz_url_api != "" ? [{ name = "NIUBIZZ_URL_API", value = var.niubizz_url_api }] : [],
+    var.niubizz_url_js != "" ? [{ name = "NIUBIZZ_URL_JS", value = var.niubizz_url_js }] : [],
+    var.iimp_proxy_url != "" ? [{ name = "IIMP_PROXY_URL", value = var.iimp_proxy_url }] : [],
+    var.iimp_proxy_ip != "" ? [{ name = "IIMP_PROXY_IP", value = var.iimp_proxy_ip }] : [],
   )
 }
 
@@ -472,11 +531,13 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = var.enable_https ? "redirect" : "forward"
-    target_group_arn = var.enable_https ? null : aws_lb_target_group.app.arn
+    # Con CloudFront delante (origen http-only) el ALB DEBE reenviar, no redirigir:
+    # si redirige, CloudFront → ALB(HTTP) → 301 → CloudFront = loop infinito.
+    type             = var.http_redirect_to_https ? "redirect" : "forward"
+    target_group_arn = var.http_redirect_to_https ? null : aws_lb_target_group.app.arn
 
     dynamic "redirect" {
-      for_each = var.enable_https ? [1] : []
+      for_each = var.http_redirect_to_https ? [1] : []
       content {
         port        = "443"
         protocol    = "HTTPS"

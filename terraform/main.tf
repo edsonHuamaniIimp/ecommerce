@@ -152,13 +152,18 @@ module "uploads" {
 module "secrets" {
   source = "./modules/secrets"
 
-  environment     = var.environment
-  db_endpoint     = module.aurora.endpoint
-  db_username     = module.aurora.username
-  db_password     = module.aurora.password
-  db_name         = module.aurora.database_name
-  sunat_api_token = var.sunat_api_token
-  resend_api_key  = var.resend_api_key
+  environment         = var.environment
+  db_endpoint         = module.aurora.endpoint
+  db_username         = module.aurora.username
+  db_password         = module.aurora.password
+  db_name             = module.aurora.database_name
+  sunat_api_token     = var.sunat_api_token
+  resend_api_key      = var.resend_api_key
+  kbservicios_api_key = var.kbservicios_api_key
+  niubizz_user        = var.niubizz_user
+  niubizz_password    = var.niubizz_password
+  iimp_proxy_pass     = var.iimp_proxy_pass
+  integracion_api_key = var.integracion_api_key
 
   common_tags = local.common_tags
 }
@@ -167,23 +172,32 @@ module "secrets" {
 module "ecs" {
   source = "./modules/ecs"
 
-  environment                    = var.environment
-  vpc_id                         = module.network.vpc_id
-  public_subnet_ids              = module.network.public_subnet_ids
-  private_subnet_ids             = module.network.private_subnet_ids
-  enable_nat_gateway             = var.enable_nat_gateway
-  secret_arns                    = module.secrets.secret_arns
-  bucket_arn                     = module.storage.bucket_arn
-  s3_bucket                      = module.storage.bucket_name
-  efs_file_system_id             = module.uploads.file_system_id
-  efs_access_point_id            = module.uploads.access_point_id
-  uploads_backend                = var.uploads_backend
-  planogess_api_url              = var.planogess_api_url
-  kbservicios_url                = var.kbservicios_url
-  admin_email                    = var.admin_email
-  app_domain                     = var.app_domain
-  certificate_arn                = module.acm.certificate_arn
-  enable_https                   = var.enable_https
+  environment         = var.environment
+  vpc_id              = module.network.vpc_id
+  public_subnet_ids   = module.network.public_subnet_ids
+  private_subnet_ids  = module.network.private_subnet_ids
+  enable_nat_gateway  = var.enable_nat_gateway
+  secret_arns         = module.secrets.secret_arns
+  bucket_arn          = module.storage.bucket_arn
+  s3_bucket           = module.storage.bucket_name
+  efs_file_system_id  = module.uploads.file_system_id
+  efs_access_point_id = module.uploads.access_point_id
+  uploads_backend     = var.uploads_backend
+  planogess_api_url   = var.planogess_api_url
+  kbservicios_url     = var.kbservicios_url
+  auspicios_api_url   = var.auspicios_api_url
+  admin_email         = var.admin_email
+  niubizz_merchant_id = var.niubizz_merchant_id
+  niubizz_url_api     = var.niubizz_url_api
+  niubizz_url_js      = var.niubizz_url_js
+  iimp_proxy_url      = var.iimp_proxy_url
+  iimp_proxy_ip       = var.iimp_proxy_ip
+  public_api_url      = var.public_api_url
+  app_domain          = var.app_domain
+  certificate_arn     = module.acm.certificate_arn
+  enable_https        = var.enable_https
+  # El redirect 80→443 solo si NO hay CloudFront delante (evita el loop de redirecciones)
+  http_redirect_to_https         = var.enable_https && !var.enable_cloudfront
   restrict_alb_to_cloudfront     = var.restrict_alb_to_cloudfront
   ecr_repository_name            = var.ecr_repository_name
   ecr_keep_last_images           = var.ecr_keep_last_images
