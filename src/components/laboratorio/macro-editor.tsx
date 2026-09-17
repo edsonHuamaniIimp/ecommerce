@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { Plus, Save, Trash2, Upload, ImageIcon, Move, Expand, RotateCw, ZoomIn, ZoomOut, Maximize } from "lucide-react";
@@ -76,11 +78,11 @@ export function MacroEditor({ plano, planos, onChange }: {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      aplicarZoom(zoomRef.current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP), { x: e.clientX, y: e.clientY });
+      aplicarZoom(zoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP), { x: e.clientX, y: e.clientY });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [aplicarZoom]);
+  }, [aplicarZoom, zoom]);
 
   
 
@@ -119,13 +121,12 @@ export function MacroEditor({ plano, planos, onChange }: {
   };
 
   useEffect(() => {
-    setSecciones(plano.secciones.map((s) => ({ codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, rotacion: s.rotacion ?? 0, color: s.color, planoHijoId: s.planoHijoId, orden: s.orden })));
-    setSelected(null);
-    setDirty(false);
+    (async () => {
+      setSecciones(plano.secciones.map((s) => ({ codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, rotacion: s.rotacion ?? 0, color: s.color, planoHijoId: s.planoHijoId, orden: s.orden })));
+      setSelected(null);
+      setDirty(false);
+    })();
   }, [plano.id, plano.secciones]);
-
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
 
   const planosHijos = planos.filter((p) => p.tipo === TIPOS_PLANO.SIMPLE && p.id !== plano.id);
   const seccionSel = selected ? secciones.find((s) => s.codigo === selected) : null;
@@ -210,7 +211,7 @@ export function MacroEditor({ plano, planos, onChange }: {
       nombre: `Pabellon ${codigo.replace("PAB-", "")}`,
       x: 0.35, y: 0.35, w: 0.15, h: 0.12,
       rotacion: 0,
-      color: colores[secciones.length % colores.length],
+      color: colores[secciones.length % colores.length] ?? "#3b82f6",
       planoHijoId: null,
       orden: secciones.length,
     };
@@ -293,7 +294,7 @@ export function MacroEditor({ plano, planos, onChange }: {
             style={{ width: `${zoom * 100}%`, minWidth: "100%", cursor: zoom > 1 ? "grab" : "default" }}
             onPointerDown={(e) => { setSelected(null); startPan(e); }}
           >
-            <img
+            <Image width={0} height={0} sizes="100vw"
               src={plano.imagenFondo}
               alt="Mapa de pabellones"
               className="w-full h-auto block pointer-events-none rounded-lg"

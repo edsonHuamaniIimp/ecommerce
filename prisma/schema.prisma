@@ -232,6 +232,7 @@ model Solicitud {
   docsAdjuntos SolicitudDocumento[] @relation("SolicitudDocs")
   stands      SolicitudStand[]
   facturaciones Facturacion[]
+  sgcExpediente SgcExpediente?
 
   @@index([gessStandId])
   @@map("solicitud")
@@ -629,4 +630,72 @@ model PlanoFurniture {
   @@unique([planoId, refId])
   @@index([planoId])
   @@map("plano_furniture")
+}
+
+/* ================================================================
+   7. INTEGRACIÓN SGC — correlación con el Sistema de Gestión de Contratos
+      Contrato: APIS_USE_HOOKS.md / docs/integracion-sgc.md
+   ================================================================ */
+
+model SgcExpediente {
+  id               String    @id @default(uuid())
+  solicitudId      String    @unique @map("solicitud_id")
+  code             String    @unique @db.VarChar(50)
+  contractId       String?   @unique @map("contract_id") @db.VarChar(64)
+  estadoEnvio      String    @default("pendiente") @map("estado_envio") @db.VarChar(20)
+  stage            String?   @db.VarChar(40)
+  lifecycleStatus  String?   @map("lifecycle_status") @db.VarChar(20)
+  version          Int?
+  areaCode         String    @map("area_code") @db.VarChar(40)
+  contractTypeCode String    @map("contract_type_code") @db.VarChar(40)
+  lastSyncedAt     DateTime? @map("last_synced_at")
+  lastError        String?   @map("last_error") @db.VarChar(500)
+
+  solicitud        Solicitud     @relation(fields: [solicitudId], references: [id])
+  documentos       SgcDocumento[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([estadoEnvio])
+  @@index([stage])
+  @@map("sgc_expediente")
+}
+
+model SgcDocumento {
+  id               String   @id @default(uuid())
+  sgcExpedienteId  String   @map("sgc_expediente_id")
+  documentId       String   @unique @map("document_id") @db.VarChar(64)
+  currentVersionId String?  @map("current_version_id") @db.VarChar(64)
+  category         String   @db.VarChar(20)
+  title            String   @db.VarChar(200)
+  fileName         String   @map("file_name") @db.VarChar(255)
+  checksumSha256   String?  @map("checksum_sha256") @db.VarChar(64)
+  sizeBytes        Int?     @map("size_bytes")
+  estado           String   @default("reservado") @db.VarChar(20)
+
+  sgcExpediente    SgcExpediente @relation(fields: [sgcExpedienteId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([sgcExpedienteId])
+  @@map("sgc_documento")
+}
+
+model SgcWebhookEvento {
+  id           String    @id @default(uuid())
+  eventId      String    @unique @map("event_id") @db.VarChar(64)
+  eventType    String    @map("event_type") @db.VarChar(40)
+  resourceId   String?   @map("resource_id") @db.VarChar(64)
+  resourceCode String?   @map("resource_code") @db.VarChar(50)
+  payload      Json
+  procesadoAt  DateTime? @map("procesado_at")
+  error        String?   @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([resourceId])
+  @@map("sgc_webhook_evento")
 }

@@ -1,8 +1,14 @@
-import type { Item, BlockType } from "./tipos";
+import type { Item, BlockType, Dim } from "./tipos";
 import { DIMENSIONES as D } from "./tipos";
 
-function vColumn(type: BlockType, key: string, x: number, yCenter: number, ids: string[]): Item[] {
+function dimOf(key: string): Dim {
   const dim = D[key];
+  if (!dim) throw new Error(`Dimension no definida: ${key}`);
+  return dim;
+}
+
+function vColumn(type: BlockType, key: string, x: number, yCenter: number, ids: string[]): Item[] {
+  const dim = dimOf(key);
   const out: Item[] = [];
   const totalDepth = ids.length * dim.d;
   let y = yCenter + totalDepth / 2;
@@ -15,8 +21,8 @@ function vColumn(type: BlockType, key: string, x: number, yCenter: number, ids: 
 
 function matrix2x4(cx: number, cy: number, ids: string[]): Item[] {
   const col: string[] = ["P", "C", "C", "P"];
-  const colDepth = col.reduce((s, k) => s + D[k].d, 0);
-  const colW = D.P.w;
+  const colDepth = col.reduce((s, k) => s + dimOf(k).d, 0);
+  const colW = dimOf("P").w;
   const totalW = colW * 2;
   const x1 = cx - totalW / 2 + colW / 2;
   const x2 = cx + totalW / 2 - colW / 2;
@@ -26,7 +32,7 @@ function matrix2x4(cx: number, cy: number, ids: string[]): Item[] {
   for (const x of [x1, x2]) {
     let y = yTop;
     for (const k of col) {
-      const dim = D[k];
+      const dim = dimOf(k);
       out.push({ id: ids[idx++] ?? `?${idx}`, dim, type: k as BlockType, x, z: -(y - dim.d / 2) });
       y -= dim.d;
     }
@@ -49,7 +55,7 @@ export function buildItems(): Item[] {
     { id: "ISLA-GRANDE-3", x: -3.5, y: -6 },
     { id: "ISLA-GRANDE-4", x: 3.5, y: -6 },
   ];
-  for (const isl of islands) items.push({ id: isl.id, dim: D.BG, type: "BG", x: isl.x, z: -isl.y });
+  for (const isl of islands) items.push({ id: isl.id, dim: dimOf("BG"), type: "BG", x: isl.x, z: -isl.y });
   return items;
 }
 

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { Eye, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +12,7 @@ import { internalApi } from "@/lib/client/api/services/internal-api";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
-import type { MaestraItemDTO } from "@/types/dto/maestra";
+import type { GessStandDTO } from "@/types/dto/gess";
 
 interface StandDoc {
   id: string;
@@ -24,6 +26,24 @@ interface StandDoc {
   imagenes: string[];
 }
 
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function toStandDoc(dto: GessStandDTO): StandDoc {
+  return {
+    id: dto.id,
+    standCode: dto.standCode,
+    tipoStand: dto.tipoStand,
+    medidas: dto.medidas,
+    estado: dto.estado,
+    empresa: dto.empresa,
+    bloqueId: dto.bloqueId,
+    documentos: toStringArray(dto.documentos),
+    imagenes: toStringArray(dto.imagenes),
+  };
+}
+
 export function StandsManager({ eventoId }: { eventoId: string }) {
   const [rows, setRows] = useState<StandDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +53,6 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
   const [editImgs, setEditImgs] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [pagination, setPagination] = useState({ page: 1, perPage: 10, total: 0, totalPages: 0 });
   const [estadoLabels, setEstadoLabels] = useState<Record<string, string>>({});
@@ -48,24 +67,25 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
       }
       // Map constant keys to maestra labels
       for (const [key, itemId] of Object.entries(ESTADOS_STAND_MAESTRA_ID)) {
-        if (map[String(itemId)]) {
-          map[key] = map[String(itemId)];
+        const label = map[String(itemId)];
+        if (label) {
+          map[key] = label;
         }
       }
       setEstadoLabels(map);
     }).catch(() => {});
   }, []);
 
-  const load = async (p?: number, pp?: number, s?: string) => {
+  const load = useCallback(async (p: number = 1, pp?: number, s?: string) => {
     setLoading(true);
     try {
       const res = await gessService.list(eventoId, {
-        page: p ?? 1,
+        page: p,
         per_page: pp ?? 10,
         search: s || undefined,
       });
       const list = Array.isArray(res.data) ? res.data : [];
-      setRows(list as unknown as StandDoc[]);
+      setRows(list.map(toStandDoc));
       setPagination({
         page: res.pagination.page,
         perPage: res.pagination.per_page,
@@ -74,9 +94,11 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
       });
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [eventoId]);
 
-  useEffect(() => { load(); }, [eventoId]);
+  useEffect(() => {
+    (async () => { await load(); })();
+  }, [load]);
 
   const handleUpload = async (file: File): Promise<string> => {
     const fd = new FormData();
@@ -139,7 +161,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
               <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Buscar..." value={search} onChange={(e) => { setSearch(e.target.value); }} onKeyDown={(e) => { if (e.key === "Enter") load(1, perPage, e.currentTarget.value); }} className="pl-8 text-xs h-8" />
             </div>
-            <Select value={String(perPage)} onValueChange={(v) => { const n = Number(v); setPerPage(n); setPage(1); load(1, n, search); }}>
+            <Select value={String(perPage)} onValueChange={(v) => { const n = Number(v); setPerPage(n); load(1, n, search); }}>
               <SelectTrigger className="w-[90px] h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {[5, 10, 25, 50].map((n) => (<SelectItem key={n} value={String(n)}><span>{n} / pag</span></SelectItem>))}
@@ -196,7 +218,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 <Pagination
                   page={pagination.page}
                   totalPages={pagination.totalPages}
-                  onPageChange={(p) => { setPage(p); load(p, perPage, search); }}
+                  onPageChange={(p) => { load(p, perPage, search); }}
                 />
               </div>
             </>
@@ -256,7 +278,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 <div className="mt-2 divide-y rounded-md border">
                   {editImgs.map((url, i) => (
                     <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs">
-                      <img src={url} className="h-7 w-7 rounded object-cover" />
+                      <Image width={28} height={28} src={url} alt={url.split("/").pop() ?? "Imagen del stand"} className="h-7 w-7 rounded object-cover" />
                       <span className="flex-1 truncate font-mono">{url.split("/").pop()}</span>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="Ver">
                         <a href={url} target="_blank"><Eye className="h-3.5 w-3.5" /></a>

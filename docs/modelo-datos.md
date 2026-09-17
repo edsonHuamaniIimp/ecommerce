@@ -1,6 +1,7 @@
 # Modelo de Datos — ContratosStands
 
-> **Estado:** v0.3 — incluye modelos GessStand, Role, UserRole. Motor confirmado: PostgreSQL + Prisma v7.
+> **Estado:** v0.4 — incluye modelos GessStand, Role, UserRole y la integración SGC
+> (`sgc_expediente`, `sgc_documento`, `sgc_webhook_evento`). Motor confirmado: PostgreSQL + Prisma v7.
 > **Relacionado:** `docs/requerimientos.md`, `.opencode/reglas/lineamientos-bd`.
 
 ## 1. Alcance del modelo
@@ -282,6 +283,64 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | email | string(200) | No | Email del usuario. |
 
 Unique: `[userId, roleId]`. Índices: `userId`, `email`.
+
+### 4.15 `sgc_expediente` (Integración · correlación)
+
+Correlación 1:1 entre una `solicitud` local y su expediente en el Sistema de Gestión
+de Contratos (SGC). Ver `docs/integracion-sgc.md`.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| solicitudId | FK (unique) | No | → solicitud. |
+| code | string(50) (unique) | No | Código de negocio enviado al SGC (ej. `STAND-2026-0042`). |
+| contractId | string(64) (unique) | Sí | UUID interno devuelto por el SGC. |
+| estadoEnvio | enum | No | pendiente/creado/error. |
+| stage | string(40) | Sí | Etapa del SGC (drafting/internal-review/approval/validity/closed). |
+| lifecycleStatus | string(20) | Sí | active/finalized/observed/rejected. |
+| version | int | Sí | Versión del expediente en el SGC. |
+| areaCode | string(40) | No | Catálogo del SGC. |
+| contractTypeCode | string(40) | No | Catálogo del SGC. |
+| lastSyncedAt | datetime | Sí | Última sincronización. |
+| lastError | string(500) | Sí | Último error (best-effort). |
+
+Índices: `estadoEnvio`, `stage`.
+
+### 4.16 `sgc_documento` (Integración · piezas documentales)
+
+Correlación de cada pieza documental empujada al SGC.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| sgcExpedienteId | FK | No | → sgc_expediente. |
+| documentId | string(64) (unique) | No | Id de la pieza en el SGC. |
+| currentVersionId | string(64) | Sí | Versión vigente en el SGC. |
+| category | enum | No | contract/annex. |
+| title | string(200) | No | Título visible. |
+| fileName | string(255) | No | Nombre del archivo. |
+| checksumSha256 | string(64) | Sí | Hash SHA-256 del binario. |
+| sizeBytes | int | Sí | Tamaño. |
+| estado | enum | No | reservado/subido/confirmado/rechazado. |
+
+Índice: `sgcExpedienteId`.
+
+### 4.17 `sgc_webhook_evento` (Integración · inbox idempotente)
+
+Bitácora de webhooks recibidos del SGC; deduplica por `eventId`.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| eventId | string(64) (unique) | No | Id de evento del SGC (idempotencia). |
+| eventType | string(40) | No | workflow.* / contract.closed. |
+| resourceId | string(64) | Sí | contractId del recurso. |
+| resourceCode | string(50) | Sí | `code` de negocio. |
+| payload | json | No | Cuerpo recibido. |
+| procesadoAt | datetime | Sí | Fecha de procesamiento. |
+| error | string(500) | Sí | Error de procesamiento (si hubo). |
+
+Índices: `eventType`, `resourceId`.
 
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 

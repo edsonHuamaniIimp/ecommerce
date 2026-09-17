@@ -597,11 +597,6 @@ export default function ErrorPage({
     }
   }, [error]);
 
-  // Dev: show full error details
-  if (!IS_PROD) {
-    return <DevErrorDisplay error={error} reset={reset} />;
-  }
-
   useEffect(
     () => () => {
       timeouts.current.forEach((t) => window.clearTimeout(t));
@@ -625,6 +620,11 @@ export default function ErrorPage({
       window.setTimeout(() => setPhase("blackout"), CRANK_MS + FLASH_MS),
     );
   }, [phase, reduced]);
+
+  // Dev: show full error details
+  if (!IS_PROD) {
+    return <DevErrorDisplay error={error} reset={reset} />;
+  }
 
   const dark = phase === "blackout";
 

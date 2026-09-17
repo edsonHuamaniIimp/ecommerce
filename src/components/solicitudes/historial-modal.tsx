@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { Clock, UserCircle2, History } from "lucide-react";
-import { REVISION_AREA_LABELS, BADGE_STYLES } from "@/lib/shared/constants";
+import { BADGE_STYLES } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 interface HistorialItem {
   fecha: string;
@@ -12,11 +13,6 @@ interface HistorialItem {
   detalle: string;
   usuario: string | null;
   esActual: boolean;
-}
-
-function formatFecha(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 export function HistorialModal({ solicitudId }: { solicitudId: string }) {
@@ -35,8 +31,9 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
   }, [solicitudId]);
 
   const grouped = items.reduce<Record<string, HistorialItem[]>>((acc, item) => {
-    if (!acc[item.area]) acc[item.area] = [];
-    acc[item.area].push(item);
+    const bucket = acc[item.area];
+    if (bucket) bucket.push(item);
+    else acc[item.area] = [item];
     return acc;
   }, {});
 
@@ -104,7 +101,7 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
                           </Badge>
                           <span className="text-[10px] text-slate-400 ml-auto flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />
-                            {formatFecha(item.fecha)}
+                            {dateUtils.formatDateTimeShort(item.fecha)}
                           </span>
                         </div>
 

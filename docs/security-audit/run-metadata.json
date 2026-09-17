@@ -1,0 +1,45 @@
+{
+  "run_id": "ContratosStands-run-1",
+  "repo": "ContratosStands",
+  "target": "C:/Proyectos/IIMP/ContratosStands",
+  "source_ref": "de1ebbbc07019ab93031f8d9ab25e9bba1928df6",
+  "worktree_dirty": true,
+  "dirty_note": "Untracked .opencode/skills/security-audit/ only; no tracked source modified.",
+  "profile": "standard",
+  "scope_paths": [
+    "."
+  ],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "sandbox_available": false,
+  "sandbox_note": "Windows host with no OS-enforced sandbox (no network isolation, no allowlisted env, no read-only mounts, no resource limits). Target-controlled code execution is therefore prohibited for this run; execution-dependent claims are recorded as needs_validation.",
+  "selected_companion_files": [
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "CLIENT-SIDE.md",
+    "DATA-ISOLATION-AND-LIFECYCLE.md",
+    "CLOUD-AND-DEPLOYMENT.md",
+    "SUPPLY-CHAIN-AND-RELEASE.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+  ],
+  "shared_file_owners": {
+    "run-metadata.json": "parent",
+    "architecture.md": "parent",
+    "coverage-ledger.json": "parent",
+    "findings.json": "parent",
+    "REPORT.md": "parent",
+    "FINDINGS-DETAIL.md": "parent",
+    "NEEDS-VALIDATION.md": "parent"
+  },
+  "prior_run_paths": [],
+  "prior_ledger_exists": false,
+  "run_status": "complete",
+  "agents_spent": {
+    "reconnaissance": 4,
+    "hunters": 8,
+    "coverage_critics": 4,
+    "candidate_verifiers": 6,
+    "record_verifiers": 3,
+    "extraction": 2
+  },
+  "coverage_note": "Standard run over 4 hunting waves; 43 ledger units (37 candidate, 6 covered); 43 findings (28 confirmed, 13 needs_validation, 2 rejected). Source-only: no target code executed (no OS-enforced sandbox)."
+}

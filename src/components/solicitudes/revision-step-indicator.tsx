@@ -1,20 +1,31 @@
 "use client";
 
 import { Fragment } from "react";
-import { Check, X } from "lucide-react";
-import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION } from "@/lib/shared/constants";
+import { Check, Scale, X } from "lucide-react";
+import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, RESULTADOS_APROBACION, type ResultadoAprobacion, type RevisionArea } from "@/lib/shared/constants";
 
 interface Props {
   currentStep: number;
-  stepState: (area: string) => "pendiente" | "aprobado" | "rechazado";
+  stepState: (area: string) => ResultadoAprobacion;
   onGoStep: (step: number) => void;
   stepCanGo: (step: number) => boolean;
+  /** Áreas locales a mostrar (por defecto el orden vigente). Soporta datos legacy con Legal. */
+  areas?: RevisionArea[];
+  /** Muestra el paso "Legal (SGC)" (revisión delegada). Por defecto true. */
+  mostrarSgc?: boolean;
 }
 
-export function RevisionStepIndicator({ currentStep, stepState, onGoStep, stepCanGo }: Props) {
+export function RevisionStepIndicator({
+  currentStep,
+  stepState,
+  onGoStep,
+  stepCanGo,
+  areas = REVISION_AREA_ORDER,
+  mostrarSgc = true,
+}: Props) {
   return (
     <div className="mb-4 flex items-start justify-between px-2">
-      {REVISION_AREA_ORDER.map((area, idx) => {
+      {areas.map((area, idx) => {
         const estado = stepState(area);
         const isCurrent = currentStep === idx;
         const isDone = estado === RESULTADOS_APROBACION.APROBADO;
@@ -30,7 +41,7 @@ export function RevisionStepIndicator({ currentStep, stepState, onGoStep, stepCa
               className={`flex flex-col items-center gap-1.5 transition-all duration-200 ${
                 canClick ? "cursor-pointer group" : "cursor-default opacity-60"
               }`}
-              title={REVISION_AREA_LABELS[area]}
+              title={REVISION_AREA_LABELS[area] ?? area}
             >
               <span
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ring-2 ${
@@ -56,10 +67,10 @@ export function RevisionStepIndicator({ currentStep, stepState, onGoStep, stepCa
                     : "font-normal text-slate-400"
                 }`}
               >
-                {REVISION_AREA_LABELS[area]}
+                {REVISION_AREA_LABELS[area] ?? area}
               </span>
             </button>
-            {idx < REVISION_AREA_ORDER.length - 1 && (
+            {idx < areas.length - 1 && (
               <div
                 className={`mt-[18px] h-0.5 flex-1 rounded-full transition-colors duration-300 mx-1 ${
                   isDone ? "bg-emerald-400" : isCurrent ? "bg-primary/40" : "bg-slate-200"
@@ -69,6 +80,19 @@ export function RevisionStepIndicator({ currentStep, stepState, onGoStep, stepCa
           </Fragment>
         );
       })}
+
+      {/* Paso delegado: la revisión Legal ahora la realiza el SGC */}
+      {mostrarSgc && (
+        <>
+          <div className="mt-[18px] h-0.5 flex-1 rounded-full bg-slate-200 mx-1" />
+          <div className="flex flex-col items-center gap-1.5" title="Revisión Legal delegada al SGC">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400">
+              <Scale className="h-4 w-4" />
+            </span>
+            <span className="text-xs font-normal text-slate-400">{REVISION_AREA_SGC_LABEL}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

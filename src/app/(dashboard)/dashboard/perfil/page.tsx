@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Building2, Search, X, Loader2 } from "lucide-react";
@@ -10,7 +10,7 @@ import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { MAESTRA_TABLAS } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ROLES } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 function PerfilPageContent() {
@@ -24,7 +24,7 @@ function PerfilPageContent() {
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [tipoUsuarioId, setTipoUsuarioId] = useState<number | null>(null);
-  const [tiposUsuario, setTiposUsuario] = useState<MaestraItemDTO[]>([]);
+  const [, setTiposUsuario] = useState<MaestraItemDTO[]>([]);
   const [resetPassword, setResetPassword] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetDone, setResetDone] = useState(false);
@@ -41,7 +41,7 @@ function PerfilPageContent() {
     (async () => {
       const session = await authService.getSession();
       setEmail(session.email ?? "");
-      setIsAdmin(session.roles?.includes("admin") ?? false);
+      setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
       const [perfilData] = await Promise.all([
         perfilService.get().catch(() => ({} as PerfilDTO)),
         maestraService.listar(MAESTRA_TABLAS.USUARIO_TIPO).then(setTiposUsuario).catch(() => {}),

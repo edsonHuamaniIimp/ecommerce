@@ -70,7 +70,6 @@ for (const r of taggable) {
 }
 
 /* ── Reporte ─────────────────────────────────────────────────────────────── */
-const ok = (v) => (v ? "OK" : "FALLA"); // eslint-disable-line no-unused-vars
 let errores = 0;
 
 console.log(`\nAuditoría del plan — ${FILE}`);

@@ -373,7 +373,7 @@ function ParticleExplosion() {
           ? "rounded-full bg-zinc-500/40 blur-md"
           : ["bg-zinc-600", "bg-zinc-700", "bg-zinc-800", "bg-amber-900/80"][
               Math.floor(rand(rng, 0, 4))
-            ],
+            ] ?? "bg-zinc-600",
       };
     });
   }, []);

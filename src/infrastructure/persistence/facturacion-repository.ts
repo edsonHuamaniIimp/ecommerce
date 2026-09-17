@@ -43,14 +43,14 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         estado: r.estado,
         montoTotal: Number(r.montoTotal),
         moneda: r.moneda,
-        modoPago: (r as unknown as Record<string, unknown>).modoPago as string ?? "cuotas",
+        modoPago: r.modoPago,
         standCode: r.solicitud.gessStand?.standCode ?? r.solicitud.stands[0]?.gessStand?.standCode ?? "—",
         correoSolicitante: r.solicitud.email,
         createdAt: r.createdAt.toISOString(),
         cuotas: r.cuotas.map(c => ({
           id: c.id, numero: c.numero, monto: Number(c.monto),
           fechaVencimiento: c.fechaVencimiento?.toISOString() ?? null, estado: c.estado,
-          comprobante: (c as unknown as Record<string, unknown>).comprobante as string | null,
+          comprobante: c.comprobante,
         })),
       })),
       total,
@@ -75,14 +75,14 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     return {
       id: r.id, solicitudId: r.solicitudId, tipo: r.tipo, estado: r.estado,
       montoTotal: Number(r.montoTotal), moneda: r.moneda,
-      modoPago: (r as unknown as Record<string, unknown>).modoPago as string ?? "cuotas",
+      modoPago: r.modoPago,
       standCode: r.solicitud.gessStand?.standCode ?? r.solicitud.stands[0]?.gessStand?.standCode ?? "—",
       correoSolicitante: r.solicitud.email,
       createdAt: r.createdAt.toISOString(),
       cuotas: r.cuotas.map(c => ({
         id: c.id, numero: c.numero, monto: Number(c.monto),
         fechaVencimiento: c.fechaVencimiento?.toISOString() ?? null, estado: c.estado,
-        comprobante: (c as unknown as Record<string, unknown>).comprobante as string | null,
+        comprobante: c.comprobante,
       })),
     };
   }
@@ -111,7 +111,10 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     });
     if (pendientes === 0) {
       await prisma.facturacion.update({ where: { id: cuota.facturacionId }, data: { estado: ESTADOS_FACTURACION.PAGADO } });
-      await prisma.solicitud.update({ where: { id: (await prisma.facturacion.findUnique({ where: { id: cuota.facturacionId }, select: { solicitudId: true } }))!.solicitudId }, data: { estado: ESTADOS_SOLICITUD.PAGADO } });
+      const facturacion = await prisma.facturacion.findUnique({ where: { id: cuota.facturacionId }, select: { solicitudId: true } });
+      if (facturacion) {
+        await prisma.solicitud.update({ where: { id: facturacion.solicitudId }, data: { estado: ESTADOS_SOLICITUD.PAGADO } });
+      }
       await prisma.facturacionHistorial.create({
         data: { facturacionId: cuota.facturacionId, accion: "actualizar", detalle: `Facturacion marcada como pagada (todas las cuotas pagadas)`, createdBy },
       });

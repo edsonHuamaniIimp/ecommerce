@@ -4,6 +4,7 @@ import { DataTable } from "@nrivera-iimp/ui-kit-iimp";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { EstadoReservaBadge } from "@/components/estado-badge";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { Reserva } from "@/types/reserva";
 
 const columns: ColumnDef<Reserva>[] = [
@@ -42,7 +43,7 @@ const columns: ColumnDef<Reserva>[] = [
   {
     accessorKey: "creadoEn",
     header: "Fecha",
-    cell: ({ getValue }) => <span>{new Date(getValue() as string).toLocaleDateString("es-PE")}</span>,
+    cell: ({ getValue }) => <span>{dateUtils.format(getValue() as string)}</span>,
   },
 ];
 

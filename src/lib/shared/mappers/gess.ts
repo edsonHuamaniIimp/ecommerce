@@ -1,4 +1,4 @@
-import type { GessStandDTO, GessSyncResultDTO } from "@/types/dto/models";
+import type { GessStandDTO } from "@/types/dto/models";
 import type { GessStand } from "@/types/reserva";
 
 export function mapGessStand(dto: GessStandDTO): GessStand {

@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
+import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, PERMISSIONS } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 interface ReservaRow {
   id: string;
@@ -25,7 +28,6 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
   const [rows, setRows] = useState<ReservaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
   const [perPage] = useState(10);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
@@ -43,8 +45,9 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
         }
       }
       for (const [key, itemId] of Object.entries(ESTADOS_STAND_MAESTRA_ID)) {
-        if (map[String(itemId)]) {
-          map[key] = map[String(itemId)];
+        const label = map[String(itemId)];
+        if (label) {
+          map[key] = label;
         }
       }
       setEstadoLabels(map);
@@ -54,17 +57,17 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
   useEffect(() => {
     (async () => {
       const session = await authService.getSession();
-      setHasPermiso(session.permissions?.includes("read:reservas") ?? false);
+      setHasPermiso(session.permissions?.includes(PERMISSIONS.READ_RESERVAS) ?? false);
     })();
   }, []);
 
-  const load = async (p?: number, s?: string) => {
+  const load = useCallback(async (p: number = 1, s?: string) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams({
         eventoId,
         estado: ESTADOS_STAND.EN_EVALUACION,
-        page: String(p ?? page),
+        page: String(p),
         per_page: String(perPage),
       });
       if (s) qs.set("search", s);
@@ -75,14 +78,11 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
       setPagination({ page: json.pagination.page, total: json.pagination.total, totalPages: json.pagination.total_pages });
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [eventoId, perPage]);
 
-  useEffect(() => { load(); }, [eventoId]);
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
+  useEffect(() => {
+    (async () => { await load(); })();
+  }, [load]);
 
   return (
     <>
@@ -96,7 +96,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
           <div className="relative max-w-xs">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(1, e.currentTarget.value); } }}
+              onKeyDown={(e) => { if (e.key === "Enter") { load(1, e.currentTarget.value); } }}
               className="pl-8 text-xs h-8" />
           </div>
 
@@ -141,7 +141,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                           {row.documentos?.length ?? 0} doc(s)
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {formatDate(row.updatedAt)}
+                          {dateUtils.formatDateTime(row.updatedAt)}
                         </TableCell>
                         <TableCell className="text-right">
                           {hasPermiso && (
@@ -164,7 +164,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                 <Pagination
                   page={pagination.page}
                   totalPages={pagination.totalPages}
-                  onPageChange={(p) => { setPage(p); load(p, search); }}
+                  onPageChange={(p) => { load(p, search); }}
                 />
               </div>
             </>
@@ -185,7 +185,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                 <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
                 <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "—"}</span></div>
                 <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "—"}</span></div>
-                <div className="col-span-2"><span className="text-muted-foreground">Fecha solicitud:</span> <span>{formatDate(detailRow.updatedAt)}</span></div>
+                <div className="col-span-2"><span className="text-muted-foreground">Fecha solicitud:</span> <span>{dateUtils.formatDateTime(detailRow.updatedAt)}</span></div>
               </div>
 
               {detailRow.imagenes.length > 0 && (
@@ -196,7 +196,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                       <button key={i}
                         className="h-14 w-14 overflow-hidden rounded border hover:opacity-80 transition-opacity"
                         onClick={() => setImgCarousel({ images: detailRow.imagenes, idx: i })}>
-                        <img src={url} className="h-full w-full object-cover" />
+                        <Image width={64} height={64} src={url} alt={`Imagen ${i + 1}`} className="h-full w-full object-cover" />
                       </button>
                     ))}
                     {detailRow.imagenes.length > 4 && (
@@ -237,7 +237,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
             >
               <span className="text-lg">‹</span>
             </button>
-            <img src={imgCarousel.images[imgCarousel.idx]} className="max-h-[70vh] w-full object-contain" />
+            <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}

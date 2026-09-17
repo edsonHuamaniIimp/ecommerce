@@ -5,7 +5,7 @@ import { Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectV
 import { onlyDigits, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
-import { MAESTRA_TABLAS } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 import type { FormDatos } from "./interfaces";
 
@@ -22,8 +22,8 @@ export function StepDatos({ datos, onChange }: Props) {
     maestraService.listar(MAESTRA_TABLAS.COMPROBANTE_TIPO).then(setComprobantes).catch(() => {});
   }, []);
 
-  const isFactura = datos.tipoComprobante === "factura";
-  const docLabel = isFactura ? "RUC" : "DNI";
+  const isFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
+  const docLabel = isFactura ? TIPOS_DOCUMENTO.RUC : TIPOS_DOCUMENTO.DNI;
   const docMax = isFactura ? 11 : 8;
   const docPlaceholder = isFactura ? "20123456789" : "12345678";
 
@@ -42,7 +42,7 @@ export function StepDatos({ datos, onChange }: Props) {
           if (r.nombreCompleto) onChange({ contacto: r.nombreCompleto });
         });
     lookup.finally(() => setLookupLoading(false));
-  }, [datos.numeroDocumento, isFactura, docMax]);
+  }, [datos.numeroDocumento, isFactura, docMax]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col gap-3">

@@ -21,7 +21,7 @@ import {
 } from "@nrivera-iimp/ui-kit-iimp";
 import type { PlanoStand, TipoComprobante } from "@/types/reserva";
 import type { ReservaCreateInput } from "@/lib/client/api/services/types";
-import { TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { TIPOS_COMPROBANTE, MONEDAS } from "@/lib/shared/constants";
 
 interface ReservaFormProps {
   selectedStands: PlanoStand[];
@@ -38,7 +38,7 @@ export function ReservaForm({ selectedStands, onClear, onReservar, error }: Rese
   const [loading, setLoading] = useState(false);
 
   const total = selectedStands.reduce((s, st) => s + st.monto, 0);
-  const moneda = selectedStands[0]?.moneda ?? "USD";
+  const moneda = selectedStands[0]?.moneda ?? MONEDAS.USD;
 
   const handleSubmit = async () => {
     setLoading(true);

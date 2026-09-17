@@ -1,55 +1,81 @@
+import type { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, TIPOS_FACTURACION, MONEDAS } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS } from "@/lib/shared/constants";
+import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 
-function mapRevision(r: Record<string, unknown>): RevisionEntity {
+type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
+  include: {
+    gessStand: true;
+    revisiones: true;
+    reevaluaciones: true;
+    docsAdjuntos: true;
+    facturaciones: true;
+    _count: { select: { docsAdjuntos: true } };
+  };
+}>;
+
+interface RevisionRow {
+  id: string;
+  solicitudId: string;
+  area: string;
+  estado: string;
+  comentario: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function mapRevision(r: RevisionRow): RevisionEntity {
   return {
-    id: r.id as string,
-    solicitudId: r.solicitudId as string,
-    area: r.area as string,
-    estado: r.estado as string,
-    comentario: r.comentario as string | null,
-    createdBy: r.createdBy as string | null,
-    updatedBy: r.updatedBy as string | null,
-    createdAt: r.createdAt as Date,
-    updatedAt: r.updatedAt as Date,
-    fuePrimeraRevision: (r.fuePrimeraRevision as boolean) ?? false,
+    id: r.id,
+    solicitudId: r.solicitudId,
+    area: r.area,
+    estado: r.estado,
+    comentario: r.comentario,
+    createdBy: r.createdBy,
+    updatedBy: r.updatedBy,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    fuePrimeraRevision: false,
   };
 }
 
 function computeEstadoSolicitud(revisiones: RevisionEntity[]): string {
-  if (revisiones.length === 0) return "pendiente";
-  const todasPendientes = revisiones.every((r) => r.estado === "pendiente");
-  if (todasPendientes) return "pendiente";
-  const algunaRespondio = revisiones.some((r) => r.estado !== "pendiente");
-  const todasRespondieron = REVISION_AREA_ORDER.every((area) => {
+  if (revisiones.length === 0) return ESTADOS_SOLICITUD.PENDIENTE;
+  const todasPendientes = revisiones.every((r) => r.estado === ESTADOS_REVISION.PENDIENTE);
+  if (todasPendientes) return ESTADOS_SOLICITUD.PENDIENTE;
+  const algunaRespondio = revisiones.some((r) => r.estado !== ESTADOS_REVISION.PENDIENTE);
+  const todasRespondieron = areasRevisionLocal(revisiones).every((area) => {
     const rev = revisiones.find((r) => r.area === area);
     return rev && rev.estado !== "pendiente";
   });
-  if (!todasRespondieron && algunaRespondio) return "en_proceso";
+  if (!todasRespondieron && algunaRespondio) return ESTADOS_SOLICITUD.EN_PROCESO;
   if (todasRespondieron) {
-    const algunaRechazada = revisiones.some((r) => r.estado === "rechazado");
-    return algunaRechazada ? "rechazado" : "aprobado";
+    const algunaRechazada = revisiones.some((r) => r.estado === ESTADOS_REVISION.RECHAZADO);
+    return algunaRechazada ? ESTADOS_SOLICITUD.RECHAZADO : ESTADOS_SOLICITUD.APROBADO;
   }
-  return "pendiente";
+  return ESTADOS_SOLICITUD.PENDIENTE;
 }
 
-async function mapRow(row: Record<string, unknown>): Promise<SolicitudRow> {
-  const solicitudId = row.id as string;
-  const gessStandId = row.gessStandId as string | null;
-  const revisiones = (row.revisiones as Record<string, unknown>[])?.map(mapRevision) ?? [];
-  const reevaluaciones = (row.reevaluaciones as Record<string, unknown>[])?.map((r) => ({
-    id: r.id as string,
-    solicitudId: r.solicitudId as string,
-    estado: r.estado as string,
-    motivo: r.motivo as string | null,
+async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
+  const solicitudId = row.id;
+  const gessStandId = row.gessStandId;
+  const revisiones = row.revisiones.map(mapRevision);
+  const reevaluaciones = row.reevaluaciones.map((r) => ({
+    id: r.id,
+    solicitudId: r.solicitudId,
+    estado: r.estado,
+    motivo: r.motivo,
     documentos: r.documentos,
-    createdBy: r.createdBy as string | null,
-    updatedBy: r.updatedBy as string | null,
-    createdAt: r.createdAt as Date,
-    updatedAt: r.updatedAt as Date,
-  })) ?? [];
+    createdBy: r.createdBy,
+    updatedBy: r.updatedBy,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
 
   let standCode = "";
   let standCodes: string[] = [];
@@ -62,16 +88,18 @@ async function mapRow(row: Record<string, unknown>): Promise<SolicitudRow> {
   let documentos: unknown = [];
 
   if (gessStandId) {
-    const stand = (row.gessStand ?? row) as Record<string, unknown>;
-    standCode = stand.standCode as string;
-    standCodes = [standCode];
-    tipoStand = stand.tipoStand as string | null;
-    medidas = stand.medidas as string | null;
-    empresa = stand.empresa as string | null;
-    bloqueId = stand.bloqueId as string | null;
-    estado = stand.estado as string | null;
-    imagenes = stand.imagenes ?? [];
-    documentos = (row.documentos as unknown[] | null)?.length ? row.documentos : stand.documentos ?? [];
+    const stand = row.gessStand;
+    if (stand) {
+      standCode = stand.standCode;
+      standCodes = [standCode];
+      tipoStand = stand.tipoStand;
+      medidas = stand.medidas;
+      empresa = stand.empresa;
+      bloqueId = stand.bloqueId;
+      estado = stand.estado;
+      imagenes = stand.imagenes ?? [];
+      documentos = Array.isArray(row.documentos) && row.documentos.length > 0 ? row.documentos : stand.documentos ?? [];
+    }
   } else {
     const stands = await prisma.solicitudStand.findMany({
       where: { solicitudId },
@@ -79,8 +107,9 @@ async function mapRow(row: Record<string, unknown>): Promise<SolicitudRow> {
     });
     standCodes = stands.map((s) => s.gessStand.standCode);
     standCode = standCodes.join(", ");
-    if (stands.length > 0) {
-      const first = stands[0].gessStand;
+    const firstStand = stands[0];
+    if (firstStand) {
+      const first = firstStand.gessStand;
       tipoStand = first.tipoStand;
       medidas = first.medidas;
       estado = first.estado;
@@ -90,17 +119,17 @@ async function mapRow(row: Record<string, unknown>): Promise<SolicitudRow> {
     documentos = row.documentos ?? [];
   }
 
-    const docsList = ((row.docsAdjuntos as Record<string, unknown>[]) ?? []).map((d) => ({
-      id: d.id as string,
-      url: d.url as string,
-      nombre: d.nombre as string,
-      userId: d.userId as string | null,
-      uploadedBy: d.uploadedBy as string | null,
-      createdAt: d.createdAt as Date,
+    const docsList = row.docsAdjuntos.map((d) => ({
+      id: d.id,
+      url: d.url,
+      nombre: d.nombre,
+      userId: d.userId,
+      uploadedBy: d.uploadedBy,
+      createdAt: d.createdAt,
     }));
 
     // Empresa vinculada al usuario solicitante (user_role)
-    const solicitudUserId = row.userId as string | null;
+    const solicitudUserId = row.userId;
     if (solicitudUserId && !empresa) {
       const userRole = await prisma.userRole.findFirst({
         where: { userId: solicitudUserId, nombreEmpresa: { not: null } },
@@ -117,26 +146,26 @@ async function mapRow(row: Record<string, unknown>): Promise<SolicitudRow> {
     tipoStand,
     medidas,
     empresa,
-    email: row.email as string | null,
-    userId: row.userId as string | null,
+    email: row.email,
+    userId: row.userId,
     bloqueId,
     estado,
-    estadoSolicitud: (row.estado as string) || computeEstadoSolicitud(revisiones),
-    flgActivo: row.flgActivo as boolean ?? true,
+    estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
+    flgActivo: row.flgActivo,
     documentos,
     imagenes,
-    docsAdjuntosCount: ((row._count as Record<string, unknown>)?.docsAdjuntos as number) ?? 0,
-    clienteDocsAdjuntosCount: docsList.filter((d) => d.userId === (row.userId as string | null)).length,
+    docsAdjuntosCount: row._count.docsAdjuntos,
+    clienteDocsAdjuntosCount: docsList.filter((d) => d.userId === row.userId).length,
     docsAdjuntos: docsList,
-    updatedAt: row.updatedAt as Date,
+    updatedAt: row.updatedAt,
     revisiones,
     reevaluaciones,
     revisionComunicacion: revisiones.find((r) => r.area === REVISION_AREAS.COMUNICACION) ?? null,
     revisionLegal: revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null,
     revisionLogistica: revisiones.find((r) => r.area === REVISION_AREAS.LOGISTICA) ?? null,
-    tieneFacturacion: ((row.facturaciones as unknown[])?.length ?? 0) > 0,
-    tipoFacturacion: ((row.facturaciones as Array<Record<string, unknown>>)?.[0]?.tipo as string) ?? null,
-    facturacionId: ((row.facturaciones as Array<Record<string, unknown>>)?.[0]?.id as string) ?? null,
+    tieneFacturacion: row.facturaciones.length > 0,
+    tipoFacturacion: row.facturaciones[0]?.tipo ?? null,
+    facturacionId: row.facturaciones[0]?.id ?? null,
   };
 }
 
@@ -171,7 +200,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       }),
     ]);
 
-    const data = await Promise.all(rows.map((r) => mapRow(r as unknown as Record<string, unknown>)));
+    const data = await Promise.all(rows.map((r) => mapRow(r)));
 
     return {
       data,
@@ -195,7 +224,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       },
     });
     if (!row) return null;
-    return mapRow(row as unknown as Record<string, unknown>);
+    return mapRow(row);
   }
 
   async crearOActualizarRevision(data: {
@@ -229,7 +258,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           updatedBy: data.reviewerEmail,
         },
       });
-      const result = mapRevision(updated as unknown as Record<string, unknown>);
+      const result = mapRevision(updated);
       result.fuePrimeraRevision = existing.estado === RESULTADOS_APROBACION.PENDIENTE;
       return result;
     }
@@ -244,16 +273,16 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         updatedBy: data.reviewerEmail,
       },
     });
-    const result = mapRevision(created as unknown as Record<string, unknown>);
+    const result = mapRevision(created);
     result.fuePrimeraRevision = true;
     return result;
   }
 
   async crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity> {
     const created = await prisma.revision.create({
-      data: { solicitudId, area, estado: "pendiente" },
+      data: { solicitudId, area, estado: ESTADOS_REVISION.PENDIENTE },
     });
-    const result = mapRevision(created as unknown as Record<string, unknown>);
+    const result = mapRevision(created);
     result.fuePrimeraRevision = false;
     return result;
   }
@@ -290,7 +319,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   }
 
   async tieneReevaluacionPendiente(solicitudId: string): Promise<boolean> {
-    const exist = await prisma.reevaluacion.findFirst({ where: { solicitudId, estado: "pendiente" } });
+    const exist = await prisma.reevaluacion.findFirst({ where: { solicitudId, estado: ESTADOS_REEVALUACION.PENDIENTE } });
     return !!exist;
   }
 
@@ -303,9 +332,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       await prisma.revisionHistorial.create({
         data: { solicitudId: rev.solicitudId, area: rev.area, estadoAnterior: rev.estado, comentarioAnterior: rev.comentario, motivo: "aprobacion de re-evaluacion", createdBy: reviewerEmail },
       });
-      await prisma.revision.update({ where: { id: rev.id }, data: { estado: "pendiente", comentario: null, updatedBy: reviewerEmail } });
+      await prisma.revision.update({ where: { id: rev.id }, data: { estado: ESTADOS_REVISION.PENDIENTE, comentario: null, updatedBy: reviewerEmail } });
     }
-    await prisma.reevaluacion.update({ where: { id: reevaluacionId }, data: { estado: "aprobado", updatedBy: reviewerEmail } });
+    await prisma.reevaluacion.update({ where: { id: reevaluacionId }, data: { estado: ESTADOS_REEVALUACION.APROBADO, updatedBy: reviewerEmail } });
 
     if (reevaluacion.documentos && Array.isArray(reevaluacion.documentos) && reevaluacion.documentos.length > 0) {
       await prisma.solicitud.update({ where: { id: reevaluacion.solicitudId }, data: { documentos: reevaluacion.documentos as never } });
@@ -316,15 +345,15 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     const reevaluacion = await prisma.reevaluacion.findUnique({ where: { id: reevaluacionId } });
     if (!reevaluacion) throw new Error("NOT_FOUND");
 
-    await prisma.reevaluacion.update({ where: { id: reevaluacionId }, data: { estado: "rechazado", updatedBy: reviewerEmail } });
+    await prisma.reevaluacion.update({ where: { id: reevaluacionId }, data: { estado: ESTADOS_REEVALUACION.RECHAZADO, updatedBy: reviewerEmail } });
 
     const solicitud = await prisma.solicitud.findUnique({ where: { id: reevaluacion.solicitudId }, select: { gessStandId: true } });
     if (solicitud?.gessStandId) {
-      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: "disponible" } });
+      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
     } else {
       const stands = await prisma.solicitudStand.findMany({ where: { solicitudId: reevaluacion.solicitudId }, select: { gessStandId: true } });
       for (const s of stands) {
-        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: "disponible" } });
+        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
       }
     }
     await prisma.revision.deleteMany({ where: { solicitudId: reevaluacion.solicitudId } });
@@ -337,11 +366,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.solicitud.update({ where: { id: solicitudId }, data: { flgActivo: false } });
 
     if (solicitud.gessStandId) {
-      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: "disponible" } });
+      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
     } else {
       const stands = await prisma.solicitudStand.findMany({ where: { solicitudId }, select: { gessStandId: true } });
       for (const s of stands) {
-        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: "disponible" } });
+        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
       }
     }
   }
@@ -414,7 +443,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     const doc = await prisma.solicitudDocumento.create({
       data: { solicitudId, url, nombre, uploadedBy: email, userId },
     });
-    return doc as unknown as Record<string, unknown>;
+    return { ...doc };
   }
 
   async findDocumento(docId: string) {

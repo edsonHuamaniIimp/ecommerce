@@ -50,8 +50,8 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
       vi.mocked(repo.listar).mockResolvedValue(expected);
       const svc = new FacturacionApplicationService(repo);
       const r = await svc.listar({ page: 1, perPage: 10 });
-      expect(r.data[0].montoTotal).toBe(3000);
-      expect(r.data[0].cuotas).toHaveLength(3);
+      expect(r.data[0]?.montoTotal).toBe(3000);
+      expect(r.data[0]?.cuotas).toHaveLength(3);
     });
   });
 
@@ -180,7 +180,7 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
 
       // 1. Listar vacio
       vi.mocked(repo.listar).mockResolvedValue({ data: [], total: 0 });
-      let r = await svc.listar({ page: 1, perPage: 10 });
+      const r = await svc.listar({ page: 1, perPage: 10 });
       expect(r.data).toHaveLength(0);
 
       // 2. Agregar cuotas

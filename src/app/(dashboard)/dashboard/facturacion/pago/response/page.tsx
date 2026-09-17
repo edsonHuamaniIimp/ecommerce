@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { internalApi } from "@/lib/client/api/services/internal-api";
@@ -14,13 +14,18 @@ function NiubizzResponsePageContent() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
   useEffect(() => {
-    if (!facturacionId || !transactionToken) {
-      setStatus("error");
-      return;
-    }
-    internalApi.post("/api/facturacion/niubizz/confirmar", { facturacionId, transactionToken })
-      .then(() => setStatus("success"))
-      .catch(() => setStatus("error"));
+    (async () => {
+      if (!facturacionId || !transactionToken) {
+        setStatus("error");
+        return;
+      }
+      try {
+        await internalApi.post("/api/facturacion/niubizz/confirmar", { facturacionId, transactionToken });
+        setStatus("success");
+      } catch {
+        setStatus("error");
+      }
+    })();
   }, [facturacionId, transactionToken]);
 
   return (

@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     });
 
     return success({ ok: true });
-  } catch (e) {
+  } catch {
     return error(API_ERROR_CODES.INTERNAL, "Error al registrar", 500);
   }
 }

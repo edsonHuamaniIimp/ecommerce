@@ -20,7 +20,7 @@ export class GessPrismaRepository implements IGessRepository {
       prisma.gessStand.count({ where: where as never }),
     ]);
     return {
-      data: data as unknown as GessStandEntity[],
+      data,
       total,
       page: params.page,
       perPage: params.perPage,
@@ -30,32 +30,32 @@ export class GessPrismaRepository implements IGessRepository {
 
   async findByBloque(bloqueId: string) {
     const row = await prisma.gessStand.findFirst({ where: { bloqueId }, orderBy: { updatedAt: "desc" } });
-    return (row as unknown as GessStandEntity) ?? null;
+    return row;
   }
 
   async findByStandApiId(eventoId: string, standApiId: string) {
     const row = await prisma.gessStand.findUnique({ where: { eventoId_standApiId: { eventoId, standApiId } } });
-    return (row as unknown as GessStandEntity) ?? null;
+    return row;
   }
 
   async findById(id: string) {
     const row = await prisma.gessStand.findUnique({ where: { id } });
-    return (row as unknown as GessStandEntity) ?? null;
+    return row;
   }
 
   async findByEvento(eventoId: string) {
     const rows = await prisma.gessStand.findMany({ where: { eventoId }, orderBy: { standCode: "asc" } });
-    return rows as unknown as GessStandEntity[];
+    return rows;
   }
 
   async create(data: Partial<GessStandEntity>) {
     const row = await prisma.gessStand.create({ data: data as never });
-    return row as unknown as GessStandEntity;
+    return row;
   }
 
   async update(id: string, data: Partial<GessStandEntity>) {
     const row = await prisma.gessStand.update({ where: { id }, data: data as never });
-    return row as unknown as GessStandEntity;
+    return row;
   }
 
   async countByEvento(eventoId: string) {

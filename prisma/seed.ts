@@ -119,12 +119,14 @@ async function seedMaestra() {
     { id: 112, padre: 11, itemId: 3, nombre: "Octanorm simple", descripcion: "Solo viniles", orden: 3 },
   ];
   for (const h of hijos) {
+    const padre = padres.find((p) => p.id === h.padre);
+    if (!padre) continue;
     const updated = await prisma.maestra.updateMany({
       where: { id: h.id },
       data: { nombre: h.nombre, itemId: h.itemId, numOrden: h.orden },
     });
     if (updated.count === 0) {
-      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padres.find(p => p.id === h.padre)!.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
+      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padre.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
     }
   }
   console.log("Maestra seeded");
@@ -169,8 +171,7 @@ async function seedPlanoGess() {
   // Bloques
   const items = buildItems();
   await prisma.planoBloque.deleteMany({ where: { planoId: plano.id } });
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
+  for (const [i, item] of items.entries()) {
     const dimCodigo = Object.entries(DIMENSIONES).find(([, d]) => d === item.dim)?.[0];
     const tipoId = dimCodigo ? tipoMap.get(dimCodigo) : undefined;
     await prisma.planoBloque.create({

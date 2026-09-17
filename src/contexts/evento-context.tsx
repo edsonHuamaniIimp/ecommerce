@@ -55,12 +55,14 @@ export function EventoProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = readFromStorage();
-    if (stored) {
-      setSelected(stored);
-      writeToStorage(stored);
-    }
-    setIsHydrated(true);
+    (async () => {
+      const stored = readFromStorage();
+      if (stored) {
+        setSelected(stored);
+        writeToStorage(stored);
+      }
+      setIsHydrated(true);
+    })();
   }, []);
 
   const selectEvento = useCallback((sel: EventoSelection) => {

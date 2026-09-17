@@ -6,7 +6,8 @@ import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { sendEmail } from "@/lib/server/email";
 import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION } from "@/lib/shared/constants";
+import { REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
+import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { buildRevisionEmail } from "@/lib/server/email-templates";
 
 export const solicitudesController = {
@@ -47,12 +48,12 @@ export const solicitudesController = {
   async notificar(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes("solicitudes:notify") && !session.permissions.includes("admin:full")) {
+    if (!session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para notificar", 403);
     }
     // Validar contra BD (el JWT puede estar desactualizado si se editaron permisos)
     const { hasDBPermission } = await import("@/lib/server/auth");
-    if (!(await hasDBPermission(session, "solicitudes:notify"))) {
+    if (!(await hasDBPermission(session, PERMISSIONS.SOLICITUDES_NOTIFY))) {
       return error(API_ERROR_CODES.FORBIDDEN, "Permiso revocado. Cierra sesion y vuelve a ingresar.", 403);
     }
     const raw = await request.json() as { solicitudId: string; to: string; modo: "automatico" | "personalizado"; mensaje?: string };
@@ -60,7 +61,7 @@ export const solicitudesController = {
 
     const detalle = await services.solicitudes.detalle(raw.solicitudId);
     if (!detalle) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
-    if (!REVISION_AREA_ORDER.every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
+    if (!areasRevisionLocal(detalle.revisiones).every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
       return error(API_ERROR_CODES.CONFLICT, "Faltan revisiones pendientes", 409);
     }
 
@@ -91,10 +92,10 @@ export const solicitudesController = {
 
     const detalle = await services.solicitudes.detalle(raw.solicitudId);
     if (!detalle) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
-    if (detalle.userId && detalle.userId !== session.sub && !session.permissions.includes("admin:full")) {
+    if (detalle.userId && detalle.userId !== session.sub && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
       return error(API_ERROR_CODES.FORBIDDEN, "No puedes modificar solicitudes de otro usuario", 403);
     }
-    if (!REVISION_AREA_ORDER.every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
+    if (!areasRevisionLocal(detalle.revisiones).every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
       return error(API_ERROR_CODES.CONFLICT, "La solicitud aun esta en revision", 409);
     }
     for (const rev of detalle.revisiones) {
@@ -121,7 +122,7 @@ export const solicitudesController = {
   async atenderReevaluacion(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes("solicitudes:notify") && !session.permissions.includes("admin:full")) {
+    if (!session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos", 403);
     }
     const raw = await request.json() as { reevaluacionId: string; accion: "aprobar" | "rechazar" };
@@ -138,7 +139,7 @@ export const solicitudesController = {
   async darDeBaja(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes("admin:full") && !session.permissions.includes("solicitudes:notify")) {
+    if (!session.permissions.includes(PERMISSIONS.ADMIN_FULL) && !session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY)) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos", 403);
     }
     const raw = await request.json() as { solicitudId: string };
@@ -176,7 +177,7 @@ export const solicitudesController = {
       let justificacion: string;
 
       if (esReevaluacion) {
-        accion = "Aprobacion de re-evaluacion"; estadoPrevio = h.estadoAnterior; estadoNuevo = "pendiente"; justificacion = h.comentarioAnterior ?? "";
+        accion = "Aprobacion de re-evaluacion"; estadoPrevio = h.estadoAnterior; estadoNuevo = ESTADOS_REVISION.PENDIENTE; justificacion = h.comentarioAnterior ?? "";
       } else if (esCambioEstado) {
         accion = "Cambio de estado"; estadoPrevio = h.estadoAnterior; estadoNuevo = h.motivo.replace("cambio a ", ""); justificacion = h.comentarioAnterior ?? "";
       } else if (esActualizacion) {
@@ -189,7 +190,7 @@ export const solicitudesController = {
 
     for (const r of revisiones) {
       const label = REVISION_AREA_LABELS[r.area as keyof typeof REVISION_AREA_LABELS] ?? r.area;
-      const estadoLabel = r.estado === "aprobado" ? "Aprobado" : r.estado === "rechazado" ? "Rechazado" : r.estado === "pendiente" ? "Pendiente" : r.estado;
+      const estadoLabel = r.estado === ESTADOS_REVISION.APROBADO ? "Aprobado" : r.estado === ESTADOS_REVISION.RECHAZADO ? "Rechazado" : r.estado === ESTADOS_REVISION.PENDIENTE ? "Pendiente" : r.estado;
       items.push({ fecha: r.updatedAt.toISOString(), area: label, accion: "Estado actual", detalle: `Estado: ${estadoLabel}${r.comentario ? `\nJustificacion: "${r.comentario}"` : ""}`, usuario: r.updatedBy, esActual: true });
     }
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/server/db";
-import { ROLES } from "@/lib/shared/constants";
+import { ROLES, ADMIN_USER_ID } from "@/lib/shared/constants";
 import type { Rol } from "@/lib/shared/constants";
 
 interface JwtPayload {
@@ -11,7 +11,7 @@ export class AlertasApplicationService {
   private buildConditions(sub: string, roles: Rol[]) {
     const conditions: Record<string, unknown>[] = [{ userId: sub }];
     if (roles.includes(ROLES.ADMIN)) {
-      conditions.push({ userId: "admin" });
+      conditions.push({ userId: ADMIN_USER_ID });
     }
     return conditions;
   }

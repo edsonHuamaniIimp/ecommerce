@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/db";
 import type { IStandsIntegracionRepository } from "@/domain/ports/stands-integracion-repository";
 import type { StandExhibidoraDTO, ContratoStandDTO } from "@/types/dto/stands/stands-integracion.dto";
 import { mapearEstadoContrato } from "@/lib/shared/utils/estado-contrato";
+import { ESTADOS_SOLICITUD } from "@/lib/shared/constants";
 
 export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepository {
   private async resolverEventoId(tipoEvento?: number, codigoEvento?: number): Promise<string | undefined> {
@@ -100,7 +101,7 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
 
     return gessStands.map((g) => {
       const solicitudActiva = g.solicitudes.find((s) => s.estado !== null) ?? null;
-      const estadoSolicitud = solicitudActiva?.estado ?? "pendiente";
+      const estadoSolicitud = solicitudActiva?.estado ?? ESTADOS_SOLICITUD.PENDIENTE;
       return {
         stand_api_id: g.standApiId || g.id,
         estado_solicitud: estadoSolicitud,

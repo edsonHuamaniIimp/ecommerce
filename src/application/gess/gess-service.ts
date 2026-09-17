@@ -1,7 +1,7 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
-import type { GessStand } from "@/types/reserva";
+import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 const TIPO_STAND_POR_NOMBRE: Record<string, string> = {
   Preferencial: "PREFERENCIAL",
@@ -27,7 +27,7 @@ const PRECIO_DEFAULT = "2000.00 US$";
 
 function tipoStandDesdeNombre(nombre: string, fallback: string): string {
   const match = Object.keys(TIPO_STAND_POR_NOMBRE).find((k) => nombre.includes(k));
-  return match ? TIPO_STAND_POR_NOMBRE[match] : fallback;
+  return match ? TIPO_STAND_POR_NOMBRE[match] ?? fallback : fallback;
 }
 
 function medidasDesdeTipo(tipo: string): string {
@@ -129,7 +129,7 @@ export class GessApplicationService {
         standCode: b.bloqueId,
         tipoStand: b.tipoStand,
         medidas: b.medidas,
-        estado: "disponible",
+        estado: ESTADOS_STAND.DISPONIBLE,
         empresa: null,
         pabellon: `${b.x},${b.z}`,
         bloqueId: b.bloqueId,

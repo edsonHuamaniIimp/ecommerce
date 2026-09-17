@@ -31,6 +31,8 @@ tags:
     description: Interoperabilidad con facturación (SAP/John)
   - name: Empresas
     description: Consumo (proxy) de empresas/personas
+  - name: SGC
+    description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
 security:
   - bearerAuth: []
 paths:
@@ -315,6 +317,96 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Empresa"
+  /sgc/detalle:
+    get:
+      tags: [SGC]
+      summary: Detalle del expediente SGC de una solicitud (stepper + historial)
+      parameters:
+        - name: solicitudId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SgcExpedienteDetalle"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sgc/descarga:
+    get:
+      tags: [SGC]
+      summary: Enlace de descarga (vida corta) del contrato firmado vigente
+      parameters:
+        - name: solicitudId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SgcUrlDescarga"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sgc/sincronizar:
+    post:
+      tags: [SGC]
+      summary: Reconciliación — refresca el estado de los expedientes creados
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sincronizados]
+                properties:
+                  sincronizados: { type: integer }
+  /sgc/subsanar:
+    post:
+      tags: [SGC]
+      summary: Empuja una versión corregida del contrato (subsanación)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [solicitudId, documentId, url]
+              properties:
+                solicitudId: { type: string, format: uuid }
+                documentId: { type: string }
+                url: { type: string }
+                title: { type: string }
+      responses:
+        "200":
+          description: OK
+  /integracion/sgc/webhook:
+    post:
+      tags: [SGC]
+      summary: Receptor de webhooks del SGC (firma HMAC-SHA256)
+      security: []
+      parameters:
+        - name: x-sgc-signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SgcWebhookPayload"
+      responses:
+        "200":
+          description: Recibido
+        "401":
+          description: Firma inválida
 components:
   securitySchemes:
     bearerAuth:
@@ -521,7 +613,7 @@ components:
         origen:
           type: string
           enum: [john, niel, local]
-     ApiError:
+    ApiError:
       type: object
       required: [error]
       properties:
@@ -554,3 +646,91 @@ components:
         creados: { type: integer }
         actualizados: { type: integer }
         total: { type: integer }
+    SgcCompletedBy:
+      type: object
+      properties:
+        actorName: { type: string }
+        areaName: { type: string }
+        completedAt: { type: string, format: date-time }
+        constancy: { type: string, enum: [acknowledgement, visa, normal-signature, stamp] }
+    SgcStep:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        position: { type: integer }
+        status: { type: string, enum: [completed, current, pending] }
+        areaId: { type: string, nullable: true }
+        completedBy:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SgcCompletedBy"
+    SgcHistoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        source: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        actorName: { type: string }
+        occurredAt: { type: string, format: date-time }
+    SgcDocumentoResumen:
+      type: object
+      properties:
+        documentId: { type: string }
+        category: { type: string, enum: [contract, annex] }
+        title: { type: string }
+        currentVersionId: { type: string, nullable: true }
+    SgcExpedienteDetalle:
+      type: object
+      properties:
+        contractId: { type: string }
+        code: { type: string }
+        name: { type: string }
+        stage: { type: string, enum: [drafting, internal-review, approval, validity, closed] }
+        lifecycleStatus: { type: string, nullable: true, enum: [active, finalized, observed, rejected] }
+        areaName: { type: string, nullable: true }
+        contractTypeName: { type: string, nullable: true }
+        counterpartyName: { type: string, nullable: true }
+        counterpartyEmail: { type: string, nullable: true }
+        counterpartyTaxIdentifier: { type: string, nullable: true }
+        currency: { type: string, nullable: true }
+        totalMinorUnits: { type: integer, nullable: true }
+        startDate: { type: string, nullable: true }
+        endDate: { type: string, nullable: true }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        documents:
+          type: array
+          items: { $ref: "#/components/schemas/SgcDocumentoResumen" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/SgcStep" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/SgcHistoryItem" }
+    SgcUrlDescarga:
+      type: object
+      required: [url, expiresInSeconds]
+      properties:
+        url: { type: string }
+        expiresInSeconds: { type: integer }
+    SgcWebhookPayload:
+      type: object
+      required: [apiVersion, eventId, eventType, createdAt, resource, data]
+      properties:
+        apiVersion: { type: string }
+        eventId: { type: string }
+        eventType:
+          type: string
+          enum: [workflow.started, workflow.advanced, workflow.returned, workflow.approved, workflow.rejected, contract.closed]
+        createdAt: { type: string, format: date-time }
+        resource:
+          type: object
+          properties:
+            id: { type: string }
+            type: { type: string }
+            code: { type: string, nullable: true }
+        data: { type: object, additionalProperties: true }

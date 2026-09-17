@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { Layers, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 export interface SeccionPublica {
@@ -96,7 +98,7 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
       <div ref={scrollRef} className="relative flex-1 min-h-0 rounded-xl border border-slate-200 bg-slate-100 overflow-auto p-3">
         {imagenFondo ? (
           <div className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-            <img src={imagenFondo} alt="Mapa de pabellones" className="w-full h-auto block rounded-lg pointer-events-none" draggable={false} />
+            <Image width={0} height={0} sizes="100vw" src={imagenFondo} alt="Mapa de pabellones" className="w-full h-auto block rounded-lg pointer-events-none" draggable={false} />
             {secciones.map((s) => {
               const oc = ocupMap.get(s.codigo);
               const c = colorOcupacion(oc);

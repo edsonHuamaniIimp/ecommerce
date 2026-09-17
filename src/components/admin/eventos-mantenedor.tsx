@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { RefreshCw, Pencil, ChevronRight, Eye, EyeOff, Calendar, Map, Hash } from "lucide-react";
+import { RefreshCw, Pencil, ChevronRight, Eye, Calendar, Hash } from "lucide-react";
 import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { listPlanos } from "@/lib/shared/planos/registry";
 import { toast } from "sonner";
 import { TIPOS_PLANO } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 interface PlanoOpcion { id: string; nombre: string; tipo: string; eventoAsignado: { tipoEvento: number; codigoEvento: number } | null; }
 
@@ -18,6 +19,33 @@ interface VersionItem {
 }
 
 interface EventoGrupo { id: string; nombre: string; codigo: string; vertical: string; versiones: VersionItem[]; }
+
+function toEventoGrupo(value: unknown): EventoGrupo | null {
+  if (typeof value !== "object" || value === null) return null;
+  const grupo = value as Record<string, unknown>;
+  if (typeof grupo.id !== "string" || typeof grupo.nombre !== "string" || typeof grupo.codigo !== "string" || typeof grupo.vertical !== "string" || !Array.isArray(grupo.versiones)) return null;
+
+  const versiones: VersionItem[] = [];
+  for (const raw of grupo.versiones) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const v = raw as Record<string, unknown>;
+    if (typeof v.id !== "string" || typeof v.anio !== "string" || typeof v.tipoEvento !== "number" || typeof v.codigoEvento !== "number" || typeof v.estado !== "string") continue;
+    versiones.push({
+      id: v.id,
+      anio: v.anio,
+      tipoEvento: v.tipoEvento,
+      codigoEvento: v.codigoEvento,
+      estado: v.estado,
+      fecha_inicio: typeof v.fecha_inicio === "string" ? v.fecha_inicio : null,
+      fecha_fin: typeof v.fecha_fin === "string" ? v.fecha_fin : null,
+      imagen: typeof v.imagen === "string" ? v.imagen : null,
+      plano: typeof v.plano === "string" ? v.plano : null,
+      flgVisible: typeof v.flgVisible === "boolean" ? v.flgVisible : undefined,
+    });
+  }
+
+  return { id: grupo.id, nombre: grupo.nombre, codigo: grupo.codigo, vertical: grupo.vertical, versiones };
+}
 
 export function EventosMantenedor() {
   const [grupos, setGrupos] = useState<EventoGrupo[]>([]);
@@ -41,14 +69,16 @@ export function EventosMantenedor() {
     setLoading(true);
     try {
       const data = await eventosServiceClient.listar();
-      const list = Array.isArray(data) ? (data as unknown as EventoGrupo[]) : [];
+      const list = Array.isArray(data) ? data.map(toEventoGrupo).filter((g): g is EventoGrupo => g !== null) : [];
       setGrupos(list);
       setSelectedGrupo((prev) => (prev ? (list.find((g) => g.id === prev.id) ?? prev) : prev));
     } catch { /* ignore */ }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    (async () => { await load(); })();
+  }, []);
 
   const openEdit = (ver: VersionItem) => {
     setEditItem(ver);
@@ -81,8 +111,6 @@ export function EventosMantenedor() {
       toast.error(e instanceof Error ? e.message : "Error al actualizar el evento");
     }
   };
-
-  const formatDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
   const VERTICAL_COLORS: Record<string, string> = {
     proexplo: "#d97706", wmc: "#0891b2", gess: "#16a34a", perumin: "#b45309",
@@ -163,7 +191,7 @@ export function EventosMantenedor() {
                     <div className="rounded-lg bg-slate-50 p-2 text-center">
                       <Calendar className="mx-auto h-3 w-3 text-slate-400 mb-0.5" />
                       <p className="text-xs font-medium text-slate-700">{latest?.anio ?? "—"}</p>
-                      <p className="text-[9px] text-slate-400">{latest ? formatDate(latest.fecha_inicio) : "—"}</p>
+                      <p className="text-[9px] text-slate-400">{latest ? dateUtils.format(latest.fecha_inicio) : "—"}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -193,7 +221,7 @@ export function EventosMantenedor() {
                 {selectedGrupo.versiones.map((ver) => (
                   <div key={ver.id} className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-4 py-2.5 text-xs hover:bg-slate-50 transition-colors">
                     <span className="font-mono font-semibold text-slate-700 w-10">{ver.anio}</span>
-                    <span className="flex-1 text-slate-500">{formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}</span>
+                    <span className="flex-1 text-slate-500">{dateUtils.format(ver.fecha_inicio)} — {dateUtils.format(ver.fecha_fin)}</span>
                     <span className="text-slate-400">{ver.plano ?? "—"}</span>
                     <Badge variant={ver.flgVisible ? "default" : "secondary"} className="text-[10px] shrink-0">
                       <span>{ver.flgVisible ? "Visible" : "Oculta"}</span>

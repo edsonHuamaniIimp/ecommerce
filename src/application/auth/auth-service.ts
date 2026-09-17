@@ -19,11 +19,12 @@ export class AuthApplicationService {
 
   async login(dto: LoginRequestDTO): Promise<LoginResult> {
     const userRoles = await this.repo.findByEmail(dto.email);
-    if (userRoles.length === 0) return { error: "Usuario sin roles asignados", status: 403 } as const;
-    if (userRoles[0].password !== dto.password) return { error: "Contrasena incorrecta", status: 401 } as const;
+    const [principal] = userRoles;
+    if (!principal) return { error: "Usuario sin roles asignados", status: 403 } as const;
+    if (principal.password !== dto.password) return { error: "Contrasena incorrecta", status: 401 } as const;
 
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);
-    const permissions = userRoles[0].role.permisos;
+    const permissions = principal.role.permisos;
     const token = await signToken({ sub: `user|${dto.email}`, email: dto.email, name: dto.email.split("@")[0] ?? dto.email, roles, permissions });
     return { token, roles, email: dto.email };
   }
@@ -54,8 +55,8 @@ export class AuthApplicationService {
     const { payload } = await jwtVerify(tokenCookie, SECRET);
 
     let eventoId = dto.eventoId;
-    let tipoEvento = dto.tipoEvento ?? payload.tipoEvento as number | undefined;
-    let codigoEvento = dto.codigoEvento ?? payload.codigoEvento as number | undefined;
+    const tipoEvento = dto.tipoEvento ?? payload.tipoEvento as number | undefined;
+    const codigoEvento = dto.codigoEvento ?? payload.codigoEvento as number | undefined;
 
     if (tipoEvento && codigoEvento) {
       const ev = await this.repo.findOrCreateEvento(tipoEvento, codigoEvento);

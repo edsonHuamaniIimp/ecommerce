@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil } from "lucide-react";
 import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
   REVISION_AREA_PERMISSIONS,
-  REVISION_AREA_ORDER,
-  REVISION_STEPS,
   RESULTADOS_APROBACION,
   BADGE_STYLES,
+  PERMISSIONS,
+  type ResultadoAprobacion,
 } from "@/lib/shared/constants";
+import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
@@ -30,12 +31,6 @@ interface RevisionData {
   createdAt: string;
 }
 
-const STEP_AREAS: Record<number, string> = Object.fromEntries(
-  REVISION_AREA_ORDER.map((area, idx) => [idx, area])
-);
-
-const STEPS = REVISION_AREA_ORDER.map((_, idx) => idx);
-
 function getRevision(row: SolicitudRow, area: string): RevisionData | null {
   return row.revisiones.find((r) => r.area === area) ?? null;
 }
@@ -43,7 +38,7 @@ function getRevision(row: SolicitudRow, area: string): RevisionData | null {
 function canReviewArea(permissions: string[], area: string): boolean {
   const perm = REVISION_AREA_PERMISSIONS[area as keyof typeof REVISION_AREA_PERMISSIONS];
   if (!perm) return false;
-  return permissions.includes(perm) || permissions.includes("admin:full");
+  return permissions.includes(perm) || permissions.includes(PERMISSIONS.ADMIN_FULL);
 }
 
 export function SolicitudReview({
@@ -71,19 +66,22 @@ export function SolicitudReview({
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    setEditing(false);
-    setSubmitError(null);
-  }, [currentStep]);
-
-  const totalSteps = REVISION_AREA_ORDER.length;
-  const isAdmin = userPermissions.includes("admin:full");
+  const areas = areasRevisionLocal(row.revisiones);
+  const stepAreas: Record<number, string> = Object.fromEntries(areas.map((area, idx) => [idx, area]));
+  const totalSteps = areas.length;
+  const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
 
-  const stepState = (area: string): "pendiente" | "aprobado" | "rechazado" => {
+  const goToStep = (step: number) => {
+    setEditing(false);
+    setSubmitError(null);
+    setCurrentStep(step);
+  };
+
+  const stepState = (area: string): ResultadoAprobacion => {
     const rev = getRevision(row, area);
-    return (rev?.estado as "pendiente" | "aprobado" | "rechazado") ?? RESULTADOS_APROBACION.PENDIENTE;
+    return (rev?.estado as ResultadoAprobacion) ?? RESULTADOS_APROBACION.PENDIENTE;
   };
 
   const handleReview = async (area: string, accion: string) => {
@@ -107,7 +105,7 @@ export function SolicitudReview({
       });
       const updated = { ...row };
       const idx = updated.revisiones.findIndex((r) => r.area === area);
-      const mappedRev: RevisionData = {
+      const mappedRev: SolicitudRow["revisiones"][number] = {
         id: saved.id,
         solicitudId: saved.solicitudId,
         area: saved.area,
@@ -116,12 +114,13 @@ export function SolicitudReview({
         createdBy: saved.createdBy,
         updatedBy: saved.updatedBy,
         createdAt: saved.createdAt,
+        updatedAt: saved.updatedAt,
       };
       if (idx >= 0) {
         updated.revisiones = [...updated.revisiones];
-        updated.revisiones[idx] = mappedRev as SolicitudRow["revisiones"][number];
+        updated.revisiones[idx] = mappedRev;
       } else {
-        updated.revisiones = [...updated.revisiones, mappedRev as SolicitudRow["revisiones"][number]];
+        updated.revisiones = [...updated.revisiones, mappedRev];
       }
       updated.revisionComunicacion = updated.revisiones.find((r) => r.area === REVISION_AREAS.COMUNICACION) ?? null;
       updated.revisionLegal = updated.revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null;
@@ -143,10 +142,10 @@ export function SolicitudReview({
     setConfirmReject({ area: currentArea, accion: RESULTADOS_APROBACION.RECHAZADO });
   };
 
-  const currentArea = STEP_AREAS[currentStep];
+  const currentArea = stepAreas[currentStep] ?? areas[0] ?? REVISION_AREAS.LOGISTICA;
   const currentRev = getRevision(row, currentArea);
   const canReview = canReviewArea(userPermissions, currentArea);
-  const todasAprobadas = REVISION_AREA_ORDER.every((area) => {
+  const todasAprobadas = areas.every((area) => {
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
@@ -154,7 +153,8 @@ export function SolicitudReview({
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
     if (step === 0) return true;
-    const prevArea = STEP_AREAS[step - 1];
+    const prevArea = stepAreas[step - 1];
+    if (!prevArea) return false;
     const prevRev = getRevision(row, prevArea);
     return prevRev !== null && prevRev.estado !== RESULTADOS_APROBACION.PENDIENTE;
   };
@@ -167,8 +167,10 @@ export function SolicitudReview({
         <RevisionStepIndicator
           currentStep={currentStep}
           stepState={stepState}
-          onGoStep={setCurrentStep}
+          onGoStep={goToStep}
           stepCanGo={stepCanGo}
+          areas={areas}
+          mostrarSgc={legalDelegadaAlSgc(row.revisiones)}
         />
 
         {/* Stand info line */}
@@ -319,10 +321,14 @@ export function SolicitudReview({
               <Textarea
                 value={reviewState[currentArea]?.comentario ?? ""}
                 onChange={(e) => {
-                  setReviewState((prev) => ({
-                    ...prev,
-                    [currentArea]: { ...prev[currentArea], comentario: e.target.value },
-                  }));
+                  setReviewState((prev) => {
+                    const current = prev[currentArea];
+                    if (!current) return prev;
+                    return {
+                      ...prev,
+                      [currentArea]: { ...current, comentario: e.target.value },
+                    };
+                  });
                   setValidationErrors((prev) => ({ ...prev, [currentArea]: "" }));
                 }}
                 placeholder="Escribe tu descargo o justificacion..."
@@ -376,13 +382,13 @@ export function SolicitudReview({
               <div className="mt-2 text-xs text-muted-foreground">
                 <p className="font-medium">Puedes revisar:</p>
                 <div className="flex gap-2 mt-1">
-                  {REVISION_AREA_ORDER.filter((a) => canReviewArea(userPermissions, a)).map((a) => (
+                  {areas.filter((a) => canReviewArea(userPermissions, a)).map((a) => (
                     <button
                       key={a}
                       className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
                       onClick={() => {
-                        const idx = REVISION_AREA_ORDER.indexOf(a);
-                        setCurrentStep(idx);
+                        const idx = areas.indexOf(a);
+                        goToStep(idx);
                       }}
                     >
                       {REVISION_AREA_LABELS[a]}
@@ -405,7 +411,7 @@ export function SolicitudReview({
                 size="sm"
                 disabled={!!submitting}
                 className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
-                onClick={() => setCurrentStep((p) => Math.max(0, p - 1))}
+                onClick={() => goToStep(Math.max(0, currentStep - 1))}
               >
                 <ChevronLeft className="mr-1 h-3.5 w-3.5" />
                 <span>Anterior</span>
@@ -418,7 +424,7 @@ export function SolicitudReview({
                 size="sm"
                 disabled={!canAdvance}
                 className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => setCurrentStep((p) => Math.min(totalSteps - 1, p + 1))}
+                onClick={() => goToStep(Math.min(totalSteps - 1, currentStep + 1))}
               >
                 <span>Siguiente</span>
                 <ChevronRight className="ml-1 h-3.5 w-3.5" />

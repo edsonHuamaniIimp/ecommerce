@@ -22,9 +22,10 @@ CLIENTE                    SISTEMA                       API EXTERNO
   │                          │  POST /api/reservas/crear     │
   │                          │  ├─ actualiza gess_stand      │
   │                          │  │  (email, userId, estado)   │
-  │                          │  ├─ crea Solicitud            │
-  │                          │  ├─ crea 3 Revisiones         │
-  │                          │  │  (pendiente cada una)      │
+│                          │  ├─ crea Solicitud            │
+│                          │  ├─ crea 2 Revisiones         │
+│                          │  │  logistica + comunicacion  │
+│                          │  │  (Legal se delega al SGC)  │
   │                          │  └─ envia email confirmacion  │
   │   Recibe confirmacion ◄──┤                               │
 ```
@@ -32,7 +33,8 @@ CLIENTE                    SISTEMA                       API EXTERNO
 **Reglas:**
 - `gess_stand.estado` cambia de "disponible" a "en_evaluacion"
 - `solicitud.documentos` guarda URLs de docs subidos por el cliente (campo JSON)
-- 3 `Revision` se crean: comunicacion, legal, logistica — todas en "pendiente"
+- 2 `Revision` se crean: logistica y comunicacion — en "pendiente". La revisión **Legal**
+  ya no es local: se delega al SGC (ver `docs/integracion-sgc.md`)
 - Email de confirmacion via Resend al cliente + notificacion al admin
 
 ### 1.2 Documentos — Single vs Multi-stand
@@ -78,9 +80,9 @@ ADMIN / AREA
       ▼
 ┌──────────────────────────────────────┐
 │         MODAL DE REVISION            │
-│  ┌──────┬──────┬──────┐             │
-│  │ COM  │ LEG  │ LOG  │  ← steps    │
-│  └──────┴──────┴──────┘             │
+│  ┌──────┬──────┬──────────┐         │
+│  │ LOG  │ COM  │ SGC(Legal)│ ← steps │
+│  └──────┴──────┴──────────┘         │
 │                                      │
 │  Step actual: Legal                  │
 │  ┌────────────────────────────┐     │

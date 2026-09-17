@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -23,24 +23,23 @@ function verticalColor(vertical: string): string {
   return VERTICAL_COLORS[vertical] ?? "#6b7280";
 }
 
-interface VersionItem extends EventoPresalaDTO {}
+type VersionItem = EventoPresalaDTO;
 interface EventoItem extends Omit<EventoPadrePresalaDTO, "versiones"> { versiones: VersionItem[] }
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 function PresalaPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const routerRef = useRef(router);
+  const searchParamsRef = useRef(searchParams);
   const [eventos, setEventos] = useState<EventoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuth, setIsAuth] = useState(false);
   const [selecting, setSelecting] = useState<string | null>(null);
 
   useEffect(() => {
+    const router = routerRef.current;
+    const searchParams = searchParamsRef.current;
     (async () => {
       try {
         const session = await authService.getSession();
@@ -79,8 +78,6 @@ function PresalaPageContent() {
       }
     })();
   }, []);
-
-  const [isAuth, setIsAuth] = useState(false);
 
   const handleSelect = async (eventoId: string, vertical: string, nombre: string, tipoEvento?: number, codigoEvento?: number, eventoPadreNombre?: string) => {
     const safeVertical = vertical.toLowerCase().replace(/\s+/g, "-");
@@ -168,7 +165,7 @@ function PresalaPageContent() {
                             <span className="text-sm font-semibold text-slate-800">{ep.nombre} {ver.anio}</span>
                             {(ver.fecha_inicio || ver.fecha_fin) && (
                               <span className="text-xs text-muted-foreground">
-                                {formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}
+                                {dateUtils.format(ver.fecha_inicio)} — {dateUtils.format(ver.fecha_fin)}
                               </span>
                             )}
                             <div className="mt-2 flex items-center justify-between">

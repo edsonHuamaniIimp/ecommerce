@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
-type ModalOpener = (row: Record<string, unknown>) => void;
+type ModalOpener = (row: SolicitudDTO) => void;
 
 export function useAlertaNavigate(path: string, onOpen: ModalOpener) {
   useEffect(() => {
@@ -11,7 +12,7 @@ export function useAlertaNavigate(path: string, onOpen: ModalOpener) {
       const { path: eventPath, id } = (e as CustomEvent).detail as { path: string; id: string | null };
       if (eventPath === path && id) {
         solicitudesService.detalle(id).then((row) => {
-          if (row) onOpen(row as unknown as Record<string, unknown>);
+          if (row) onOpen(row);
         }).catch(() => {});
       }
     };

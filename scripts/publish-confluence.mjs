@@ -70,7 +70,6 @@ if (!SPACE_KEY) {
 }
 
 const API = `https://${SITE}.atlassian.net/wiki/api/v2`;
-const API_V1 = `https://${SITE}.atlassian.net/wiki/rest/api`;
 const AUTH = "Basic " + Buffer.from(`${EMAIL}:${TOKEN}`).toString("base64");
 
 /* ------------------------------------------------------------------ */

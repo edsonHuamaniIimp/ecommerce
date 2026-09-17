@@ -1,0 +1,2743 @@
+[
+  {
+    "coverage_id": ".github%2Fworkflows%2Fdeploy.yml%23deploy%20job::.github%2Fworkflows%2Fdeploy.yml%23deploy%20authorization::.github%2Fworkflows::Wildcard",
+    "canonical_refs": {
+      "surface": ".github/workflows/deploy.yml#deploy job",
+      "boundary": ".github/workflows/deploy.yml#deploy authorization",
+      "subsystem": ".github/workflows",
+      "attack_class": "Wildcard"
+    },
+    "surface": ".github/workflows/deploy.yml#deploy job",
+    "boundary": ".github/workflows/deploy.yml#deploy authorization",
+    "subsystem": ".github/workflows",
+    "attack_class": "Wildcard",
+    "starting_paths": [
+      ".github/workflows/deploy.yml",
+      "scripts/deploy.sh"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Wildcard",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Untrusted code in a privileged workflow",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-infra",
+    "reviewed_paths": [
+      ".github/workflows/deploy.yml",
+      "scripts/deploy.sh",
+      "docker-compose.prod.yml"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-infra",
+        "reviewed_paths": [
+          ".github/workflows/deploy.yml",
+          "scripts/deploy.sh",
+          "docker-compose.prod.yml"
+        ],
+        "invariant": "Production deploy credentials must only be consumed by trusted immutable actions and must not be retained on the host.",
+        "method": "source",
+        "result": "deploy.yml:113 uses appleboy/ssh-action@v1.2.2 (mutable tag) with EC2_SSH_KEY and :124 embeds EC2_GIT_TOKEN into the remote git URL; deploy runs on push to main with no environment protection; sync job holds long-lived AWS keys.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "github.workflows.deploy.yml:ssh-action-mutable-tag-with-prod-secrets",
+      "github.workflows.deploy.yml:ec2-git-token-persisted-in-git-config"
+    ],
+    "unresolved": [
+      "Branch-protection rules, GitHub environment protection and the scope/expiry of EC2_GIT_TOKEN are hosted-state facts that are not source-visible."
+    ],
+    "final_verdicts": {
+      "github.workflows.deploy.yml:ssh-action-mutable-tag-with-prod-secrets": "confirmed",
+      "github.workflows.deploy.yml:ec2-git-token-persisted-in-git-config": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "Dockerfile%23runtime::docker%2Fsupervisord.conf%23root%20supervisor::docker::Obvious%20things",
+    "canonical_refs": {
+      "surface": "Dockerfile#runtime",
+      "boundary": "docker/supervisord.conf#root supervisor",
+      "subsystem": "docker",
+      "attack_class": "Obvious things"
+    },
+    "surface": "Dockerfile#runtime",
+    "boundary": "docker/supervisord.conf#root supervisor",
+    "subsystem": "docker",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "Dockerfile",
+      "docker/entrypoint.sh",
+      "docker/supervisord.conf",
+      "docker-compose.prod.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Host or control-plane capability exposure",
+      "CLOUD-AND-DEPLOYMENT.md#Universal moves",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-infra",
+    "reviewed_paths": [
+      "Dockerfile",
+      "docker/entrypoint.sh",
+      "docker/supervisord.conf",
+      "docker-compose.prod.yml",
+      "docker/nginx.conf"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-infra",
+        "reviewed_paths": [
+          "Dockerfile",
+          "docker/entrypoint.sh",
+          "docker/supervisord.conf",
+          "docker-compose.prod.yml",
+          "docker/nginx.conf"
+        ],
+        "invariant": "Production schema must change only via reviewed migrations; the internet-facing workload must not run as root with host rw access.",
+        "method": "source",
+        "result": "entrypoint.sh:24 runs `npx prisma db push --skip-generate` in the startup loop (always, via .env.prod DATABASE_URL); Dockerfile has no USER (root), supervisord.conf:3 user=root, and docker-compose.prod.yml:52 bind-mounts the host repo rw at .:/app plus /etc/letsencrypt.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "docker.entrypoint.sh:prisma-db-push-in-production-startup",
+      "docker-compose.prod.yml:root-container-rw-binds-host-source"
+    ],
+    "unresolved": [
+      "Impact of db push depends on live schema drift, not observable from source."
+    ],
+    "final_verdicts": {
+      "docker.entrypoint.sh:prisma-db-push-in-production-startup": "confirmed",
+      "docker-compose.prod.yml:root-container-rw-binds-host-source": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "README.md%23git-history::bitacora.md%23committed%20secrets::docs::Obvious%20things",
+    "canonical_refs": {
+      "surface": "README.md#git-history",
+      "boundary": "bitacora.md#committed secrets",
+      "subsystem": "docs",
+      "attack_class": "Obvious things"
+    },
+    "surface": "README.md#git-history",
+    "boundary": "bitacora.md#committed secrets",
+    "subsystem": "docs",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "bitacora.md",
+      ".gitignore",
+      ".env.example",
+      ".env.prod.example"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Mutable and unbound build inputs",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-infra",
+    "reviewed_paths": [
+      "bitacora.md",
+      ".gitignore",
+      ".env.example",
+      ".env.prod.example",
+      "README.md",
+      "docs/01-despliegue/despliegue.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-infra",
+        "reviewed_paths": [
+          "bitacora.md",
+          ".gitignore",
+          ".env.example",
+          ".env.prod.example",
+          "README.md",
+          "docs/01-despliegue/despliegue.md"
+        ],
+        "invariant": "No real credential is committed, and every secret-bearing runtime config path is excluded from version control.",
+        "method": "source",
+        "result": "History contains only placeholders (PASS on committed secrets), BUT .gitignore:34 ignores .env/.env.local/*.local/*.pem/*.key and does not match .env.prod/.env.production, while docs/01-despliegue/despliegue.md:81 and docker-compose.prod.yml:41 require .env.prod with real DB_PASSWORD/JWT_SECRET in the working tree.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "gitignore:.env.prod-not-ignored"
+    ],
+    "unresolved": [
+      "Whether a populated .env.prod was committed on a remote branch cannot be verified without contacting the remote."
+    ],
+    "final_verdicts": {
+      "gitignore:.env.prod-not-ignored": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fauspicios%2Fgrabar%2Froute.ts%23POST%20%2Fapi%2Fauspicios%2Fgrabar::src%2Fapp%2Fapi%2Fauspicios%2Fgrabar%2Froute.ts%23KBSERVICIOS_API_KEY::src%2Fapp%2Fapi::Injection",
+    "canonical_refs": {
+      "surface": "src/app/api/auspicios/grabar/route.ts#POST /api/auspicios/grabar",
+      "boundary": "src/app/api/auspicios/grabar/route.ts#KBSERVICIOS_API_KEY",
+      "subsystem": "src/app/api",
+      "attack_class": "Injection"
+    },
+    "surface": "src/app/api/auspicios/grabar/route.ts#POST /api/auspicios/grabar",
+    "boundary": "src/app/api/auspicios/grabar/route.ts#KBSERVICIOS_API_KEY",
+    "subsystem": "src/app/api",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "src/app/api/auspicios/grabar/route.ts",
+      "src/app/api/auspicios/listar/route.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/auspicios/grabar/route.ts",
+      "src/app/api/auspicios/listar/route.ts",
+      "src/middleware.ts",
+      "src/app/(dashboard)/dashboard/auspicios/page.tsx"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/auspicios/grabar/route.ts",
+          "src/app/api/auspicios/listar/route.ts",
+          "src/middleware.ts",
+          "src/app/(dashboard)/dashboard/auspicios/page.tsx"
+        ],
+        "invariant": "A caller-supplied body must not be relayed verbatim to a privileged downstream service under a server-side key.",
+        "method": "source",
+        "result": "middleware.ts:29 requires only auspicios:view; grabar/route.ts:9-18 checks session then posts JSON.stringify(body) unmodified to ${KBS_URL}/rest/saveauspicio with x-api-key KBSERVICIOS_API_KEY; listar constrains code/codeEvent, showing a disparity.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auspicios/grabar/unvalidated-body-to-privileged-kbs"
+    ],
+    "unresolved": [
+      "The downstream saveauspicio contract (which injected fields change privileged state) is not in the repository."
+    ],
+    "final_verdicts": {
+      "auspicios/grabar/unvalidated-body-to-privileged-kbs": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fauth%2F%5B...slug%5D%2Froute.ts%23PATCH%20%2Fapi%2Fauth%2Fperfil::src%2Finfrastructure%2Fpersistence%2Fauth-repository.ts%23updatePerfil%20mass%20assignment::src%2Fapplication%2Fauth::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/auth/[...slug]/route.ts#PATCH /api/auth/perfil",
+      "boundary": "src/infrastructure/persistence/auth-repository.ts#updatePerfil mass assignment",
+      "subsystem": "src/application/auth",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/auth/[...slug]/route.ts#PATCH /api/auth/perfil",
+    "boundary": "src/infrastructure/persistence/auth-repository.ts#updatePerfil mass assignment",
+    "subsystem": "src/application/auth",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/auth/[...slug]/route.ts",
+      "src/controllers/auth.controller.ts",
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "src/types/dto/auth/perfil-update-request.dto.ts",
+      "prisma/schema.prisma"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 4,
+    "status": "candidate",
+    "agent_id": "h-wave4",
+    "reviewed_paths": [
+      "src/app/api/auth/[...slug]/route.ts",
+      "src/controllers/auth.controller.ts",
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "src/types/dto/auth/perfil-update-request.dto.ts",
+      "prisma/schema.prisma"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave4",
+        "reviewed_paths": [
+          "src/app/api/auth/[...slug]/route.ts",
+          "src/controllers/auth.controller.ts",
+          "src/application/auth/auth-service.ts",
+          "src/infrastructure/persistence/auth-repository.ts",
+          "src/types/dto/auth/perfil-update-request.dto.ts",
+          "prisma/schema.prisma"
+        ],
+        "invariant": "A profile self-update must bind its write to a server-side allowlist; identity/credential/authorization columns must never reach the ORM update.",
+        "method": "source",
+        "result": "auth.controller.ts:64 assigns await request.json() to PerfilUpdateRequestDTO as a compile-time cast with no Zod parse; auth-service.ts:91 forwards it; auth-repository.ts:57 runs prisma.userRole.updateMany({where:{email:session.email}, data}) with that object. The generated UserRoleUncheckedUpdateManyInput admits id/userId/roleId/email/password/resetToken/resetTokenExpires, so extra keys are written.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auth.perfil.update-mass-assignment"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "auth.perfil.update-mass-assignment": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fauth%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fauth%2Flogin::src%2Fapplication%2Fauth%2Fauth-service.ts%23login::src%2Fapplication%2Fauth::Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/login",
+      "boundary": "src/application/auth/auth-service.ts#login",
+      "subsystem": "src/application/auth",
+      "attack_class": "Cryptography and secrets"
+    },
+    "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/login",
+    "boundary": "src/application/auth/auth-service.ts#login",
+    "subsystem": "src/application/auth",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "prisma/schema.prisma",
+      "prisma/seed.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Password reset and broader recovery",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/app/api/auth/[...slug]/route.ts",
+      "src/controllers/auth.controller.ts",
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "prisma/schema.prisma",
+      "prisma/seed.ts",
+      "src/domain/ports/auth-repository.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/app/api/auth/[...slug]/route.ts",
+          "src/controllers/auth.controller.ts",
+          "src/application/auth/auth-service.ts",
+          "src/infrastructure/persistence/auth-repository.ts",
+          "prisma/schema.prisma",
+          "prisma/seed.ts",
+          "src/domain/ports/auth-repository.ts"
+        ],
+        "invariant": "Passwords must be verified against a salted one-way hash, never stored/compared in plaintext.",
+        "method": "source",
+        "result": "auth-service.ts:23 compares userRoles[0].password !== dto.password against a plaintext column; auth-repository.ts:8 selects the cleartext password; schema.prisma:125 defaults it to '123456'; role-repository.ts:20 creates accounts with no password; seed.ts:36-49 seeds known plaintext passwords. No bcrypt/argon2/scrypt/timingSafeEqual exists in src.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auth.login.plaintext-password-storage"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "auth.login.plaintext-password-storage": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fauth%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fauth%2Freset-password::src%2Fapplication%2Fauth%2Fauth-service.ts%23reset%20token::src%2Fapplication%2Fauth::Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/reset-password",
+      "boundary": "src/application/auth/auth-service.ts#reset token",
+      "subsystem": "src/application/auth",
+      "attack_class": "Cryptography and secrets"
+    },
+    "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/reset-password",
+    "boundary": "src/application/auth/auth-service.ts#reset token",
+    "subsystem": "src/application/auth",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "src/lib/server/email.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Password reset and broader recovery",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/app/api/auth/[...slug]/route.ts",
+      "src/controllers/auth.controller.ts",
+      "src/application/auth/auth-service.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      "src/lib/server/email.ts",
+      "src/domain/ports/auth-repository.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/app/api/auth/[...slug]/route.ts",
+          "src/controllers/auth.controller.ts",
+          "src/application/auth/auth-service.ts",
+          "src/infrastructure/persistence/auth-repository.ts",
+          "src/lib/server/email.ts",
+          "src/domain/ports/auth-repository.ts"
+        ],
+        "invariant": "Recovery tokens must come from a CSPRNG, be single-use, expiring, and bound to the account.",
+        "method": "source",
+        "result": "auth-service.ts:99 builds the token from Math.random(); auth-repository.ts:71-76 accepts token+expiry and :78-80 clears on use (single-use); auth-service.ts:102 places it in a URL query string mailed via email.ts.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auth.reset-token.math-random"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "auth.reset-token.math-random": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fauth%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fauth%2Fseleccionar-evento::src%2Flib%2Fserver%2Fauth.ts%23JWT%20verification::src%2Fapplication%2Fauth::Chained%20vulnerabilities%20and%20trust%20boundaries",
+    "canonical_refs": {
+      "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/seleccionar-evento",
+      "boundary": "src/lib/server/auth.ts#JWT verification",
+      "subsystem": "src/application/auth",
+      "attack_class": "Chained vulnerabilities and trust boundaries"
+    },
+    "surface": "src/app/api/auth/[...slug]/route.ts#POST /api/auth/seleccionar-evento",
+    "boundary": "src/lib/server/auth.ts#JWT verification",
+    "subsystem": "src/application/auth",
+    "attack_class": "Chained vulnerabilities and trust boundaries",
+    "starting_paths": [
+      "src/application/auth/auth-service.ts",
+      "src/controllers/auth.controller.ts",
+      "src/lib/server/auth.ts",
+      "src/lib/server/utils/cookie.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#JWT verification and claim binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/app/api/auth/[...slug]/route.ts",
+      "src/controllers/auth.controller.ts",
+      "src/application/auth/auth-service.ts",
+      "src/lib/server/auth.ts",
+      "src/lib/server/utils/cookie.ts",
+      "src/infrastructure/persistence/auth-repository.ts",
+      ".env.prod.example",
+      "Dockerfile.ecs"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/app/api/auth/[...slug]/route.ts",
+          "src/controllers/auth.controller.ts",
+          "src/application/auth/auth-service.ts",
+          "src/lib/server/auth.ts",
+          "src/lib/server/utils/cookie.ts",
+          "src/infrastructure/persistence/auth-repository.ts",
+          ".env.prod.example",
+          "Dockerfile.ecs"
+        ],
+        "invariant": "JWT signing/verification must pin a strong key source and bind issuer/audience; session minting must not escalate body claims.",
+        "method": "source",
+        "result": "auth.ts:9 falls back to 'dev-secret-cambiar-en-produccion' and auth-service.ts:53 to 'dev-secret'; seleccionar-evento jwtVerify at :54 omits iss/aud (unlike verifyToken auth.ts:46); :67-74 re-signs a 24h token with body eventoId/tipoEvento/codigoEvento; auth.controller.ts:52 writes the cookie without Secure.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "auth.jwt.fallback-secret"
+    ],
+    "unresolved": [
+      "Deployed JWT_SECRET value is not source-visible; .env.prod.example:29 ships it empty and Dockerfile.ecs:37 bakes only a build-time placeholder, so the hardcoded fallback may be the live signing key."
+    ],
+    "final_verdicts": {
+      "auth.jwt.fallback-secret": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fentidades%2Fpersona%2Froute.ts%23POST%20%2Fapi%2Fentidades%2Fpersona::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/entidades/persona/route.ts#POST /api/entidades/persona",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/entidades/persona/route.ts#POST /api/entidades/persona",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/app/api/entidades/persona/route.ts",
+      "src/controllers/entidades.controller.ts",
+      "src/infrastructure/external/entidades-client.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#API-key scope and resource binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/entidades/persona/route.ts",
+      "src/controllers/entidades.controller.ts",
+      "src/infrastructure/external/entidades-client.ts",
+      "src/middleware.ts",
+      "src/types/dto/entidades/entidades.dto.ts",
+      "prisma/seed.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/entidades/persona/route.ts",
+          "src/controllers/entidades.controller.ts",
+          "src/infrastructure/external/entidades-client.ts",
+          "src/middleware.ts",
+          "src/types/dto/entidades/entidades.dto.ts",
+          "prisma/seed.ts"
+        ],
+        "invariant": "PII lookup must require a permission binding the caller to the resource.",
+        "method": "source",
+        "result": "middleware.ts:30 registers /api/entidades with no permission, so any authenticated role passes; entidades.controller.ts:7-18 forwards attacker documento/nombre to upstream searchpersonv00 and returns full PII DTO (entidades.dto.ts:13-46) with no scope or rate limit.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "entidades/persona/pii-search-any-authenticated-role"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "entidades/persona/pii-search-any-authenticated-role": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Ferrors%2Flog%2Froute.ts%23POST%20%2Fapi%2Ferrors%2Flog::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "src/app/api/errors/log/route.ts#POST /api/errors/log",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Resource and file handling"
+    },
+    "surface": "src/app/api/errors/log/route.ts#POST /api/errors/log",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "src/app/api/errors/log/route.ts",
+      "src/lib/server/error-logger.ts",
+      "prisma/schema.prisma"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/errors/log/route.ts",
+      "src/lib/server/error-logger.ts",
+      "prisma/schema.prisma",
+      "src/middleware.ts",
+      "docker/nginx.conf"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/errors/log/route.ts",
+          "src/lib/server/error-logger.ts",
+          "prisma/schema.prisma",
+          "src/middleware.ts",
+          "docker/nginx.conf"
+        ],
+        "invariant": "An unauthenticated append-only store must bound per-record size and total cardinality/retention.",
+        "method": "source",
+        "result": "No PROTECTED prefix matches /api/errors; route.ts:7-32 accepts attacker message/stack/digest/url/metadata with optional userId; error-logger.ts:16 creates ErrorLog with no length cap, dedup, rate limit, or retention; schema.prisma:397-409 has unbounded String/Json columns.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "errors/log/unauth-unbounded-errorlog-insert"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "errors/log/unauth-unbounded-errorlog-insert": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fexhibidoras%2Froute.ts%23GET%20%2Fapi%2Fexhibidoras::src%2Flib%2Fserver%2Fintegracion-m2m.ts%23verificarApiKey::src%2Fapp%2Fapi::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/exhibidoras/route.ts#GET /api/exhibidoras",
+      "boundary": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+      "subsystem": "src/app/api",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/exhibidoras/route.ts#GET /api/exhibidoras",
+    "boundary": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+    "subsystem": "src/app/api",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/app/api/exhibidoras/route.ts",
+      "src/controllers/exhibidoras.controller.ts",
+      "src/lib/server/integracion-m2m.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "h-planos-pagos",
+    "reviewed_paths": [
+      "src/app/api/exhibidoras/route.ts",
+      "src/controllers/exhibidoras.controller.ts",
+      "src/lib/server/integracion-m2m.ts",
+      "src/application/exhibidoras/exhibidoras-service.ts",
+      "src/infrastructure/persistence/exhibidoras-repository.ts",
+      "src/types/dto/exhibidoras/exhibidoras.dto.ts",
+      "docs/api-sistema-montaje.md",
+      "src/lib/shared/constants.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-planos-pagos",
+        "reviewed_paths": [
+          "src/app/api/exhibidoras/route.ts",
+          "src/controllers/exhibidoras.controller.ts",
+          "src/lib/server/integracion-m2m.ts",
+          "src/application/exhibidoras/exhibidoras-service.ts",
+          "src/infrastructure/persistence/exhibidoras-repository.ts",
+          "src/types/dto/exhibidoras/exhibidoras.dto.ts",
+          "docs/api-sistema-montaje.md",
+          "src/lib/shared/constants.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "The exhibitor directory exposed to a lower-trust reader must be limited to the contract's data class/scope.",
+        "method": "source",
+        "result": "The endpoint is gated only by the shared x-api-key and returns exactly {id_empresa, razon_social}, which docs/api-sistema-montaje.md:24,65-72 grants to the Sistema de Montaje; the repository union is a global master directory by contract.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Ffacturacion%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Ffacturacion%2Fagregar-cuota::src%2Finfrastructure%2Fpersistence%2Ffacturacion-repository.ts%23owner%2Fevent%20predicate%20on%20mutation%20by%20id::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/facturacion/[...slug]/route.ts#POST /api/facturacion/agregar-cuota",
+      "boundary": "src/infrastructure/persistence/facturacion-repository.ts#owner/event predicate on mutation by id",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/facturacion/[...slug]/route.ts#POST /api/facturacion/agregar-cuota",
+    "boundary": "src/infrastructure/persistence/facturacion-repository.ts#owner/event predicate on mutation by id",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/facturacion/[...slug]/route.ts",
+      "src/controllers/facturacion.controller.ts",
+      "src/application/facturacion/facturacion-service.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "h-wave3",
+    "reviewed_paths": [
+      "src/app/api/facturacion/[...slug]/route.ts",
+      "src/controllers/facturacion.controller.ts",
+      "src/application/facturacion/facturacion-service.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/domain/ports/facturacion-repository.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "prisma/schema.prisma"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave3",
+        "reviewed_paths": [
+          "src/app/api/facturacion/[...slug]/route.ts",
+          "src/controllers/facturacion.controller.ts",
+          "src/application/facturacion/facturacion-service.ts",
+          "src/infrastructure/persistence/facturacion-repository.ts",
+          "src/domain/ports/facturacion-repository.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "prisma/schema.prisma"
+        ],
+        "invariant": "A billing mutation addressed by id must be bound to the caller's solicitud/empresa/event scope and apply only contract-permitted fields.",
+        "method": "source",
+        "result": "agregarCuota/actualizar/eliminar/eliminarCuota each call getSession then write by caller id with no owner/event predicate (facturacion-repository.ts:90-99,121-129,131-136,138-146); listar narrows by eventoId (:8-17) while mutations do not; actualizar spreads the raw body into prisma.facturacion.update (controller.ts:53-55 -> repository.ts:123) allowing estado/solicitudId/montoTotal/moneda/flgActivo (schema.prisma:411-429).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "facturacion.agregar-cuota.actualizar.eliminar.eliminar-cuota.unbound-by-id",
+      "facturacion.actualizar.unvalidated-body-mass-assignment"
+    ],
+    "unresolved": [
+      "Whether any deployed non-admin role holds facturacion:view is a database/deployment fact."
+    ],
+    "final_verdicts": {
+      "facturacion.agregar-cuota.actualizar.eliminar.eliminar-cuota.unbound-by-id": "needs_validation",
+      "facturacion.actualizar.unvalidated-body-mass-assignment": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Ffacturacion%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Ffacturacion%2Fpagar-cuota::src%2Finfrastructure%2Fpersistence%2Ffacturacion-repository.ts%23pagarCuota::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/facturacion/[...slug]/route.ts#POST /api/facturacion/pagar-cuota",
+      "boundary": "src/infrastructure/persistence/facturacion-repository.ts#pagarCuota",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/facturacion/[...slug]/route.ts#POST /api/facturacion/pagar-cuota",
+    "boundary": "src/infrastructure/persistence/facturacion-repository.ts#pagarCuota",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/facturacion/[...slug]/route.ts",
+      "src/controllers/facturacion.controller.ts",
+      "src/application/facturacion/facturacion-service.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/app/api/facturacion/niubizz/sesion/route.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "h-wave2",
+    "reviewed_paths": [
+      "src/app/api/facturacion/[...slug]/route.ts",
+      "src/controllers/facturacion.controller.ts",
+      "src/application/facturacion/facturacion-service.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "prisma/seed.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave2",
+        "reviewed_paths": [
+          "src/app/api/facturacion/[...slug]/route.ts",
+          "src/controllers/facturacion.controller.ts",
+          "src/application/facturacion/facturacion-service.ts",
+          "src/infrastructure/persistence/facturacion-repository.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "prisma/seed.ts"
+        ],
+        "invariant": "Settling a billing installment must bind the cuota to the caller's solicitud/empresa/event scope.",
+        "method": "source",
+        "result": "pagar-cuota runs getSession only (facturacion.controller.ts:42-46) and repo.pagarCuota updates by id with no owner/event predicate (facturacion-repository.ts:102-104), then cascades facturacion and solicitud to PAGADO (:112-114); listar narrows by eventoId (:10) but pagarCuota/detalle do not.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "facturacion.pagar-cuota.missing-owner-event-binding"
+    ],
+    "unresolved": [
+      "Whether a deployed non-admin role holds facturacion:view is a database/deployment fact."
+    ],
+    "final_verdicts": {
+      "facturacion.pagar-cuota.missing-owner-event-binding": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Ffacturacion%2Fniubizz%2Fconfirmar%2Froute.ts%23POST%20%2Fapi%2Ffacturacion%2Fniubizz%2Fconfirmar::src%2Fcontrollers%2Fniubizz.controller.ts%23confirmarPago::src%2Fapp%2Fapi::Business%20logic",
+    "canonical_refs": {
+      "surface": "src/app/api/facturacion/niubizz/confirmar/route.ts#POST /api/facturacion/niubizz/confirmar",
+      "boundary": "src/controllers/niubizz.controller.ts#confirmarPago",
+      "subsystem": "src/app/api",
+      "attack_class": "Business logic"
+    },
+    "surface": "src/app/api/facturacion/niubizz/confirmar/route.ts#POST /api/facturacion/niubizz/confirmar",
+    "boundary": "src/controllers/niubizz.controller.ts#confirmarPago",
+    "subsystem": "src/app/api",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "src/app/api/facturacion/niubizz/confirmar/route.ts",
+      "src/controllers/niubizz.controller.ts",
+      "src/application/facturacion/niubizz-service.ts",
+      "src/infrastructure/external/niubizz-client.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-planos-pagos",
+    "reviewed_paths": [
+      "src/app/api/facturacion/niubizz/confirmar/route.ts",
+      "src/controllers/niubizz.controller.ts",
+      "src/application/facturacion/niubizz-service.ts",
+      "src/infrastructure/external/niubizz-client.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/domain/ports/facturacion-repository.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-planos-pagos",
+        "reviewed_paths": [
+          "src/app/api/facturacion/niubizz/confirmar/route.ts",
+          "src/controllers/niubizz.controller.ts",
+          "src/application/facturacion/niubizz-service.ts",
+          "src/infrastructure/external/niubizz-client.ts",
+          "src/infrastructure/persistence/facturacion-repository.ts",
+          "src/domain/ports/facturacion-repository.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "A cuota may move to PAGADO only after the gateway confirms an authorization bound to that cuota and amount; the result must be inspected.",
+        "method": "source",
+        "result": "confirmarPago awaits niubizzClient.autorizar but never inspects the result (niubizz-service.ts:44-49) then unconditionally calls pagarCuota (:52) which can set facturacion/solicitud PAGADO (facturacion-repository.ts:104-118); the key is read from cuota.respuesta_api which detalle() never returns (facturacion-repository.ts:82-86; port :12); niubizz-client.ts:29 throws only on non-2xx; controller has no getSession.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "facturacion.niubizz.confirmar.unverified-payment"
+    ],
+    "unresolved": [
+      "Niubiz proxy HTTP-status vs body success semantics are provider-side and not source-visible.",
+      "Whether a deployment has a non-admin role holding facturacion:view is a data fact."
+    ],
+    "final_verdicts": {
+      "facturacion.niubizz.confirmar.unverified-payment": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Ffacturacion%2Fniubizz%2Fsesion%2Froute.ts%23POST%20%2Fapi%2Ffacturacion%2Fniubizz%2Fsesion::src%2Fapplication%2Ffacturacion%2Fniubizz-service.ts%23crearSesion%20owner%2Fevent%20binding::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/facturacion/niubizz/sesion/route.ts#POST /api/facturacion/niubizz/sesion",
+      "boundary": "src/application/facturacion/niubizz-service.ts#crearSesion owner/event binding",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/facturacion/niubizz/sesion/route.ts#POST /api/facturacion/niubizz/sesion",
+    "boundary": "src/application/facturacion/niubizz-service.ts#crearSesion owner/event binding",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/facturacion/niubizz/sesion/route.ts",
+      "src/controllers/niubizz.controller.ts",
+      "src/application/facturacion/niubizz-service.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 3,
+    "status": "candidate",
+    "agent_id": "h-wave3",
+    "reviewed_paths": [
+      "src/app/api/facturacion/niubizz/sesion/route.ts",
+      "src/controllers/niubizz.controller.ts",
+      "src/application/facturacion/niubizz-service.ts",
+      "src/infrastructure/external/niubizz-client.ts",
+      "src/infrastructure/persistence/facturacion-repository.ts",
+      "src/domain/ports/facturacion-repository.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave3",
+        "reviewed_paths": [
+          "src/app/api/facturacion/niubizz/sesion/route.ts",
+          "src/controllers/niubizz.controller.ts",
+          "src/application/facturacion/niubizz-service.ts",
+          "src/infrastructure/external/niubizz-client.ts",
+          "src/infrastructure/persistence/facturacion-repository.ts",
+          "src/domain/ports/facturacion-repository.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "Creating a payment session must bind the invoice to the caller's owner/solicitud/event scope before any gateway call.",
+        "method": "source",
+        "result": "Only facturacion:view gates the route (middleware.ts:20-21); crearSesion checks getSession then facturacionRepo.detalle(facturacionId) which is findUnique by id with no owner/event predicate (facturacion-repository.ts:60-73), reads the solicitante PII (niubizz-service.ts:13-16) and returns sessionToken/amount/merchantId to the caller (niubizz.controller.ts:19-26).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "facturacion.niubizz.sesion.missing-owner-event-binding"
+    ],
+    "unresolved": [
+      "Whether a deployed non-admin role holds facturacion:view is a database/deployment fact."
+    ],
+    "final_verdicts": {
+      "facturacion.niubizz.sesion.missing-owner-event-binding": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fgess%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fgess%2Flistar::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/gess/[...slug]/route.ts#GET /api/gess/listar",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/gess/[...slug]/route.ts#GET /api/gess/listar",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/infrastructure/persistence/gess-repository.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 4,
+    "status": "candidate",
+    "agent_id": "h-wave4",
+    "reviewed_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/infrastructure/persistence/gess-repository.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "src/types/dto/gess/gess-stand.dto.ts",
+      "src/application/eventos/presala-service.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave4",
+        "reviewed_paths": [
+          "src/app/api/gess/[...slug]/route.ts",
+          "src/controllers/gess.controller.ts",
+          "src/application/gess/gess-service.ts",
+          "src/infrastructure/persistence/gess-repository.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "src/types/dto/gess/gess-stand.dto.ts",
+          "src/application/eventos/presala-service.ts"
+        ],
+        "invariant": "A protected stand-inventory read must be authenticated/authorized by the gate and bound to the caller's scope.",
+        "method": "source",
+        "result": "/api/gess is absent from PROTECTED, PUBLIC lists, and the presala exception, so middleware.ts:72 allows it; gessController.listar (gess.controller.ts:8-31) has no getSession and accepts any eventoId/bloqueId; gess-repository.ts:14-20 findMany({where:{eventoId}}) has no select, returning empresa/email/userId/rawData (schema.prisma:181-212). Public /api/eventos/listar?presala=1 supplies real eventoIds.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "gess.listar.unauth-stand-inventory-disclosure"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "gess.listar.unauth-stand-inventory-disclosure": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fgess%2F%5B...slug%5D%2Froute.ts%23PATCH%20%2Fapi%2Fgess%2Factualizar::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/gess/[...slug]/route.ts#PATCH /api/gess/actualizar",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/gess/[...slug]/route.ts#PATCH /api/gess/actualizar",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/validators/gess.validator.ts",
+      "src/infrastructure/persistence/gess-repository.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/gess/[...slug]/route.ts",
+          "src/controllers/gess.controller.ts",
+          "src/application/gess/gess-service.ts",
+          "src/validators/gess.validator.ts",
+          "src/infrastructure/persistence/gess-repository.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "A record update must bind the target to the caller and require the right permission.",
+        "method": "source",
+        "result": "PATCH /api/gess/actualizar is not covered by any PROTECTED prefix; gessController.actualizar has no session check (gess.controller.ts:33-37); updateGessStandSchema accepts any id/estado/documentos/imagenes; gess-repository.ts:56-59 updates by id with no owner/evento predicate.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "gess/actualizar/unauth-arbitrary-id-update"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "gess/actualizar/unauth-arbitrary-id-update": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fgess%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fgess%2Fmockup::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Business%20logic",
+    "canonical_refs": {
+      "surface": "src/app/api/gess/[...slug]/route.ts#POST /api/gess/mockup",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Business logic"
+    },
+    "surface": "src/app/api/gess/[...slug]/route.ts#POST /api/gess/mockup",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/infrastructure/persistence/plano-repository.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/gess/[...slug]/route.ts",
+          "src/controllers/gess.controller.ts",
+          "src/application/gess/gess-service.ts",
+          "src/infrastructure/persistence/plano-repository.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "A demo generator must require privileged authorization and must not downgrade live state.",
+        "method": "source",
+        "result": "/api/gess/mockup is unprotected and gessController.mockup has no check (gess.controller.ts:50-59); gess-service.ts:106 resolves planos from caller codes and :124-145 upserts forcing estado 'disponible' (:132) and empresa null (:133).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "gess/mockup/unauth-stand-state-reset"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "gess/mockup/unauth-stand-state-reset": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fgess%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fgess%2Fsync::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/gess/[...slug]/route.ts#POST /api/gess/sync",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/gess/[...slug]/route.ts#POST /api/gess/sync",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/middleware.ts",
+      "src/infrastructure/persistence/gess-repository.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/gess/[...slug]/route.ts",
+          "src/controllers/gess.controller.ts",
+          "src/application/gess/gess-service.ts",
+          "src/middleware.ts",
+          "src/infrastructure/persistence/gess-repository.ts"
+        ],
+        "invariant": "A bulk import must enforce authentication, authority, and event binding.",
+        "method": "source",
+        "result": "No PROTECTED prefix matches /api/gess and gessController.sync calls no getSession (gess.controller.ts:39-48); body.eventoId/seleccionadas are forwarded unvalidated and upserted (gess-service.ts:62-95; gess-repository.ts:52-59).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "gess/sync/unauth-import-authority-expansion"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "gess/sync/unauth-import-authority-expansion": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fkbservicios%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fkbservicios%2Fevents::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/kbservicios/[...slug]/route.ts#POST /api/kbservicios/events",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/kbservicios/[...slug]/route.ts#POST /api/kbservicios/events",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/kbservicios/[...slug]/route.ts",
+      "src/controllers/kbservicios.controller.ts",
+      "src/infrastructure/external/kbservicios-client.ts",
+      "src/middleware.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "h-wave2",
+    "reviewed_paths": [
+      "src/app/api/kbservicios/[...slug]/route.ts",
+      "src/controllers/kbservicios.controller.ts",
+      "src/infrastructure/external/kbservicios-client.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "src/lib/client/api/services/kbservicios-service.ts",
+      "src/app/api/auspicios/grabar/route.ts",
+      "docs/api-inventario.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave2",
+        "reviewed_paths": [
+          "src/app/api/kbservicios/[...slug]/route.ts",
+          "src/controllers/kbservicios.controller.ts",
+          "src/infrastructure/external/kbservicios-client.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "src/lib/client/api/services/kbservicios-service.ts",
+          "src/app/api/auspicios/grabar/route.ts",
+          "docs/api-inventario.md"
+        ],
+        "invariant": "An internal integration proxy must require an authenticated/authorized principal.",
+        "method": "source",
+        "result": "/api/kbservicios matches no PROTECTED/public entry (middleware.ts:72 allows); kbservicios.controller.ts:9-13 reads body.code and calls services.kbServicios.listarEventos with no session check, unlike the sibling auspicios proxy which calls getSession (route.ts:9-10).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "kbservicios.events.unauth-internal-proxy"
+    ],
+    "unresolved": [
+      "The legacy response data class and deployed network/credential authorization are outside the repository."
+    ],
+    "final_verdicts": {
+      "kbservicios.events.unauth-internal-proxy": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fplanogess%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fplanogess%2Ffetch::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "src/app/api/planogess/[...slug]/route.ts#POST /api/planogess/fetch",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Resource and file handling"
+    },
+    "surface": "src/app/api/planogess/[...slug]/route.ts#POST /api/planogess/fetch",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "src/app/api/planogess/[...slug]/route.ts",
+      "src/infrastructure/external/planogess-client.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Database and downstream query amplification",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/planogess/[...slug]/route.ts",
+      "src/infrastructure/external/planogess-client.ts",
+      "src/lib/server/services.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/planogess/[...slug]/route.ts",
+          "src/infrastructure/external/planogess-client.ts",
+          "src/lib/server/services.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "No attacker-controlled path/URL or unbounded fan-out may reach a sink.",
+        "method": "source",
+        "result": "The route takes only numeric type/event codes and performs one POST to the fixed env PLANOGESS_API_URL (planogess-client.ts:26-41) with a depth-limited parser; no traversal/SSRF/deserialization/fan-out is source-establishable. TLS toggle is owned by the separate kbservicios/planogess TLS unit.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "hardening_notes": [
+      "Anonymous reachability + upstream quota cost is not source-establishable; recorded as hardening."
+    ]
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fplanos%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fplanos%2Fexportar-ts::src%2Fcontrollers%2Fplanos.controller.ts%23requireAdmin::src%2Fapp%2Fapi::Injection",
+    "canonical_refs": {
+      "surface": "src/app/api/planos/[...slug]/route.ts#GET /api/planos/exportar-ts",
+      "boundary": "src/controllers/planos.controller.ts#requireAdmin",
+      "subsystem": "src/app/api",
+      "attack_class": "Injection"
+    },
+    "surface": "src/app/api/planos/[...slug]/route.ts#GET /api/planos/exportar-ts",
+    "boundary": "src/controllers/planos.controller.ts#requireAdmin",
+    "subsystem": "src/app/api",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "src/controllers/planos.controller.ts",
+      "src/application/planos/planos-service.ts",
+      "src/lib/shared/utils/ts-codegen.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-planos-pagos",
+    "reviewed_paths": [
+      "src/app/api/planos/[...slug]/route.ts",
+      "src/controllers/planos.controller.ts",
+      "src/application/planos/planos-service.ts",
+      "src/lib/shared/utils/ts-codegen.ts",
+      "src/infrastructure/persistence/plano-repository.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-planos-pagos",
+        "reviewed_paths": [
+          "src/app/api/planos/[...slug]/route.ts",
+          "src/controllers/planos.controller.ts",
+          "src/application/planos/planos-service.ts",
+          "src/lib/shared/utils/ts-codegen.ts",
+          "src/infrastructure/persistence/plano-repository.ts"
+        ],
+        "invariant": "Values interpolated into generated TypeScript source must be escaped or typed so stored fields cannot break out of literals/keys.",
+        "method": "source",
+        "result": "exportarTypeScript interpolates plano.codigo/nombre/descripcion, tipos[].codigo/label/nombre/color, bloques[].bloqueId/tipoCodigo/tipologia and furniture fields raw into emitted TS (planos-service.ts:157-232); documented workflow copies artifacts into src/lib/shared/planos.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "planos.exportar-ts.unescaped-codegen"
+    ],
+    "unresolved": [
+      "The generated files are copied into a frontend tree outside this repository; no in-repo runtime compiles the generated string."
+    ],
+    "final_verdicts": {
+      "planos.exportar-ts.unescaped-codegen": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fplanos%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fplanos%2Fimportar::src%2Fcontrollers%2Fplanos.controller.ts%23requireAdmin::src%2Fapp%2Fapi::Injection",
+    "canonical_refs": {
+      "surface": "src/app/api/planos/[...slug]/route.ts#POST /api/planos/importar",
+      "boundary": "src/controllers/planos.controller.ts#requireAdmin",
+      "subsystem": "src/app/api",
+      "attack_class": "Injection"
+    },
+    "surface": "src/app/api/planos/[...slug]/route.ts#POST /api/planos/importar",
+    "boundary": "src/controllers/planos.controller.ts#requireAdmin",
+    "subsystem": "src/app/api",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "src/controllers/planos.controller.ts",
+      "src/application/planos/planos-service.ts",
+      "src/lib/shared/utils/ts-codegen.ts",
+      "src/validators/planos.validator.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-planos-pagos",
+    "reviewed_paths": [
+      "src/app/api/planos/[...slug]/route.ts",
+      "src/controllers/planos.controller.ts",
+      "src/application/planos/planos-service.ts",
+      "src/lib/shared/utils/ts-codegen.ts",
+      "src/validators/planos.validator.ts",
+      "src/infrastructure/persistence/plano-repository.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-planos-pagos",
+        "reviewed_paths": [
+          "src/app/api/planos/[...slug]/route.ts",
+          "src/controllers/planos.controller.ts",
+          "src/application/planos/planos-service.ts",
+          "src/lib/shared/utils/ts-codegen.ts",
+          "src/validators/planos.validator.ts",
+          "src/infrastructure/persistence/plano-repository.ts"
+        ],
+        "invariant": "Imported layout values must satisfy the same charset/length/type constraints as create/layout before persistence and code emission.",
+        "method": "source",
+        "result": "requireAdmin gates the route, but planoImportarSchema types tipos/bloques/furniture as z.unknown() and codigo only z.string().min(1) (planos.validator.ts:50-57); repo.importar persists via guardarLayout (plano-repository.ts:382-393), bypassing crear's ^[a-z0-9-]+$ regex (planos-service.ts:31-33).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "planos.importar.unvalidated-layout"
+    ],
+    "unresolved": [
+      "Whether any in-repo caller feeds importar output directly into a build step is not source-visible."
+    ],
+    "final_verdicts": {
+      "planos.importar.unvalidated-layout": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Freniec%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Freniec%2Fdni::src%2Finfrastructure%2Fexternal%2Fconsultas-client.ts%23SUNAT_API_TOKEN::src%2Finfrastructure%2Fexternal::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/reniec/[...slug]/route.ts#GET /api/reniec/dni",
+      "boundary": "src/infrastructure/external/consultas-client.ts#SUNAT_API_TOKEN",
+      "subsystem": "src/infrastructure/external",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/reniec/[...slug]/route.ts#GET /api/reniec/dni",
+    "boundary": "src/infrastructure/external/consultas-client.ts#SUNAT_API_TOKEN",
+    "subsystem": "src/infrastructure/external",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/app/api/reniec/[...slug]/route.ts",
+      "src/controllers/consultas.controller.ts",
+      "src/infrastructure/external/consultas-client.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/reniec/[...slug]/route.ts",
+      "src/controllers/consultas.controller.ts",
+      "src/infrastructure/external/consultas-client.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/reniec/[...slug]/route.ts",
+          "src/controllers/consultas.controller.ts",
+          "src/infrastructure/external/consultas-client.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts"
+        ],
+        "invariant": "Third-party PII work using an operator credential must occur only after authorization and must be bounded.",
+        "method": "source",
+        "result": "/api/reniec is in neither PROTECTED nor the public lists; consultas.controller.ts:23-35 validates only an 8-digit pattern and calls consultas-client.ts:3-25 with Bearer SUNAT_API_TOKEN to api.apis.net.pe. Same pattern applies to /api/sunat (see uncovered).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "reniec/dni/unauth-paid-pii-lookup"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "reniec/dni/unauth-paid-pii-lookup": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Freservas%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Freservas%2Fcrear::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Business%20logic",
+    "canonical_refs": {
+      "surface": "src/app/api/reservas/[...slug]/route.ts#POST /api/reservas/crear",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Business logic"
+    },
+    "surface": "src/app/api/reservas/[...slug]/route.ts#POST /api/reservas/crear",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "src/app/api/reservas/[...slug]/route.ts",
+      "src/controllers/reserva.controller.ts",
+      "src/application/reservas/reserva-service.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/reservas/[...slug]/route.ts",
+      "src/controllers/reserva.controller.ts",
+      "src/application/reservas/reserva-service.ts",
+      "src/validators/reserva.validator.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/reservas/[...slug]/route.ts",
+          "src/controllers/reserva.controller.ts",
+          "src/application/reservas/reserva-service.ts",
+          "src/validators/reserva.validator.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "Only an authenticated owner may transition stand state and create a solicitud.",
+        "method": "source",
+        "result": "No PROTECTED prefix matches /api/reservas; reservaController.crear calls getSession but never rejects null (reserva.controller.ts:10-22); the service sets stands to en_evaluacion, creates solicitud/revisions, and sends emails (reserva-service.ts:37-110).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "reservas/crear/unauth-stand-block-and-solicitud"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "reservas/crear/unauth-stand-block-and-solicitud": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fsolicitudes%2Fdetalle::src%2Finfrastructure%2Fpersistence%2Fsolicitudes-repository.ts%23ownership%20filters::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/detalle",
+      "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/detalle",
+    "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/application/solicitudes/solicitudes-service.ts",
+      "src/middleware.ts",
+      "src/lib/server/auth.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/application/solicitudes/solicitudes-service.ts",
+          "src/middleware.ts",
+          "src/lib/server/auth.ts"
+        ],
+        "invariant": "Reading one record by id must bind it to the authenticated owner/reviewer and session event.",
+        "method": "source",
+        "result": "detalle calls services.solicitudes.detalle(id) with no getSession (controller.ts:32-38); repository uses findUnique({where:{id}}) with no owner/event predicate (solicitudes-repository.ts:185-199).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.detalle.missing-owner-binding"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.detalle.missing-owner-binding": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fsolicitudes%2Fhistorial::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/historial",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/historial",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/middleware.ts",
+      "src/lib/server/auth.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/middleware.ts",
+          "src/lib/server/auth.ts"
+        ],
+        "invariant": "A history endpoint exposing reviewer identities/justifications must require an entitled principal.",
+        "method": "source",
+        "result": "historial is the only read that never calls getSession (controller.ts:159-198); repo.obtenerHistorial filters by solicitudId only (solicitudes-repository.ts:373-411), returning createdBy and comentarioAnterior.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.historial.missing-session-and-owner"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.historial.missing-session-and-owner": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fsolicitudes%2Flistar::src%2Finfrastructure%2Fpersistence%2Fsolicitudes-repository.ts%23ownership%20filters::src%2Fapp%2Fapi::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/listar",
+      "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+      "subsystem": "src/app/api",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#GET /api/solicitudes/listar",
+    "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+    "subsystem": "src/app/api",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/lib/server/services.ts",
+      "src/application/solicitudes/solicitudes-service.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "src/lib/server/auth.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/lib/server/services.ts",
+          "src/application/solicitudes/solicitudes-service.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "src/lib/server/auth.ts"
+        ],
+        "invariant": "Owner/tenant scope must derive from the session, not a client query parameter.",
+        "method": "source",
+        "result": "Controller reads userId/eventoId from the query (controller.ts:15-16,21); repository applies the owner predicate only when userId is truthy (solicitudes-repository.ts:152-154) and filters events by the query value (:146-151). cliente holds solicitudes:view (constants.ts:212).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.listar.unscoped-owner-and-event"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.listar.unscoped-owner-and-event": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fsolicitudes%2Fmodificar::src%2Finfrastructure%2Fpersistence%2Fsolicitudes-repository.ts%23ownership%20filters::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/modificar",
+      "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/modificar",
+    "boundary": "src/infrastructure/persistence/solicitudes-repository.ts#ownership filters",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/application/reservas/reserva-service.ts",
+      "src/controllers/reserva.controller.ts",
+      "src/middleware.ts",
+      "prisma/schema.prisma",
+      "src/lib/shared/constants.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/application/reservas/reserva-service.ts",
+          "src/controllers/reserva.controller.ts",
+          "src/middleware.ts",
+          "prisma/schema.prisma",
+          "src/lib/shared/constants.ts"
+        ],
+        "invariant": "An ownership predicate must deny by default; a null owner must not mean no restriction.",
+        "method": "source",
+        "result": "modificar guards with `if (detalle.userId && detalle.userId !== session.sub && ...)` (controller.ts:94), so a null owner short-circuits; Solicitud.userId is nullable (schema.prisma:221) and written as `userId ?? null` from optional session (reserva.controller.ts:15-16), and /api/reservas is in neither PROTECTED nor PUBLIC lists (middleware.ts:12-36).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.modificar.null-owner-bypass"
+    ],
+    "unresolved": [
+      "Whether any userId=null Solicitud rows exist in the deployed database (required to exercise the falsy-owner bypass end-to-end)."
+    ],
+    "final_verdicts": {
+      "solicitudes.modificar.null-owner-bypass": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fsolicitudes%2Forden-pago::src%2Flib%2Fshared%2Fconstants.ts%23PERMISSIONS%20facturacion::src%2Fapp%2Fapi::Business%20logic",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/orden-pago",
+      "boundary": "src/lib/shared/constants.ts#PERMISSIONS facturacion",
+      "subsystem": "src/app/api",
+      "attack_class": "Business logic"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/orden-pago",
+    "boundary": "src/lib/shared/constants.ts#PERMISSIONS facturacion",
+    "subsystem": "src/app/api",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/lib/shared/constants.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/lib/shared/constants.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "Transitioning billing state must require the facturacion permission.",
+        "method": "source",
+        "result": "ordenPago only getSession then repo.marcarOrdenPago (controller.ts:150-157); marcarOrdenPago sets estado=PENDIENTE_PAGO and creates/updates Facturacion (solicitudes-repository.ts:349-371). facturacion:view is enforced only for /api/facturacion (middleware.ts:21).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.orden-pago.missing-facturacion-permission"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.orden-pago.missing-facturacion-permission": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fsolicitudes%2Freevaluar::src%2Flib%2Fserver%2Fauth.ts%23getSession::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/reevaluar",
+      "boundary": "src/lib/server/auth.ts#getSession",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/reevaluar",
+    "boundary": "src/lib/server/auth.ts#getSession",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/middleware.ts",
+      "src/lib/server/auth.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/middleware.ts",
+          "src/lib/server/auth.ts"
+        ],
+        "invariant": "Creating a re-evaluation must be bound to the record owner/reviewer and event.",
+        "method": "source",
+        "result": "reevaluar only getSession then crearReevaluacion(solicitudId, motivo, documentos) with no ownership/permission/existence check (controller.ts:106-119; solicitudes-repository.ts:285-295); later approval resets all revisions and copies documentos (:297-313).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.reevaluar.missing-owner-and-permission"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.reevaluar.missing-owner-and-permission": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fsolicitudes%2Frevisar::src%2Flib%2Fshared%2Fconstants.ts%23PERMISSIONS%20review%20areas::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/revisar",
+      "boundary": "src/lib/shared/constants.ts#PERMISSIONS review areas",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/revisar",
+    "boundary": "src/lib/shared/constants.ts#PERMISSIONS review areas",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/controllers/solicitudes.controller.ts",
+      "src/validators/solicitudes.validator.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-solicitudes",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/validators/solicitudes.validator.ts",
+      "src/lib/shared/constants.ts",
+      "src/application/solicitudes/solicitudes-service.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-solicitudes",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/validators/solicitudes.validator.ts",
+          "src/lib/shared/constants.ts",
+          "src/application/solicitudes/solicitudes-service.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "Recording a review must require the area-specific permission.",
+        "method": "source",
+        "result": "revisar only checks getSession (controller.ts:40-45); validator accepts any area/estado (validators/solicitudes.validator.ts:15-20); REVISION_AREA_PERMISSIONS (constants.ts:302-306) is referenced nowhere; the repository writes the revision with the caller email (solicitudes-repository.ts:208-250).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.revisar.missing-area-permission"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "solicitudes.revisar.missing-area-permission": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsolicitudes%2F%5B...slug%5D%2Froute.ts%23POST%20%2Fapi%2Fsolicitudes%2Fupload-doc::src%2Fapplication%2Fsolicitudes%2Fsolicitudes-service.ts%23uploadDocumento%20authority%20binding::src%2Fapp%2Fapi::Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/upload-doc",
+      "boundary": "src/application/solicitudes/solicitudes-service.ts#uploadDocumento authority binding",
+      "subsystem": "src/app/api",
+      "attack_class": "Resource and file handling"
+    },
+    "surface": "src/app/api/solicitudes/[...slug]/route.ts#POST /api/solicitudes/upload-doc",
+    "boundary": "src/application/solicitudes/solicitudes-service.ts#uploadDocumento authority binding",
+    "subsystem": "src/app/api",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/application/solicitudes/solicitudes-service.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/app/api/upload/route.ts",
+      "src/lib/server/storage.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "h-wave2",
+    "reviewed_paths": [
+      "src/app/api/solicitudes/[...slug]/route.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/application/solicitudes/solicitudes-service.ts",
+      "src/infrastructure/persistence/solicitudes-repository.ts",
+      "src/components/solicitudes/cliente-upload-modal.tsx",
+      "src/components/solicitudes/mis-solicitudes-manager.tsx",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave2",
+        "reviewed_paths": [
+          "src/app/api/solicitudes/[...slug]/route.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/application/solicitudes/solicitudes-service.ts",
+          "src/infrastructure/persistence/solicitudes-repository.ts",
+          "src/components/solicitudes/cliente-upload-modal.tsx",
+          "src/components/solicitudes/mis-solicitudes-manager.tsx",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts"
+        ],
+        "invariant": "A document write must bind the target solicitud and the stored url to the caller/reviewer, denying by default.",
+        "method": "source",
+        "result": "uploadDocumento parses only solicitudId/url and forwards the unverified solicitudId to repo.crearDocumentoAdjunto (solicitudes-service.ts:84-89; solicitudes-repository.ts:413-417) under solicitudes:view (middleware.ts:28); sibling modificar (:94) and eliminarDocumento (service.ts:99) enforce ownership. The stored url renders as anchor href without scheme validation (mis-solicitudes-manager.tsx:386-403; cliente-upload-modal.tsx:82,96) and no CSP is set.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "solicitudes.upload-doc.missing-owner-binding",
+      "solicitudes.upload-doc.unvalidated-url-to-href"
+    ],
+    "unresolved": [
+      "Cross-owner effect depends on deployed data state; browser handling of javascript:/data: href is a runtime fact."
+    ],
+    "final_verdicts": {
+      "solicitudes.upload-doc.missing-owner-binding": "confirmed",
+      "solicitudes.upload-doc.unvalidated-url-to-href": "rejected"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fstands%2Fexhibidora%2Froute.ts%23GET%20%2Fapi%2Fstands%2Fexhibidora::src%2Flib%2Fserver%2Fintegracion-m2m.ts%23verificarApiKey::src%2Fapp%2Fapi::Access%20control",
+    "canonical_refs": {
+      "surface": "src/app/api/stands/exhibidora/route.ts#GET /api/stands/exhibidora",
+      "boundary": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+      "subsystem": "src/app/api",
+      "attack_class": "Access control"
+    },
+    "surface": "src/app/api/stands/exhibidora/route.ts#GET /api/stands/exhibidora",
+    "boundary": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+    "subsystem": "src/app/api",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/app/api/stands/exhibidora/route.ts",
+      "src/controllers/stands-exhibidora.controller.ts",
+      "src/lib/server/integracion-m2m.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#API-key scope and resource binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "h-planos-pagos",
+    "reviewed_paths": [
+      "src/app/api/stands/exhibidora/route.ts",
+      "src/controllers/stands-exhibidora.controller.ts",
+      "src/lib/server/integracion-m2m.ts",
+      "src/application/stands-integracion/stands-integracion-service.ts",
+      "src/infrastructure/persistence/stands-integracion-repository.ts",
+      "docs/api-sistema-montaje.md",
+      "src/lib/shared/constants.ts",
+      "src/middleware.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-planos-pagos",
+        "reviewed_paths": [
+          "src/app/api/stands/exhibidora/route.ts",
+          "src/controllers/stands-exhibidora.controller.ts",
+          "src/lib/server/integracion-m2m.ts",
+          "src/application/stands-integracion/stands-integracion-service.ts",
+          "src/infrastructure/persistence/stands-integracion-repository.ts",
+          "docs/api-sistema-montaje.md",
+          "src/lib/shared/constants.ts",
+          "src/middleware.ts"
+        ],
+        "invariant": "A caller-supplied resource selector must only reach resources the presented credential may read.",
+        "method": "source",
+        "result": "The single INTEGRACION_API_KEY authenticates the Sistema de Montaje whose documented scope is reading any exhibitor's stand state (docs/api-sistema-montaje.md:24-27,74-95); the service returns only that company's stands (stands-integracion-repository.ts:40-91).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fsunat%2F%5B...slug%5D%2Froute.ts%23GET%20%2Fapi%2Fsunat%2Fruc::src%2Finfrastructure%2Fexternal%2Fconsultas-client.ts%23SUNAT_API_TOKEN::src%2Finfrastructure%2Fexternal::Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "src/app/api/sunat/[...slug]/route.ts#GET /api/sunat/ruc",
+      "boundary": "src/infrastructure/external/consultas-client.ts#SUNAT_API_TOKEN",
+      "subsystem": "src/infrastructure/external",
+      "attack_class": "Feature abuse and data leakage"
+    },
+    "surface": "src/app/api/sunat/[...slug]/route.ts#GET /api/sunat/ruc",
+    "boundary": "src/infrastructure/external/consultas-client.ts#SUNAT_API_TOKEN",
+    "subsystem": "src/infrastructure/external",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "src/app/api/sunat/[...slug]/route.ts",
+      "src/controllers/consultas.controller.ts",
+      "src/infrastructure/external/consultas-client.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 2,
+    "status": "candidate",
+    "agent_id": "h-wave2",
+    "reviewed_paths": [
+      "src/app/api/sunat/[...slug]/route.ts",
+      "src/controllers/consultas.controller.ts",
+      "src/infrastructure/external/consultas-client.ts",
+      "src/middleware.ts",
+      "src/lib/shared/constants.ts",
+      "docs/api-inventario.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave2",
+        "reviewed_paths": [
+          "src/app/api/sunat/[...slug]/route.ts",
+          "src/controllers/consultas.controller.ts",
+          "src/infrastructure/external/consultas-client.ts",
+          "src/middleware.ts",
+          "src/lib/shared/constants.ts",
+          "docs/api-inventario.md"
+        ],
+        "invariant": "Third-party PII lookups using an operator credential must occur only after authorization and be bounded.",
+        "method": "source",
+        "result": "No PROTECTED/public entry covers /api/sunat, so middleware.ts:72 allows it; consultas.controller.ts:7-19 checks only the 11-digit format and calls consultas-client.ts:3,10 with Bearer SUNAT_API_TOKEN to api.apis.net.pe; docs note per-endpoint permission hardening is pending.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "sunat.ruc.unauth-operator-credential-pii-lookup"
+    ],
+    "unresolved": [
+      "Whether SUNAT_API_TOKEN is configured and what the upstream returns are deployment facts."
+    ],
+    "final_verdicts": {
+      "sunat.ruc.unauth-operator-credential-pii-lookup": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fapp%2Fapi%2Fupload%2Froute.ts%23POST%20%2Fapi%2Fupload::src%2Fmiddleware.ts%23PROTECTED%20prefix%20gate::src%2Fapp%2Fapi::Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "src/app/api/upload/route.ts#POST /api/upload",
+      "boundary": "src/middleware.ts#PROTECTED prefix gate",
+      "subsystem": "src/app/api",
+      "attack_class": "Resource and file handling"
+    },
+    "surface": "src/app/api/upload/route.ts#POST /api/upload",
+    "boundary": "src/middleware.ts#PROTECTED prefix gate",
+    "subsystem": "src/app/api",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "src/app/api/upload/route.ts",
+      "src/lib/server/storage.ts",
+      "src/middleware.ts",
+      "docker/nginx.conf"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Ordinary CSRF",
+        "reason": "No session cookie is required for this route, so classic CSRF does not apply."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/app/api/upload/route.ts",
+      "src/lib/server/storage.ts",
+      "src/middleware.ts",
+      "docker/nginx.conf",
+      "src/lib/shared/constants.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/app/api/upload/route.ts",
+          "src/lib/server/storage.ts",
+          "src/middleware.ts",
+          "docker/nginx.conf",
+          "src/lib/shared/constants.ts"
+        ],
+        "invariant": "Only authorized principals may write files, and stored bytes must not be served as executable same-origin content.",
+        "method": "source",
+        "result": "No PROTECTED entry matches /api/upload and it is not in PUBLIC lists, so middleware.ts:72 lets it through anonymously; route.ts:17 derives the extension from file.name with no allowlist; storage.ts:15 writes to public/uploads; nginx.conf:26 serves /uploads/ with extension-inferred content type and no nosniff/attachment.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "upload/unauth-extension-to-public-html"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "upload/unauth-extension-to-public-html": "needs_validation"
+    }
+  },
+  {
+    "coverage_id": "src%2Fcomponents%2Fplano%2Fplano-dinamico.tsx%23anchor%20href%20render::src%2Fvalidators%2Fgess.validator.ts%23documentos%20schema::src%2Fcomponents::Injection",
+    "canonical_refs": {
+      "surface": "src/components/plano/plano-dinamico.tsx#anchor href render",
+      "boundary": "src/validators/gess.validator.ts#documentos schema",
+      "subsystem": "src/components",
+      "attack_class": "Injection"
+    },
+    "surface": "src/components/plano/plano-dinamico.tsx#anchor href render",
+    "boundary": "src/validators/gess.validator.ts#documentos schema",
+    "subsystem": "src/components",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "src/components/plano/plano-dinamico.tsx",
+      "src/components/plano/plano-isometrico.tsx",
+      "src/components/solicitudes/solicitudes-manager.tsx",
+      "src/components/reservas/reservas-manager.tsx",
+      "src/app/api/gess/[...slug]/route.ts",
+      "src/validators/gess.validator.ts",
+      "src/validators/reserva.validator.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules",
+      "CLIENT-SIDE.md#Client-side navigation confusion"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "new",
+    "attempts": [],
+    "wave": 3,
+    "status": "covered",
+    "agent_id": "h-wave3",
+    "reviewed_paths": [
+      "src/validators/gess.validator.ts",
+      "src/validators/reserva.validator.ts",
+      "src/components/plano/plano-dinamico.tsx",
+      "src/components/plano/plano-isometrico.tsx",
+      "src/components/reservas/reservas-manager.tsx",
+      "src/components/solicitudes/solicitudes-manager.tsx",
+      "src/controllers/gess.controller.ts",
+      "src/application/gess/gess-service.ts",
+      "src/infrastructure/persistence/gess-repository.ts",
+      "src/application/reservas/reserva-service.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-wave3",
+        "reviewed_paths": [
+          "src/validators/gess.validator.ts",
+          "src/validators/reserva.validator.ts",
+          "src/components/plano/plano-dinamico.tsx",
+          "src/components/plano/plano-isometrico.tsx",
+          "src/components/reservas/reservas-manager.tsx",
+          "src/components/solicitudes/solicitudes-manager.tsx",
+          "src/controllers/gess.controller.ts",
+          "src/application/gess/gess-service.ts",
+          "src/infrastructure/persistence/gess-repository.ts",
+          "src/application/reservas/reserva-service.ts"
+        ],
+        "invariant": "A stored documentos/imagenes URL rendered into an anchor href must not reach an executable URL scheme.",
+        "method": "source",
+        "result": "gess.validator.ts:6 and reserva.validator.ts:5 accept documentos as arbitrary strings rendered as <a href={url} target=_blank> (plano-dinamico.tsx:649 etc.), but React 19.2.4's built-in sanitizer rewrites javascript: href/src to a throwing URL (react-dom-client.production.js:1412-1414,12989-13005); data: top-level navigation is browser-blocked and target=_blank implies noopener. No executable sink remains; missing scheme allowlist is hardening.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "hardening_notes": [
+      "Rejected candidate components.plano.documentos.unvalidated-scheme-to-href: React sanitizer is the source-verified preventing layer. Residual hardening: add an http/https allowlist and rel=noopener noreferrer."
+    ]
+  },
+  {
+    "coverage_id": "src%2Finfrastructure%2Fexternal%2Fkbservicios-client.ts%23NODE_TLS_REJECT_UNAUTHORIZED::src%2Finfrastructure%2Fexternal%2Fkbservicios-client.ts%23TLS%20verification::src%2Finfrastructure%2Fexternal::Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "src/infrastructure/external/kbservicios-client.ts#NODE_TLS_REJECT_UNAUTHORIZED",
+      "boundary": "src/infrastructure/external/kbservicios-client.ts#TLS verification",
+      "subsystem": "src/infrastructure/external",
+      "attack_class": "Cryptography and secrets"
+    },
+    "surface": "src/infrastructure/external/kbservicios-client.ts#NODE_TLS_REJECT_UNAUTHORIZED",
+    "boundary": "src/infrastructure/external/kbservicios-client.ts#TLS verification",
+    "subsystem": "src/infrastructure/external",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "src/infrastructure/external/kbservicios-client.ts",
+      "src/infrastructure/external/planogess-client.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/infrastructure/external/kbservicios-client.ts",
+      "src/infrastructure/external/planogess-client.ts",
+      "src/lib/server/services.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/infrastructure/external/kbservicios-client.ts",
+          "src/infrastructure/external/planogess-client.ts",
+          "src/lib/server/services.ts"
+        ],
+        "invariant": "Outbound TLS clients must verify the peer certificate; policy must be per-connection, not a process-global env toggle.",
+        "method": "source",
+        "result": "kbservicios-client.ts:7 sets process.env.NODE_TLS_REJECT_UNAUTHORIZED='0' before fetch and :14 resets to '1'; planogess-client.ts:27/34 repeat. Both clients are singletons (services.ts), so verification is disabled process-wide during the window and any early rejection leaves it disabled.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "tls.external-clients.cert-verification-disabled"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "tls.external-clients.cert-verification-disabled": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Flib%2Fserver%2Femail.ts%23sendEmail::src%2Flib%2Fserver%2Femail-templates.ts%23html%20interpolation::src%2Flib%2Fserver::Injection",
+    "canonical_refs": {
+      "surface": "src/lib/server/email.ts#sendEmail",
+      "boundary": "src/lib/server/email-templates.ts#html interpolation",
+      "subsystem": "src/lib/server",
+      "attack_class": "Injection"
+    },
+    "surface": "src/lib/server/email.ts#sendEmail",
+    "boundary": "src/lib/server/email-templates.ts#html interpolation",
+    "subsystem": "src/lib/server",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "src/lib/server/email.ts",
+      "src/lib/server/email-templates.ts",
+      "src/controllers/solicitudes.controller.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-unauth",
+    "reviewed_paths": [
+      "src/lib/server/email.ts",
+      "src/lib/server/email-templates.ts",
+      "src/controllers/solicitudes.controller.ts",
+      "src/application/reservas/reserva-service.ts",
+      "src/validators/reserva.validator.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-unauth",
+        "reviewed_paths": [
+          "src/lib/server/email.ts",
+          "src/lib/server/email-templates.ts",
+          "src/controllers/solicitudes.controller.ts",
+          "src/application/reservas/reserva-service.ts",
+          "src/validators/reserva.validator.ts"
+        ],
+        "invariant": "Untrusted values must be HTML-escaped before interpolation into an HTML email body.",
+        "method": "source",
+        "result": "email.ts:143-146,177-180 interpolate datos.razonSocial/documento/standCodes raw; reserva-service.ts:93-108 feeds them from an unauthenticated request with unbounded z.string() (reserva.validator.ts:6-11) and mails ADMIN_EMAIL; email-templates.ts:18-23 interpolates opts.mensaje raw from solicitudes.controller.ts:58,78.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "email/templates/unescaped-html-interpolation"
+    ],
+    "unresolved": [],
+    "final_verdicts": {
+      "email/templates/unescaped-html-interpolation": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "src%2Flib%2Fserver%2Fintegracion-m2m.ts%23verificarApiKey::src%2Flib%2Fserver%2Fintegracion-m2m.ts%23NODE_ENV%20fallback::src%2Flib%2Fserver::Obvious%20things",
+    "canonical_refs": {
+      "surface": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+      "boundary": "src/lib/server/integracion-m2m.ts#NODE_ENV fallback",
+      "subsystem": "src/lib/server",
+      "attack_class": "Obvious things"
+    },
+    "surface": "src/lib/server/integracion-m2m.ts#verificarApiKey",
+    "boundary": "src/lib/server/integracion-m2m.ts#NODE_ENV fallback",
+    "subsystem": "src/lib/server",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "src/lib/server/integracion-m2m.ts",
+      "src/lib/server/auth.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#API-key scope and resource binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/lib/server/integracion-m2m.ts",
+      "src/lib/server/auth.ts",
+      "src/controllers/exhibidoras.controller.ts",
+      "src/controllers/stands-exhibidora.controller.ts",
+      "src/controllers/stands-contrato.controller.ts",
+      "Dockerfile",
+      "Dockerfile.ecs",
+      "docker-compose.prod.yml",
+      "src/app/api/exhibidoras/route.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/lib/server/integracion-m2m.ts",
+          "src/lib/server/auth.ts",
+          "src/controllers/exhibidoras.controller.ts",
+          "src/controllers/stands-exhibidora.controller.ts",
+          "src/controllers/stands-contrato.controller.ts",
+          "Dockerfile",
+          "Dockerfile.ecs",
+          "docker-compose.prod.yml",
+          "src/app/api/exhibidoras/route.ts"
+        ],
+        "invariant": "Service-credential auth must not be disabled by environment inference and must fail closed when the key is absent.",
+        "method": "source",
+        "result": "integracion-m2m.ts:3,11 bypasses when NODE_ENV!=='production', but Dockerfile:11-12, Dockerfile.ecs:45 and docker-compose.prod.yml:43 all pin NODE_ENV=production, so the bypass is unreachable in declared deployments; :13 fails closed when INTEGRACION_API_KEY is unset.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "hardening_notes": [
+      "Latent fail-open inference: a non-Docker/custom runtime with NODE_ENV unset would activate the :11 bypass. /api/kbservicios and /api/sunat are outside this unit (reported under uncovered)."
+    ]
+  },
+  {
+    "coverage_id": "src%2Fmiddleware.ts%23JWT%20gate::src%2Flib%2Fserver%2Fauth.ts%23requirePermission::src%2Flib%2Fserver::Access%20control",
+    "canonical_refs": {
+      "surface": "src/middleware.ts#JWT gate",
+      "boundary": "src/lib/server/auth.ts#requirePermission",
+      "subsystem": "src/lib/server",
+      "attack_class": "Access control"
+    },
+    "surface": "src/middleware.ts#JWT gate",
+    "boundary": "src/lib/server/auth.ts#requirePermission",
+    "subsystem": "src/lib/server",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/middleware.ts",
+      "src/lib/server/auth.ts",
+      "src/lib/shared/constants.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#JWT verification and claim binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-auth",
+    "reviewed_paths": [
+      "src/middleware.ts",
+      "src/lib/server/auth.ts",
+      "src/lib/shared/constants.ts",
+      "src/controllers/roles.controller.ts",
+      "src/infrastructure/persistence/role-repository.ts",
+      "src/controllers/solicitudes.controller.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-auth",
+        "reviewed_paths": [
+          "src/middleware.ts",
+          "src/lib/server/auth.ts",
+          "src/lib/shared/constants.ts",
+          "src/controllers/roles.controller.ts",
+          "src/infrastructure/persistence/role-repository.ts",
+          "src/controllers/solicitudes.controller.ts"
+        ],
+        "invariant": "Authorization must reflect current server-side role/permission state or enforce revocation within a bounded window.",
+        "method": "source",
+        "result": "hasPermission (auth.ts:70-72) and middleware.ts:58,63 authorize from JWT claims only; hasDBPermission (auth.ts:79-91) is called at exactly one site (solicitudes.controller.ts:53-57); tokens live 24h (auth.ts:40) while roles.controller.ts:19/role-repository.ts:28-31 mutate permissions.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "authz.jwt.claims-only-no-revocation"
+    ],
+    "unresolved": [
+      "Whether admin UI/users rely on immediate revocation; the exposure window is bounded by the 24h token lifetime."
+    ],
+    "final_verdicts": {
+      "authz.jwt.claims-only-no-revocation": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "terraform%2Fmodules%2Fcloudfront%2Fmain.tf%23distribution::terraform%2Fmodules%2Fcloudfront%2Fmain.tf%23WAF%20rules::terraform::Wildcard",
+    "canonical_refs": {
+      "surface": "terraform/modules/cloudfront/main.tf#distribution",
+      "boundary": "terraform/modules/cloudfront/main.tf#WAF rules",
+      "subsystem": "terraform",
+      "attack_class": "Wildcard"
+    },
+    "surface": "terraform/modules/cloudfront/main.tf#distribution",
+    "boundary": "terraform/modules/cloudfront/main.tf#WAF rules",
+    "subsystem": "terraform",
+    "attack_class": "Wildcard",
+    "starting_paths": [
+      "terraform/modules/cloudfront/main.tf",
+      "terraform/modules/ecs/main.tf"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Wildcard",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Trusted-proxy and mesh identity bypass",
+      "CLOUD-AND-DEPLOYMENT.md#Universal moves",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "h-infra",
+    "reviewed_paths": [
+      "terraform/modules/cloudfront/main.tf",
+      "terraform/modules/ecs/main.tf",
+      "terraform/variables.tf",
+      "terraform/perfiles/apertura.tfvars",
+      "terraform/perfiles/evento.tfvars",
+      "terraform/perfiles/valle.tfvars"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-infra",
+        "reviewed_paths": [
+          "terraform/modules/cloudfront/main.tf",
+          "terraform/modules/ecs/main.tf",
+          "terraform/variables.tf",
+          "terraform/perfiles/apertura.tfvars",
+          "terraform/perfiles/evento.tfvars",
+          "terraform/perfiles/valle.tfvars"
+        ],
+        "invariant": "Traffic must reach the origin only through the intended edge, and viewer TLS must extend to the edge-to-origin leg.",
+        "method": "source",
+        "result": "WAF attaches only to the distribution (cloudfront/main.tf:182) while the ALB SG opens 0.0.0.0/0 when restrict_alb_to_cloudfront is false (ecs/main.tf:461-464, default variables.tf:364-368; unset in evento/valle tfvars); custom_origin_config hardcodes origin_protocol_policy='http-only' (cloudfront/main.tf:191) and never receives enable_https.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "terraform.cloudfront:origin-http-only-cleartext",
+      "terraform.ecs:alb-origin-public-bypasses-waf"
+    ],
+    "unresolved": [
+      "The applied prod var-file (terraform.tfvars is not in-repo) and live SG/WAF attachment cannot be observed."
+    ],
+    "final_verdicts": {
+      "terraform.cloudfront:origin-http-only-cleartext": "confirmed",
+      "terraform.ecs:alb-origin-public-bypasses-waf": "confirmed"
+    }
+  },
+  {
+    "coverage_id": "terraform%2Fmodules%2Fecs%2Fmain.tf%23task%20IAM%20role::terraform%2Fmodules%2Fecs%2Fmain.tf%23task%20role%20policy::terraform::Wildcard",
+    "canonical_refs": {
+      "surface": "terraform/modules/ecs/main.tf#task IAM role",
+      "boundary": "terraform/modules/ecs/main.tf#task role policy",
+      "subsystem": "terraform",
+      "attack_class": "Wildcard"
+    },
+    "surface": "terraform/modules/ecs/main.tf#task IAM role",
+    "boundary": "terraform/modules/ecs/main.tf#task role policy",
+    "subsystem": "terraform",
+    "attack_class": "Wildcard",
+    "starting_paths": [
+      "terraform/modules/ecs/main.tf",
+      "terraform/modules/secrets/main.tf",
+      "terraform/modules/storage/main.tf"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Wildcard",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Workload identity overreach",
+      "CLOUD-AND-DEPLOYMENT.md#Universal moves",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "h-infra",
+    "reviewed_paths": [
+      "terraform/modules/ecs/main.tf",
+      "terraform/modules/secrets/main.tf",
+      "terraform/modules/storage/main.tf"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "h-infra",
+        "reviewed_paths": [
+          "terraform/modules/ecs/main.tf",
+          "terraform/modules/secrets/main.tf",
+          "terraform/modules/storage/main.tf"
+        ],
+        "invariant": "A workload identity must be scoped to the resources and operations it needs.",
+        "method": "source",
+        "result": "S3 is scoped to the docs bucket ARN and Secrets Manager to values(var.secret_arns) (secrets/main.tf:208-223, ecs/main.tf:419-428). EFS uses Resource=['*'] with ClientRootAccess and execution_role_arn==task_role_arn (ecs/main.tf:438-446,602-603) but no source-visible lower-trust selector reaches another file system.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [],
+    "hardening_notes": [
+      "Hardening: split execution vs task role; scope EFS to the file-system/access-point ARN; add aws:SourceAccount/aws:SourceArn to the trust policy; ECR tag mutability is MUTABLE with default 'latest'."
+    ]
+  }
+]
