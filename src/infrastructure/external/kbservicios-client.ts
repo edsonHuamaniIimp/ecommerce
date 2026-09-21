@@ -1,11 +1,10 @@
 import type { IKbServiciosClient, ApiEventType, ApiEvent } from "@/domain/ports/kbservicios-client";
 
-const BASE_URL = process.env.KBSERVICIOS_URL as string;
-if (!BASE_URL) throw new Error("KBSERVICIOS_URL no definida en .env");
-
 async function fetchApi<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  const baseUrl = process.env.KBSERVICIOS_URL;
+  if (!baseUrl) throw new Error("KBSERVICIOS_URL no definida en .env");
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,

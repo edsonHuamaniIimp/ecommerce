@@ -1,8 +1,5 @@
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 
-const API_URL = process.env.PLANOGESS_API_URL as string;
-if (!API_URL) throw new Error("PLANOGESS_API_URL no definida en .env");
-
 function extraerLista(obj: unknown, maxDepth = 4): unknown[] | null {
   if (Array.isArray(obj)) return obj;
   if (!obj || typeof obj !== "object" || maxDepth <= 0) return null;
@@ -24,8 +21,10 @@ function extraerLista(obj: unknown, maxDepth = 4): unknown[] | null {
 
 export class PlanogessClient implements IPlanogessClient {
   async fetchStands(tipoEvento: number, codigoEvento: number): Promise<Record<string, unknown>[]> {
+    const apiUrl = process.env.PLANOGESS_API_URL;
+    if (!apiUrl) throw new Error("PLANOGESS_API_URL no definida en .env");
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    const res = await fetch(API_URL, {
+    const res = await fetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ TIPEVCOD: tipoEvento, EVENCOD: codigoEvento }),
