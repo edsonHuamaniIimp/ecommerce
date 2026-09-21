@@ -92,5 +92,62 @@ Smoke test funcional:
 
 ## 5. Rollback
 
-- Revertir el commit en `main` (o `workflow_dispatch` con `deploy=true` de un commit previo).
 - `SGC_ENABLED=0` apaga la integración sin tocar el resto del sistema.
+- Rollback de la app: re-`terraform apply` con el `image_tag` anterior (imagen previa en ECR).
+
+## 6. Runbook — desplegar a ECS (sesión DEPLOY / con MCP AWS)
+
+Requisitos: perfil `sistemas-aws` (ver Estrategia §6) y backend remoto inicializado.
+
+```bash
+cd terraform
+export AWS_PROFILE=sistemas-aws        # Windows PowerShell: $env:AWS_PROFILE="sistemas-aws"
+
+terraform init \
+  -backend-config="bucket=iimp-contratos-stands-terraform-state" \
+  -backend-config="key=prod/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=iimp-contratos-stands-terraform-locks"
+
+# <sha> = tag de la imagen publicada por CI (job build-image) = SHA del commit en main
+
+# 1) Plan
+terraform plan -var-file=prod.tfvars -var-file=perfiles/valle.tfvars \
+  -var="image_tag=<sha>" -out=tfplan
+
+# 2) Auditoría (R6): solo recursos project=contratos-stands, sin destrucciones
+terraform show -json tfplan > plan.json
+node ../scripts/audit-terraform-plan.mjs plan.json
+
+# 3) Apply (R1: con autorización explícita del usuario)
+terraform apply tfplan
+
+# 4) Verificar
+curl -fsS https://ecommerce.sistemasiimp.org.pe/api/health
+```
+
+### 6.1 Sembrar usuarios (una vez)
+
+```bash
+# Opción A — variable (recomendado): siembra al arrancar el task, luego volver a false
+terraform apply -var-file=prod.tfvars -var-file=perfiles/valle.tfvars \
+  -var="image_tag=<sha>" -var="run_seed=true"
+terraform apply -var-file=prod.tfvars -var-file=perfiles/valle.tfvars \
+  -var="image_tag=<sha>" -var="run_seed=false"
+
+# Opción B — ECS Exec (sin redeploy; requiere enable_exec_command=true ya aplicado)
+CLUSTER=$(terraform output -raw ecs_cluster_name)
+SERVICE=$(terraform output -raw ecs_service_name)
+TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --query 'taskArns[0]' --output text)
+aws ecs execute-command --cluster "$CLUSTER" --task "$TASK" --container app --interactive \
+  --command "sh -c 'SEED_ALLOW_PROD=1 npx tsx prisma/seed-auth.ts'"
+```
+
+Luego: login `admin@iimp.org.pe` / `admin123` y, cuando ya no se necesiten, limpiar con
+`db:seed:cleanup` (ver `docs/06-operacion/seeders.md`).
+
+### 6.2 Rollback de la app
+
+```bash
+terraform apply -var-file=prod.tfvars -var-file=perfiles/valle.tfvars -var="image_tag=<sha-anterior>"
+```
