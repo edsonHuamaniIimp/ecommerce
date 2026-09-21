@@ -97,3 +97,46 @@ terraform output -raw database_url_secret_arn
 - `docker-compose.prod.yml` + `docker/entrypoint.sh` en un host EC2 (puerto 8080).
 - **No** está detrás del dominio. Se mantiene solo como respaldo/pruebas.
 - El job de deploy EC2 está **deshabilitado** salvo que se defina `vars.DEPLOY_EC2=1`.
+
+## 6. Credenciales AWS y backend remoto
+
+### 6.1 Perfiles (`credentials` — formato INI)
+
+El archivo `credentials` (con bloques `[perfil]` + `aws_access_key_id` / `aws_secret_access_key`)
+es el de **AWS CLI**. Ubicarlo en:
+
+- Windows: `%USERPROFILE%\.aws\credentials`
+- Linux/macOS: `~/.aws/credentials`
+- o definiendo `AWS_SHARED_CREDENTIALS_FILE` apuntando al archivo.
+
+Perfiles (ver **R4** en `REGLAS-DESPLIEGUE.md`):
+
+| Perfil | Cuenta | Uso |
+|---|---|---|
+| `sistemas-aws` | `517839275515` (sistemas.iimp) | ✅ **Cuenta de trabajo del proyecto** |
+| `iimp-aws` | `463470959856` | Solo con aviso explícito |
+| `default` / `sara-aws-cli` | `564914947461` | ❌ **Prohibidos** (otro proyecto) |
+
+```bash
+export AWS_PROFILE=sistemas-aws        # Linux/Mac
+$env:AWS_PROFILE = "sistemas-aws"      # Windows (PowerShell)
+# por comando:      aws --profile sistemas-aws ...
+# terraform:        -var="aws_profile=sistemas-aws"
+```
+
+> **Nunca** commitear el archivo `credentials` ni claves. En CI/CD se usan los secrets
+> `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
+
+### 6.2 Backend remoto (R5)
+
+Ya aprovisionado (`terraform/bootstrap/`: bucket `iimp-contratos-stands-terraform-state` +
+tabla `iimp-contratos-stands-terraform-locks`). Inicializar:
+
+```bash
+cd terraform
+terraform init \
+  -backend-config="bucket=iimp-contratos-stands-terraform-state" \
+  -backend-config="key=<entorno>/terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=iimp-contratos-stands-terraform-locks"
+```
