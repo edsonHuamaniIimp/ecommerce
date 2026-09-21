@@ -16,7 +16,8 @@
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma generate",
     "db:reset": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma db push --accept-data-loss && npx prisma generate && npx tsx prisma/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sgc:webhook": "node scripts/sgc-webhook-sim.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
