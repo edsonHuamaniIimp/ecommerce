@@ -11,10 +11,10 @@ export function sgcAprobado(lifecycleStatus: string | null): boolean {
 }
 
 /**
- * Criterio para habilitar la orden de pago: las áreas locales ya aprobaron y, si la
- * solicitud tiene expediente en el SGC, este debe estar aprobado. Si no aplica SGC
- * (integración deshabilitada), se permite como antes.
+ * Criterio para habilitar la orden de pago. Si la revisión **Legal está delegada al SGC**
+ * (`legalDelegada = true`), la orden espera a que el SGC apruebe (contrato Vigente),
+ * exista o no expediente. En flujo legacy (Legal local), basta con las áreas locales.
  */
-export function puedeGenerarOrdenPago(estadoEnvio: string | null, lifecycleStatus: string | null): boolean {
-  return !sgcAplica(estadoEnvio) || sgcAprobado(lifecycleStatus);
+export function puedeGenerarOrdenPago(legalDelegada: boolean, lifecycleStatus: string | null): boolean {
+  return !legalDelegada || sgcAprobado(lifecycleStatus);
 }

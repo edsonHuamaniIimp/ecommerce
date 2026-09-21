@@ -15,13 +15,13 @@ describe("sgc-estado", () => {
     expect(sgcAprobado(null)).toBe(false);
   });
 
-  it("permite orden de pago si el SGC no aplica", () => {
-    expect(puedeGenerarOrdenPago(null, null)).toBe(true);
+  it("permite orden de pago cuando Legal es local (no delegada)", () => {
+    expect(puedeGenerarOrdenPago(false, null)).toBe(true);
   });
 
-  it("bloquea la orden de pago hasta que el SGC apruebe", () => {
-    expect(puedeGenerarOrdenPago("creado", null)).toBe(false);
-    expect(puedeGenerarOrdenPago("creado", SGC_LIFECYCLE_STATUSES.OBSERVED)).toBe(false);
-    expect(puedeGenerarOrdenPago("creado", SGC_LIFECYCLE_STATUSES.ACTIVE)).toBe(true);
+  it("bloquea la orden de pago hasta que el SGC apruebe cuando Legal esta delegada", () => {
+    expect(puedeGenerarOrdenPago(true, null)).toBe(false);
+    expect(puedeGenerarOrdenPago(true, SGC_LIFECYCLE_STATUSES.OBSERVED)).toBe(false);
+    expect(puedeGenerarOrdenPago(true, SGC_LIFECYCLE_STATUSES.ACTIVE)).toBe(true);
   });
 });

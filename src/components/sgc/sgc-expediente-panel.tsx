@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Circle, Clock, Download, Loader2, Upload } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Download, Loader2, Send, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useSgcExpediente } from "@/hooks/use-sgc-expediente";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -34,6 +34,20 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
   const [descargando, setDescargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [enviandoContrato, setEnviandoContrato] = useState(false);
+  const [registrando, setRegistrando] = useState(false);
+
+  async function registrarExpediente() {
+    setRegistrando(true);
+    try {
+      await sgcService.registrar(solicitudId);
+      toast.success("Expediente registrado en el SGC");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo registrar en el SGC");
+    } finally {
+      setRegistrando(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -44,7 +58,15 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
   }
 
   if (error || !data) {
-    return <p className="py-3 text-xs text-muted-foreground">Aun no hay expediente registrado en el SGC.</p>;
+    return (
+      <div className="space-y-2 py-1">
+        <p className="text-xs text-muted-foreground">Aun no hay expediente registrado en el SGC.</p>
+        <Button size="sm" variant="outline" className="w-full" disabled={registrando} onClick={registrarExpediente}>
+          {registrando ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Send className="mr-2 h-3 w-3" />}
+          Registrar en el SGC
+        </Button>
+      </div>
+    );
   }
 
   const puedeDescargar =

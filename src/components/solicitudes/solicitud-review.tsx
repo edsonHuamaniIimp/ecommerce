@@ -152,9 +152,10 @@ export function SolicitudReview({
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
   // El SGC es el último paso (Legal delegada): la orden de pago espera su aprobación.
+  const requiereSgc = legalDelegadaAlSgc(row.revisiones);
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
-  const sgcVisible = sgcAplica(row.sgcEstadoEnvio) || todasAprobadas;
-  const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(row.sgcEstadoEnvio, row.sgcLifecycleStatus);
+  const sgcVisible = requiereSgc || sgcAplica(row.sgcEstadoEnvio) || todasAprobadas;
+  const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
@@ -261,7 +262,7 @@ export function SolicitudReview({
               key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}`}
               solicitudId={row.id}
             />
-            {todasAprobadas && !sgcOk && (
+            {todasAprobadas && requiereSgc && !sgcOk && (
               <p className="mt-2 text-[11px] text-amber-600">
                 Pendiente de aprobacion del SGC. La orden de pago se habilita cuando el contrato pase a Vigencia.
               </p>

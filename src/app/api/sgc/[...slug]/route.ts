@@ -9,6 +9,7 @@ export const { GET, POST } = createRouter({
   POST: {
     sincronizar: () => sgcController.sincronizar(),
     subsanar: (req) => sgcController.subsanar(req),
+    registrar: (req) => sgcController.registrar(req),
     "subir-documento": (req) => sgcController.subirDocumento(req),
     "subir-anexos": (req) => sgcController.subirAnexos(req),
     "subir-contrato": (req) => sgcController.subirContrato(req),

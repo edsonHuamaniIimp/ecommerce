@@ -108,6 +108,20 @@ export const sgcController = {
     }
   },
 
+  async registrar(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const body = (await request.json()) as { solicitudId?: string };
+    if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+
+    const expediente = await services.sgc.crearExpedienteDesdeSolicitud(body.solicitudId);
+    if (!expediente?.contractId) {
+      return error(API_ERROR_CODES.INTERNAL, "No se pudo registrar el expediente en el SGC", 500);
+    }
+    return success(expediente);
+  },
+
   async subirContrato(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);

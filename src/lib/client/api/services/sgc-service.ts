@@ -28,4 +28,8 @@ export const sgcService = {
   subirContrato(solicitudId: string) {
     return internalApi.post<Record<string, unknown>>("/api/sgc/subir-contrato", { solicitudId });
   },
+
+  registrar(solicitudId: string) {
+    return internalApi.post<Record<string, unknown>>("/api/sgc/registrar", { solicitudId });
+  },
 };
