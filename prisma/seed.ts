@@ -108,12 +108,13 @@ async function seedMaestra() {
   for (const h of hijos) {
     const padre = padres.find((p) => p.id === h.padre);
     if (!padre) continue;
-    const updated = await prisma.maestra.updateMany({
-      where: { id: h.id },
-      data: { nombre: h.nombre, itemId: h.itemId, numOrden: h.orden },
-    });
+    // Los ids de los hijos se desplazan 1000 para no colisionar con los padres (1..11),
+    // que en el seed original se solapaban (ids 10 y 11) y corrompian la maestra.
+    const childId = 1000 + h.id;
+    const data = { nidMaestraPadre: h.padre, tabla: padre.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden };
+    const updated = await prisma.maestra.updateMany({ where: { id: childId }, data });
     if (updated.count === 0) {
-      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padre.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
+      await prisma.maestra.create({ data: { id: childId, ...data } });
     }
   }
   console.log("Maestra seeded");
