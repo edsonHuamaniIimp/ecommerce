@@ -111,11 +111,14 @@ jobs:
       - name: Deploy via SSH
         if: steps.check-secrets.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          SEED_ON_DEPLOY: ${{ secrets.SEED_ON_DEPLOY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
+          envs: SEED_ON_DEPLOY
           script: |
             cd ${{ secrets.EC2_APP_PATH || '/var/www/contratos-stands' }}
 
@@ -134,6 +137,12 @@ jobs:
 
             # Ejecutar migraciones Prisma
             docker exec ctrst-app npx prisma migrate deploy || true
+
+            # Seed idempotente (opcional): activar con el secret SEED_ON_DEPLOY=1
+            if [ "${SEED_ON_DEPLOY}" = "1" ]; then
+              echo "🌱  Ejecutando seed (idempotente)..."
+              docker exec -e SEED_ALLOW_PROD=1 ctrst-app npm run db:seed || echo "⚠️  seed fallo"
+            fi
 
             echo "✅  Deploy completado."
 

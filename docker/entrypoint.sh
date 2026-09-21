@@ -38,6 +38,14 @@ if [ "$FIRST_RUN" = true ] || [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     npx prisma migrate deploy || echo "⚠️  migrate deploy fallo (posiblemente primera ejecucion)"
 fi
 
+# ─── Seed inicial (opcional) ──────────────────────────────────────────────
+# Solo en el primer arranque y si SEED_ALLOW_PROD=1 (evita crear usuarios de
+# prueba por defecto). El seed es idempotente (upsert).
+if [ "$FIRST_RUN" = true ] && [ "${SEED_ALLOW_PROD:-}" = "1" ]; then
+    echo "🌱  Ejecutando seed inicial..."
+    npx tsx prisma/seed.ts || echo "⚠️  seed fallo (revisar manualmente)"
+fi
+
 # ─── Primer deploy: build completo ──────────────────────────────────────
 if [ "$FIRST_RUN" = true ]; then
     echo "📦  Build Next.js..."

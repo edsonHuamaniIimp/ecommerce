@@ -18,6 +18,7 @@
 | `AWS_DEFAULT_REGION` | región S3 | No (default `us-east-1`) |
 | `SGC_RECONCILE_URL` | URL del cron (`https://ecommerce.sistemasiimp.org.pe/api/cron/sgc-reconciliar`) | Sí (cron) |
 | `SGC_CRON_SECRET` | valor de `CRON_SECRET` para el header `x-cron-secret` | Sí (cron) |
+| `SEED_ON_DEPLOY` | `1` = ejecutar el seed idempotente en cada deploy | No |
 
 > El remoto del server apunta a `https://github.com/edsonHuamaniIimp/ecommerce.git` y el
 > token se pasa efímero (no se persiste en `.git/config`).
@@ -46,6 +47,22 @@ Base: copiar `.env.prod.example` → `.env.prod`. Además del bloque existente
   y pedir que el host esté en su **lista blanca**.
 - Guardar el `SGC_WEBHOOK_SECRET` que entregue el SGC (una sola vez) en `.env.prod`.
 - Mientras no haya webhooks, el **cron de reconciliación** cubre el estado (polling).
+
+## 3.1 Seed (usuarios/roles)
+
+El seed es **idempotente** (upsert de roles + usuarios). En producción está **bloqueado por
+defecto** (`NEXT_PUBLIC_APP_ENV=production` y `SEED_ALLOW_PROD != 1`). Para sembrar:
+
+- **Automático en deploy**: definir el secret `SEED_ON_DEPLOY=1` (corre en cada deploy), o
+- **Automático en el primer arranque**: `SEED_ALLOW_PROD=1` en `.env.prod` (el entrypoint
+  siembra solo cuando es el primer run), o
+- **Manual**:
+  ```bash
+  docker exec -e SEED_ALLOW_PROD=1 ctrst-app npm run db:seed
+  ```
+
+> El seed crea usuarios de prueba (`admin@iimp.org.pe` / `admin123`, etc.). En producción
+> **cambia la contraseña** del admin (o crea tu usuario real) y no dejes los usuarios de prueba.
 
 ## 4. Verificación post-deploy
 
