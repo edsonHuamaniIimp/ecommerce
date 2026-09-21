@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Info, Upload, Trash2, ChevronDown, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Pagination } from "@/components/shared/pagination";
-import { authService } from "@/lib/client/api/services/auth-service";
 import { useSearchParams } from "next/navigation";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -15,8 +16,8 @@ import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
-import { HistorialModal } from "./historial-modal";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_SOLICITUD, MAESTRA_TABLAS, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
+import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
@@ -78,7 +79,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const [modifying, setModifying] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -87,6 +87,13 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
+
+  const pageRef = useRef(page);
+  const perPageRef = useRef(perPage);
+  const autoOpenIdRef = useRef(autoOpenId);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { perPageRef.current = perPage; }, [perPage]);
+  useEffect(() => { autoOpenIdRef.current = autoOpenId; }, [autoOpenId]);
 
   const handleModificar = async (documentos: string[], justificacion: string) => {
     if (!detailRow) return;
@@ -104,19 +111,15 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
     setModifying(false);
   };
 
-  useEffect(() => {
-    authService.getSession().then((s) => setUserPermissions(s.permissions ?? [])).catch(() => {});
-  }, []);
-
-  const load = async (p?: number, s?: string, pp?: number) => {
+  const load = useCallback(async (p?: number, s?: string, pp?: number) => {
     setLoading(true);
     try {
-      const data = await solicitudesService.listar(eventoId, p ?? page, pp ?? perPage, s, userId);
+      const data = await solicitudesService.listar(eventoId, p ?? pageRef.current, pp ?? perPageRef.current, s, userId);
       setRows(data.data ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
 
-      if (autoOpenId) {
-        const found = data.data.find((r) => r.id === autoOpenId);
+      if (autoOpenIdRef.current) {
+        const found = data.data.find((r) => r.id === autoOpenIdRef.current);
         if (found) { setDetailRow(found); setDetailOpen(true); }
         const next = new URL(window.location.href);
         next.searchParams.delete("id");
@@ -124,12 +127,16 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
       }
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [eventoId, userId]);
 
-  useEffect(() => { load(); }, [eventoId, userId]);
+  useEffect(() => {
+    (async () => { await load(); })();
+  }, [load]);
 
   useAlertaNavigate("/dashboard/mis-solicitudes", (row) => {
-    setDetailRow(row as unknown as SolicitudRow); setDetailOpen(true);
+    if (typeof row.id !== "string" || typeof row.standCode !== "string") return;
+    setDetailRow(row as SolicitudRow);
+    setDetailOpen(true);
   });
 
   return (
@@ -343,7 +350,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <button key={i}
                         className="h-14 w-14 overflow-hidden rounded border hover:opacity-80 transition-opacity"
                         onClick={() => setImgCarousel({ images: detailRow.imagenes as string[], idx: i })}>
-                        <img src={url} className="h-full w-full object-cover" alt={`Imagen ${i + 1}`} />
+                        <Image width={64} height={64} src={url} alt={`Imagen ${i + 1}`} className="h-full w-full object-cover" />
                       </button>
                     ))}
                     {(detailRow.imagenes as string[]).length > 4 && (
@@ -459,7 +466,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                           </Badge>
                         </div>
                         {reev.motivo && (
-                          <p className="text-[11px] text-muted-foreground italic mb-1">"{reev.motivo}"</p>
+                          <p className="text-[11px] text-muted-foreground italic mb-1">&quot;{reev.motivo}&quot;</p>
                         )}
                         {docs.length > 0 && (
                           <div className="space-y-0.5 mt-1">
@@ -486,7 +493,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               {/* Estado de revision */}
               <DetailSection id="revision" title="Estado de revision" open={accordionOpen === "revision"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="space-y-1.5">
-                  {REVISION_AREA_ORDER.map((area) => {
+                  {areasRevisionLocal(detailRow.revisiones).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
                     return (
@@ -498,11 +505,21 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                           </Badge>
                         </div>
                         {rev?.comentario && (
-                          <p className="text-[11px] text-muted-foreground italic">"{rev.comentario}"</p>
+                          <p className="text-[11px] text-muted-foreground italic">&quot;{rev.comentario}&quot;</p>
                         )}
                       </div>
                     );
                   })}
+                  {legalDelegadaAlSgc(detailRow.revisiones) && (
+                    <div className="rounded bg-muted/30 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{REVISION_AREA_SGC_LABEL}</span>
+                        <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
+                          <span>Delegado al SGC</span>
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </DetailSection>
 
@@ -630,7 +647,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
             >
               <span className="text-lg">‹</span>
             </button>
-            <img src={imgCarousel.images[imgCarousel.idx]} className="max-h-[70vh] w-full object-contain" alt={`Imagen ${imgCarousel.idx + 1}`} />
+            <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}

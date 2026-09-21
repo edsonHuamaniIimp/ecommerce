@@ -115,12 +115,14 @@ export function EventSelectionGate() {
   const [autoOpen, setAutoOpen] = useState(false);
 
   useEffect(() => {
-    if (isHydrated && !selected) {
-      const t = setTimeout(() => setAutoOpen(true), 400);
-      return () => clearTimeout(t);
+    if (selected) {
+      const reset = setTimeout(() => setAutoOpen(false), 0);
+      return () => clearTimeout(reset);
     }
-    if (selected) setAutoOpen(false);
+    if (!isHydrated) return;
+    const t = setTimeout(() => setAutoOpen(true), 400);
+    return () => clearTimeout(t);
   }, [isHydrated, selected]);
 
-  return <EventSelectionDialog open={autoOpen} onOpenChange={setAutoOpen} />;
+  return <EventSelectionDialog open={autoOpen && !selected} onOpenChange={setAutoOpen} />;
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import type { PlanoStand } from "@/types/reserva";
+import type { PlanoStand, EstadoStand } from "@/types/reserva";
 import { ESTADOS_STAND } from "@/lib/shared/constants";
 
-const COLORS: Record<string, string> = {
+const COLORS: Record<EstadoStand, string> = {
   [ESTADOS_STAND.RESERVADO]: "#16a34a",
   [ESTADOS_STAND.EN_EVALUACION]: "#cbd5e1",
   [ESTADOS_STAND.DISPONIBLE]: "#ffffff",
-} as const;
+};
 
 interface PlanoStandsProps {
   stands: PlanoStand[];

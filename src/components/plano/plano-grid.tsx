@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
 import type { PlanoStand } from "@/types/reserva";
-import { ESTADOS_STAND } from "@/lib/shared/constants";
+import { ESTADOS_STAND, MONEDAS } from "@/lib/shared/constants";
 
 /* ================================================================
    Layout tipo sistema de viajes interprovinciales:
@@ -28,7 +28,7 @@ export function PlanoGrid({ stands }: PlanoGridProps) {
 
   const selected = stands.filter((s) => selectedIds.includes(s.id));
   const total = selected.reduce((sum, s) => sum + s.monto, 0);
-  const moneda = selected[0]?.moneda ?? "USD";
+  const moneda = selected[0]?.moneda ?? MONEDAS.USD;
 
   // Distribuir stands en filas con pasillo central
   const rows: (PlanoStand | null)[][] = [];
@@ -39,7 +39,7 @@ export function PlanoGrid({ stands }: PlanoGridProps) {
       if (col === AISLE_AFTER) {
         row.push(null); // pasillo
       }
-      row.push(i < stands.length ? stands[i++] : null);
+      row.push(i < stands.length ? stands[i++] ?? null : null);
     }
     rows.push(row);
   }

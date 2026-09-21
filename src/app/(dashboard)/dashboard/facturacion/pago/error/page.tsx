@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent } from "@nrivera-iimp/ui-kit-iimp";
 import { XCircle } from "lucide-react";
 import Link from "next/link";
 

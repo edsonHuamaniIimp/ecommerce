@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
-import { ChevronRight, ChevronLeft, Building2, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, Building2 } from "lucide-react";
 import { useState } from "react";
 import { RESERVA_STEPS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
@@ -105,7 +105,8 @@ export function ReservaModal(props: Props) {
                   className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
                   onClick={() => {
                     const idx = STEPS.indexOf(step);
-                    if (idx > 0) onGoStep(STEPS[idx - 1]);
+                    const prev = idx > 0 ? STEPS[idx - 1] : undefined;
+                    if (prev !== undefined) onGoStep(prev);
                   }}>
                   <ChevronLeft className="mr-1 h-3.5 w-3.5" />
                   <span>Volver</span>
@@ -118,7 +119,8 @@ export function ReservaModal(props: Props) {
                   className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => {
                     const idx = STEPS.indexOf(step);
-                    if (idx < STEPS.length - 1) onGoStep(STEPS[idx + 1]);
+                    const next = idx < STEPS.length - 1 ? STEPS[idx + 1] : undefined;
+                    if (next !== undefined) onGoStep(next);
                   }}>
                   <span>Continuar</span>
                   <ChevronRight className="ml-1 h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # ContratosStands — Infraestructura AWS (ECS Fargate + Aurora Serverless v2 + CloudFront/WAF)
-# DECISIÓN: docs/01-despliegue/arquitectura-aws.md (v5, Opción 1)
-# REGLAS OBLIGATORIAS: docs/01-despliegue/REGLAS-DESPLIEGUE.md
+# DECISIÓN: docs/02-despliegue/arquitectura-aws.md (v5, Opción 1)
+# REGLAS OBLIGATORIAS: docs/02-despliegue/REGLAS-DESPLIEGUE.md
 # - R1: prod solo con autorización explícita del usuario
 # - R2: TODO con variables, nada hardcodeado
 # - R3: hashtag del proyecto = tag `project=contratos-stands` (default_tags)
@@ -196,6 +196,11 @@ module "ecs" {
   app_domain          = var.app_domain
   certificate_arn     = module.acm.certificate_arn
   enable_https        = var.enable_https
+  sgc_enabled         = var.sgc_enabled
+  sgc_mode            = var.sgc_mode
+  sgc_area_code       = var.sgc_area_code
+  sgc_contract_type_code = var.sgc_contract_type_code
+  sgc_timeout_ms      = var.sgc_timeout_ms
   # El redirect 80→443 solo si NO hay CloudFront delante (evita el loop de redirecciones)
   http_redirect_to_https         = var.enable_https && !var.enable_cloudfront
   restrict_alb_to_cloudfront     = var.restrict_alb_to_cloudfront

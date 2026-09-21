@@ -14,6 +14,17 @@ interface NiubizData {
   urlJs: string;
 }
 
+interface VisanetCheckout {
+  open?: () => void;
+  configure?: (c: Record<string, unknown>) => void;
+}
+
+declare global {
+  interface Window {
+    VisanetCheckout?: VisanetCheckout;
+  }
+}
+
 function PagarNiubizzPageContent() {
   const searchParams = useSearchParams();
   const facturacionId = searchParams.get("facturacionId");
@@ -22,19 +33,27 @@ function PagarNiubizzPageContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!facturacionId) { setError("Falta facturacionId"); setLoading(false); return; }
-    fetch("/api/facturacion/niubizz/sesion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ facturacionId }),
-    })
-      .then((r) => r.json())
-      .then((json: { success: boolean; data?: NiubizData; error?: { message: string } }) => {
+    (async () => {
+      if (!facturacionId) {
+        setError("Falta facturacionId");
+        setLoading(false);
+        return;
+      }
+      try {
+        const r = await fetch("/api/facturacion/niubizz/sesion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ facturacionId }),
+        });
+        const json = (await r.json()) as { success: boolean; data?: NiubizData; error?: { message: string } };
         if (json.success && json.data) setData(json.data);
         else setError(json.error?.message ?? "Error");
-      })
-      .catch(() => setError("Error de conexion"))
-      .finally(() => setLoading(false));
+      } catch {
+        setError("Error de conexion");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [facturacionId]);
 
   if (loading) {
@@ -82,8 +101,7 @@ function PagarNiubizzPageContent() {
         strategy="afterInteractive"
         onLoad={() => {
           setTimeout(() => {
-            const w = window as unknown as Record<string, unknown>;
-            const checkout = w.VisanetCheckout as { open?: () => void; configure?: (c: Record<string, unknown>) => void } | undefined;
+            const checkout = window.VisanetCheckout;
             if (checkout?.open) {
               checkout.configure?.({
                 sessiontoken: data.sessionToken,

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/server/db";
 import { niubizzClient } from "@/infrastructure/external/niubizz-client";
-import { ESTADOS_CUOTA, ESTADOS_FACTURACION, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_CUOTA } from "@/lib/shared/constants";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
 
 export class NiubizzApplicationService {
@@ -40,9 +40,11 @@ export class NiubizzApplicationService {
     const cuotaPendiente = fact.cuotas.find(c => c.estado === ESTADOS_CUOTA.PENDIENTE);
     if (!cuotaPendiente) throw new Error("Sin cuotas pendientes");
 
+    const respuestaApi = "respuesta_api" in cuotaPendiente ? cuotaPendiente.respuesta_api : undefined;
+
     // Authorize via Niubizz proxy
     await niubizzClient.autorizar({
-      key: (cuotaPendiente as unknown as Record<string, string>).respuesta_api ?? "",
+      key: typeof respuestaApi === "string" ? respuestaApi : "",
       amount: fact.montoTotal,
       transactionToken,
       purchaseNumber: String(Date.now()),

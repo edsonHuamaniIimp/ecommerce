@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@nriver
 import { authService } from "@/lib/client/api/services/auth-service";
 import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { ROLES, LS_KEYS } from "@/lib/shared/constants";
-import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
+import { dateUtils } from "@/lib/shared/utils/date";
+import type { EventoPadrePresalaDTO } from "@/types/dto/models";
 
 const VERTICAL_COLORS: Record<string, string> = {
   proexplo: "#d97706",
@@ -21,11 +22,6 @@ const VERTICAL_COLORS: Record<string, string> = {
 
 function verticalColor(vertical: string): string {
   return VERTICAL_COLORS[vertical] ?? "#6b7280";
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function HomePage() {
@@ -120,7 +116,7 @@ export default function HomePage() {
                       >
                         <span className="text-sm font-semibold">{ep.nombre} {ver.anio}</span>
                         {(ver.fecha_inicio || ver.fecha_fin) && (
-                          <span className="text-xs text-muted-foreground">{formatDate(ver.fecha_inicio)} — {formatDate(ver.fecha_fin)}</span>
+                          <span className="text-xs text-muted-foreground">{dateUtils.format(ver.fecha_inicio)} — {dateUtils.format(ver.fecha_fin)}</span>
                         )}
                         <div className="mt-2 flex items-center justify-between">
                           <Badge variant={ver.estado === "active" ? "default" : "secondary"} className="text-[10px]">

@@ -1,4 +1,5 @@
 import 'server-only';
+import { TIPOS_DOCUMENTO } from "@/lib/shared/constants";
 
 const IS_LOCAL = process.env.NODE_ENV !== "production";
 
@@ -50,7 +51,7 @@ async function createSessionViaSandbox(params: Record<string, unknown>) {
         amount: params.amount, purchaseNumber: params.purchasenumber,
         email: params.email, firstName: params.nombre, lastName: params.apellido,
         phoneNumber: params.telefono || "000000000",
-        identityDocument: { type: "DNI", number: (params.numerodocumento as string) || "00000000" },
+        identityDocument: { type: TIPOS_DOCUMENTO.DNI, number: params.numerodocumento || "00000000" },
       },
       { Authorization: `Bearer ${token}` },
     );

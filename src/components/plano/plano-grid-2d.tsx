@@ -23,7 +23,7 @@ interface StandPos { id: string; type: CellType; x: number; y: number; }
 function buildStands(): StandPos[] {
   const items: StandPos[] = [];
   const vCol = (t: CellType, x: number, y: number, n: number, ids: string[]) => {
-    for (let i = 0; i < n; i++) items.push({ id: ids[i], type: t, x, y: y - i * 2 });
+    for (let i = 0; i < n; i++) items.push({ id: ids[i] ?? "", type: t, x, y: y - i * 2 });
   };
   const m2x4 = (x: number, cy: number, ids: string[]) => {
     const col: CellType[] = ["P","C","C","P"]; const yt = cy + 4, x1 = x - 1, x2 = x + 1; let idx = 0;
@@ -55,6 +55,7 @@ function buildFinalGrid() {
   const occ = new Set<string>();
   for (const s of stands) {
     const bd = BD[s.type];
+    if (!bd) continue;
     const xs = Math.round((s.x - bd.w/2 + XR/2)/STEP), xe = Math.round((s.x + bd.w/2 + XR/2)/STEP);
     const ys = Math.round((-s.y - bd.d/2 + YR/2)/STEP), ye = Math.round((-s.y + bd.d/2 + YR/2)/STEP);
     for (let r = Math.max(0, ys); r < Math.min(ROWS, ye); r++)
@@ -63,11 +64,19 @@ function buildFinalGrid() {
       }
   }
 
-  const del = (m: Map<string,Cell>, cols: number[]) => { for (const k of m.keys()) { if (cols.includes(+k.split(",")[0])) m.delete(k); } };
-  const sd = (m: Map<string,Cell>, fr: number) => { const e = [...m.entries()]; m.clear(); for (const [k, c] of e) { let [co, r] = k.split(",").map(Number); if (r >= fr) r++; m.set(`${co},${r}`, c); } };
+  const del = (m: Map<string,Cell>, cols: number[]) => { for (const k of m.keys()) { const col = k.split(",")[0]; if (col !== undefined && cols.includes(Number(col))) m.delete(k); } };
+  const sd = (m: Map<string,Cell>, fr: number) => {
+    const e = [...m.entries()]; m.clear();
+    for (const [k, c] of e) {
+      const [co, r0] = k.split(",").map(Number);
+      if (co === undefined || r0 === undefined) continue;
+      let r = r0; if (r >= fr) r++;
+      m.set(`${co},${r}`, c);
+    }
+  };
   const su = (m: Map<string,Cell>, col: number, amt: number) => {
     const e = [...m.entries()].filter(([k]) => k.startsWith(`${col},`)); for (const [k] of e) m.delete(k);
-    for (const [k, c] of e) { const [, r] = k.split(",").map(Number); m.set(`${col},${r - amt}`, c); }
+    for (const [k, c] of e) { const r = k.split(",").map(Number)[1]; if (r === undefined) continue; m.set(`${col},${r - amt}`, c); }
   };
   const mv = (m: Map<string,Cell>, fc: number, fr: number, tc: number, tr: number) => { const c = m.get(`${fc},${fr}`); if (c) { m.delete(`${fc},${fr}`); m.set(`${tc},${tr}`, c); } };
 
@@ -78,9 +87,9 @@ function buildFinalGrid() {
   map.set("21,11", { id:"EXTRA-21L", type:"S", label:"S" }); map.set("21,12", { id:"EXTRA-21M", type:"S", label:"S" });
 
   const cs = new Set<number>(), rs = new Set<number>();
-  for (const k of map.keys()) { const [c, r] = k.split(",").map(Number); cs.add(c); rs.add(r); }
+  for (const k of map.keys()) { const [c, r] = k.split(",").map(Number); if (c !== undefined) cs.add(c); if (r !== undefined) rs.add(r); }
   const cols = [...cs].sort((a,b)=>a-b), rows = [...rs].sort((a,b)=>a-b);
-  const minC = cols[0], maxC = cols[cols.length-1], minR = rows[0], maxR = rows[rows.length-1];
+  const minC = cols[0] ?? 0, maxC = cols[cols.length-1] ?? 0, minR = rows[0] ?? 0, maxR = rows[rows.length-1] ?? 0;
   const grid: Cell[][] = [];
   for (let r = minR; r <= maxR; r++) {
     const row: Cell[] = [];

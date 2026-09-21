@@ -6,8 +6,9 @@ import { Pool } from "pg";
 import { TIPOLOGIAS_STAND, TIPOS_PLANO } from "../src/lib/shared/constants";
 
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
-if (APP_ENV === "production") {
+if (APP_ENV === "production" && process.env.SEED_ALLOW_PROD !== "1") {
   console.log("Seed bloqueado: no se ejecuta en produccion.");
+  console.log("Si es intencional (pruebas controladas), usar SEED_ALLOW_PROD=1.");
   process.exit(0);
 }
 
@@ -119,12 +120,14 @@ async function seedMaestra() {
     { id: 112, padre: 11, itemId: 3, nombre: "Octanorm simple", descripcion: "Solo viniles", orden: 3 },
   ];
   for (const h of hijos) {
+    const padre = padres.find((p) => p.id === h.padre);
+    if (!padre) continue;
     const updated = await prisma.maestra.updateMany({
       where: { id: h.id },
       data: { nombre: h.nombre, itemId: h.itemId, numOrden: h.orden },
     });
     if (updated.count === 0) {
-      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padres.find(p => p.id === h.padre)!.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
+      await prisma.maestra.create({ data: { id: h.id, nidMaestraPadre: h.padre, tabla: padre.tabla, itemId: h.itemId, nombre: h.nombre, descripcion: h.descripcion, numOrden: h.orden } });
     }
   }
   console.log("Maestra seeded");
@@ -169,8 +172,7 @@ async function seedPlanoGess() {
   // Bloques
   const items = buildItems();
   await prisma.planoBloque.deleteMany({ where: { planoId: plano.id } });
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
+  for (const [i, item] of items.entries()) {
     const dimCodigo = Object.entries(DIMENSIONES).find(([, d]) => d === item.dim)?.[0];
     const tipoId = dimCodigo ? tipoMap.get(dimCodigo) : undefined;
     await prisma.planoBloque.create({

@@ -3,8 +3,8 @@
  * Generador de la vista previa HTML de la arquitectura AWS
  * =======================================================
  *
- * Lee `docs/01-despliegue/arquitectura-aws.md`, extrae los bloques ```mermaid
- * y emite `docs/01-despliegue/arquitectura-preview.html`, que renderiza los
+ * Lee `docs/02-despliegue/arquitectura-aws.md`, extrae los bloques ```mermaid
+ * y emite `docs/02-despliegue/arquitectura-preview.html`, que renderiza los
  * diagramas en el navegador con Mermaid (CDN).
  *
  * Motivo: los diagramas viven en el Markdown (GitLab/Confluence los renderizan),
@@ -19,8 +19,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = join(ROOT, "docs", "01-despliegue", "arquitectura-aws.md");
-const OUT = join(ROOT, "docs", "01-despliegue", "arquitectura-preview.html");
+const SRC = join(ROOT, "docs", "02-despliegue", "arquitectura-aws.md");
+const OUT = join(ROOT, "docs", "02-despliegue", "arquitectura-preview.html");
 const MERMAID_CDN = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
 
 const escapeHtml = (s) =>
@@ -70,7 +70,7 @@ const html = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ContratosStands — Arquitectura AWS v3 (vista previa)</title>
 <!-- ARCHIVO GENERADO — NO editar a mano.
-     Fuente: docs/01-despliegue/arquitectura-aws.md
+     Fuente: docs/02-despliegue/arquitectura-aws.md
      Regenerar: node scripts/build-arquitectura-preview.mjs -->
 <style>
   body { font-family: "Segoe UI", Arial, sans-serif; background: #f1f5f9; color: #0f172a;
@@ -85,7 +85,7 @@ const html = `<!DOCTYPE html>
 </head>
 <body>
   <h1>ContratosStands — Arquitectura AWS v3</h1>
-  <p class="sub">Vista previa generada desde <code>docs/01-despliegue/arquitectura-aws.md</code> · ${blocks.length} diagramas · 2026-09-15</p>
+  <p class="sub">Vista previa generada desde <code>docs/02-despliegue/arquitectura-aws.md</code> · ${blocks.length} diagramas · 2026-09-15</p>
 ${sections}
   <footer>Archivo generado. Editar el Markdown y regenerar con
     <code>node scripts/build-arquitectura-preview.mjs</code>. Requiere conexión para cargar Mermaid (CDN).</footer>

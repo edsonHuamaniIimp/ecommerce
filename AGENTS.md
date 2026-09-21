@@ -33,7 +33,7 @@ cada prompt. Para ahorrar tokens:
 - `security-scanning` — revisión de seguridad.
 - `constants-first` — **CRITICAL**: usar SIEMPRE constantes de `src/lib/constants.ts` para validaciones, estados, roles y permisos. Nunca strings o numeros hardcodeados.
 - `utility-services` — usar servicios utilitarios centralizados (singleton) en `src/lib/utils/` para funciones reutilizables. Prohibe duplicar logica de formato/parseo en componentes.
-- `api-design-patterns` — diseño de APIs (REST/route handlers). Documentar las APIs con **Swagger/OpenAPI** (`docs/openapi.yaml`). Patrones obligatorios: Arquitectura Hexagonal (Ports & Adapters) en backend, Fachada de Servicios en frontend, DTO/Mapper (un archivo por request/response — SOLID), constantes para validaciones (nunca strings hardcodeados).
+- `api-design-patterns` — diseño de APIs (REST/route handlers). Documentar las APIs con **Swagger/OpenAPI** (`docs/04-api/openapi.yaml`). Patrones obligatorios: Arquitectura Hexagonal (Ports & Adapters) en backend, Fachada de Servicios en frontend, DTO/Mapper (un archivo por request/response — SOLID), constantes para validaciones (nunca strings hardcodeados).
 - `lineamientos-bd` — estándares/buenas prácticas de persistencia y BD (nomenclatura, PK, normalización, índices). Cargar al modelar tablas/entidades/migraciones.
 - `iimp-ui-kit` — lineamientos de estilo/frontend IIMP: UI Kit (`@nrivera-iimp/ui-kit-iimp`), verticales/theming, tipado estricto y regla Radix + Google Translate. Usar SIEMPRE al construir UI.
 

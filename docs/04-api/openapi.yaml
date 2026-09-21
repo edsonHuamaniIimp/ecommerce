@@ -1,0 +1,736 @@
+openapi: 3.0.3
+info:
+  title: ContratosStands API (IIMP)
+  version: 0.1.0-draft
+  description: >
+    API del sistema **ContratosStands** — handler/procesador de reservas de stands
+    para eventos IIMP (Perumin, ProExplo, WMC, GESS). BORRADOR derivado del onboarding
+    técnico; los contratos con el sistema de facturación (John/SAP) están **por
+    confirmar**. Este documento es la fuente de verdad (Swagger/OpenAPI) de la API.
+  contact:
+    name: Equipo ContratosStands
+servers:
+  - url: http://localhost:3000/api
+    description: Desarrollo local
+  - url: https://dev.contratos-stands.iimp/api
+    description: Ambiente Dev (PC)
+  - url: https://qa.contratos-stands.iimp/api
+    description: Ambiente QA (PC)
+tags:
+  - name: Eventos
+    description: Eventos padre y versiones (multievento)
+  - name: Plano
+    description: Plano interactivo y stands
+  - name: Gess
+    description: Proxy y vínculo con API planogess (KBEventos)
+  - name: Reservas
+    description: Registro y consulta de reservas
+  - name: Aprobaciones
+    description: Flujo Legal -> Logística -> Eventos/Asociados
+  - name: Facturacion
+    description: Interoperabilidad con facturación (SAP/John)
+  - name: Empresas
+    description: Consumo (proxy) de empresas/personas
+  - name: SGC
+    description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
+security:
+  - bearerAuth: []
+paths:
+  /eventos-padre:
+    get:
+      tags: [Eventos]
+      summary: Lista los eventos padre (verticales)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventoPadre"
+  /eventos:
+    get:
+      tags: [Eventos]
+      summary: Lista eventos (versiones) por evento padre
+      parameters:
+        - name: eventoPadreId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Evento"
+  /eventos/{eventoId}/plano:
+    get:
+      tags: [Plano]
+      summary: Devuelve los stands con posición X/Y y estado para el plano interactivo
+      parameters:
+        - $ref: "#/components/parameters/EventoId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlanoStand"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /eventos/{eventoId}/tipos-stand:
+    get:
+      tags: [Plano]
+      summary: Lista los tipos de stand del evento (con monto y contrato)
+      parameters:
+        - $ref: "#/components/parameters/EventoId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TipoStand"
+  /gess:
+    get:
+      tags: [Gess]
+      summary: Lista stands GESS vinculados o busca por bloqueId
+      parameters:
+        - name: eventoId
+          in: query
+          schema:
+            type: string
+        - name: bloqueId
+          in: query
+          description: ID del bloque del plano isométrico (EXT-IZQ-01, ...)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/GessStand"
+                  - $ref: "#/components/schemas/GessStand"
+                  - type: "null"
+    patch:
+      tags: [Gess]
+      summary: Vincula o desvincula un stand GESS a un bloque del plano isométrico
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+                bloqueId:
+                  type: string
+                  nullable: true
+                  description: ID del bloque 3D o null para desvincular
+      responses:
+        "200":
+          description: Vínculo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GessStand"
+  /gess/sync:
+    post:
+      tags: [Gess]
+      summary: Sincroniza stands desde el API externo planogess (KBEventos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventoId]
+              properties:
+                eventoId: { type: string }
+                tipoEvento: { type: integer }
+                codigoEvento: { type: integer }
+                seleccionadas:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+      responses:
+        "200":
+          description: Resultado de la sincronización
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GessSyncResult"
+  /reservas:
+    post:
+      tags: [Reservas]
+      summary: Registra una reserva de uno o varios stands
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservaCreate"
+      responses:
+        "201":
+          description: Reserva registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reserva"
+        "409":
+          description: Uno o más stands ya no están disponibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Reservas]
+      summary: Lista reservas (dashboard)
+      parameters:
+        - name: eventoId
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            $ref: "#/components/schemas/EstadoReserva"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reserva"
+  /reservas/{reservaId}:
+    get:
+      tags: [Reservas]
+      summary: Detalle de una reserva
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reserva"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reservas/{reservaId}/contrato:
+    get:
+      tags: [Reservas]
+      summary: Descarga el formato de contrato (PDF) según el tipo de stand
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "200":
+          description: PDF del contrato
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+  /reservas/{reservaId}/aprobaciones:
+    post:
+      tags: [Aprobaciones]
+      summary: Registra la resolución de un área (Legal/Logística/Eventos)
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AprobacionInput"
+      responses:
+        "200":
+          description: Aprobación registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reserva"
+  /reservas/{reservaId}/facturacion:
+    post:
+      tags: [Facturacion]
+      summary: Envía la reserva al módulo de facturación (SAP/John)
+      description: Interoperabilidad. Contrato de datos **por confirmar** con John.
+      parameters:
+        - $ref: "#/components/parameters/ReservaId"
+      responses:
+        "202":
+          description: Enviado a facturación (procesamiento asíncrono)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InteropFacturacion"
+  /interop/facturacion/callback:
+    post:
+      tags: [Facturacion]
+      summary: Callback de facturación (SAP/John) con el resultado
+      description: Recibe orden de venta/comprobante y estado ocupado/no ocupado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InteropCallback"
+      responses:
+        "200":
+          description: Procesado
+  /empresas:
+    get:
+      tags: [Empresas]
+      summary: Busca empresas (proxy hacia la fuente única / John / Niel)
+      parameters:
+        - name: q
+          in: query
+          description: Razón social o RUC
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Empresa"
+  /sgc/detalle:
+    get:
+      tags: [SGC]
+      summary: Detalle del expediente SGC de una solicitud (stepper + historial)
+      parameters:
+        - name: solicitudId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SgcExpedienteDetalle"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sgc/descarga:
+    get:
+      tags: [SGC]
+      summary: Enlace de descarga (vida corta) del contrato firmado vigente
+      parameters:
+        - name: solicitudId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SgcUrlDescarga"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sgc/sincronizar:
+    post:
+      tags: [SGC]
+      summary: Reconciliación — refresca el estado de los expedientes creados
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sincronizados]
+                properties:
+                  sincronizados: { type: integer }
+  /sgc/subsanar:
+    post:
+      tags: [SGC]
+      summary: Empuja una versión corregida del contrato (subsanación)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [solicitudId, documentId, url]
+              properties:
+                solicitudId: { type: string, format: uuid }
+                documentId: { type: string }
+                url: { type: string }
+                title: { type: string }
+      responses:
+        "200":
+          description: OK
+  /integracion/sgc/webhook:
+    post:
+      tags: [SGC]
+      summary: Receptor de webhooks del SGC (firma HMAC-SHA256)
+      security: []
+      parameters:
+        - name: x-sgc-signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SgcWebhookPayload"
+      responses:
+        "200":
+          description: Recibido
+        "401":
+          description: Firma inválida
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EventoId:
+      name: eventoId
+      in: path
+      required: true
+      schema:
+        type: string
+    ReservaId:
+      name: reservaId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    ValidationError:
+      description: Error de validación (Zod)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    Vertical:
+      type: string
+      enum: [proexplo, wmc, gess, perumin]
+    EstadoStand:
+      type: string
+      enum: [disponible, en_evaluacion, reservado]
+    EstadoReserva:
+      type: string
+      enum:
+        [
+          borrador,
+          registrada,
+          en_aprobacion,
+          aprobada,
+          enviada_facturacion,
+          facturada,
+          rechazada,
+          cancelada,
+        ]
+    TipoComprobante:
+      type: string
+      enum: [factura, boleta]
+    EventoPadre:
+      type: object
+      required: [id, codigo, vertical, nombre]
+      properties:
+        id: { type: string }
+        codigo: { type: string, example: WMC }
+        vertical: { $ref: "#/components/schemas/Vertical" }
+        nombre: { type: string }
+    Evento:
+      type: object
+      required: [id, eventoPadreId, tipoEvento, codigoEvento, estado]
+      properties:
+        id: { type: string }
+        eventoPadreId: { type: string }
+        tipoEvento: { type: integer, example: 14 }
+        codigoEvento: { type: integer, example: 1 }
+        planoRef: { type: string }
+        anio: { type: string, example: "2026" }
+        estado:
+          type: string
+          enum: [draft, active, closed, cancelled]
+    TipoStand:
+      type: object
+      required: [id, nombre, montoBase]
+      properties:
+        id: { type: string }
+        nombre: { type: string, example: preferencial }
+        medidas: { type: string, example: "3x3" }
+        montoBase: { type: number, example: 12000 }
+        moneda: { type: string, example: USD }
+        contratoUrl: { type: string }
+    PlanoStand:
+      type: object
+      required: [standId, numero, x, y, estado]
+      properties:
+        standId: { type: string }
+        numero: { type: string, example: "01" }
+        tipoStand: { type: string, example: isla }
+        monto: { type: number, example: 12000 }
+        tipoCamara: { type: string }
+        numeroCamara: { type: string }
+        x: { type: number }
+        y: { type: number }
+        estado: { $ref: "#/components/schemas/EstadoStand" }
+        empresa: { type: string, description: "Visible solo si está reservado" }
+    Cuota:
+      type: object
+      required: [numero, porcentaje]
+      properties:
+        numero: { type: integer, example: 1 }
+        porcentaje: { type: number, example: 40 }
+        monto: { type: number }
+        fechaPago: { type: string, format: date }
+    DatosFacturacion:
+      type: object
+      required: [tipoComprobante]
+      properties:
+        tipoComprobante: { $ref: "#/components/schemas/TipoComprobante" }
+        razonSocial: { type: string }
+        ruc: { type: string }
+        nombre: { type: string }
+        numeroDocumento: { type: string }
+        direccion: { type: string }
+        correo: { type: string, format: email }
+    ReservaCreate:
+      type: object
+      required: [eventoId, standIds, empresaRef, facturacion]
+      properties:
+        eventoId: { type: string }
+        standIds:
+          type: array
+          minItems: 1
+          items: { type: string }
+        empresaRef: { type: string, description: "Id externo de empresa (John/Niel)" }
+        facturacion: { $ref: "#/components/schemas/DatosFacturacion" }
+        cuotas:
+          type: array
+          items: { $ref: "#/components/schemas/Cuota" }
+    Aprobacion:
+      type: object
+      properties:
+        area:
+          type: string
+          enum: [legal, logistica, eventos]
+        estado:
+          type: string
+          enum: [pendiente, aprobado, rechazado]
+        responsable: { type: string }
+        comentario: { type: string }
+        fecha: { type: string, format: date-time }
+    AprobacionInput:
+      type: object
+      required: [area, estado]
+      properties:
+        area:
+          type: string
+          enum: [legal, logistica, eventos]
+        estado:
+          type: string
+          enum: [aprobado, rechazado]
+        comentario: { type: string }
+    Reserva:
+      type: object
+      required: [id, eventoId, estado]
+      properties:
+        id: { type: string }
+        eventoId: { type: string }
+        empresaRef: { type: string }
+        standIds:
+          type: array
+          items: { type: string }
+        facturacion: { $ref: "#/components/schemas/DatosFacturacion" }
+        cuotas:
+          type: array
+          items: { $ref: "#/components/schemas/Cuota" }
+        aprobaciones:
+          type: array
+          items: { $ref: "#/components/schemas/Aprobacion" }
+        estado: { $ref: "#/components/schemas/EstadoReserva" }
+        creadoEn: { type: string, format: date-time }
+    InteropFacturacion:
+      type: object
+      properties:
+        reservaId: { type: string }
+        estado:
+          type: string
+          enum: [enviado, confirmado, error]
+        ordenVenta: { type: string }
+        comprobante: { type: string }
+    InteropCallback:
+      type: object
+      required: [reservaId, estado]
+      properties:
+        reservaId: { type: string }
+        estado:
+          type: string
+          enum: [confirmado, error]
+        ordenVenta: { type: string }
+        comprobante: { type: string }
+        standsOcupados:
+          type: array
+          items: { type: string }
+    Empresa:
+      type: object
+      properties:
+        id: { type: string }
+        razonSocial: { type: string }
+        ruc: { type: string }
+        origen:
+          type: string
+          enum: [john, niel, local]
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code: { type: string }
+        detalles:
+          type: array
+          items: { type: string }
+    GessStand:
+      type: object
+      required: [id, eventoId, standApiId, standCode]
+      properties:
+        id: { type: string }
+        eventoId: { type: string }
+        standApiId: { type: string, description: "UID del stand en el API externo" }
+        standCode: { type: string, description: "Código visible (01, 02, ...)" }
+        tipoStand: { type: string, nullable: true, example: "PREFERENCIAL" }
+        medidas: { type: string, nullable: true, example: "3000.00 US$" }
+        estado: { type: string, nullable: true, example: "Reservado" }
+        empresa: { type: string, nullable: true, example: "CETEMIN" }
+        pabellon: { type: string, nullable: true }
+        ubicacion: { type: string, nullable: true }
+        bloqueId: { type: string, nullable: true, description: "ID del bloque 3D vinculado" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GessSyncResult:
+      type: object
+      required: [creados, actualizados, total]
+      properties:
+        creados: { type: integer }
+        actualizados: { type: integer }
+        total: { type: integer }
+    SgcCompletedBy:
+      type: object
+      properties:
+        actorName: { type: string }
+        areaName: { type: string }
+        completedAt: { type: string, format: date-time }
+        constancy: { type: string, enum: [acknowledgement, visa, normal-signature, stamp] }
+    SgcStep:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        position: { type: integer }
+        status: { type: string, enum: [completed, current, pending] }
+        areaId: { type: string, nullable: true }
+        completedBy:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/SgcCompletedBy"
+    SgcHistoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        source: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        actorName: { type: string }
+        occurredAt: { type: string, format: date-time }
+    SgcDocumentoResumen:
+      type: object
+      properties:
+        documentId: { type: string }
+        category: { type: string, enum: [contract, annex] }
+        title: { type: string }
+        currentVersionId: { type: string, nullable: true }
+    SgcExpedienteDetalle:
+      type: object
+      properties:
+        contractId: { type: string }
+        code: { type: string }
+        name: { type: string }
+        stage: { type: string, enum: [drafting, internal-review, approval, validity, closed] }
+        lifecycleStatus: { type: string, nullable: true, enum: [active, finalized, observed, rejected] }
+        areaName: { type: string, nullable: true }
+        contractTypeName: { type: string, nullable: true }
+        counterpartyName: { type: string, nullable: true }
+        counterpartyEmail: { type: string, nullable: true }
+        counterpartyTaxIdentifier: { type: string, nullable: true }
+        currency: { type: string, nullable: true }
+        totalMinorUnits: { type: integer, nullable: true }
+        startDate: { type: string, nullable: true }
+        endDate: { type: string, nullable: true }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        documents:
+          type: array
+          items: { $ref: "#/components/schemas/SgcDocumentoResumen" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/SgcStep" }
+        history:
+          type: array
+          items: { $ref: "#/components/schemas/SgcHistoryItem" }
+    SgcUrlDescarga:
+      type: object
+      required: [url, expiresInSeconds]
+      properties:
+        url: { type: string }
+        expiresInSeconds: { type: integer }
+    SgcWebhookPayload:
+      type: object
+      required: [apiVersion, eventId, eventType, createdAt, resource, data]
+      properties:
+        apiVersion: { type: string }
+        eventId: { type: string }
+        eventType:
+          type: string
+          enum: [workflow.started, workflow.advanced, workflow.returned, workflow.approved, workflow.rejected, contract.closed]
+        createdAt: { type: string, format: date-time }
+        resource:
+          type: object
+          properties:
+            id: { type: string }
+            type: { type: string }
+            code: { type: string, nullable: true }
+        data: { type: object, additionalProperties: true }

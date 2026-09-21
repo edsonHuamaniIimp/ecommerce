@@ -2,7 +2,7 @@
 
 > Fuente de contexto para sesiones de desarrollo.  
 > Fecha de última actualización: 2026-08-03
-> Flujos detallados: [`docs/flujos.md`](docs/flujos.md)
+> Flujos detallados: [`docs/00-inicio/flujos.md`](docs/00-inicio/flujos.md)
 
 ---
 

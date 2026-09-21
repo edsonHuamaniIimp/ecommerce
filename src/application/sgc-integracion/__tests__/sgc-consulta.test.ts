@@ -1,0 +1,189 @@
+import { describe, it, expect, vi } from "vitest";
+import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
+import type { SgcIntegracionConfig } from "../sgc-integracion-service";
+import type { ISgcRepository } from "@/domain/ports/sgc-repository";
+import type { ISgcClient } from "@/domain/ports/sgc-client";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { SgcExpedienteDetalle, SgcExpedienteEntity } from "@/domain/models/sgc";
+import { SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
+
+const CONFIG: SgcIntegracionConfig = { enabled: true, areaCode: "EVENTOS", contractTypeCode: "AUSPICIO" };
+
+function expediente(overrides: Partial<SgcExpedienteEntity> = {}): SgcExpedienteEntity {
+  return {
+    id: "exp-1",
+    solicitudId: "sol-1",
+    code: "STAND-1",
+    contractId: "contract-1",
+    estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+    stage: null,
+    lifecycleStatus: null,
+    version: null,
+    areaCode: "EVENTOS",
+    contractTypeCode: "AUSPICIO",
+    lastSyncedAt: null,
+    lastError: null,
+    ...overrides,
+  };
+}
+
+function detalleSgc(): SgcExpedienteDetalle {
+  return {
+    contractId: "contract-1",
+    code: "STAND-1",
+    name: "Separacion de stand - STAND-1",
+    stage: SGC_STAGES.INTERNAL_REVIEW,
+    lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+    areaName: "Eventos",
+    contractTypeName: "Auspicio",
+    counterpartyName: "Expositor S.A.C.",
+    counterpartyEmail: null,
+    counterpartyTaxIdentifier: null,
+    currency: null,
+    totalMinorUnits: null,
+    startDate: null,
+    endDate: null,
+    version: 2,
+    createdAt: "2026-09-15T00:00:00.000Z",
+    updatedAt: "2026-09-15T00:00:00.000Z",
+    documents: [],
+    steps: [],
+    history: [],
+  };
+}
+
+function solicitudesRepoVacio(): ISolicitudesRepository {
+  return {
+    listar: vi.fn(),
+    detalle: vi.fn(),
+    crearOActualizarRevision: vi.fn(),
+    crearRevisionInicial: vi.fn(),
+    crearSolicitud: vi.fn(),
+    crearAlertaReserva: vi.fn(),
+    crearReevaluacion: vi.fn(),
+    tieneReevaluacionPendiente: vi.fn(),
+    atenderReevaluacionAprobacion: vi.fn(),
+    atenderReevaluacionRechazo: vi.fn(),
+    darDeBajaSolicitud: vi.fn(),
+    marcarOrdenPago: vi.fn(),
+    obtenerHistorial: vi.fn(),
+    crearDocumentoAdjunto: vi.fn(),
+    findDocumento: vi.fn(),
+    eliminarDocumento: vi.fn(),
+    crearAlertaRevision: vi.fn(),
+  };
+}
+
+function sgcRepoMock(existente: SgcExpedienteEntity | null): ISgcRepository {
+  return {
+    findExpedientePorSolicitud: vi.fn().mockResolvedValue(existente),
+    findExpedientePorContractId: vi.fn().mockResolvedValue(null),
+    listarConContractId: vi.fn().mockResolvedValue([]),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
+    crearExpediente: vi.fn(),
+    actualizarExpediente: vi.fn().mockResolvedValue(existente),
+    crearDocumento: vi.fn(),
+    actualizarDocumento: vi.fn(),
+  };
+}
+
+function clientMock(): ISgcClient {
+  return {
+    crearExpediente: vi.fn(),
+    actualizarExpediente: vi.fn().mockResolvedValue(undefined),
+    consultarExpediente: vi.fn().mockResolvedValue(detalleSgc()),
+    listarExpedientes: vi.fn(),
+    reservarSubida: vi.fn(),
+    transferirArchivo: vi.fn().mockResolvedValue(undefined),
+    confirmarSubida: vi.fn(),
+    consultarDocumento: vi.fn(),
+    resolverVersion: vi.fn(),
+    obtenerUrlDescarga: vi.fn(),
+  };
+}
+
+function build(repo: ISgcRepository, client: ISgcClient, config: SgcIntegracionConfig = CONFIG) {
+  return new SgcIntegracionApplicationService(
+    solicitudesRepoVacio(),
+    repo,
+    client,
+    { leer: vi.fn() },
+    config,
+  );
+}
+
+describe("SgcIntegracionApplicationService.consultarExpediente", () => {
+  it("deberia consultar el SGC y sincronizar stage/lifecycle/version", async () => {
+    const repo = sgcRepoMock(expediente());
+    const client = clientMock();
+    const svc = build(repo, client);
+
+    const detalle = await svc.consultarExpediente("sol-1");
+
+    expect(client.consultarExpediente).toHaveBeenCalledWith("contract-1");
+    expect(repo.actualizarExpediente).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ stage: SGC_STAGES.INTERNAL_REVIEW, lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE, version: 2 }),
+    );
+    expect(detalle?.contractId).toBe("contract-1");
+  });
+
+  it("deberia devolver null si no hay contractId", async () => {
+    const repo = sgcRepoMock(expediente({ contractId: null }));
+    const client = clientMock();
+    const svc = build(repo, client);
+
+    expect(await svc.consultarExpediente("sol-1")).toBeNull();
+    expect(client.consultarExpediente).not.toHaveBeenCalled();
+  });
+
+  it("deberia devolver null si la integracion esta deshabilitada", async () => {
+    const repo = sgcRepoMock(expediente());
+    const client = clientMock();
+    const svc = build(repo, client, { ...CONFIG, enabled: false });
+
+    expect(await svc.consultarExpediente("sol-1")).toBeNull();
+    expect(repo.findExpedientePorSolicitud).not.toHaveBeenCalled();
+  });
+});
+
+function sgcRepoReconciliar(expedientes: SgcExpedienteEntity[]): ISgcRepository {
+  return {
+    findExpedientePorSolicitud: vi.fn().mockResolvedValue(null),
+    findExpedientePorContractId: vi.fn().mockResolvedValue(null),
+    listarConContractId: vi.fn().mockResolvedValue(expedientes),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
+    crearExpediente: vi.fn(),
+    actualizarExpediente: vi.fn().mockResolvedValue(expediente()),
+    crearDocumento: vi.fn(),
+    actualizarDocumento: vi.fn(),
+  };
+}
+
+describe("SgcIntegracionApplicationService.reconciliar", () => {
+  it("deberia refrescar los expedientes y contar los sincronizados", async () => {
+    const repo = sgcRepoReconciliar([expediente()]);
+    const client = clientMock();
+    const svc = build(repo, client);
+
+    const n = await svc.reconciliar();
+
+    expect(n).toBe(1);
+    expect(repo.actualizarExpediente).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ stage: SGC_STAGES.INTERNAL_REVIEW }),
+    );
+  });
+
+  it("deberia registrar el error y continuar si el SGC falla", async () => {
+    const repo = sgcRepoReconciliar([expediente()]);
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockRejectedValue(new Error("timeout"));
+    const svc = build(repo, client);
+
+    const n = await svc.reconciliar();
+
+    expect(n).toBe(0);
+    expect(repo.actualizarExpediente).toHaveBeenCalledWith("exp-1", expect.objectContaining({ lastError: "timeout" }));
+  });
+});

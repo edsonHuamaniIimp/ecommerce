@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
+import { MONEDAS } from "@/lib/shared/constants";
 
 interface Auspicio {
   nombre: string;
@@ -15,7 +16,13 @@ interface Auspicio {
   codigo: number;
 }
 
-type Moneda = "US$" | "S/";
+type MonedaAuspicio = typeof MONEDAS.US_DOLAR | typeof MONEDAS.SOL;
+
+interface Tarifa {
+  codAuspicio: number;
+  moneda: MonedaAuspicio;
+  importe: string;
+}
 
 export default function AuspiciosPage() {
   const [tipoEvento, setTipoEvento] = useState<number | null>(null);
@@ -46,7 +53,7 @@ export default function AuspiciosPage() {
     glosa: "",
   });
 
-  const [tarifas, setTarifas] = useState<Array<{ codAuspicio: number; moneda: Moneda; importe: string }>>([]);
+  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
 
   useEffect(() => {
     authService.getSession().then((s) => {
@@ -60,28 +67,35 @@ export default function AuspiciosPage() {
 
   useEffect(() => {
     if (tipoEvento === null || codigoEvento === null) return;
-    setLoading(true);
-    fetch("/api/auspicios/listar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: tipoEvento, codeEvent: codigoEvento }),
-    })
-      .then((res) => res.json())
-      .then((json: { success: boolean; data?: { auspicios?: Auspicio[] }; message?: string }) => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/auspicios/listar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: tipoEvento, codeEvent: codigoEvento }),
+        });
+        const json = (await res.json()) as { success: boolean; data?: { auspicios?: Auspicio[] }; message?: string };
         if (!json.success || !json.data?.auspicios) {
           toast.error(json.message ?? "Error al listar auspicios");
           return;
         }
         setAuspicios(json.data.auspicios);
-      })
-      .catch((e) => toast.error(e instanceof Error ? e.message : "Error de conexion"))
-      .finally(() => setLoading(false));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Error de conexion");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [tipoEvento, codigoEvento]);
 
   const updateTarifa = (idx: number, field: "importe" | "moneda", val: string) => {
     setTarifas((prev) => {
+      const current = prev[idx];
+      if (!current) return prev;
       const next = [...prev];
-      next[idx] = { ...next[idx], [field]: val };
+      const moneda: MonedaAuspicio = val === MONEDAS.SOL ? MONEDAS.SOL : MONEDAS.US_DOLAR;
+      next[idx] = field === "moneda" ? { ...current, moneda } : { ...current, importe: val };
       return next;
     });
   };
@@ -138,15 +152,17 @@ export default function AuspiciosPage() {
         const list = (data as Record<string, unknown>).ListEmpresa as Array<Record<string, unknown>> | undefined;
         if (list && list.length > 0) {
           const e = list[0];
-          setForm(prev => ({
-            ...prev,
-            empresa: String(e.razonSocial ?? e.empresa ?? prev.empresa),
-            direccion: String(e.direccion ?? prev.direccion),
-            sieCod: String(e.ecicod ?? e.sie_code ?? prev.sieCod),
-          }));
-          toast.success("Empresa encontrada en IIMP");
-          setSearchingDoc(false);
-          return;
+          if (e) {
+            setForm(prev => ({
+              ...prev,
+              empresa: String(e.razonSocial ?? e.empresa ?? prev.empresa),
+              direccion: String(e.direccion ?? prev.direccion),
+              sieCod: String(e.ecicod ?? e.sie_code ?? prev.sieCod),
+            }));
+            toast.success("Empresa encontrada en IIMP");
+            setSearchingDoc(false);
+            return;
+          }
         }
       }
       // 2. Buscar persona en IIMP
@@ -154,17 +170,19 @@ export default function AuspiciosPage() {
       const persList = (persData as Record<string, unknown>).ListInfoPersona as Array<Record<string, unknown>> | undefined;
       if (persList && persList.length > 0) {
         const p = persList[0];
-        setForm(prev => ({
-          ...prev,
-          empresa: String(p.empresa ?? prev.empresa),
-          direccion: String(p.direccion ?? prev.direccion),
-          email: String(p.correo ?? prev.email),
-          telefono: String(p.celular ?? prev.telefono),
-          sieCod: String(p.sie_code ?? prev.sieCod),
-        }));
-        toast.success("Persona encontrada en IIMP");
-        setSearchingDoc(false);
-        return;
+        if (p) {
+          setForm(prev => ({
+            ...prev,
+            empresa: String(p.empresa ?? prev.empresa),
+            direccion: String(p.direccion ?? prev.direccion),
+            email: String(p.correo ?? prev.email),
+            telefono: String(p.celular ?? prev.telefono),
+            sieCod: String(p.sie_code ?? prev.sieCod),
+          }));
+          toast.success("Persona encontrada en IIMP");
+          setSearchingDoc(false);
+          return;
+        }
       }
       // 3. SUNAT o RENIEC
       if (form.tipoDocumento === "6") {
@@ -210,22 +228,26 @@ export default function AuspiciosPage() {
         const list = (data as Record<string, unknown>).ListEmpresa as Array<Record<string, unknown>> | undefined;
         if (list && list.length > 0) {
           const e = list[0];
-          setForm(prev => ({ ...prev, razonSocial: String(e.razonSocial ?? prev.razonSocial), dirFacturacion: String(e.direccion ?? prev.dirFacturacion) }));
-          toast.success("Encontrado en IIMP");
-          setSearchingFact(false); return;
+          if (e) {
+            setForm(prev => ({ ...prev, razonSocial: String(e.razonSocial ?? prev.razonSocial), dirFacturacion: String(e.direccion ?? prev.dirFacturacion) }));
+            toast.success("Encontrado en IIMP");
+            setSearchingFact(false); return;
+          }
         }
       }
       const persData = await entidadesService.searchPerson(doc, undefined);
       const persList = (persData as Record<string, unknown>).ListInfoPersona as Array<Record<string, unknown>> | undefined;
       if (persList && persList.length > 0) {
         const p = persList[0];
-        setForm(prev => ({
-          ...prev,
-          razonSocial: [p.nombres, p.apellido_paterno, p.apellido_materno].filter(Boolean).join(" ") || String(p.nombreCompleto ?? prev.razonSocial),
-          dirFacturacion: String(p.direccion ?? prev.dirFacturacion),
-        }));
-        toast.success("Encontrado en IIMP");
-        setSearchingFact(false); return;
+        if (p) {
+          setForm(prev => ({
+            ...prev,
+            razonSocial: [p.nombres, p.apellido_paterno, p.apellido_materno].filter(Boolean).join(" ") || String(p.nombreCompleto ?? prev.razonSocial),
+            dirFacturacion: String(p.direccion ?? prev.dirFacturacion),
+          }));
+          toast.success("Encontrado en IIMP");
+          setSearchingFact(false); return;
+        }
       }
       // 2. SUNAT / RENIEC
       if (esRuc) {
@@ -410,8 +432,9 @@ export default function AuspiciosPage() {
                             onValueChange={(v) => {
                               const ausp = auspicios.find(a => a.codigo === Number(v));
                               if (!ausp) return;
-                              updateTarifa(i, "moneda", ausp.moneda as Moneda);
-                              setTarifas(prev => prev.map((tt, ii) => ii === i ? { ...tt, codAuspicio: ausp.codigo, moneda: ausp.moneda as Moneda } : tt));
+                              const moneda: MonedaAuspicio = ausp.moneda === MONEDAS.SOL ? MONEDAS.SOL : MONEDAS.US_DOLAR;
+                              updateTarifa(i, "moneda", moneda);
+                              setTarifas(prev => prev.map((tt, ii) => ii === i ? { ...tt, codAuspicio: ausp.codigo, moneda } : tt));
                             }}
                           >
                             <SelectTrigger className="text-xs flex-1"><SelectValue placeholder="Seleccionar auspicio" /></SelectTrigger>
@@ -435,7 +458,7 @@ export default function AuspiciosPage() {
                         variant="outline"
                         size="sm"
                         className="rounded-full text-xs w-full"
-                        onClick={() => setTarifas(prev => [...prev, { codAuspicio: 0, moneda: "US$", importe: "" }])}
+                        onClick={() => setTarifas(prev => [...prev, { codAuspicio: 0, moneda: MONEDAS.US_DOLAR, importe: "" }])}
                         disabled={tarifas.length >= auspicios.length}
                       >
                         + Agregar tarifa

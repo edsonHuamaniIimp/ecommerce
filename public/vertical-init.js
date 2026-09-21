@@ -14,5 +14,5 @@
           : "proexplo";
     document.documentElement.classList.add("vert-" + vertical);
     document.documentElement.setAttribute("data-vertical", vertical);
-  } catch (e) {}
+  } catch {}
 })();

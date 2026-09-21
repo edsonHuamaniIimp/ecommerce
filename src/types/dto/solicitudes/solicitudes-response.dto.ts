@@ -50,6 +50,10 @@ export interface SolicitudDTO {
   tieneFacturacion: boolean;
   tipoFacturacion: string | null;
   facturacionId: string | null;
+  /** Estado del expediente en el SGC (null = no aplica / aun sin expediente). */
+  sgcEstadoEnvio: string | null;
+  sgcLifecycleStatus: string | null;
+  sgcStage: string | null;
 }
 
 export interface SolicitudesPaginatedDTO {

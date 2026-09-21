@@ -63,7 +63,9 @@ export function Header() {
     })();
   }, []);
 
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    queueMicrotask(() => setMenuOpen(false));
+  }, [pathname]);
 
   const handleLogout = async () => {
     await authService.logout();

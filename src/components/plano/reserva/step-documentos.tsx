@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell, FileCheck, PenLine } from "lucide-react";
+import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell, PenLine } from "lucide-react";
 
 interface Props {
   singleStand: boolean;

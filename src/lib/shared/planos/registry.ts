@@ -55,6 +55,16 @@ export function getPlano(id: string): PlanoDefinition | undefined {
   return PLANOS[id];
 }
 
+/**
+ * Igual que getPlano pero falla rapido si el id no esta registrado.
+ * Usar solo con ids de planos garantizados por el sistema.
+ */
+export function requirePlano(id: string): PlanoDefinition {
+  const plano = getPlano(id);
+  if (!plano) throw new Error(`Plano no registrado: ${id}`);
+  return plano;
+}
+
 export function listPlanos(): { id: string; nombre: string; descripcion: string }[] {
   return Object.values(PLANOS).map((p) => ({ id: p.id, nombre: p.nombre, descripcion: p.descripcion }));
 }

@@ -17,7 +17,8 @@ export default async function VinculacionPage() {
       `SELECT plano FROM evento_metadata WHERE tipo_evento = $1 AND codigo_evento = $2`,
       tipoEvento, codigoEvento,
     );
-    if (meta.length > 0 && meta[0].plano) plano = meta[0].plano;
+    const planoMeta = meta[0]?.plano;
+    if (planoMeta) plano = planoMeta;
   }
 
   if (!eventoId) {

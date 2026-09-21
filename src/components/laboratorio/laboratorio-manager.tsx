@@ -5,7 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, Dialog, DialogContent, DialogHeader, DialogTitle, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { FlaskConical, Plus, Save, Download, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw } from "lucide-react";
+import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFurnitureDTO } from "@/types/dto/planos/planos-response.dto";
@@ -71,7 +71,7 @@ function EditorKiosko({ item, selected, onPointerDown }: {
         <boxGeometry args={[2.0, 0.12, 1.4]} />
         <meshStandardMaterial color={selected ? "#f59e0b" : "#A0522D"} />
       </mesh>
-      {[[-0.85, -0.55], [0.85, -0.55], [-0.85, 0.55], [0.85, 0.55]].map(([px, pz], i) => (
+      {[[-0.85, -0.55], [0.85, -0.55], [-0.85, 0.55], [0.85, 0.55]].map(([px = 0, pz = 0], i) => (
         <mesh key={i} position={[px, 0.78, pz]}>
           <cylinderGeometry args={[0.04, 0.04, 1.45, 8]} />
           <meshStandardMaterial color="#6B4226" />
@@ -86,12 +86,11 @@ function DragManager({ dragging, onMove, onEnd }: {
   onMove: (x: number, z: number) => void;
   onEnd: () => void;
 }) {
-  const { gl, camera, raycaster, controls } = useThree();
+  const { gl, camera, raycaster } = useThree();
 
   useEffect(() => {
     if (!dragging) return;
-    // Desactivar OrbitControls de forma sincronica mientras dura el drag
-    if (controls) (controls as unknown as { enabled: boolean }).enabled = false;
+    // OrbitControls se desactiva via la prop `enabled` mientras dura el drag
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const pointer = new THREE.Vector2();
     const point = new THREE.Vector3();
@@ -106,18 +105,16 @@ function DragManager({ dragging, onMove, onEnd }: {
       }
     };
     const onPointerUp = () => {
-      if (controls) (controls as unknown as { enabled: boolean }).enabled = true;
       onEnd();
     };
 
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
     return () => {
-      if (controls) (controls as unknown as { enabled: boolean }).enabled = true;
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [dragging, gl, camera, raycaster, controls, onMove, onEnd]);
+  }, [dragging, gl, camera, raycaster, onMove, onEnd]);
 
   return null;
 }
@@ -210,9 +207,11 @@ export function LaboratorioManager() {
   }, []);
 
   useEffect(() => {
-    loadPlanos().then((data) => {
-      if (data.length > 0) loadDetalle(data[0].id);
-    });
+    (async () => {
+      const data = await loadPlanos();
+      const first = data[0];
+      if (first) await loadDetalle(first.id);
+    })();
   }, [loadPlanos, loadDetalle]);
 
   
@@ -321,7 +320,8 @@ export function LaboratorioManager() {
       setEliminarPlanoOpen(false);
       setPlanoSel(null);
       const lista = await loadPlanos();
-      if (lista.length > 0) await loadDetalle(lista[0].id);
+      const first = lista[0];
+      if (first) await loadDetalle(first.id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al eliminar");
     }
@@ -474,7 +474,7 @@ export function LaboratorioManager() {
                 />
               ))}
               <DragManager dragging={dragging} onMove={moveDrag} onEnd={endDrag} />
-              <OrbitControls makeDefault target={camPos.target} maxPolarAngle={Math.PI / 2.15} minDistance={5} maxDistance={150} />
+              <OrbitControls makeDefault enabled={!dragging} target={camPos.target} maxPolarAngle={Math.PI / 2.15} minDistance={5} maxDistance={150} />
             </Canvas>
           )}
           <div className="absolute left-2 top-2 rounded-md bg-white/80 backdrop-blur px-2 py-1 text-[10px] text-slate-500 pointer-events-none">
@@ -519,6 +519,7 @@ export function LaboratorioManager() {
                   <SelectContent>
                     {Object.values(TIPOLOGIAS_STAND).map((t) => {
                       const lbl = TIPOLOGIAS_STAND_LABELS[t];
+                      if (!lbl) return null;
                       return (
                         <SelectItem key={t} value={t}><span>[{lbl.label}] {lbl.nombre}</span></SelectItem>
                       );
@@ -676,27 +677,37 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
 
   const macrosDisponibles = planos.filter((p) => p.tipo === TIPOS_PLANO.MACRO && !macros.some((m) => m.id === p.id));
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     try {
       const data = await planosService.macrosDePlano(planoId);
       setMacros(data);
     } catch { /* ignore */ }
     setCargado(true);
-  };
-
-  useEffect(() => { setCargado(false); cargar(); }, [planoId]);
+  }, [planoId]);
 
   useEffect(() => {
-    setSeccionSel("");
-    setSeccionesLibres([]);
-    if (!macroSel) return;
-    planosService.detalle(macroSel)
-      .then((macro) => setSeccionesLibres(
-        macro.secciones
-          .filter((s) => !s.planoHijoId)
-          .map((s) => ({ codigo: s.codigo, nombre: s.nombre })),
-      ))
-      .catch(() => setSeccionesLibres([]));
+    (async () => {
+      setCargado(false);
+      await cargar();
+    })();
+  }, [cargar]);
+
+  useEffect(() => {
+    (async () => {
+      setSeccionSel("");
+      setSeccionesLibres([]);
+      if (!macroSel) return;
+      try {
+        const macro = await planosService.detalle(macroSel);
+        setSeccionesLibres(
+          macro.secciones
+            .filter((s) => !s.planoHijoId)
+            .map((s) => ({ codigo: s.codigo, nombre: s.nombre })),
+        );
+      } catch {
+        setSeccionesLibres([]);
+      }
+    })();
   }, [macroSel]);
 
   const handleAsignar = async () => {
@@ -734,7 +745,7 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
     setTrabajando(false);
   };
 
-  const handleQuitar = async (macroId: string) => {
+  const handleQuitar = async () => {
     setTrabajando(true);
     try {
       await planosService.quitarDeMacros(planoId);
@@ -787,7 +798,7 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
                 <p className="text-[11px] font-medium text-slate-700 truncate">{m.nombre}</p>
                 <p className="text-[9px] text-slate-400 font-mono">{m.codigo}</p>
               </div>
-              <Button size="sm" variant="outline" className="h-6 text-[10px] rounded-full" disabled={trabajando} onClick={() => handleQuitar(m.id)}>
+                <Button size="sm" variant="outline" className="h-6 text-[10px] rounded-full" disabled={trabajando} onClick={() => handleQuitar()}>
                 Quitar
               </Button>
             </div>
@@ -913,15 +924,17 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
 
   // Al abrir: resetear seleccion, auto-seleccionar primer tipo y sugerir siguiente ID disponible
   useEffect(() => {
-    if (!open) return;
-    setTipoCodigo(tipos[0]?.codigo ?? "");
-    let n = bloques.length + 1;
-    let candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
-    while (bloques.some((b) => b.bloqueId === candidate)) {
-      n++;
-      candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
-    }
-    setBloqueId(candidate);
+    (async () => {
+      if (!open) return;
+      setTipoCodigo(tipos[0]?.codigo ?? "");
+      let n = bloques.length + 1;
+      let candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
+      while (bloques.some((b) => b.bloqueId === candidate)) {
+        n++;
+        candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
+      }
+      setBloqueId(candidate);
+    })();
   }, [open, tipos, bloques]);
 
   const handleAdd = () => {
@@ -970,6 +983,7 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
               <SelectContent>
                 {Object.values(TIPOLOGIAS_STAND).map((t) => {
                   const lbl = TIPOLOGIAS_STAND_LABELS[t];
+                  if (!lbl) return null;
                   return (
                     <SelectItem key={t} value={t}><span>[{lbl.label}] {lbl.nombre}</span></SelectItem>
                   );

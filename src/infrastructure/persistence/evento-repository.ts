@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/server/db";
 import type { IEventoRepository, EventoCriteria, EventoMetadata } from "@/domain/ports/evento-repository";
-import type { EventoEntity, EventoPadreEntity } from "@/domain/models/entities";
+import type { EventoEntity } from "@/domain/models/entities";
 
 export class EventoPrismaRepository implements IEventoRepository {
   async findAllMetadata(): Promise<EventoMetadata[]> {
@@ -34,28 +34,28 @@ export class EventoPrismaRepository implements IEventoRepository {
       include: { eventos: { orderBy: { anio: "asc" }, where: whereEvento as never } },
       orderBy: { nombre: "asc" },
     });
-    return rows.map((r) => ({ ...r, versiones: r.eventos })) as unknown as (EventoPadreEntity & { versiones: EventoEntity[] })[];
+    return rows.map((r) => ({ ...r, versiones: r.eventos }));
   }
 
   async findAll(activos?: boolean) {
     const where: Record<string, unknown> = {};
     if (activos) where.flgActivo = true;
     const rows = await prisma.evento.findMany({
-      where, include: { eventoPadre: { select: { id: true, nombre: true, codigo: true } }, _count: { select: { stands: true, gessStands: true, reservas: true } } },
+      where, include: { eventoPadre: { select: { id: true, nombre: true, codigo: true, vertical: true } }, _count: { select: { stands: true, gessStands: true, reservas: true } } },
       orderBy: [{ eventoPadre: { nombre: "asc" } }, { anio: "desc" }],
     });
-    return rows as unknown as EventoEntity[];
+    return rows;
   }
 
   async findById(id: string) {
-    const row = await prisma.evento.findUnique({ where: { id }, include: { eventoPadre: { select: { id: true, nombre: true, vertical: true } } } });
-    return (row as unknown as EventoEntity) ?? null;
+    const row = await prisma.evento.findUnique({ where: { id }, include: { eventoPadre: { select: { id: true, nombre: true, vertical: true, codigo: true } } } });
+    return row ?? null;
   }
 
   async create(data: { eventoPadreId: string; anio: string; tipoEvento?: number; codigoEvento?: number; fechaInicio?: Date; fechaFin?: Date }) {
     const maxCodigo = await prisma.evento.findFirst({ where: { eventoPadreId: data.eventoPadreId }, orderBy: { codigoEvento: "desc" }, select: { codigoEvento: true } });
-    const row = await prisma.evento.create({ data: { ...data, tipoEvento: data.tipoEvento ?? 0, codigoEvento: (maxCodigo?.codigoEvento ?? 0) + 1, estado: "draft" }, include: { eventoPadre: { select: { nombre: true } } } });
-    return row as unknown as EventoEntity;
+    const row = await prisma.evento.create({ data: { ...data, tipoEvento: data.tipoEvento ?? 0, codigoEvento: (maxCodigo?.codigoEvento ?? 0) + 1, estado: "draft" }, include: { eventoPadre: { select: { id: true, nombre: true, vertical: true, codigo: true } } } });
+    return row;
   }
 
   async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>) {
@@ -69,7 +69,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     if (data.flgVisible !== undefined) updateData.flgVisible = data.flgVisible;
     if (data.plano !== undefined) updateData.plano = data.plano === "" ? null : data.plano;
     const row = await prisma.evento.update({ where: { id }, data: updateData });
-    return row as unknown as EventoEntity;
+    return row;
   }
 
   async upsertByTipoCodigo(tipoEvento: number, codigoEvento: number, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>) {
@@ -100,7 +100,7 @@ export class EventoPrismaRepository implements IEventoRepository {
       throw err;
     }
 
-    return { id: `${tipoEvento}-${codigoEvento}` } as unknown as EventoEntity;
+    return { id: `${tipoEvento}-${codigoEvento}` } as EventoEntity;
   }
 
   async findEventoPorPlano(planoCodigo: string, exceptTipoEvento?: number, exceptCodigoEvento?: number): Promise<{ tipoEvento: number; codigoEvento: number } | null> {

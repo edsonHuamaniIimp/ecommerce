@@ -33,6 +33,8 @@ export const PUBLIC_API_ROUTES = [
   "/api/stands/exhibidora",
   "/api/stands/contrato",
   "/api/planos/publico",
+  "/api/integracion/sgc/webhook",
+  "/api/cron/sgc-reconciliar",
 ] as const;
 
 /** URL base de la aplicacion. En produccion se configura via variable de entorno. */
@@ -78,6 +80,14 @@ export const ESTADOS_STAND = {
 } as const;
 
 export type EstadoStand = (typeof ESTADOS_STAND)[keyof typeof ESTADOS_STAND];
+
+/** Etiquetas heredadas que devuelven GESS/KB para el estado del stand. */
+export const ESTADOS_STAND_LEGACY = {
+  RESERVADO: "Reservado",
+  EN_EVALUACION: "En evaluacion",
+  AVAILABLE: "available",
+  RESERVED: "reserved",
+} as const;
 
 /** item_id en maestra (tabla stand_estado) para cada estado */
 export const ESTADOS_STAND_MAESTRA_ID: Record<string, number> = {
@@ -155,6 +165,19 @@ export const TIPOS_COMPROBANTE = {
 } as const;
 
 export type TipoComprobante = (typeof TIPOS_COMPROBANTE)[keyof typeof TIPOS_COMPROBANTE];
+
+/* ================================================================
+   Tipos de documento de identidad
+   ================================================================ */
+export const TIPOS_DOCUMENTO = {
+  RUC: "RUC",
+  DNI: "DNI",
+} as const;
+
+export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[keyof typeof TIPOS_DOCUMENTO];
+
+/** Identificador del usuario/alerta reservado para administracion (no es un rol). */
+export const ADMIN_USER_ID = "admin";
 
 /* ================================================================
    Áreas de aprobación
@@ -252,6 +275,40 @@ export const ALL_PERMISSIONS = [
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
 
+/**
+ * Claves de permisos individuales. Usar SIEMPRE estas constantes en vez de
+ * strings literales ("admin:full", "solicitudes:notify", etc.).
+ */
+export const PERMISSIONS = {
+  ADMIN_FULL: "admin:full",
+  DASHBOARD_VIEW: "dashboard:view",
+  EVENTOS_DATOS: "eventos:datos",
+  STANDS_VINCULACION: "stands:vinculacion",
+  STANDS_MANAGE: "stands:manage",
+  STANDS_PLANO: "stands:plano",
+  AUSPICIOS_VIEW: "auspicios:view",
+  LABORATORIO_VIEW: "laboratorio:view",
+  LABORATORIO_MANAGE: "laboratorio:manage",
+  FACTURACION_VIEW: "facturacion:view",
+  SOLICITUDES_VIEW: "solicitudes:view",
+  SOLICITUDES_REVIEW_COMUNICACION: "solicitudes:review:comunicacion",
+  SOLICITUDES_REVIEW_LEGAL: "solicitudes:review:legal",
+  SOLICITUDES_REVIEW_LOGISTICA: "solicitudes:review:logistica",
+  SOLICITUDES_NOTIFY: "solicitudes:notify",
+  SOLICITUDES_UPLOAD: "solicitudes:upload",
+  READ_RESERVAS: "read:reservas",
+  WRITE_RESERVAS: "write:reservas",
+  APPROVE_ALL: "approve:all",
+  APPROVE_LOGISTICA: "approve:logistica",
+  APPROVE_LEGAL: "approve:legal",
+  APPROVE_COMUNICACION: "approve:comunicacion",
+  ROLES_MANAGE: "roles:manage",
+  EVENTS_MANAGE: "events:manage",
+  EVENTS_CREATE: "events:create",
+  EVENTS_EDIT: "events:edit",
+  EVENTS_TOGGLE: "events:toggle",
+} as const satisfies Record<string, Permission>;
+
 export const PERMISSION_SECTIONS = {
   SISTEMA: "sistema",
   DASHBOARD: "dashboard",
@@ -287,11 +344,17 @@ export const REVISION_AREAS = {
 
 export type RevisionArea = (typeof REVISION_AREAS)[keyof typeof REVISION_AREAS];
 
+/**
+ * Orden de las revisiones LOCALES. La revisión **Legal** ya no es local: se delega
+ * al SGC (su `internal-review`). Por eso el pipeline local termina en Comunicación.
+ */
 export const REVISION_AREA_ORDER: RevisionArea[] = [
   REVISION_AREAS.LOGISTICA,
   REVISION_AREAS.COMUNICACION,
-  REVISION_AREAS.LEGAL,
 ];
+
+/** Etiqueta del paso (visual, no local) que representa la revisión Legal del SGC. */
+export const REVISION_AREA_SGC_LABEL = "Legal (SGC)";
 
 export const REVISION_AREA_LABELS: Record<RevisionArea, string> = {
   [REVISION_AREAS.COMUNICACION]: "Comunicacion",
@@ -309,8 +372,8 @@ export const REVISION_AREA_PERMISSIONS: Record<RevisionArea, string> = {
     Si es null, significa que es la ultima area y se notifica al admin. */
 export const REVISION_AREA_NEXT_ROLE: Record<RevisionArea, string | null> = {
   [REVISION_AREAS.LOGISTICA]: ROLES.COMUNICACION,
-  [REVISION_AREAS.COMUNICACION]: ROLES.LEGAL,
-  [REVISION_AREAS.LEGAL]: null, // ultima area → notificar admin
+  [REVISION_AREAS.COMUNICACION]: null, // ultima area LOCAL → notificar admin + delegar al SGC
+  [REVISION_AREAS.LEGAL]: null, // delegada al SGC (no local)
 } as const;
 
 /* ================================================================
@@ -430,6 +493,8 @@ export const MONEDAS = {
   USD: "USD",
   PEN: "PEN",
   US_DOLAR: "US$",
+  /** Simbolo de sol usado por la API externa de auspicios. */
+  SOL: "S/",
 } as const;
 
 export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
@@ -503,3 +568,201 @@ export const BADGE_STYLES = {
 export type BadgeStyle = (typeof BADGE_STYLES)[keyof typeof BADGE_STYLES];
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];
+
+/* ================================================================
+   Integración SGC (Sistema de Gestión de Contratos)
+   Contrato externo: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
+   ================================================================ */
+export const SGC_MODES = {
+  MOCK: "mock",
+  REAL: "real",
+} as const;
+
+export type SgcMode = (typeof SGC_MODES)[keyof typeof SGC_MODES];
+
+export const SGC_EVENT_TYPES = {
+  WORKFLOW_STARTED: "workflow.started",
+  WORKFLOW_ADVANCED: "workflow.advanced",
+  WORKFLOW_RETURNED: "workflow.returned",
+  WORKFLOW_APPROVED: "workflow.approved",
+  WORKFLOW_REJECTED: "workflow.rejected",
+  CONTRACT_CLOSED: "contract.closed",
+} as const;
+
+export type SgcEventType = (typeof SGC_EVENT_TYPES)[keyof typeof SGC_EVENT_TYPES];
+
+export const SGC_DOCUMENT_CATEGORIES = {
+  CONTRACT: "contract",
+  ANNEX: "annex",
+} as const;
+
+export type SgcDocumentCategory = (typeof SGC_DOCUMENT_CATEGORIES)[keyof typeof SGC_DOCUMENT_CATEGORIES];
+
+export const SGC_STAGES = {
+  DRAFTING: "drafting",
+  INTERNAL_REVIEW: "internal-review",
+  APPROVAL: "approval",
+  VALIDITY: "validity",
+  CLOSED: "closed",
+} as const;
+
+export type SgcStage = (typeof SGC_STAGES)[keyof typeof SGC_STAGES];
+
+export const SGC_LIFECYCLE_STATUSES = {
+  ACTIVE: "active",
+  FINALIZED: "finalized",
+  OBSERVED: "observed",
+  REJECTED: "rejected",
+} as const;
+
+export type SgcLifecycleStatus = (typeof SGC_LIFECYCLE_STATUSES)[keyof typeof SGC_LIFECYCLE_STATUSES];
+
+export const SGC_APPROVAL_MARKS = {
+  ACKNOWLEDGEMENT: "acknowledgement",
+  VISA: "visa",
+  NORMAL_SIGNATURE: "normal-signature",
+  STAMP: "stamp",
+} as const;
+
+export type SgcApprovalMark = (typeof SGC_APPROVAL_MARKS)[keyof typeof SGC_APPROVAL_MARKS];
+
+export const SGC_STEP_STATUSES = {
+  COMPLETED: "completed",
+  CURRENT: "current",
+  PENDING: "pending",
+} as const;
+
+export type SgcStepStatus = (typeof SGC_STEP_STATUSES)[keyof typeof SGC_STEP_STATUSES];
+
+export const SGC_VERSION_STATUS = {
+  AVAILABLE: "available",
+  PRESERVED: "preserved",
+} as const;
+
+export type SgcVersionStatus = (typeof SGC_VERSION_STATUS)[keyof typeof SGC_VERSION_STATUS];
+
+export const SGC_APPROVAL_RESULT = {
+  ACCEPTED: "accepted",
+  REJECTED: "rejected",
+} as const;
+
+export type SgcApprovalResult = (typeof SGC_APPROVAL_RESULT)[keyof typeof SGC_APPROVAL_RESULT];
+
+export const SGC_CREATE_STATUS = {
+  CREATED: "created",
+} as const;
+
+export const SGC_FINALIZATION = {
+  ACTIVE: "active",
+  FINALIZED: "finalized",
+} as const;
+
+export type SgcFinalization = (typeof SGC_FINALIZATION)[keyof typeof SGC_FINALIZATION];
+
+export const SGC_ESTADO_ENVIO = {
+  PENDIENTE: "pendiente",
+  CREADO: "creado",
+  ERROR: "error",
+} as const;
+
+export type SgcEstadoEnvio = (typeof SGC_ESTADO_ENVIO)[keyof typeof SGC_ESTADO_ENVIO];
+
+export const SGC_DOCUMENTO_ESTADO = {
+  RESERVADO: "reservado",
+  SUBIDO: "subido",
+  CONFIRMADO: "confirmado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type SgcDocumentoEstado = (typeof SGC_DOCUMENTO_ESTADO)[keyof typeof SGC_DOCUMENTO_ESTADO];
+
+/** Métodos HTTP (evita literales en clientes/servicios). */
+export const HTTP_METHODS = {
+  GET: "GET",
+  POST: "POST",
+  PATCH: "PATCH",
+  PUT: "PUT",
+  DELETE: "DELETE",
+} as const;
+
+export type HttpMethod = (typeof HTTP_METHODS)[keyof typeof HTTP_METHODS];
+
+/** Rutas de la API de integración del SGC, relativas a `SGC_API_URL`. */
+export const SGC_API_PATHS = {
+  CONTRACTS: "/contracts",
+  CONTRACT: (id: string) => `/contracts/${encodeURIComponent(id)}`,
+  CONTRACT_DOCUMENTS: (id: string) => `/contracts/${encodeURIComponent(id)}/documents`,
+  DOCUMENT: (id: string) => `/documents/${encodeURIComponent(id)}`,
+  DOCUMENT_VERSION: (id: string) => `/document-versions/${encodeURIComponent(id)}`,
+  DOCUMENT_VERSION_COMPLETE: (id: string) => `/document-versions/${encodeURIComponent(id)}/complete`,
+  DOCUMENT_VERSION_DOWNLOAD: (id: string) => `/document-versions/${encodeURIComponent(id)}/download`,
+} as const;
+
+/** Outbox SGC: estados, operaciones y politica de reintentos. */
+export const SGC_OUTBOX_ESTADO = {
+  PENDIENTE: "pendiente",
+  ENVIADO: "enviado",
+  ERROR: "error",
+} as const;
+
+export type SgcOutboxEstado = (typeof SGC_OUTBOX_ESTADO)[keyof typeof SGC_OUTBOX_ESTADO];
+
+export const SGC_OUTBOX_OPERACION = {
+  SUBIR_CONTRATO: "subir-contrato",
+  SUBIR_ANEXOS: "subir-anexos",
+  SUBSANAR: "subsanar",
+} as const;
+
+export type SgcOutboxOperacion = (typeof SGC_OUTBOX_OPERACION)[keyof typeof SGC_OUTBOX_OPERACION];
+
+export const SGC_OUTBOX_MAX_INTENTOS = 6;
+export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
+
+export const SGC_API_VERSION = "2026-09-01";
+export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
+export const SGC_WEBHOOK_TOLERANCE_SECONDS = 300;
+export const SGC_WEBHOOK_SIGNATURE_HEADER = "x-sgc-signature";
+export const SGC_WEBHOOK_DELIVERY_HEADER = "x-sgc-delivery";
+export const CRON_SECRET_HEADER = "x-cron-secret";
+/**
+ * Área local que dispara la delegación al SGC. Las revisiones locales se agotan en
+ * Comunicación; la revisión **Legal** pasa a ser el `internal-review` del SGC.
+ * Cambiar a `REVISION_AREAS.LEGAL` revierte al disparo por revisión Legal.
+ */
+export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.COMUNICACION;
+export const SGC_PROCESS_ORIGIN = "ContratosStands";
+export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
+export const SGC_CODE_PREFIX = "STAND";
+export const SGC_EXPEDIENTE_NAME_PREFIX = "Separacion de stand";
+
+/** Formatos admitidos por el SGC: extension → mime declarado exacto */
+export const SGC_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+};
+
+export const SGC_MIME_TYPE_DEFAULT = "application/octet-stream";
+
+export const SGC_STEP_STATUS_LABELS: Record<string, string> = {
+  [SGC_STEP_STATUSES.COMPLETED]: "Completado",
+  [SGC_STEP_STATUSES.CURRENT]: "En curso",
+  [SGC_STEP_STATUSES.PENDING]: "Pendiente",
+};
+
+export const SGC_APPROVAL_MARK_LABELS: Record<string, string> = {
+  [SGC_APPROVAL_MARKS.ACKNOWLEDGEMENT]: "Visto bueno",
+  [SGC_APPROVAL_MARKS.VISA]: "Visado",
+  [SGC_APPROVAL_MARKS.NORMAL_SIGNATURE]: "Firma",
+  [SGC_APPROVAL_MARKS.STAMP]: "Sello",
+};
+
+export const SGC_LIFECYCLE_LABELS: Record<string, string> = {
+  [SGC_LIFECYCLE_STATUSES.ACTIVE]: "Vigente",
+  [SGC_LIFECYCLE_STATUSES.FINALIZED]: "Cerrado",
+  [SGC_LIFECYCLE_STATUSES.OBSERVED]: "Observado",
+  [SGC_LIFECYCLE_STATUSES.REJECTED]: "Rechazado",
+};

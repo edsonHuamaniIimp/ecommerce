@@ -1,19 +1,23 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_ORDER, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS } from "@/lib/shared/constants";
+import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
+import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { useSearchParams } from "next/navigation";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -31,32 +35,6 @@ function necesitaDocs(row: SolicitudRow) { return esMultiStand(row) && (!tieneDo
 function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row) && !necesitaDocs(row); }
 function adminDebeSubirContrato(row: SolicitudRow) { return esMultiStand(row) && estaPendiente(row) && !tieneDocsAdmin(row); }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
-
-interface RevisionData {
-  id: string;
-  area: string;
-  estado: string;
-  comentario: string | null;
-}
-
-function isCompletamenteAprobada(row: SolicitudRow): boolean {
-  const areas = [REVISION_AREAS.COMUNICACION, REVISION_AREAS.LEGAL, REVISION_AREAS.LOGISTICA];
-  return areas.every((area) => {
-    const rev = row.revisiones.find((r) => r.area === area);
-    return rev?.estado === RESULTADOS_APROBACION.APROBADO;
-  });
-}
-
-function countAprobadas(row: SolicitudRow): number {
-  return row.revisiones.filter((r) => r.estado === RESULTADOS_APROBACION.APROBADO).length;
-}
-
-function todasAreaRevisadas(row: SolicitudRow): boolean {
-  return REVISION_AREA_ORDER.every((area) => {
-    const rev = row.revisiones.find((r) => r.area === area);
-    return rev && rev.estado !== RESULTADOS_APROBACION.PENDIENTE;
-  });
-}
 
 function DetailSection({ id, title, open, onToggle, children }: { id: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) {
   return (
@@ -86,6 +64,7 @@ function DetailSection({ id, title, open, onToggle, children }: { id: string; ti
 
 function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const searchParams = useSearchParams();
+  const autoOpenId = searchParams.get("id");
   const [rows, setRows] = useState<SolicitudRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -114,28 +93,27 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [bajaOpen, setBajaOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [hasViewPerm, setHasViewPerm] = useState(false);
-  const [estadoLabels, setEstadoLabels] = useState<Record<string, string>>({});
   const [solicitudEstadoLabels, setSolicitudEstadoLabels] = useState<Record<string, string>>({});
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
 
+  const pageRef = useRef(page);
+  const perPageRef = useRef(perPage);
+  const reviewOpenRef = useRef(reviewOpen);
+  const autoOpenIdRef = useRef(autoOpenId);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { perPageRef.current = perPage; }, [perPage]);
+  useEffect(() => { reviewOpenRef.current = reviewOpen; }, [reviewOpen]);
+  useEffect(() => { autoOpenIdRef.current = autoOpenId; }, [autoOpenId]);
+
   useEffect(() => {
-    maestraService.listar(MAESTRA_TABLAS.STAND_ESTADO).then((items) => {
-      const map: Record<string, string> = {};
-      for (const item of items) {
-        if (item.itemId !== null) map[String(item.itemId)] = item.nombre;
-      }
-      for (const [key, itemId] of Object.entries(ESTADOS_STAND_MAESTRA_ID)) {
-        if (map[String(itemId)]) map[key] = map[String(itemId)];
-      }
-      setEstadoLabels(map);
-    }).catch(() => {});
     maestraService.listar(MAESTRA_TABLAS.SOLICITUD_ESTADO).then((items) => {
       const map: Record<string, string> = {};
       for (const item of items) {
         if (item.itemId !== null) map[String(item.itemId)] = item.nombre;
       }
       for (const [key, itemId] of Object.entries(ESTADOS_SOLICITUD_MAESTRA_ID)) {
-        if (map[String(itemId)]) map[key] = map[String(itemId)];
+        const label = map[String(itemId)];
+        if (label) map[key] = label;
       }
       setSolicitudEstadoLabels(map);
     }).catch(() => {});
@@ -145,20 +123,19 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     (async () => {
       const session = await authService.getSession();
       setUserPermissions(session.permissions ?? []);
-      setHasViewPerm((session.permissions ?? []).includes("solicitudes:view"));
+      setHasViewPerm((session.permissions ?? []).includes(PERMISSIONS.SOLICITUDES_VIEW));
     })();
   }, []);
 
-  const load = async (p?: number, s?: string, pp?: number) => {
+  const load = useCallback(async (p?: number, s?: string, pp?: number) => {
     setLoading(true);
     try {
-      const data = await solicitudesService.listar(eventoId, p ?? page, pp ?? perPage, s);
+      const data = await solicitudesService.listar(eventoId, p ?? pageRef.current, pp ?? perPageRef.current, s);
       setRows(data.data?.filter((r) => r.flgActivo !== false) ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
 
-      const autoOpenId = searchParams.get("id");
-      if (autoOpenId && !reviewOpen) {
-        const found = data.data?.find((r) => r.id === autoOpenId);
+      if (autoOpenIdRef.current && !reviewOpenRef.current) {
+        const found = data.data?.find((r) => r.id === autoOpenIdRef.current);
         if (found) { setReviewRow(found); setReviewOpen(true); }
         // Clean URL to avoid re-opening on reload
         const next = new URL(window.location.href);
@@ -167,12 +144,16 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       }
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [eventoId]);
 
-  useEffect(() => { load(); }, [eventoId]);
+  useEffect(() => {
+    (async () => { await load(); })();
+  }, [load]);
 
   useAlertaNavigate("/dashboard/solicitudes", (row) => {
-    setDetailRow(row as unknown as SolicitudRow); setDetailOpen(true);
+    if (typeof row.id !== "string" || typeof row.standCode !== "string") return;
+    setDetailRow(row as SolicitudRow);
+    setDetailOpen(true);
   });
 
   const handleReviewSaved = async (updated: SolicitudRow) => {
@@ -216,8 +197,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     setNotificarSending(false);
   };
 
-  const canNotify = userPermissions.includes("solicitudes:notify") || userPermissions.includes("admin:full");
-  const canUpload = userPermissions.includes("solicitudes:upload") || userPermissions.includes("admin:full");
+  const canNotify = userPermissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) || userPermissions.includes(PERMISSIONS.ADMIN_FULL);
 
   const handleUploadDoc = async (file: File) => {
     if (!uploadRow) return;
@@ -564,7 +544,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       <button key={i}
                         className="h-14 w-14 overflow-hidden rounded border hover:opacity-80 transition-opacity"
                         onClick={() => setImgCarousel({ images: detailRow.imagenes as string[], idx: i })}>
-                        <img src={url} className="h-full w-full object-cover" />
+                        <Image width={64} height={64} src={url} alt={`Imagen ${i + 1}`} className="h-full w-full object-cover" />
                       </button>
                     ))}
                     {detailRow.imagenes.length > 4 && (
@@ -673,7 +653,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                           </Badge>
                         </div>
                         {reev.motivo && (
-                          <p className="text-[11px] text-muted-foreground italic mb-1">"{reev.motivo}"</p>
+                          <p className="text-[11px] text-muted-foreground italic mb-1">&quot;{reev.motivo}&quot;</p>
                         )}
                         {docs.length > 0 && (
                           <div className="space-y-0.5 mt-1">
@@ -700,7 +680,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               {/* Estado de revision */}
               <DetailSection id="revision" title="Estado de revision" open={accordionOpen === "revision"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="space-y-1.5">
-                  {[REVISION_AREAS.COMUNICACION, REVISION_AREAS.LEGAL, REVISION_AREAS.LOGISTICA].map((area) => {
+                  {areasRevisionLocal(detailRow.revisiones).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
                     return (
@@ -712,7 +692,20 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       </div>
                     );
                   })}
+                  {legalDelegadaAlSgc(detailRow.revisiones) && (
+                    <div className="flex items-center justify-between rounded bg-muted/30 px-2 py-1 text-xs">
+                      <span className="font-medium">{REVISION_AREA_SGC_LABEL}</span>
+                      <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
+                        <span>Delegado al SGC</span>
+                      </Badge>
+                    </div>
+                  )}
                 </div>
+              </DetailSection>
+
+              {/* Expediente SGC */}
+              <DetailSection id="sgc" title="Expediente SGC" open={accordionOpen === "sgc"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
+                <SgcExpedientePanel solicitudId={detailRow.id} />
               </DetailSection>
             </>
           )}
@@ -795,7 +788,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     {reev.motivo && (
                       <div className="rounded-lg border bg-amber-50 p-3">
                         <p className="text-[10px] font-semibold text-amber-700 mb-1">Justificacion del cliente:</p>
-                        <p className="text-xs text-slate-700 italic">"{reev.motivo}"</p>
+                        <p className="text-xs text-slate-700 italic">&quot;{reev.motivo}&quot;</p>
                       </div>
                     )}
                     {reev.documentos && Array.isArray(reev.documentos) && (reev.documentos as string[]).length > 0 && (
@@ -919,7 +912,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
             >
               <span className="text-lg">‹</span>
             </button>
-            <img src={imgCarousel.images[imgCarousel.idx]} className="max-h-[70vh] w-full object-contain" />
+            <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}

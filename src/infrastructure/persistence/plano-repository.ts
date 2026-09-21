@@ -3,84 +3,153 @@ import 'server-only';
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion } from "@/domain/models/plano-entities";
-import { ESTADOS_STAND, TIPOS_PLANO } from "@/lib/shared/constants";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_PLANO } from "@/lib/shared/constants";
 
-function mapTipo(r: Record<string, unknown>): PlanoTipoBloqueEntity {
+interface PlanoTipoRow {
+  id: string;
+  planoId: string;
+  codigo: string;
+  label: string;
+  nombre: string;
+  w: number;
+  d: number;
+  h: number;
+  color: string;
+}
+
+interface PlanoBloqueRow {
+  id: string;
+  planoId: string;
+  tipoId: string | null;
+  bloqueId: string;
+  tipoCodigo: string;
+  tipologia: string | null;
+  x: number;
+  z: number;
+  rotY: number;
+  orden: number;
+  flgActivo: boolean;
+}
+
+interface PlanoFurnitureRow {
+  id: string;
+  planoId: string;
+  refId: string;
+  tipo: string;
+  x: number;
+  z: number;
+  rotY: number;
+  config: unknown;
+}
+
+interface PlanoSeccionRow {
+  id: string;
+  planoId: string;
+  codigo: string;
+  nombre: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotacion: number;
+  color: string;
+  planoHijoId: string | null;
+  orden: number;
+}
+
+interface PlanoRow {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  tipo: string;
+  imagenFondo: string | null;
+  config: unknown;
+  flgActivo: boolean;
+  tipos: PlanoTipoRow[];
+  bloques: PlanoBloqueRow[];
+  furniture: PlanoFurnitureRow[];
+  secciones: PlanoSeccionRow[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function mapTipo(r: PlanoTipoRow): PlanoTipoBloqueEntity {
   return {
-    id: r.id as string,
-    planoId: r.planoId as string,
-    codigo: r.codigo as string,
-    label: r.label as string,
-    nombre: r.nombre as string,
-    w: r.w as number,
-    d: r.d as number,
-    h: r.h as number,
-    color: r.color as string,
+    id: r.id,
+    planoId: r.planoId,
+    codigo: r.codigo,
+    label: r.label,
+    nombre: r.nombre,
+    w: r.w,
+    d: r.d,
+    h: r.h,
+    color: r.color,
   };
 }
 
-function mapBloque(r: Record<string, unknown>): PlanoBloqueEntity {
+function mapBloque(r: PlanoBloqueRow): PlanoBloqueEntity {
   return {
-    id: r.id as string,
-    planoId: r.planoId as string,
-    tipoId: (r.tipoId as string | null) ?? null,
-    bloqueId: r.bloqueId as string,
-    tipoCodigo: r.tipoCodigo as string,
-    tipologia: (r.tipologia as string | null) ?? null,
-    x: r.x as number,
-    z: r.z as number,
-    rotY: r.rotY as number,
-    orden: r.orden as number,
-    flgActivo: r.flgActivo as boolean,
+    id: r.id,
+    planoId: r.planoId,
+    tipoId: r.tipoId ?? null,
+    bloqueId: r.bloqueId,
+    tipoCodigo: r.tipoCodigo,
+    tipologia: r.tipologia ?? null,
+    x: r.x,
+    z: r.z,
+    rotY: r.rotY,
+    orden: r.orden,
+    flgActivo: r.flgActivo,
   };
 }
 
-function mapFurniture(r: Record<string, unknown>): PlanoFurnitureEntity {
+function mapFurniture(r: PlanoFurnitureRow): PlanoFurnitureEntity {
   return {
-    id: r.id as string,
-    planoId: r.planoId as string,
-    refId: r.refId as string,
-    tipo: r.tipo as string,
-    x: r.x as number,
-    z: r.z as number,
-    rotY: r.rotY as number,
+    id: r.id,
+    planoId: r.planoId,
+    refId: r.refId,
+    tipo: r.tipo,
+    x: r.x,
+    z: r.z,
+    rotY: r.rotY,
     config: r.config ?? null,
   };
 }
 
-function mapSeccion(r: Record<string, unknown>): PlanoSeccionEntity {
+function mapSeccion(r: PlanoSeccionRow): PlanoSeccionEntity {
   return {
-    id: r.id as string,
-    planoId: r.planoId as string,
-    codigo: r.codigo as string,
-    nombre: r.nombre as string,
-    x: r.x as number,
-    y: r.y as number,
-    w: r.w as number,
-    h: r.h as number,
-    rotacion: (r.rotacion as number) ?? 0,
-    color: r.color as string,
-    planoHijoId: (r.planoHijoId as string | null) ?? null,
-    orden: r.orden as number,
+    id: r.id,
+    planoId: r.planoId,
+    codigo: r.codigo,
+    nombre: r.nombre,
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    h: r.h,
+    rotacion: r.rotacion ?? 0,
+    color: r.color,
+    planoHijoId: r.planoHijoId ?? null,
+    orden: r.orden,
   };
 }
 
-function mapPlano(r: Record<string, unknown>): PlanoEntity {
+function mapPlano(r: PlanoRow): PlanoEntity {
   return {
-    id: r.id as string,
-    codigo: r.codigo as string,
-    nombre: r.nombre as string,
-    descripcion: (r.descripcion as string | null) ?? null,
-    tipo: (r.tipo as string) ?? TIPOS_PLANO.SIMPLE,
-    imagenFondo: (r.imagenFondo as string | null) ?? null,
+    id: r.id,
+    codigo: r.codigo,
+    nombre: r.nombre,
+    descripcion: r.descripcion ?? null,
+    tipo: r.tipo ?? TIPOS_PLANO.SIMPLE,
+    imagenFondo: r.imagenFondo ?? null,
     config: r.config ?? null,
-    flgActivo: r.flgActivo as boolean,
-    tipos: ((r.tipos as Record<string, unknown>[]) ?? []).map(mapTipo),
-    bloques: ((r.bloques as Record<string, unknown>[]) ?? []).map(mapBloque),
-    furniture: ((r.furniture as Record<string, unknown>[]) ?? []).map(mapFurniture),
-    secciones: ((r.secciones as Record<string, unknown>[]) ?? []).map(mapSeccion),
-    createdAt: r.createdAt as Date,
-    updatedAt: r.updatedAt as Date,
+    flgActivo: r.flgActivo,
+    tipos: r.tipos.map(mapTipo),
+    bloques: r.bloques.map(mapBloque),
+    furniture: r.furniture.map(mapFurniture),
+    secciones: r.secciones.map(mapSeccion),
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   };
 }
 
@@ -120,12 +189,12 @@ export class PlanoPrismaRepository implements IPlanoRepository {
 
   async detalle(id: string): Promise<PlanoEntity | null> {
     const r = await prisma.plano.findUnique({ where: { id }, include: FULL_INCLUDE });
-    return r ? mapPlano(r as unknown as Record<string, unknown>) : null;
+    return r ? mapPlano(r) : null;
   }
 
   async detallePorCodigo(codigo: string): Promise<PlanoEntity | null> {
     const r = await prisma.plano.findUnique({ where: { codigo }, include: FULL_INCLUDE });
-    return r ? mapPlano(r as unknown as Record<string, unknown>) : null;
+    return r ? mapPlano(r) : null;
   }
 
   async planosDeEvento(tipoEvento: number, codigoEvento: number): Promise<PlanoEntity[]> {
@@ -149,10 +218,10 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       where: { id: { in: hijoIds }, flgActivo: true },
       include: FULL_INCLUDE,
     });
-    const hijosMap = new Map(hijos.map((h) => [h.id, h as unknown as Record<string, unknown>]));
+    const hijosMap = new Map<string, PlanoRow>(hijos.map((h): [string, PlanoRow] => [h.id, h]));
     const hijosEntity = principal.secciones
       .map((s) => (s.planoHijoId ? hijosMap.get(s.planoHijoId) : undefined))
-      .filter((v): v is Record<string, unknown> => !!v)
+      .filter((v): v is PlanoRow => !!v)
       .map(mapPlano);
 
     return [principal, ...hijosEntity];
@@ -163,7 +232,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       data: { codigo: data.codigo, nombre: data.nombre, descripcion: data.descripcion ?? null, tipo: data.tipo ?? TIPOS_PLANO.SIMPLE },
       include: FULL_INCLUDE,
     });
-    return mapPlano(r as unknown as Record<string, unknown>);
+    return mapPlano(r);
   }
 
   async actualizarMeta(id: string, data: { nombre?: string; descripcion?: string | null; flgActivo?: boolean; tipo?: string; imagenFondo?: string | null }): Promise<PlanoEntity> {
@@ -178,7 +247,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       },
       include: FULL_INCLUDE,
     });
-    return mapPlano(r as unknown as Record<string, unknown>);
+    return mapPlano(r);
   }
 
   async eliminar(id: string): Promise<void> {
@@ -354,7 +423,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       });
       const total = stands.length;
       const disponibles = stands.filter(
-        (s) => !s.estado || s.estado === "disponible" || (s.estado !== ESTADOS_STAND.EN_EVALUACION && s.estado !== ESTADOS_STAND.RESERVADO && s.estado !== "Reservado" && s.estado !== "En evaluacion"),
+        (s) => !s.estado || s.estado === ESTADOS_STAND.DISPONIBLE || (s.estado !== ESTADOS_STAND.EN_EVALUACION && s.estado !== ESTADOS_STAND.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.EN_EVALUACION),
       ).length;
       resultado.push({
         seccionCodigo: seccion.codigo,

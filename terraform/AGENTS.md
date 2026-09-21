@@ -1,7 +1,7 @@
 # AGENTS.md — Instrucciones para agentes (MCP Terraform / AWS)
 
 > Convención obligatoria para cualquier operación de infraestructura de **contratos-stands**.
-> Reglas completas: `docs/01-despliegue/REGLAS-DESPLIEGUE.md` (originadas por el LT del equipo).
+> Reglas completas: `docs/02-despliegue/REGLAS-DESPLIEGUE.md` (originadas por el LT del equipo).
 
 ## Reglas de oro (reglas del LT + dueño del proyecto)
 
@@ -31,7 +31,7 @@ managed-by  = "terraform"
 cost-center = "eventos-iimp"
 ```
 
-## Arquitectura (ver `docs/01-despliegue/arquitectura-aws.md`)
+## Arquitectura (ver `docs/02-despliegue/arquitectura-aws.md`)
 
 ```
 modules/

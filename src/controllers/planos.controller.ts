@@ -1,14 +1,14 @@
 import type { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { planoCrearSchema, planoMetaSchema, planoLayoutSchema, planoImportarSchema, planoSeccionesSchema } from "@/validators/planos.validator";
 
 async function requireAdmin() {
   const session = await getSession();
   if (!session) return { err: error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401) };
-  if (!session.permissions.includes("laboratorio:manage") && !session.permissions.includes("admin:full")) {
+  if (!session.permissions.includes(PERMISSIONS.LABORATORIO_MANAGE) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
     return { err: error(API_ERROR_CODES.FORBIDDEN, "Sin permisos de laboratorio", 403) };
   }
   return { session };

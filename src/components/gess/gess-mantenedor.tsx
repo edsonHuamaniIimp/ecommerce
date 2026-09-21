@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
-import { getPlano } from "@/lib/shared/planos/registry";
+import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
-import type { GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
+import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
 
@@ -40,7 +40,7 @@ function formatValue(val: unknown): string {
 }
 
 export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: planoId }: Props) {
-  const planoFallback = getPlano(planoId) ?? getPlano("gess")!;
+  const planoFallback = getPlano(planoId) ?? requirePlano("gess");
   const [bloquesEvento, setBloquesEvento] = useState<BloqueEvento[]>([]);
   const [bloquesCargados, setBloquesCargados] = useState(false);
 
@@ -66,7 +66,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     return () => { cancelled = true; };
   }, [tipoEvento, codigoEvento]);
 
-  const BLOQUE_IDS = bloquesCargados && bloquesEvento.length > 0 ? bloquesEvento.map((b) => b.bloqueId) : planoFallback.bloqueIds;
+  const BLOQUE_IDS = useMemo(
+    () => (bloquesCargados && bloquesEvento.length > 0 ? bloquesEvento.map((b) => b.bloqueId) : [...planoFallback.bloqueIds]),
+    [bloquesCargados, bloquesEvento, planoFallback],
+  );
   const PER_PAGE = 15;
 
   const bloqueLabel = (id: string): string => {
@@ -74,7 +77,8 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     if (b) return `[${b.plano}] ${b.tipoCodigo}${b.tipologia ? ` · Tip.${b.tipologia}` : ""}`;
     const labels = planoFallback.blockLabel;
     const prefix = Object.keys(labels).find((p) => id.startsWith(p));
-    return prefix ? labels[prefix].nombre : "Bloque";
+    const entry = prefix ? labels[prefix] : undefined;
+    return entry ? entry.nombre : "Bloque";
   };
 
   const [apiRows, setApiRows] = useState<ApiRow[]>([]);
@@ -86,7 +90,6 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   const [dbRows, setDbRows] = useState<GessStandRow[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -104,6 +107,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   const apiCols = useMemo(() => {
     if (apiRows.length === 0) return [];
     const first = apiRows[0];
+    if (!first) return [];
     return Object.keys(first).filter((k) => typeof first[k] !== "object" || first[k] === null).slice(0, 6);
   }, [apiRows]);
 
@@ -174,7 +178,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     setDbError(null);
     try {
       const list = await gessService.all(eventoId);
-      setDbRows(list as unknown as GessStandRow[]);
+      setDbRows(list.map((dto) => ({ ...mapGessStandFromDTO(dto), createdAt: dto.createdAt })));
     } catch (err) {
       setDbError(err instanceof Error ? err.message : "Error al cargar BD");
     } finally {
@@ -185,7 +189,6 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   useEffect(() => { loadDb(); }, [loadDb]);
 
   const handleVincular = async (bloqueId: string, gessStandId: string | null) => {
-    setSaving((prev) => ({ ...prev, [bloqueId]: true }));
     try {
       const previous = bloqueMap.get(bloqueId);
       if (previous && previous.id !== gessStandId) {
@@ -197,8 +200,6 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
       await loadDb();
     } catch {
       // ignore
-    } finally {
-      setSaving((prev) => ({ ...prev, [bloqueId]: false }));
     }
   };
 
@@ -215,8 +216,6 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
         || (linked?.tipoStand?.toLowerCase().includes(term));
     });
   }, [BLOQUE_IDS, bloqueMap, search]);
-
-  useEffect(() => { setPage(1); }, [search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBloques.length / PER_PAGE));
   const paged = filteredBloques.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -241,7 +240,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
               <Button variant="outline" onClick={handleMockup} disabled={apiLoading}>
                 <span>{apiLoading ? "Generando..." : "Generar datos demo"}</span>
               </Button>
-              <p className="text-[10px] text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa "Generar datos demo" — crea stands vinculados a los bloques de tus planos.</p>
+              <p className="text-[10px] text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa &quot;Generar datos demo&quot; — crea stands vinculados a los bloques de tus planos.</p>
               {apiRows.length > 0 && (
                 <>
                   <Button variant="outline" size="sm" onClick={selectAllApi}>
@@ -325,7 +324,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
               </p>
               <div className="relative max-w-xs">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+                <Input placeholder="Buscar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   className="pl-8 text-xs h-8" />
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
 import type { FormDatos } from "./interfaces";
 
 interface Props {
@@ -32,13 +33,13 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado,
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Resumen</p>
         </div>
         <Row label="Stands" value={selectedLabels} />
-        <Row label="Comprobante" value={datos.tipoComprobante === "factura" ? "Factura" : datos.tipoComprobante === "boleta" ? "Boleta" : "—"} />
+        <Row label="Comprobante" value={datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA ? "Factura" : datos.tipoComprobante === TIPOS_COMPROBANTE.BOLETA ? "Boleta" : "—"} />
 
         <div className="border-t border-slate-100 px-3 py-1.5">
           <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Comercial</p>
         </div>
-        {datos.tipoComprobante === "factura" && <Row label="Razon social" value={datos.razonSocial} />}
-        <Row label="Documento" value={`${datos.tipoComprobante === "factura" ? "RUC" : "DNI"} ${datos.numeroDocumento}`} />
+        {datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA && <Row label="Razon social" value={datos.razonSocial} />}
+        <Row label="Documento" value={`${datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA ? TIPOS_DOCUMENTO.RUC : TIPOS_DOCUMENTO.DNI} ${datos.numeroDocumento}`} />
         <Row label="Direccion" value={datos.direccion} />
 
         <div className="border-t border-slate-100 px-3 py-1.5">

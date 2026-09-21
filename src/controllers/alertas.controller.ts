@@ -25,7 +25,7 @@ export const alertasController = {
     return success({ ok: true });
   },
 
-  async marcarTodasLeidas(request: Request): Promise<NextResponse> {
+  async marcarTodasLeidas(_request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 

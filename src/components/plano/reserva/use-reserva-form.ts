@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
+import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
 import type { FormDatos, GessLinkedInfo } from "./interfaces";
 
 function standIdsKey(ids: string[]): string {
@@ -27,13 +28,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
   const currentKey = standIdsKey(selectedIds);
-  const keyRef = useRef(currentKey);
-  keyRef.current = currentKey;
 
   const stepDone = useCallback((step: number): boolean => {
     if (step === 0) return isStepDatosCompleto(formDatos);
     if (step === 1) return !singleStand || formDocs.length > 0;
-    if (step === 2) return stepDone(0) && stepDone(1) && confirmado;
+    if (step === 2) return isStepDatosCompleto(formDatos) && (!singleStand || formDocs.length > 0) && confirmado;
     return false;
   }, [formDatos, formDocs, singleStand, confirmado]);
 
@@ -64,12 +63,12 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     })();
   }, [reservaOpen, currentKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save to IndexedDB on form changes (using ref for stable key)
+  // Auto-save to IndexedDB on form changes
   useEffect(() => {
     if (!reservaOpen || selectedIds.length === 0) return;
     const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || formDocs.length > 0;
     if (!hasData && reservaStep === 0) return;
-    reservaBorradorDB.guardar(keyRef.current.split("|"), formDatos, formDocs, reservaStep);
+    reservaBorradorDB.guardar([...selectedIds].sort(), formDatos, formDocs, reservaStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formDatos, formDocs, reservaStep]);
 
@@ -108,18 +107,20 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const standIds = selectedIds.map((id) => linkedMap.get(id)?.dbId).filter(Boolean) as string[];
+      const standIds = selectedIds
+        .map((id) => linkedMap.get(id)?.dbId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
       if (standIds.length === 0) {
         const msg = "No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.";
         setSubmitError(msg);
         return msg;
       }
-      const json = await gessService.reservar({
+      await gessService.reservar({
         standIds,
         documentos: singleStand ? formDocs : undefined,
         datos: {
           razonSocial: formDatos.razonSocial || formDatos.numeroDocumento,
-          tipoDocumento: formDatos.tipoComprobante === "factura" ? "RUC" : (formDatos.tipoDocumento || "DNI"),
+          tipoDocumento: formDatos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA ? TIPOS_DOCUMENTO.RUC : (formDatos.tipoDocumento || TIPOS_DOCUMENTO.DNI),
           numeroDocumento: formDatos.numeroDocumento,
           email: formDatos.email,
         },

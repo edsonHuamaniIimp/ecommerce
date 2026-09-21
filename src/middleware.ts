@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getTokenFromRequest, verifyToken, hasPermission } from "@/lib/server/auth";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES } from "@/lib/shared/constants";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
@@ -10,28 +10,29 @@ interface ProtectedRoute {
 }
 
 const PROTECTED: ProtectedRoute[] = [
-  { path: "/dashboard/vinculacion", permission: "stands:vinculacion" },
-  { path: "/dashboard/datos-evento", permission: "eventos:datos" },
-  { path: "/dashboard/solicitudes", permission: "solicitudes:view" },
-  { path: "/dashboard/mis-solicitudes", permission: "solicitudes:view" },
-  { path: "/dashboard/stands", permission: "stands:manage" },
-  { path: "/dashboard/reservas", permission: "read:reservas" },
-  { path: "/dashboard/auspicios", permission: "auspicios:view" },
-  { path: "/dashboard/facturacion", permission: "facturacion:view" },
-  { path: "/api/facturacion", permission: "facturacion:view" },
-  { path: "/dashboard/laboratorio", permission: "laboratorio:view" },
-  { path: "/api/planos", permission: "laboratorio:view" },
-  { path: "/dashboard/roles", permission: "roles:manage" },
-  { path: "/dashboard/eventos", permission: "events:manage" },
-  { path: "/api/roles", permission: "roles:manage" },
-  { path: "/api/eventos", permission: "events:manage" },
-  { path: "/api/solicitudes", permission: "solicitudes:view" },
-  { path: "/api/auspicios", permission: "auspicios:view" },
+  { path: "/dashboard/vinculacion", permission: PERMISSIONS.STANDS_VINCULACION },
+  { path: "/dashboard/datos-evento", permission: PERMISSIONS.EVENTOS_DATOS },
+  { path: "/dashboard/solicitudes", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { path: "/dashboard/mis-solicitudes", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { path: "/dashboard/stands", permission: PERMISSIONS.STANDS_MANAGE },
+  { path: "/dashboard/reservas", permission: PERMISSIONS.READ_RESERVAS },
+  { path: "/dashboard/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
+  { path: "/dashboard/facturacion", permission: PERMISSIONS.FACTURACION_VIEW },
+  { path: "/api/facturacion", permission: PERMISSIONS.FACTURACION_VIEW },
+  { path: "/dashboard/laboratorio", permission: PERMISSIONS.LABORATORIO_VIEW },
+  { path: "/api/planos", permission: PERMISSIONS.LABORATORIO_VIEW },
+  { path: "/dashboard/roles", permission: PERMISSIONS.ROLES_MANAGE },
+  { path: "/dashboard/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
+  { path: "/api/roles", permission: PERMISSIONS.ROLES_MANAGE },
+  { path: "/api/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
+  { path: "/api/solicitudes", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { path: "/api/sgc", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { path: "/api/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
   { path: "/api/entidades" },
   { path: "/api/exhibidoras" },
   { path: "/api/alertas" },
-  { path: "/plano", permission: "stands:plano" },
-  { path: "/mapa", permission: "stands:plano" },
+  { path: "/plano", permission: PERMISSIONS.STANDS_PLANO },
+  { path: "/mapa", permission: PERMISSIONS.STANDS_PLANO },
   { path: "/dashboard" },
 ];
 
@@ -60,7 +61,7 @@ export async function middleware(request: NextRequest) {
       }
 
       // Admin bypass eventoId check
-      if (payload.roles.includes("admin")) break;
+      if (payload.roles.includes(ROLES.ADMIN)) break;
 
       if (!payload.eventoId) {
         return NextResponse.redirect(new URL("/presala", request.url));

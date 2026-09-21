@@ -10,11 +10,11 @@ import { gessService } from "@/lib/client/api/services/gess-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, ESTADOS_STAND } from "@/lib/shared/constants";
+import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
-import type { GessLinkedInfo, FormDatos } from "./reserva/interfaces";
+import type { FormDatos } from "./reserva/interfaces";
 import { toast } from "sonner";
 import * as THREE from "three";
 
@@ -246,13 +246,14 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
   useEffect(() => {
     let cancelled = false;
-    setPlanoLoading(true);
-    loadPlanoDefinition(planoId).then((def) => {
+    void (async () => {
+      setPlanoLoading(true);
+      const def = await loadPlanoDefinition(planoId);
       if (!cancelled) {
         setPlano(def ?? null);
         setPlanoLoading(false);
       }
-    });
+    })();
     return () => { cancelled = true; };
   }, [planoId]);
 
@@ -297,7 +298,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
         const map = new Map<string, GessInfoFull>();
         for (const row of dbList) {
-          const r = row as unknown as Record<string, unknown>;
+          const r: Record<string, unknown> = { ...row };
           const bloqueId = r.bloqueId ?? r.bloque_id ?? null;
           if (!bloqueId) continue;
 
@@ -312,9 +313,9 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
           const precio = apiRow ? String(apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand ?? "") : null;
           const medidas = precio
-            ? precio.startsWith("PREFERENCIAL") ? "3000.00 US$"
-            : precio.startsWith("ESTANDAR_01") ? "2000.00 US$"
-            : precio.startsWith("ESTANDAR_02") ? "2500.00 US$"
+            ? precio.startsWith("PREFERENCIAL") ? `3000.00 ${MONEDAS.US_DOLAR}`
+            : precio.startsWith("ESTANDAR_01") ? `2000.00 ${MONEDAS.US_DOLAR}`
+            : precio.startsWith("ESTANDAR_02") ? `2500.00 ${MONEDAS.US_DOLAR}`
             : precio.startsWith("ISLAS") ? "ISLA"
             : (r.medidas ?? null) as string | null
             : (r.medidas ?? null) as string | null;
@@ -327,7 +328,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
-            reserved: (estado ?? "") === "Reservado" || (estado ?? "") === "En evaluacion" || estado === ESTADOS_STAND.EN_EVALUACION,
+            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION,
             dbId: String(r.id ?? ""),
           });
         }
@@ -339,24 +340,6 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     })();
     return () => { cancelled = true; };
   }, [eventoId, tipoEvento, codigoEvento]);
-
-  useEffect(() => {
-    if (!openReserva || !dataReady) return;
-    try {
-      const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
-      if (raw) {
-        const ids = JSON.parse(raw) as string[];
-        const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
-        if (valid.length > 0) {
-          setSelectedIds(valid);
-          setReservaOpen(true);
-          setReservaStep(0);
-        }
-      }
-    } catch { /* ignore */ }
-    localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
-    router.replace("/plano", { scroll: false });
-  }, [openReserva, dataReady, linkedMap, router]);
 
   const {
     reservaOpen, setReservaOpen,
@@ -376,25 +359,48 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
-  } = useReservaForm(selectedIds, linkedMap as unknown as Map<string, GessLinkedInfo>);
+  } = useReservaForm(selectedIds, linkedMap);
+
+  useEffect(() => {
+    if (!openReserva || !dataReady) return;
+    void (async () => {
+      try {
+        const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
+        if (raw) {
+          const ids = JSON.parse(raw) as string[];
+          const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
+          if (valid.length > 0) {
+            setSelectedIds(valid);
+            setReservaOpen(true);
+            setReservaStep(0);
+          }
+        }
+      } catch { /* ignore */ }
+      localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
+      router.replace("/plano", { scroll: false });
+    })();
+  }, [openReserva, dataReady, linkedMap, router, setReservaOpen, setReservaStep]);
 
   // Override: auto-open + restore selection from login redirect
   useEffect(() => {
     if (!openReserva || !dataReady) return;
-    try {
-      const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
-      if (raw) {
-        const ids = JSON.parse(raw) as string[];
-        const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
-        if (valid.length > 0) {
-          setSelectedIds(valid);
+    void (async () => {
+      try {
+        const raw = localStorage.getItem(LS_KEYS.PLANO_SELECCION);
+        if (raw) {
+          const ids = JSON.parse(raw) as string[];
+          const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
+          if (valid.length > 0) {
+            setSelectedIds(valid);
+          }
         }
-      }
-    } catch { /* ignore */ }
-    localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
-    setReservaOpen(true);
-    setReservaStep(0);
-    router.replace(`/mapa?codigo=${planoId}`, { scroll: false });
+      } catch { /* ignore */ }
+      localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
+      setReservaOpen(true);
+      setReservaStep(0);
+      router.replace(`/mapa?codigo=${planoId}`, { scroll: false });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openReserva, dataReady, planoId, router]);
 
   const handleSelect = (id: string) => {
@@ -410,22 +416,23 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const haySinStand = selected.some(s => !linkedMap.get(s.id)?.dbId);
 
   const selectedLabels = selected.map(s => plano?.blockLabel[s.type]?.label ?? "?").join(", ");
-  const gessInfoForSelected = selectedIds.length === 1 ? linkedMap.get(selectedIds[0]) : null;
+  const singleId = selectedIds.length === 1 ? selectedIds[0] : undefined;
+  const gessInfoForSelected = singleId ? (linkedMap.get(singleId) ?? null) : null;
 
   useEffect(() => {
-    if (!reservaOpen) {
-      setStandDocs([]);
-      return;
-    }
-    if (!gessInfoForSelected?.dbId) return;
-    (async () => {
+    void (async () => {
+      if (!reservaOpen) {
+        setStandDocs([]);
+        return;
+      }
+      if (!gessInfoForSelected?.dbId || !singleId) return;
       try {
-        const stand = await gessService.findByBloque(selectedIds[0]);
-        const docs = (stand as unknown as Record<string, unknown> | null)?.documentos;
+        const stand = await gessService.findByBloque(singleId);
+        const docs = stand?.documentos;
         setStandDocs(Array.isArray(docs) ? docs as string[] : []);
       } catch { /* ignore */ }
     })();
-  }, [reservaOpen, gessInfoForSelected?.dbId]);
+  }, [reservaOpen, gessInfoForSelected?.dbId, singleId]);
 
   const onDatosChange = (update: Partial<FormDatos>) => setFormDatos(d => ({ ...d, ...update }));
 
@@ -580,7 +587,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
               </Button>
               {haySinStand && (
                 <p className="text-[10px] text-amber-600 text-center">
-                  Los bloques marcados "sin stand" no tienen un stand vinculado en este evento. El administrador debe vincularlos desde Vinculacion de Stands.
+                  Los bloques marcados &quot;sin stand&quot; no tienen un stand vinculado en este evento. El administrador debe vincularlos desde Vinculacion de Stands.
                 </p>
               )}
             </div>
@@ -610,7 +617,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                 <div>
                   <span className="text-muted-foreground">Estado</span>
                   <div className="mt-0.5">
-                    <Badge variant={detailModal.estado === "Reservado" ? "destructive" : "default"} className="text-[10px]">
+                    <Badge variant={detailModal.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "destructive" : "default"} className="text-[10px]">
                       <span>{detailModal.estado ?? "—"}</span>
                     </Badge>
                   </div>
@@ -634,6 +641,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                     }}
                     title="Haz clic para ver las imagenes en carrusel"
                   >
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
                     <Image className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-muted-foreground">Ver {detailModal.imagenes.length} {detailModal.imagenes.length === 1 ? "imagen" : "imagenes"}</span>
                     <Eye className="ml-auto h-3 w-3 opacity-0 transition-opacity group-hover:opacity-50" />
@@ -709,7 +717,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
               const next = new Map(prev);
               for (const id of selectedIds) {
                 const info = next.get(id);
-                if (info) next.set(id, { ...info, reserved: true, estado: "En evaluacion" });
+                if (info) next.set(id, { ...info, reserved: true, estado: ESTADOS_STAND_LEGACY.EN_EVALUACION });
               }
               return next;
             });
@@ -730,7 +738,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             >
               <span className="text-lg">‹</span>
             </button>
-            <img src={imgCarousel.images[imgCarousel.idx]} className="max-h-[70vh] w-full object-contain" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imgCarousel.images[imgCarousel.idx]} alt="" className="max-h-[70vh] w-full object-contain" />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}

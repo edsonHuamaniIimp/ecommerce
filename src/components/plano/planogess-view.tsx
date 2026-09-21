@@ -1,7 +1,7 @@
 "use client";
 
-import { BADGE_STYLES } from "@/lib/shared/constants";
-import { useEffect, useMemo, useState } from "react";
+import { BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, RefreshCw } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
@@ -24,7 +24,7 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -35,13 +35,16 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tipoEvento, codigoEvento]);
 
-  useEffect(() => { load(); }, [tipoEvento, codigoEvento]);
+  useEffect(() => {
+    void (async () => { await load(); })();
+  }, [load]);
 
   const columns = useMemo(() => {
     if (!allData || allData.length === 0) return null;
     const first = allData[0];
+    if (!first) return null;
     return Object.keys(first).filter((k) => typeof first[k] !== "object");
   }, [allData]);
 
@@ -54,8 +57,6 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
     );
   }, [allData, columns, search]);
 
-  useEffect(() => { setPage(1); }, [search]);
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
@@ -65,8 +66,8 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
       const v = String(value).toLowerCase();
       return (
         <Badge variant="default" className={`text-[10px] ${
-          v === "disponible" || v === "available" ? BADGE_STYLES.SUCCESS
-          : v === "reservado" || v === "reserved" ? BADGE_STYLES.DESTRUCTIVE
+          v === ESTADOS_STAND.DISPONIBLE || v === ESTADOS_STAND_LEGACY.AVAILABLE ? BADGE_STYLES.SUCCESS
+          : v === ESTADOS_STAND.RESERVADO || v === ESTADOS_STAND_LEGACY.RESERVED ? BADGE_STYLES.DESTRUCTIVE
           : BADGE_STYLES.NEUTRAL
         }`}>
           {String(value)}
@@ -75,7 +76,7 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
     }
     if (key === "precio" || key === "monto" || key === "y") {
       const num = Number(value);
-      if (!isNaN(num) && num > 0) return `USD ${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+      if (!isNaN(num) && num > 0) return `${MONEDAS.USD} ${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
     }
     return String(value);
   };
@@ -141,7 +142,7 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
           <Input
             placeholder="Buscar..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-8 text-xs h-8"
           />
         </div>

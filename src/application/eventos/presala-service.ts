@@ -78,7 +78,8 @@ export class PresalaApplicationService {
             };
           }).filter((v): v is EventoPresalaDTO => v !== null),
         });
-        if (result[result.length - 1].versiones.length === 0) result.pop();
+        const ultimo = result[result.length - 1];
+        if (ultimo && ultimo.versiones.length === 0) result.pop();
       } catch { /* skip */ }
     }
 

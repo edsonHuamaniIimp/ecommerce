@@ -1,12 +1,16 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, API_ERROR_CODES, REVISION_AREA_ORDER, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
+import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 
 export class SolicitudesApplicationService {
   readonly repo: ISolicitudesRepository;
 
-  constructor(repo: ISolicitudesRepository) {
+  constructor(
+    repo: ISolicitudesRepository,
+    private readonly sgcIntegracion?: SgcIntegracionApplicationService,
+  ) {
     this.repo = repo;
   }
 
@@ -36,6 +40,10 @@ export class SolicitudesApplicationService {
     // Only send alerts when transitioning FROM pendiente (first review)
     if (!revision.fuePrimeraRevision) return revision;
 
+    if (data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
+      await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
+    }
+
     const areaLabel = REVISION_AREA_LABELS[data.area as keyof typeof REVISION_AREA_LABELS];
     const nextRole = REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
     if (nextRole) {
@@ -54,7 +62,7 @@ export class SolicitudesApplicationService {
       const detalle = await this.repo.detalle(data.solicitudId);
       if (detalle) {
         await this.repo.crearAlertaRevision({
-          rol: "admin",
+          rol: ROLES.ADMIN,
           solicitudId: data.solicitudId,
           titulo: "Revision completada — todas las areas",
           mensaje: `Todas las areas han finalizado la revision de los stands ${detalle.standCode}.`,
@@ -67,8 +75,7 @@ export class SolicitudesApplicationService {
   }
 
   async inicializarRevisiones(solicitudId: string): Promise<void> {
-    const areas = Object.values(REVISION_AREAS);
-    for (const area of areas) {
+    for (const area of REVISION_AREA_ORDER) {
       await this.repo.crearRevisionInicial(solicitudId, area);
     }
   }
@@ -81,7 +88,7 @@ export class SolicitudesApplicationService {
     userEmail: string;
     userPermissions: string[];
   }): Promise<Record<string, unknown>> {
-    const isAdmin = params.userPermissions.includes("admin:full") || params.userPermissions.includes("solicitudes:upload");
+    const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
     return this.repo.crearDocumentoAdjunto(
       params.solicitudId, params.url, params.nombre,
       isAdmin ? null : params.userSub,
@@ -96,7 +103,7 @@ export class SolicitudesApplicationService {
   }): Promise<void> {
     const doc = await this.repo.findDocumento(params.docId);
     if (!doc) throw new DomainError("Documento no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
-    if (doc.userId !== params.userSub && !params.userPermissions.includes("admin:full")) {
+    if (doc.userId !== params.userSub && !params.userPermissions.includes(PERMISSIONS.ADMIN_FULL)) {
       throw new DomainError("Solo puedes eliminar tus propios documentos", API_ERROR_CODES.FORBIDDEN, 403);
     }
     await this.repo.eliminarDocumento(params.docId);

@@ -52,15 +52,10 @@ export function DashboardHeader() {
   }, []);
 
   useEffect(() => {
-    loadAlertas();
+    (async () => { await loadAlertas(); })();
     const interval = setInterval(loadAlertas, 30000);
     return () => clearInterval(interval);
   }, [loadAlertas]);
-
-  const handleMarcarLeida = async (id: string) => {
-    await alertasService.marcarLeida(id);
-    loadAlertas();
-  };
 
   const handleAlertClick = async (a: AlertaItem) => {
     await alertasService.marcarLeida(a.id);

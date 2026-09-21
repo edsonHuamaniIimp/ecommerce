@@ -28,7 +28,10 @@ export function DatosEventoManager({ eventoId }: { eventoId: string }) {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [eventoId]);
+  useEffect(() => {
+    void (async () => { await load(); })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventoId]);
 
   return (
     <Card>

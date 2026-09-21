@@ -1,0 +1,20 @@
+name: SGC reconciliacion
+
+# Reconciliacion periodica del estado de los expedientes SGC (fallback de polling
+# cuando los webhooks no pueden alcanzar el entorno). Requiere los secretos de
+# repositorio SGC_RECONCILE_URL (URL del endpoint) y SGC_CRON_SECRET (x-cron-secret).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  reconciliar:
+    name: Reconciliar SGC
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de reconciliacion
+        run: |
+          curl -fsS -X POST "${{ secrets.SGC_RECONCILE_URL }}" \
+            -H "x-cron-secret: ${{ secrets.SGC_CRON_SECRET }}" \
+            --max-time 30

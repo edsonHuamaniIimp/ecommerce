@@ -1,0 +1,14 @@
+﻿{
+  "run_id": "ContratosStands-run-2",
+  "repo": "ContratosStands",
+  "target": "C:/Proyectos/IIMP/ContratosStands",
+  "source_ref": "de1ebbbc07019ab93031f8d9ab25e9bba1928df6 (HEAD) + dirty worktree",
+  "profile": "standard",
+  "scope": "delta: new SGC/integration surface + revalidation of prior findings in changed files",
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "sandbox_available": false,
+  "sandbox_note": "Windows host without OS-enforced sandbox; source-only review, no target code executed.",
+  "prior_run_paths": ["C:/Users/ASUSVivobook/security-audit-skill/ContratosStands/run-1"],
+  "run_status": "in_progress"
+}

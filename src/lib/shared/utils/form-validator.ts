@@ -3,6 +3,8 @@
  * Centraliza las reglas para evitar logica duplicada en componentes.
  */
 
+import { TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+
 /** Solo digitos, trunca a max longitud. */
 export function onlyDigits(value: string, max: number): string {
   return value.replace(/\D/g, "").slice(0, max);
@@ -41,7 +43,7 @@ export function isStepDatosCompleto(datos: {
   email: string;
   tipoComprobante: string;
 }): boolean {
-  const isFactura = datos.tipoComprobante === "factura";
+  const isFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
   return !!(
     datos.tipoComprobante &&
     (!isFactura || datos.razonSocial) &&

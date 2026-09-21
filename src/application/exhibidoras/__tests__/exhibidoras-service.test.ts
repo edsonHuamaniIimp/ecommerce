@@ -39,7 +39,7 @@ describe("ExhibidorasApplicationService", () => {
     const svc = new ExhibidorasApplicationService(repo);
     const result = await svc.listar();
     expect(result).toHaveLength(2);
-    expect(result[0].id_empresa).toBe("E001");
-    expect(result[1].razon_social).toBe("IIMP");
+    expect(result[0]?.id_empresa).toBe("E001");
+    expect(result[1]?.razon_social).toBe("IIMP");
   });
 });

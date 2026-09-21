@@ -8,21 +8,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/shared/utils";
 import { authService } from "@/lib/client/api/services/auth-service";
+import { PERMISSIONS } from "@/lib/shared/constants";
 
 const navItems = [
-  { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard, permission: "dashboard:view" },
-  { href: "/dashboard/datos-evento", label: "Datos del Evento", icon: Map, permission: "eventos:datos" },
-  { href: "/dashboard/vinculacion", label: "Vinculacion de Stands", icon: Wrench, permission: "stands:vinculacion" },
-  { href: "/dashboard/solicitudes", label: "Solicitudes de alquiler", icon: ClipboardCheck, permission: "solicitudes:view" },
-  { href: "/dashboard/mis-solicitudes", label: "Mis solicitudes", icon: FolderOpen, permission: "solicitudes:view" },
-  { href: "/dashboard/stands", label: "Gestion de Stands", icon: FileText, permission: "stands:manage" },
-  { href: "/dashboard/reservas", label: "Gestion de Reservas", icon: ClipboardList, permission: "read:reservas" },
-  { href: "/dashboard/auspicios", label: "Auspicios", icon: Gem, permission: "auspicios:view" },
-  { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: "laboratorio:view" },
-  { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: "facturacion:view" },
-  { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: "roles:manage" },
-  { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: "events:manage" },
-  { href: "/plano", label: "Plano de Stands", icon: Building2, permission: "stands:plano" },
+  { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard, permission: PERMISSIONS.DASHBOARD_VIEW },
+  { href: "/dashboard/datos-evento", label: "Datos del Evento", icon: Map, permission: PERMISSIONS.EVENTOS_DATOS },
+  { href: "/dashboard/vinculacion", label: "Vinculacion de Stands", icon: Wrench, permission: PERMISSIONS.STANDS_VINCULACION },
+  { href: "/dashboard/solicitudes", label: "Solicitudes de alquiler", icon: ClipboardCheck, permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { href: "/dashboard/mis-solicitudes", label: "Mis solicitudes", icon: FolderOpen, permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { href: "/dashboard/stands", label: "Gestion de Stands", icon: FileText, permission: PERMISSIONS.STANDS_MANAGE },
+  { href: "/dashboard/reservas", label: "Gestion de Reservas", icon: ClipboardList, permission: PERMISSIONS.READ_RESERVAS },
+  { href: "/dashboard/auspicios", label: "Auspicios", icon: Gem, permission: PERMISSIONS.AUSPICIOS_VIEW },
+  { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: PERMISSIONS.LABORATORIO_VIEW },
+  { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW },
+  { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
+  { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
+  { href: "/plano", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
 ] as const;
 
 interface Props {
@@ -44,7 +45,9 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
   }, []);
 
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     onCloseRef.current();
@@ -52,7 +55,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
 
   const canSee = (perm: string | null) => {
     if (!perm) return true;
-    return permissions.includes(perm) || permissions.includes("admin:full");
+    return permissions.includes(perm) || permissions.includes(PERMISSIONS.ADMIN_FULL);
   };
 
   const content = (

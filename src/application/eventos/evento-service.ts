@@ -44,8 +44,8 @@ export class EventoApplicationService {
     const mapped: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible" | "plano" | "imagen">> = {};
     if (data.estado !== undefined) mapped.estado = data.estado;
     if (data.anio !== undefined) mapped.anio = data.anio;
-    if (data.fecha_inicio !== undefined) mapped.fechaInicio = data.fecha_inicio ? new Date(data.fecha_inicio) : null as unknown as undefined;
-    if (data.fecha_fin !== undefined) mapped.fechaFin = data.fecha_fin ? new Date(data.fecha_fin) : null as unknown as undefined;
+    if (data.fecha_inicio !== undefined) mapped.fechaInicio = data.fecha_inicio ? new Date(data.fecha_inicio) : null;
+    if (data.fecha_fin !== undefined) mapped.fechaFin = data.fecha_fin ? new Date(data.fecha_fin) : null;
     if (data.flg_activo !== undefined) mapped.flgActivo = data.flg_activo;
     if (data.flg_visible !== undefined) mapped.flgVisible = data.flg_visible;
     if (data.plano !== undefined) mapped.plano = data.plano;

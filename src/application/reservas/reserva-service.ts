@@ -1,9 +1,9 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
-import { ESTADOS_STAND, APP_URL } from "@/lib/shared/constants";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, REVISION_AREA_ORDER, ROLES, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
 import { sendEmail, buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/server/email";
 
-const BLOQUEADOS = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, "Reservado", "En evaluacion"];
+const BLOQUEADOS: string[] = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, ESTADOS_STAND_LEGACY.RESERVADO, ESTADOS_STAND_LEGACY.EN_EVALUACION];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
 
 export class ReservaApplicationService {
@@ -28,7 +28,7 @@ export class ReservaApplicationService {
       const stand = await this.gessRepo.findById(dbId);
       if (!stand) { conflicted.push("Stand no encontrado"); continue; }
       if (stand.estado && BLOQUEADOS.includes(stand.estado)) {
-        const label = stand.estado === ESTADOS_STAND.RESERVADO || stand.estado === "Reservado" ? "Reservado" : "En evaluacion";
+        const label = stand.estado === ESTADOS_STAND.RESERVADO || stand.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "Reservado" : "En evaluacion";
         conflicted.push(`${stand.standCode} ya esta en estado ${label}`);
         continue;
       }
@@ -54,13 +54,13 @@ export class ReservaApplicationService {
           request.userSub,
           contactEmail ?? undefined,
         );
-        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "comunicacion");
-        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "legal");
-        await this.solicitudesRepo.crearRevisionInicial(solicitudId, "logistica");
+        for (const area of REVISION_AREA_ORDER) {
+          await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
+        }
 
         // Notify first reviewers (logistica)
         this.solicitudesRepo.crearAlertaRevision({
-          rol: "logistica",
+          rol: ROLES.LOGISTICA,
           solicitudId,
           titulo: "Nueva solicitud para revision",
           mensaje: `Se ha creado una nueva solicitud de los stands ${standCodes.join(", ")}. Eres el primer revisor.`,
@@ -78,7 +78,7 @@ export class ReservaApplicationService {
               url: `${APP_URL}/dashboard/mis-solicitudes?id=${solicitudId}`,
             });
             await this.solicitudesRepo.crearAlertaReserva({
-              userId: "admin",
+              userId: ADMIN_USER_ID,
               tipo: "reserva_multiple",
               titulo: "Nueva solicitud multiple",
               mensaje: `Se ha recibido una solicitud multiple de ${createdStandIds.length} stands (${standCodes.join(", ")}).`,

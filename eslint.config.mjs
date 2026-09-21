@@ -12,7 +12,23 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agentes/skills instalados: no son codigo del proyecto.
+    ".agents/**",
+    ".opencode/**",
   ]),
+  {
+    rules: {
+      // Los parametros/variables prefijados con "_" son intencionalmente no usados.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

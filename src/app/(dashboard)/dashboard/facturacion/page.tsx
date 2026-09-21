@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { CreditCard, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive } from "lucide-react";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ export default function FacturacionPage() {
   const [addingCuota, setAddingCuota] = useState(false);
   const [eventoId, setEventoId] = useState<string | null>(null);
 
-  const load = async (p = 1) => {
+  const load = useCallback(async (p = 1) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams({ page: String(p), per_page: String(ITEMS_PER_PAGE) });
@@ -71,13 +71,16 @@ export default function FacturacionPage() {
       setPage(p);
     } catch { }
     setLoading(false);
-  };
+  }, [eventoId]);
 
   useEffect(() => {
     authService.getSession().then((s) => setEventoId(s.eventoId ?? null));
   }, []);
 
-  useEffect(() => { if (eventoId !== null) load(); }, [eventoId]);
+  useEffect(() => {
+    if (eventoId === null) return;
+    (async () => { await load(); })();
+  }, [eventoId, load]);
 
   const handleOpenDetail = async (row: FacturacionItem) => {
     try {
@@ -114,16 +117,6 @@ export default function FacturacionPage() {
       setNewCuotaVencimiento("");
     } catch { toast.error("Error"); }
     setAddingCuota(false);
-  };
-
-  const handlePagarCuota = async (cuotaId: string) => {
-    if (!payRow) return;
-    try {
-      await internalApi.post(`/api/facturacion/pagar-cuota`, { cuotaId });
-      const updated = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${payRow.id}`);
-      setPayRow(updated);
-      load(page);
-    } catch { toast.error("Error"); }
   };
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
@@ -365,7 +358,7 @@ export default function FacturacionPage() {
               const excede = sumaCuotas >= payRow.montoTotal;
               const montoValido = newCuotaMonto && Number(newCuotaMonto) > 0;
               const fechaValida = !!newCuotaVencimiento;
-              const hoy = new Date().toISOString().split("T")[0];
+              const hoy = dateUtils.todayInputValue();
               const fechaPasada = fechaValida && newCuotaVencimiento < hoy;
               const superaPendiente = montoValido && Number(newCuotaMonto) > pendiente;
               const valido = montoValido && fechaValida && !excede && !superaPendiente && !fechaPasada;

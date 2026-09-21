@@ -70,7 +70,6 @@ if (!SPACE_KEY) {
 }
 
 const API = `https://${SITE}.atlassian.net/wiki/api/v2`;
-const API_V1 = `https://${SITE}.atlassian.net/wiki/rest/api`;
 const AUTH = "Basic " + Buffer.from(`${EMAIL}:${TOKEN}`).toString("base64");
 
 /* ------------------------------------------------------------------ */
@@ -78,20 +77,31 @@ const AUTH = "Basic " + Buffer.from(`${EMAIL}:${TOKEN}`).toString("base64");
 /* ------------------------------------------------------------------ */
 
 const PAGES = [
-  { title: "00 · Resumen Ejecutivo y Traspaso", file: "resumen-ejecutivo.md" },
-  { title: "01 · Requerimientos y Alcance", file: "requerimientos.md" },
-  { title: "02 · Arquitectura de Software", file: "arquitectura.md" },
-  { title: "03 · Stack Tecnológico", file: "stack-tecnologico.md" },
-  { title: "04 · Modelo de Datos", file: "modelo-datos.md" },
-  { title: "05 · API — Inventario de Endpoints", file: "api-inventario.md" },
-  { title: "06 · API — Contrato y Convenciones", file: "endpoints.md" },
-  { title: "07 · Guía de Consumo — Servicio Persona", file: "GUIA-CONSUMO.md" },
-  { title: "08 · Flujos de Negocio", file: "flujos.md" },
-  { title: "09 · Integración — Sistema de Montaje", file: "api-sistema-montaje.md" },
-  { title: "10 · Infraestructura, Docker y CI/CD", file: "infraestructura-devops.md" },
-  { title: "11 · Despliegue", file: "despliegue.md" },
-  { title: "12 · Convenciones de Código y Reglas", file: "convenciones-codigo.md" },
-  { title: "A1 · Anexo — OpenAPI 3.0 (YAML)", file: "openapi.yaml", raw: true },
+  { title: "00 · Resumen Ejecutivo y Traspaso", file: "00-inicio/resumen-ejecutivo.md" },
+  { title: "01 · Requerimientos y Alcance", file: "00-inicio/requerimientos.md" },
+  { title: "02 · Flujos de Negocio", file: "00-inicio/flujos.md" },
+  { title: "F0 · Funcional — Visión General", file: "01-funcional/README.md" },
+  { title: "F1 · Funcional — Portal Público y Reserva", file: "01-funcional/01-publico-y-reservas.md" },
+  { title: "F2 · Funcional — Solicitudes y Aprobaciones", file: "01-funcional/02-solicitudes-y-aprobaciones.md" },
+  { title: "F3 · Funcional — Auspicios", file: "01-funcional/03-auspicios.md" },
+  { title: "F4 · Funcional — Facturación y Pagos", file: "01-funcional/04-facturacion.md" },
+  { title: "F5 · Funcional — Laboratorio 3D", file: "01-funcional/05-laboratorio-3d.md" },
+  { title: "F6 · Funcional — Eventos, Datos y Stands", file: "01-funcional/06-eventos-datos-y-stands.md" },
+  { title: "F7 · Funcional — Administración", file: "01-funcional/07-administracion.md" },
+  { title: "F8 · Funcional — Integraciones", file: "01-funcional/08-integraciones.md" },
+  { title: "03 · Despliegue", file: "02-despliegue/despliegue.md" },
+  { title: "04 · Arquitectura de Software", file: "03-arquitectura/arquitectura.md" },
+  { title: "05 · Stack Tecnológico", file: "03-arquitectura/stack-tecnologico.md" },
+  { title: "06 · Modelo de Datos", file: "03-arquitectura/modelo-datos.md" },
+  { title: "07 · Convenciones de Código y Reglas", file: "03-arquitectura/convenciones-codigo.md" },
+  { title: "08 · API — Inventario de Endpoints", file: "04-api/api-inventario.md" },
+  { title: "09 · API — Contrato y Convenciones", file: "04-api/endpoints.md" },
+  { title: "10 · Integración — SGC", file: "05-integraciones/integracion-sgc.md" },
+  { title: "11 · Integración — Sistema de Montaje", file: "05-integraciones/api-sistema-montaje.md" },
+  { title: "12 · Guía de Consumo — Servicio Persona", file: "05-integraciones/guia-consumo-servicio-persona.md" },
+  { title: "13 · Infraestructura, Docker y CI/CD", file: "06-operacion/infraestructura-devops.md" },
+  { title: "14 · Pruebas en Producción", file: "06-operacion/pruebas-produccion.md" },
+  { title: "A1 · Anexo — OpenAPI 3.0 (YAML)", file: "04-api/openapi.yaml", raw: true },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -346,17 +356,28 @@ const parentStorage = `
 <tr><th>#</th><th>Documento</th><th>Contenido</th></tr>
 <tr><td>00</td><td>Resumen Ejecutivo y Traspaso</td><td>Qué es, alcance, estado, personas, riesgos y próximos pasos</td></tr>
 <tr><td>01</td><td>Requerimientos y Alcance</td><td>RF, RNF, actores, glosario, flujogramas de alto nivel</td></tr>
-<tr><td>02</td><td>Arquitectura de Software</td><td>Estructura completa de carpetas, capas backend/frontend</td></tr>
-<tr><td>03</td><td>Stack Tecnológico</td><td>Dependencias, versiones, scripts y configuraciones</td></tr>
-<tr><td>04</td><td>Modelo de Datos</td><td>Entidades, ER, diccionario de datos, convenciones BD</td></tr>
-<tr><td>05</td><td>API — Inventario de Endpoints</td><td>Inventario REAL implementado (fuente: código)</td></tr>
-<tr><td>06</td><td>API — Contrato y Convenciones</td><td>Contrato propuesto, convenciones REST, errores</td></tr>
-<tr><td>07</td><td>Guía de Consumo — Servicio Persona</td><td>Guía del servicio REST externo de personas</td></tr>
-<tr><td>08</td><td>Flujos de Negocio</td><td>Flujos detallados de solicitudes, revisiones y documentos</td></tr>
-<tr><td>09</td><td>Integración — Sistema de Montaje</td><td>API del sistema de montaje (externa)</td></tr>
-<tr><td>10</td><td>Infraestructura, Docker y CI/CD</td><td>Variables, Docker, Nginx, pipeline GitHub Actions</td></tr>
-<tr><td>11</td><td>Despliegue</td><td>Guía de despliegue por ambiente</td></tr>
-<tr><td>12</td><td>Convenciones de Código y Reglas</td><td>Reglas obligatorias, arquitectura, calidad ZERO ERRORS</td></tr>
+<tr><td>02</td><td>Flujos de Negocio</td><td>Flujos detallados de solicitudes, revisiones y documentos</td></tr>
+<tr><td>F0</td><td>Funcional — Visión General</td><td>Mapa de módulos, actores, roles, permisos y estados</td></tr>
+<tr><td>F1</td><td>Funcional — Portal Público y Reserva</td><td>Presala, plano, multi-select y modal de reserva</td></tr>
+<tr><td>F2</td><td>Funcional — Solicitudes y Aprobaciones</td><td>Bandeja, pipeline de revisión, re-evaluación y alertas</td></tr>
+<tr><td>F3</td><td>Funcional — Auspicios</td><td>Registro y listado de auspicios (proxy KBServicios)</td></tr>
+<tr><td>F4</td><td>Funcional — Facturación y Pagos</td><td>Cuotas, estados y pago con Niubiz</td></tr>
+<tr><td>F5</td><td>Funcional — Laboratorio 3D</td><td>Editor de planos simple/macro</td></tr>
+<tr><td>F6</td><td>Funcional — Eventos, Datos y Stands</td><td>Eventos padre–versión, GESS y vinculación</td></tr>
+<tr><td>F7</td><td>Funcional — Administración</td><td>Roles, permisos, usuarios, perfil y autenticación</td></tr>
+<tr><td>F8</td><td>Funcional — Integraciones</td><td>SGC, Sistema de Montaje, entidades, RENIEC/SUNAT</td></tr>
+<tr><td>03</td><td>Despliegue</td><td>Guía de despliegue por ambiente (EC2+Compose / ECS+Terraform)</td></tr>
+<tr><td>04</td><td>Arquitectura de Software</td><td>Estructura completa de carpetas, capas backend/frontend</td></tr>
+<tr><td>05</td><td>Stack Tecnológico</td><td>Dependencias, versiones, scripts y configuraciones</td></tr>
+<tr><td>06</td><td>Modelo de Datos</td><td>Entidades, ER, diccionario de datos, convenciones BD</td></tr>
+<tr><td>07</td><td>Convenciones de Código y Reglas</td><td>Reglas obligatorias, arquitectura, calidad ZERO ERRORS</td></tr>
+<tr><td>08</td><td>API — Inventario de Endpoints</td><td>Inventario REAL implementado (fuente: código)</td></tr>
+<tr><td>09</td><td>API — Contrato y Convenciones</td><td>Contrato propuesto, convenciones REST, errores</td></tr>
+<tr><td>10</td><td>Integración — SGC</td><td>Plan de integración con el Sistema de Gestión de Contratos</td></tr>
+<tr><td>11</td><td>Integración — Sistema de Montaje</td><td>API del sistema de montaje (externa)</td></tr>
+<tr><td>12</td><td>Guía de Consumo — Servicio Persona</td><td>Guía del servicio REST externo de personas</td></tr>
+<tr><td>13</td><td>Infraestructura, Docker y CI/CD</td><td>Variables, Docker, Nginx, pipeline GitHub Actions</td></tr>
+<tr><td>14</td><td>Pruebas en Producción</td><td>Data de prueba aislada (marcadores TEST-) y limpieza</td></tr>
 <tr><td>A1</td><td>Anexo — OpenAPI 3.0 (YAML)</td><td>Especificación OpenAPI completa</td></tr>
 </tbody></table>
 `;
