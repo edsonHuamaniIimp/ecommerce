@@ -13,7 +13,7 @@ orden de lectura recomendado.
 | [`00-inicio/`](./00-inicio) | Negocio y alcance | `resumen-ejecutivo.md`, `requerimientos.md`, `flujos.md` |
 | [`01-funcional/`](./01-funcional) | Funcionalidad implementada | `README.md` + un documento por módulo |
 | [`02-despliegue/`](./02-despliegue) | Despliegue e infraestructura AWS | `despliegue.md`, `arquitectura-aws.md`, `aws-terraform.md`, `REGLAS-DESPLIEGUE.md`, `arquitectura-preview.html` |
-| [`03-arquitectura/`](./03-arquitectura) | Arquitectura y estándares | `arquitectura.md`, `stack-tecnologico.md`, `modelo-datos.md`, `convenciones-codigo.md` |
+| [`03-arquitectura/`](./03-arquitectura) | Arquitectura y estándares | `vision-general.md`, `arquitectura.md`, `stack-tecnologico.md`, `modelo-datos.md`, `convenciones-codigo.md` |
 | [`04-api/`](./04-api) | Contrato y endpoints | `api-inventario.md`, `endpoints.md`, `openapi.yaml` |
 | [`05-integraciones/`](./05-integraciones) | Sistemas externos | `integracion-sgc.md`, `api-sistema-montaje.md`, `guia-consumo-servicio-persona.md` |
 | [`06-operacion/`](./06-operacion) | Operación y DevOps | `infraestructura-devops.md`, `pruebas-produccion.md` |
@@ -52,6 +52,7 @@ orden de lectura recomendado.
 ### 03 — Arquitectura
 | Documento | Contenido |
 |---|---|
+| [vision-general.md](./03-arquitectura/vision-general.md) | Diagramas Mermaid: contexto, capas, despliegue AWS, flujo SGC y estados |
 | [arquitectura.md](./03-arquitectura/arquitectura.md) | Estructura completa de carpetas y capas |
 | [stack-tecnologico.md](./03-arquitectura/stack-tecnologico.md) | Dependencias y versiones |
 | [modelo-datos.md](./03-arquitectura/modelo-datos.md) | Modelo de datos (ER + diccionario) |
