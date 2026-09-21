@@ -12,6 +12,7 @@
 //
 // Variables: SGC_WEBHOOK_SECRET (obligatoria), SGC_WEBHOOK_URL (opcional).
 
+import "dotenv/config";
 import { createHmac } from "node:crypto";
 
 const [, , contractId, eventType, finalization] = process.argv;
@@ -23,7 +24,7 @@ if (!contractId || !eventType) {
 
 const secret = process.env.SGC_WEBHOOK_SECRET;
 if (!secret) {
-  console.error("Falta SGC_WEBHOOK_SECRET en el entorno (.env).");
+  console.error("Falta SGC_WEBHOOK_SECRET (revisa tu .env).");
   process.exit(1);
 }
 

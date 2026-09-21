@@ -28,7 +28,7 @@ documentos y sirve el detalle sin llamar a nadie.
 3. En el modal/detalle, sección **"Revisión Legal (SGC)"**:
    - **Enviar contrato (v1) al SGC** (usa el documento del **admin**).
    - **Enviar anexos al SGC** (usa los documentos del **cliente**).
-4. **Simular el workflow del SGC** con el simulador firmado:
+4. **Simular el workflow del SGC** con el simulador firmado (lee `.env` por su cuenta):
    ```bash
    npm run sgc:webhook -- <contractId> workflow.advanced
    npm run sgc:webhook -- <contractId> workflow.approved active
