@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
@@ -13,7 +13,7 @@ import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
 import { SgcWebhookApplicationService } from "../sgc-webhook-service";
 import { SolicitudesApplicationService } from "@/application/solicitudes/solicitudes-service";
 import { ReservaApplicationService } from "@/application/reservas/reserva-service";
-import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
+import { SgcClientMock, resetSgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import type {
   ActualizarSgcDocumentoData,
   ActualizarSgcExpedienteData,
@@ -295,6 +295,10 @@ function webhookPayload(eventId: string, eventType: string, contractId: string, 
 }
 
 /* ----------------------------------- Tests ----------------------------------- */
+
+beforeEach(() => {
+  resetSgcClientMock();
+});
 
 describe("Flujo completo SGC (happy path desde la solicitud)", () => {
   it("deberia ir de la creacion de la solicitud a la descarga del contrato firmado", async () => {

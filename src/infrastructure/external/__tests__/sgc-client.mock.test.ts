@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { SgcClientMock } from "../sgc-client.mock";
+import { describe, it, expect, beforeEach } from "vitest";
+import { SgcClientMock, resetSgcClientMock } from "../sgc-client.mock";
 import { SgcApiError } from "@/domain/models/sgc";
 import type { SgcCrearExpedienteInput, SgcReservarSubidaInput } from "@/domain/models/sgc";
 import { SGC_APPROVAL_RESULT, SGC_CREATE_STATUS, SGC_DOCUMENT_CATEGORIES } from "@/lib/shared/constants";
@@ -27,6 +27,10 @@ function subidaInput(documentId: string | null = null): SgcReservarSubidaInput {
     documentId,
   };
 }
+
+beforeEach(() => {
+  resetSgcClientMock();
+});
 
 describe("SgcClientMock", () => {
   it("deberia crear un expediente y devolver contractId", async () => {

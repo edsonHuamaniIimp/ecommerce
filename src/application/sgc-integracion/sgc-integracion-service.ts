@@ -93,15 +93,20 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return null;
 
-    const detalle = await this.client.consultarExpediente(expediente.contractId);
-    await this.repo.actualizarExpediente(expediente.id, {
-      stage: detalle.stage,
-      lifecycleStatus: detalle.lifecycleStatus,
-      version: detalle.version,
-      lastSyncedAt: new Date(),
-      lastError: null,
-    });
-    return detalle;
+    try {
+      const detalle = await this.client.consultarExpediente(expediente.contractId);
+      await this.repo.actualizarExpediente(expediente.id, {
+        stage: detalle.stage,
+        lifecycleStatus: detalle.lifecycleStatus,
+        version: detalle.version,
+        lastSyncedAt: new Date(),
+        lastError: null,
+      });
+      return detalle;
+    } catch {
+      // Lectura best-effort: si el SGC no responde, el panel muestra el estado local.
+      return null;
+    }
   }
 
   /** Reconciliacion (polling): refresca el estado de los expedientes ya creados. */

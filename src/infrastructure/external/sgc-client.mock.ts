@@ -31,19 +31,44 @@ interface MockDocumento {
   versions: SgcVersion[];
 }
 
+interface SgcMockStore {
+  expedientes: Map<string, SgcExpedienteDetalle>;
+  documentos: Map<string, MockDocumento>;
+  porIdempotency: Map<string, string>;
+  secuencia: number;
+}
+
+/**
+ * El store vive en `globalThis` para sobrevivir a los bundles por ruta de Next dev
+ * (cada route handler tiene su propia instancia de módulo). Sin esto, `registrar`
+ * y `detalle` usarían mocks distintos y el panel daría 500.
+ */
+function getStore(): SgcMockStore {
+  const g = globalThis as unknown as { __sgcMockStore?: SgcMockStore };
+  if (!g.__sgcMockStore) {
+    g.__sgcMockStore = { expedientes: new Map(), documentos: new Map(), porIdempotency: new Map(), secuencia: 0 };
+  }
+  return g.__sgcMockStore;
+}
+
+/** Reinicia el store en memoria (usar en tests para aislar). */
+export function resetSgcClientMock(): void {
+  (globalThis as unknown as { __sgcMockStore?: SgcMockStore }).__sgcMockStore = undefined;
+}
+
 /**
  * Adaptador en memoria del cliente SGC. Permite desarrollar y probar el flujo
  * de integracion sin credenciales ni conectividad (SGC_MODE=mock).
  */
 export class SgcClientMock implements ISgcClient {
-  private readonly expedientes = new Map<string, SgcExpedienteDetalle>();
-  private readonly documentos = new Map<string, MockDocumento>();
-  private readonly porIdempotency = new Map<string, string>();
-  private secuencia = 0;
+  private readonly expedientes = getStore().expedientes;
+  private readonly documentos = getStore().documentos;
+  private readonly porIdempotency = getStore().porIdempotency;
 
   private nuevoId(): string {
-    this.secuencia += 1;
-    return `mock-${this.secuencia.toString().padStart(12, "0")}`;
+    const store = getStore();
+    store.secuencia += 1;
+    return `mock-${store.secuencia.toString().padStart(12, "0")}`;
   }
 
   async crearExpediente(input: SgcCrearExpedienteInput, idempotencyKey: string): Promise<SgcCrearExpedienteResult> {
