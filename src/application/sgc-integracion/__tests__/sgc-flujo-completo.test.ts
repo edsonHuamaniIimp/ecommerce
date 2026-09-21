@@ -302,7 +302,7 @@ beforeEach(() => {
 
 describe("Flujo completo SGC (happy path desde la solicitud)", () => {
   it("deberia ir de la creacion de la solicitud a la descarga del contrato firmado", async () => {
-    const { sgcRepo, client, sgc, webhook, solicitudes, reserva } = setup();
+    const { sgcRepo, sgc, webhook, solicitudes, reserva } = setup();
 
     /* 1. Cliente crea la solicitud (ReservaApplicationService) -> 3 revisiones pendientes */
     const creada = await reserva.crear({
