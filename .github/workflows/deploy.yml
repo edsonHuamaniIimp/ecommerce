@@ -121,8 +121,8 @@ jobs:
 
             BEFORE=$(git rev-parse HEAD)
 
-            git remote set-url origin https://x-access-token:${{ secrets.EC2_GIT_TOKEN }}@github.com/iimp-projects/contratos-stands.git
-            git pull origin main || echo "git pull fallo"
+            git remote set-url origin https://github.com/edsonHuamaniIimp/ecommerce.git
+            git -c credential.helper='!f() { echo "username=x-access-token"; echo "password=${{ secrets.EC2_GIT_TOKEN }}"; }; f' -c credential.helper='cache --timeout=0' pull origin main || echo "git pull fallo"
 
             CHANGED=$(git diff --name-only "$BEFORE" HEAD -- Dockerfile package.json package-lock.json 2>/dev/null)
             if [ -n "$CHANGED" ]; then
