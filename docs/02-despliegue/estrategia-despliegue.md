@@ -103,6 +103,17 @@ terraform output -raw database_url_secret_arn
 - **No** está detrás del dominio. Se mantiene solo como respaldo/pruebas.
 - El job de deploy EC2 está **deshabilitado** salvo que se defina `vars.DEPLOY_EC2=1`.
 
+## 5.1 WAF y subidas de archivos
+
+La regla `SizeRestrictions_BODY` del `AWSManagedRulesCommonRuleSet` bloquea cuerpos > 8 KB
+(HTTP **403**), lo que impedía subir documentos/imágenes (`POST /api/upload`). En el WebACL
+`iimp-ctrst-prod-waf` se **sobrescribe esa regla a `count`** (`rule_action_override`), de modo
+que las subidas funcionan; el resto de reglas del CRS siguen activas. Ver
+`terraform/modules/cloudfront/main.tf`.
+
+> AWS WAF no permite *scope-down* por ruta en `rule_action_override`, por eso el override es
+> global para esa regla (no solo para `/api/upload`).
+
 ## 6. Credenciales AWS y backend remoto
 
 ### 6.1 Perfiles (`credentials` — formato INI)

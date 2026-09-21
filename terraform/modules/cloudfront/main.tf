@@ -95,6 +95,16 @@ resource "aws_wafv2_web_acl" "main" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+
+        # SizeRestrictions_BODY (CRS) bloquea cuerpos > 8KB con 403, lo que impide subir
+        # documentos/imagenes. Se pasa a 'count' (AWS no permite scope-down por ruta en
+        # rule_action_override). El resto de reglas del CRS siguen activas.
+        rule_action_override {
+          name = "SizeRestrictions_BODY"
+          action_to_use {
+            count {}
+          }
+        }
       }
     }
 
