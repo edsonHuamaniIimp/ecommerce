@@ -346,6 +346,7 @@ locals {
       { name = "S3_ENDPOINT", value = "" },
       { name = "NEXT_TELEMETRY_DISABLED", value = "1" },
       { name = "RUN_MIGRATIONS", value = "true" },
+      { name = "RUN_SEED", value = var.run_seed ? "true" : "false" },
       { name = "NEXT_PUBLIC_APP_URL", value = local.app_url },
       { name = "APP_URL", value = local.app_url },
       { name = "NEXT_PUBLIC_API_URL", value = var.public_api_url },
@@ -477,6 +478,17 @@ resource "aws_iam_role_policy" "task" {
           "elasticfilesystem:ClientMount",
           "elasticfilesystem:ClientWrite",
           "elasticfilesystem:ClientRootAccess",
+        ]
+        Resource = ["*"]
+      },
+      {
+        # ECS Exec (SSM): permite mantenimiento/seed via `aws ecs execute-command`
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel",
         ]
         Resource = ["*"]
       },
@@ -730,6 +742,9 @@ resource "aws_ecs_service" "app" {
     rollback = true
   }
 
+  # ECS Exec (SSM): seed/mantenimiento sin SSH
+  enable_execute_command = var.enable_exec_command
+
   lifecycle {
     ignore_changes = [desired_count]
   }
@@ -854,4 +869,16 @@ output "alb_arn_suffix" {
 variable "common_tags" {
   description = "Etiquetas base del proyecto (R3): project, environment, managed-by, cost-center"
   type        = map(string)
+}
+
+variable "enable_exec_command" {
+  description = "Habilita ECS Exec (SSM) para seed/mantenimiento sin SSH"
+  type        = bool
+  default     = true
+}
+
+variable "run_seed" {
+  description = "Ejecuta el seed (roles + usuarios) al arrancar el task. Usar una sola vez."
+  type        = bool
+  default     = false
 }

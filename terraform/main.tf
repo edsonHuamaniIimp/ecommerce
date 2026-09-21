@@ -207,6 +207,8 @@ module "ecs" {
   ecr_repository_name            = var.ecr_repository_name
   ecr_keep_last_images           = var.ecr_keep_last_images
   image_tag                      = var.image_tag
+  enable_exec_command            = var.enable_exec_command
+  run_seed                       = var.run_seed
   container_port                 = var.container_port
   task_cpu                       = var.task_cpu
   task_memory                    = var.task_memory

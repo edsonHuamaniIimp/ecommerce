@@ -52,6 +52,46 @@ Variables de repo (`vars`, no secrets):
 El task ECS siembra solo si `RUN_SEED=true` (usa `prisma/seed-auth.ts`, autocontenido).
 Está **desactivado por defecto**. Ver `docs/06-operacion/seeders.md`.
 
+### 4.1 Opción A — `RUN_SEED=true` (una vez)
+
+```bash
+terraform apply -var="image_tag=<sha>" -var="run_seed=true"
+# ... verificar login ...
+terraform apply -var="image_tag=<sha>" -var="run_seed=false"   # volver a false
+```
+
+### 4.2 Opción B — ECS Exec (sin redeploy)
+
+Requiere `enable_execute_command = true` en el servicio (variable `enable_exec_command`, default `true`)
+y haber desplegado con esa config.
+
+```bash
+CLUSTER=$(terraform output -raw ecs_cluster_name)
+SERVICE=$(terraform output -raw ecs_service_name)
+TASK=$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE" --query 'taskArns[0]' --output text)
+
+aws ecs execute-command --cluster "$CLUSTER" --task "$TASK" --container app --interactive \
+  --command "sh -c 'SEED_ALLOW_PROD=1 npx tsx prisma/seed-auth.ts'"
+```
+
+### 4.3 Opción C — task one-off (el entrypoint ejecuta y termina)
+
+```bash
+aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE \
+  --task-definition <taskdef> \
+  --overrides '{"containerOverrides":[{"name":"app","command":["sh","-c","SEED_ALLOW_PROD=1 npx tsx prisma/seed-auth.ts"]}]}' \
+  --network-configuration '{"awsvpcConfiguration":{"subnets":["<subnet>"],"securityGroups":["<sg>"]}}'
+```
+
+### 4.4 Outputs útiles para armar/consultar la BD
+
+```bash
+terraform output -raw aurora_endpoint        # host
+terraform output -raw aurora_username        # usuario (sensitive)
+terraform output -raw aurora_database_name
+terraform output -raw database_url_secret_arn
+```
+
 ## 5. EC2 (legado)
 
 - `docker-compose.prod.yml` + `docker/entrypoint.sh` en un host EC2 (puerto 8080).

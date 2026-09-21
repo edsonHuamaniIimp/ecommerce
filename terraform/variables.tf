@@ -257,6 +257,18 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "enable_exec_command" {
+  description = "Habilita ECS Exec (SSM) para seed/mantenimiento sin SSH"
+  type        = bool
+  default     = true
+}
+
+variable "run_seed" {
+  description = "Si true, el task ECS ejecuta el seed (roles+usuarios) al arrancar. Usar una vez y volver a false."
+  type        = bool
+  default     = false
+}
+
 variable "container_port" {
   description = "Puerto del contenedor Next.js standalone"
   type        = number

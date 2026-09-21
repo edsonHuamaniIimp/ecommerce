@@ -44,6 +44,23 @@ output "aurora_endpoint" {
   sensitive   = true
 }
 
+output "aurora_username" {
+  description = "Usuario master de Aurora (para armar DATABASE_URL / sembrar)"
+  value       = module.aurora.username
+  sensitive   = true
+}
+
+output "aurora_database_name" {
+  description = "Nombre de la base de datos"
+  value       = module.aurora.database_name
+}
+
+output "database_url_secret_arn" {
+  description = "ARN del secreto DATABASE_URL en Secrets Manager"
+  value       = module.secrets.secret_arns["database_url"]
+  sensitive   = true
+}
+
 output "alarms_topic_arn" {
   description = "Topic SNS de alarmas (suscripcion por correo)"
   value       = module.observability.sns_topic_arn
