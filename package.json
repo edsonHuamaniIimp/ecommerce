@@ -12,6 +12,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:auth": "tsx prisma/seed-auth.ts",
+    "db:seed:cleanup": "tsx prisma/seed-cleanup.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && npx prisma generate",

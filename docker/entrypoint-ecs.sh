@@ -43,10 +43,12 @@ if [ -n "${DATABASE_URL}" ]; then
 
     # Poblado inicial OPCIONAL y controlado (seed idempotente con upsert).
     # Solo se ejecuta si RUN_SEED=true (nunca en prod por defecto).
+    # Usa seed-auth.ts (roles + usuarios) porque es autocontenido: la imagen ECS
+    # standalone NO copia src/, y seed.ts depende de src/.
     if [ "${RUN_SEED}" = "true" ]; then
-        echo "[entrypoint] RUN_SEED=true -> poblando datos iniciales (eventos, roles, tipos stand)..."
-        npx tsx prisma/seed.ts
-        echo "[entrypoint] Seed aplicado."
+        echo "[entrypoint] RUN_SEED=true -> poblando roles + usuarios (seed-auth)..."
+        SEED_ALLOW_PROD=1 npx tsx prisma/seed-auth.ts
+        echo "[entrypoint] Seed auth aplicado."
     fi
 fi
 
