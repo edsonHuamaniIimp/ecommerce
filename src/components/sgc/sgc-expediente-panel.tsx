@@ -122,6 +122,9 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
         )}
         <span className="text-muted-foreground">Etapa: {data.stage}</span>
       </div>
+      <p className="text-[10px] text-muted-foreground">
+        ID SGC: <span className="font-mono">{data.contractId}</span>
+      </p>
 
       {data.steps.length > 0 && (
         <div className="space-y-2">
