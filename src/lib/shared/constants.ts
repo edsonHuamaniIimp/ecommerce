@@ -34,6 +34,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/stands/contrato",
   "/api/planos/publico",
   "/api/integracion/sgc/webhook",
+  "/api/cron/sgc-reconciliar",
 ] as const;
 
 /** URL base de la aplicacion. En produccion se configura via variable de entorno. */
@@ -570,7 +571,7 @@ export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES
 
 /* ================================================================
    Integración SGC (Sistema de Gestión de Contratos)
-   Contrato externo: APIS_USE_HOOKS.md / docs/integracion-sgc.md
+   Contrato externo: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
    ================================================================ */
 export const SGC_MODES = {
   MOCK: "mock",
@@ -675,11 +676,54 @@ export const SGC_DOCUMENTO_ESTADO = {
 
 export type SgcDocumentoEstado = (typeof SGC_DOCUMENTO_ESTADO)[keyof typeof SGC_DOCUMENTO_ESTADO];
 
+/** Métodos HTTP (evita literales en clientes/servicios). */
+export const HTTP_METHODS = {
+  GET: "GET",
+  POST: "POST",
+  PATCH: "PATCH",
+  PUT: "PUT",
+  DELETE: "DELETE",
+} as const;
+
+export type HttpMethod = (typeof HTTP_METHODS)[keyof typeof HTTP_METHODS];
+
+/** Rutas de la API de integración del SGC, relativas a `SGC_API_URL`. */
+export const SGC_API_PATHS = {
+  CONTRACTS: "/contracts",
+  CONTRACT: (id: string) => `/contracts/${encodeURIComponent(id)}`,
+  CONTRACT_DOCUMENTS: (id: string) => `/contracts/${encodeURIComponent(id)}/documents`,
+  DOCUMENT: (id: string) => `/documents/${encodeURIComponent(id)}`,
+  DOCUMENT_VERSION: (id: string) => `/document-versions/${encodeURIComponent(id)}`,
+  DOCUMENT_VERSION_COMPLETE: (id: string) => `/document-versions/${encodeURIComponent(id)}/complete`,
+  DOCUMENT_VERSION_DOWNLOAD: (id: string) => `/document-versions/${encodeURIComponent(id)}/download`,
+} as const;
+
+/** Outbox SGC: estados, operaciones y politica de reintentos. */
+export const SGC_OUTBOX_ESTADO = {
+  PENDIENTE: "pendiente",
+  ENVIADO: "enviado",
+  ERROR: "error",
+} as const;
+
+export type SgcOutboxEstado = (typeof SGC_OUTBOX_ESTADO)[keyof typeof SGC_OUTBOX_ESTADO];
+
+export const SGC_OUTBOX_OPERACION = {
+  SUBIR_CONTRATO: "subir-contrato",
+  SUBIR_ANEXOS: "subir-anexos",
+  SUBSANAR: "subsanar",
+} as const;
+
+export type SgcOutboxOperacion = (typeof SGC_OUTBOX_OPERACION)[keyof typeof SGC_OUTBOX_OPERACION];
+
+export const SGC_OUTBOX_MAX_INTENTOS = 6;
+export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
+
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
 export const SGC_WEBHOOK_TOLERANCE_SECONDS = 300;
 export const SGC_WEBHOOK_SIGNATURE_HEADER = "x-sgc-signature";
 export const SGC_WEBHOOK_DELIVERY_HEADER = "x-sgc-delivery";
+export const CRON_SECRET_HEADER = "x-cron-secret";
 /**
  * Área local que dispara la delegación al SGC. Las revisiones locales se agotan en
  * Comunicación; la revisión **Legal** pasa a ser el `internal-review` del SGC.

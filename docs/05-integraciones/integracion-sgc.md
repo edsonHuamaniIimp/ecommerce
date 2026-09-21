@@ -28,7 +28,7 @@
 > Fase 5: `obtenerDescargaContrato` (`GET /api/sgc/descarga`) con botón en el panel,
 > y `subsanarContrato` (`POST /api/sgc/subsanar`) que reemplaza la versión sobre el mismo
 > `documentId`.
-> Fase 6: documentación (`docs/openapi.yaml` con los endpoints SGC, `docs/modelo-datos.md`
+> Fase 6: documentación (`docs/04-api/openapi.yaml` con los endpoints SGC, `docs/03-arquitectura/modelo-datos.md`
 > con `sgc_expediente`/`sgc_documento`/`sgc_webhook_evento`), revisión de seguridad y
 > checklist pre-merge. Se corrigió además una indentación YAML preexistente en `openapi.yaml`.
 > Estado del repo: `npx tsc --noEmit` y `npx eslint` en **0 errores** (regla innegociable).
@@ -52,7 +52,7 @@ sidebar de seguimiento.
 
 ### Terminología (importante)
 
-`docs/api-sistema-montaje.md:48` rotula "SGC = ContratosStands". Esa equivalencia
+`docs/05-integraciones/api-sistema-montaje.md:48` rotula "SGC = ContratosStands". Esa equivalencia
 **ya no aplica** para esta integración: el SGC que describe `APIS_USE_HOOKS.md` es un
 sistema externo con workflow de expedientes, versionado documental y webhooks HMAC
 que este repo no implementa. Pendiente corregir esa línea del doc del SM.
@@ -76,7 +76,7 @@ que este repo no implementa. Pendiente corregir esa línea del doc del SM.
 | Paso SGC | Disparador en ContratosStands | Entidad local |
 |---|---|---|
 | `POST /contracts` | **Revisión Comunicación aprobada** — última área local; Legal se delega (ver §3.1) | `Solicitud` |
-| Reservar/subir/confirmar documento | Documento del contrato + `SolicitudDocumento` de anexos | `SolicitudDocumento` |
+| Reservar/subir/confirmar documento | **Contrato v1** = documento del **admin** (`SolicitudDocumento.userId === null`); **anexos** = documentos del **cliente** (`userId` no nulo) | `SolicitudDocumento` |
 | `GET /contracts/{contractId}` | Usuario abre el sidebar del stand | `Solicitud` + correlación `SgcExpediente` |
 | `workflow.returned` | El SGC devuelve → estado observado | `SgcWebhookEvento` → `SgcExpediente` |
 | `workflow.approved` + finalization `active` | Descargar contrato firmado | `SgcDocumento` |
@@ -264,11 +264,13 @@ model SgcWebhookEvento {
 
 En `Solicitud` se agrega la relación inversa: `sgcExpediente SgcExpediente?`.
 
-**Outbox (opcional, recomendado para producción):** `SgcOutbox` con
-`idempotencyKey @unique`, `payload`, `estado`, `intentos`, `programadoAt` — permite
-reintentos con backoff sin bloquear el request del usuario. Se puede postergar a Fase 4.
+**Outbox (implementado):** `SgcOutbox` (`operacion`, `idempotencyKey @unique`, `payload`,
+`estado`, `intentos`, `ultimoError`, `programadoAt`). `SgcOutboxApplicationService.encolar`
+encola subidas de contrato/anexos y subsanaciones cuando fallan; el cron ejecuta
+`despachar()` con **backoff exponencial** (base 60 s, tope 1 h, máx. 6 intentos).
+`estadoEnvio=error` del expediente se reintenta además vía `sincronizarCron()`.
 
-> Reflejar estos modelos en `docs/modelo-datos.md` (regla `lineamientos-bd`).
+> Reflejar estos modelos en `docs/03-arquitectura/modelo-datos.md` (regla `lineamientos-bd`).
 
 ## 6. Constantes (`src/lib/shared/constants.ts`)
 
@@ -351,7 +353,10 @@ responder 2xx y salir.
 ### 8.4 Local vs producción
 El SGC **no entrega a localhost/IP privada**. Mientras no exista host HTTPS público:
 - **Fase intermedia**: polling con `GET /contracts/{contractId}` (botón de refresco en el
-  sidebar + cron de reconciliación).
+  sidebar) + **cron de reconciliación** `POST /api/cron/sgc-reconciliar` (header
+  `x-cron-secret`), disparado por `.github/workflows/sgc-reconciliar.yml` cada 10 min.
+  Ese cron refresca/reintenta expedientes en `estadoEnvio = error` **y despacha el outbox**
+  (contrato/anexos/subsanación) con backoff.
 - **Pruebas reales**: túnel (ngrok) y registrar la URL temporal al equipo del SGC.
 
 ## 9. Frontend
@@ -387,7 +392,7 @@ SGC_TIMEOUT_MS=10000
 | **3** | `GET` detalle + endpoint interno + fachada + sidebar | test mapper/view-model; verificación en navegador |
 | **4** | Webhooks (receptor, HMAC, inbox, procesamiento) + reconciliación | tests de firma (válida/expirada/falsa) e idempotencia |
 | **5** | Subsanación (mismo `documentId`) + descarga del firmado | test flujo returned→reenvío→approved→download |
-| **6** | Docs (`docs/openapi.yaml`, `docs/modelo-datos.md`, este doc), seguridad, pre-merge | checklist `pre-merge` |
+| **6** | Docs (`docs/04-api/openapi.yaml`, `docs/03-arquitectura/modelo-datos.md`, este doc), seguridad, pre-merge | checklist `pre-merge` |
 
 Cada fase sigue `code-production-process` + `test-driven-development` y cierra con
 `verification-before-completion`.
@@ -412,8 +417,11 @@ Cada fase sigue `code-production-process` + `test-driven-development` y cierra c
    `totalMinorUnits` (¿`Facturacion`?) quedan para cuando se empujen documentos (Fase 2).
 4. **`code` de negocio**: ¿usar el código de stand/solicitud existente o un correlativo
    nuevo `STAND-<año>-<seq>`?
-5. **Documentos a empujar**: ¿solo el contrato generado, o también los `SolicitudDocumento`
-   como anexos?
+5. ~~**Documentos a empujar**~~ — **RESUELTO** (fuente en `docs/00-inicio/flujos.md` §1.2 y
+   `docs/01-funcional/02-solicitudes-y-aprobaciones.md` §4/§7): **contrato v1 = documento del
+   admin** (`SolicitudDocumento.userId === null`) y **anexos = documentos del cliente**.
+   Implementado en `subirContratoDeSolicitud` / `subirAnexosDeSolicitud` (endpoints
+   `POST /api/sgc/subir-contrato` y `/api/sgc/subir-anexos`) y en el panel SGC.
 6. **Credencial** `sgc_<clave>` y host del SGC por ambiente (mientras no existan: `SGC_MODE=mock`).
 
 ## Anexo A. Flujo completo (happy path)

@@ -3,5 +3,23 @@
   "skills": {
     "paths": [".opencode/reglas", ".opencode/skills"]
   },
-  "model": "kimi-open/kimi-k3"
+  "model": "kimi-open/kimi-k3",
+  "mcp": {
+    "stitch": {
+      "type": "local",
+      "command": [
+        "C:\\Proyectos\\IIMP\\ContratosStands\\scripts\\stitch-proxy.cmd"
+      ],
+      "enabled": true,
+      "environment": {}
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_MCP_TOKEN}"
+      }
+    }
+  }
 }

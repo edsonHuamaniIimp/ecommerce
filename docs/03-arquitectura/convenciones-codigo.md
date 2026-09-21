@@ -50,7 +50,7 @@ src/
 - **Mapper** snake_case ↔ camelCase.
 - **`handler()` wrapper** global de errores.
 - **Constantes** para validaciones (nunca strings hardcodeados).
-- **Documentar con Swagger/OpenAPI** en `docs/openapi.yaml`.
+- **Documentar con Swagger/OpenAPI** en `docs/04-api/openapi.yaml`.
 
 ---
 

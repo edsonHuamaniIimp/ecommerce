@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
 import type { SgcExpedienteDetalleDTO } from "@/types/dto/sgc/expediente-detalle.dto";
 
-interface SgcExpedienteState {
+interface SgcExpedienteData {
   data: SgcExpedienteDetalleDTO | null;
   loading: boolean;
   error: string | null;
 }
 
-export function useSgcExpediente(solicitudId: string): SgcExpedienteState {
-  const [state, setState] = useState<SgcExpedienteState>({ data: null, loading: true, error: null });
+export function useSgcExpediente(solicitudId: string): SgcExpedienteData & { refetch: () => void } {
+  const [state, setState] = useState<SgcExpedienteData>({ data: null, loading: true, error: null });
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -28,7 +29,7 @@ export function useSgcExpediente(solicitudId: string): SgcExpedienteState {
     return () => {
       cancelado = true;
     };
-  }, [solicitudId]);
+  }, [solicitudId, version]);
 
-  return state;
+  return { ...state, refetch: () => setVersion((v) => v + 1) };
 }

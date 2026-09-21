@@ -634,7 +634,7 @@ model PlanoFurniture {
 
 /* ================================================================
    7. INTEGRACIÓN SGC — correlación con el Sistema de Gestión de Contratos
-      Contrato: APIS_USE_HOOKS.md / docs/integracion-sgc.md
+      Contrato: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
    ================================================================ */
 
 model SgcExpediente {
@@ -698,4 +698,21 @@ model SgcWebhookEvento {
   @@index([eventType])
   @@index([resourceId])
   @@map("sgc_webhook_evento")
+}
+
+/// Cola de salida (outbox): operaciones hacia el SGC con reintentos y backoff.
+model SgcOutbox {
+  id             String    @id @default(uuid())
+  operacion      String    @db.VarChar(40)   // subir-contrato | subir-anexos | subsanar
+  idempotencyKey String?   @unique @map("idempotency_key") @db.VarChar(160)
+  payload        Json
+  estado         String    @default("pendiente") @db.VarChar(20) // pendiente|enviado|error
+  intentos       Int       @default(0)
+  ultimoError    String?   @map("ultimo_error") @db.VarChar(500)
+  programadoAt   DateTime  @default(now()) @map("programado_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([estado, programadoAt])
+  @@map("sgc_outbox")
 }

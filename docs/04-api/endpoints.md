@@ -1,12 +1,12 @@
 # Endpoints / Contrato de API — ContratosStands
 
 > **Estado:** v0.3 — actualizado con endpoints de auth, eventos, roles y gess.
-> [`docs/openapi.yaml`](./openapi.yaml) (Swagger/OpenAPI 3.0). Este documento es la
+> [`openapi.yaml`](./openapi.yaml) (Swagger/OpenAPI 3.0). Este documento es la
 > guía legible; ante discrepancias, prevalece el OpenAPI.
 
 ## 1. Documentación con Swagger/OpenAPI (obligatorio)
 
-- Toda API del sistema se **documenta en `docs/openapi.yaml`** y se mantiene
+- Toda API del sistema se **documenta en `docs/04-api/openapi.yaml`** y se mantiene
   sincronizada con la implementación (Route Handlers de Next.js).
 - Validar el spec en el editor con la extensión OpenAPI/Swagger, o online en
   [editor.swagger.io](https://editor.swagger.io) (pegar el contenido de `openapi.yaml`).
@@ -75,5 +75,5 @@
 - Fuente única de **empresas** (John / base centralizada de Niel) y su API.
 - Estrategia de **eventos/subeventos** (uno vs. dos parámetros).
 
-> Al cerrar cada punto (PC), actualizar **primero** `docs/openapi.yaml` y luego la
+> Al cerrar cada punto (PC), actualizar **primero** `docs/04-api/openapi.yaml` y luego la
 > implementación y este resumen.

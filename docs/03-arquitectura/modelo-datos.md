@@ -2,7 +2,7 @@
 
 > **Estado:** v0.4 — incluye modelos GessStand, Role, UserRole y la integración SGC
 > (`sgc_expediente`, `sgc_documento`, `sgc_webhook_evento`). Motor confirmado: PostgreSQL + Prisma v7.
-> **Relacionado:** `docs/requerimientos.md`, `.opencode/reglas/lineamientos-bd`.
+> **Relacionado:** `docs/00-inicio/requerimientos.md`, `.opencode/reglas/lineamientos-bd`.
 
 ## 1. Alcance del modelo
 
@@ -287,7 +287,7 @@ Unique: `[userId, roleId]`. Índices: `userId`, `email`.
 ### 4.15 `sgc_expediente` (Integración · correlación)
 
 Correlación 1:1 entre una `solicitud` local y su expediente en el Sistema de Gestión
-de Contratos (SGC). Ver `docs/integracion-sgc.md`.
+de Contratos (SGC). Ver `docs/05-integraciones/integracion-sgc.md`.
 
 | Campo | Tipo | Nulo | Descripción |
 | --- | --- | --- | --- |
@@ -341,6 +341,23 @@ Bitácora de webhooks recibidos del SGC; deduplica por `eventId`.
 | error | string(500) | Sí | Error de procesamiento (si hubo). |
 
 Índices: `eventType`, `resourceId`.
+
+### 4.18 `sgc_outbox` (Integración · cola de salida)
+
+Operaciones hacia el SGC con reintentos y backoff. Ver `docs/05-integraciones/integracion-sgc.md`.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| operacion | enum | No | subir-contrato / subir-anexos / subsanar. |
+| idempotencyKey | string(160) (unique) | Sí | Clave de idempotencia. |
+| payload | json | No | Datos para re-ejecutar la operación. |
+| estado | enum | No | pendiente/enviado/error. |
+| intentos | int | No | Reintentos realizados. |
+| ultimoError | string(500) | Sí | Último error. |
+| programadoAt | datetime | No | Próximo intento (backoff). |
+
+Índice: `(estado, programadoAt)`.
 
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 

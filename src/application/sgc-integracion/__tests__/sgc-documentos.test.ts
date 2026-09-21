@@ -64,6 +64,9 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     tieneFacturacion: false,
     tipoFacturacion: null,
     facturacionId: null,
+    sgcEstadoEnvio: null,
+    sgcLifecycleStatus: null,
+    sgcStage: null,
     ...overrides,
   };
 }
@@ -73,6 +76,7 @@ function sgcRepoMock(existente: SgcExpedienteEntity | null = expediente()): ISgc
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(existente),
     findExpedientePorContractId: vi.fn().mockResolvedValue(null),
     listarConContractId: vi.fn().mockResolvedValue([]),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn(),
     crearDocumento: vi.fn().mockImplementation((data: CrearSgcDocumentoData) =>
@@ -252,12 +256,13 @@ describe("SgcIntegracionApplicationService.subirDocumentoDesdeUrl", () => {
 });
 
 describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
-  it("deberia empujar cada adjunto como anexo", async () => {
+  it("deberia empujar cada adjunto del cliente como anexo", async () => {
     const client = clientMock();
     const row = detalle({
+      userId: "user-1",
       docsAdjuntos: [
-        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: null, uploadedBy: null, createdAt: new Date() },
-        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: null, uploadedBy: null, createdAt: new Date() },
+        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
@@ -270,5 +275,46 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       "contract-1",
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX }),
     );
+  });
+
+  it("deberia excluir el documento del admin (userId null) de los anexos", async () => {
+    const client = clientMock();
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
+        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", createdAt: new Date() },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+
+    const docs = await svc.subirAnexosDeSolicitud("sol-1");
+
+    expect(docs).toHaveLength(1);
+    expect(client.reservarSubida).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
+  it("deberia subir el documento del admin (userId null) como contrato", async () => {
+    const client = clientMock();
+    const origen = documentoOrigenMock();
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
+        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", createdAt: new Date() },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
+
+    const doc = await svc.subirContratoDeSolicitud("sol-1");
+
+    expect(origen.leer).toHaveBeenCalledWith("/uploads/contrato.pdf");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.CONTRACT }),
+    );
+    expect(doc).not.toBeNull();
   });
 });

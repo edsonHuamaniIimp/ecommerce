@@ -53,6 +53,7 @@ function sgcRepoVacio(): ISgcRepository {
     findExpedientePorSolicitud: vi.fn(),
     findExpedientePorContractId: vi.fn(),
     listarConContractId: vi.fn(),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn(),
     crearDocumento: vi.fn(),

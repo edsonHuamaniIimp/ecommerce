@@ -5,6 +5,7 @@ import type {
   SgcDocumentoEstado,
   SgcEstadoEnvio,
   SgcLifecycleStatus,
+  SgcOutboxEstado,
   SgcStage,
   SgcStepStatus,
   SgcVersionStatus,
@@ -230,6 +231,18 @@ export interface SgcWebhookEventoEntity {
   resourceCode: string | null;
   procesadoAt: Date | null;
   error: string | null;
+}
+
+/** Registro de la cola de salida (outbox) hacia el SGC. */
+export interface SgcOutboxEntity {
+  id: string;
+  operacion: string;
+  idempotencyKey: string | null;
+  payload: Record<string, unknown>;
+  estado: SgcOutboxEstado;
+  intentos: number;
+  ultimoError: string | null;
+  programadoAt: Date;
 }
 
 /** Correlacion persistida de cada pieza documental empujada al SGC */

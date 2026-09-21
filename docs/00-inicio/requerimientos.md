@@ -1,6 +1,6 @@
 # Requerimientos del Sistema — ContratosStands (Reserva de Stands IIMP)
 
-> **Estado:** v0.3 — sección 15 actualizada con 20 funcionalidades implementadas.
+> **Estado:** v0.4 — sección 15 actualizada al estado real por módulo (ver `docs/01-funcional/`).
 >
 > **Fecha:** 2026-07-08
 > **Fuente:** Reunión técnica de onboarding (Edson Huamani ↔ John Morón).
@@ -436,41 +436,60 @@ Lineamientos de despliegue:
 
 ---
 
-## 15. Estado actual de implementación (v0.2)
+## 15. Estado actual de implementación (v0.3)
 
-### 15.1 Funcionalidades implementadas
+> Estado verificado contra el código. El detalle funcional por módulo está en
+> [`../01-funcional/`](../01-funcional/README.md).
 
-| Funcionalidad | Estado |
-|---|---|
-| Plano isométrico 3D (52 bloques, multi-select, reserva 3 pasos) | Completo |
-| Plano grid 2D (52 bloques, selección, reserva) | Completo |
-| Personas 3D en plano isométrico (capsula geometry) | Completo |
-| Selección de evento (ProExplo/WMC/GESS/PERUMIN) con dialog | Completo |
-| Proxy API planogess (KBEventos) con SSL self-signed | Completo |
-| Sincronización API→BD (GessStand) con auto-detección de campos | Completo |
-| Mantenedor GESS: importar + vincular stands a bloques 3D | Completo |
-| Vinculación GessStand ↔ bloques isométricos (bloqueId) | Completo |
-| Dashboard KPIs + pipeline de aprobaciones | Completo |
-| Autenticación JWT (login, middleware, roles) | Completo |
-| Gestión de roles y permisos (admin/logistica/legal/comunicacion) | Completo |
-| Fachada de servicios (mock/http) + DTO/Mapper | Completo |
-| PostgreSQL + Prisma v7 + Docker | Completo |
-| Multi-ambiente (local/qa/production) | Completo |
+### 15.1 Estado por módulo
+
+| Módulo | Estado | Observaciones |
+|---|---|---|
+| Portal público + presala (selección de evento/vertical) | Completo | Home y `/presala` listan versiones; theming por vertical |
+| Plano interactivo (`/plano`, `/mapa`) | Completo | Isométrico 3D y dinámico simple/macro; `/plano-grid` es maqueta |
+| Reserva (multi-select, 3 pasos, borrador IndexedDB) | Completo | 1 stand exige documento; N stands sin documento |
+| Solicitudes de alquiler + pipeline de revisión | Completo | Local Logística → Comunicación; Legal delegada al SGC |
+| Re-evaluación del cliente | Completo | Aprobar resetea revisiones; rechazar libera stands |
+| Alertas (campana) | Completo | Polling 30 s; por rol en cada turno |
+| Auspicios | Completo (proxy) | Sin persistencia local; reenvía a KBServicios |
+| Facturación + cuotas | Completo | `cancelado`/`vencido` declarados sin uso |
+| Pago con Niubiz | Completo | Mock en local; proxy en producción |
+| Laboratorio 3D (planos simple/macro) | Completo | Sin versionado; export TS no escribe en disco |
+| Eventos (padre–versión) + metadata | Parcial | UI solo edita `plano` y `flg_visible`; sin crear/cerrar desde UI |
+| Datos del evento | Completo | Solo lectura; datos de `gess_stand` |
+| Gestión de stands + documentación | Completo | Subida de contrato/imágenes |
+| Sincronización GESS (importar + vincular `bloqueId`) | Completo | Sincronización API→BD con `GessStand` |
+| Administración de roles/permisos/usuarios | Completo | Baja de usuario probablemente rota; password por defecto |
+| Perfil de usuario | Completo | Empresa asignable solo por admin |
+| Autenticación JWT + middleware | Completo | Password en texto plano; permisos del primer rol |
+| Dashboard KPIs | Parcial | KPIs de stands; pipeline de aprobaciones desconectado (`reservas={[]}`) |
+| Integración Sistema de Montaje (M2M) | Completo | `x-api-key`; 3 endpoints |
+| Integración SGC | Implementada pero **en mock** | Sin adaptador HTTP real; `SGC_ENABLED=0` por defecto |
+| RENIEC/SUNAT, entidades, KBServicios | Completo | Endpoints sin auth de handler |
+| Postgres + Prisma v7 + Docker multi-ambiente | Completo | Migraciones versionadas |
 
 ### 15.2 Áreas de aprobación
 
+La revisión local es **Logística → Comunicación**. **Legal ya no es local**: se delega al
+`internal-review` del SGC (`constants.ts:346-376,684-688`).
+
 | Área | Rol | Permisos |
 |---|---|---|
-| Logística | `logistica` | `read:reservas`, `approve:logistica` |
-| Legal | `legal` | `read:reservas`, `approve:legal` |
-| Comunicación | `comunicacion` | `read:reservas`, `approve:comunicacion` |
-| Admin | `admin` | `admin:full`, todos los anteriores |
+| Logística | `logistica` | `solicitudes:view`, `solicitudes:review:logistica` |
+| Comunicación | `comunicacion` | `solicitudes:view`, `solicitudes:review:comunicacion` |
+| Legal (SGC) | externo (SGC) | paso visual; sin permiso local |
+| Admin | `admin` | `admin:full` (incluye `solicitudes:notify`, `solicitudes:upload`) |
 
-### 15.3 Pendientes
+### 15.3 Pendientes y deudas
 
-- **(PC)** Contrato de interoperabilidad con John/SAP
-- **(PC)** Fuente única de empresas (integración con sistema de Niel)
-- **(PC)** Endpoint real de planogess en producción
-- Emisión de comprobantes vía SAP
-- Notificaciones por correo
-- Testing automatizado (unit + e2e)
+- **(PC)** Contrato de interoperabilidad con John/SAP.
+- **(PC)** Fuente única de empresas (integración con sistema de Niel).
+- **(PC)** Endpoint real de planogess en producción.
+- **SGC real**: implementar adaptador HTTP (hoy mock permanente) y materializar envío de anexos/contrato.
+- Emisión de comprobantes vía SAP.
+- Notificación automática al cliente al aprobar todas las áreas.
+- Permisos por área en backend (`solicitudes:review:*`) y scoping de dueño en lecturas.
+- Autenticación en `/api/gess`, `/api/planogess`, `/api/upload`, RENIEC/SUNAT.
+- Endurecer auth (hash de contraseñas, `JWT_SECRET` obligatorio, TLS en clientes externos).
+- Testing automatizado (unit + e2e).
+

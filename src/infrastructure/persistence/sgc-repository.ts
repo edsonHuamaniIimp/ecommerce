@@ -85,6 +85,11 @@ export class SgcPrismaRepository implements ISgcRepository {
     return rows.map((row) => mapExpediente(row));
   }
 
+  async listarConEstadoEnvio(estado: SgcEstadoEnvio): Promise<SgcExpedienteEntity[]> {
+    const rows = await prisma.sgcExpediente.findMany({ where: { estadoEnvio: estado } });
+    return rows.map((row) => mapExpediente(row));
+  }
+
   async crearExpediente(data: CrearSgcExpedienteData): Promise<SgcExpedienteEntity> {
     const row = await prisma.sgcExpediente.create({
       data: {

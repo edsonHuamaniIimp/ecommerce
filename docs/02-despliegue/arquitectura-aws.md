@@ -1,7 +1,7 @@
 # Arquitectura AWS — Decisión para ContratosStands
 
 > **Estado:** v5 — 2026-09-16 (**DECISIÓN CONFIRMADA por el dueño**: Opción 1 — ECS Fargate + Aurora Serverless v2 + ALB + CloudFront/WAF).
-> Basada en: la documentación del proyecto (`docs/`, documentos 00-12), `docs/01-despliegue/REGLAS-DESPLIEGUE.md`
+> Basada en: la documentación del proyecto (`docs/`, documentos 00-12), `docs/02-despliegue/REGLAS-DESPLIEGUE.md`
 > (R1-R6) y las skills de AWS (`aws-containers`, `aws-database`, `aws-billing-and-cost-management`).
 > **Precios:** obtenidos con AWS CLI (`pricing get-products`) sobre la **Price List API**, cuenta
 > `517839275515` (sistemas.iimp), región `us-east-1`, al 2026-09-16. Todos los cálculos se hicieron

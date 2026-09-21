@@ -41,6 +41,10 @@ export function getSgcWebhookSecret(): string | null {
   return process.env.SGC_WEBHOOK_SECRET ?? null;
 }
 
+export function getCronSecret(): string | null {
+  return process.env.CRON_SECRET ?? null;
+}
+
 export function getSgcTimeoutMs(): number {
   const raw = Number(process.env.SGC_TIMEOUT_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;

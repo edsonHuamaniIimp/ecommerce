@@ -49,7 +49,7 @@
 
 ## 3. Estructura Terraform (`terraform/`)
 
-> **Decisión de arquitectura completa: ver `docs/01-despliegue/arquitectura-aws.md` (v4, 2026-09-16).**
+> **Decisión de arquitectura completa: ver `docs/02-despliegue/arquitectura-aws.md` (v4, 2026-09-16).**
 
 ```
 terraform/

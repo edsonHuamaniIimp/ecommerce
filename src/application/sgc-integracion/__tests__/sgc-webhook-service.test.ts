@@ -80,6 +80,7 @@ function sgcRepoMock(existe = true): ISgcRepository {
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(existe ? expediente() : null),
     findExpedientePorContractId: vi.fn().mockResolvedValue(existe ? expediente() : null),
     listarConContractId: vi.fn().mockResolvedValue(existe ? [expediente()] : []),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn().mockResolvedValue(expediente()),
     actualizarExpediente: vi.fn().mockResolvedValue(expediente()),
     crearDocumento: vi.fn().mockResolvedValue(documento()),

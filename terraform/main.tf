@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # ContratosStands — Infraestructura AWS (ECS Fargate + Aurora Serverless v2 + CloudFront/WAF)
-# DECISIÓN: docs/01-despliegue/arquitectura-aws.md (v5, Opción 1)
-# REGLAS OBLIGATORIAS: docs/01-despliegue/REGLAS-DESPLIEGUE.md
+# DECISIÓN: docs/02-despliegue/arquitectura-aws.md (v5, Opción 1)
+# REGLAS OBLIGATORIAS: docs/02-despliegue/REGLAS-DESPLIEGUE.md
 # - R1: prod solo con autorización explícita del usuario
 # - R2: TODO con variables, nada hardcodeado
 # - R3: hashtag del proyecto = tag `project=contratos-stands` (default_tags)

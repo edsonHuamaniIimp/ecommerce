@@ -34,7 +34,7 @@ CLIENTE                    SISTEMA                       API EXTERNO
 - `gess_stand.estado` cambia de "disponible" a "en_evaluacion"
 - `solicitud.documentos` guarda URLs de docs subidos por el cliente (campo JSON)
 - 2 `Revision` se crean: logistica y comunicacion — en "pendiente". La revisión **Legal**
-  ya no es local: se delega al SGC (ver `docs/integracion-sgc.md`)
+  ya no es local: se delega al SGC (ver `docs/05-integraciones/integracion-sgc.md`)
 - Email de confirmacion via Resend al cliente + notificacion al admin
 
 ### 1.2 Documentos — Single vs Multi-stand

@@ -4,7 +4,7 @@
 > **Fuente:** `Dockerfile`, `docker-compose*.yml`, `docker/`, `.github/workflows/deploy.yml`, `scripts/`, `.env*.example`.
 >
 > **Camino B (IaC objetivo):** la infraestructura AWS con Terraform (ECS Fargate + RDS + S3)
-> vive en `terraform/` y está documentada en `docs/01-despliegue/` (arquitectura, reglas de
+> vive en `terraform/` y está documentada en `docs/02-despliegue/` (arquitectura, reglas de
 > despliegue R1-R6 y flujo MCP). Este documento describe el camino A (EC2 + Docker Compose, actual).
 
 ---
@@ -157,7 +157,7 @@ bash scripts/s3-setup.sh <bucket-name> [region]
 - **Healthcheck:** `GET /health` (nginx, sin auth).
 - **Logs:** nginx y Next.js a stdout/stderr del contenedor (capturados por Docker).
 - **Auditoría de aplicación:** tabla `audit_log` (acciones clave) y endpoint `POST /api/errors/log` (errores con contexto).
-- **Backups:** pendiente de configurar backup automático de PostgreSQL (requisito de producción documentado en `docs/despliegue.md`).
+- **Backups:** pendiente de configurar backup automático de PostgreSQL (requisito de producción documentado en `docs/02-despliegue/despliegue.md`).
 
 ---
 

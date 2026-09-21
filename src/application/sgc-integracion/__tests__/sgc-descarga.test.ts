@@ -64,6 +64,7 @@ function sgcRepoMock(): ISgcRepository {
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(expediente()),
     findExpedientePorContractId: vi.fn().mockResolvedValue(expediente()),
     listarConContractId: vi.fn().mockResolvedValue([expediente()]),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn().mockResolvedValue(expediente()),
     actualizarExpediente: vi.fn().mockResolvedValue(expediente()),
     crearDocumento: vi.fn(),

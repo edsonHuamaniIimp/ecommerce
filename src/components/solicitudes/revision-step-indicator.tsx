@@ -13,6 +13,8 @@ interface Props {
   areas?: RevisionArea[];
   /** Muestra el paso "Legal (SGC)" (revisión delegada). Por defecto true. */
   mostrarSgc?: boolean;
+  /** Marca el paso "Legal (SGC)" como aprobado por el SGC. */
+  sgcDone?: boolean;
 }
 
 export function RevisionStepIndicator({
@@ -22,6 +24,7 @@ export function RevisionStepIndicator({
   stepCanGo,
   areas = REVISION_AREA_ORDER,
   mostrarSgc = true,
+  sgcDone = false,
 }: Props) {
   return (
     <div className="mb-4 flex items-start justify-between px-2">
@@ -84,12 +87,20 @@ export function RevisionStepIndicator({
       {/* Paso delegado: la revisión Legal ahora la realiza el SGC */}
       {mostrarSgc && (
         <>
-          <div className="mt-[18px] h-0.5 flex-1 rounded-full bg-slate-200 mx-1" />
+          <div className={`mt-[18px] h-0.5 flex-1 rounded-full mx-1 ${sgcDone ? "bg-emerald-400" : "bg-slate-200"}`} />
           <div className="flex flex-col items-center gap-1.5" title="Revisión Legal delegada al SGC">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400">
-              <Scale className="h-4 w-4" />
+            <span
+              className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${
+                sgcDone
+                  ? "bg-emerald-500 text-white ring-2 ring-emerald-500/30"
+                  : "border-2 border-dashed border-slate-300 text-slate-400"
+              }`}
+            >
+              {sgcDone ? <Check className="h-4 w-4" /> : <Scale className="h-4 w-4" />}
             </span>
-            <span className="text-xs font-normal text-slate-400">{REVISION_AREA_SGC_LABEL}</span>
+            <span className={`text-xs ${sgcDone ? "font-medium text-slate-600" : "font-normal text-slate-400"}`}>
+              {REVISION_AREA_SGC_LABEL}
+            </span>
           </div>
         </>
       )}

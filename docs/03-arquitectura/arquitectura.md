@@ -81,7 +81,7 @@ ContratosStands/
 
 ```
 prisma/
-├── schema.prisma                  # 25 modelos (ver docs/modelo-datos.md)
+├── schema.prisma                  # 25 modelos (ver modelo-datos.md)
 ├── seed.ts                        # Datos iniciales
 └── migrations/
     └── 0001_init/migration.sql    # Migracion inicial

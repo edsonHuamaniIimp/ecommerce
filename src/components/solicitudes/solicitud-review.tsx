@@ -16,7 +16,9 @@ import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revis
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
+import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { puedeGenerarOrdenPago, sgcAprobado, sgcAplica } from "@/lib/shared/utils/sgc-estado";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -149,6 +151,10 @@ export function SolicitudReview({
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
+  // El SGC es el último paso (Legal delegada): la orden de pago espera su aprobación.
+  const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
+  const sgcVisible = sgcAplica(row.sgcEstadoEnvio) || todasAprobadas;
+  const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(row.sgcEstadoEnvio, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
@@ -171,6 +177,7 @@ export function SolicitudReview({
           stepCanGo={stepCanGo}
           areas={areas}
           mostrarSgc={legalDelegadaAlSgc(row.revisiones)}
+          sgcDone={sgcOk}
         />
 
         {/* Stand info line */}
@@ -243,6 +250,22 @@ export function SolicitudReview({
         {submitError && (
           <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {submitError}
+          </div>
+        )}
+
+        {/* Integracion SGC — revision Legal delegada (ultimo paso) */}
+        {sgcVisible && (
+          <div className="mb-3 rounded-lg border border-slate-200 px-3 py-2">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Revision Legal (SGC)</p>
+            <SgcExpedientePanel
+              key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}`}
+              solicitudId={row.id}
+            />
+            {todasAprobadas && !sgcOk && (
+              <p className="mt-2 text-[11px] text-amber-600">
+                Pendiente de aprobacion del SGC. La orden de pago se habilita cuando el contrato pase a Vigencia.
+              </p>
+            )}
           </div>
         )}
 
@@ -430,7 +453,7 @@ export function SolicitudReview({
                 <ChevronRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
-            {isLast && todasAprobadas && onOrdenPago ? (
+            {isLast && puedeOrdenPago && onOrdenPago ? (
               <Button
                 size="sm"
                 className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"

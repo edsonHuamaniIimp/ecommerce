@@ -99,12 +99,12 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 | 6 | **Fuente única de empresas** | Falta definir si se comparte la BD de Niel o se consume API de John. |
 | 7 | **Responsabilidades por área** | Validaciones exactas de Logística y roles de Eventos/Asociados sin documentar (Mabel/José). |
 | 8 | **Rotación de secretos** | Los secretos de desarrollo estuvieron en texto plano en `bitacora.md`; rotar antes de producción. |
-| 9 | **Documentación OpenAPI sincronizada** | `docs/openapi.yaml` existe pero debe mantenerse sincronizado con la implementación real. |
+| 9 | **Documentación OpenAPI sincronizada** | `docs/04-api/openapi.yaml` existe pero debe mantenerse sincronizado con la implementación real. |
 
 ### 3.3 Deuda técnica identificada
 
 - Sin tests automatizados (unit/e2e).
-- `docs/endpoints.md` describe el contrato propuesto; el inventario real está en `docs/api-inventario.md`.
+- `docs/04-api/endpoints.md` describe el contrato propuesto; el inventario real está en `docs/04-api/api-inventario.md`.
 - Tabla `aprobacion` y vista `/dashboard/reservas` marcadas como legacy.
 - `next.config.ts` no define `output: "standalone"` (el runtime Docker usa `next start` con código montado); el workflow sube `.next/standalone/` que no se genera (no rompe el flujo, pero es inconsistente).
 - Entorno de pruebas KBEventos apunta a `KBEventosPruebas`, no a producción.
@@ -141,7 +141,7 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 | Correo transaccional | Resend |
 
 > **Credenciales:** se entregan por canal seguro aparte (gestor de secretos).
-> Las variables requeridas están documentadas en `docs/infraestructura-devops.md`.
+> Las variables requeridas están documentadas en `docs/06-operacion/infraestructura-devops.md`.
 
 ---
 

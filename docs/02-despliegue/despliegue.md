@@ -4,7 +4,10 @@
 > Dos caminos soportados:
 > - **A) EC2 + Docker Compose** (actual, en producción): `docker-compose.prod.yml` + `scripts/deploy.sh`.
 > - **B) AWS ECS Fargate + RDS + S3** (objetivo, IaC): `terraform/` + `Dockerfile.ecs`.
-> Reglas de gobernanza: `docs/01-despliegue/REGLAS-DESPLIEGUE.md`.
+> Reglas de gobernanza: `docs/02-despliegue/REGLAS-DESPLIEGUE.md`.
+>
+> Este documento unifica el antiguo borrador `docs/despliegue.md` (v0.2): la lista de
+> variables por ambiente, las rutas por rol y la verificación post-deploy se incorporaron aquí.
 
 ## 1. Requisitos previos
 
@@ -57,7 +60,53 @@ npx tsc --noEmit                # Verificar types
 npm run build                   # Build de produccion
 ```
 
-## 3. Cuentas de prueba (seed)
+## 3. Variables de entorno por ambiente
+
+La lista completa y comentada vive en `.env.example`. En QA/producción se usa un archivo
+propio (`env` del camino A o `terraform.tfvars` + Secrets Manager del camino B).
+
+### 3.1 Local (`.env`)
+
+```env
+NEXT_PUBLIC_APP_ENV=local
+NEXT_PUBLIC_API_MOCK=1
+DATABASE_URL="postgresql://ctrst:ctrst_dev@localhost:5433/contratos_stands"
+PLANOGESS_API_URL="https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess"
+JWT_SECRET="dev-secret-cambiar-en-produccion"
+```
+
+> `docker compose` publica PostgreSQL en `localhost:5433` (mapeo `5433:5432`). Si tu
+> `.env` apunta a `5432`, ajústalo para no chocar con un PostgreSQL local.
+
+### 3.2 QA
+
+```env
+NEXT_PUBLIC_APP_ENV=qa
+NEXT_PUBLIC_API_MOCK=0
+DATABASE_URL="postgresql://<usuario>:<password>@<host-qa>:5432/contratos_stands_qa"
+PLANOGESS_API_URL="https://secure2.iimp.org:8443/KBEventosPruebas/rest/planogess"
+JWT_SECRET="<clave-segura-qa>"
+```
+
+### 3.3 Producción
+
+```env
+NEXT_PUBLIC_APP_ENV=production
+NEXT_PUBLIC_API_MOCK=0
+DATABASE_URL="postgresql://<usuario>:<password>@<host-prod>:5432/contratos_stands"
+PLANOGESS_API_URL="https://secure2.iimp.org:8443/KBEventos/rest/planogess"
+JWT_SECRET="<clave-segura-produccion>"
+```
+
+### 3.4 Requisitos adicionales de producción
+
+- `JWT_SECRET`: mínimo 256 bits, generado con `openssl rand -base64 32`.
+- `DATABASE_URL`: usar pool de conexiones (PgBouncer o similar).
+- HTTPS obligatorio (las cookies JWT usan `secure: true`).
+- Logs de auditoría (`audit_log`) habilitados.
+- Backup automático de PostgreSQL configurado (**pendiente**; requisito de producción).
+
+## 4. Cuentas de prueba (seed)
 
 Al ejecutar `npm run db:seed`:
 
@@ -73,9 +122,36 @@ Al ejecutar `npm run db:seed`:
 > - **Local**: el seed corre con `npm run db:seed` (idempotente, `upsert`).
 > - **QA / Producción**: la base de datos es **persistente**. El `docker/entrypoint-ecs.sh` solo ejecuta `prisma migrate deploy`; si una migración falla, el arranque **aborta** (ECS conserva la tarea anterior) y **NUNCA** se recrea la BD (`migrate reset` está prohibido). Las cuentas de prueba **no** se crean automáticamente en QA/prod; si se necesitan en QA, se ejecuta `npm run db:seed` de forma manual y controlada.
 
-## 4. Camino A — Producción actual (EC2 + Docker Compose)
+### 4.1 Rutas por rol
 
-### 4.1 Configuración
+| Ruta | admin | logistica | legal | comunicacion | cliente | público |
+|---|---|---|---|---|---|---|
+| `/plano` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `/dashboard` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `/dashboard/solicitudes` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `/dashboard/roles` | ✓ | | | | | |
+| `/dashboard/eventos` | ✓ | | | | | |
+| `/auth/login` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+### 4.2 Asignación manual de roles
+
+Después del primer deploy, poblar la BD con los roles seed:
+
+```bash
+npm run db:seed
+```
+
+Luego asignar el primer admin desde el mantenedor (`/admin-roles`) o directamente:
+
+```sql
+INSERT INTO user_role (id, user_id, role_id, email)
+SELECT gen_random_uuid(), 'user|admin@iimp.org.pe', r.id, 'admin@iimp.org.pe'
+FROM role r WHERE r.nombre = 'admin';
+```
+
+## 5. Camino A — Producción actual (EC2 + Docker Compose)
+
+### 5.1 Configuración
 
 ```bash
 cp .env.prod.example .env.prod
@@ -85,14 +161,14 @@ cp .env.prod.example .env.prod
 #   - S3_BUCKET: bucket de archivos
 ```
 
-### 4.2 Requisitos del servidor
+### 5.2 Requisitos del servidor
 
 - Docker y Docker Compose instalados
 - Certificados SSL en `/etc/letsencrypt/live/ecommerce.sistemasiimp.org.pe/`
 - Puerto 80 y 443 accesibles
 - Al menos 2GB RAM, 2 CPUs
 
-### 4.3 Despliegue inicial
+### 5.3 Despliegue inicial
 
 ```bash
 git clone <repo> /opt/contratos-stands
@@ -103,23 +179,23 @@ cp .env.prod.example .env.prod
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
-### 4.4 Actualizar código
+### 5.4 Actualizar código
 
 ```bash
 cd /opt/contratos-stands
 bash scripts/deploy.sh            # git pull + build + migrate deploy + up -d
 ```
 
-### 4.5 Ver logs
+### 5.5 Ver logs
 
 ```bash
 docker compose -f docker-compose.prod.yml logs -f app
 ```
 
-## 5. Camino B — AWS ECS Fargate (objetivo, con Terraform)
+## 6. Camino B — AWS ECS Fargate (objetivo, con Terraform)
 
-> Decisión de arquitectura completa: `docs/01-despliegue/arquitectura-aws.md`.
-> Detalle Terraform/MCP: `docs/01-despliegue/aws-terraform.md`.
+> Decisión de arquitectura completa: `docs/02-despliegue/arquitectura-aws.md`.
+> Detalle Terraform/MCP: `docs/02-despliegue/aws-terraform.md`.
 
 ```bash
 cd terraform
@@ -136,7 +212,7 @@ entrypoint con `prisma migrate deploy` antes de `node server.js`).
 
 **Migración de BD**: automática en el entrypoint del contenedor (antes de `next start`).
 
-## 6. Estructura Docker
+## 7. Estructura Docker
 
 ```
 ├── docker-compose.yml           # Dev: solo PostgreSQL
@@ -150,7 +226,15 @@ entrypoint con `prisma migrate deploy` antes de `node server.js`).
     └── supervisord.conf         # Gestiona Nginx + Next.js como servicios (solo EC2)
 ```
 
-## 7. Resolución de problemas
+## 8. Verificación post-deploy
+
+- [ ] `GET /api/gess?eventoId=...` responde 200
+- [ ] `POST /api/auth/login` con email válido retorna JWT
+- [ ] `/dashboard` redirige a `/auth/login` sin cookie
+- [ ] `/plano` carga el Canvas 3D
+- [ ] `docker compose ps` muestra PostgreSQL healthy
+
+## 9. Resolución de problemas
 
 ### PostgreSQL no arranca (local)
 

@@ -32,6 +32,9 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     tieneFacturacion: false,
     tipoFacturacion: null,
     facturacionId: null,
+    sgcEstadoEnvio: null,
+    sgcLifecycleStatus: null,
+    sgcStage: null,
     ...overrides,
   };
 }

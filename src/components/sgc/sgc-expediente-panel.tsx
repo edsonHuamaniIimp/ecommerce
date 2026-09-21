@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Circle, Clock, Download, Loader2 } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Download, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useSgcExpediente } from "@/hooks/use-sgc-expediente";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -30,8 +30,10 @@ function StepIcon({ status }: { status: string }) {
 }
 
 export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
-  const { data, loading, error } = useSgcExpediente(solicitudId);
+  const { data, loading, error, refetch } = useSgcExpediente(solicitudId);
   const [descargando, setDescargando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [enviandoContrato, setEnviandoContrato] = useState(false);
 
   if (loading) {
     return (
@@ -58,6 +60,32 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
       toast.error(err instanceof Error ? err.message : "No se pudo descargar el contrato");
     } finally {
       setDescargando(false);
+    }
+  }
+
+  async function enviarAnexos() {
+    setEnviando(true);
+    try {
+      const { enviados } = await sgcService.subirAnexos(solicitudId);
+      toast.success(`${enviados} anexo(s) enviados al SGC`);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron enviar los anexos");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function enviarContrato() {
+    setEnviandoContrato(true);
+    try {
+      await sgcService.subirContrato(solicitudId);
+      toast.success("Contrato enviado al SGC");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar el contrato");
+    } finally {
+      setEnviandoContrato(false);
     }
   }
 
@@ -111,6 +139,28 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
           ))}
         </div>
       )}
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        disabled={enviandoContrato}
+        onClick={enviarContrato}
+      >
+        {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
+        Enviar contrato (v1) al SGC
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        disabled={enviando}
+        onClick={enviarAnexos}
+      >
+        {enviando ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
+        Enviar anexos al SGC
+      </Button>
 
       {puedeDescargar && (
         <Button

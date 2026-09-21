@@ -40,6 +40,9 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     tieneFacturacion: false,
     tipoFacturacion: null,
     facturacionId: null,
+    sgcEstadoEnvio: null,
+    sgcLifecycleStatus: null,
+    sgcStage: null,
     ...overrides,
   };
 }
@@ -67,6 +70,7 @@ function sgcRepoMock(existente: SgcExpedienteEntity | null): ISgcRepository {
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(existente),
     findExpedientePorContractId: vi.fn().mockResolvedValue(null),
     listarConContractId: vi.fn().mockResolvedValue([]),
+    listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn().mockResolvedValue(expediente()),
     actualizarExpediente: vi.fn().mockImplementation((_id: string, data: Partial<SgcExpedienteEntity>) =>
       Promise.resolve(expediente(data)),

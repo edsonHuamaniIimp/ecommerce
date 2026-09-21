@@ -2,7 +2,7 @@
 
 > **Estado:** v1.0 — 2026-09-11
 > **Fuente:** Código real (`src/app/api/**/route.ts`, `src/controllers/`, `src/middleware.ts`).
-> **Nota:** `docs/endpoints.md` describe el contrato **propuesto/diseñado**; este documento
+> **Nota:** `docs/04-api/endpoints.md` describe el contrato **propuesto/diseñado**; este documento
 > es el **inventario real implementado**. Ante discrepancias, prevalece el código.
 
 ---
@@ -222,6 +222,6 @@
 ## 5. Pendientes de la capa API
 
 1. **Contrato de interoperabilidad real** con el sistema de John (request/response, auth, X/Y).
-2. **Sincronizar `docs/openapi.yaml`** con este inventario real.
+2. **Sincronizar `docs/04-api/openapi.yaml`** con este inventario real.
 3. **Endurecer permisos** del middleware por endpoint (hoy por prefijo).
 4. **Documentar payloads** de cada endpoint con ejemplos (parcialmente en `openapi.yaml`).

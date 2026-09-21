@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Variables raíz — R2: TODO configurable por variable (defaults documentados)
 # Cambiar un valor = -var="clave=valor" | terraform.tfvars | perfiles/*.tfvars
-# Decisión de arquitectura: docs/01-despliegue/arquitectura-aws.md (v5, Opción 1)
+# Decisión de arquitectura: docs/02-despliegue/arquitectura-aws.md (v5, Opción 1)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── AWS / cuenta (R4) ───────────────────────────────────────────────────────

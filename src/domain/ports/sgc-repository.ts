@@ -43,6 +43,7 @@ export interface ISgcRepository {
   findExpedientePorSolicitud(solicitudId: string): Promise<SgcExpedienteEntity | null>;
   findExpedientePorContractId(contractId: string): Promise<SgcExpedienteEntity | null>;
   listarConContractId(): Promise<SgcExpedienteEntity[]>;
+  listarConEstadoEnvio(estado: SgcEstadoEnvio): Promise<SgcExpedienteEntity[]>;
   crearExpediente(data: CrearSgcExpedienteData): Promise<SgcExpedienteEntity>;
   actualizarExpediente(id: string, data: ActualizarSgcExpedienteData): Promise<SgcExpedienteEntity>;
   crearDocumento(data: CrearSgcDocumentoData): Promise<SgcDocumentoEntity>;

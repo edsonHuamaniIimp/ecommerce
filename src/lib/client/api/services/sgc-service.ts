@@ -16,4 +16,16 @@ export const sgcService = {
   subsanar(body: { solicitudId: string; documentId: string; url: string; title?: string }) {
     return internalApi.post<Record<string, unknown>>("/api/sgc/subsanar", body);
   },
+
+  subirDocumento(body: { solicitudId: string; category: string; title: string; url: string; documentId?: string | null }) {
+    return internalApi.post<Record<string, unknown>>("/api/sgc/subir-documento", body);
+  },
+
+  subirAnexos(solicitudId: string) {
+    return internalApi.post<{ enviados: number }>("/api/sgc/subir-anexos", { solicitudId });
+  },
+
+  subirContrato(solicitudId: string) {
+    return internalApi.post<Record<string, unknown>>("/api/sgc/subir-contrato", { solicitudId });
+  },
 };

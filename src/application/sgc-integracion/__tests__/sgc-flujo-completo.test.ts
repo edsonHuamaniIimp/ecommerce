@@ -120,6 +120,9 @@ class InMemorySolicitudesRepository {
       tieneFacturacion: false,
       tipoFacturacion: null,
       facturacionId: null,
+      sgcEstadoEnvio: null,
+      sgcLifecycleStatus: null,
+      sgcStage: null,
     };
   }
 
@@ -169,6 +172,10 @@ class InMemorySgcRepository implements ISgcRepository {
 
   async listarConContractId(): Promise<SgcExpedienteEntity[]> {
     return [...this.expedientes.values()].filter((e) => e.contractId !== null);
+  }
+
+  async listarConEstadoEnvio(estado: string): Promise<SgcExpedienteEntity[]> {
+    return [...this.expedientes.values()].filter((e) => e.estadoEnvio === estado);
   }
 
   async crearExpediente(data: CrearSgcExpedienteData): Promise<SgcExpedienteEntity> {

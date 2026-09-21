@@ -18,7 +18,7 @@ prácticas** aplicables a cualquier persistencia del proyecto.
 - Si se escribe **SQL/DDL a mano** (Oracle/SQL Server/Postgres), aplicar la
   nomenclatura de las secciones 2–5.
 - El motor de BD de este proyecto está **por confirmar**; usar esta regla como
-  referencia al modelar (`docs/modelo-datos.md`).
+  referencia al modelar (`docs/03-arquitectura/modelo-datos.md`).
 
 ## 1. Regla general
 
@@ -98,5 +98,5 @@ Ej.: `UQ_DEPARTAMENTO_NOM_DEP`, `CK_PERSONAL_SEXO`, `FK_VOLUNTARIO_X_PERSONAL`.
 - **Mantener siempre**: PK/identificador único, integridad referencial, índices por
   campos de búsqueda/filtro (p. ej. por evento, estado), campos de auditoría
   (`creadoEn`, `actualizadoEn`, `creadoPor`) y **descripciones** (comentarios/JSDoc).
-- Toda entidad de negocio del sistema debe reflejarse en `docs/modelo-datos.md`.
+- Toda entidad de negocio del sistema debe reflejarse en `docs/03-arquitectura/modelo-datos.md`.
 ```

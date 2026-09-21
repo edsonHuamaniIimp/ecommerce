@@ -45,36 +45,43 @@ export class SgcIntegracionApplicationService {
   async crearExpedienteDesdeSolicitud(solicitudId: string): Promise<SgcExpedienteEntity | null> {
     if (!this.config.enabled) return null;
 
-    const existente = await this.repo.findExpedientePorSolicitud(solicitudId);
-    if (existente?.estadoEnvio === SGC_ESTADO_ENVIO.CREADO && existente.contractId) return existente;
-
-    const detalle = await this.solicitudRepo.detalle(solicitudId);
-    if (!detalle) return existente;
-
-    const input = mapSolicitudToExpediente(detalle, this.config);
-    const registro =
-      existente ??
-      (await this.repo.crearExpediente({
-        solicitudId,
-        code: input.code,
-        areaCode: this.config.areaCode,
-        contractTypeCode: this.config.contractTypeCode,
-      }));
-
+    // Best-effort TOTAL: ningun fallo (BD no migrada, red, etc.) puede romper la aprobacion.
     try {
-      const resultado = await this.client.crearExpediente(input, construirIdempotencyKey(solicitudId));
-      return await this.repo.actualizarExpediente(registro.id, {
-        contractId: resultado.contractId,
-        estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
-        lastSyncedAt: new Date(),
-        lastError: null,
-      });
-    } catch (err) {
-      const mensaje = err instanceof Error ? err.message : "Error desconocido al crear el expediente en el SGC";
-      await this.repo.actualizarExpediente(registro.id, {
-        estadoEnvio: SGC_ESTADO_ENVIO.ERROR,
-        lastError: mensaje.slice(0, MAX_ERROR_LENGTH),
-      });
+      const existente = await this.repo.findExpedientePorSolicitud(solicitudId);
+      if (existente?.estadoEnvio === SGC_ESTADO_ENVIO.CREADO && existente.contractId) return existente;
+
+      const detalle = await this.solicitudRepo.detalle(solicitudId);
+      if (!detalle) return existente;
+
+      const input = mapSolicitudToExpediente(detalle, this.config);
+      const registro =
+        existente ??
+        (await this.repo.crearExpediente({
+          solicitudId,
+          code: input.code,
+          areaCode: this.config.areaCode,
+          contractTypeCode: this.config.contractTypeCode,
+        }));
+
+      try {
+        const resultado = await this.client.crearExpediente(input, construirIdempotencyKey(solicitudId));
+        return await this.repo.actualizarExpediente(registro.id, {
+          contractId: resultado.contractId,
+          estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+          lastSyncedAt: new Date(),
+          lastError: null,
+        });
+      } catch (err) {
+        const mensaje = err instanceof Error ? err.message : "Error desconocido al crear el expediente en el SGC";
+        await this.repo
+          .actualizarExpediente(registro.id, {
+            estadoEnvio: SGC_ESTADO_ENVIO.ERROR,
+            lastError: mensaje.slice(0, MAX_ERROR_LENGTH),
+          })
+          .catch(() => undefined);
+        return null;
+      }
+    } catch {
       return null;
     }
   }
@@ -121,6 +128,26 @@ export class SgcIntegracionApplicationService {
       }
     }
     return sincronizados;
+  }
+
+  /** Reintenta los expedientes que quedaron en `error` (best-effort, sin bloquear). */
+  async reintentarErrores(): Promise<number> {
+    if (!this.config.enabled) return 0;
+
+    const pendientes = await this.repo.listarConEstadoEnvio(SGC_ESTADO_ENVIO.ERROR);
+    let reintentados = 0;
+    for (const expediente of pendientes) {
+      const resultado = await this.crearExpedienteDesdeSolicitud(expediente.solicitudId);
+      if (resultado?.estadoEnvio === SGC_ESTADO_ENVIO.CREADO) reintentados += 1;
+    }
+    return reintentados;
+  }
+
+  /** Rutina programada (cron): refresca estados y reintenta envios fallidos. */
+  async sincronizarCron(): Promise<{ sincronizados: number; reintentados: number }> {
+    const sincronizados = await this.reconciliar();
+    const reintentados = await this.reintentarErrores();
+    return { sincronizados, reintentados };
   }
 
   /** Empuja una pieza documental al SGC (reservar → transferir → confirmar). */
@@ -234,14 +261,33 @@ export class SgcIntegracionApplicationService {
     });
   }
 
-  /** Empuja los documentos adjuntos de la solicitud como anexos del SGC. */
+  /**
+   * Empuja el contrato v1: el documento **del administrador** de la solicitud
+   * (`SolicitudDocumento.userId === null`; el cliente sube evidencia, no contrato).
+   */
+  async subirContratoDeSolicitud(solicitudId: string): Promise<SgcDocumentoEntity | null> {
+    if (!this.config.enabled) return null;
+    const detalle = await this.solicitudRepo.detalle(solicitudId);
+    if (!detalle) return null;
+
+    const contrato = detalle.docsAdjuntos.find((doc) => doc.userId === null) ?? detalle.docsAdjuntos[0];
+    if (!contrato) return null;
+
+    return this.subirDocumentoDesdeUrl(solicitudId, {
+      category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+      title: contrato.nombre,
+      url: contrato.url,
+    });
+  }
+
+  /** Empuja los documentos **del cliente** (`userId` no nulo) como anexos del SGC. */
   async subirAnexosDeSolicitud(solicitudId: string): Promise<SgcDocumentoEntity[]> {
     if (!this.config.enabled) return [];
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return [];
 
     const resultados: SgcDocumentoEntity[] = [];
-    for (const doc of detalle.docsAdjuntos) {
+    for (const doc of detalle.docsAdjuntos.filter((d) => d.userId !== null)) {
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: doc.nombre,

@@ -2,7 +2,7 @@
 # Copiar a terraform.tfvars y ajustar valores reales.
 # terraform.tfvars NO se sube al repo (contiene decisiones de entorno).
 #
-# Uso por perfil (ver docs/01-despliegue/arquitectura-aws.md §1.3):
+# Uso por perfil (ver docs/02-despliegue/arquitectura-aws.md §1.3):
 #   terraform apply -var-file=terraform.tfvars -var-file=perfiles/valle.tfvars
 # ─────────────────────────────────────────────────────────────────────────────
 
