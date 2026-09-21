@@ -51,6 +51,55 @@ jobs:
         continue-on-error: true
         run: npx tsc --noEmit || true
 
+  # ─── Imagen → ECR (deploy real: ECS/Aurora) ───────────────────────────────
+  # Publica la imagen de revisión (:sha). El rollout a ECS se hace con Terraform
+  # `image_tag=<sha>` (ver docs/02-despliegue/estrategia-despliegue.md).
+  build-image:
+    name: Build imagen → ECR (ECS)
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verificar secrets ECR
+        id: check-ecr
+        run: |
+          if [ -z "${{ secrets.ECR_REGISTRY }}" ] || [ -z "${{ secrets.ECR_REPOSITORY }}" ]; then
+            echo "ECR no configurado. Saltando build de imagen."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configurar credenciales AWS
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
+
+      - name: Login ECR
+        if: steps.check-ecr.outputs.skip != 'true'
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }} \
+            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      - name: Build y push imagen
+        if: steps.check-ecr.outputs.skip != 'true'
+        run: |
+          IMAGE="${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}"
+          docker build -f Dockerfile.ecs -t "$IMAGE" \
+            --build-arg NEXT_PUBLIC_API_URL=/api \
+            --build-arg NEXT_PUBLIC_API_MOCK=0 \
+            --build-arg NEXT_PUBLIC_APP_ENV=production \
+            --build-arg NEXT_PUBLIC_APP_URL="${{ secrets.APP_URL }}" \
+            .
+          docker push "$IMAGE"
+          echo "✅  Imagen publicada: $IMAGE"
+
   # ─── Build: Build Next.js ─────────────────────────────────────────────────
   build:
     name: Build — Next.js
@@ -89,12 +138,17 @@ jobs:
 
   # ─── CD: Deploy a EC2 ────────────────────────────────────────────────────
   deploy:
-    name: CD — Deploy EC2 (Docker)
+    name: CD — Deploy EC2 (legado)
     runs-on: ubuntu-latest
     needs: ci
+    # LEGADO (EC2). El dominio de produccion lo sirve ECS (CloudFront->ALB->ECS+Aurora),
+    # desplegado con la imagen de ECR (job build-image) via Terraform `image_tag`.
+    # Deshabilitado por defecto: activar con la variable de repo DEPLOY_EC2=1.
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
+      vars.DEPLOY_EC2 == '1' && (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
+      )
     continue-on-error: true
 
     steps:

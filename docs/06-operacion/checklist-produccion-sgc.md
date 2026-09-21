@@ -1,14 +1,18 @@
 # Checklist de producción — Integración SGC
 
-> Deploy automático: **push a `main`** dispara `.github/workflows/deploy.yml`
-> (`ci` → `build` → `deploy` EC2 → `sync-s3`). El job de deploy solo despliega si
-> existen los secrets `EC2_*`; si falta `EC2_HOST`, se salta.
+> Deploy: ver **`docs/02-despliegue/estrategia-despliegue.md`**. Producción = **ECS**
+> (CloudFront→ALB→ECS+Aurora). Un **push a `main`** publica la imagen a **ECR** (job
+> `build-image`); el rollout a ECS se hace con Terraform `image_tag=<sha>`. El deploy a
+> **EC2 queda como legado** (deshabilitado salvo `vars.DEPLOY_EC2=1`).
 
 ## 1. Secrets de GitHub (Settings → Secrets and variables → Actions)
 
 | Secret | Para | Obligatorio |
 |---|---|---|
-| `EC2_HOST` | host del servidor de deploy | Sí (si falta, el deploy se salta) |
+| `ECR_REGISTRY` | `<acct>.dkr.ecr.<region>.amazonaws.com` (build-image) | Sí |
+| `ECR_REPOSITORY` | `iimp-contratos-stands-app` | Sí |
+| `APP_URL` | `https://ecommerce.sistemasiimp.org.pe` (build arg) | Sí |
+| `EC2_HOST` | host del EC2 **legado** (solo si `vars.DEPLOY_EC2=1`) | No |
 | `EC2_USERNAME` | usuario SSH | Sí |
 | `EC2_SSH_KEY` | llave privada SSH | Sí |
 | `EC2_GIT_TOKEN` | token de GitHub para `git pull` en el server (`repo` read) | Sí |
