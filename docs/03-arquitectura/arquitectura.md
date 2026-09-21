@@ -40,36 +40,46 @@ ContratosStands/
 ├── CLAUDE.md                      # Instrucciones para Claude
 ├── docker-compose.yml             # Docker Compose desarrollo (PostgreSQL)
 ├── docker-compose.prod.yml        # Docker Compose produccion
-├── Dockerfile                     # Imagen Docker de la app
-├── docker/                        # Configuracion Docker (nginx, supervisor)
-│   ├── entrypoint.sh
+├── Dockerfile                     # Imagen Docker (EC2/legado: nginx + supervisor)
+├── Dockerfile.ecs                 # Imagen ECS Fargate (standalone; produccion real)
+├── docker/                        # Configuracion Docker (entrypoints, nginx, supervisor)
+│   ├── entrypoint.sh              # Entrypoint EC2
+│   ├── entrypoint-ecs.sh          # Entrypoint ECS (migraciones + RUN_SEED opcional)
 │   ├── nginx.conf
 │   └── supervisord.conf
-├── docs/                          # Documentacion del proyecto
-│   ├── arquitectura.md            # Arquitectura general (este documento)
-│   ├── despliegue.md              # Guia de despliegue
-│   ├── endpoints.md               # Lista de endpoints
-│   ├── flujos.md                  # Flujos de negocio detallados
-│   ├── modelo-datos.md            # Modelo de datos (24 tablas)
-│   ├── openapi.yaml               # Especificacion OpenAPI
-│   └── requerimientos.md          # Requerimientos funcionales
+├── docs/                          # Documentacion (indice en docs/README.md)
+│   ├── 00-inicio/                 # resumen-ejecutivo, requerimientos, flujos
+│   ├── 01-funcional/              # un documento por modulo
+│   ├── 02-despliegue/             # despliegue, arquitectura-aws, aws-terraform, estrategia-despliegue, REGLAS-DESPLIEGUE
+│   ├── 03-arquitectura/           # vision-general, arquitectura, modelo-datos, stack, convenciones
+│   ├── 04-api/                    # api-inventario, endpoints, openapi.yaml
+│   ├── 05-integraciones/          # integracion-sgc, api-sistema-montaje, guia-consumo-servicio-persona
+│   ├── 06-operacion/              # devops, pruebas-produccion, seeders, pruebas-locales-sgc, checklist-produccion-sgc
+│   └── 07-seguridad/              # auditorias (run-1, run-2)
 ├── eslint.config.mjs              # ESLint config
 ├── next.config.ts                 # Next.js config
 ├── opencode.json                  # Config de opencode (skills/reglas)
 ├── package.json                   # Dependencias y scripts
 ├── postcss.config.mjs             # PostCSS config
 ├── prisma.config.ts               # Prisma config (datasource)
-├── prisma/                        # ORM — schema + migraciones + seed
-│   ├── schema.prisma              # 25 modelos con indices y constraints
-│   ├── seed.ts                    # Seed: roles, usuarios, maestra
+├── prisma/                        # ORM — schema + migraciones + seeds
+│   ├── schema.prisma              # Modelos con indices y constraints (incluye sgc_*)
+│   ├── seed.ts                    # Seed completo: roles, usuarios, maestra, planos demo
+│   ├── seed-auth.ts               # Seed minimo (roles + usuarios), autocontenido
+│   ├── seed-data.ts               # Datos compartidos del seed
+│   ├── seed-cleanup.ts            # Elimina usuarios de PRUEBA
 │   └── migrations/                # Migraciones SQL
 │       ├── 0001_init/
-│       └── 0002_add_revision_table/
+│       ├── 0002_add_revision_table/
+│       └── 0003_add_sgc_integration_tables/
 ├── public/                        # Archivos estaticos + uploads locales
 │   └── uploads/                   # Archivos subidos (desarrollo local)
-├── scripts/                       # Scripts de infraestructura
-│   ├── deploy.sh
-│   └── s3-setup.sh
+├── scripts/                       # Utilidades (publish-confluence, audit-terraform-plan, seeds de prueba)
+├── terraform/                     # IaC AWS (ECS Fargate + ALB + CloudFront/WAF + Aurora)
+│   ├── modules/                   # network, aurora, storage, uploads, secrets, ecs, acm, cloudfront, observability
+│   └── bootstrap/                 # Estado remoto (S3 + DynamoDB)
+├── .github/workflows/             # CI/CD (deploy.yml, sgc-reconciliar.yml)
+├── .opencode/                     # Skills y reglas del proyecto (opencode)
 ├── src/                           # Codigo fuente (ver secciones 5 y 6)
 ├── tailwind.config.ts             # Tailwind CSS config
 └── tsconfig.json                  # TypeScript config
@@ -103,13 +113,15 @@ prisma/
 
 ```
 docs/
-├── arquitectura.md       # Este documento
-├── despliegue.md          # Despliegue en produccion
-├── endpoints.md           # Catalogo de endpoints API
-├── flujos.md              # Flujos de negocio (solicitud, re-evaluacion, auspicios, permisos)
-├── modelo-datos.md        # Esquema de BD detallado
-├── openapi.yaml           # Especificacion OpenAPI/Swagger
-└── requerimientos.md      # Requerimientos funcionales del sistema
+├── README.md              # Indice de la documentacion (grupos 00-07)
+├── 00-inicio/             # resumen-ejecutivo, requerimientos, flujos
+├── 01-funcional/          # un documento por modulo (solicitudes, facturacion, ...)
+├── 02-despliegue/         # despliegue, arquitectura-aws, aws-terraform, estrategia-despliegue, REGLAS-DESPLIEGUE
+├── 03-arquitectura/       # vision-general (diagramas), arquitectura, stack, modelo-datos, convenciones
+├── 04-api/                # api-inventario, endpoints, openapi.yaml
+├── 05-integraciones/      # integracion-sgc, api-sistema-montaje, guia-consumo-servicio-persona
+├── 06-operacion/          # infraestructura-devops, pruebas-produccion, seeders, pruebas-locales-sgc, checklist-produccion-sgc
+└── 07-seguridad/          # auditorias de seguridad (run-1, run-2)
 ```
 
 ---
@@ -132,13 +144,19 @@ package.json                # Scripts: dev, build, db:seed, db:reset, clean
 
 | Script | Comando |
 |--------|---------|
-| `dev` | `next dev --turbo` |
+| `dev` | `next dev -p 3001` |
 | `build` | `next build` |
-| `db:seed` | `tsx prisma/seed.ts` |
+| `start` | `next start -p 3001` |
+| `db:seed` | `tsx prisma/seed.ts` (roles, usuarios, maestra, planos demo) |
+| `db:seed:auth` | `tsx prisma/seed-auth.ts` (solo roles + usuarios) |
+| `db:seed:cleanup` | `tsx prisma/seed-cleanup.ts` (borra usuarios de prueba) |
 | `db:generate` | `prisma generate` |
 | `db:push` | `prisma db push` |
+| `db:migrate:deploy` | `prisma migrate deploy` |
 | `db:reset` | Borra .next + db push --force-reset + generate + seed |
-| `clean` | Borra .next + regenerate Prisma Client |
+| `lint` | `eslint` |
+| `test` | `vitest run` |
+| `sgc:webhook` | `node scripts/sgc-webhook-sim.mjs` (simula webhooks en local) |
 
 ---
 
