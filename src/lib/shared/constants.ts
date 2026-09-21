@@ -747,6 +747,22 @@ export const SGC_MIME_TYPES: Record<string, string> = {
 
 export const SGC_MIME_TYPE_DEFAULT = "application/octet-stream";
 
+/** Content-Type por extension para servir archivos subidos (/uploads/*). */
+export const MIME_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  pdf: "application/pdf",
+  txt: "text/plain",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+export const MIME_CONTENT_TYPE_DEFAULT = "application/octet-stream";
+
 export const SGC_STEP_STATUS_LABELS: Record<string, string> = {
   [SGC_STEP_STATUSES.COMPLETED]: "Completado",
   [SGC_STEP_STATUSES.CURRENT]: "En curso",
