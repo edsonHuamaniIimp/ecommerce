@@ -1,14 +1,25 @@
 name: CI/CD — ContratosStands
 
+# Pipeline optimo (ECS = produccion real):
+#   ci (lint/tsc/tests) -> build-image (arm64 + cache de capas) -> deploy-ecs (rollout)
+# - build-image solo reconstruye lo necesario (cache `type=gha`: reusa npm ci).
+# - deploy-ecs hace `aws ecs update-service --force-new-deployment` (imagen :latest).
+# - Terraform se usa solo para infraestructura, no para cada deploy de app.
+# - EC2 queda como legado (deshabilitado salvo vars.DEPLOY_EC2=1).
+# - Los cambios solo de docs (.md / docs/**) no disparan el pipeline.
+
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
     branches: [main]
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Ejecutar deploy en servidor?'
+        description: 'Ejecutar deploy EC2 legado?'
         type: boolean
         default: false
 
@@ -22,11 +33,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ─── CI: Lint + TypeCheck ─────────────────────────────────────────────────
+  # ─── CI: Lint + TypeCheck + Tests ─────────────────────────────────────────
   ci:
-    name: CI — Lint & TypeCheck
+    name: CI — Lint, TypeCheck y Tests
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,19 +53,18 @@ jobs:
       - name: Generar Prisma Client
         run: npx prisma generate
 
-      - name: Lint (ESLint)
-        continue-on-error: true
-        run: npm run lint || true
+      - name: Lint
+        run: npx eslint
 
-      - name: TypeCheck (tsc)
-        continue-on-error: true
-        run: npx tsc --noEmit || true
+      - name: TypeCheck
+        run: npx tsc --noEmit
 
-  # ─── Imagen → ECR (deploy real: ECS/Aurora) ───────────────────────────────
-  # Publica la imagen de revisión (:sha). El rollout a ECS se hace con Terraform
-  # `image_tag=<sha>` (ver docs/02-despliegue/estrategia-despliegue.md).
+      - name: Tests
+        run: npx vitest run src
+
+  # ─── Imagen → ECR (arm64 + cache) ─────────────────────────────────────────
   build-image:
-    name: Build imagen → ECR (ECS)
+    name: Build imagen → ECR (arm64)
     runs-on: ubuntu-latest
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -73,6 +82,14 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup QEMU (arm64)
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Buildx
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+
       - name: Configurar credenciales AWS
         if: steps.check-ecr.outputs.skip != 'true'
         uses: aws-actions/configure-aws-credentials@v4
@@ -83,81 +100,76 @@ jobs:
 
       - name: Login ECR
         if: steps.check-ecr.outputs.skip != 'true'
-        run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }} \
-            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Setup QEMU (arm64)
+      - name: Build y push (arm64, cache)
         if: steps.check-ecr.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ecs
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=/api
+            NEXT_PUBLIC_API_MOCK=0
+            NEXT_PUBLIC_APP_ENV=production
+            NEXT_PUBLIC_APP_URL=${{ secrets.APP_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Setup Buildx
-        if: steps.check-ecr.outputs.skip != 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build y push imagen (arm64)
-        if: steps.check-ecr.outputs.skip != 'true'
-        run: |
-          IMAGE="${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}"
-          docker buildx build --platform linux/arm64 -f Dockerfile.ecs -t "$IMAGE" \
-            --build-arg NEXT_PUBLIC_API_URL=/api \
-            --build-arg NEXT_PUBLIC_API_MOCK=0 \
-            --build-arg NEXT_PUBLIC_APP_ENV=production \
-            --build-arg NEXT_PUBLIC_APP_URL="${{ secrets.APP_URL }}" \
-            --push .
-          echo "✅  Imagen publicada (arm64): $IMAGE"
-
-  # ─── Build: Build Next.js ─────────────────────────────────────────────────
-  build:
-    name: Build — Next.js
+  # ─── Rollout ECS ──────────────────────────────────────────────────────────
+  deploy-ecs:
+    name: CD — Rollout ECS
     runs-on: ubuntu-latest
-    needs: ci
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-
+    needs: build-image
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.build-image.result == 'success'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Verificar secrets ECR
+        id: check-ecr
+        run: |
+          if [ -z "${{ secrets.ECR_REGISTRY }}" ]; then
+            echo "ECR no configurado. Saltando rollout."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Configurar credenciales AWS
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
 
-      - name: Instalar dependencias
-        run: npm ci
+      - name: Forzar nuevo deployment en ECS
+        if: steps.check-ecr.outputs.skip != 'true'
+        run: |
+          CLUSTER="${{ secrets.ECS_CLUSTER }}"; CLUSTER="${CLUSTER:-iimp-ctrst-prod-cluster}"
+          SERVICE="${{ secrets.ECS_SERVICE }}"; SERVICE="${SERVICE:-iimp-ctrst-prod-service}"
+          echo "Rollout en $CLUSTER / $SERVICE ..."
+          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-deployment >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+          echo "✅  Rollout ECS completado."
 
-      - name: Generar Prisma Client
-        run: npx prisma generate
-
-      - name: Build Next.js
-        run: npm run build
-
-      - name: Subir build a artefacto
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-assets
-          path: |
-            .next/standalone/
-            .next/static/
-            public/
-          retention-days: 7
-
-  # ─── CD: Deploy a EC2 ────────────────────────────────────────────────────
-  deploy:
+  # ─── EC2 (legado) ─────────────────────────────────────────────────────────
+  deploy-ec2:
     name: CD — Deploy EC2 (legado)
     runs-on: ubuntu-latest
     needs: ci
-    # LEGADO (EC2). El dominio de produccion lo sirve ECS (CloudFront->ALB->ECS+Aurora),
-    # desplegado con la imagen de ECR (job build-image) via Terraform `image_tag`.
-    # Deshabilitado por defecto: activar con la variable de repo DEPLOY_EC2=1.
+    # LEGADO. Deshabilitado por defecto: activar con la variable de repo DEPLOY_EC2=1.
     if: |
       vars.DEPLOY_EC2 == '1' && (
         (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
         (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
       )
     continue-on-error: true
-
     steps:
       - name: Verificar secrets de EC2
         id: check-secrets
@@ -196,55 +208,11 @@ jobs:
 
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 
-            # Ejecutar migraciones Prisma
             docker exec ctrst-app npx prisma migrate deploy || true
 
-            # Seed idempotente (opcional): activar con el secret SEED_ON_DEPLOY=1
             if [ "${SEED_ON_DEPLOY}" = "1" ]; then
-              echo "🌱  Ejecutando seed (idempotente)..."
-              docker exec -e SEED_ALLOW_PROD=1 ctrst-app npm run db:seed || echo "⚠️  seed fallo"
+              echo "Seed (idempotente)..."
+              docker exec -e SEED_ALLOW_PROD=1 ctrst-app npm run db:seed || echo "seed fallo"
             fi
 
-            echo "✅  Deploy completado."
-
-  # ─── Sync S3: Subir assets a bucket ─────────────────────────────────────
-  sync-s3:
-    name: CD — Sync assets a S3
-    runs-on: ubuntu-latest
-    needs: build
-    if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
-    continue-on-error: true
-
-    steps:
-      - name: Verificar secrets de S3
-        id: check-s3
-        run: |
-          if [ -z "${{ secrets.AWS_BUCKET }}" ]; then
-            echo "AWS_BUCKET no configurado. Saltando sync S3."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Descargar artefacto build
-        if: steps.check-s3.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: build-assets
-
-      - name: Configurar credenciales AWS
-        if: steps.check-s3.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
-
-      - name: Sync static assets a S3
-        if: steps.check-s3.outputs.skip != 'true'
-        run: |
-          aws s3 sync .next/static/ s3://${{ secrets.AWS_BUCKET }}/_next/static/ \
-            --delete \
-            --cache-control "max-age=31536000,immutable"
+            echo "✅  Deploy EC2 completado."

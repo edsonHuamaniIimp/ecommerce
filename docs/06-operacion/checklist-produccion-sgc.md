@@ -95,7 +95,22 @@ Smoke test funcional:
 - `SGC_ENABLED=0` apaga la integración sin tocar el resto del sistema.
 - Rollback de la app: re-`terraform apply` con el `image_tag` anterior (imagen previa en ECR).
 
-## 6. Runbook — desplegar a ECS (sesión DEPLOY / con MCP AWS)
+## 6. Runbook — desplegar a ECS
+
+> **Con el pipeline actual, el deploy de la app es automático**: push a `main` → `ci` →
+> `build-image` (arm64+cache) → `deploy-ecs` (`ecs update-service --force-new-deployment`).
+> Lo de abajo es para **infraestructura** (Terraform) o rollouts manuales.
+
+### 6.0 Rollout manual (sin Terraform)
+
+```bash
+aws --profile sistemas-aws ecs update-service \
+  --cluster iimp-ctrst-prod-cluster --service iimp-ctrst-prod-service --force-new-deployment
+aws --profile sistemas-aws ecs wait services-stable \
+  --cluster iimp-ctrst-prod-cluster --services iimp-ctrst-prod-service
+```
+
+### 6.1 Infraestructura (Terraform, R1)
 
 Requisitos: perfil `sistemas-aws` (ver Estrategia §6) y backend remoto inicializado.
 

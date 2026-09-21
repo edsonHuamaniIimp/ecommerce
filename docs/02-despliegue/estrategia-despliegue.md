@@ -17,18 +17,21 @@ Usuario → ecommerce.sistemasiimp.org.pe → CloudFront → ALB → ECS Fargate
 - Migraciones: el entrypoint ECS (`docker/entrypoint-ecs.sh`) corre `prisma migrate deploy` al
   arrancar cada task (nunca destruye datos).
 
-## 2. Flujo de despliegue (una revisión)
+## 2. Flujo de despliegue (automático)
 
-1. **CI** (`.github/workflows/deploy.yml`, job `build-image`): en push a `main`, construye
-   `Dockerfile.ecs` y publica `…/iimp-contratos-stands-app:${{ github.sha }}` en ECR.
-2. **Rollout** (Terraform): en `terraform/`
-   ```bash
-   terraform plan  -var="image_tag=<sha>"
-   terraform apply -var="image_tag=<sha>"   # PROD: solo con autorización (R1)
-   ```
-   ECS hace rolling update (circuit breaker). Ver `terraform/AGENTS.md`.
-3. **Verificar**: `curl -fsS https://ecommerce.sistemasiimp.org.pe/api/health` (200).
-4. **Rollback**: re-`apply` con el `image_tag` anterior.
+En **push a `main`** con cambios de código (los `.md` y `docs/**` **no** disparan el pipeline):
+
+1. **`ci`**: lint (`eslint`) + tipos (`tsc --noEmit`) + tests (`vitest run src`).
+2. **`build-image`**: construye `Dockerfile.ecs` **arm64** con **cache de capas** (`type=gha`)
+   y publica `…/iimp-contratos-stands-app:<sha>` **y** `:latest` en ECR.
+   - Cache: el `npm ci` se reutiliza si no cambió `package.json`; solo se rehace la capa de
+     código + `next build`. Así el rebuild por revisión es barato.
+3. **`deploy-ecs`**: `aws ecs update-service --force-new-deployment` + `wait services-stable`
+   → ECS hace rolling update (circuit breaker). **No depende de Terraform.**
+4. **Verificar**: `curl -fsS https://ecommerce.sistemasiimp.org.pe/api/health` (200).
+
+Terraform se usa **solo para infraestructura** (Aurora/ALB/CloudFront/WAF/ECS base), no para
+cada deploy de app. **Rollback**: re-deploy de una imagen previa (por `:<sha>`) o revertir commit.
 
 ## 3. Secrets/variables de CI requeridos
 
@@ -36,9 +39,11 @@ Usuario → ecommerce.sistemasiimp.org.pe → CloudFront → ALB → ECS Fargate
 |---|---|---|
 | `ECR_REGISTRY` | `<acct>.dkr.ecr.<region>.amazonaws.com` | Sí (para build-image) |
 | `ECR_REPOSITORY` | `iimp-contratos-stands-app` | Sí |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | push a ECR (+ sync S3) | Sí |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | push a ECR + `ecs update-service` | Sí |
 | `AWS_DEFAULT_REGION` | región | No (`us-east-1`) |
 | `APP_URL` | build arg `NEXT_PUBLIC_APP_URL` | Sí (`https://ecommerce.sistemasiimp.org.pe`) |
+| `ECS_CLUSTER` | cluster del rollout | No (`iimp-ctrst-prod-cluster`) |
+| `ECS_SERVICE` | servicio del rollout | No (`iimp-ctrst-prod-service`) |
 | `SGC_RECONCILE_URL` / `SGC_CRON_SECRET` | cron de reconciliación SGC | Sí (cron) |
 
 Variables de repo (`vars`, no secrets):
