@@ -272,6 +272,13 @@ export function SolicitudReview({
             <SgcExpedientePanel
               key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}`}
               solicitudId={row.id}
+              onSynced={(s) => {
+                /* Si lo sincronizado difiere de la fila, refrescamos para actualizar
+                   el step Legal (SGC) y habilitar la orden de pago (flujo regular). */
+                if (s.lifecycleStatus !== row.sgcLifecycleStatus || s.stage !== row.sgcStage) {
+                  onSaved(row);
+                }
+              }}
             />
             {todasAprobadas && requiereSgc && !sgcOk && (
               <p className="mt-2 text-[11px] text-amber-600">

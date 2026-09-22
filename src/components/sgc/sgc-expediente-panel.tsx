@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { CheckCircle2, Circle, Clock, Download, Loader2, Send, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -30,12 +30,33 @@ function StepIcon({ status }: { status: string }) {
   return <Circle className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
 }
 
-export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
+export function SgcExpedientePanel({
+  solicitudId,
+  onSynced,
+}: {
+  solicitudId: string;
+  /** Notifica el estado sincronizado desde el SGC (para refrescar el flujo/step del padre). */
+  onSynced?: (estado: { lifecycleStatus: string | null; stage: string | null }) => void;
+}) {
   const { data, loading, error, refetch } = useSgcExpediente(solicitudId);
   const [descargando, setDescargando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [enviandoContrato, setEnviandoContrato] = useState(false);
   const [registrando, setRegistrando] = useState(false);
+
+  /* El GET de detalle persiste el estado en BD (sync-on-read); avisamos al padre
+     una sola vez por montaje para que refresque la fila/step/orden de pago. */
+  const onSyncedRef = useRef(onSynced);
+  useEffect(() => {
+    onSyncedRef.current = onSynced;
+  }, [onSynced]);
+  const syncedRef = useRef(false);
+  useEffect(() => {
+    if (data && !syncedRef.current) {
+      syncedRef.current = true;
+      onSyncedRef.current?.({ lifecycleStatus: data.lifecycleStatus ?? null, stage: data.stage ?? null });
+    }
+  }, [data]);
 
   async function registrarExpediente() {
     setRegistrando(true);
