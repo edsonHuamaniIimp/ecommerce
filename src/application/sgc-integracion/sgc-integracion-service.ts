@@ -297,8 +297,10 @@ export class SgcIntegracionApplicationService {
     /*
      * Los documentos del cliente viven en dos lugares: la tabla `solicitud_documento`
      * (`docsAdjuntos`, con `userId`) y la columna JSON legacy `documentos` del stand.
-     * Se consideran ambos, deduplicando por URL.
+     * Se consideran ambos, deduplicando por URL y excluyendo el que ya se usa como
+     * contrato (evita subir el mismo archivo como contrato y como anexo).
      */
+    const contratoUrl = this.seleccionarContrato(detalle)?.url;
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos.filter((d) => d.userId !== null).map((d) => ({ url: d.url, nombre: d.nombre })),
       ...extraerDocumentosLegacy(detalle.documentos),
@@ -307,7 +309,7 @@ export class SgcIntegracionApplicationService {
     const vistos = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
-      if (vistos.has(doc.url)) continue;
+      if (vistos.has(doc.url) || doc.url === contratoUrl) continue;
       vistos.add(doc.url);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,

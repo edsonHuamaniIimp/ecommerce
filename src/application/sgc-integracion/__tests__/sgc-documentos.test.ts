@@ -297,11 +297,12 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
 });
 
 describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
-  it("deberia empujar cada adjunto del cliente como anexo", async () => {
+  it("deberia empujar cada adjunto del cliente como anexo (con contrato del admin)", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
+        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
         { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
         { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
       ],
@@ -316,6 +317,23 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       "contract-1",
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX }),
     );
+  });
+
+  it("no repite como anexo el documento usado como contrato", async () => {
+    const client = clientMock();
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+
+    /* Sin contrato del admin, el primer doc (a.pdf) se usa como contrato -> anexos = b.pdf */
+    const docs = await svc.subirAnexosDeSolicitud("sol-1");
+
+    expect(docs).toHaveLength(1);
   });
 
   it("deberia excluir el documento del admin (userId null) de los anexos", async () => {
