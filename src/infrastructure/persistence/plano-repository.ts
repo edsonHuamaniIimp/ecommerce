@@ -438,27 +438,59 @@ export class PlanoPrismaRepository implements IPlanoRepository {
   async exportar(id: string): Promise<PlanoExportJSON | null> {
     const plano = await this.detalle(id);
     if (!plano) return null;
+
+    const hijoIds = plano.secciones.map((s) => s.planoHijoId).filter((v): v is string => !!v);
+    const hijos = hijoIds.length > 0
+      ? await prisma.plano.findMany({ where: { id: { in: hijoIds } }, select: { id: true, codigo: true } })
+      : [];
+    const codigoPorId = new Map(hijos.map((h) => [h.id, h.codigo]));
+
     return {
       codigo: plano.codigo,
       nombre: plano.nombre,
       descripcion: plano.descripcion,
+      tipo: plano.tipo,
+      imagenFondo: plano.imagenFondo,
       tipos: plano.tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color })),
       bloques: plano.bloques.map((b) => ({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, x: b.x, z: b.z, rotY: b.rotY, orden: b.orden })),
       furniture: plano.furniture.map((f) => ({ refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, ...(f.config ? { config: f.config } : {}) })),
+      secciones: plano.secciones.map((s) => ({
+        codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h,
+        rotacion: s.rotacion, color: s.color,
+        planoHijoId: s.planoHijoId,
+        planoHijoCodigo: s.planoHijoId ? (codigoPorId.get(s.planoHijoId) ?? null) : null,
+        orden: s.orden,
+      })),
     };
   }
 
   async importar(data: PlanoExportJSON): Promise<PlanoEntity> {
     const existing = await prisma.plano.findUnique({ where: { codigo: data.codigo } });
     const plano = existing
-      ? await this.actualizarMeta(existing.id, { nombre: data.nombre, descripcion: data.descripcion })
-      : await this.crear({ codigo: data.codigo, nombre: data.nombre, descripcion: data.descripcion });
+      ? await this.actualizarMeta(existing.id, { nombre: data.nombre, descripcion: data.descripcion, tipo: data.tipo, imagenFondo: data.imagenFondo ?? null })
+      : await this.crear({ codigo: data.codigo, nombre: data.nombre, descripcion: data.descripcion, tipo: data.tipo });
 
-    return this.guardarLayout(plano.id, {
+    await this.guardarLayout(plano.id, {
       tipos: data.tipos,
       bloques: data.bloques.map((b) => ({ ...b, tipologia: (b as { tipologia?: string | null }).tipologia ?? null, flgActivo: true })),
       furniture: data.furniture.map((f) => ({ ...f, config: f.config ?? null })),
     });
+
+    if (plano.tipo === "macro" && Array.isArray(data.secciones) && data.secciones.length > 0) {
+      const planosDisponibles = await prisma.plano.findMany({ select: { id: true, codigo: true } });
+      const idPorCodigo = new Map(planosDisponibles.map((p) => [p.codigo, p.id]));
+      const secciones = data.secciones.map((s) => {
+        const sec = s as { planoHijoCodigo?: string | null };
+        return {
+          codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h,
+          rotacion: s.rotacion, color: s.color, orden: s.orden,
+          planoHijoId: sec.planoHijoCodigo ? (idPorCodigo.get(sec.planoHijoCodigo) ?? null) : null,
+        };
+      });
+      await this.guardarSecciones(plano.id, secciones);
+    }
+
+    return this.detalle(plano.id) as Promise<PlanoEntity>;
   }
 }
 

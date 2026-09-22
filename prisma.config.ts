@@ -6,5 +6,6 @@ config();
 export default defineConfig({
   datasource: {
     url: process.env.DATABASE_URL ?? "postgresql://ctrst:ctrst_dev@localhost:5433/contratos_stands",
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

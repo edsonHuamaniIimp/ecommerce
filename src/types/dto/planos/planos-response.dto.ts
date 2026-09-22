@@ -85,9 +85,12 @@ export interface PlanoExportDTO {
   codigo: string;
   nombre: string;
   descripcion: string | null;
+  tipo?: string;
+  imagenFondo?: string | null;
   tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }>;
-  bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number; orden: number }>;
+  bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia?: string | null; x: number; z: number; rotY: number; orden: number }>;
   furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown }>;
+  secciones?: Array<{ codigo: string; nombre: string; x: number; y: number; w: number; h: number; rotacion: number; color: string; planoHijoId: string | null; planoHijoCodigo?: string | null; orden: number }>;
 }
 
 export interface PlanoTsExportDTO {
