@@ -42,8 +42,10 @@ Necesitamos **una** de estas cosas:
 ## La clave que nos dieron
 
 - Conexión: `ECOMMERCE_IIMP_CONEX` — Actor: `ECOMMERCE_IIMP` (usuario Edson Huamani).
-- Clave: `sgc_...` (la entregada al equipo).
-- Resultado real hoy: **401 `{"error":"No autorizado."}`**.
+- Clave: `sgc_...` (nos indicaron que corresponde al ambiente **QA**:
+  `https://qa-gestion-contratos.sistemasiimp.org.pe/`).
+- Resultado real hoy: **401 `{"error":"No autorizado."}`** en **ambos** ambientes
+  (QA y producción).
 
 ---
 
@@ -71,12 +73,15 @@ POST + Idempotency-Key + JSON válido  -> 401
 /api/v1/integrations/contracts              -> 307 redirect /login
 ```
 
-### Origen de la llamada (para descartar IP)
+### Ambientes y origen de la llamada (para descartar ambiente e IP)
 
-- Desde **Lima** (red local) → 401.
-- Desde **AWS `us-east-1`** (task Fargate en nuestra cuenta) → 401.
-- Todas las respuestas llegan vía **CloudFront** (`via: ...cloudfront.net`,
-  `X-Cache: Error from cloudfront`).
+- **Producción** `https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
+  → 401 (desde Lima y desde AWS).
+- **QA** `https://qa-gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
+  → 401 (desde Lima).
+- Todas las respuestas (QA y prod) llegan vía **CloudFront** (`via: ...cloudfront.net`,
+  `X-Cache: Error from cloudfront`). El comportamiento es idéntico en ambos ambientes, por lo que
+  el bloqueo no depende del ambiente ni de nuestra IP.
 
 ### Reproducción
 
