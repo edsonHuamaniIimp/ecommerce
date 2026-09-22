@@ -105,6 +105,13 @@ curl -i -X POST https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v
 la clave y responde 401. Es una configuración por defecto de CloudFront: si la *cache/origin
 request policy* no incluye `Authorization`, ese header se elimina antes de llegar al origen.
 
+> **Actualización (22 set., tras ajustar el WAF):** el request **sí llega a la app** — la respuesta
+> incluye headers de Next.js (`vary: rsc, next-router-state-tree, ...`) y cookies de Auth.js
+> (`__Host-authjs.csrf-token`). Es decir, el 401 **lo emite el propio handler de integración**
+> (`{"error":"No autorizado."}`), no el WAF ni CloudFront. Por eso ahora la causa más probable es
+> **(b) la clave no está activa/validada en ese ambiente**, o **(c) el esquema de auth difiere**
+> del documentado.
+
 **Cómo verificarlo (2 minutos):**
 1. Ejecutar el `curl` de arriba **directamente contra el origen** (la URL del ALB/servicio, sin
    CloudFront). Si devuelve `201`, queda confirmado.
