@@ -18,7 +18,9 @@ import {
   SGC_SUBSANACION_MOTIVO,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
-import { construirIdempotencyKey, sha256Hex } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, extraerDocumentosLegacy, sha256Hex } from "@/lib/shared/utils/sgc";
+import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
+import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
 
 export interface SgcIntegracionConfig {
@@ -276,7 +278,7 @@ export class SgcIntegracionApplicationService {
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return null;
 
-    const contrato = detalle.docsAdjuntos.find((doc) => doc.userId === null) ?? detalle.docsAdjuntos[0];
+    const contrato = this.seleccionarContrato(detalle);
     if (!contrato) return null;
 
     return this.subirDocumentoDesdeUrl(solicitudId, {
@@ -292,8 +294,21 @@ export class SgcIntegracionApplicationService {
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return [];
 
+    /*
+     * Los documentos del cliente viven en dos lugares: la tabla `solicitud_documento`
+     * (`docsAdjuntos`, con `userId`) y la columna JSON legacy `documentos` del stand.
+     * Se consideran ambos, deduplicando por URL.
+     */
+    const candidatos: DocumentoUrl[] = [
+      ...detalle.docsAdjuntos.filter((d) => d.userId !== null).map((d) => ({ url: d.url, nombre: d.nombre })),
+      ...extraerDocumentosLegacy(detalle.documentos),
+    ];
+
+    const vistos = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
-    for (const doc of detalle.docsAdjuntos.filter((d) => d.userId !== null)) {
+    for (const doc of candidatos) {
+      if (vistos.has(doc.url)) continue;
+      vistos.add(doc.url);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: doc.nombre,
@@ -302,6 +317,18 @@ export class SgcIntegracionApplicationService {
       if (subido) resultados.push(subido);
     }
     return resultados;
+  }
+
+  /**
+   * Documento que representa el contrato v1: el del administrador (`userId === null`)
+   * o, en su defecto, el primer documento disponible (tabla o JSON legacy).
+   */
+  private seleccionarContrato(detalle: SolicitudRow): DocumentoUrl | null {
+    const admin = detalle.docsAdjuntos.find((doc) => doc.userId === null);
+    if (admin) return { url: admin.url, nombre: admin.nombre };
+    const primero = detalle.docsAdjuntos[0];
+    if (primero) return { url: primero.url, nombre: primero.nombre };
+    return extraerDocumentosLegacy(detalle.documentos)[0] ?? null;
   }
 
   private construirDocumento(

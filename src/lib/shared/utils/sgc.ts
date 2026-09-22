@@ -89,3 +89,28 @@ export function mimeDesdeNombre(nombre: string): string {
   const ext = nombre.split(".").pop()?.toLowerCase() ?? "";
   return SGC_MIME_TYPES[ext] ?? SGC_MIME_TYPE_DEFAULT;
 }
+
+export interface DocumentoUrl {
+  url: string;
+  nombre: string;
+}
+
+/**
+ * Extrae documentos de la columna legacy `documentos` (JSON del stand/solicitud),
+ * que puede venir como `string[]` de URLs o como objetos `{ url, nombre }`.
+ * El flujo SGC debe considerar **ambas** fuentes (tabla y JSON legacy).
+ */
+export function extraerDocumentosLegacy(documentos: unknown): DocumentoUrl[] {
+  if (!Array.isArray(documentos)) return [];
+  const items: DocumentoUrl[] = [];
+  for (const item of documentos) {
+    if (typeof item === "string" && item.trim()) {
+      items.push({ url: item, nombre: item.split("/").pop() ?? item });
+    } else if (item && typeof item === "object" && typeof (item as { url?: unknown }).url === "string") {
+      const url = (item as { url: string }).url;
+      const nombre = (item as { nombre?: string }).nombre ?? url.split("/").pop() ?? url;
+      items.push({ url, nombre });
+    }
+  }
+  return items;
+}

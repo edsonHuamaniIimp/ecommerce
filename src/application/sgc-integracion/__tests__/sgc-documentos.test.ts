@@ -278,6 +278,24 @@ describe("SgcIntegracionApplicationService.subirDocumentoDesdeUrl", () => {
   });
 });
 
+describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
+  it("usa el documento legacy (columna documentos) cuando no hay docsAdjuntos", async () => {
+    const client = clientMock();
+    const origen = documentoOrigenMock();
+    const row = detalle({ documentos: ["/uploads/legacy.pdf"], docsAdjuntos: [] });
+    const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
+
+    const doc = await svc.subirContratoDeSolicitud("sol-1");
+
+    expect(doc).not.toBeNull();
+    expect(origen.leer).toHaveBeenCalledWith("/uploads/legacy.pdf");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.CONTRACT }),
+    );
+  });
+});
+
 describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
   it("deberia empujar cada adjunto del cliente como anexo", async () => {
     const client = clientMock();
