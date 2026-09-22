@@ -67,7 +67,7 @@ jobs:
     name: Build imagen → ECR (arm64)
     runs-on: ubuntu-latest
     needs: ci
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -127,7 +127,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-image
     if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
       needs.build-image.result == 'success'
     steps:
       - name: Verificar secrets ECR
