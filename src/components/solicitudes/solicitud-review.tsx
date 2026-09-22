@@ -151,10 +151,11 @@ export function SolicitudReview({
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
-  // El SGC es el último paso (Legal delegada): la orden de pago espera su aprobación.
-  const requiereSgc = legalDelegadaAlSgc(row.revisiones);
+  // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
+  const legalDelegada = legalDelegadaAlSgc(row.revisiones);
+  const requiereSgc = row.sgcEnabled && legalDelegada;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
-  const sgcVisible = requiereSgc || sgcAplica(row.sgcEstadoEnvio) || todasAprobadas;
+  const sgcVisible = row.sgcEnabled && (legalDelegada || sgcAplica(row.sgcEstadoEnvio) || todasAprobadas);
   const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done

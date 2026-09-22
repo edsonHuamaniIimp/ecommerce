@@ -692,7 +692,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       </div>
                     );
                   })}
-                  {legalDelegadaAlSgc(detailRow.revisiones) && (
+                  {detailRow.sgcEnabled && legalDelegadaAlSgc(detailRow.revisiones) && (
                     <div className="flex items-center justify-between rounded bg-muted/30 px-2 py-1 text-xs">
                       <span className="font-medium">{REVISION_AREA_SGC_LABEL}</span>
                       <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>

@@ -5,6 +5,7 @@ import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginate
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity } from "@/domain/models/entities";
 import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 
 type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
   include: {
@@ -170,6 +171,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcEnabled: isSgcEnabled(),
   };
 }
 

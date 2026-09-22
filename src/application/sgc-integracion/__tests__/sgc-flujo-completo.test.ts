@@ -123,6 +123,7 @@ class InMemorySolicitudesRepository {
       sgcEstadoEnvio: null,
       sgcLifecycleStatus: null,
       sgcStage: null,
+      sgcEnabled: true,
     };
   }
 

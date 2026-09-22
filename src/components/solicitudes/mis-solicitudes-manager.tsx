@@ -510,7 +510,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       </div>
                     );
                   })}
-                  {legalDelegadaAlSgc(detailRow.revisiones) && (
+                  {detailRow.sgcEnabled && legalDelegadaAlSgc(detailRow.revisiones) && (
                     <div className="rounded bg-muted/30 px-3 py-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{REVISION_AREA_SGC_LABEL}</span>

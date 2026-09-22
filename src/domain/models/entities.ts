@@ -133,4 +133,6 @@ export interface SolicitudRow {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
+  /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */
+  sgcEnabled: boolean;
 }
