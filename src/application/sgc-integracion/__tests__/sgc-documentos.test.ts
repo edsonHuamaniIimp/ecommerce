@@ -319,18 +319,19 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     );
   });
 
-  it("no repite como anexo el documento usado como contrato", async () => {
+  it("no repite como anexo un documento con el mismo nombre que el contrato", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+        { id: "d0", url: "/uploads/contrato.pdf", nombre: "a.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
+        { id: "d1", url: "/uploads/a-otra-url.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
         { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
 
-    /* Sin contrato del admin, el primer doc (a.pdf) se usa como contrato -> anexos = b.pdf */
+    /* El contrato del admin se llama "a.pdf"; el anexo "a.pdf" (otra URL) se excluye por nombre -> solo b.pdf */
     const docs = await svc.subirAnexosDeSolicitud("sol-1");
 
     expect(docs).toHaveLength(1);

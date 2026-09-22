@@ -131,8 +131,11 @@ export const sgcController = {
 
     const documento = await services.sgc.subirContratoDeSolicitud(body.solicitudId);
     if (!documento) {
-      await services.sgcOutbox.encolar(SGC_OUTBOX_OPERACION.SUBIR_CONTRATO, { solicitudId: body.solicitudId });
-      return error(API_ERROR_CODES.INTERNAL, "No se pudo subir el contrato al SGC; se reintentara", 500);
+      return error(
+        API_ERROR_CODES.VALIDATION,
+        "No hay contrato del administrador adjunto a la solicitud (adjunta el contrato v1).",
+        400,
+      );
     }
     return success(documento);
   },

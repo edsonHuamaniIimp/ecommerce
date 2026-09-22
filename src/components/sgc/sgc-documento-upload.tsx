@@ -5,21 +5,34 @@ import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { ANEXOS_REQUERIDOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import type { TipoDocumentoSolicitud } from "@/lib/shared/constants";
 
 /**
- * Permite adjuntar a la solicitud los anexos requeridos por el SGC
- * (Ficha RUC, Vigencia de Poder, DNI/Pasaporte del Representante Legal).
- * Se suben a `/api/upload` y se registran como documentos tipo `anexo`
- * (userId no nulo) para que `subirAnexosDeSolicitud` los empuje al SGC.
+ * Adjunta documentos a la solicitud (contrato del administrador o anexos).
+ * Se suben a `/api/upload` y se registran en `/api/solicitudes/upload-doc` con el
+ * `tipo` indicado: contrato -> `userId` null; anexo -> `userId` no nulo (para el SGC).
  */
-export function SgcAnexosUpload({
+export function SgcDocumentoUpload({
   solicitudId,
-  anexos,
+  tipo,
+  titulo,
+  hint,
+  archivos,
+  ctaVacio,
+  ctaConArchivos,
+  vacioTexto,
+  varios = true,
   onAttached,
 }: {
   solicitudId: string;
-  anexos: { nombre: string; url: string }[];
+  tipo: TipoDocumentoSolicitud;
+  titulo: string;
+  hint?: string[];
+  archivos: { nombre: string; url: string }[];
+  ctaVacio: string;
+  ctaConArchivos: string;
+  vacioTexto: string;
+  varios?: boolean;
   onAttached: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,35 +44,36 @@ export function SgcAnexosUpload({
     try {
       for (const file of Array.from(files)) {
         const url = await solicitudesService.subirArchivo(file);
-        await solicitudesService.uploadDocumento({
-          solicitudId,
-          url,
-          nombre: file.name,
-          tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
-        });
+        await solicitudesService.uploadDocumento({ solicitudId, url, nombre: file.name, tipo });
       }
-      toast.success("Anexo(s) adjuntado(s) a la solicitud");
+      toast.success("Documento(s) adjuntado(s) a la solicitud");
       onAttached();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo adjuntar el anexo");
+      toast.error(err instanceof Error ? err.message : "No se pudo adjuntar el documento");
     } finally {
       setSubiendo(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
+  const vacio = archivos.length === 0;
+
   return (
     <div className="mt-3 rounded-md border border-slate-200 p-3">
-      <p className="text-xs font-semibold text-slate-700">Anexos requeridos</p>
-      <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
-        {ANEXOS_REQUERIDOS.map((a) => (
-          <li key={a.key}>· {a.label}</li>
-        ))}
-      </ul>
+      <p className="text-xs font-semibold text-slate-700">{titulo}</p>
+      {hint && hint.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+          {hint.map((h, i) => (
+            <li key={i}>· {h}</li>
+          ))}
+        </ul>
+      )}
 
-      {anexos.length > 0 ? (
+      {vacio ? (
+        <p className="mt-2 text-[11px] font-medium text-amber-600">{vacioTexto}</p>
+      ) : (
         <div className="mt-2 space-y-0.5">
-          {anexos.map((d, i) => (
+          {archivos.map((d, i) => (
             <a
               key={i}
               href={d.url}
@@ -72,23 +86,19 @@ export function SgcAnexosUpload({
             </a>
           ))}
         </div>
-      ) : (
-        <p className="mt-2 text-[11px] font-medium text-amber-600">
-          Aún no adjuntaste los anexos requeridos.
-        </p>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        multiple
+        multiple={varios}
         className="hidden"
         onChange={(e) => onFiles(e.target.files)}
       />
       <Button
         size="sm"
         variant="outline"
-        className={`mt-2 w-full ${anexos.length === 0 ? "border-dashed border-amber-300 text-amber-700" : ""}`}
+        className={`mt-2 w-full ${vacio ? "border-dashed border-amber-300 text-amber-700" : ""}`}
         disabled={subiendo}
         onClick={() => inputRef.current?.click()}
       >
@@ -97,7 +107,7 @@ export function SgcAnexosUpload({
         ) : (
           <Paperclip className="mr-2 h-3 w-3" />
         )}
-        {anexos.length === 0 ? "Adjuntar los anexos requeridos" : "Adjuntar más anexos"}
+        {vacio ? ctaVacio : ctaConArchivos}
       </Button>
     </div>
   );

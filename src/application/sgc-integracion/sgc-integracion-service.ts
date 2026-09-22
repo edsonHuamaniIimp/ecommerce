@@ -371,14 +371,14 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Documento que representa el contrato v1: el del administrador (`userId === null`)
-   * o, en su defecto, el primer documento disponible (tabla o JSON legacy).
+   * Documento que representa el contrato v1: el del administrador (`userId === null`).
+   * Los documentos del cliente/anexos (`userId` no nulo) NUNCA son el contrato; en su
+   * defecto se usa la columna legacy `documentos` (compatibilidad). Si no hay ninguno,
+   * no se envia contrato (el flujo debe adjuntar el contrato del administrador).
    */
   private seleccionarContrato(detalle: SolicitudRow): DocumentoUrl | null {
     const admin = detalle.docsAdjuntos.find((doc) => doc.userId === null);
     if (admin) return { url: admin.url, nombre: admin.nombre };
-    const primero = detalle.docsAdjuntos[0];
-    if (primero) return { url: primero.url, nombre: primero.nombre };
     return extraerDocumentosLegacy(detalle.documentos)[0] ?? null;
   }
 

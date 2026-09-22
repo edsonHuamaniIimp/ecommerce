@@ -11,6 +11,8 @@ import {
   RESULTADOS_APROBACION,
   BADGE_STYLES,
   PERMISSIONS,
+  TIPOS_DOCUMENTO_SOLICITUD,
+  ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
@@ -18,7 +20,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
-import { SgcAnexosUpload } from "@/components/sgc/sgc-anexos-upload";
+import { SgcDocumentoUpload } from "@/components/sgc/sgc-documento-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 
@@ -94,6 +96,11 @@ export function SolicitudReview({
     anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
   }
   const anexosSolicitud = [...anexosMap.values()];
+
+  /* Contrato v1: documentos del administrador (userId null). */
+  const contratosSolicitud = row.docsAdjuntos
+    .filter((d) => d.userId === null)
+    .map((d) => ({ nombre: d.nombre, url: d.url }));
 
   const goToStep = (step: number) => {
     setEditing(false);
@@ -291,9 +298,26 @@ export function SolicitudReview({
                 }
               }}
             />
-            <SgcAnexosUpload
+            <SgcDocumentoUpload
               solicitudId={row.id}
-              anexos={anexosSolicitud}
+              tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
+              titulo="Contrato (v1)"
+              archivos={contratosSolicitud}
+              ctaVacio="Adjuntar contrato (v1)"
+              ctaConArchivos="Reemplazar contrato (v1)"
+              vacioTexto="Aún no adjuntaste el contrato (v1) (documento del administrador)."
+              varios={false}
+              onAttached={() => onSaved(row)}
+            />
+            <SgcDocumentoUpload
+              solicitudId={row.id}
+              tipo={TIPOS_DOCUMENTO_SOLICITUD.ANEXO}
+              titulo="Anexos requeridos"
+              hint={ANEXOS_REQUERIDOS.map((a) => a.label)}
+              archivos={anexosSolicitud}
+              ctaVacio="Adjuntar los anexos requeridos"
+              ctaConArchivos="Adjuntar más anexos"
+              vacioTexto="Aún no adjuntaste los anexos requeridos."
               onAttached={() => onSaved(row)}
             />
             {todasAprobadas && requiereSgc && !sgcOk && (

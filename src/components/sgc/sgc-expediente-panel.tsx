@@ -114,13 +114,22 @@ export function SgcExpedientePanel({
   async function enviarContrato() {
     setEnviandoContrato(true);
     try {
-      await sgcService.subirContrato(solicitudId);
-      /* Al enviar el contrato tambien se empujan los anexos de la solicitud. */
+      /* Envia anexos y contrato; si aun no hay contrato del admin, no bloquea los anexos. */
       const { enviados } = await sgcService.subirAnexos(solicitudId);
-      toast.success(`Contrato enviado al SGC${enviados ? ` + ${enviados} anexo(s)` : ""}`);
+      let contratoOk = true;
+      try {
+        await sgcService.subirContrato(solicitudId);
+      } catch {
+        contratoOk = false;
+      }
+      if (contratoOk) {
+        toast.success(`Contrato + ${enviados} anexo(s) enviados al SGC`);
+      } else {
+        toast.info(`${enviados} anexo(s) enviados. Falta adjuntar el contrato (v1) del administrador.`);
+      }
       refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo enviar el contrato");
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar al SGC");
     } finally {
       setEnviandoContrato(false);
     }
