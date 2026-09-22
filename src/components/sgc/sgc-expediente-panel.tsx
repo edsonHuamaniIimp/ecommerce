@@ -40,7 +40,6 @@ export function SgcExpedientePanel({
 }) {
   const { data, loading, error, refetch } = useSgcExpediente(solicitudId);
   const [descargando, setDescargando] = useState(false);
-  const [enviando, setEnviando] = useState(false);
   const [enviandoContrato, setEnviandoContrato] = useState(false);
   const [registrando, setRegistrando] = useState(false);
 
@@ -109,19 +108,6 @@ export function SgcExpedientePanel({
       toast.error(err instanceof Error ? err.message : "No se pudo descargar el contrato");
     } finally {
       setDescargando(false);
-    }
-  }
-
-  async function enviarAnexos() {
-    setEnviando(true);
-    try {
-      const { enviados } = await sgcService.subirAnexos(solicitudId);
-      toast.success(`${enviados} anexo(s) enviados al SGC`);
-      refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudieron enviar los anexos");
-    } finally {
-      setEnviando(false);
     }
   }
 
@@ -198,23 +184,12 @@ export function SgcExpedientePanel({
         size="sm"
         variant="outline"
         className="w-full"
-        disabled={enviandoContrato || contratoEnviado}
+        disabled={enviandoContrato}
         onClick={enviarContrato}
-        title={contratoEnviado ? "El contrato ya fue enviado al SGC" : undefined}
+        title="Envía el contrato v1 y los anexos de la solicitud (idempotente: no reenvía lo ya enviado)"
       >
         {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-        {contratoEnviado ? "Contrato ya enviado al SGC" : "Enviar contrato (v1) al SGC"}
-      </Button>
-
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full"
-        disabled={enviando}
-        onClick={enviarAnexos}
-      >
-        {enviando ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-        Enviar anexos al SGC
+        {contratoEnviado ? "Reenviar anexos al SGC" : "Enviar contrato + anexos al SGC"}
       </Button>
 
       {puedeDescargar && (

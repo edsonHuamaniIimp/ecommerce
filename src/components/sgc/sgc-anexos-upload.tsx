@@ -57,7 +57,7 @@ export function SgcAnexosUpload({
         ))}
       </ul>
 
-      {anexos.length > 0 && (
+      {anexos.length > 0 ? (
         <div className="mt-2 space-y-0.5">
           {anexos.map((d, i) => (
             <a
@@ -72,6 +72,10 @@ export function SgcAnexosUpload({
             </a>
           ))}
         </div>
+      ) : (
+        <p className="mt-2 text-[11px] font-medium text-amber-600">
+          Aún no adjuntaste los anexos requeridos.
+        </p>
       )}
 
       <input
@@ -84,7 +88,7 @@ export function SgcAnexosUpload({
       <Button
         size="sm"
         variant="outline"
-        className="mt-2 w-full"
+        className={`mt-2 w-full ${anexos.length === 0 ? "border-dashed border-amber-300 text-amber-700" : ""}`}
         disabled={subiendo}
         onClick={() => inputRef.current?.click()}
       >
@@ -93,7 +97,7 @@ export function SgcAnexosUpload({
         ) : (
           <Paperclip className="mr-2 h-3 w-3" />
         )}
-        Adjuntar anexos
+        {anexos.length === 0 ? "Adjuntar los anexos requeridos" : "Adjuntar más anexos"}
       </Button>
     </div>
   );

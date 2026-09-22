@@ -331,10 +331,24 @@ export class SgcIntegracionApplicationService {
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
 
+    // Idempotencia: no reenviar anexos que ya esten en el SGC (por titulo/nombre).
+    const titulosEnSgc = new Set<string>();
+    const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    if (expediente?.contractId) {
+      try {
+        const actual = await this.client.consultarExpediente(expediente.contractId);
+        for (const d of actual.documents.filter((x) => x.category === SGC_DOCUMENT_CATEGORIES.ANNEX)) {
+          titulosEnSgc.add(d.title);
+        }
+      } catch {
+        /* Si la consulta falla, se intenta la subida igual. */
+      }
+    }
+
     const vistos = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
-      if (vistos.has(doc.url) || doc.url === contratoUrl) continue;
+      if (vistos.has(doc.url) || doc.url === contratoUrl || titulosEnSgc.has(doc.nombre)) continue;
       vistos.add(doc.url);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
