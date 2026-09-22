@@ -281,6 +281,31 @@ export class SgcIntegracionApplicationService {
     const contrato = this.seleccionarContrato(detalle);
     if (!contrato) return null;
 
+    // Idempotencia: si el SGC ya tiene el contrato, no crear otra pieza documental.
+    const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    if (expediente?.contractId) {
+      try {
+        const actual = await this.client.consultarExpediente(expediente.contractId);
+        const existente = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
+        if (existente) {
+          return {
+            id: existente.documentId,
+            sgcExpedienteId: expediente.id,
+            documentId: existente.documentId,
+            currentVersionId: existente.currentVersionId,
+            category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+            title: existente.title,
+            fileName: existente.title,
+            checksumSha256: null,
+            sizeBytes: null,
+            estado: SGC_DOCUMENTO_ESTADO.CONFIRMADO,
+          };
+        }
+      } catch {
+        /* Si la consulta falla, se intenta la subida igual. */
+      }
+    }
+
     return this.subirDocumentoDesdeUrl(solicitudId, {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: contrato.nombre,

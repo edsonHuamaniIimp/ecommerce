@@ -9,6 +9,7 @@ import { sgcService } from "@/lib/client/api/services/sgc-service";
 import {
   BADGE_STYLES,
   SGC_APPROVAL_MARK_LABELS,
+  SGC_DOCUMENT_CATEGORIES,
   SGC_LIFECYCLE_LABELS,
   SGC_LIFECYCLE_STATUSES,
   SGC_STEP_STATUSES,
@@ -72,6 +73,11 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
   const puedeDescargar =
     data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
     data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED;
+
+  /* Evita duplicar el contrato: si el SGC ya lo tiene, no se reenvia. */
+  const contratoEnviado = (data.documents ?? []).some(
+    (d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT,
+  );
 
   async function descargarContrato() {
     setDescargando(true);
@@ -169,11 +175,12 @@ export function SgcExpedientePanel({ solicitudId }: { solicitudId: string }) {
         size="sm"
         variant="outline"
         className="w-full"
-        disabled={enviandoContrato}
+        disabled={enviandoContrato || contratoEnviado}
         onClick={enviarContrato}
+        title={contratoEnviado ? "El contrato ya fue enviado al SGC" : undefined}
       >
         {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-        Enviar contrato (v1) al SGC
+        {contratoEnviado ? "Contrato ya enviado al SGC" : "Enviar contrato (v1) al SGC"}
       </Button>
 
       <Button
