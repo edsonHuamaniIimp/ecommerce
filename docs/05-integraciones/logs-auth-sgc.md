@@ -11,6 +11,52 @@
 
 ---
 
+## Cómo consultamos exactamente (request que enviamos, `curl -v`)
+
+### GET
+
+```http
+> GET /api/integrations/v1/contracts HTTP/1.1
+> Host: qa-gestion-contratos.sistemasiimp.org.pe
+> User-Agent: curl/8.21.0
+> Accept: */*
+> Authorization: Bearer sgc_<clave>
+
+< HTTP/1.1 401 Unauthorized
+< Content-Type: application/json
+< vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+< X-Cache: Error from cloudfront
+< Via: 1.1 9b06d154fff944cda67f7bcd6f9f49e4.cloudfront.net (CloudFront)
+
+{"error":"No autorizado."}
+```
+
+### POST
+
+```http
+> POST /api/integrations/v1/contracts HTTP/1.1
+> Host: qa-gestion-contratos.sistemasiimp.org.pe
+> User-Agent: curl/8.21.0
+> Accept: */*
+> Authorization: Bearer sgc_<clave>
+> Content-Type: application/json
+> Idempotency-Key: ecommerce/pedido/qa-3
+> Content-Length: 159
+
+< HTTP/1.1 401 Unauthorized
+< Content-Type: application/json
+< cache-control: no-store
+< X-Cache: Error from cloudfront
+< Via: 1.1 e8e86a0bfba495b0c160da8db57821d4.cloudfront.net (CloudFront)
+
+{"error":"No autorizado."}
+```
+
+> La cabecera `Authorization: Bearer sgc_<clave>` **sí se envía** (confirmado con `curl -v`); el
+> servidor responde `401 {"error":"No autorizado."}`.
+
+---
+
 ## 1. QA — `GET` con `Authorization: Bearer sgc_<clave>`
 
 ```bash
