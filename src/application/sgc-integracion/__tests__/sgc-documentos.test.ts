@@ -12,6 +12,7 @@ import {
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
+  SGC_MOTIVO_CARGA_INICIAL,
 } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 
@@ -251,7 +252,28 @@ describe("SgcIntegracionApplicationService.subirDocumentoDesdeUrl", () => {
     expect(origen.leer).toHaveBeenCalledWith("/uploads/anexo.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
-      expect.objectContaining({ declaredMimeType: "application/pdf" }),
+      expect.objectContaining({
+        declaredMimeType: "application/pdf",
+        documentId: null,
+        /* El SGC exige un replacementReason no vacio tambien en la carga inicial. */
+        replacementReason: SGC_MOTIVO_CARGA_INICIAL,
+      }),
+    );
+  });
+
+  it("deberia conservar el replacementReason explicito (subsanacion)", async () => {
+    const client = clientMock();
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock());
+
+    await svc.subsanarContrato("sol-1", {
+      url: "/uploads/contrato-v2.pdf",
+      title: "Contrato v2",
+      documentId: "doc-1",
+    });
+
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ documentId: "doc-1", replacementReason: expect.any(String) }),
     );
   });
 });

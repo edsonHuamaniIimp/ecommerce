@@ -732,6 +732,11 @@ export const CRON_SECRET_HEADER = "x-cron-secret";
 export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.COMUNICACION;
 export const SGC_PROCESS_ORIGIN = "ContratosStands";
 export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
+/**
+ * Motivo obligatorio en la reserva de subida. El SGC exige `replacementReason` no
+ * vacio junto con `documentId: null` incluso para la carga inicial de un documento.
+ */
+export const SGC_MOTIVO_CARGA_INICIAL = "Carga inicial desde ContratosStands";
 export const SGC_CODE_PREFIX = "STAND";
 export const SGC_EXPEDIENTE_NAME_PREFIX = "Separacion de stand";
 

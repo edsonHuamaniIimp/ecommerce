@@ -14,6 +14,7 @@ import {
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
+  SGC_MOTIVO_CARGA_INICIAL,
   SGC_SUBSANACION_MOTIVO,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
@@ -170,7 +171,7 @@ export class SgcIntegracionApplicationService {
       sizeBytes: pieza.bytes.byteLength,
       checksumSha256,
       declaredMimeType: pieza.mimeType,
-      replacementReason: pieza.replacementReason,
+      replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
     });
 
