@@ -1,120 +1,125 @@
-# Pedido al equipo del SGC — credencial, autenticación y catálogos
+# Integración SGC ↔ ContratosStands — bloqueo de autenticación (401)
 
-> Documento para enviar al equipo que desarrolla el SGC (autor de `APIS_USE_HOOKS.md`).
-> Contexto: ContratosStands (sistema de separación de stands) es el **cliente**; el SGC es el
-> **proveedor** de `/api/integrations/v1/*` y de los webhooks.
-> Estado: el host y el comportamiento de la autenticación ya se probaron contra producción
-> (ver evidencia). Quedan dudas puntuales sobre el mecanismo de auth.
+**Para:** equipo del SGC (autor de `APIS_USE_HOOKS.md`).
+**De:** equipo de ContratosStands (sistema de separación de stands / e-commerce).
+**Fecha:** 22 set. 2026.
 
-## Hallazgo 1: el dominio de la API no está en la documentación
+---
 
-La guía `APIS_USE_HOOKS.md` muestra solo las rutas (`/api/integrations/v1/contracts`, etc.) pero
-**no el host**. El único dominio que menciona es `canal-seguro.sistemasiimp.org.pe` (que según su
-§5.5 es nuestro host de webhooks, no el suyo). El host real, encontrado por prueba, es:
+## TL;DR — lo que necesitamos de ustedes
+
+Con la **clave que nos entregaron** (conexión `ECOMMERCE_IIMP_CONEX`) **toda llamada a la API
+responde `401 {"error":"No autorizado."}`**, tanto desde Lima como desde AWS. La ruta usada es la
+de su documentación: `POST/GET https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
+con `Authorization: Bearer sgc_<clave>`.
+
+Necesitamos **una** de estas cosas:
+
+1. **Ejecuten este mismo `curl` contra el origen directo (sin CloudFront).** Si ahí devuelve
+   `201`, entonces CloudFront no está reenviando el header `Authorization` (ver hipótesis abajo).
+2. **Revisen la *Origin request policy* de CloudFront** del distribution de
+   `gestion-contratos.sistemasiimp.org.pe`: debe **reenviar el header `Authorization`** al origen
+   (p. ej. política `AllViewer`). Por defecto CloudFront **excluye** `Authorization`.
+3. **Confirmen que la clave está activa** y asignada al rol `contract-manager`.
+4. **Pásennos un `curl` que les funcione** (con su URL/headers reales) y los códigos reales de
+   `areaCode` y `contractTypeCode` para "separación de stands".
+
+---
+
+## Qué ya tenemos del lado nuestro (listo, no falta nada)
+
+- Cliente HTTP implementado y probado (fases 0–6): crear expediente, subir contrato v1/anexos
+  (3 fases con checksum SHA-256), consultar estado/stepper, webhooks con HMAC, subsanar y
+  descargar el contrato firmado.
+- `SGC_API_URL` configurada en producción:
+  `https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1`.
+- Integración **dormida** (`SGC_ENABLED=0`); se activa con variables de entorno cuando la auth
+  funcione, sin recompilar.
+- `npx tsc --noEmit` y `npx eslint` en 0 errores.
+
+---
+
+## La clave que nos dieron
+
+- Conexión: `ECOMMERCE_IIMP_CONEX` — Actor: `ECOMMERCE_IIMP` (usuario Edson Huamani).
+- Clave: `sgc_...` (la entregada al equipo).
+- Resultado real hoy: **401 `{"error":"No autorizado."}`**.
+
+---
+
+## Qué probamos y qué pasa
+
+### Formatos de header (con la clave real)
 
 ```
-SGC_API_URL = https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1
+Authorization: Bearer sgc_<clave>     -> 401
+Authorization: Bearer <clave>         -> 401
+Authorization: <clave>                -> 401
+Authorization: ApiKey|Token <clave>   -> 401
+x-api-key / api-key / apikey: <clave> -> 401
+Authorization: Basic <base64>         -> 401
+por query string (?apiKey= / ?key=)   -> 401
+POST + Idempotency-Key + JSON válido  -> 401
 ```
 
-Sugerimos **agregar esa URL a la documentación** para que el próximo integrador no tenga que
-adivinar el host.
-
-## Hallazgo 2: la API sí exige credencial
-
-La guía (§1) y nuestro diseño (§7) indican `Authorization: Bearer sgc_<clave>` en toda llamada.
-Lo probamos y **confirmamos que exige credencial**: toda llamada sin una clave válida responde
-`401 {"error":"No autorizado."}`.
-
-Aclaración importante sobre una confusión posible: el `POST` **valida el cuerpo antes que el
-auth**. Con un cuerpo malformado devuelve `400 {"error":"JSON inválido."}`; con un cuerpo JSON
-válido (aunque sea `{}`) responde `401`. Por eso, a primera vista, el `POST` puede parecer
-"abierto".
-
-### Evidencia (22 set. 2026)
+### Rutas
 
 ```
-GET  /api/integrations/v1/contracts   (sin header)        -> 401 {"error":"No autorizado."}
-GET  /api/integrations/v1/contracts   Bearer sgc_prueba   -> 401
-GET  /api/integrations/v1/contracts   x-api-key: prueba   -> 401
-GET  /api/integrations/v1/contracts/  (trailing slash)    -> 308
-OPTIONS /api/integrations/v1/contracts                    -> 204 (CORS preflight)
-POST /api/integrations/v1/contracts   body vacío/malformado -> 400 {"error":"JSON inválido."}
-POST /api/integrations/v1/contracts   body = {}             -> 401 {"error":"No autorizado."}
-POST /api/integrations/v1/contracts   body = {"code":"X"}   -> 401 {"error":"No autorizado."}
+/api/integrations/v1/contracts              -> 401 {"error":"No autorizado."}   (correcta)
+/api/integration/v1/contracts               -> 307 redirect /login
+/integrations/v1/contracts                  -> 307 redirect /login
+/api/v1/integrations/contracts              -> 307 redirect /login
 ```
 
-Además, con la **clave real** emitida (conexión `ECOMMERCE_IIMP_CONEX`) el resultado **desde
-fuera sigue siendo 401** en todos los formatos probados: `Authorization: Bearer sgc_<clave>` con
-y sin el prefijo `sgc_`, `Authorization: <clave>`, `ApiKey`/`Token`, `x-api-key`, `api-key`,
-`apikey`, Basic, y por query string. También se probó en el `POST` con `Idempotency-Key` y
-`Content-Type: application/json`.
+### Origen de la llamada (para descartar IP)
 
-Ruta confirmada (la única que responde el JSON propio de integración):
-`/api/integrations/v1/contracts` → `401 {"error":"No autorizado."}`. Otras variantes
-(`/api/integration/v1/contracts`, `/integrations/v1/contracts`, `/api/v1/integrations/contracts`)
-redirigen `307` a `/login`, por lo que no son la API de integración.
-
-No es nuestra IP/origen: probamos el mismo `GET` con la clave desde **fuera** (Lima) y **desde
-dentro de AWS** (`us-east-1`, task Fargate) y el resultado es **401** en ambos casos.
-
-Todas las respuestas llegan vía **CloudFront** (`via: ...cloudfront.net`, `X-Cache: Error from
-cloudfront`). Hipótesis principal: **CloudFront no reenvía el header `Authorization` al origen**
-(política de *origin request* / *cache policy* que lo excluye), por lo que el origen nunca ve la
-clave y responde 401. Es una configuración muy común de CloudFront.
-
-Posibles causas a confirmar con el equipo del SGC:
-(a) CloudFront **no reenvía `Authorization`** al origen (revisar *Origin request policy*, usar
-`AllViewer`), y la prueba directa contra el origen (sin CloudFront) sí funciona;
-(b) la clave aún no está activa o no tiene asignado el rol `contract-manager`;
-(c) el header o esquema de auth difiere del documentado.
+- Desde **Lima** (red local) → 401.
+- Desde **AWS `us-east-1`** (task Fargate en nuestra cuenta) → 401.
+- Todas las respuestas llegan vía **CloudFront** (`via: ...cloudfront.net`,
+  `X-Cache: Error from cloudfront`).
 
 ### Reproducción
 
 ```bash
-curl -i https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts
-curl -i -H "Authorization: Bearer sgc_invalida" \
-     https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts
 curl -i -X POST https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts \
-     -H "Content-Type: application/json" -d '{}'
+  -H "Authorization: Bearer sgc_<clave>" \
+  -H "Idempotency-Key: ecommerce/pedido/12345" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"ECOM-2026-0001","areaCode":"EVENTOS","contractTypeCode":"AUSPICIO",
+       "name":"Prueba","counterpartyLegalName":"Cliente de prueba S.A.C.",
+       "counterpartyTaxIdentifier":"20123456789","processOrigin":"ContratosStands"}'
+# Respuesta actual: 401 {"error":"No autorizado."}
+# Respuesta esperada: 201 {"contractId":"...","status":"created"}
 ```
 
-## Preguntas para el equipo del SGC
+---
 
-1. **¿Cuál es el mecanismo de autenticación exacto?** La guía dice
-   `Authorization: Bearer sgc_<clave>`, pero un comentario interno indicó que "no requiere bearer
-   token". Desde afuera, toda llamada sin clave válida responde 401.
-2. **¿Pueden ejecutar ese `curl` contra el origen directamente (sin CloudFront)?** Desde fuera
-   (y también desde AWS) recibimos siempre `401 {"error":"No autorizado."}` **vía CloudFront**.
-   Si contra el origen responde `201`, la causa es que CloudFront no está reenviando el header
-   `Authorization` (revisar *Origin request policy*).
-3. **¿Pueden compartir un `curl` de ejemplo que les funcione** contra
-   `POST /api/integrations/v1/contracts` (con la clave real), para replicar exactamente los
-   headers, y confirmar que la clave está activa con rol `contract-manager`?
-4. Si efectivamente **no** se requiere token, **¿cómo se llamó desde fuera?** (¿hay otro header,
-   un valor por query string, o una allowlist de IP?). Necesitamos el detalle exacto.
-5. Nota: el único flujo que **no** usa Bearer es el **webhook**, y es al revés — lo envía el SGC
-   hacia nosotros, firmado con HMAC (`x-sgc-signature`). Si la aclaración se refería al webhook,
-   confirmarlo.
+## Hipótesis principal
 
-## Lo que necesitamos
+**CloudFront no está reenviando el header `Authorization` al origen.** Así el backend nunca recibe
+la clave y responde 401. Es una configuración por defecto de CloudFront: si la *cache/origin
+request policy* no incluye `Authorization`, ese header se elimina antes de llegar al origen.
 
-1. **Credencial / mecanismo de auth** para llamar la API (ver preguntas 1–3).
-2. **`areaCode`** para "separación de stands" (lo define el SGC).
-3. **`contractTypeCode`** para "separación de stands" (lo define el SGC).
-4. **Webhooks** (cuando lo habiliten):
-   - Confirmar qué host autorizan como receptor.
-   - Registrar `POST https://ecommerce.sistemasiimp.org.pe/api/integracion/sgc/webhook`.
-   - Enviar el **secreto HMAC** de la suscripción.
+**Cómo verificarlo (2 minutos):**
+1. Ejecutar el `curl` de arriba **directamente contra el origen** (la URL del ALB/servicio, sin
+   CloudFront). Si devuelve `201`, queda confirmado.
+2. En CloudFront → Behaviors → *Origin request policy*: agregar `Authorization` (o usar
+   `AllViewer`). Guardar y probar de nuevo por el dominio público.
 
-## Qué desbloquea la prueba end-to-end
+---
 
-Con el mecanismo de auth resuelto + `areaCode` + `contractTypeCode` ejecutamos el flujo completo:
-crear expediente → subir contrato v1 → consultar estado/stepper → recibir webhook → subsanar →
-descargar.
+## Cómo debe verse cuando funcione
 
-## Nuestro lado (referencia)
+```
+POST /api/integrations/v1/contracts   -> 201 {"contractId":"<uuid>","status":"created"}
+GET  /api/integrations/v1/contracts/<contractId> -> 200 { ... }
+```
 
-- Fases 0–6 implementadas; `npx tsc --noEmit` y `npx eslint` en 0 errores.
-- Integración **dormida** (`SGC_ENABLED=0`) hasta tener la credencial. Al recibirla se activa solo
-  con variables de entorno (`SGC_MODE=real`), sin recompilar.
-- Doc de diseño: `docs/05-integraciones/integracion-sgc.md`.
+---
+
+## Recordatorio (webhooks)
+
+El único flujo **sin** Bearer es el **webhook**, y es al revés: lo envía el SGC hacia nosotros,
+firmado con HMAC (`x-sgc-signature`). Cuando lo habiliten: confirmar host autorizado, registrar
+`POST https://ecommerce.sistemasiimp.org.pe/api/integracion/sgc/webhook` y enviarnos el secreto
+HMAC.
