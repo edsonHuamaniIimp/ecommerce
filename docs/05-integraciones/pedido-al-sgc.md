@@ -43,8 +43,21 @@ POST /api/integrations/v1/contracts   body = {}             -> 401 {"error":"No 
 POST /api/integrations/v1/contracts   body = {"code":"X"}   -> 401 {"error":"No autorizado."}
 ```
 
-No pudimos verificar el **mecanismo exacto** (Bearer vs otro header) porque no contamos con una
-clave válida: con cualquier valor inválido el resultado es 401.
+Además, con la **clave real** emitida (conexión `ECOMMERCE_IIMP_CONEX`) el resultado **desde
+fuera sigue siendo 401** en todos los formatos probados: `Authorization: Bearer sgc_<clave>` con
+y sin el prefijo `sgc_`, `Authorization: <clave>`, `ApiKey`/`Token`, `x-api-key`, `api-key`,
+`apikey`, Basic, y por query string. También se probó en el `POST` con `Idempotency-Key` y
+`Content-Type: application/json`.
+
+Ruta confirmada (la única que responde el JSON propio de integración):
+`/api/integrations/v1/contracts` → `401 {"error":"No autorizado."}`. Otras variantes
+(`/api/integration/v1/contracts`, `/integrations/v1/contracts`, `/api/v1/integrations/contracts`)
+redirigen `307` a `/login`, por lo que no son la API de integración.
+
+Posibles causas a confirmar con el equipo del SGC: (a) la clave aún no está activa o no tiene
+asignado el rol `contract-manager`; (b) el request debe originarse desde un host/red autorizado
+(p. ej. su dominio `canal-seguro.sistemasiimp.org.pe`); (c) el header o esquema de auth difiere
+del documentado.
 
 ### Reproducción
 
