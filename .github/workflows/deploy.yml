@@ -4,6 +4,8 @@ name: CI/CD — ContratosStands
 #   push a main  -> SOLO ci (lint/tsc/tests). NO construye imagen ni despliega.
 #   manual (Actions > Run workflow) -> ci -> build-image (arm64) -> deploy-ecs (rollout).
 # - El deploy a ECS es MANUAL a proposito: no queremos construir una imagen en cada push.
+# - build-image corre en runner ARM NATIVO (ubuntu-24.04-arm, sin QEMU) => mucho mas rapido.
+# - Si la imagen de ese commit YA existe en ECR, NO se reconstruye (idempotente).
 # - build-image reusa capas (cache `type=gha`: reusa npm ci).
 # - deploy-ecs hace `aws ecs update-service --force-new-deployment` (imagen :latest).
 # - Terraform se usa solo para infraestructura, no para cada deploy de app.
@@ -67,7 +69,7 @@ jobs:
   # ─── Imagen → ECR (arm64 + cache) ─────────────────────────────────────────
   build-image:
     name: Build imagen → ECR (arm64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: ci
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     steps:
@@ -84,14 +86,6 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup QEMU (arm64)
-        if: steps.check-ecr.outputs.skip != 'true'
-        uses: docker/setup-qemu-action@v3
-
-      - name: Setup Buildx
-        if: steps.check-ecr.outputs.skip != 'true'
-        uses: docker/setup-buildx-action@v3
-
       - name: Configurar credenciales AWS
         if: steps.check-ecr.outputs.skip != 'true'
         uses: aws-actions/configure-aws-credentials@v4
@@ -100,12 +94,29 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
 
-      - name: Login ECR
+      - name: Verificar si la imagen del commit ya existe en ECR
+        id: check-img
         if: steps.check-ecr.outputs.skip != 'true'
+        run: |
+          if aws ecr describe-images \
+               --repository-name "${{ secrets.ECR_REPOSITORY }}" \
+               --image-ids imageTag="${{ github.sha }}" >/dev/null 2>&1; then
+            echo "La imagen ${{ github.sha }} ya existe en ECR. No se reconstruye."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Buildx
+        if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login ECR
+        if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build y push (arm64, cache)
-        if: steps.check-ecr.outputs.skip != 'true'
+      - name: Build y push (arm64 nativo, cache)
+        if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
