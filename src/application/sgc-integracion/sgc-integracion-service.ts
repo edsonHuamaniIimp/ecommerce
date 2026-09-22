@@ -325,7 +325,9 @@ export class SgcIntegracionApplicationService {
      * Se consideran ambos, deduplicando por URL y excluyendo el que ya se usa como
      * contrato (evita subir el mismo archivo como contrato y como anexo).
      */
-    const contratoUrl = this.seleccionarContrato(detalle)?.url;
+    const contrato = this.seleccionarContrato(detalle);
+    const contratoUrl = contrato?.url;
+    const contratoClave = contrato?.nombre || contratoUrl;
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos.filter((d) => d.userId !== null).map((d) => ({ url: d.url, nombre: d.nombre })),
       ...extraerDocumentosLegacy(detalle.documentos),
@@ -348,8 +350,16 @@ export class SgcIntegracionApplicationService {
     const vistos = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
-      if (vistos.has(doc.url) || doc.url === contratoUrl || titulosEnSgc.has(doc.nombre)) continue;
-      vistos.add(doc.url);
+      const clave = doc.nombre || doc.url;
+      if (
+        vistos.has(clave) ||
+        doc.url === contratoUrl ||
+        clave === contratoClave ||
+        titulosEnSgc.has(doc.nombre)
+      ) {
+        continue;
+      }
+      vistos.add(clave);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: doc.nombre,
