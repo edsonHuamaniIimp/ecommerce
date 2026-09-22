@@ -55,7 +55,7 @@ export const solicitudesService = {
     return internalApi.post<{ ok: boolean }>(`/api/solicitudes/atender-reevaluacion`, body);
   },
 
-  uploadDocumento(body: { solicitudId: string; url: string; nombre: string }) {
+  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string }) {
     return internalApi.post<Record<string, unknown>>(`/api/solicitudes/upload-doc`, body);
   },
 

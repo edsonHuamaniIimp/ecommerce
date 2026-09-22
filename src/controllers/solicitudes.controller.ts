@@ -201,7 +201,7 @@ export const solicitudesController = {
   async uploadDocumento(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    const raw = await request.json() as { solicitudId: string; url: string; nombre: string };
+    const raw = await request.json() as { solicitudId: string; url: string; nombre: string; tipo?: string };
     if (!raw.solicitudId || !raw.url) return error(API_ERROR_CODES.VALIDATION, "solicitudId y url requeridos", 400);
 
     const doc = await services.solicitudes.uploadDocumento({
@@ -211,6 +211,7 @@ export const solicitudesController = {
       userSub: session.sub,
       userEmail: session.email,
       userPermissions: session.permissions,
+      tipo: raw.tipo,
     });
     return success(doc);
   },

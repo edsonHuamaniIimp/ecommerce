@@ -129,7 +129,9 @@ export function SgcExpedientePanel({
     setEnviandoContrato(true);
     try {
       await sgcService.subirContrato(solicitudId);
-      toast.success("Contrato enviado al SGC");
+      /* Al enviar el contrato tambien se empujan los anexos de la solicitud. */
+      const { enviados } = await sgcService.subirAnexos(solicitudId);
+      toast.success(`Contrato enviado al SGC${enviados ? ` + ${enviados} anexo(s)` : ""}`);
       refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo enviar el contrato");

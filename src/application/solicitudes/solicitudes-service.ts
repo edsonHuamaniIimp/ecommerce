@@ -1,6 +1,6 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 
@@ -87,11 +87,19 @@ export class SolicitudesApplicationService {
     userSub: string;
     userEmail: string;
     userPermissions: string[];
+    tipo?: string;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+    /*
+     * El SGC distingue contrato (documento del admin, `userId` null) de anexos
+     * (documentos del cliente, `userId` no nulo). Un anexo siempre lleva `userId`
+     * para que `subirAnexosDeSolicitud` lo detecte, aunque lo suba un admin.
+     */
+    const esAnexo = params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO;
+    const userId = esAnexo ? params.userSub : isAdmin ? null : params.userSub;
     return this.repo.crearDocumentoAdjunto(
       params.solicitudId, params.url, params.nombre,
-      isAdmin ? null : params.userSub,
+      userId,
       params.userEmail,
     );
   }

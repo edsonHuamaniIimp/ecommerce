@@ -742,6 +742,20 @@ export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
  * vacio junto con `documentId: null` incluso para la carga inicial de un documento.
  */
 export const SGC_MOTIVO_CARGA_INICIAL = "Carga inicial desde ContratosStands";
+
+/** Tipos de documento adjunto de una solicitud (clasifica contrato vs anexo). */
+export const TIPOS_DOCUMENTO_SOLICITUD = {
+  CONTRATO: "contrato",
+  ANEXO: "anexo",
+} as const;
+export type TipoDocumentoSolicitud = (typeof TIPOS_DOCUMENTO_SOLICITUD)[keyof typeof TIPOS_DOCUMENTO_SOLICITUD];
+
+/** Anexos requeridos por el SGC para la separación de stands. */
+export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
+  { key: "ficha-ruc", label: "Ficha RUC (o equivalente, empresa extranjera)" },
+  { key: "vigencia-poder", label: "Vigencia de Poder (o equivalente, empresa extranjera)" },
+  { key: "dni-representante", label: "DNI o Pasaporte del Representante Legal" },
+];
 export const SGC_CODE_PREFIX = "STAND";
 export const SGC_EXPEDIENTE_NAME_PREFIX = "Separacion de stand";
 

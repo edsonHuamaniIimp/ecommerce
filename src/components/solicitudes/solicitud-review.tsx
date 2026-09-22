@@ -18,6 +18,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
+import { SgcAnexosUpload } from "@/components/sgc/sgc-anexos-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 
@@ -83,6 +84,16 @@ export function SolicitudReview({
   const esPasoSgc = mostrarSgc && currentStep === sgcStepIndex;
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
+
+  /* Anexos de la solicitud: documentos del cliente (tabla) + JSON legacy, deduplicados. */
+  const anexosMap = new Map<string, { nombre: string; url: string }>();
+  for (const url of (row.documentos as string[]) ?? []) {
+    anexosMap.set(url, { url, nombre: url.split("/").pop() ?? url });
+  }
+  for (const d of row.docsAdjuntos.filter((x) => x.userId !== null)) {
+    anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
+  }
+  const anexosSolicitud = [...anexosMap.values()];
 
   const goToStep = (step: number) => {
     setEditing(false);
@@ -279,6 +290,11 @@ export function SolicitudReview({
                   onSaved(row);
                 }
               }}
+            />
+            <SgcAnexosUpload
+              solicitudId={row.id}
+              anexos={anexosSolicitud}
+              onAttached={() => onSaved(row)}
             />
             {todasAprobadas && requiereSgc && !sgcOk && (
               <p className="mt-2 text-[11px] text-amber-600">
