@@ -372,7 +372,7 @@ El SGC **no entrega a localhost/IP privada**. Mientras no exista host HTTPS púb
 Agregar a `.env.example` y a los ambientes de despliegue:
 
 ```
-SGC_API_URL=            # base del SGC (prod/qa/local)
+SGC_API_URL=https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1   # base del SGC (confirmada)
 SGC_API_KEY=            # Bearer sgc_<clave>  (actor con rol contract-manager)
 SGC_AREA_CODE=          # p.ej. EVENTOS   (lo define el SGC)
 SGC_CONTRACT_TYPE_CODE= # p.ej. AUSPICIO  (lo define el SGC)
@@ -422,7 +422,10 @@ Cada fase sigue `code-production-process` + `test-driven-development` y cierra c
    admin** (`SolicitudDocumento.userId === null`) y **anexos = documentos del cliente**.
    Implementado en `subirContratoDeSolicitud` / `subirAnexosDeSolicitud` (endpoints
    `POST /api/sgc/subir-contrato` y `/api/sgc/subir-anexos`) y en el panel SGC.
-6. **Credencial** `sgc_<clave>` y host del SGC por ambiente (mientras no existan: `SGC_MODE=mock`).
+6. **Credencial** `sgc_<clave>`. Host ya confirmado y probado:
+   `https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1` (Next.js + Auth.js
+   detrás de CloudFront). La API responde **401 `{"error":"No autorizado."}`** sin clave
+   válida, por lo que la credencial es imprescindible. Mientras no exista: `SGC_MODE=mock`.
 
 ## Anexo A. Flujo completo (happy path)
 
