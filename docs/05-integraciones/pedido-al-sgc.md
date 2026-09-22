@@ -54,10 +54,19 @@ Ruta confirmada (la única que responde el JSON propio de integración):
 (`/api/integration/v1/contracts`, `/integrations/v1/contracts`, `/api/v1/integrations/contracts`)
 redirigen `307` a `/login`, por lo que no son la API de integración.
 
-Posibles causas a confirmar con el equipo del SGC: (a) la clave aún no está activa o no tiene
-asignado el rol `contract-manager`; (b) el request debe originarse desde un host/red autorizado
-(p. ej. su dominio `canal-seguro.sistemasiimp.org.pe`); (c) el header o esquema de auth difiere
-del documentado.
+No es nuestra IP/origen: probamos el mismo `GET` con la clave desde **fuera** (Lima) y **desde
+dentro de AWS** (`us-east-1`, task Fargate) y el resultado es **401** en ambos casos.
+
+Todas las respuestas llegan vía **CloudFront** (`via: ...cloudfront.net`, `X-Cache: Error from
+cloudfront`). Hipótesis principal: **CloudFront no reenvía el header `Authorization` al origen**
+(política de *origin request* / *cache policy* que lo excluye), por lo que el origen nunca ve la
+clave y responde 401. Es una configuración muy común de CloudFront.
+
+Posibles causas a confirmar con el equipo del SGC:
+(a) CloudFront **no reenvía `Authorization`** al origen (revisar *Origin request policy*, usar
+`AllViewer`), y la prueba directa contra el origen (sin CloudFront) sí funciona;
+(b) la clave aún no está activa o no tiene asignado el rol `contract-manager`;
+(c) el header o esquema de auth difiere del documentado.
 
 ### Reproducción
 
@@ -74,12 +83,16 @@ curl -i -X POST https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v
 1. **¿Cuál es el mecanismo de autenticación exacto?** La guía dice
    `Authorization: Bearer sgc_<clave>`, pero un comentario interno indicó que "no requiere bearer
    token". Desde afuera, toda llamada sin clave válida responde 401.
-2. **¿Pueden compartir un `curl` de ejemplo que les funcione** contra
+2. **¿Pueden ejecutar ese `curl` contra el origen directamente (sin CloudFront)?** Desde fuera
+   (y también desde AWS) recibimos siempre `401 {"error":"No autorizado."}` **vía CloudFront**.
+   Si contra el origen responde `201`, la causa es que CloudFront no está reenviando el header
+   `Authorization` (revisar *Origin request policy*).
+3. **¿Pueden compartir un `curl` de ejemplo que les funcione** contra
    `POST /api/integrations/v1/contracts` (con la clave real), para replicar exactamente los
-   headers?
-3. Si efectivamente **no** se requiere token, **¿cómo se llamó desde fuera?** (¿hay otro header,
+   headers, y confirmar que la clave está activa con rol `contract-manager`?
+4. Si efectivamente **no** se requiere token, **¿cómo se llamó desde fuera?** (¿hay otro header,
    un valor por query string, o una allowlist de IP?). Necesitamos el detalle exacto.
-4. Nota: el único flujo que **no** usa Bearer es el **webhook**, y es al revés — lo envía el SGC
+5. Nota: el único flujo que **no** usa Bearer es el **webhook**, y es al revés — lo envía el SGC
    hacia nosotros, firmado con HMAC (`x-sgc-signature`). Si la aclaración se refería al webhook,
    confirmarlo.
 
