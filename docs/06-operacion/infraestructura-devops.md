@@ -3,9 +3,16 @@
 > **Estado:** v1.1 — 2026-09-15
 > **Fuente:** `Dockerfile`, `docker-compose*.yml`, `docker/`, `.github/workflows/deploy.yml`, `scripts/`, `.env*.example`.
 >
-> **Camino B (IaC objetivo):** la infraestructura AWS con Terraform (ECS Fargate + RDS + S3)
-> vive en `terraform/` y está documentada en `docs/02-despliegue/` (arquitectura, reglas de
-> despliegue R1-R6 y flujo MCP). Este documento describe el camino A (EC2 + Docker Compose, actual).
+> **ESTADO ACTUAL (2026-09-22):** producción real = **ECS Fargate + Aurora**, servida por
+> `https://ecommerce.sistemasiimp.org.pe` (CloudFront → ALB → ECS). **El EC2 + Docker Compose
+> de este documento es LEGADO y está deshabilitado.**
+>
+> El **estado configurado** (pipeline, secrets, IDs AWS, variables SGC) y el flujo de despliegue
+> vigente están en **`docs/02-despliegue/estrategia-despliegue.md` §0** — leerlo antes de evaluar
+> cualquier despliegue; **no re-evaluar** lo que ya está configurado.
+>
+> La infraestructura AWS vive en `terraform/` y se documenta en `docs/02-despliegue/`
+> (arquitectura, reglas R1-R6).
 
 ---
 
@@ -107,20 +114,17 @@ Volúmenes del servicio `app`:
 
 ## 3. CI/CD (`.github/workflows/deploy.yml`)
 
-- **Triggers:** push a `main`, PR a `main`, `workflow_dispatch` (input `deploy`).
-- **Concurrency:** grupo `deploy-contratos-stands` con `cancel-in-progress: true`.
-- **Entorno:** Node 20, `AWS_DEFAULT_REGION=us-east-1`.
+> **Pipeline VIGENTE (2026-09-22)** — detalle en `docs/02-despliegue/estrategia-despliegue.md` §0-§2.
+> Lo descrito abajo en versiones previas (SSH a EC2, `sync-s3`) es **legado**.
 
-| Job | Depende de | Qué hace |
-|---|---|---|
-| `ci` | — | checkout, Node 20 + cache, `npm ci`, `prisma generate`, ESLint y `tsc --noEmit` (`continue-on-error`) |
-| `build` | `ci` | `npm ci` + `prisma generate` + `npm run build`; sube artefacto `build-assets` (retención 7 días) |
-| `deploy` | `ci` | Vía SSH a EC2: `git pull`, rebuild Docker solo si cambió `Dockerfile`/`package*.json`, `docker compose up -d`, `prisma migrate deploy` |
-| `sync-s3` | `build` | `aws s3 sync .next/static/ s3://<bucket>/_next/static/ --delete --cache-control max-age=31536000,immutable` |
-
-**Secrets requeridos:** `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY`, `EC2_PORT`, `EC2_APP_PATH`, `EC2_GIT_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_BUCKET`, `AWS_DEFAULT_REGION`.
-
-> **Nota:** `ci`, `deploy` y `sync-s3` usan `continue-on-error: true` en pasos clave; se recomienda al proveedor endurecer el pipeline (fallar el build si lint/typecheck fallan).
+- **Push a `main`** → corre **solo `ci`** (lint / `tsc` / tests). **No** construye ni despliega.
+- **Deploy = MANUAL**: Actions → *Run workflow* (`workflow_dispatch`, branch `main`).
+- Jobs: `ci` (paralelo, **no bloquea**) → `build-image` (**arm64 nativo** + cache, **idempotente**)
+  → `deploy-ecs` (`update-service --force-new-deployment` + `wait services-stable`).
+- **Secrets (ya cargados, no recrear):** `ECR_REGISTRY`, `ECR_REPOSITORY`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `APP_URL`, `ECS_CLUSTER`, `ECS_SERVICE`,
+  `SGC_RECONCILE_URL`, `SGC_CRON_SECRET`.
+- El job `deploy-ec2` (legado) queda deshabilitado salvo `vars.DEPLOY_EC2=1`.
 
 ---
 

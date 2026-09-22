@@ -4,6 +4,72 @@
 > `https://ecommerce.sistemasiimp.org.pe` (CloudFront → ALB → ECS). El despliegue por
 > **EC2 queda como legado y deshabilitado**.
 
+## 0. Estado actual — YA CONFIGURADO (NO re-evaluar)
+
+> **Para próximas sesiones/agentes:** todo lo de esta sección **ya está desplegado y
+> configurado y verificado**. NO hay que re-evaluar el despliegue, ni recrear secrets, ni
+> cambiar el pipeline, ni volver a decidir arquitectura. Solo desplegar cambios de código
+> cuando corresponda (ver §2).
+
+### 0.1 Pipeline de CI/CD (`.github/workflows/deploy.yml`)
+
+- **Push a `main`** → corre **SOLO `ci`** (lint / `tsc` / tests). **NO** construye ni despliega.
+- **Deploy = MANUAL**: GitHub → **Actions** → *CI/CD — ContratosStands* → **Run workflow**
+  (branch `main`). El deploy **no** se dispara solo con el push.
+- Jobs del run manual: `ci` (informativo, **no bloquea**) → `build-image` → `deploy-ecs`.
+- `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache `type=gha`.
+  **Idempotente**: si la imagen de ese commit ya existe en ECR, **no se reconstruye**.
+- `deploy-ecs`: `aws ecs update-service --force-new-deployment` + `wait services-stable`.
+  **No depende de `ci`** (los tests no bloquean el deploy; corren en paralelo como informe).
+- ⏱️ Tiempos medidos: `ci` ~1 min (paralelo), `build` ~3.5 min, `rollout` ~3.5 min.
+- **Rollback**: re-deploy de una imagen previa (`:<sha>`) o revertir commit.
+- Push de **solo docs** (`docs/**`, `**/*.md`) → no dispara el pipeline.
+
+### 0.2 GitHub Actions secrets — YA CARGADOS (no recrear)
+
+`ECR_REGISTRY`, `ECR_REPOSITORY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_DEFAULT_REGION`, `APP_URL`, `ECS_CLUSTER`, `ECS_SERVICE`, `SGC_RECONCILE_URL`,
+`SGC_CRON_SECRET`.
+`gh` está autenticado con el PAT guardado en git (`gh auth login` no aplica por scope; se usa
+`GH_TOKEN`, persistido a nivel usuario).
+
+### 0.3 IDs de AWS (cuenta `517839275515`, región `us-east-1`, perfil `sistemas-aws`)
+
+| Recurso | Valor |
+|---|---|
+| Cluster ECS | `iimp-ctrst-prod-cluster` |
+| Servicio ECS | `iimp-ctrst-prod-service` (familia task def `iimp-ctrst-prod-app`) |
+| Task def actual | `iimp-ctrst-prod-app:7` |
+| ECR | `517839275515.dkr.ecr.us-east-1.amazonaws.com/iimp-contratos-stands-app` |
+| Subnets | `subnet-002cec8a22f901692`, `subnet-0aee52c3778187fbc` |
+| Security Group | `sg-0ba0fd0451ccd4270` |
+| Aurora | `iimp-ctrst-prod-aurora.cluster-cnylvqmtzz6i.us-east-1.rds.amazonaws.com` (db `contratos_stands`, user `ctrst`) |
+| WAF | `iimp-ctrst-prod-waf` (`SizeRestrictions_BODY`→`count`) |
+| Target group | `iimp-ctrst-prod-tg` (health check `/api/health`, **interval 10s**, timeout 5s, healthy 2) |
+| Dominio | `https://ecommerce.sistemasiimp.org.pe` (CloudFront → ALB → ECS Fargate) |
+| Tamaño imagen | ~843 MB (se empuja al build y se baja en cada task; candidato a reducir) |
+
+### 0.4 Integración SGC — variables YA en el task ECS (`:7`)
+
+```
+SGC_ENABLED=1
+SGC_MODE=real
+SGC_API_URL=https://qa-gestion-contratos.sistemasiimp.org.pe/api/integrations/v1
+SGC_API_KEY=sgc_...            (conexión ECOMMERCE_IIMP_CONEX — ambiente QA)
+SGC_AREA_CODE=EVENTOS
+SGC_CONTRACT_TYPE_CODE=AUSPICIO
+SGC_WEBHOOK_SECRET=whsec_...   (receptor de webhooks)
+CRON_SECRET=<cron de reconciliación>
+```
+
+- La app apunta al SGC **QA** (`qa-gestion-contratos...`). Para producción real faltaría la
+  **clave del SGC de prod** (`gestion-contratos...`).
+- Receptor de webhooks: `POST https://ecommerce.sistemasiimp.org.pe/api/integracion/sgc/webhook`
+  (el SGC debe registrar **esa** URL; hoy no está registrada → los estados se refrescan por
+  *sync-on-read* del panel y por la reconciliación).
+- Contrato y anexos se envían por la **misma API** (`POST /contracts/{id}/documents`) cambiando
+  `category` (`"contract"` / `"annex"`). Detalle: `docs/05-integraciones/integracion-sgc.md`.
+
 ## 1. Topología
 
 ```
@@ -17,23 +83,29 @@ Usuario → ecommerce.sistemasiimp.org.pe → CloudFront → ALB → ECS Fargate
 - Migraciones: el entrypoint ECS (`docker/entrypoint-ecs.sh`) corre `prisma migrate deploy` al
   arrancar cada task (nunca destruye datos).
 
-## 2. Flujo de despliegue (automático)
+## 2. Flujo de despliegue (manual)
 
-En **push a `main`** con cambios de código (los `.md` y `docs/**` **no** disparan el pipeline):
+> **Push a `main` NO despliega**: solo corre `ci`. El deploy se lanza **a mano** (ver §0.1).
 
-1. **`ci`**: lint (`eslint`) + tipos (`tsc --noEmit`) + tests (`vitest run src`).
-2. **`build-image`**: construye `Dockerfile.ecs` **arm64** con **cache de capas** (`type=gha`)
-   y publica `…/iimp-contratos-stands-app:<sha>` **y** `:latest` en ECR.
+**Deploy manual** (Actions → *Run workflow*, branch `main`):
+
+1. **`ci`**: lint + tipos + tests. Corre en paralelo y **no bloquea**.
+2. **`build-image`**: construye `Dockerfile.ecs` **arm64** (runner ARM nativo, sin QEMU) con
+   **cache de capas** (`type=gha`) y publica `…:<sha>` **y** `:latest` en ECR.
+   - Si la imagen de ese commit **ya existe** en ECR, **no reconstruye** (idempotente).
    - Cache: el `npm ci` se reutiliza si no cambió `package.json`; solo se rehace la capa de
-     código + `next build`. Así el rebuild por revisión es barato.
+     código + `next build`.
 3. **`deploy-ecs`**: `aws ecs update-service --force-new-deployment` + `wait services-stable`
-   → ECS hace rolling update (circuit breaker). **No depende de Terraform.**
+   → ECS hace rolling update (circuit breaker, min 100% / max 200%, drain 30s).
+   **No depende de `ci` ni de Terraform.**
 4. **Verificar**: `curl -fsS https://ecommerce.sistemasiimp.org.pe/api/health` (200).
 
 Terraform se usa **solo para infraestructura** (Aurora/ALB/CloudFront/WAF/ECS base), no para
 cada deploy de app. **Rollback**: re-deploy de una imagen previa (por `:<sha>`) o revertir commit.
 
 ## 3. Secrets/variables de CI requeridos
+
+> ✅ **Ya cargados** en el repo (ver §0.2). No recrear.
 
 | Nombre | Para | Obligatorio |
 |---|---|---|

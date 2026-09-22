@@ -3,6 +3,11 @@
 > Reglas adaptadas de `montaje-iimp/docs/01-despliegue/REGLAS-DESPLIEGUE.md`
 > (originadas por el equipo — LT Edson — y el usuario dueño). Son de **cumplimiento
 > obligatorio** para cualquier operación de infraestructura, despliegue o agente (MCP).
+>
+> **Estado ya configurado (2026-09-22):** el pipeline de CI/CD, los secrets de GitHub Actions,
+> los IDs de AWS y las variables de la integración SGC **ya están configurados y desplegados**.
+> **No re-evaluar ni recrear** (ver `estrategia-despliegue.md` §0). Estas reglas aplican solo a
+> **cambios nuevos** de infraestructura.
 
 ---
 
