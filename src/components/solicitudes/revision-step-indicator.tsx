@@ -15,6 +15,12 @@ interface Props {
   mostrarSgc?: boolean;
   /** Marca el paso "Legal (SGC)" como aprobado por el SGC. */
   sgcDone?: boolean;
+  /** El paso activo es "Legal (SGC)". */
+  sgcCurrent?: boolean;
+  /** Se puede navegar al paso "Legal (SGC)". */
+  sgcCanGo?: boolean;
+  /** Navega al paso "Legal (SGC)". */
+  onGoSgc?: () => void;
 }
 
 export function RevisionStepIndicator({
@@ -25,6 +31,9 @@ export function RevisionStepIndicator({
   areas = REVISION_AREA_ORDER,
   mostrarSgc = true,
   sgcDone = false,
+  sgcCurrent = false,
+  sgcCanGo = false,
+  onGoSgc,
 }: Props) {
   return (
     <div className="mb-4 flex items-start justify-between px-2">
@@ -88,20 +97,38 @@ export function RevisionStepIndicator({
       {mostrarSgc && (
         <>
           <div className={`mt-[18px] h-0.5 flex-1 rounded-full mx-1 ${sgcDone ? "bg-emerald-400" : "bg-slate-200"}`} />
-          <div className="flex flex-col items-center gap-1.5" title="Revisión Legal delegada al SGC">
+          <button
+            type="button"
+            onClick={() => sgcCanGo && onGoSgc?.()}
+            disabled={!sgcCanGo}
+            className={`flex flex-col items-center gap-1.5 transition-all duration-200 ${
+              sgcCanGo ? "cursor-pointer group" : "cursor-default opacity-60"
+            }`}
+            title="Revisión Legal delegada al SGC"
+          >
             <span
-              className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold ${
+              className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ring-2 ${
                 sgcDone
-                  ? "bg-emerald-500 text-white ring-2 ring-emerald-500/30"
-                  : "border-2 border-dashed border-slate-300 text-slate-400"
+                  ? "bg-emerald-500 text-white ring-emerald-500/30"
+                  : sgcCurrent
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-primary"
+                  : "border-2 border-dashed border-slate-300 text-slate-400 ring-transparent"
               }`}
             >
               {sgcDone ? <Check className="h-4 w-4" /> : <Scale className="h-4 w-4" />}
             </span>
-            <span className={`text-xs ${sgcDone ? "font-medium text-slate-600" : "font-normal text-slate-400"}`}>
+            <span
+              className={`text-xs transition-colors duration-300 ${
+                sgcCurrent
+                  ? "font-bold text-primary"
+                  : sgcDone
+                  ? "font-medium text-slate-600"
+                  : "font-normal text-slate-400"
+              }`}
+            >
               {REVISION_AREA_SGC_LABEL}
             </span>
-          </div>
+          </button>
         </>
       )}
     </div>

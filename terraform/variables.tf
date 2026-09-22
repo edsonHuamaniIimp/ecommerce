@@ -467,15 +467,15 @@ variable "enable_https" {
 }
 
 variable "alb_health_check_interval" {
-  description = "Intervalo del health check del ALB (segundos)"
+  description = "Intervalo del health check del ALB (segundos). 10s acelera el rollout de ECS."
   type        = number
-  default     = 30
+  default     = 10
 }
 
 variable "alb_health_check_timeout" {
-  description = "Timeout del health check del ALB (segundos)"
+  description = "Timeout del health check del ALB (segundos). Debe ser menor que el intervalo."
   type        = number
-  default     = 10
+  default     = 5
 }
 
 variable "alb_healthy_threshold" {

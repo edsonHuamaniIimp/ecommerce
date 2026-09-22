@@ -7,6 +7,7 @@ import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
   REVISION_AREA_PERMISSIONS,
+  REVISION_AREA_SGC_STEP,
   RESULTADOS_APROBACION,
   BADGE_STYLES,
   PERMISSIONS,
@@ -18,7 +19,7 @@ import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.
 import { RevisionStepIndicator } from "./revision-step-indicator";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeGenerarOrdenPago, sgcAprobado, sgcAplica } from "@/lib/shared/utils/sgc-estado";
+import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -69,9 +70,17 @@ export function SolicitudReview({
   const [editing, setEditing] = useState(false);
 
   const areas = areasRevisionLocal(row.revisiones);
-  const stepAreas: Record<number, string> = Object.fromEntries(areas.map((area, idx) => [idx, area]));
-  const totalSteps = areas.length;
+  // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
+  const legalDelegada = legalDelegadaAlSgc(row.revisiones);
+  const mostrarSgc = row.sgcEnabled && legalDelegada;
+  const sgcStepIndex = areas.length;
+  const stepAreas: Record<number, string> = {
+    ...Object.fromEntries(areas.map((area, idx) => [idx, area])),
+    ...(mostrarSgc ? { [sgcStepIndex]: REVISION_AREA_SGC_STEP } : {}),
+  };
+  const totalSteps = areas.length + (mostrarSgc ? 1 : 0);
   const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
+  const esPasoSgc = mostrarSgc && currentStep === sgcStepIndex;
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
 
@@ -151,15 +160,13 @@ export function SolicitudReview({
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
-  // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
-  const legalDelegada = legalDelegadaAlSgc(row.revisiones);
-  const requiereSgc = row.sgcEnabled && legalDelegada;
+  const requiereSgc = mostrarSgc;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
-  const sgcVisible = row.sgcEnabled && (legalDelegada || sgcAplica(row.sgcEstadoEnvio) || todasAprobadas);
   const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
+    if (mostrarSgc && step === sgcStepIndex) return todasAprobadas;
     if (step === 0) return true;
     const prevArea = stepAreas[step - 1];
     if (!prevArea) return false;
@@ -178,8 +185,11 @@ export function SolicitudReview({
           onGoStep={goToStep}
           stepCanGo={stepCanGo}
           areas={areas}
-          mostrarSgc={legalDelegadaAlSgc(row.revisiones)}
+          mostrarSgc={mostrarSgc}
           sgcDone={sgcOk}
+          sgcCurrent={esPasoSgc}
+          sgcCanGo={todasAprobadas}
+          onGoSgc={() => goToStep(sgcStepIndex)}
         />
 
         {/* Stand info line */}
@@ -256,7 +266,7 @@ export function SolicitudReview({
         )}
 
         {/* Integracion SGC — revision Legal delegada (ultimo paso) */}
-        {sgcVisible && (
+        {esPasoSgc && (
           <div className="mb-3 rounded-lg border border-slate-200 px-3 py-2">
             <p className="mb-2 text-xs font-semibold text-slate-700">Revision Legal (SGC)</p>
             <SgcExpedientePanel
@@ -271,6 +281,8 @@ export function SolicitudReview({
           </div>
         )}
 
+        {!esPasoSgc && (
+          <>
         {/* Step title + status badge */}
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">
@@ -423,6 +435,8 @@ export function SolicitudReview({
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
 
