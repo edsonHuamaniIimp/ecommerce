@@ -1,0 +1,77 @@
+{
+  "codigo": "perumin",
+  "nombre": "PERUMIN",
+  "descripcion": "Mapa de pabellones PERUMIN — vista macro con secciones navegables a planos 3D",
+  "tipo": "macro",
+  "imagenFondo": "/uploads/perumin-mapa-pabellones.jpg",
+  "tipos": [],
+  "bloques": [],
+  "furniture": [],
+  "secciones": [
+    {
+      "codigo": "PAB-B",
+      "nombre": "Pabellon B",
+      "x": 0.438019,
+      "y": 0.39219612,
+      "w": 0.02,
+      "h": 0.031749006,
+      "rotacion": 10,
+      "color": "#22c55e",
+      "orden": 0,
+      "planoHijoId": null,
+      "planoHijoCodigo": null
+    },
+    {
+      "codigo": "PAB-C",
+      "nombre": "Pabellon C",
+      "x": 0.45854092,
+      "y": 0.39655828,
+      "w": 0.02,
+      "h": 0.038208432,
+      "rotacion": 10,
+      "color": "#f59e0b",
+      "orden": 1,
+      "planoHijoId": null,
+      "planoHijoCodigo": null
+    },
+    {
+      "codigo": "PAB-D",
+      "nombre": "Pabellon D",
+      "x": 0.43825623,
+      "y": 0.3432889,
+      "w": 0.048706993,
+      "h": 0.029395582,
+      "rotacion": 15,
+      "color": "#ef4444",
+      "orden": 2,
+      "planoHijoId": "5c79c197-3841-4391-bb3f-53e864a065d4",
+      "planoHijoCodigo": "perumin-pab"
+    },
+    {
+      "codigo": "PAB-E",
+      "nombre": "Pabellon E",
+      "x": 0.5050839,
+      "y": 0.53834945,
+      "w": 0.040137403,
+      "h": 0.02470872,
+      "rotacion": 60,
+      "color": "#ef4444",
+      "orden": 3,
+      "planoHijoId": "dd49592d-2c86-4bec-aa87-654c3eab3f46",
+      "planoHijoCodigo": "gess"
+    },
+    {
+      "codigo": "PAB-F",
+      "nombre": "Pabellon F",
+      "x": 0.5897004,
+      "y": 0.4053277,
+      "w": 0.0484603,
+      "h": 0.02,
+      "rotacion": 60,
+      "color": "#8b5cf6",
+      "orden": 4,
+      "planoHijoId": null,
+      "planoHijoCodigo": null
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginate
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
+import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 
 export class SolicitudesApplicationService {
@@ -90,6 +91,27 @@ export class SolicitudesApplicationService {
     tipo?: string;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+
+    /*
+     * El cliente solo puede adjuntar documentos mientras la solicitud este en el
+     * paso Legal (SGC) y aun no se hayan enviado documentos al SGC. El admin no
+     * tiene esta restriccion (adjunta el contrato v1 / anexos en el paso Legal).
+     */
+    if (!isAdmin) {
+      const detalle = await this.repo.detalle(params.solicitudId);
+      if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+      if (detalle.userId !== params.userSub) {
+        throw new DomainError("No puedes adjuntar documentos a esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
+      }
+      if (!puedeClienteSubirDocumentos(detalle)) {
+        throw new DomainError(
+          "Aun no puedes adjuntar documentos. Se habilita al llegar a la revision Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
+
     /*
      * El SGC distingue contrato (documento del admin, `userId` null) de anexos
      * (documentos del cliente, `userId` no nulo). Un anexo siempre lleva `userId`

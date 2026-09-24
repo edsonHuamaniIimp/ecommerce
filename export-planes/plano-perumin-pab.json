@@ -1,0 +1,112 @@
+{
+  "codigo": "perumin-pab",
+  "nombre": "PABELLON1",
+  "descripcion": null,
+  "tipo": "simple",
+  "imagenFondo": null,
+  "tipos": [
+    {
+      "codigo": "VIP-54",
+      "label": "VIP4334",
+      "nombre": "VIP",
+      "w": 2,
+      "d": 2,
+      "h": 2.4,
+      "color": "#32CD32"
+    }
+  ],
+  "bloques": [
+    {
+      "bloqueId": "BLOQUE-01",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": -4,
+      "z": 9,
+      "rotY": 0,
+      "orden": 0
+    },
+    {
+      "bloqueId": "BLOQUE-02",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": -4.25,
+      "z": -8.5,
+      "rotY": 0,
+      "orden": 1
+    },
+    {
+      "bloqueId": "BLOQUE-03",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": 9.25,
+      "z": -6.5,
+      "rotY": 0,
+      "orden": 2
+    },
+    {
+      "bloqueId": "BLOQUE-04",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": 1.5,
+      "z": -8.25,
+      "rotY": 0,
+      "orden": 3
+    },
+    {
+      "bloqueId": "BLOQUE-05",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": 1.5,
+      "z": 9.25,
+      "rotY": 0,
+      "orden": 4
+    },
+    {
+      "bloqueId": "BLOQUE-06",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": 8.5,
+      "z": 9.25,
+      "rotY": 0,
+      "orden": 5
+    },
+    {
+      "bloqueId": "BLOQUE-07",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": -11.25,
+      "z": -7.75,
+      "rotY": 0,
+      "orden": 6
+    },
+    {
+      "bloqueId": "BLOQUE-08",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": -11.25,
+      "z": 9.5,
+      "rotY": 0,
+      "orden": 7
+    },
+    {
+      "bloqueId": "BLOQUE-09",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "3",
+      "x": -11.25,
+      "z": 4.75,
+      "rotY": 0,
+      "orden": 8
+    },
+    {
+      "bloqueId": "BLOQUE-10",
+      "tipoCodigo": "VIP-54",
+      "tipologia": "2",
+      "x": -4.25,
+      "z": 4.5,
+      "rotY": 0,
+      "orden": 9
+    }
+  ],
+  "furniture": [],
+  "secciones": []
+}

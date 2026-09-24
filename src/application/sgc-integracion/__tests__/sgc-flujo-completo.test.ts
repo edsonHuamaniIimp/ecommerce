@@ -124,6 +124,7 @@ class InMemorySolicitudesRepository {
       sgcEstadoEnvio: null,
       sgcLifecycleStatus: null,
       sgcStage: null,
+      sgcDocumentosEnviados: false,
       sgcEnabled: true,
     };
   }

@@ -85,6 +85,7 @@ function solicitudDetalle(): SolicitudRow {
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcDocumentosEnviados: false,
     sgcEnabled: false,
   };
 }

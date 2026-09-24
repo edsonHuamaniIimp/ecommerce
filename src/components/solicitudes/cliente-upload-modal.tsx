@@ -5,6 +5,7 @@ import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from 
 import { FileText, Upload, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import { ANEXOS_REQUERIDOS } from "@/lib/shared/constants";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {
@@ -48,7 +49,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
           nombre: url.split("/").pop() ?? "documento",
         });
       }
-      toast.success("Documentos enviados correctamente");
+      toast.success("Anexos enviados correctamente");
       onSaved();
       onClose();
     } catch (e) {
@@ -59,11 +60,19 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
-        <h3 className="text-sm font-semibold text-slate-800">Adjuntar documentos</h3>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Stands: <span className="font-mono font-medium text-slate-700">{solicitud.standCodes?.join(", ")}</span>
+      <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
+        <h3 className="text-sm font-semibold text-foreground">Adjuntar documentos anexos</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
+        <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
+          <p className="text-[11px] font-semibold text-foreground">Documentos anexos requeridos por el SGC</p>
+          <ul className="mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
+            {ANEXOS_REQUERIDOS.map((a) => (
+              <li key={a.key}>• {a.label}</li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
@@ -75,11 +84,12 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
               {adminDocs.length > 0 && (
                 <div>
                   <Label className="text-xs mb-1 block">Documentos del administrador</Label>
-                  <div className="space-y-1 rounded-md border bg-slate-50 p-2">
+                  <div className="space-y-1 rounded-md border bg-secondary p-2">
                     {adminDocs.map((doc, i) => (
                       <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
-                        <FileText className="h-3 w-3 text-slate-400" />
+                        <FileText className="h-3 w-3 text-muted-foreground" />
                         <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+                        {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
                       </div>
                     ))}
                   </div>
@@ -87,14 +97,15 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
               )}
 
               <div>
-                <Label className="text-xs mb-1 block">Tus documentos</Label>
+                <Label className="text-xs mb-1 block">Tus documentos anexos</Label>
                 {misDocs.length > 0 && (
                   <div className="space-y-1 rounded-md border p-2 mb-2">
                     {misDocs.map((doc, i) => (
                       <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
                         <FileText className="h-3 w-3 text-muted-foreground" />
                         <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
-                        <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                        {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
+                        <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
                           onClick={() => setDeleteConfirm(doc.id)}>
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -122,7 +133,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
                 }} />
                 <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => fileRef.current?.click()}>
                   <Upload className="mr-1 h-3 w-3" />
-                  {uploading ? "Subiendo..." : "Agregar documento"}
+                  {uploading ? "Subiendo..." : "Agregar anexo"}
                 </Button>
               </div>
             </>
@@ -130,7 +141,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
         })()}
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</div>
         )}
       </div>
 
@@ -139,9 +150,9 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
           <Button variant="outline" size="sm" className="rounded-full px-3 text-xs font-medium" onClick={onClose}>
             Cancelar
           </Button>
-          <Button size="sm" className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+          <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
             disabled={sending || clienteDocs.length === 0} onClick={handleEnviar}>
-            {sending ? "Enviando..." : "Enviar documentos"}
+            {sending ? "Enviando..." : "Enviar anexos"}
           </Button>
         </div>
       </div>
@@ -149,7 +160,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle><span>Eliminar documento</span></DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-600">Estas seguro de eliminar este documento?</p>
+          <p className="text-sm text-muted-foreground">Estas seguro de eliminar este documento?</p>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
             <Button variant="destructive" size="sm" className="flex-1 rounded-full text-xs" onClick={async () => {

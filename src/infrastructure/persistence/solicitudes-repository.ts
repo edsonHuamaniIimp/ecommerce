@@ -14,7 +14,7 @@ type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
     reevaluaciones: true;
     docsAdjuntos: true;
     facturaciones: true;
-    sgcExpediente: true;
+    sgcExpediente: { include: { _count: { select: { documentos: true } } } };
     _count: { select: { docsAdjuntos: true } };
   };
 }>;
@@ -171,6 +171,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcDocumentosEnviados: (row.sgcExpediente?._count?.documentos ?? 0) > 0,
     sgcEnabled: isSgcEnabled(),
   };
 }
@@ -198,7 +199,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           reevaluaciones: { orderBy: { createdAt: "desc" } },
           docsAdjuntos: { where: { flgActivo: true } },
           facturaciones: { where: { flgActivo: true } },
-          sgcExpediente: true,
+          sgcExpediente: { include: { _count: { select: { documentos: true } } } },
           _count: { select: { docsAdjuntos: { where: { flgActivo: true } } } },
         },
         orderBy: { updatedAt: "desc" },
@@ -227,7 +228,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         reevaluaciones: { orderBy: { createdAt: "desc" } },
         docsAdjuntos: { where: { flgActivo: true } },
         facturaciones: true,
-        sgcExpediente: true,
+        sgcExpediente: { include: { _count: { select: { documentos: true } } } },
         _count: { select: { docsAdjuntos: { where: { flgActivo: true } } } },
       },
     });

@@ -68,7 +68,10 @@ export class SgcClientMock implements ISgcClient {
   private nuevoId(): string {
     const store = getStore();
     store.secuencia += 1;
-    return `mock-${store.secuencia.toString().padStart(12, "0")}`;
+    // El contador vive en memoria y se reinicia con el proceso; se incluye un sello
+    // de tiempo para que los ids del mock no colisionen con `contract_id`/`code`
+    // ya persistidos en la BD local (unique constraint).
+    return `mock-${Date.now().toString(36)}-${store.secuencia.toString().padStart(4, "0")}`;
   }
 
   async crearExpediente(input: SgcCrearExpedienteInput, idempotencyKey: string): Promise<SgcCrearExpedienteResult> {

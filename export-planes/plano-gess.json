@@ -1,0 +1,496 @@
+{
+  "codigo": "gess",
+  "nombre": "GESS",
+  "descripcion": "Plano isometrico del evento GESS — 52 bloques con kioskos rusticos y plaza central",
+  "tipo": "simple",
+  "imagenFondo": null,
+  "tipos": [
+    {
+      "codigo": "S",
+      "label": "S",
+      "nombre": "Columna",
+      "w": 3.2,
+      "d": 2.5,
+      "h": 2.4,
+      "color": "#FFD700"
+    },
+    {
+      "codigo": "BG",
+      "label": "BG",
+      "nombre": "Isla Grande",
+      "w": 3.5,
+      "d": 3.5,
+      "h": 3,
+      "color": "#006400"
+    },
+    {
+      "codigo": "P",
+      "label": "P",
+      "nombre": "Preferencial",
+      "w": 2,
+      "d": 2,
+      "h": 2.4,
+      "color": "#32CD32"
+    },
+    {
+      "codigo": "C",
+      "label": "C",
+      "nombre": "Estándar A",
+      "w": 2,
+      "d": 2,
+      "h": 2,
+      "color": "#90EE90"
+    }
+  ],
+  "bloques": [
+    {
+      "bloqueId": "EXT-IZQ-01",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -14.25,
+      "rotY": 0,
+      "orden": 0
+    },
+    {
+      "bloqueId": "EXT-IZQ-02",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -11.75,
+      "rotY": 0,
+      "orden": 1
+    },
+    {
+      "bloqueId": "EXT-IZQ-03",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -9.25,
+      "rotY": 0,
+      "orden": 2
+    },
+    {
+      "bloqueId": "EXT-IZQ-04",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -6.75,
+      "rotY": 0,
+      "orden": 3
+    },
+    {
+      "bloqueId": "EXT-IZQ-05",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -4.25,
+      "rotY": 0,
+      "orden": 4
+    },
+    {
+      "bloqueId": "EXT-IZQ-06",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": -1.75,
+      "rotY": 0,
+      "orden": 5
+    },
+    {
+      "bloqueId": "EXT-IZQ-07",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": 4.25,
+      "rotY": 0,
+      "orden": 6
+    },
+    {
+      "bloqueId": "EXT-IZQ-08",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": 6.75,
+      "rotY": 0,
+      "orden": 7
+    },
+    {
+      "bloqueId": "EXT-IZQ-09",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": 9.25,
+      "rotY": 0,
+      "orden": 8
+    },
+    {
+      "bloqueId": "EXT-IZQ-10",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": -18.5,
+      "z": 11.75,
+      "rotY": 0,
+      "orden": 9
+    },
+    {
+      "bloqueId": "EXT-DER-01",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -14.25,
+      "rotY": 0,
+      "orden": 10
+    },
+    {
+      "bloqueId": "EXT-DER-02",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -11.75,
+      "rotY": 0,
+      "orden": 11
+    },
+    {
+      "bloqueId": "EXT-DER-03",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -9.25,
+      "rotY": 0,
+      "orden": 12
+    },
+    {
+      "bloqueId": "EXT-DER-04",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -6.75,
+      "rotY": 0,
+      "orden": 13
+    },
+    {
+      "bloqueId": "EXT-DER-05",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -4.25,
+      "rotY": 0,
+      "orden": 14
+    },
+    {
+      "bloqueId": "EXT-DER-06",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": -1.75,
+      "rotY": 0,
+      "orden": 15
+    },
+    {
+      "bloqueId": "EXT-DER-07",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": 4.25,
+      "rotY": 0,
+      "orden": 16
+    },
+    {
+      "bloqueId": "EXT-DER-08",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": 6.75,
+      "rotY": 0,
+      "orden": 17
+    },
+    {
+      "bloqueId": "EXT-DER-09",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": 9.25,
+      "rotY": 0,
+      "orden": 18
+    },
+    {
+      "bloqueId": "EXT-DER-10",
+      "tipoCodigo": "S",
+      "tipologia": "2",
+      "x": 18.5,
+      "z": 11.75,
+      "rotY": 0,
+      "orden": 19
+    },
+    {
+      "bloqueId": "INT-IZQ-A1",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -12,
+      "z": -13,
+      "rotY": 0,
+      "orden": 20
+    },
+    {
+      "bloqueId": "INT-IZQ-A2",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -12,
+      "z": -11,
+      "rotY": 0,
+      "orden": 21
+    },
+    {
+      "bloqueId": "INT-IZQ-A3",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -12,
+      "z": -9,
+      "rotY": 0,
+      "orden": 22
+    },
+    {
+      "bloqueId": "INT-IZQ-A4",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -12,
+      "z": -7,
+      "rotY": 0,
+      "orden": 23
+    },
+    {
+      "bloqueId": "INT-IZQ-A5",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -10,
+      "z": -13,
+      "rotY": 0,
+      "orden": 24
+    },
+    {
+      "bloqueId": "INT-IZQ-A6",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -10,
+      "z": -11,
+      "rotY": 0,
+      "orden": 25
+    },
+    {
+      "bloqueId": "INT-IZQ-A7",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -10,
+      "z": -9,
+      "rotY": 0,
+      "orden": 26
+    },
+    {
+      "bloqueId": "INT-IZQ-A8",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -10,
+      "z": -7,
+      "rotY": 0,
+      "orden": 27
+    },
+    {
+      "bloqueId": "INT-IZQ-B1",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -12,
+      "z": 3,
+      "rotY": 0,
+      "orden": 28
+    },
+    {
+      "bloqueId": "INT-IZQ-B2",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -12,
+      "z": 5,
+      "rotY": 0,
+      "orden": 29
+    },
+    {
+      "bloqueId": "INT-IZQ-B3",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -12,
+      "z": 7,
+      "rotY": 0,
+      "orden": 30
+    },
+    {
+      "bloqueId": "INT-IZQ-B4",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -12,
+      "z": 9,
+      "rotY": 0,
+      "orden": 31
+    },
+    {
+      "bloqueId": "INT-IZQ-B5",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -10,
+      "z": 3,
+      "rotY": 0,
+      "orden": 32
+    },
+    {
+      "bloqueId": "INT-IZQ-B6",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -10,
+      "z": 5,
+      "rotY": 0,
+      "orden": 33
+    },
+    {
+      "bloqueId": "INT-IZQ-B7",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": -10,
+      "z": 7,
+      "rotY": 0,
+      "orden": 34
+    },
+    {
+      "bloqueId": "INT-IZQ-B8",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": -10,
+      "z": 9,
+      "rotY": 0,
+      "orden": 35
+    },
+    {
+      "bloqueId": "INT-DER-1",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": 10,
+      "z": -5,
+      "rotY": 0,
+      "orden": 36
+    },
+    {
+      "bloqueId": "INT-DER-2",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": 10,
+      "z": -3,
+      "rotY": 0,
+      "orden": 37
+    },
+    {
+      "bloqueId": "INT-DER-3",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": 10,
+      "z": -1,
+      "rotY": 0,
+      "orden": 38
+    },
+    {
+      "bloqueId": "INT-DER-4",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": 10,
+      "z": 1,
+      "rotY": 0,
+      "orden": 39
+    },
+    {
+      "bloqueId": "INT-DER-5",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": 12,
+      "z": -5,
+      "rotY": 0,
+      "orden": 40
+    },
+    {
+      "bloqueId": "INT-DER-6",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": 12,
+      "z": -3,
+      "rotY": 0,
+      "orden": 41
+    },
+    {
+      "bloqueId": "INT-DER-7",
+      "tipoCodigo": "C",
+      "tipologia": "2",
+      "x": 12,
+      "z": -1,
+      "rotY": 0,
+      "orden": 42
+    },
+    {
+      "bloqueId": "INT-DER-8",
+      "tipoCodigo": "P",
+      "tipologia": "2",
+      "x": 12,
+      "z": 1,
+      "rotY": 0,
+      "orden": 43
+    },
+    {
+      "bloqueId": "ISLA-GRANDE-1",
+      "tipoCodigo": "BG",
+      "tipologia": "2",
+      "x": -3.5,
+      "z": -6,
+      "rotY": 0,
+      "orden": 44
+    },
+    {
+      "bloqueId": "ISLA-GRANDE-2",
+      "tipoCodigo": "BG",
+      "tipologia": "2",
+      "x": 3.5,
+      "z": -6,
+      "rotY": 0,
+      "orden": 45
+    },
+    {
+      "bloqueId": "ISLA-GRANDE-3",
+      "tipoCodigo": "BG",
+      "tipologia": "2",
+      "x": -3.5,
+      "z": 6,
+      "rotY": 0,
+      "orden": 46
+    },
+    {
+      "bloqueId": "ISLA-GRANDE-4",
+      "tipoCodigo": "BG",
+      "tipologia": "2",
+      "x": 3.5,
+      "z": 6,
+      "rotY": 0,
+      "orden": 47
+    }
+  ],
+  "furniture": [
+    {
+      "refId": "KIOSKO_IZQ",
+      "tipo": "kiosko",
+      "x": -4.9,
+      "z": 0,
+      "rotY": 1.6
+    },
+    {
+      "refId": "KIOSKO_DER",
+      "tipo": "kiosko",
+      "x": 4.9,
+      "z": 0,
+      "rotY": -1.6
+    }
+  ],
+  "secciones": []
+}

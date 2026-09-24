@@ -18,14 +18,14 @@ import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { enVentanaLegalSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
 
 function esMultiStand(row: SolicitudRow) { return (row.standCodes?.length ?? 0) > 1; }
-function estaPendiente(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE; }
-function adminSubioDocumentos(row: SolicitudRow) { return ((row.docsAdjuntosCount ?? 0) - (row.clienteDocsAdjuntosCount ?? 0)) > 0; }
-function puedeAdjuntarDocumentos(row: SolicitudRow) { return esMultiStand(row) && estaPendiente(row) && adminSubioDocumentos(row); }
+function puedeAdjuntarDocumentos(row: SolicitudRow) { return enVentanaLegalSgc(row); }
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function estaDadaDeBaja(row: SolicitudRow) { return row.flgActivo === false; }
@@ -37,9 +37,7 @@ function puedeSolicitarReevaluacion(row: SolicitudRow) {
   if (esMultiStand(row) && (row.clienteDocsAdjuntosCount ?? 0) === 0) return false;
   return true;
 }
-function faltanDocumentosMultiStand(row: SolicitudRow) {
-  return esMultiStand(row) && estaRechazada(row) && (row.clienteDocsAdjuntosCount ?? 0) === 0 && !tieneReevaluacionPendiente(row);
-}
+function faltanDocumentosMultiStand(row: SolicitudRow) { return requiereDocsReevaluacion(row); }
 
 /** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
 function ModalSection({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
@@ -66,6 +64,21 @@ function etiquetaEstadoArea(estado: string): string {
   if (estado === RESULTADOS_APROBACION.APROBADO) return "Aprobado";
   if (estado === RESULTADOS_APROBACION.RECHAZADO) return "Rechazado";
   return "Pendiente";
+}
+
+/** Item del timeline para el paso "Legal (SGC)" segun el estado del expediente SGC. */
+function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado: string; etiqueta: string; badge: string; comentario: string | null } {
+  if (sgcAprobado(row.sgcLifecycleStatus)) {
+    return { key: "sgc", label: REVISION_AREA_SGC_LABEL, estado: RESULTADOS_APROBACION.APROBADO, etiqueta: "Aprobado", badge: BADGE_STYLES.SUCCESS, comentario: null };
+  }
+  return {
+    key: "sgc",
+    label: REVISION_AREA_SGC_LABEL,
+    estado: RESULTADOS_APROBACION.PENDIENTE,
+    etiqueta: row.sgcEstadoEnvio ? "En revision (SGC)" : "Delegado al SGC",
+    badge: BADGE_STYLES.INFO,
+    comentario: null,
+  };
 }
 
 /** Badge del estado de la solicitud (mismo criterio que la tabla original). */
@@ -503,6 +516,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               {/* Documentos */}
               {((!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0) || (detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0) ? (
                 <ModalSection title="Expediente y documentacion" meta={`${detailRow.standCodes?.length > 1 ? (detailRow.docsAdjuntosCount ?? 0) : (detailRow.documentos as string[]).length} documento(s)`}>
+                  {detailRow.sgcDocumentosEnviados && (
+                    <p className="mb-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                      Documentos ya enviados al SGC. No se pueden modificar.
+                    </p>
+                  )}
                   {/* Single-stand */}
                   {(!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0 && (
                     <div className="space-y-0.5 rounded-md border p-2">
@@ -529,7 +547,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
                                   <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -546,7 +564,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
                                   <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -632,37 +650,37 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
               {/* Estado de revision */}
               <ModalSection title="Estado de revision">
-                <div className="relative space-y-4 pl-6 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-border">
-                  {areasRevisionLocal(detailRow.revisiones).map((area) => {
+                {(() => {
+                  const areas = areasRevisionLocal(detailRow.revisiones).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
-                    return (
-                      <div key={area} className="relative">
-                        <span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${revisionDotClass(estado)}`} />
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-foreground">{REVISION_AREA_LABELS[area]}</span>
-                          <Badge className={`text-[10px] pointer-events-none ${claseEstadoArea(estado)}`}>
-                            {etiquetaEstadoArea(estado)}
-                          </Badge>
+                    return { key: area, label: REVISION_AREA_LABELS[area], estado, etiqueta: etiquetaEstadoArea(estado), badge: claseEstadoArea(estado), comentario: rev?.comentario ?? null };
+                  });
+                  const items = detailRow.sgcEnabled && legalDelegadaAlSgc(detailRow.revisiones)
+                    ? [...areas, estadoSgcItem(detailRow)]
+                    : areas;
+                  return (
+                    <div className="space-y-3">
+                      {items.map((it, idx) => (
+                        <div key={it.key} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <span className={`mt-0.5 h-3 w-3 shrink-0 rounded-full ${revisionDotClass(it.estado)}`} />
+                            {idx < items.length - 1 && <span className="my-0.5 w-px flex-1 bg-border" />}
+                          </div>
+                          <div className="pb-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-foreground">{it.label}</span>
+                              <Badge className={`text-[10px] pointer-events-none ${it.badge}`}>{it.etiqueta}</Badge>
+                            </div>
+                            {it.comentario && (
+                              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{it.comentario}</p>
+                            )}
+                          </div>
                         </div>
-                        {rev?.comentario && (
-                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{rev.comentario}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {detailRow.sgcEnabled && legalDelegadaAlSgc(detailRow.revisiones) && (
-                    <div className="relative">
-                      <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground/60 bg-background" />
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-foreground">{REVISION_AREA_SGC_LABEL}</span>
-                        <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
-                          <span>Delegado al SGC</span>
-                        </Badge>
-                      </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </ModalSection>
 
               {/* Documentos requeridos */}
