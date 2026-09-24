@@ -47,6 +47,8 @@ yarn-error.log*
 
 # Uploads (runtime data)
 public/uploads/
+# Excepcion: imagen del mapa macro (commiteada a proposito; viaja en la imagen Docker)
+!public/uploads/perumin-mapa-pabellones.jpg
 
 # Credentials
 *.pem

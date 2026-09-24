@@ -171,8 +171,26 @@ jobs:
           SERVICE="${{ secrets.ECS_SERVICE }}"; SERVICE="${SERVICE:-iimp-ctrst-prod-service}"
           echo "Rollout en $CLUSTER / $SERVICE ..."
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-deployment >/dev/null
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
-          echo "✅  Rollout ECS completado."
+          # El `wait services-stable` nativo expira a los 10 min y el pull de la imagen
+          # (node_modules completo) puede tardar mas. Se sondea rolloutState hasta 20 min.
+          for i in $(seq 1 40); do
+            STATE=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+              --query "services[0].deployments[0].rolloutState" --output text 2>/dev/null || echo "UNKNOWN")
+            if [ "$STATE" = "COMPLETED" ]; then
+              echo "✅  Rollout ECS completado."
+              exit 0
+            fi
+            if [ "$STATE" = "FAILED" ]; then
+              echo "❌  Rollout ECS fallo (rolloutState=FAILED):"
+              aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+                --query "services[0].deployments[0].rolloutStateReason" --output text
+              exit 1
+            fi
+            echo "[$i/40] rolloutState=$STATE — esperando 30s..."
+            sleep 30
+          done
+          echo "❌  Timeout esperando rollout ECS (20 min)."
+          exit 1
 
   # ─── EC2 (legado) ─────────────────────────────────────────────────────────
   deploy-ec2:
