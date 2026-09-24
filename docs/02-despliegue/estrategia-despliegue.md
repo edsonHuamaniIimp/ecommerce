@@ -13,10 +13,10 @@
 
 ### 0.1 Pipeline de CI/CD (`.github/workflows/deploy.yml`)
 
-- **Push a `main`** → corre **SOLO `ci`** (lint / `tsc` / tests). **NO** construye ni despliega.
-- **Deploy = MANUAL**: GitHub → **Actions** → *CI/CD — ContratosStands* → **Run workflow**
-  (branch `main`). El deploy **no** se dispara solo con el push.
-- Jobs del run manual: `ci` (informativo, **no bloquea**) → `build-image` → `deploy-ecs`.
+- **Push a `main`** → `ci` (lint / `tsc` / tests) + `build-image` + `deploy-ecs` (**deploy automático**).
+- **Deploy manual alternativo**: GitHub → **Actions** → *CI/CD — ContratosStands* → **Run workflow**
+  (branch `main`), útil para re-desplegar el mismo commit.
+- Concurrency: un push nuevo **espera** a que termine el deploy en curso (no lo cancela).
 - `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache `type=gha`.
   **Idempotente**: si la imagen de ese commit ya existe en ECR, **no se reconstruye**.
 - `deploy-ecs`: `aws ecs update-service --force-new-deployment` + `wait services-stable`.
@@ -83,11 +83,12 @@ Usuario → ecommerce.sistemasiimp.org.pe → CloudFront → ALB → ECS Fargate
 - Migraciones: el entrypoint ECS (`docker/entrypoint-ecs.sh`) corre `prisma migrate deploy` al
   arrancar cada task (nunca destruye datos).
 
-## 2. Flujo de despliegue (manual)
+## 2. Flujo de despliegue (automático en push)
 
-> **Push a `main` NO despliega**: solo corre `ci`. El deploy se lanza **a mano** (ver §0.1).
+> **Push a `main` despliega**: `ci` + `build-image` + `deploy-ecs`. El `workflow_dispatch`
+> queda como re-deploy manual del mismo commit.
 
-**Deploy manual** (Actions → *Run workflow*, branch `main`):
+**Flujo** (push a `main`, o Actions → *Run workflow*):
 
 1. **`ci`**: lint + tipos + tests. Corre en paralelo y **no bloquea**.
 2. **`build-image`**: construye `Dockerfile.ecs` **arm64** (runner ARM nativo, sin QEMU) con

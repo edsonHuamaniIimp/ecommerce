@@ -1,9 +1,9 @@
 name: CI/CD — ContratosStands
 
 # Pipeline (ECS = produccion real):
-#   push a main  -> SOLO ci (lint/tsc/tests). NO construye imagen ni despliega.
-#   manual (Actions > Run workflow) -> ci -> build-image (arm64) -> deploy-ecs (rollout).
-# - El deploy a ECS es MANUAL a proposito: no queremos construir una imagen en cada push.
+#   push a main  -> ci (lint/tsc/tests) + build-image (arm64) + deploy-ecs (rollout).
+#   manual (Actions > Run workflow) -> mismo flujo.
+# - Deploy AUTOMATICO en cada push a main (ademas de workflow_dispatch).
 # - build-image corre en runner ARM NATIVO (ubuntu-24.04-arm, sin QEMU) => mucho mas rapido.
 # - Si la imagen de ese commit YA existe en ECR, NO se reconstruye (idempotente).
 # - build-image reusa capas (cache `type=gha`: reusa npm ci).
@@ -29,7 +29,8 @@ on:
 
 concurrency:
   group: deploy-contratos-stands
-  cancel-in-progress: true
+  # No cancelar un deploy en curso (un push nuevo espera; evita corte de rollout).
+  cancel-in-progress: false
 
 env:
   NODE_VERSION: '20'
@@ -71,8 +72,8 @@ jobs:
     name: Build imagen → ECR (arm64)
     runs-on: ubuntu-24.04-arm
     # Sin `needs: ci`: lint/typecheck/tests corren EN PARALELO con el build.
-    # El deploy exige que ambos terminen bien (ver `deploy-ecs`).
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # Push a main y workflow_dispatch disparan build + deploy (idempotente por SHA).
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -142,7 +143,6 @@ jobs:
     # No depende de `ci`: los tests no bloquean el deploy (corren en paralelo como informe).
     needs: build-image
     if: |
-      github.event_name == 'workflow_dispatch' &&
       github.ref == 'refs/heads/main' &&
       needs.build-image.result == 'success'
     steps:

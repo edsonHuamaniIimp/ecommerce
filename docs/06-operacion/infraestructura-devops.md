@@ -117,8 +117,8 @@ Volúmenes del servicio `app`:
 > **Pipeline VIGENTE (2026-09-22)** — detalle en `docs/02-despliegue/estrategia-despliegue.md` §0-§2.
 > Lo descrito abajo en versiones previas (SSH a EC2, `sync-s3`) es **legado**.
 
-- **Push a `main`** → corre **solo `ci`** (lint / `tsc` / tests). **No** construye ni despliega.
-- **Deploy = MANUAL**: Actions → *Run workflow* (`workflow_dispatch`, branch `main`).
+- **Push a `main`** → `ci` + `build-image` (arm64→ECR) + `deploy-ecs` (**deploy automático**).
+- **Re-deploy manual**: Actions → *Run workflow* (`workflow_dispatch`, branch `main`).
 - Jobs: `ci` (paralelo, **no bloquea**) → `build-image` (**arm64 nativo** + cache, **idempotente**)
   → `deploy-ecs` (`update-service --force-new-deployment` + `wait services-stable`).
 - **Secrets (ya cargados, no recrear):** `ECR_REGISTRY`, `ECR_REPOSITORY`, `AWS_ACCESS_KEY_ID`,
