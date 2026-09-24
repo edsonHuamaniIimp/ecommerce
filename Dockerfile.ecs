@@ -1,17 +1,30 @@
 # Dockerfile ECS — Next.js standalone (multi-stage) para Fargate
 # Sin nginx: el ALB termina TLS y hace el health check en /api/health.
-# La imagen final solo lleva lo que produce `next build` (output: standalone).
+# La imagen final solo lleva lo que produce `next build` (output: standalone) + deps de produccion.
 
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci && npm cache clean --force
 
+# Solo dependencias de PRODUCCION (sin eslint/typescript/vitest/tailwind/@types/prisma-cli/tsx).
+FROM node:20-bookworm-slim AS prod-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+
+# CLI de Prisma (migrate deploy) + tsx (seeds on-demand), en un node_modules aislado.
+FROM node:20-bookworm-slim AS cli-deps
+WORKDIR /cli
+RUN npm init -y >/dev/null 2>&1 \
+    && npm install --omit=dev --ignore-scripts --no-audit --no-fund prisma@7.8.0 tsx@4.19.0 \
+    && npm cache clean --force
+
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# ── Variables NEXT_PUBLIC_* (se inlinean en el bundle del navegador) ─────────
+# ─── Variables NEXT_PUBLIC_* (se inlinean en el bundle del navegador) ─────────────
 # Deben existir EN EL BUILD, no solo en runtime. Valores por defecto seguros:
 #   NEXT_PUBLIC_API_URL=/api   -> mismo origen (funciona en cualquier dominio)
 #   NEXT_PUBLIC_API_MOCK=0     -> datos reales (nunca mocks en produccion)
@@ -24,8 +37,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-# ── Placeholders SOLO para el build ─────────────────────────────────────────
-# `next build` evalúa los route handlers ("collect page data") y varios clientes
+# ─── Placeholders SOLO para el build ──────────────────────────────────────────────
+# `next build` evalua los route handlers ("collect page data") y varios clientes
 # (kbservicios, planogess, consultas) lanzan error al importar si falta su variable.
 # Estos valores son FALSOS y sirven unicamente para que el build compile:
 # en runtime la app recibe los reales como variables de entorno (Secrets Manager).
@@ -49,15 +62,21 @@ ENV HOSTNAME=0.0.0.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl openssl \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN addgroup --system --gid 1001 nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
-# Standalone server (next.config.ts output: "standalone")
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Standalone server (next.config.ts output: "standalone").
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+
+# Deps de PRODUCCION (cubre los externals que el standalone no traza: @prisma/adapter-pg, jose, zod, dotenv...).
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+# Overlay: CLI de Prisma + tsx (mismos versiones @prisma 7.8.0; no pisan las de produccion).
+COPY --from=cli-deps --chown=nextjs:nodejs /cli/node_modules ./node_modules
 
 # Asset de seed para EFS: en prod el volumen EFS montado en /app/public/uploads
 # tapa los archivos de la imagen, por lo que la imagen del macro se guarda aparte
@@ -66,19 +85,11 @@ RUN mkdir -p /app/seed-assets \
     && cp /app/public/uploads/perumin-mapa-pabellones.jpg /app/seed-assets/ 2>/dev/null \
     || echo "seed-assets: imagen del macro no presente en el build (se omite)"
 
-# node_modules COMPLETO: el standalone no incluye .bin/prisma ni deps del CLI
-# (necesarios para `prisma migrate deploy` en el entrypoint).
-# El cliente Prisma (prisma-client-js) vive en node_modules/.prisma + @prisma/client.
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-
-COPY docker/entrypoint-ecs.sh /usr/local/bin/entrypoint.sh
+COPY --chown=nextjs:nodejs docker/entrypoint-ecs.sh /usr/local/bin/entrypoint.sh
 # Defensa en profundidad: NUNCA dejar archivos .env dentro de la imagen
 # (los secretos se inyectan como variables de entorno desde Secrets Manager).
 RUN chmod +x /usr/local/bin/entrypoint.sh \
-    && rm -f /app/.env /app/.env.* \
-    && chown -R nextjs:nodejs /app
+    && rm -f /app/.env /app/.env.*
 
 USER nextjs
 EXPOSE 3000
