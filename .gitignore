@@ -19,7 +19,9 @@
 next-env.d.ts
 
 # archivos subidos por usuarios (runtime data, no codigo fuente)
-/public/uploads/
+/public/uploads/*
+# excepcion: imagen estatica del mapa macro (viaja con la imagen Docker para prod)
+!/public/uploads/perumin-mapa-pabellones.jpg
 
 # prisma generated client
 /prisma/generated/
