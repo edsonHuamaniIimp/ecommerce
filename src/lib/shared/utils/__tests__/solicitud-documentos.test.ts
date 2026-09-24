@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO } from "@/lib/shared/constants";
 import {
+  enVentanaContratoMultistand,
   enVentanaLegalSgc,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
@@ -9,6 +10,7 @@ import {
 const base = {
   estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
   standCodes: ["A-1", "A-2"],
+  docsAdjuntosCount: 0,
   clienteDocsAdjuntosCount: 0,
   reevaluaciones: [] as Array<{ estado: string }>,
   sgcEnabled: true,
@@ -41,6 +43,26 @@ describe("enVentanaLegalSgc", () => {
   });
 });
 
+describe("enVentanaContratoMultistand", () => {
+  const conContratoAdmin = { ...base, docsAdjuntosCount: 1 };
+
+  it("permite subir cuando el admin ya subio el contrato en reserva multiple pendiente", () => {
+    expect(enVentanaContratoMultistand(conContratoAdmin)).toBe(true);
+  });
+
+  it("bloquea si aun no hay documento del admin", () => {
+    expect(enVentanaContratoMultistand(base)).toBe(false);
+  });
+
+  it("no aplica a reserva simple", () => {
+    expect(enVentanaContratoMultistand({ ...conContratoAdmin, standCodes: ["A-1"] })).toBe(false);
+  });
+
+  it("no aplica si la solicitud no esta pendiente", () => {
+    expect(enVentanaContratoMultistand({ ...conContratoAdmin, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO })).toBe(false);
+  });
+});
+
 describe("requiereDocsReevaluacion", () => {
   const rechazada = { ...base, estadoSolicitud: ESTADOS_SOLICITUD.RECHAZADO };
 
@@ -66,6 +88,12 @@ describe("requiereDocsReevaluacion", () => {
 describe("puedeClienteSubirDocumentos", () => {
   it("permite en ventana Legal (SGC)", () => {
     expect(puedeClienteSubirDocumentos(base)).toBe(true);
+  });
+
+  it("permite subir el contrato de reserva multiple sin expediente SGC", () => {
+    expect(
+      puedeClienteSubirDocumentos({ ...base, sgcEnabled: false, sgcEstadoEnvio: null, docsAdjuntosCount: 1 }),
+    ).toBe(true);
   });
 
   it("permite preparar una re-evaluacion", () => {

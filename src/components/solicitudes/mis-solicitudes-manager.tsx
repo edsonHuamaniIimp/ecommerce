@@ -18,14 +18,14 @@ import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { enVentanaLegalSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { enVentanaContratoMultistand, enVentanaLegalSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
 
 function esMultiStand(row: SolicitudRow) { return (row.standCodes?.length ?? 0) > 1; }
-function puedeAdjuntarDocumentos(row: SolicitudRow) { return enVentanaLegalSgc(row); }
+function puedeAdjuntarDocumentos(row: SolicitudRow) { return enVentanaContratoMultistand(row) || enVentanaLegalSgc(row); }
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function estaDadaDeBaja(row: SolicitudRow) { return row.flgActivo === false; }

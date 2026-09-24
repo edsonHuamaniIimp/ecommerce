@@ -13,6 +13,9 @@ interface ReevaluacionLike {
 export interface SolicitudDocumentosGate {
   estadoSolicitud: string;
   standCodes: string[];
+  /** Total de documentos adjuntos (admin + cliente). */
+  docsAdjuntosCount: number;
+  /** Documentos subidos por el cliente. */
   clienteDocsAdjuntosCount: number;
   reevaluaciones: ReevaluacionLike[];
   /** Integracion SGC habilitada en el servidor. */
@@ -23,6 +26,16 @@ export interface SolicitudDocumentosGate {
   sgcDocumentosEnviados: boolean;
   /** Revisiones por area de la solicitud. */
   revisiones: RevisionLike[];
+}
+
+/**
+ * Ventana de **contrato de reserva multiple**: el admin ya subio el contrato
+ * (existe al menos un documento que no es del cliente) y la solicitud sigue
+ * pendiente. El cliente descarga el contrato y sube el suyo firmado.
+ */
+export function enVentanaContratoMultistand(s: SolicitudDocumentosGate): boolean {
+  const adminSubioDocumentos = s.docsAdjuntosCount - s.clienteDocsAdjuntosCount > 0;
+  return s.standCodes.length > 1 && s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && adminSubioDocumentos;
 }
 
 /**
@@ -58,8 +71,10 @@ export function requiereDocsReevaluacion(s: SolicitudDocumentosGate): boolean {
 
 /**
  * Regla unica (server + cliente) para que un usuario **cliente** adjunte documentos:
- * en la ventana Legal (SGC) o preparando una re-evaluacion.
+ *  - contrato de reserva multiple (el admin ya subio el contrato), o
+ *  - ventana Legal (SGC) mientras no se enviaron documentos al SGC, o
+ *  - preparando una re-evaluacion.
  */
 export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean {
-  return enVentanaLegalSgc(s) || requiereDocsReevaluacion(s);
+  return enVentanaContratoMultistand(s) || enVentanaLegalSgc(s) || requiereDocsReevaluacion(s);
 }
