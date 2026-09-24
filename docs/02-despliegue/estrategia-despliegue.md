@@ -47,7 +47,7 @@
 | WAF | `iimp-ctrst-prod-waf` (`SizeRestrictions_BODY`→`count`) |
 | Target group | `iimp-ctrst-prod-tg` (health check `/api/health`, **interval 10s**, timeout 5s, healthy 2) |
 | Dominio | `https://ecommerce.sistemasiimp.org.pe` (CloudFront → ALB → ECS Fargate) |
-| Tamaño imagen | ~843 MB (se empuja al build y se baja en cada task; candidato a reducir) |
+| Tamaño imagen | ~437 MB (optimizada 2026-09-24; antes ~843 MB). Se empuja al build y se baja en cada task. |
 
 ### 0.4 Integración SGC — variables YA en el task ECS (`:7`)
 
