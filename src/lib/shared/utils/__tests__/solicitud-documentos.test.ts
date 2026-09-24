@@ -10,7 +10,7 @@ import {
 const base = {
   estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
   standCodes: ["A-1", "A-2"],
-  docsAdjuntosCount: 0,
+  docsAdminCount: 0,
   clienteDocsAdjuntosCount: 0,
   reevaluaciones: [] as Array<{ estado: string }>,
   sgcEnabled: true,
@@ -44,7 +44,7 @@ describe("enVentanaLegalSgc", () => {
 });
 
 describe("enVentanaContratoMultistand", () => {
-  const conContratoAdmin = { ...base, docsAdjuntosCount: 1 };
+  const conContratoAdmin = { ...base, docsAdminCount: 1 };
 
   it("permite subir cuando el admin ya subio el contrato en reserva multiple pendiente", () => {
     expect(enVentanaContratoMultistand(conContratoAdmin)).toBe(true);
@@ -92,7 +92,7 @@ describe("puedeClienteSubirDocumentos", () => {
 
   it("permite subir el contrato de reserva multiple sin expediente SGC", () => {
     expect(
-      puedeClienteSubirDocumentos({ ...base, sgcEnabled: false, sgcEstadoEnvio: null, docsAdjuntosCount: 1 }),
+      puedeClienteSubirDocumentos({ ...base, sgcEnabled: false, sgcEstadoEnvio: null, docsAdminCount: 1 }),
     ).toBe(true);
   });
 

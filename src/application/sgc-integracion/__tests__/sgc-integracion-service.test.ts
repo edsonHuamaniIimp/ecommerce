@@ -30,6 +30,7 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     imagenes: [],
     docsAdjuntosCount: 0,
     clienteDocsAdjuntosCount: 0,
+    docsAdminCount: 0,
     docsAdjuntos: [],
     updatedAt: new Date("2026-09-15T00:00:00.000Z"),
     revisiones: [],

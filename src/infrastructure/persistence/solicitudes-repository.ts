@@ -158,6 +158,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     imagenes,
     docsAdjuntosCount: row._count.docsAdjuntos,
     clienteDocsAdjuntosCount: docsList.filter((d) => d.userId === row.userId).length,
+    docsAdminCount: docsList.filter((d) => d.userId === null).length,
     docsAdjuntos: docsList,
     updatedAt: row.updatedAt,
     revisiones,

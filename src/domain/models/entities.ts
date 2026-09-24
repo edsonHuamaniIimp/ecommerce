@@ -139,6 +139,8 @@ export interface SolicitudRow {
   imagenes: unknown;
   docsAdjuntosCount: number;
   clienteDocsAdjuntosCount: number;
+  /** Documentos del administrador/contrato (`userId` null). */
+  docsAdminCount: number;
   docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; createdAt: Date }>;
   updatedAt: Date;
   revisiones: RevisionEntity[];

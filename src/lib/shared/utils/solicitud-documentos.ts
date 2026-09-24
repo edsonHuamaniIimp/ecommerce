@@ -13,8 +13,8 @@ interface ReevaluacionLike {
 export interface SolicitudDocumentosGate {
   estadoSolicitud: string;
   standCodes: string[];
-  /** Total de documentos adjuntos (admin + cliente). */
-  docsAdjuntosCount: number;
+  /** Documentos del administrador/contrato (`userId` null). */
+  docsAdminCount: number;
   /** Documentos subidos por el cliente. */
   clienteDocsAdjuntosCount: number;
   reevaluaciones: ReevaluacionLike[];
@@ -34,8 +34,9 @@ export interface SolicitudDocumentosGate {
  * pendiente. El cliente descarga el contrato y sube el suyo firmado.
  */
 export function enVentanaContratoMultistand(s: SolicitudDocumentosGate): boolean {
-  const adminSubioDocumentos = s.docsAdjuntosCount - s.clienteDocsAdjuntosCount > 0;
-  return s.standCodes.length > 1 && s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && adminSubioDocumentos;
+  // El contrato del admin se identifica por `userId === null` (no por comparar con el
+  // dueño de la solicitud, que falla cuando el propio admin es el titular).
+  return s.standCodes.length > 1 && s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && s.docsAdminCount > 0;
 }
 
 /**

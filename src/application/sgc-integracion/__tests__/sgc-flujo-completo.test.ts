@@ -108,6 +108,7 @@ class InMemorySolicitudesRepository {
       imagenes: [],
       docsAdjuntosCount: 2,
       clienteDocsAdjuntosCount: 1,
+      docsAdminCount: 0,
       docsAdjuntos: [
         { id: "d0", url: "/uploads/contrato-v1.pdf", nombre: "Contrato de separacion de stand v1", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
         { id: "d1", url: "/uploads/anexo-1.pdf", nombre: "anexo-1.pdf", userId: "user-1", uploadedBy: "contacto@expositor.pe", createdAt: new Date() },
