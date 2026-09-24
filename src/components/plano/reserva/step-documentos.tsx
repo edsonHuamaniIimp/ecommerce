@@ -1,9 +1,14 @@
 "use client";
 
-import { FileText, Eye, X, Check, Upload, Download, ScrollText, ClipboardCheck, Bell, PenLine } from "lucide-react";
+import { Fragment } from "react";
+import { FileText, Eye, X, Check, Upload, Download, Send, PenLine, ShieldCheck, ClipboardCheck, Workflow, Package } from "lucide-react";
+import { Input, Button } from "@nrivera-iimp/ui-kit-iimp";
+import { REVISION_AREA_LABELS, REVISION_AREA_ORDER, REVISION_AREA_SGC_LABEL } from "@/lib/shared/constants";
+import { stringUtils } from "@/lib/shared/utils/string";
 
 interface Props {
   singleStand: boolean;
+  reservaStands: { id: string; medidas: string | null }[];
   existingDocs: string[];
   formDocs: string[];
   uploading: boolean;
@@ -11,53 +16,84 @@ interface Props {
   onRemoveDoc: (idx: number) => void;
 }
 
-function getFileName(url: string): string {
-  const name = url.split("/").pop() ?? url;
-  try { return decodeURIComponent(name); } catch { return name; }
-}
-
-export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading, onAddDoc, onRemoveDoc }: Props) {
+export function StepDocumentos({ singleStand, reservaStands, existingDocs, formDocs, uploading, onAddDoc, onRemoveDoc }: Props) {
   if (!singleStand) {
+    const total = reservaStands.length;
+    const standsResumen = reservaStands.map((s) => (s.medidas ? `${s.id} (${s.medidas})` : s.id)).join(", ");
+    const areas = [...REVISION_AREA_ORDER.map((a) => REVISION_AREA_LABELS[a]), REVISION_AREA_SGC_LABEL];
+
     const steps = [
-      { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: "Solicitud creada", desc: "Al confirmar, tu solicitud multiple se registrara y el administrador del IIMP sera notificado." },
-      { icon: Upload, color: "bg-blue-100 text-blue-600", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial en tu solicitud. Recibiras un correo cuando este listo." },
-      { icon: FileText, color: "bg-amber-100 text-amber-600", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard, busca tu solicitud y adjunta los documentos requeridos." },
-      { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: "Revision por areas", desc: "Tres areas del IIMP (Comunicacion, Legal y Logistica) revisaran tu solicitud." },
-      { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion adjuntando nuevos documentos." },
+      { icon: Send, badge: "En este paso", areas: false, title: "Solicitud creada", desc: `Confirmas tus datos corporativos y bloqueas temporalmente los ${total} stands seleccionados.` },
+      { icon: Upload, badge: null, areas: false, title: "El admin sube el contrato", desc: `El área comercial del IIMP revisa la disponibilidad y carga el contrato marco personalizado con los ${total} stands.` },
+      { icon: PenLine, badge: null, areas: false, title: "Adjunta tus documentos", desc: "Descargas la plantilla, firmas digitalmente el contrato y lo subes al portal desde tu panel de reservas." },
+      { icon: ShieldCheck, badge: null, areas: true, title: "Revisión por áreas", desc: "Las comisiones organizadoras validan especificaciones técnicas, diseño de stands y conformidad legal." },
+      { icon: ClipboardCheck, badge: null, areas: false, title: "Resultado final", desc: "Emisión de la confirmación formal, asignación definitiva de stands y generación de la orden de pago." },
     ];
 
     return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-center">
-          <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-emerald-800">Reserva multiple — no necesitas adjuntar documentos ahora</p>
-          <p className="text-xs text-emerald-600 mt-1">Al confirmar la reserva, sigue este flujo para completar tu solicitud:</p>
+      <div className="flex flex-col gap-4 pt-3">
+        <div className="flex items-start gap-3.5 rounded-xl border border-info/30 bg-info/10 p-4">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+            <Check className="h-4 w-4" />
+          </span>
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-foreground">Reserva múltiple: no necesitas adjuntar documentos ahora</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Al reservar {total} stands ({standsResumen}), el IIMP consolida un contrato marco unificado. El equipo comercial
+              generará este documento para que lo descargues y firmes en el siguiente paso de la solicitud.
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-0">
-          {steps.map((s, i) => (
-            <div key={i} className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.color}`}>
-                  <s.icon className="h-4 w-4" />
-                </div>
-                {i < steps.length - 1 && (
-                  <div className="w-0.5 flex-1 bg-slate-200 my-0.5" />
-                )}
-              </div>
-              <div className={`pb-3 ${i === steps.length - 1 ? "" : ""}`}>
-                <p className="text-xs font-semibold text-slate-700">{s.title}</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.desc}</p>
-              </div>
+        <div className="rounded-xl border border-border bg-secondary/50 p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Workflow className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground">Flujo de atención y aprobación</span>
             </div>
-          ))}
+            <span className="text-[11px] font-medium text-muted-foreground">{steps.length} etapas</span>
+          </div>
+
+          <div className="relative">
+            <div className="absolute bottom-5 left-[13px] top-4 w-0.5 bg-border" />
+            {steps.map((s, i) => (
+              <div key={i} className={`relative flex items-start gap-3.5 ${i < steps.length - 1 ? "pb-5" : ""}`}>
+                <div className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-4 ring-background ${
+                  i === 0 ? "border border-info/30 bg-info/15 text-info" : "border-2 border-border bg-card text-muted-foreground"
+                }`}>
+                  <s.icon className="h-3.5 w-3.5" />
+                </div>
+                <div className="pt-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-bold text-foreground">{i + 1}. {s.title}</p>
+                    {s.badge && (
+                      <span className="rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success">{s.badge}</span>
+                    )}
+                  </div>
+                  {s.areas && (
+                    <div className="my-1 inline-flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-card px-2 py-0.5 text-[11px] font-medium text-foreground">
+                      {areas.map((label, idx) => (
+                        <Fragment key={label}>
+                          {idx > 0 && <span className="text-muted-foreground">→</span>}
+                          <span>{label}</span>
+                        </Fragment>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-          <p className="text-[11px] text-slate-500">
-            <span className="font-semibold text-slate-600">Importante:</span> puedes monitorear el estado de tu solicitud en cualquier momento desde{" "}
-            <span className="font-mono text-emerald-600 font-medium">Mis solicitudes</span> en el menu del dashboard.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary p-3.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="font-medium text-muted-foreground">Stands en esta solicitud:</span>
+            <span className="font-bold text-foreground">{standsResumen}</span>
+          </div>
+          <span className="font-semibold text-muted-foreground">Total: {total} {total === 1 ? "stand" : "stands"}</span>
         </div>
       </div>
     );
@@ -67,34 +103,34 @@ export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading,
   const otrosDocs = existingDocs.filter((url) => !url.endsWith(".docx") && !url.endsWith(".doc"));
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 pt-3">
       {(contratosDescargables.length > 0 || otrosDocs.length > 0) && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Documentos del stand</p>
+        <div className="rounded-lg border border-border bg-secondary px-3 py-2.5">
+          <p className="mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Documentos del stand</p>
           <div className="space-y-1">
             {contratosDescargables.map((url, i) => (
               <a key={`c-${i}`} href={url} download
-                className="flex items-center gap-2 rounded-md px-2.5 py-2 text-xs text-emerald-700 bg-white border border-emerald-100 hover:bg-emerald-50 transition-colors">
+                className="flex items-center gap-2 rounded-md border border-success/30 bg-card px-2.5 py-2 text-xs text-success transition-colors hover:bg-success/10">
                 <Download className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate font-medium">{getFileName(url)}</span>
-                <span className="ml-auto shrink-0 text-[10px] text-emerald-500">Descargar</span>
+                <span className="truncate font-medium">{stringUtils.nombreArchivo(url)}</span>
+                <span className="ml-auto shrink-0 text-[10px]">Descargar</span>
               </a>
             ))}
             {otrosDocs.map((url, i) => (
               <a key={`o-${i}`} href={url} target="_blank"
-                className="flex items-center gap-2 rounded-md px-2.5 py-2 text-xs text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 transition-colors">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                <span className="truncate">{getFileName(url)}</span>
-                <Eye className="ml-auto h-3 w-3 text-slate-400" />
+                className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary">
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{stringUtils.nombreArchivo(url)}</span>
+                <Eye className="ml-auto h-3 w-3" />
               </a>
             ))}
           </div>
         </div>
       )}
 
-      {/* Visual flow explanation */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-        <p className="text-xs font-semibold text-blue-700 mb-3">Como completar tu solicitud:</p>
+      {/* Flujo explicativo */}
+      <div className="rounded-xl border border-info/30 bg-info/10 p-4">
+        <p className="mb-3 text-xs font-semibold text-info">Como completar tu solicitud:</p>
         <div className="space-y-0">
           {[
             { icon: Download, title: "Descarga el formato", desc: "Descarga el documento .docx de la seccion superior. Es el contrato oficial del IIMP." },
@@ -103,14 +139,14 @@ export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading,
           ].map((s, i) => (
             <div key={i} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info/15 text-info">
                   <s.icon className="h-3.5 w-3.5" />
                 </div>
-                {i < 2 && <div className="w-0.5 flex-1 bg-blue-200 my-0.5" />}
+                {i < 2 && <div className="my-0.5 w-0.5 flex-1 bg-info/30" />}
               </div>
               <div className="pb-2">
-                <p className="text-xs font-semibold text-blue-800">{i + 1}. {s.title}</p>
-                <p className="text-[11px] text-blue-600/70 leading-relaxed mt-0.5">{s.desc}</p>
+                <p className="text-xs font-semibold text-foreground">{i + 1}. {s.title}</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
               </div>
             </div>
           ))}
@@ -118,31 +154,38 @@ export function StepDocumentos({ singleStand, existingDocs, formDocs, uploading,
       </div>
 
       <label className={`flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 transition-all ${
-        uploading ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 bg-slate-50/50 hover:border-emerald-300 hover:bg-emerald-50/30"
+        uploading ? "border-success/40 bg-success/10" : "border-border bg-secondary hover:border-primary/40"
       }`}>
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${uploading ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${uploading ? "bg-success/15 text-success" : "bg-card text-muted-foreground"}`}>
           <Upload className={`h-4 w-4 ${uploading ? "animate-bounce" : ""}`} />
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-600">{uploading ? "Subiendo..." : "Adjuntar contrato firmado"}</p>
-          <p className="text-[10px] text-muted-foreground">PDF, JPG, PNG, DOCX — max 10 MB</p>
+          <p className="text-xs font-medium text-foreground">{uploading ? "Subiendo..." : "Adjuntar contrato firmado"}</p>
+          <p className="text-[10px] text-muted-foreground">PDF, JPG, PNG, DOCX - max 10 MB</p>
         </div>
-        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.docx,.doc" disabled={uploading}
+        <Input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.docx,.doc" disabled={uploading}
           onChange={(e) => { const file = e.target.files?.[0]; if (file) onAddDoc(file); }} />
       </label>
 
       {formDocs.length > 0 && (
         <div className="space-y-1">
           {formDocs.map((url, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs hover:border-emerald-200 transition-colors">
-              <FileText className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-              <span className="flex-1 truncate font-medium text-slate-700">{getFileName(url)}</span>
-              <a href={url} target="_blank" className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs transition-colors hover:border-success/30">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
+              <span className="flex-1 truncate font-medium text-foreground">{stringUtils.nombreArchivo(url)}</span>
+              <a href={url} target="_blank" className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground">
                 <Eye className="h-3 w-3" />
               </a>
-              <button onClick={() => onRemoveDoc(i)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                title="Quitar documento"
+                onClick={() => onRemoveDoc(i)}
+              >
                 <X className="h-3 w-3" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>

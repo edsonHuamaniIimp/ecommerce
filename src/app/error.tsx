@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Power, AlertTriangle } from "lucide-react";
+import { logsService } from "@/lib/client/api/services/logs-service";
 
 const IS_PROD = process.env.NEXT_PUBLIC_APP_ENV === "production";
 
@@ -584,16 +585,14 @@ export default function ErrorPage({
   // Log error in production
   useEffect(() => {
     if (IS_PROD) {
-      fetch("/api/errors/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      logsService
+        .registrar({
           message: error.message,
           stack: error.stack,
           digest: error.digest,
           url: window.location.href,
-        }),
-      }).catch(() => {});
+        })
+        .catch(() => {});
     }
   }, [error]);
 

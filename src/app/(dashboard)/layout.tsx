@@ -13,14 +13,14 @@ export default function DashboardLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-background">
       <Sidebar
         open={sidebarOpen}
         collapsed={collapsed}
         onClose={() => setSidebarOpen(false)}
       />
       <div className="flex flex-1 flex-col min-w-0">
-        <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b bg-background px-4 sm:px-6 lg:px-10">
+        <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-card px-4 sm:px-6 lg:px-10">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0 lg:hidden" onClick={() => setSidebarOpen((p) => !p)}>
             <Menu className="h-4 w-4" />
           </Button>

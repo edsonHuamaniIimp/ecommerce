@@ -359,6 +359,53 @@ Operaciones hacia el SGC con reintentos y backoff. Ver `docs/05-integraciones/in
 
 Índice: `(estado, programadoAt)`.
 
+### 4.19 `solicitud_cuenta` (Transaccional · acceso)
+
+Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico
+(`/auth/solicitar-cuenta`). Nace en estado `pendiente` y la resuelve un
+administrador.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| email | string(200) | No | Correo corporativo del solicitante. |
+| nombre | string(200) | No | Nombres del contacto. |
+| apellidos | string(200) | No | Apellidos del contacto. |
+| telefono | string(20) | Sí | Teléfono de contacto. |
+| razonSocial | string(200) | No | Razón social de la empresa exhibidora. |
+| ruc | string(11) | Sí | RUC de la empresa. |
+| cargo | string(100) | Sí | Cargo del contacto. |
+| mensaje | text | Sí | Mensaje adicional del solicitante. |
+| estado | enum | No | pendiente/aprobada/rechazada. |
+| motivoRechazo | text | Sí | Obligatorio al rechazar. |
+| revisadoPor | string(200) | Sí | Email del administrador que revisó. |
+| revisadoEn | datetime | Sí | Fecha de la revisión. |
+| usuarioId | string(100) | Sí | `userId` creado al aprobar la solicitud. |
+
+Índices: `email`, `estado`.
+
+### 4.20 `registro_pendiente` (Temporal · acceso)
+
+Registro de exhibidor creado desde el modal de reserva (auto-registro) mientras se
+verifica el correo por codigo. La contrasena se guarda **ya hasheada** y se transfiere
+al usuario al confirmar; el registro se elimina una vez verificado o vencido.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| email | string(200) | No | Correo a verificar. **Único**. |
+| codigo | string(10) | No | Codigo numerico enviado por correo (6 digitos). |
+| password | string(100) | No | Contrasena hasheada (scrypt). |
+| nombre | string(200) | No | Nombres del contacto. |
+| apellidos | string(200) | No | Apellidos del contacto. |
+| razonSocial | string(200) | No | Razón social (autocompletada con SUNAT). |
+| ruc | string(11) | Sí | RUC de la empresa. |
+| telefono | string(20) | Sí | Teléfono de contacto. |
+| intentos | int | No | Intentos de verificación fallidos (máx. 5). |
+| expiraEn | datetime | No | Vencimiento del código (15 min). |
+
+Índices: `email` (único).
+
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 
 - **`empresa` / `persona_contacto`** — origen: sistema de John o base centralizada de

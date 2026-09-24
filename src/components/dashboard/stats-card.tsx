@@ -1,64 +1,54 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/shared/utils";
-
-const variantStyles = {
-  primary:
-    "from-white to-blue-50/50 border-blue-100 text-blue-600",
-  secondary:
-    "from-white to-slate-50 border-slate-200 text-slate-600",
-  success:
-    "from-white to-emerald-50/50 border-emerald-100 text-emerald-600",
-  warning:
-    "from-white to-amber-50/50 border-amber-100 text-amber-600",
-} as const;
 
 interface StatsCardProps {
   title: string;
   value: number | string;
-  subtitle?: string;
   icon?: ReactNode;
-  variant?: keyof typeof variantStyles;
+  /** Chip con una metrica derivada (ej. "37.5% colocado"). */
+  chip?: { texto: string; variante?: "primary" | "muted" | "gold" };
+  /** Linea inferior con un dato contextual (ej. "7 en evaluacion"). */
+  footer?: { texto: string; destacado?: string };
 }
 
-export function StatsCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  variant = "secondary",
-}: StatsCardProps) {
+const CHIP_ESTILOS = {
+  primary: "bg-primary/10 text-primary",
+  muted: "bg-secondary text-muted-foreground",
+  gold: "bg-gold/15 text-gold",
+} as const;
+
+export function StatsCard({ title, value, icon, chip, footer }: StatsCardProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4 }}
-      className={cn(
-        "relative overflow-hidden rounded-[1.75rem] border bg-gradient-to-br p-6 shadow-sm transition-shadow hover:shadow-lg",
-        variantStyles[variant],
-      )}
-    >
-      <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-current opacity-5 blur-2xl" />
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-current opacity-60">
-            {title}
-          </p>
-          <p className="text-4xl font-bold text-slate-900">{value}</p>
-          {subtitle && (
-            <p className="text-xs font-semibold text-current opacity-70">
-              {subtitle}
-            </p>
-          )}
-        </div>
+    <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{title}</span>
         {icon && (
-          <div className="rounded-xl bg-current/10 p-2.5 text-current">
-            {icon}
-          </div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-primary">{icon}</span>
         )}
       </div>
-    </motion.div>
+
+      <div>
+        <p className="text-3xl font-bold tracking-tight text-primary break-words">{value}</p>
+        {chip && (
+          <span
+            className={cn(
+              "mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+              CHIP_ESTILOS[chip.variante ?? "muted"],
+            )}
+          >
+            {chip.texto}
+          </span>
+        )}
+      </div>
+
+      {footer && (
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border/60 pt-3 text-[11px] text-muted-foreground">
+          <span>{footer.texto}</span>
+          {footer.destacado && <span className="shrink-0 font-medium text-primary">{footer.destacado}</span>}
+        </div>
+      )}
+    </div>
   );
 }

@@ -5,8 +5,68 @@
 
 @source "../../node_modules/@nrivera-iimp/ui-kit-iimp/dist";
 
+/* ================================================================
+   Design System IIMP — Contratos Stands
+   Fuente: Stitch "ContratosStands — Diseño v2 (Cliente + Dashboard)"
+   Paleta unica institucional. NO se usa color por vertical
+   (proexplo / wmc / gess / perumin).
+   Navy #1B365D primario · Oro #B8860B acciones de alto valor
+   ================================================================ */
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #1b365d;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #1b365d;
+
+  /* Marca */
+  --gold: #b8860b;
+  --gold-soft: #ffdea6;
+  --gold-foreground: #ffffff;
+  --tertiary: #4a5568;
+
+  /* Semanticos */
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --info: #2563eb;
+
+  /* Radius estandar 8px (contenedores 12px) */
+  --radius: 0.5rem;
+}
+
 @theme {
-  --font-sans: var(--font-poppins);
+  --font-sans: var(--font-inter);
+
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-tertiary: var(--tertiary);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
 
   @keyframes pulse-refined {
     0% {
@@ -74,6 +134,14 @@ iframe.skiptranslate,
 html.translated-ltr body,
 html.translated-rtl body {
   top: 0 !important;
+}
+
+/* Fondo tecnico tipo plano de stands (portal de exhibidores) */
+.bg-architectural-grid {
+  background-image:
+    linear-gradient(to right, rgb(27 54 93 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(27 54 93 / 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* Scrollbar corporativo */

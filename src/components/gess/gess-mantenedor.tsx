@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
 import { gessService } from "@/lib/client/api/services/gess-service";
-import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
+import { planosService } from "@/lib/client/api/services/planos-service";
+import { ESTADOS_STAND, BADGE_STYLES, UI_SENTINEL } from "@/lib/shared/constants";
 import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
@@ -49,17 +50,14 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/planos/planos-evento?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`);
-        const json = (await res.json()) as { success?: boolean; data?: Array<{ codigo: string; bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia: string | null }> }> };
-        if (json.success && json.data) {
-          const items: BloqueEvento[] = [];
-          for (const p of json.data) {
-            for (const b of p.bloques) {
-              items.push({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, plano: p.codigo });
-            }
+        const planes = await planosService.planosDeEvento(tipoEvento, codigoEvento);
+        const items: BloqueEvento[] = [];
+        for (const p of planes) {
+          for (const b of p.bloques) {
+            items.push({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, plano: p.codigo });
           }
-          if (!cancelled) setBloquesEvento(items);
         }
+        if (!cancelled) setBloquesEvento(items);
       } catch { /* fallback al registro en codigo */ }
       if (!cancelled) setBloquesCargados(true);
     })();
@@ -233,67 +231,69 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
             <CardTitle><span>Importar stands desde API externo</span></CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Button onClick={fetchApi} disabled={apiLoading}>
-                <span>{apiLoading ? "Cargando..." : "Cargar datos del API"}</span>
-              </Button>
-              <Button variant="outline" onClick={handleMockup} disabled={apiLoading}>
-                <span>{apiLoading ? "Generando..." : "Generar datos demo"}</span>
-              </Button>
-              <p className="text-[10px] text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa &quot;Generar datos demo&quot; — crea stands vinculados a los bloques de tus planos.</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={fetchApi} disabled={apiLoading}>
+                  <span>{apiLoading ? "Cargando..." : "Cargar datos del API"}</span>
+                </Button>
+                <Button variant="outline" onClick={handleMockup} disabled={apiLoading}>
+                  <span>{apiLoading ? "Generando..." : "Generar datos demo"}</span>
+                </Button>
+              </div>
               {apiRows.length > 0 && (
-                <>
+                <div className="flex flex-wrap items-center gap-3">
                   <Button variant="outline" size="sm" onClick={selectAllApi}>
                     <span>{apiSelected.size === apiRows.length ? "Deseleccionar todo" : "Seleccionar todo"}</span>
                   </Button>
                   <span className="text-xs text-muted-foreground">{apiSelected.size} de {apiRows.length} seleccionados</span>
-                </>
+                </div>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa &quot;Generar datos demo&quot; — crea stands vinculados a los bloques de tus planos.</p>
             {apiError && <p className="text-sm text-muted-foreground">{apiError}</p>}
 
             {apiRows.length > 0 && (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs font-semibold uppercase text-muted-foreground">
-                        <th className="w-8 p-2">
-                          <input type="checkbox" checked={apiSelected.size === apiRows.length && apiRows.length > 0} onChange={selectAllApi} className="h-3.5 w-3.5" />
-                        </th>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">
+                          <Checkbox checked={apiSelected.size === apiRows.length && apiRows.length > 0} onCheckedChange={() => { selectAllApi(); }} />
+                        </TableHead>
                         {apiCols.map((col) => (
-                          <th key={col} className="p-2">{col}</th>
+                          <TableHead key={col} className="text-[10px]">{col}</TableHead>
                         ))}
-                        <th className="p-2">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                        <TableHead className="text-[10px]">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {apiRows.map((row, i) => {
                         const selected = apiSelected.has(i);
                         const rowId = getId(row);
                         const yaImportado = importadosApiIds.has(rowId);
                         return (
-                          <tr key={rowId || i} className={`border-b border-slate-100 hover:bg-slate-50 ${selected ? "bg-primary/5" : ""} ${yaImportado ? "opacity-70" : ""}`}>
-                            <td className="p-2">
-                              <input type="checkbox" checked={selected} onChange={() => toggleApiSelect(i)} className="h-3.5 w-3.5" />
-                            </td>
+                          <TableRow key={rowId || i} className={`${selected ? "bg-primary/5" : ""} ${yaImportado ? "opacity-70" : ""}`}>
+                            <TableCell>
+                              <Checkbox checked={selected} onCheckedChange={() => { toggleApiSelect(i); }} />
+                            </TableCell>
                             {apiCols.map((col) => (
-                              <td key={col} className="max-w-[200px] truncate p-2 text-xs">
+                              <TableCell key={col} className="max-w-[200px] truncate text-xs">
                                 <span>{formatValue(row[col])}</span>
-                              </td>
+                              </TableCell>
                             ))}
-                            <td className="p-2">
+                            <TableCell>
                               {yaImportado ? (
                                 <Badge variant="outline" className="text-[10px]"><span>Ya importado</span></Badge>
                               ) : (
                                 <Badge variant="default" className="text-[10px]"><span>Nuevo</span></Badge>
                               )}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
                 <div className="flex justify-end">
                   <Button onClick={handleImport} disabled={apiSelected.size === 0 || importing}>
@@ -331,7 +331,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
             {dbLoading ? (
               <p className="py-8 text-center text-sm text-muted-foreground"><span>Cargando...</span></p>
             ) : dbError ? (
-              <p className="py-8 text-center text-sm text-red-600">{dbError}</p>
+              <p className="py-8 text-center text-sm text-destructive">{dbError}</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -355,7 +355,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                             <TableCell>
                               <Combobox
                                 items={[
-                                  { value: "__none__", label: "— Sin vincular —" },
+                                  { value: UI_SENTINEL.SIN_VINCULAR, label: "— Sin vincular —" },
                                   ...dbRows
                                     .filter((row) => !row.bloqueId || row.bloqueId === bid)
                                     .map((row) => ({
@@ -365,7 +365,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                                 ]}
                                 placeholder={linked ? `${linked.standCode} · ${linked.tipoStand ?? "—"} · ${linked.medidas ?? "—"}` : "Buscar stand..."}
                                 emptyMessage="Sin resultados"
-                                onSelect={(value) => handleVincular(bid, value === "__none__" ? null : value)}
+                                onSelect={(value) => handleVincular(bid, value === UI_SENTINEL.SIN_VINCULAR ? null : value)}
                                 className="w-[260px]"
                               />
                             </TableCell>

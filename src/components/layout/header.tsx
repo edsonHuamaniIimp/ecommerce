@@ -71,7 +71,6 @@ export function Header() {
     await authService.logout();
     localStorage.removeItem(LS_KEYS.EVENTO_PUBLICO);
     localStorage.removeItem(LS_KEYS.EVENTO_PENDIENTE);
-    localStorage.removeItem(LS_KEYS.VERTICAL);
     router.push("/auth/login");
     router.refresh();
   };

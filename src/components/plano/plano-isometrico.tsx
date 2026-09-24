@@ -7,13 +7,14 @@ import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
-import { authService } from "@/lib/client/api/services/auth-service";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
+import { useSesion } from "@/hooks/use-sesion";
+import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
 import { toast } from "sonner";
 import * as THREE from "three";
@@ -346,6 +347,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     confirmado, setConfirmado,
   } = useReservaForm(selectedIds, linkedMap);
 
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+
   useEffect(() => {
     if (!openReserva || !dataReady) return;
     void (async () => {
@@ -546,13 +549,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
                 variant="default"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                 disabled={selected.length === 0 || hayReservados}
-                onClick={async () => {
-                  const session = await authService.getSession();
-                  if (!session.authenticated) {
-                    localStorage.setItem(LS_KEYS.PLANO_SELECCION, JSON.stringify(selectedIds));
-                    router.push(`/auth/login?returnTo=${encodeURIComponent("/plano?openReserva=1")}`);
-                    return;
-                  }
+                onClick={() => {
                   setReservaOpen(true);
                   setReservaStep(0);
                 }}
@@ -644,6 +641,12 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
       <ReservaModal
         open={reservaOpen}
         onOpenChange={handleOpenChange}
+        autenticado={sesionReserva?.authenticated === true}
+        sesionCargando={sesionCargando}
+        onAuthenticated={async () => {
+          await sincronizarEventoPublicoEnSesion();
+          await refrescarSesion();
+        }}
         step={reservaStep as ReservaStep}
         onGoStep={(s) => setReservaStep(s)}
         stepDone={stepDone}
@@ -662,7 +665,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           return {
             id: sel.id,
             typeLabel: blockLabel(sel.type).label,
-            precio: info?.medidas ?? null,
+            medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
           };
         })}

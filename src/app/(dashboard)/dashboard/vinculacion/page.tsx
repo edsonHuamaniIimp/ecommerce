@@ -1,48 +1,36 @@
-import { getSession } from "@/lib/server/auth";
-import { prisma } from "@/lib/server/db";
-import { GessMantenedor } from "@/components/gess/gess-mantenedor";
-import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
-import Link from "next/link";
+"use client";
 
-export default async function VinculacionPage() {
-  const session = await getSession();
+import { useEffect, useState } from "react";
+import { GessMantenedor } from "@/components/gess/gess-mantenedor";
+import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
+import { useSesion } from "@/hooks/use-sesion";
+import { planosService } from "@/lib/client/api/services/planos-service";
+
+const PLANO_POR_DEFECTO = "gess";
+
+export default function VinculacionPage() {
+  const { session, cargando } = useSesion();
   const eventoId = session?.eventoId ?? "";
   const tipoEvento = session?.tipoEvento ?? 0;
   const codigoEvento = session?.codigoEvento ?? 0;
+  const [plano, setPlano] = useState(PLANO_POR_DEFECTO);
 
-  let plano = "gess";
-
-  if (tipoEvento && codigoEvento) {
-    const meta = await prisma.$queryRawUnsafe<Array<{ plano: string | null }>>(
-      `SELECT plano FROM evento_metadata WHERE tipo_evento = $1 AND codigo_evento = $2`,
-      tipoEvento, codigoEvento,
-    );
-    const planoMeta = meta[0]?.plano;
-    if (planoMeta) plano = planoMeta;
-  }
-
-  if (!eventoId) {
-    return (
-      <main className="flex-1 py-6">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16">
-            <p className="text-sm text-muted-foreground">Selecciona un evento en la presala para continuar.</p>
-            <Button asChild><Link href="/presala?change=1"><span>Ir a la presala</span></Link></Button>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!eventoId || !tipoEvento || !codigoEvento) return;
+    planosService
+      .publico({ tipoEvento, codigoEvento, eventoId })
+      .then((data) => { if (data?.codigo) setPlano(data.codigo); })
+      .catch(() => { /* se mantiene el plano por defecto */ });
+  }, [eventoId, tipoEvento, codigoEvento]);
 
   return (
-    <main className="flex-1 py-6">
-      <div className="mx-auto w-full max-w-7xl space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Vinculacion de Stands</h1>
-          <p className="text-sm text-muted-foreground">Vincular datos del API externo con bloques del plano isometrico.</p>
-        </div>
-        <GessMantenedor eventoId={eventoId} tipoEvento={tipoEvento} codigoEvento={codigoEvento} plano={plano} />
-      </div>
-    </main>
+    <PaginaDashboard
+      titulo="Vinculacion de Stands"
+      descripcion="Vincular datos del API externo con bloques del plano isometrico."
+      cargando={cargando}
+      tieneEvento={Boolean(eventoId)}
+    >
+      <GessMantenedor eventoId={eventoId} tipoEvento={tipoEvento} codigoEvento={codigoEvento} plano={plano} />
+    </PaginaDashboard>
   );
 }

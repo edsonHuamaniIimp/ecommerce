@@ -1,57 +1,44 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { AprobacionesSection } from "@/components/dashboard/aprobaciones-section";
-import { getSession } from "@/lib/server/auth";
-import { prisma } from "@/lib/server/db";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { dashboardService } from "@/lib/client/api/services/dashboard-service";
+import { useSesion } from "@/hooks/use-sesion";
+import { MONEDAS } from "@/lib/shared/constants";
+import type { EstadisticasEventoDTO } from "@/types/dto/dashboard/estadisticas-evento.dto";
 
-export const dynamic = "force-dynamic";
+const ESTADISTICAS_VACIAS: EstadisticasEventoDTO = {
+  totalStands: 0,
+  reservados: 0,
+  disponibles: 0,
+  enProceso: 0,
+  montoTotal: 0,
+  moneda: MONEDAS.US_DOLAR,
+};
 
-export default async function DashboardPage() {
-  const session = await getSession();
+export default function DashboardPage() {
+  const { session, cargando } = useSesion();
   const eventoId = session?.eventoId ?? "";
+  const [stats, setStats] = useState<EstadisticasEventoDTO | null>(null);
 
-  if (!eventoId) {
-    return (
-      <DashboardContent
-        reservas={[]}
-        stats={{ totalStands: "0", reservados: "0", disponibles: "0", montoTotal: `${MONEDAS.USD} 0`, procesoCount: "0" }}
-      />
-    );
-  }
-
-  const [stands] = await Promise.all([
-    prisma.gessStand.findMany({ where: { eventoId }, orderBy: { standCode: "asc" } }),
-  ]);
-
-  const totalStands = stands.length;
-  const reservados = stands.filter((s) => s.estado === ESTADOS_STAND_LEGACY.RESERVADO).length;
-  const enProceso = stands.filter((s) => s.estado === ESTADOS_STAND.EN_EVALUACION || s.estado === ESTADOS_STAND_LEGACY.EN_EVALUACION).length;
-  const disponibles = totalStands - reservados - enProceso;
-
-  const montoTotalStands = stands
-    .filter((s) => s.estado === ESTADOS_STAND_LEGACY.RESERVADO)
-    .reduce((acc, s) => {
-      const montoStr = s.medidas?.replace(MONEDAS.US_DOLAR, "").trim() ?? "0";
-      return acc + parseFloat(montoStr) || 0;
-    }, 0);
-
-  const stats = {
-    totalStands: String(totalStands),
-    reservados: String(reservados),
-    disponibles: String(disponibles),
-    montoTotal: `${MONEDAS.USD} ${montoTotalStands.toLocaleString("en-US")}`,
-    procesoCount: String(enProceso),
-  };
+  useEffect(() => {
+    if (!eventoId) return;
+    dashboardService
+      .estadisticas()
+      .then(setStats)
+      .catch(() => setStats(ESTADISTICAS_VACIAS));
+  }, [eventoId]);
 
   return (
-    <>
+    <div className="space-y-6 pb-10">
       <DashboardContent
         reservas={[]}
-        stats={stats}
+        stats={stats ?? ESTADISTICAS_VACIAS}
+        eventoNombre={session?.eventoNombre ?? session?.eventoPadreNombre ?? null}
+        cargando={cargando || (Boolean(eventoId) && stats === null)}
       />
-      <div className="pb-10">
-        <AprobacionesSection reservas={[]} />
-      </div>
-    </>
+      <AprobacionesSection reservas={[]} />
+    </div>
   );
 }

@@ -22,6 +22,7 @@ import { RevisionStepIndicator } from "./revision-step-indicator";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { SgcDocumentoUpload } from "@/components/sgc/sgc-documento-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { stringUtils } from "@/lib/shared/utils/string";
 import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 
 type SolicitudRow = SolicitudDTO;
@@ -90,7 +91,7 @@ export function SolicitudReview({
   /* Anexos de la solicitud: documentos del cliente (tabla) + JSON legacy, deduplicados. */
   const anexosMap = new Map<string, { nombre: string; url: string }>();
   for (const url of (row.documentos as string[]) ?? []) {
-    anexosMap.set(url, { url, nombre: url.split("/").pop() ?? url });
+    anexosMap.set(url, { url, nombre: stringUtils.nombreArchivo(url) });
   }
   for (const d of row.docsAdjuntos.filter((x) => x.userId !== null)) {
     anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
@@ -196,7 +197,32 @@ export function SolicitudReview({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* ===== HEADER ===== */}
-      <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
+      <div className="shrink-0 space-y-3 border-b border-border px-5 pt-4 pb-3">
+        <div className="pr-6">
+          <h2 className="text-sm font-semibold text-foreground">Revisar solicitud</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-mono font-medium text-foreground">{row.standCode}</span>
+            {row.bloqueId && (
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground/50">·</span>
+                <span>{row.bloqueId}</span>
+              </span>
+            )}
+            {row.tipoStand && (
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground/50">·</span>
+                <span>{row.tipoStand}</span>
+              </span>
+            )}
+            {row.empresa && (
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground/50">·</span>
+                <span className="max-w-[200px] truncate">{row.empresa}</span>
+              </span>
+            )}
+          </div>
+        </div>
+
         <RevisionStepIndicator
           currentStep={currentStep}
           stepState={stepState}
@@ -210,19 +236,6 @@ export function SolicitudReview({
           onGoSgc={() => goToStep(sgcStepIndex)}
         />
 
-        {/* Stand info line */}
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span className="font-mono font-medium text-slate-700">{row.standCode}</span>
-          {row.bloqueId && <span className="text-slate-400">{row.bloqueId}</span>}
-          {row.tipoStand && <span className="text-slate-400">{row.tipoStand}</span>}
-          {row.empresa && (
-            <>
-              <span className="text-slate-300">·</span>
-              <span className="truncate max-w-[160px]">{row.empresa}</span>
-            </>
-          )}
-        </div>
-
         {/* Client documents */}
         {(() => {
           const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string }> = [];
@@ -230,7 +243,7 @@ export function SolicitudReview({
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
           for (const url of jsonDocs) {
-            docs.push({ url, nombre: url.split("/").pop() ?? url, origen: "solicitud" });
+            docs.push({ url, nombre: stringUtils.nombreArchivo(url), origen: "solicitud" });
           }
 
           // Multi-stand: client's docsAdjuntos
@@ -243,7 +256,7 @@ export function SolicitudReview({
           for (const reev of row.reevaluaciones ?? []) {
             const reevDocs = (reev.documentos as string[]) ?? [];
             for (const url of reevDocs) {
-              docs.push({ url, nombre: url.split("/").pop() ?? url, fecha: reev.createdAt, origen: "reevaluacion" });
+              docs.push({ url, nombre: stringUtils.nombreArchivo(url), fecha: reev.createdAt, origen: "reevaluacion" });
             }
           }
 
@@ -254,19 +267,22 @@ export function SolicitudReview({
           if (unique.length === 0) return null;
 
           return (
-            <div className="mt-2 space-y-1">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Documentos del cliente ({unique.length})</p>
-              <div className="space-y-0.5">
+            <div className="border-t border-border pt-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Documentos del cliente</h4>
+                <span className="text-[11px] text-muted-foreground">{unique.length} archivo(s)</span>
+              </div>
+              <div className="space-y-1">
                 {unique.map((doc, i) => (
                   <a
                     key={i}
                     href={doc.url}
                     target="_blank"
-                    className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50/50 px-2.5 py-1.5 text-xs hover:bg-emerald-50 hover:border-emerald-200 transition-colors group"
+                    className="group flex items-center gap-2 rounded-lg border border-border bg-secondary px-2.5 py-2 text-xs transition-colors hover:border-success/30 hover:bg-success/10"
                   >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-emerald-600" />
-                    <span className="truncate flex-1 font-medium text-slate-700 group-hover:text-emerald-800">{doc.nombre}</span>
-                    <span className="text-[10px] text-slate-400 shrink-0">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
+                    <span className="flex-1 truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
                   </a>
                 ))}
               </div>
@@ -276,17 +292,17 @@ export function SolicitudReview({
       </div>
 
       {/* ===== BODY ===== */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {submitError && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {submitError}
           </div>
         )}
 
         {/* Integracion SGC — revision Legal delegada (ultimo paso) */}
         {esPasoSgc && (
-          <div className="mb-3 rounded-lg border border-slate-200 px-3 py-2">
-            <p className="mb-2 text-xs font-semibold text-slate-700">Revision Legal (SGC)</p>
+          <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
+            <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Revision Legal (SGC)</h4>
             <SgcExpedientePanel
               key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}`}
               solicitudId={row.id}
@@ -321,7 +337,7 @@ export function SolicitudReview({
               onAttached={() => onSaved(row)}
             />
             {todasAprobadas && requiereSgc && !sgcOk && (
-              <p className="mt-2 text-[11px] text-amber-600">
+              <p className="mt-2 text-[11px] text-warning">
                 Pendiente de aprobacion del SGC. La orden de pago se habilita cuando el contrato pase a Vigencia.
               </p>
             )}
@@ -329,12 +345,12 @@ export function SolicitudReview({
         )}
 
         {!esPasoSgc && (
-          <>
+          <section className="space-y-3">
         {/* Step title + status badge */}
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
             Revision de {REVISION_AREA_LABELS[currentArea as keyof typeof REVISION_AREA_LABELS]}
-          </h3>
+          </h4>
           <Badge className={`text-[10px] pointer-events-none ${
             currentRev?.estado === RESULTADOS_APROBACION.APROBADO
               ? BADGE_STYLES.SUCCESS
@@ -373,19 +389,19 @@ export function SolicitudReview({
         {currentRev && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE && !editing && (
           <div className="space-y-3">
             {currentRev.comentario && (
-              <div className="rounded-md bg-slate-50 border border-slate-100 p-3">
-                <p className="text-[10px] font-semibold text-slate-500 mb-1">Justificacion:</p>
-                <p className="text-xs text-slate-600 whitespace-pre-wrap">{currentRev.comentario}</p>
+              <div className="rounded-md bg-secondary border border-border p-3">
+                <p className="text-[10px] font-semibold text-muted-foreground mb-1">Justificacion:</p>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{currentRev.comentario}</p>
               </div>
             )}
             {canReview && (
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                className="gap-1.5 text-xs font-medium"
                 onClick={() => setEditing(true)}
               >
-                <Pencil className="mr-1 h-3 w-3" />
+                <Pencil className="h-3 w-3" />
                 <span>Cambiar estado</span>
               </Button>
             )}
@@ -419,15 +435,15 @@ export function SolicitudReview({
                 className="mt-1 text-xs min-h-[100px]"
               />
               {validationErrors[currentArea] && (
-                <p className="mt-1 text-[11px] text-red-600 font-medium">{validationErrors[currentArea]}</p>
+                <p className="mt-1 text-[11px] text-destructive font-medium">{validationErrors[currentArea]}</p>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {editing && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full px-3 text-xs font-medium"
+                  className="text-xs font-medium"
                   onClick={() => setEditing(false)}
                 >
                   <span>Cancelar</span>
@@ -437,20 +453,20 @@ export function SolicitudReview({
                 size="sm"
                 variant="destructive"
                 disabled={!!submitting}
-                className="rounded-full px-4 text-xs font-medium"
+                className="gap-1.5 text-xs font-medium"
                 onClick={handleRechazar}
               >
-                <XCircle className="mr-1 h-3.5 w-3.5" />
-                {submitting === currentArea ? "..." : "Rechazar"}
+                <XCircle className="h-3.5 w-3.5" />
+                <span>{submitting === currentArea ? "..." : "Rechazar"}</span>
               </Button>
               <Button
                 size="sm"
                 disabled={!!submitting}
-                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                className="gap-1.5 text-xs font-semibold"
                 onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
               >
-                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                {submitting === currentArea ? "..." : "Aprobar"}
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>{submitting === currentArea ? "..." : "Aprobar"}</span>
               </Button>
             </div>
           </div>
@@ -465,30 +481,33 @@ export function SolicitudReview({
             {!isAdmin && (
               <div className="mt-2 text-xs text-muted-foreground">
                 <p className="font-medium">Puedes revisar:</p>
-                <div className="flex gap-2 mt-1">
+                <div className="mt-1 flex gap-2">
                   {areas.filter((a) => canReviewArea(userPermissions, a)).map((a) => (
-                    <button
+                    <Button
                       key={a}
-                      className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 transition-colors"
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-auto px-2.5 py-0.5 text-[11px] hover:bg-success/10 hover:text-success"
                       onClick={() => {
                         const idx = areas.indexOf(a);
                         goToStep(idx);
                       }}
                     >
-                      {REVISION_AREA_LABELS[a]}
-                    </button>
+                      <span>{REVISION_AREA_LABELS[a]}</span>
+                    </Button>
                   ))}
                 </div>
               </div>
             )}
           </div>
         )}
-          </>
+          </section>
         )}
       </div>
 
       {/* ===== FOOTER ===== */}
-      <div className="shrink-0 border-t border-slate-100 px-5 py-3">
+      <div className="shrink-0 border-t border-border px-5 py-3">
         <div className="flex w-full items-center justify-between gap-2">
           <div>
             {!isFirst && (
@@ -496,10 +515,10 @@ export function SolicitudReview({
                 variant="outline"
                 size="sm"
                 disabled={!!submitting}
-                className="rounded-full px-3 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                className="gap-1.5 text-xs font-medium"
                 onClick={() => goToStep(Math.max(0, currentStep - 1))}
               >
-                <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 <span>Anterior</span>
               </Button>
             )}
@@ -509,17 +528,17 @@ export function SolicitudReview({
               <Button
                 size="sm"
                 disabled={!canAdvance}
-                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                className="gap-1.5 text-xs font-semibold"
                 onClick={() => goToStep(Math.min(totalSteps - 1, currentStep + 1))}
               >
                 <span>Siguiente</span>
-                <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             )}
             {isLast && puedeOrdenPago && onOrdenPago ? (
               <Button
                 size="sm"
-                className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
+                className="text-xs font-semibold"
                 onClick={onOrdenPago}
               >
                 <span>Generar orden de pago</span>
@@ -528,7 +547,7 @@ export function SolicitudReview({
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full px-4 text-xs font-medium border-slate-200 hover:bg-slate-50"
+                className="text-xs font-medium"
                 onClick={onClose}
               >
                 <span>Cerrar</span>
@@ -540,20 +559,20 @@ export function SolicitudReview({
 
       {/* Confirmation dialog for rejection */}
       <Dialog open={!!confirmReject} onOpenChange={() => setConfirmReject(null)}>
-        <DialogContent className="sm:max-w-sm rounded-2xl border-0 shadow-xl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle><span>Confirmar rechazo</span></DialogTitle>
+            <DialogTitle className="text-sm font-semibold"><span>Confirmar rechazo</span></DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">
-            Estas seguro de <strong>rechazar</strong> la revision de{" "}
-            <strong>{REVISION_AREA_LABELS[confirmReject?.area as keyof typeof REVISION_AREA_LABELS] ?? ""}</strong>?
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Estas seguro de <strong className="text-foreground">rechazar</strong> la revision de{" "}
+            <strong className="text-foreground">{REVISION_AREA_LABELS[confirmReject?.area as keyof typeof REVISION_AREA_LABELS] ?? ""}</strong>?
             Esta accion quedara registrada con tu justificacion.
           </p>
-          <DialogFooter className="!mt-3">
+          <DialogFooter>
             <Button
               variant="outline"
               size="sm"
-              className="rounded-full px-3 text-xs"
+              className="text-xs"
               onClick={() => setConfirmReject(null)}
             >
               <span>Cancelar</span>
@@ -561,7 +580,7 @@ export function SolicitudReview({
             <Button
               size="sm"
               variant="destructive"
-              className="rounded-full px-4 text-xs font-medium"
+              className="text-xs font-medium"
               onClick={() => {
                 if (confirmReject) {
                   handleReview(confirmReject.area, confirmReject.accion);

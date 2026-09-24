@@ -3,15 +3,15 @@
 import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Info, Upload, Trash2, ChevronDown, CreditCard } from "lucide-react";
+import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Pagination } from "@/components/shared/pagination";
 import { useSearchParams } from "next/navigation";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { stringUtils } from "@/lib/shared/utils/string";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
@@ -41,29 +41,96 @@ function faltanDocumentosMultiStand(row: SolicitudRow) {
   return esMultiStand(row) && estaRechazada(row) && (row.clienteDocsAdjuntosCount ?? 0) === 0 && !tieneReevaluacionPendiente(row);
 }
 
-function DetailSection({ id, title, open, onToggle, children }: { id: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) {
+/** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
+function ModalSection({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden transition-shadow duration-200 hover:shadow-sm">
-      <button
-        type="button"
-        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50/80 transition-colors tracking-tight"
-        onClick={() => onToggle(id)}
-      >
-        <span>{title}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-      </button>
-      <div
-        className={`grid transition-all duration-300 ease-in-out ${
-          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div className="px-4 pb-3.5 pt-1">
-            {children}
-          </div>
-        </div>
+    <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{title}</h4>
+        {meta && <span className="text-[11px] text-muted-foreground">{meta}</span>}
       </div>
+      {children}
+    </section>
+  );
+}
+
+/** Punto de la linea de tiempo de revision segun estado. */
+function revisionDotClass(estado: string): string {
+  if (estado === RESULTADOS_APROBACION.APROBADO) return "bg-success";
+  if (estado === RESULTADOS_APROBACION.RECHAZADO) return "bg-destructive";
+  return "border border-dashed border-muted-foreground/60 bg-background";
+}
+
+/** Etiqueta legible del estado de una revision por area. */
+function etiquetaEstadoArea(estado: string): string {
+  if (estado === RESULTADOS_APROBACION.APROBADO) return "Aprobado";
+  if (estado === RESULTADOS_APROBACION.RECHAZADO) return "Rechazado";
+  return "Pendiente";
+}
+
+/** Badge del estado de la solicitud (mismo criterio que la tabla original). */
+function EstadoSolicitudBadge({ estado }: { estado: string | null }) {
+  if (estado === ESTADOS_SOLICITUD.APROBADO) {
+    return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.SUCCESS}`}><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /><span>Aprobado</span></Badge>;
+  }
+  if (estado === ESTADOS_SOLICITUD.RECHAZADO) {
+    return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}><XCircle className="mr-0.5 h-2.5 w-2.5" /><span>Rechazado</span></Badge>;
+  }
+  if (estado === ESTADOS_SOLICITUD.EN_PROCESO) {
+    return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}><Clock className="mr-0.5 h-2.5 w-2.5" /><span>En proceso</span></Badge>;
+  }
+  if (estado === ESTADOS_SOLICITUD.PENDIENTE_PAGO) {
+    return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INDIGO}`}><Clock className="mr-0.5 h-2.5 w-2.5" /><span>Pendiente Pago</span></Badge>;
+  }
+  return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}><Clock className="mr-0.5 h-2.5 w-2.5" /><span>Pendiente</span></Badge>;
+}
+
+/** Clases del badge de una revision por area. */
+function claseEstadoArea(estado: string): string {
+  if (estado === RESULTADOS_APROBACION.APROBADO) return BADGE_STYLES.SUCCESS;
+  if (estado === RESULTADOS_APROBACION.RECHAZADO) return BADGE_STYLES.DESTRUCTIVE;
+  return BADGE_STYLES.WARNING;
+}
+
+/** Badges del flujo de evaluacion por area (local + SGC). */
+function FlujoRevision({ row }: { row: SolicitudRow }) {
+  if (!(row.revisiones?.length > 0)) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {areasRevisionLocal(row.revisiones).map((area) => {
+        const rev = row.revisiones.find((r) => r.area === area);
+        const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
+        return (
+          <span key={area} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${claseEstadoArea(estado)}`}>
+            {REVISION_AREA_LABELS[area]}: {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente"}
+          </span>
+        );
+      })}
+      {row.sgcEnabled && legalDelegadaAlSgc(row.revisiones) && (
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.INFO}`}>{REVISION_AREA_SGC_LABEL}</span>
+      )}
     </div>
+  );
+}
+
+/** Etiqueta del stand o conteo cuando la solicitud es multiple. */
+function standTitulo(row: SolicitudRow): string {
+  return (row.standCodes?.length ?? 0) > 1 ? `${row.standCodes.length} stands` : (row.standCode ?? "-");
+}
+
+/** Accion "Ver detalle" (link con flecha, segun diseno). */
+function VerDetalleButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="group h-8 w-full justify-center gap-1 px-2 text-xs font-semibold text-primary hover:bg-primary/5 hover:text-primary sm:w-auto"
+      onClick={onClick}
+    >
+      <span>Ver detalle</span>
+      <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+    </Button>
   );
 }
 
@@ -85,8 +152,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [modificarOpen, setModificarOpen] = useState(false);
   const [modificarError, setModificarError] = useState<string | null>(null);
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
-  const [accordionOpen, setAccordionOpen] = useState<string | null>(null);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
+  const [view, setView] = useState<"cards" | "rows">("cards");
 
   const pageRef = useRef(page);
   const perPageRef = useRef(perPage);
@@ -109,6 +176,12 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
       setModificarError(e instanceof Error ? e.message : "Error al enviar");
     }
     setModifying(false);
+  };
+
+  const openDetail = async (id: string) => {
+    const data = await solicitudesService.detalle(id);
+    setDetailRow(data);
+    setDetailOpen(true);
   };
 
   const load = useCallback(async (p?: number, s?: string, pp?: number) => {
@@ -141,25 +214,46 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Mis solicitudes ({pagination.total})</span>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => load(page, search)} disabled={loading}>
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative max-w-xs flex-1">
-              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-col gap-3 border-b border-border pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-sm font-semibold text-primary">Tus solicitudes</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                {pagination.total} {pagination.total === 1 ? "registrada" : "registradas"}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <ToggleGroup
+                type="single"
+                value={view}
+                onValueChange={(v) => { if (v === "cards" || v === "rows") setView(v); }}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                <ToggleGroupItem value="cards" className="h-8 px-2" title="Vista de tarjetas" aria-label="Vista de tarjetas">
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="rows" className="h-8 px-2" title="Vista de filas" aria-label="Vista de filas">
+                  <List className="h-3.5 w-3.5" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <Button variant="outline" size="sm" className="h-8 w-8 shrink-0 p-0" onClick={() => load(page, search)} disabled={loading} title="Recargar">
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative w-full sm:flex-1">
+              <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Buscar por codigo, pabellon o stand (ej. A-12)..." value={search} onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(1, e.currentTarget.value, perPage); } }}
-                className="pl-8 text-xs h-8" />
+                className="h-8 border-border bg-secondary pl-8 text-xs placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary" />
             </div>
             <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); load(1, search, Number(v)); }}>
-              <SelectTrigger className="w-[70px] h-8 text-xs">
+              <SelectTrigger className="h-8 w-[70px] shrink-0 border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -169,6 +263,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               </SelectContent>
             </Select>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-4">
 
           {loading ? (
             <TableSkeleton rows={perPage} columns={6} />
@@ -179,142 +275,166 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
             </div>
           ) : (
             <>
+              {view === "cards" ? (
+              <div className="space-y-3">
+                {rows.map((row) => (
+                  <article key={row.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/40">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-secondary/60 px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="font-mono text-sm font-bold text-primary">
+                          {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
+                        </span>
+                        {row.bloqueId && <span className="font-mono text-[10px] text-muted-foreground">{row.bloqueId}</span>}
+                        <span className="text-xs text-muted-foreground">{row.tipoStand ?? "-"}</span>
+                        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {dateUtils.formatDateTime(row.updatedAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {row.flgActivo === false && (
+                          <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}><span>Dada de baja</span></Badge>
+                        )}
+                        <EstadoSolicitudBadge estado={row.estadoSolicitud} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 px-4 py-3">
+                      {(row.standCodes?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Stands</span>
+                          {row.standCodes.map((codigo) => (
+                            <span key={codigo} className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+                              {codigo}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {row.revisiones?.length > 0 && (
+                        <div>
+                          <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Flujo de evaluacion</p>
+                          <FlujoRevision row={row} />
+                        </div>
+                      )}
+
+                      {(tieneReevaluacionPendiente(row) || faltanDocumentosMultiStand(row)) && (
+                        <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+                          <span className="font-semibold">Accion requerida: </span>
+                          {tieneReevaluacionPendiente(row)
+                            ? "Tienes una re-evaluacion pendiente de revision."
+                            : "Faltan documentos por adjuntar para continuar con tu solicitud."}
+                        </p>
+                      )}
+
+                      <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Paperclip className="h-3.5 w-3.5" />
+                          {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
+                        </span>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          {puedePagarNiubizz(row) && (
+                            <Button size="sm" className="w-full justify-center gap-1.5 bg-gold font-bold text-gold-foreground hover:bg-gold/90 sm:w-auto"
+                              onClick={() => {
+                                if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
+                                window.location.href = `/dashboard/facturacion/pago?facturacionId=${row.facturacionId}`;
+                              }}>
+                              <CreditCard className="h-3.5 w-3.5" />
+                              <span>Pagar ahora</span>
+                            </Button>
+                          )}
+                          {puedeAdjuntarDocumentos(row) && (
+                            <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                              onClick={async () => {
+                                const data = await solicitudesService.detalle(row.id);
+                                setClienteUploadRow(data); setClienteUploadOpen(true);
+                              }}>
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>Adjuntar documentos</span>
+                            </Button>
+                          )}
+                          <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead><span>Stand</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span>Tipo</span></TableHead>
-                      <TableHead><span>Estado</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span>Docs</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span>Fecha</span></TableHead>
-                      <TableHead className="text-right"><span>Accion</span></TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Stand</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Bloque</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Tipo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Flujo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Docs</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Fecha</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row) => {
-                      return (
-                        <TableRow key={row.id}>
-                          <TableCell className="font-mono text-xs font-medium">
-                            {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
-                            {row.bloqueId && <span className="ml-1 text-muted-foreground font-normal">{row.bloqueId}</span>}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
-                          <TableCell>
-                            {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
-                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>
-                                 <XCircle className="mr-0.5 h-2.5 w-2.5" /> Rechazado
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> En proceso
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente Pago
-                               </Badge>
-                             ) : (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente
-                               </Badge>
-                             )}
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell text-xs">
-                            {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                            {dateUtils.formatDateTime(row.updatedAt)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-0.5 justify-end">
-                              {row.flgActivo === false ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400"
-                                      onClick={async () => {
-                                        const data = await solicitudesService.detalle(row.id);
-                                        setDetailRow(data); setDetailOpen(true);
-                                      }}>
-                                      <Info className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top"><span>Dada de baja</span></TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <>
-                                  {tieneReevaluacionPendiente(row) && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-600"
-                                          onClick={async () => {
-                                            const data = await solicitudesService.detalle(row.id);
-                                            setDetailRow(data); setDetailOpen(true);
-                                          }}>
-                                          <RotateCcw className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                    <TooltipContent side="top"><span>Re-evaluacion pendiente</span></TooltipContent>
-                                  </Tooltip>
-                                )}
-                                  {puedeAdjuntarDocumentos(row) && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500"
-                                          onClick={async () => {
-                                            const data = await solicitudesService.detalle(row.id);
-                                            setClienteUploadRow(data); setClienteUploadOpen(true);
-                                          }}>
-                                          <Upload className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top"><span>Adjuntar documentos</span></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                                        onClick={async () => {
-                                          const data = await solicitudesService.detalle(row.id);
-                                          setDetailRow(data); setDetailOpen(true);
-                                        }}>
-                                        <Eye className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top"><span>Ver estado</span></TooltipContent>
-                                  </Tooltip>
-                                  {puedePagarNiubizz(row) && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-emerald-600 hover:bg-emerald-700"
-                                          onClick={() => {
-                                            if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
-                                            window.location.href = `/dashboard/facturacion/pago?facturacionId=${row.facturacionId}`;
-                                          }}>
-                                          <CreditCard className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top"><span>Pagar con Niubizz</span></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="whitespace-nowrap font-mono text-xs font-bold text-primary">
+                          {standTitulo(row)}
+                          {(row.standCodes?.length ?? 0) > 1 && (
+                            <span className="ml-1 font-normal text-muted-foreground">({row.standCodes.join(", ")})</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "—"}</TableCell>
+                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
+                        <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
+                          {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
+                        </TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground md:table-cell">{dateUtils.formatDateTime(row.updatedAt)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {row.flgActivo === false && (
+                              <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}><span>Dada de baja</span></Badge>
+                            )}
+                            <EstadoSolicitudBadge estado={row.estadoSolicitud} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {puedePagarNiubizz(row) && (
+                              <Button size="sm" className="h-8 gap-1.5 bg-gold text-xs font-bold text-gold-foreground hover:bg-gold/90"
+                                onClick={() => {
+                                  if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
+                                  window.location.href = `/dashboard/facturacion/pago?facturacionId=${row.facturacionId}`;
+                                }}>
+                                <CreditCard className="h-3.5 w-3.5" />
+                                <span>Pagar ahora</span>
+                              </Button>
+                            )}
+                            {puedeAdjuntarDocumentos(row) && (
+                              <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                onClick={async () => {
+                                  const data = await solicitudesService.detalle(row.id);
+                                  setClienteUploadRow(data); setClienteUploadOpen(true);
+                                }}>
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>Adjuntar</span>
+                              </Button>
+                            )}
+                            <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex items-center justify-between pt-2">
+              )}
+              <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
                   {pagination.total} resultados — pagina {pagination.page} de {pagination.totalPages || 1}
                 </span>
-                 <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
+                <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
               </div>
             </>
           )}
@@ -323,55 +443,73 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
       {/* Detail modal */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col !px-0 !py-0 overflow-hidden">
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
           {/* Header */}
-          <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
-            <h3 className="text-sm font-semibold text-slate-800">Estado de solicitud</h3>
-          </div>
+          <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
+            <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+              <DialogTitle className="text-sm font-semibold text-foreground">Estado de solicitud</DialogTitle>
+              {detailRow && <EstadoSolicitudBadge estado={detailRow.estadoSolicitud} />}
+            </div>
+          </DialogHeader>
           {/* Body */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2">
+          <div className="flex-1 min-h-0 space-y-2 overflow-y-auto py-4">
           {detailRow && (
             <>
-              {/* Info general */}
-              <DetailSection id="info" title="Informacion general" open={accordionOpen === "info"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-slate-400 ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
-                  <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground">Fecha:</span> <span>{dateUtils.formatDateTime(detailRow.updatedAt)}</span></div>
+              {/* Resumen */}
+              <ModalSection title="Informacion general" meta={dateUtils.formatDateTime(detailRow.updatedAt)}>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                  <div className="space-y-0.5">
+                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Stand</span>
+                    <span className="font-mono text-xs font-semibold text-foreground">{standTitulo(detailRow)}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Bloque</span>
+                    <span className="font-mono text-xs text-foreground">{detailRow.bloqueId ?? "—"}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>
+                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "—"}</span>
+                  </div>
                 </div>
-              </DetailSection>
+                {(detailRow.standCodes?.length ?? 0) > 1 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    {detailRow.standCodes.map((codigo) => (
+                      <span key={codigo} className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">{codigo}</span>
+                    ))}
+                  </div>
+                )}
+              </ModalSection>
 
               {/* Imagenes */}
               {detailRow.imagenes && (detailRow.imagenes as string[]).length > 0 && (
-                <DetailSection id="imagenes" title={`Imagenes del stand (${(detailRow.imagenes as string[]).length})`} open={accordionOpen === "imagenes"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                  <div className="flex gap-1.5">
+                <ModalSection title="Imagenes del stand" meta={`${(detailRow.imagenes as string[]).length} archivo(s)`}>
+                  <div className="flex flex-wrap gap-2">
                     {(detailRow.imagenes as string[]).slice(0, 4).map((url, i) => (
                       <button key={i}
-                        className="h-14 w-14 overflow-hidden rounded border hover:opacity-80 transition-opacity"
+                        className="h-16 w-16 overflow-hidden rounded-lg border border-border transition-opacity hover:opacity-80"
                         onClick={() => setImgCarousel({ images: detailRow.imagenes as string[], idx: i })}>
                         <Image width={64} height={64} src={url} alt={`Imagen ${i + 1}`} className="h-full w-full object-cover" />
                       </button>
                     ))}
                     {(detailRow.imagenes as string[]).length > 4 && (
-                      <span className="flex h-14 w-14 items-center justify-center rounded border bg-muted text-xs text-muted-foreground">
+                      <span className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-secondary text-xs font-medium text-muted-foreground">
                         +{(detailRow.imagenes as string[]).length - 4}
                       </span>
                     )}
                   </div>
-                </DetailSection>
+                </ModalSection>
               )}
 
               {/* Documentos */}
               {((!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0) || (detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0) ? (
-                <DetailSection id="docs" title={`Documentos (${detailRow.standCodes?.length > 1 ? (detailRow.docsAdjuntosCount ?? 0) : (detailRow.documentos as string[]).length})`} open={accordionOpen === "docs"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
+                <ModalSection title="Expediente y documentacion" meta={`${detailRow.standCodes?.length > 1 ? (detailRow.docsAdjuntosCount ?? 0) : (detailRow.documentos as string[]).length} documento(s)`}>
                   {/* Single-stand */}
                   {(!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0 && (
                     <div className="space-y-0.5 rounded-md border p-2">
                       {(detailRow.documentos as string[]).map((url, i) => (
                         <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs text-primary hover:bg-primary/5 transition-colors">
                           <FileText className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate flex-1">{url.split("/").pop() ?? url}</span>
+                                <span className="truncate flex-1">{stringUtils.nombreArchivo(url)}</span>
                           <Eye className="h-3 w-3 opacity-50 shrink-0" />
                         </a>
                       ))}
@@ -385,14 +523,14 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <div className="space-y-2">
                         {adminDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">Administrador ({adminDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-blue-200 bg-blue-50/50 p-2">
+                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
+                            <div className="space-y-0.5 rounded-md border border-info/30 bg-info/10 p-2">
                               {adminDocs.map((doc, i) => (
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                                  <a href={doc.url} target="_blank" className="text-blue-700 hover:text-blue-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-slate-400 shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="text-slate-400 hover:text-slate-600 shrink-0">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
+                                  <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
                                 </div>
@@ -402,17 +540,17 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         )}
                         {clienteDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">Tus documentos ({clienteDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-green-200 bg-green-50/50 p-2">
+                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tus documentos ({clienteDocs.length})</p>
+                            <div className="space-y-0.5 rounded-md border border-success/30 bg-success/10 p-2">
                               {clienteDocs.map((doc, i) => (
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                                  <a href={doc.url} target="_blank" className="text-green-700 hover:text-green-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-slate-400 shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 shrink-0">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
+                                  <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 shrink-0"
+                                  <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
                                     onClick={(e) => {
                                       e.preventDefault();
                                       setDeleteConfirm(doc.id);
@@ -427,39 +565,41 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       </div>
                     );
                   })()}
-                </DetailSection>
+                </ModalSection>
               ) : null}
 
               {/* Esperando Contrato */}
               {detailRow.standCodes?.length > 1 && detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && (detailRow.docsAdjuntosCount ?? 0) === 0 && detailRow.flgActivo !== false && (
-                <DetailSection id="accion" title="Accion requerida" open={accordionOpen === "accion"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                    <Clock className="h-5 w-5 text-amber-500 mx-auto mb-1" />
-                    <p className="text-xs font-semibold text-amber-700">Esperando Contrato</p>
-                    <p className="text-[11px] text-amber-600 mt-0.5">La administracion del IIMP aun no ha subido el contrato para esta solicitud multiple. Una vez que el contrato este disponible, podras adjuntar tus documentos y continuar con el proceso.</p>
+                <ModalSection title="Accion requerida">
+                  <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div>
+                      <p className="text-xs font-semibold text-warning">Esperando contrato</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-warning">La administracion del IIMP aun no ha subido el contrato para esta solicitud multiple. Una vez que el contrato este disponible, podras adjuntar tus documentos y continuar con el proceso.</p>
+                    </div>
                   </div>
-                </DetailSection>
+                </ModalSection>
               )}
 
               {/* Re-evaluacion */}
               {detailRow.reevaluaciones && detailRow.reevaluaciones.length > 0 && (
-                <DetailSection id="reevaluacion" title={`Re-evaluacion (${detailRow.reevaluaciones.length})`} open={accordionOpen === "reevaluacion"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
+                <ModalSection title="Re-evaluacion" meta={`${detailRow.reevaluaciones.length} registro(s)`}>
                   <div className="space-y-2">
                     {detailRow.reevaluaciones.map((reev, i) => {
                       const docs = (reev.documentos as string[]) ?? [];
                       return (
                       <div key={i} className={`rounded px-3 py-2 text-xs ${
-                        reev.estado === ESTADOS_REEVALUACION.APROBADO ? "bg-green-50 border border-green-200"
-                        : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "bg-red-50 border border-red-200"
-                        : "bg-amber-50 border border-amber-200"
+                        reev.estado === ESTADOS_REEVALUACION.APROBADO ? "bg-success/10 border border-success/30"
+                        : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "bg-destructive/10 border border-destructive/30"
+                        : "bg-warning/10 border border-warning/30"
                       }`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">Solicitud de re-evaluacion</span>
-                          <Badge variant={
-                            reev.estado === ESTADOS_REEVALUACION.APROBADO ? "default"
-                            : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "destructive"
-                            : "secondary"
-                          } className="text-[10px]">
+                          <Badge className={`pointer-events-none text-[10px] ${
+                            reev.estado === ESTADOS_REEVALUACION.APROBADO ? BADGE_STYLES.SUCCESS
+                            : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE
+                            : BADGE_STYLES.WARNING
+                          }`}>
                             {reev.estado === ESTADOS_REEVALUACION.APROBADO ? "Aprobada"
                               : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "Rechazada"
                               : "Pendiente"}
@@ -473,13 +613,13 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             {docs.map((url, j) => (
                               <a key={j} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-primary hover:bg-primary/5 transition-colors">
                                 <FileText className="h-3 w-3 shrink-0" />
-                                <span className="truncate flex-1">{url.split("/").pop() ?? url}</span>
+                          <span className="truncate flex-1">{stringUtils.nombreArchivo(url)}</span>
                                 <Eye className="h-3 w-3 opacity-50 shrink-0" />
                               </a>
                             ))}
                           </div>
                         )}
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
                           <span>{dateUtils.formatDateTime(reev.createdAt)}</span>
                           {reev.createdBy && <span>{reev.createdBy}</span>}
                         </div>
@@ -487,33 +627,35 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       );
                     })}
                   </div>
-                </DetailSection>
+                </ModalSection>
               )}
 
               {/* Estado de revision */}
-              <DetailSection id="revision" title="Estado de revision" open={accordionOpen === "revision"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                <div className="space-y-1.5">
+              <ModalSection title="Estado de revision">
+                <div className="relative space-y-4 pl-6 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-border">
                   {areasRevisionLocal(detailRow.revisiones).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
                     return (
-                      <div key={area} className="rounded bg-muted/30 px-3 py-2 text-xs">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium">{REVISION_AREA_LABELS[area]}</span>
-                          <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? BADGE_STYLES.SUCCESS : estado === RESULTADOS_APROBACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
-                            {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente"}
+                      <div key={area} className="relative">
+                        <span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${revisionDotClass(estado)}`} />
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-foreground">{REVISION_AREA_LABELS[area]}</span>
+                          <Badge className={`text-[10px] pointer-events-none ${claseEstadoArea(estado)}`}>
+                            {etiquetaEstadoArea(estado)}
                           </Badge>
                         </div>
                         {rev?.comentario && (
-                          <p className="text-[11px] text-muted-foreground italic">&quot;{rev.comentario}&quot;</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{rev.comentario}</p>
                         )}
                       </div>
                     );
                   })}
                   {detailRow.sgcEnabled && legalDelegadaAlSgc(detailRow.revisiones) && (
-                    <div className="rounded bg-muted/30 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{REVISION_AREA_SGC_LABEL}</span>
+                    <div className="relative">
+                      <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground/60 bg-background" />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-foreground">{REVISION_AREA_SGC_LABEL}</span>
                         <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
                           <span>Delegado al SGC</span>
                         </Badge>
@@ -521,18 +663,18 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     </div>
                   )}
                 </div>
-              </DetailSection>
+              </ModalSection>
 
               {/* Documentos requeridos */}
               {faltanDocumentosMultiStand(detailRow) && (
-                <DetailSection id="reqdocs" title="Documentos requeridos" open={accordionOpen === "reqdocs"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
+                <ModalSection title="Documentos requeridos">
                   <div className="text-center mb-3">
-                    <p className="text-xs text-amber-700">Para solicitar una re-evaluacion, primero debes adjuntar al menos un documento.</p>
+                    <p className="text-xs text-warning">Para solicitar una re-evaluacion, primero debes adjuntar al menos un documento.</p>
                   </div>
-                  <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-amber-300 bg-white/60 p-5 hover:border-amber-400 hover:bg-amber-100/50 transition-colors">
-                    <Upload className="h-6 w-6 text-amber-500" />
-                    <span className="text-xs font-medium text-amber-700">Arrastra un archivo o haz click aqui</span>
-                    <span className="text-[10px] text-amber-500">PDF, DOC, DOCX, JPG, PNG — max 10 MB</span>
+                  <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-warning/40 bg-warning/5 p-5 transition-colors hover:border-warning/60 hover:bg-warning/10">
+                    <Upload className="h-6 w-6 text-warning" />
+                    <span className="text-xs font-medium text-warning">Arrastra un archivo o haz click aqui</span>
+                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG — max 10 MB</span>
                     <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -548,15 +690,15 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       } catch (err) { toast.error(err instanceof Error ? err.message : "Error"); }
                     }} />
                   </label>
-                </DetailSection>
+                </ModalSection>
               )}
             </>
           )}
           {detailRow && estaDadaDeBaja(detailRow) && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
-              <XCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-red-700 mb-1">Solicitud rechazada y dada de baja</p>
-              <p className="text-xs text-red-600 mb-3">Esta solicitud ya no puede continuar el proceso. Para volver a solicitarla, ingresa al plano y selecciona el stand disponible.</p>
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">
+              <XCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+              <p className="text-sm font-semibold text-destructive mb-1">Solicitud rechazada y dada de baja</p>
+              <p className="text-xs text-destructive mb-3">Esta solicitud ya no puede continuar el proceso. Para volver a solicitarla, ingresa al plano y selecciona el stand disponible.</p>
               <div className="flex justify-center gap-2">
                 <Button size="sm" variant="outline" className="rounded-full px-3 text-xs font-medium" asChild>
                   <Link href="/plano"><span>Ir al plano</span></Link>
@@ -566,23 +708,23 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
           )}
           </div>
           {/* Footer */}
-          {detailRow && puedePagarNiubizz(detailRow) && (
-            <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex justify-end">
-              <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => toast.info("Redirigiendo a la pasarela de pago Niubizz...")}>
-                <CreditCard className="mr-1 h-3.5 w-3.5" />
-                Pagar con Niubizz
-              </Button>
-            </div>
-          )}
-          {detailRow && puedeSolicitarReevaluacion(detailRow) && (
-            <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex justify-end">
-              <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold"
-                onClick={() => { setModificarOpen(true); setModificarError(null); }}>
-                <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                Solicitar Re-evaluacion
-              </Button>
-            </div>
+          {detailRow && (puedePagarNiubizz(detailRow) || puedeSolicitarReevaluacion(detailRow)) && (
+            <DialogFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border pt-3">
+              {puedePagarNiubizz(detailRow) && (
+                <Button size="sm" variant="default" className="gap-1.5 text-xs font-semibold"
+                  onClick={() => toast.info("Redirigiendo a la pasarela de pago Niubizz...")}>
+                  <CreditCard className="h-3.5 w-3.5" />
+                  <span>Pagar con Niubizz</span>
+                </Button>
+              )}
+              {puedeSolicitarReevaluacion(detailRow) && (
+                <Button size="sm" variant="default" className="gap-1.5 text-xs font-semibold"
+                  onClick={() => { setModificarOpen(true); setModificarError(null); }}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Solicitar Re-evaluacion</span>
+                </Button>
+              )}
+            </DialogFooter>
           )}
         </DialogContent>
       </Dialog>
@@ -591,7 +733,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle><span>Eliminar documento</span></DialogTitle></DialogHeader>
-          <p className="text-sm text-slate-600">Estas seguro de eliminar este documento? Esta accion no se puede deshacer.</p>
+          <p className="text-sm text-muted-foreground">Estas seguro de eliminar este documento? Esta accion no se puede deshacer.</p>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
             <Button variant="destructive" size="sm" className="flex-1 rounded-full text-xs" onClick={async () => {

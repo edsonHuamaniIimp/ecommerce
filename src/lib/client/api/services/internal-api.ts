@@ -4,11 +4,12 @@ import type { ApiResult } from "@/lib/shared/api-types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body !== undefined;
+  const esFormData = hasBody && typeof FormData !== "undefined" && options?.body instanceof FormData;
   const res = await fetch(url, {
     credentials: "include",
     ...options,
     headers: {
-      "Content-Type": hasBody ? "application/json" : undefined,
+      ...(hasBody && !esFormData ? { "Content-Type": "application/json" } : {}),
       ...options?.headers,
     } as Record<string, string>,
   });
@@ -35,6 +36,10 @@ export const internalApi = {
   },
   post<T>(url: string, body?: unknown): Promise<T> {
     return request<T>(url, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+  },
+  /** POST multipart (subida de archivos). No fija Content-Type: lo arma el navegador. */
+  postForm<T>(url: string, formData: FormData): Promise<T> {
+    return request<T>(url, { method: "POST", body: formData });
   },
   patch<T>(url: string, body?: unknown): Promise<T> {
     return request<T>(url, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });

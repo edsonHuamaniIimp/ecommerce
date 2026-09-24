@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
 import { gessService } from "@/lib/client/api/services/gess-service";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
 import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
 import type { FormDatos, GessLinkedInfo } from "./interfaces";
@@ -83,14 +84,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setReservaOpen(open);
   };
 
-  const handleUpload = async (file: File): Promise<string> => {
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const json = await res.json() as { success?: boolean; data?: { url: string } };
-    if (json.success && json.data) return json.data.url;
-    throw new Error("Error al subir");
-  };
+  const handleUpload = (file: File): Promise<string> => uploadService.subir(file);
 
   const addDoc = async (file: File) => {
     setUploading(true);

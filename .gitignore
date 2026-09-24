@@ -112,3 +112,6 @@ plan-*.json
 !.opencode/agent/
 !.opencode/reglas/
 !.opencode/skills/
+
+# Colecciones Postman con credenciales (NO commitear: repo publico)
+docs/05-integraciones/postman-sgc.json

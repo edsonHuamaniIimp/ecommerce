@@ -1,63 +1,65 @@
-import { RolesMantenedor } from "@/components/admin/roles-mantenedor";
-import { prisma } from "@/lib/server/db";
-import type { Rol } from "@/lib/shared/constants";
+"use client";
 
-type RoleWithUsuarios = { id: string; nombre: string; descripcion: string | null; permisos: string[]; usuarios: { id: string; userId: string; email: string }[] };
+import { useEffect, useState } from "react";
+import { Skeleton } from "@nrivera-iimp/ui-kit-iimp";
+import { RolesMantenedor } from "@/components/admin/roles-mantenedor";
+import { SolicitudesCuentaBandeja } from "@/components/admin/solicitudes-cuenta-bandeja";
+import { rolesService } from "@/lib/client/api/services/roles-service";
+import { solicitudCuentaService } from "@/lib/client/api/services/solicitud-cuenta-service";
+import type { Rol } from "@/lib/shared/constants";
+import type { SolicitudCuentaDTO } from "@/types/dto/solicitud-cuenta/solicitud-cuenta.dto";
 
 interface RoleRow {
   id: string;
-  nombre: string;
+  nombre: Rol;
   descripcion: string | null;
   permisos: string[];
   usuarios: { id: string; userId: string; email: string }[];
   count: number;
 }
 
-export default async function RolesMantenedorPage() {
-  let rows: RoleRow[] = [];
-  let errorMessage: string | null = null;
+export default function RolesMantenedorPage() {
+  const [rows, setRows] = useState<RoleRow[] | null>(null);
+  const [solicitudes, setSolicitudes] = useState<SolicitudCuentaDTO[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  try {
-    const roles = await prisma.role.findMany({
-      include: { usuarios: { select: { id: true, userId: true, email: true } } },
-      orderBy: { nombre: "asc" },
-    }) as RoleWithUsuarios[];
-
-    rows = roles.map((r) => ({
-      id: r.id,
-      nombre: r.nombre as Rol,
-      descripcion: r.descripcion,
-      permisos: r.permisos,
-      usuarios: r.usuarios.map((u) => ({ id: u.id, userId: u.userId, email: u.email })),
-      count: r.usuarios.length,
-    }));
-  } catch (err) {
-    errorMessage = err instanceof Error ? err.message : "Error desconocido";
-  }
-
-  if (errorMessage) {
-    return (
-      <main className="flex-1 py-6">
-        <div className="mx-auto w-full max-w-7xl space-y-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Mantenedor de Roles</h1>
-          <p className="text-sm text-red-600">Error al cargar roles: {errorMessage}</p>
-        </div>
-      </main>
-    );
-  }
+  useEffect(() => {
+    (async () => {
+      try {
+        const [roles, solicitudesCuenta] = await Promise.all([
+          rolesService.list(),
+          solicitudCuentaService.listar(),
+        ]);
+        setRows(roles.map((r) => ({ ...r, nombre: r.nombre as Rol })));
+        setSolicitudes(solicitudesCuenta.solicitudes);
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : "Error desconocido");
+        setRows([]);
+      }
+    })();
+  }, []);
 
   return (
     <main className="flex-1 py-6">
       <div className="mx-auto w-full max-w-7xl space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Mantenedor de Roles
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gestion de roles y permisos del sistema.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">Mantenedor de Roles</h1>
+          <p className="text-sm text-muted-foreground">Gestion de roles y permisos del sistema.</p>
         </div>
-        <RolesMantenedor initialRows={rows} />
+
+        {errorMessage ? (
+          <p className="text-sm text-destructive">Error al cargar roles: {errorMessage}</p>
+        ) : rows === null ? (
+          <>
+            <Skeleton className="h-28 w-full rounded-xl" />
+            <Skeleton className="h-64 w-full rounded-xl" />
+          </>
+        ) : (
+          <>
+            <SolicitudesCuentaBandeja initialSolicitudes={solicitudes} />
+            <RolesMantenedor initialRows={rows} />
+          </>
+        )}
       </div>
     </main>
   );

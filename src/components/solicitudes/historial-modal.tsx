@@ -5,6 +5,7 @@ import { Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { Clock, UserCircle2, History } from "lucide-react";
 import { BADGE_STYLES } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 
 interface HistorialItem {
   fecha: string;
@@ -22,9 +23,7 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/solicitudes/historial?id=${solicitudId}`, { credentials: "include" });
-        const json = await res.json() as { success: boolean; data: HistorialItem[] };
-        if (json.success) setItems(json.data);
+        setItems(await solicitudesService.historial(solicitudId) as unknown as HistorialItem[]);
       } catch { /* ignore */ }
       setLoading(false);
     })();

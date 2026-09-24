@@ -4,16 +4,20 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet, SheetContent, SheetHeader, SheetTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
-import { authService } from "@/lib/client/api/services/auth-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
+import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
+import { stringUtils } from "@/lib/shared/utils/string";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
+import { useSesion } from "@/hooks/use-sesion";
+import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
 import { toast } from "sonner";
 import * as THREE from "three";
@@ -268,9 +272,11 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const [legendOpen, setLegendOpen] = useState(false);
   const [standDocs, setStandDocs] = useState<string[]>([]);
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
+  const [panelMovil, setPanelMovil] = useState(false);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   const blockLabel = (type: PlanoItem["type"]) => plano?.blockLabel[type] ?? { label: "?", nombre: "?" };
+  const leyenda = leyendaPlano(items, blockLabel);
 
   useEffect(() => {
     let cancelled = false;
@@ -361,6 +367,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     confirmado, setConfirmado,
   } = useReservaForm(selectedIds, linkedMap);
 
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+
   useEffect(() => {
     if (!openReserva || !dataReady) return;
     void (async () => {
@@ -436,14 +444,139 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
   const onDatosChange = (update: Partial<FormDatos>) => setFormDatos(d => ({ ...d, ...update }));
 
+  // Navegacion del carrusel con las flechas del teclado mientras esta abierto.
+  useEffect(() => {
+    if (!imgCarousel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null);
+      if (e.key === "ArrowRight") setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [imgCarousel]);
+
+  // Contenido del panel "Mi seleccion": se monta en el aside (desktop) y en el
+  // bottom sheet (mobile) sin duplicar el markup.
+  const contenidoPanel = (
+    <>
+      <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3">
+        <h3 className="flex items-center gap-2 text-sm font-bold tracking-tight text-primary uppercase">
+          <ShoppingBag className="h-4 w-4 text-primary" />
+          <span>Mi seleccion</span>
+        </h3>
+        <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-extrabold text-primary-foreground">
+          {selected.length} {selected.length === 1 ? "stand" : "stands"}
+        </span>
+      </div>
+
+      {selected.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2.5 p-6 text-center">
+          <MousePointerClick className="h-5 w-5 text-muted-foreground/60" />
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            <span>Haz clic en un stand del plano para agregarlo.<br />Arrastra para rotar y usa la rueda para acercar.</span>
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 divide-y divide-border overflow-y-auto">
+            {selected.map((sel) => {
+              const info = linkedMap.get(sel.id);
+              const lbl = blockLabel(sel.type);
+              return (
+                <div
+                  key={sel.id}
+                  className="group flex cursor-pointer items-start justify-between gap-2 px-4 py-3 transition-colors hover:bg-secondary"
+                  onClick={() => info && setDetailModal(info)}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-primary">{sel.id}</span>
+                      {info?.estado && <BadgeEstadoStand estado={info.estado} />}
+                      {!info?.dbId && (
+                        <Badge
+                          className="pointer-events-none border-transparent bg-warning/10 text-[10px] text-warning"
+                          title="Este bloque no tiene un stand vinculado en el evento"
+                        >
+                          <span>sin stand</span>
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
+                      {lbl.nombre}
+                      {info?.tipoStand ? ` • ${info.tipoStand}` : ""}
+                      {info?.medidas ? ` • ${info.medidas}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
+                    title="Quitar de la seleccion"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="space-y-2.5 border-t border-border bg-secondary px-4 py-3.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-primary">Total</span>
+              <span className="font-bold text-primary">{selected.length} {selected.length === 1 ? "stand" : "stands"}</span>
+            </div>
+            <Button
+              variant="default"
+              className="w-full gap-2 bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90"
+              disabled={selected.length === 0 || hayReservados || haySinStand}
+              onClick={() => {
+                setReservaOpen(true);
+                setReservaStep(0);
+              }}
+            >
+              <span>{hayReservados ? "Hay bloques no disponibles" : haySinStand ? "Hay bloques sin stand vinculado" : `Continuar con la Reserva (${selected.length})`}</span>
+              {!hayReservados && !haySinStand && <ChevronRight className="h-4 w-4" />}
+            </Button>
+            {haySinStand && (
+              <p className="text-center text-[10px] text-warning">
+                Los bloques marcados &quot;sin stand&quot; no tienen un stand vinculado en este evento. El administrador debe vincularlos desde Vinculacion de Stands.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+
   return (
     <div className="flex h-[calc(100vh-7rem)] w-full flex-col gap-4 lg:flex-row">
-      <div className="relative flex-1 rounded-xl bg-slate-100 overflow-hidden">
-        {planoLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-100/80">
-            <p className="text-sm text-slate-500">Cargando plano 3D...</p>
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-base font-bold text-primary">
+              <Layers className="h-4 w-4 text-primary" />
+              <span>Plano de stands</span>
+            </h1>
+            {selected.length > 0 && (
+              <Badge className="pointer-events-none border-transparent bg-primary/10 text-primary">
+                <span>{selected.length} {selected.length === 1 ? "stand seleccionado" : "stands seleccionados"}</span>
+              </Badge>
+            )}
           </div>
-        )}
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Arrastra para rotar y usa la rueda para acercar
+          </span>
+        </div>
+
+        <div className="relative min-h-0 flex-1 bg-slate-100">
+          {planoLoading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-slate-100/90">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <p className="text-sm font-medium text-muted-foreground">Cargando plano 3D...</p>
+            </div>
+          )}
         <Canvas shadows camera={{position:[cx,S*.7,cz+S*.35],fov:50,near:.1,far:300}}
         gl={{toneMapping:THREE.ACESFilmicToneMapping,outputColorSpace:THREE.SRGBColorSpace}}
         onPointerMissed={()=>setSelectedIds([])}>
@@ -465,161 +598,106 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         <Persona x={3.2} z={-1.5} rotY={2.0} colorIdx={5} />
         <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}/>
       </Canvas>
+        </div>
 
-        <div className="absolute bottom-2 right-2 z-10">
-          {/* Desktop: always visible */}
-          <div className="hidden sm:block rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
-            <div className="space-y-1">
-              <Legend color="#FFD700" label="S (Columna)" />
-              <Legend color="#32CD32" label="P (Preferencial)" />
-              <Legend color="#90EE90" label="C (Estandar A)" />
-              <Legend color="#006400" label="BG (Isla Grande)" />
-              <Legend color="#9ca3af" label="Reservado" />
-            </div>
+        <div className="border-t border-border bg-secondary px-4 py-3">
+          {/* Desktop: leyenda siempre visible */}
+          <div className="hidden flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:flex">
+            <span className="font-bold text-primary">Leyenda:</span>
+            {leyenda.map((l) => (
+              <Legend key={l.label} color={l.color} label={l.label} />
+            ))}
           </div>
-          {/* Mobile: toggle button + panel */}
+          {/* Mobile: toggle + leyenda */}
           <div className="sm:hidden">
             {!legendOpen ? (
-              <button
-                className="rounded-lg border bg-white/90 px-2 py-1.5 text-[10px] font-medium text-muted-foreground shadow-sm backdrop-blur-sm"
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-primary"
                 onClick={() => setLegendOpen(true)}
               >
+                <Layers className="h-3.5 w-3.5" />
                 <span>Leyenda</span>
-              </button>
+              </Button>
             ) : (
-              <div className="rounded-lg border bg-white/90 px-3 py-2 text-[10px] text-muted-foreground shadow-sm backdrop-blur-sm">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-slate-600">Leyenda</span>
-                  <button onClick={() => setLegendOpen(false)} className="text-muted-foreground hover:text-slate-700">
-                    <X className="h-3 w-3" />
-                  </button>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-primary">Leyenda</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:bg-transparent hover:text-primary"
+                    title="Cerrar leyenda"
+                    onClick={() => setLegendOpen(false)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-                <div className="space-y-1">
-                  <Legend color="#FFD700" label="S (Columna)" />
-                  <Legend color="#32CD32" label="P (Preferencial)" />
-                  <Legend color="#90EE90" label="C (Estandar A)" />
-                  <Legend color="#006400" label="BG (Isla Grande)" />
-                  <Legend color="#9ca3af" label="Reservado" />
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+                  {leyenda.map((l) => (
+                    <Legend key={l.label} color={l.color} label={l.label} />
+                  ))}
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="flex w-full shrink-0 flex-col rounded-xl border bg-white lg:w-80">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900"><span>Mi seleccion</span></h3>
-          {selected.length > 0 && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{selected.length}</span>
-          )}
+        {/* Mobile: abre el panel "Mi seleccion" como bottom sheet */}
+        <div className="border-t border-border bg-card px-4 py-3 lg:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-between border-border"
+            onClick={() => setPanelMovil(true)}
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <ShoppingBag className="h-4 w-4" />
+              <span>Mi seleccion</span>
+            </span>
+            <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
+              {selected.length}
+            </span>
+          </Button>
         </div>
+      </section>
 
-        {selected.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center p-6">
-            <p className="text-center text-xs text-muted-foreground leading-relaxed">
-              <span>Haz clic en un bloque del plano.<br />Rota/zoom con el mouse.</span>
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="flex-1 divide-y overflow-y-auto">
-              {selected.map((sel) => {
-                const info = linkedMap.get(sel.id);
-                const selReserved = info?.reserved;
-                const lbl = blockLabel(sel.type);
-                return (
-                  <div
-                    key={sel.id}
-                    className="group flex cursor-pointer items-center gap-2.5 px-4 py-2.5 text-xs transition-colors hover:bg-slate-50"
-                    onClick={() => info && setDetailModal(info)}
-                  >
-                    <span
-                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm border"
-                      style={{ backgroundColor: selReserved ? "#9ca3af" : sel.dim.color }}
-                    />
-                    <span className="font-mono text-[11px] font-medium text-slate-700">{sel.id}</span>
-                    <span className="text-[10px] text-muted-foreground">{lbl.label}</span>
-                    {!info?.dbId && (
-                      <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700" title="Este bloque no tiene un stand vinculado en el evento">
-                        sin stand
-                      </span>
-                    )}
-                    {info?.medidas && (
-                      <span className="ml-auto text-[11px] font-medium text-emerald-700">{info.medidas}</span>
-                    )}
-                    <span className="hidden rounded p-0.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100">
-                      <Info className="h-3 w-3" />
-                    </span>
-                    <button
-                      className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                      onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
-                      title="Quitar de la seleccion"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+      <aside className="hidden w-80 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex">
+        {contenidoPanel}
+      </aside>
 
-            <div className="border-t px-4 py-3 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-bold text-slate-800">{selected.length} {selected.length === 1 ? "bloque" : "bloques"}</span>
-              </div>
-              <Button
-                variant="default"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={selected.length === 0 || hayReservados || haySinStand}
-                onClick={async () => {
-                  const session = await authService.getSession();
-                  if (!session.authenticated) {
-                    localStorage.setItem(LS_KEYS.PLANO_SELECCION, JSON.stringify(selectedIds));
-                    router.push(`/auth/login?returnTo=${encodeURIComponent(`/mapa?codigo=${planoId}&openReserva=1`)}`);
-                    return;
-                  }
-                  setReservaOpen(true);
-                  setReservaStep(0);
-                }}
-              >
-                <span>{hayReservados ? "Hay bloques no disponibles" : haySinStand ? "Hay bloques sin stand vinculado" : `Reservar (${selected.length})`}</span>
-              </Button>
-              {haySinStand && (
-                <p className="text-[10px] text-amber-600 text-center">
-                  Los bloques marcados &quot;sin stand&quot; no tienen un stand vinculado en este evento. El administrador debe vincularlos desde Vinculacion de Stands.
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+      <Sheet open={panelMovil} onOpenChange={setPanelMovil}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto p-0 pt-10 lg:hidden">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Mi seleccion</SheetTitle>
+          </SheetHeader>
+          {contenidoPanel}
+        </SheetContent>
+      </Sheet>
 
       {/* Detail Modal */}
       <Dialog open={detailModal !== null} onOpenChange={() => setDetailModal(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-md max-sm:bottom-0 max-sm:top-auto max-sm:max-h-[85vh] max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-2xl sm:top-1/2 sm:translate-y-[-50%]">
+          {/* Asa del bottom sheet (solo mobile) */}
+          <span className="mx-auto mb-1 block h-1 w-10 shrink-0 rounded-full bg-border sm:hidden" />
           <DialogHeader>
             <DialogTitle>
-              {detailModal ? (() => {
-                const bid = [...linkedMap.entries()].find(([, v]) => v === detailModal)?.[0];
-                const item = items.find((it) => it.id === bid);
-                const label = item ? blockLabel(item.type).label : "";
-                return <span>Detalles: {label} — {bid ?? detailModal.standCode}</span>;
-              })() : <span>Detalles</span>}
+              <span>{tituloDetalle(detailModal, linkedMap, items, blockLabel)}</span>
             </DialogTitle>
           </DialogHeader>
           {detailModal && (
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
-                <div><span className="text-muted-foreground">Codigo</span><p className="font-mono font-medium">{detailModal.standCode}</p></div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-lg border border-border bg-secondary p-3 text-xs">
+                <div><span className="text-muted-foreground">Codigo</span><p className="font-mono font-semibold text-primary">{detailModal.standCode}</p></div>
                 <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Precio</span><p className="font-medium text-emerald-700">{detailModal.medidas ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Medidas</span><p className="font-medium">{detailModal.medidas ?? "—"}</p></div>
                 <div>
                   <span className="text-muted-foreground">Estado</span>
                   <div className="mt-0.5">
-                    <Badge variant={detailModal.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "destructive" : "default"} className="text-[10px]">
-                      <span>{detailModal.estado ?? "—"}</span>
-                    </Badge>
+                    <BadgeEstadoStand estado={detailModal.estado} />
                   </div>
                 </div>
                 {detailModal.empresa && (
@@ -630,31 +708,67 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                 )}
               </div>
 
-              {detailModal.imagenes.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Imagenes ({detailModal.imagenes.length})</p>
-                  <button
-                    className="group relative flex w-full items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
-                    onClick={() => {
-                      const imgs = detailModal.imagenes;
-                      setImgCarousel({ images: imgs, idx: 0 });
-                    }}
-                    title="Haz clic para ver las imagenes en carrusel"
-                  >
+              <div>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
                     {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                    <Image className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Ver {detailModal.imagenes.length} {detailModal.imagenes.length === 1 ? "imagen" : "imagenes"}</span>
-                    <Eye className="ml-auto h-3 w-3 opacity-0 transition-opacity group-hover:opacity-50" />
-                  </button>
+                    <Image className="h-3.5 w-3.5" />
+                    <span>Imagenes y renders del stand</span>
+                  </p>
+                  {detailModal.imagenes.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto gap-1.5 p-0 text-[11px] font-medium text-primary hover:bg-transparent hover:underline"
+                      onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: 0 })}
+                    >
+                      <span>Ver carrusel completo ({detailModal.imagenes.length} {detailModal.imagenes.length === 1 ? "foto" : "fotos"})</span>
+                      <Eye className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
-              )}
+
+                {detailModal.imagenes.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border bg-secondary px-3 py-3 text-center text-[11px] text-muted-foreground">
+                    Sin imagenes cargadas para este stand.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {detailModal.imagenes.slice(0, 3).map((url, i) => (
+                      <Button
+                        key={`${url}-${i}`}
+                        type="button"
+                        variant="ghost"
+                        className="group h-auto overflow-hidden rounded-lg border border-border p-0 hover:border-primary/40"
+                        onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: i })}
+                        title={`Ver imagen ${i + 1}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`Imagen ${i + 1} del stand ${detailModal.standCode}`} className="h-20 w-full object-cover transition-transform group-hover:scale-105" />
+                      </Button>
+                    ))}
+                    {detailModal.imagenes.length > 3 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto rounded-lg border border-dashed border-border p-0 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                        onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: 3 })}
+                      >
+                        <span className="flex h-20 w-full items-center justify-center text-xs font-semibold">
+                          +{detailModal.imagenes.length - 3}
+                        </span>
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {detailModal.documentos.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Documentos ({detailModal.documentos.length})</p>
-                  <div className="space-y-0.5 rounded-md border p-2">
+                  <p className="mb-1.5 text-xs font-semibold text-primary">Documentos ({detailModal.documentos.length})</p>
+                  <div className="space-y-0.5 rounded-lg border border-border p-2">
                     {detailModal.documentos.map((url, i) => (
-                      <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-primary hover:bg-primary/5 transition-colors">
+                      <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-primary transition-colors hover:bg-primary/5">
                         <FileText className="h-3 w-3" />
                         <span className="truncate">{url.split("/").pop()}</span>
                         <Eye className="ml-auto h-3 w-3 opacity-50" />
@@ -675,6 +789,12 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
       <ReservaModal
         open={reservaOpen}
         onOpenChange={handleOpenChange}
+        autenticado={sesionReserva?.authenticated === true}
+        sesionCargando={sesionCargando}
+        onAuthenticated={async () => {
+          await sincronizarEventoPublicoEnSesion();
+          await refrescarSesion();
+        }}
         step={reservaStep as ReservaStep}
         onGoStep={(s) => setReservaStep(s)}
         stepDone={stepDone}
@@ -693,7 +813,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           return {
             id: sel.id,
             typeLabel: blockLabel(sel.type).label,
-            precio: info?.medidas ?? null,
+            medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
           };
         })}
@@ -730,72 +850,111 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
       {imgCarousel && (
         <Dialog open={true} onOpenChange={() => setImgCarousel(null)}>
-          <DialogContent className="sm:max-w-2xl bg-black/90 border-slate-700">
-            <button
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
-              onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
-              disabled={imgCarousel.idx === 0}
-            >
-              <span className="text-lg">‹</span>
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imgCarousel.images[imgCarousel.idx]} alt="" className="max-h-[70vh] w-full object-contain" />
-            <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
-              onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
-              disabled={imgCarousel.idx === imgCarousel.images.length - 1}
-            >
-              <span className="text-lg">›</span>
-            </button>
-            <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
+          <DialogContent className="max-w-4xl border-border/20 bg-black/95 p-3 sm:p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3 pr-8">
+                <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                  {imgCarousel.idx + 1} / {imgCarousel.images.length}
+                </span>
+                <span className="truncate text-[11px] text-white/60">
+                  {stringUtils.nombreArchivo(imgCarousel.images[imgCarousel.idx])}
+                </span>
+              </div>
+
+              <div className="relative flex items-center justify-center px-12">
+                {imgCarousel.images.length > 1 && (
+                  <Button type="button" variant="ghost" size="icon"
+                    className="absolute left-1 z-10 h-10 w-10 rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/25 hover:text-white disabled:opacity-30"
+                    onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
+                    disabled={imgCarousel.idx === 0}
+                    title="Anterior (flecha izquierda)"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imgCarousel.images[imgCarousel.idx]}
+                  alt={`Imagen ${imgCarousel.idx + 1} de ${imgCarousel.images.length}`}
+                  className="max-h-[65vh] w-full rounded-lg object-contain"
+                />
+                {imgCarousel.images.length > 1 && (
+                  <Button type="button" variant="ghost" size="icon"
+                    className="absolute right-1 z-10 h-10 w-10 rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/25 hover:text-white disabled:opacity-30"
+                    onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
+                    disabled={imgCarousel.idx === imgCarousel.images.length - 1}
+                    title="Siguiente (flecha derecha)"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                )}
+              </div>
+
+              {imgCarousel.images.length > 1 && (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {imgCarousel.images.map((url, i) => (
+                    <Button key={`${url}-${i}`} type="button" variant="ghost"
+                      className={`h-12 w-16 overflow-hidden rounded-md border p-0 transition-all ${
+                        i === imgCarousel.idx ? "border-white ring-2 ring-white/50" : "border-white/20 opacity-60 hover:opacity-100"
+                      }`}
+                      onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: i } : null)}
+                      title={`Ir a la imagen ${i + 1}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="" className="h-full w-full object-cover" />
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       )}
 
       {/* Post-submit modal — multi-stand flow explanation */}
       <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-xl">
+        <DialogContent className="rounded-xl border-border sm:max-w-md">
           <DialogHeader>
             <DialogTitle><span>Solicitud multiple enviada</span></DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-center">
-              <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-emerald-800">Tu solicitud ha sido registrada con exito</p>
-              <p className="text-xs text-emerald-600 mt-1">Sigue estos pasos para completar el proceso:</p>
+            <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
+              <Check className="mx-auto mb-2 h-8 w-8 text-success" />
+              <p className="text-sm font-bold text-foreground">Tu solicitud ha sido registrada con exito</p>
+              <p className="mt-1 text-xs text-muted-foreground">Sigue estos pasos para completar el proceso:</p>
             </div>
 
             <div className="space-y-0">
               {[
-                { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: "Solicitud creada", desc: "El administrador del IIMP ha sido notificado y revisara tu solicitud multiple." },
-                { icon: Upload, color: "bg-blue-100 text-blue-600", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial. Recibiras un correo cuando este listo para que puedas continuar." },
-                { icon: FileText, color: "bg-amber-100 text-amber-600", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard y adjunta los documentos requeridos para tu solicitud." },
-                { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: "Revision por areas", desc: "Tres areas (Comunicacion, Legal y Logistica) revisaran tu documentacion y emitiran su veredicto." },
-                { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion." },
+                { icon: ScrollText, color: "bg-success/10 text-success", title: "Solicitud creada", desc: "El administrador del IIMP ha sido notificado y revisara tu solicitud multiple." },
+                { icon: Upload, color: "bg-gold/15 text-gold", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial. Recibiras un correo cuando este listo para que puedas continuar." },
+                { icon: FileText, color: "bg-info/10 text-info", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard y adjunta los documentos requeridos para tu solicitud." },
+                { icon: ClipboardCheck, color: "bg-primary/10 text-primary", title: "Revision por areas", desc: "Tres areas (Comunicacion, Legal y Logistica) revisaran tu documentacion y emitiran su veredicto." },
+                { icon: Bell, color: "bg-secondary text-muted-foreground", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion." },
               ].map((s, i) => (
                 <div key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.color}`}>
                       <s.icon className="h-4 w-4" />
                     </div>
-                    {i < 4 && <div className="w-0.5 flex-1 bg-slate-200 my-0.5" />}
+                    {i < 4 && <div className="my-0.5 w-0.5 flex-1 bg-border" />}
                   </div>
                   <div className="pb-2">
-                    <p className="text-xs font-semibold text-slate-700">{s.title}</p>
-                    <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">{s.desc}</p>
+                    <p className="text-xs font-semibold text-foreground">{s.title}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-[11px] text-slate-500">
-                Monitorea el estado en <span className="font-mono text-emerald-600 font-medium">Mis solicitudes</span> desde el menu lateral del dashboard.
+            <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+              <p className="text-[11px] text-muted-foreground">
+                Monitorea el estado en <span className="font-medium text-primary">Mis solicitudes</span> desde el menu lateral del dashboard.
               </p>
             </div>
 
-            <Button className="w-full rounded-full" onClick={() => setPostSubmitOpen(false)}>
-              Entendido
+            <Button className="w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => setPostSubmitOpen(false)}>
+              <span>Entendido</span>
             </Button>
           </div>
         </DialogContent>
@@ -804,6 +963,34 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   );
 }
 
+function BadgeEstadoStand({ estado }: { estado: string | null }) {
+  const badge = estadoStandBadge(estado);
+  return (
+    <Badge className={`pointer-events-none text-[10px] ${badge?.clase ?? BADGE_STYLES.NEUTRAL}`}>
+      <span>{badge?.texto ?? estado ?? "-"}</span>
+    </Badge>
+  );
+}
+
+/** Titulo del modal de detalle: "Detalles: <tipo> - <id del bloque>". */
+function tituloDetalle(
+  detalle: GessInfoFull | null,
+  linkedMap: Map<string, GessInfoFull>,
+  items: PlanoItem[],
+  blockLabel: (type: PlanoItem["type"]) => { label: string; nombre: string },
+): string {
+  if (!detalle) return "Detalles";
+  const bloqueId = [...linkedMap.entries()].find(([, v]) => v === detalle)?.[0];
+  const item = items.find((it) => it.id === bloqueId);
+  const label = item ? blockLabel(item.type).label : "";
+  return `Detalles: ${label} - ${bloqueId ?? detalle.standCode}`;
+}
+
 function Legend({ color, label }: { color: string; label: string }) {
-  return <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm border" style={{ backgroundColor: color }} />{label}</span>;
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: color }} />
+      <span className="font-medium text-muted-foreground">{label}</span>
+    </span>
+  );
 }

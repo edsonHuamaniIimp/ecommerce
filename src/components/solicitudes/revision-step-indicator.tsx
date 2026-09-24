@@ -36,7 +36,7 @@ export function RevisionStepIndicator({
   onGoSgc,
 }: Props) {
   return (
-    <div className="mb-4 flex items-start justify-between px-2">
+    <div className="flex items-start justify-between">
       {areas.map((area, idx) => {
         const estado = stepState(area);
         const isCurrent = currentStep === idx;
@@ -58,14 +58,14 @@ export function RevisionStepIndicator({
               <span
                 className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ring-2 ${
                   isDone
-                    ? "bg-emerald-500 text-white shadow-sm shadow-emerald-200 ring-emerald-500/30"
+                    ? "bg-success text-success-foreground ring-success/30"
                     : isRejected
-                    ? "bg-red-500 text-white shadow-sm shadow-red-200 ring-red-500/30"
+                    ? "bg-destructive text-destructive-foreground ring-destructive/30"
                     : isCurrent
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-primary"
                     : isActive
-                    ? "bg-emerald-100 text-emerald-700 ring-emerald-200/50"
-                    : "bg-slate-100 text-slate-400 ring-transparent"
+                    ? "bg-success/15 text-success ring-success/20"
+                    : "bg-secondary text-muted-foreground ring-transparent"
                 }`}
               >
                 {isDone ? <Check className="h-4 w-4" /> : isRejected ? <X className="h-4 w-4" /> : idx + 1}
@@ -75,8 +75,8 @@ export function RevisionStepIndicator({
                   isCurrent
                     ? "font-bold text-primary"
                     : isActive
-                    ? "font-medium text-slate-600"
-                    : "font-normal text-slate-400"
+                    ? "font-medium text-foreground"
+                    : "font-normal text-muted-foreground"
                 }`}
               >
                 {REVISION_AREA_LABELS[area] ?? area}
@@ -84,8 +84,8 @@ export function RevisionStepIndicator({
             </button>
             {idx < areas.length - 1 && (
               <div
-                className={`mt-[18px] h-0.5 flex-1 rounded-full transition-colors duration-300 mx-1 ${
-                  isDone ? "bg-emerald-400" : isCurrent ? "bg-primary/40" : "bg-slate-200"
+                className={`mt-[18px] mx-1 h-0.5 flex-1 rounded-full transition-colors duration-300 ${
+                  isDone ? "bg-success" : isCurrent ? "bg-primary/40" : "bg-border"
                 }`}
               />
             )}
@@ -96,7 +96,7 @@ export function RevisionStepIndicator({
       {/* Paso delegado: la revisión Legal ahora la realiza el SGC */}
       {mostrarSgc && (
         <>
-          <div className={`mt-[18px] h-0.5 flex-1 rounded-full mx-1 ${sgcDone ? "bg-emerald-400" : "bg-slate-200"}`} />
+          <div className={`mt-[18px] mx-1 h-0.5 flex-1 rounded-full ${sgcDone ? "bg-success" : "bg-border"}`} />
           <button
             type="button"
             onClick={() => sgcCanGo && onGoSgc?.()}
@@ -109,10 +109,10 @@ export function RevisionStepIndicator({
             <span
               className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ring-2 ${
                 sgcDone
-                  ? "bg-emerald-500 text-white ring-emerald-500/30"
+                  ? "bg-success text-success-foreground ring-success/30"
                   : sgcCurrent
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-primary"
-                  : "border-2 border-dashed border-slate-300 text-slate-400 ring-transparent"
+                  : "border-2 border-dashed border-border text-muted-foreground ring-transparent"
               }`}
             >
               {sgcDone ? <Check className="h-4 w-4" /> : <Scale className="h-4 w-4" />}
@@ -122,8 +122,8 @@ export function RevisionStepIndicator({
                 sgcCurrent
                   ? "font-bold text-primary"
                   : sgcDone
-                  ? "font-medium text-slate-600"
-                  : "font-normal text-slate-400"
+                  ? "font-medium text-foreground"
+                  : "font-normal text-muted-foreground"
               }`}
             >
               {REVISION_AREA_SGC_LABEL}

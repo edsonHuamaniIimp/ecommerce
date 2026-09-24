@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, SESION } from "@/lib/shared/constants";
 import { setTokenCookie, clearTokenCookie, getTokenFromHeaders } from "@/lib/server/utils/cookie";
+import { registroSchema, registroConfirmarSchema } from "@/validators/auth.validator";
 import type { ApiErrorCode } from "@/lib/shared/constants";
+import type { RegistroRequestDTO } from "@/types/dto/auth/registro-request.dto";
+import type { RegistroResult } from "@/types/dto/auth/registro-result.dto";
+import type { RegistroConfirmarRequestDTO } from "@/types/dto/auth/registro-confirmar-request.dto";
+import type { RegistroConfirmarResult } from "@/types/dto/auth/registro-confirmar-result.dto";
+
+/** Mapeo del status de negocio del servicio al codigo de error de la API. */
+const CODIGO_ERROR_POR_STATUS: Record<number, ApiErrorCode> = {
+  400: API_ERROR_CODES.VALIDATION,
+  401: API_ERROR_CODES.UNAUTHORIZED,
+  403: API_ERROR_CODES.FORBIDDEN,
+  409: API_ERROR_CODES.CONFLICT,
+  502: API_ERROR_CODES.BAD_GATEWAY,
+};
 import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResponseDTO } from "@/types/dto/auth/login-response.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
@@ -22,12 +36,49 @@ export const authController = {
     const dto: LoginRequestDTO = await request.json();
     const result: LoginResult = await services.auth.login(dto);
     if ("error" in result) {
-      const code: ApiErrorCode = result.status === 403 ? API_ERROR_CODES.FORBIDDEN : API_ERROR_CODES.UNAUTHORIZED;
-      return error(code, result.error as string, result.status as number);
+      const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.UNAUTHORIZED;
+      return error(code, result.error, result.status);
     }
     const body: LoginResponseDTO = { token: result.token, roles: result.roles, email: result.email };
     const res = NextResponse.json(body);
-    setTokenCookie(res, result.token);
+    setTokenCookie(res, result.token, result.remember ? SESION.MAX_AGE_RECORDADA : SESION.MAX_AGE_ESTANDAR);
+    return res;
+  },
+
+  /** @request RegistroRequestDTO */
+  async registro(request: Request): Promise<NextResponse> {
+    const parsed = registroSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      const message = parsed.error.issues.map((issue) => issue.message).join("; ");
+      return error(API_ERROR_CODES.VALIDATION, message, 400);
+    }
+
+    const dto: RegistroRequestDTO = parsed.data;
+    const result: RegistroResult = await services.auth.registrar(dto);
+    if ("error" in result) {
+      const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.VALIDATION;
+      return error(code, result.error, result.status);
+    }
+    return success(result);
+  },
+
+  /** @request RegistroConfirmarRequestDTO */
+  async confirmarRegistro(request: Request): Promise<NextResponse> {
+    const parsed = registroConfirmarSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      const message = parsed.error.issues.map((issue) => issue.message).join("; ");
+      return error(API_ERROR_CODES.VALIDATION, message, 400);
+    }
+
+    const dto: RegistroConfirmarRequestDTO = parsed.data;
+    const result: RegistroConfirmarResult = await services.auth.confirmarRegistro(dto);
+    if ("error" in result) {
+      const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.VALIDATION;
+      return error(code, result.error, result.status);
+    }
+    const body: LoginResponseDTO = { token: result.token, roles: result.roles, email: result.email };
+    const res = NextResponse.json(body);
+    setTokenCookie(res, result.token, result.remember ? SESION.MAX_AGE_RECORDADA : SESION.MAX_AGE_ESTANDAR);
     return res;
   },
 
@@ -49,7 +100,7 @@ export const authController = {
     if (!tokenCookie) return error(API_ERROR_CODES.UNAUTHORIZED, "No autenticado", 401);
       const result: SeleccionarEventoResult = await services.auth.seleccionarEvento(dto, tokenCookie);
       const res = NextResponse.json({ ok: true, eventoId: result.eventoId, tipoEvento: result.tipoEvento, codigoEvento: result.codigoEvento });
-      res.headers.set("Set-Cookie", `token=${result.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${24 * 60 * 60}`);
+      setTokenCookie(res, result.token, result.maxAge);
       return res;
   },
 

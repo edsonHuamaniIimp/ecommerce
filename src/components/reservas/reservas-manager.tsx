@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHe
 import { Search, Eye, FileText } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
+import { gessService } from "@/lib/client/api/services/gess-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, PERMISSIONS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -64,18 +65,18 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
   const load = useCallback(async (p: number = 1, s?: string) => {
     setLoading(true);
     try {
-      const qs = new URLSearchParams({
-        eventoId,
+      const respuesta = await gessService.list(eventoId, {
         estado: ESTADOS_STAND.EN_EVALUACION,
-        page: String(p),
-        per_page: String(perPage),
+        page: p,
+        per_page: perPage,
+        ...(s ? { search: s } : {}),
       });
-      if (s) qs.set("search", s);
-
-      const res = await fetch(`/api/gess/listar?${qs.toString()}`, { credentials: "include" });
-      const json = await res.json() as { data: ReservaRow[]; pagination: { page: number; total: number; total_pages: number } };
-      setRows(json.data ?? []);
-      setPagination({ page: json.pagination.page, total: json.pagination.total, totalPages: json.pagination.total_pages });
+      setRows((respuesta.data ?? []) as ReservaRow[]);
+      setPagination({
+        page: respuesta.pagination.page,
+        total: respuesta.pagination.total,
+        totalPages: respuesta.pagination.total_pages,
+      });
     } catch { /* ignore */ }
     setLoading(false);
   }, [eventoId, perPage]);

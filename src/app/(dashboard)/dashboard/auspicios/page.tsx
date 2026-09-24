@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Select,
 import { Send, Gem, Loader2, RefreshCw, List, PlusCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { authService } from "@/lib/client/api/services/auth-service";
+import { auspiciosService } from "@/lib/client/api/services/auspicios-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { MONEDAS } from "@/lib/shared/constants";
@@ -54,6 +55,7 @@ export default function AuspiciosPage() {
   });
 
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
   useEffect(() => {
     authService.getSession().then((s) => {
@@ -61,6 +63,9 @@ export default function AuspiciosPage() {
         setTipoEvento(Number(s.tipoEvento));
         setCodigoEvento(Number(s.codigoEvento));
         setEventoNombre(s.eventoNombre ?? "");
+      } else {
+        // Sin tipo/codigo de evento no hay nada que listar: se corta el loader.
+        setErrorCarga("No se pudo determinar el tipo y codigo del evento activo.");
       }
     });
   }, []);
@@ -70,17 +75,7 @@ export default function AuspiciosPage() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/auspicios/listar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: tipoEvento, codeEvent: codigoEvento }),
-        });
-        const json = (await res.json()) as { success: boolean; data?: { auspicios?: Auspicio[] }; message?: string };
-        if (!json.success || !json.data?.auspicios) {
-          toast.error(json.message ?? "Error al listar auspicios");
-          return;
-        }
-        setAuspicios(json.data.auspicios);
+        setAuspicios(await auspiciosService.listar<Auspicio>(tipoEvento, codigoEvento));
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Error de conexion");
       } finally {
@@ -101,6 +96,10 @@ export default function AuspiciosPage() {
   };
 
   const handleRegister = async () => {
+    if (tipoEvento === null || codigoEvento === null) {
+      toast.error("Selecciona un evento para registrar auspicios");
+      return;
+    }
     if (!form.numDocumento || !form.empresa) {
       toast.error("RUC/DNI y empresa son requeridos");
       return;
@@ -113,28 +112,20 @@ export default function AuspiciosPage() {
 
     setRegistering(true);
     try {
-      const res = await fetch("/api/auspicios/grabar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: tipoEvento,
-          codeEvent: codigoEvento,
-          ...form,
-          TarifaAuspicio: tarifasValidas.map((t) => ({
-            codAuspicio: t.codAuspicio,
-            moneda: t.moneda,
-            importe: Number(t.importe),
-          })),
-        }),
+      await auspiciosService.grabar({
+        code: tipoEvento,
+        codeEvent: codigoEvento,
+        ...form,
+        TarifaAuspicio: tarifasValidas.map((t) => ({
+          codAuspicio: t.codAuspicio,
+          moneda: t.moneda,
+          importe: Number(t.importe),
+        })),
       });
-      const json = (await res.json()) as { success: boolean; message?: string };
-      if (json.success) {
-        toast.success("Auspicio registrado correctamente");
-        // Reset form after success
-        setForm(prev => ({ ...prev, numDocumento: "", empresa: "", direccion: "", telefono: "", email: "", sieCod: "", razonSocial: "", dirFacturacion: "", nombreContactoFact: "", correoContactoFact: "", glosa: "" }));
-        setTarifas([]);
-      }
-      else toast.error(json.message ?? "Error al registrar");
+      toast.success("Auspicio registrado correctamente");
+      // Reset form after success
+      setForm(prev => ({ ...prev, numDocumento: "", empresa: "", direccion: "", telefono: "", email: "", sieCod: "", razonSocial: "", dirFacturacion: "", nombreContactoFact: "", correoContactoFact: "", glosa: "" }));
+      setTarifas([]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error de conexion");
     }
@@ -272,20 +263,29 @@ export default function AuspiciosPage() {
   };
 
   const fetchAuspicios = () => {
+    if (tipoEvento === null || codigoEvento === null) return;
     setLoading(true);
-    fetch("/api/auspicios/listar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: tipoEvento, codeEvent: codigoEvento }),
-    })
-      .then((res) => res.json())
-      .then((json: { success: boolean; data?: { auspicios?: Auspicio[] } }) => {
-        if (json.success && json.data?.auspicios) {
-          setAuspicios(json.data.auspicios);
-        }
-      })
+    auspiciosService
+      .listar<Auspicio>(tipoEvento, codigoEvento)
+      .then(setAuspicios)
+      .catch(() => { /* se conserva la lista actual */ })
       .finally(() => setLoading(false));
   };
+
+  if (errorCarga) {
+    return (
+      <main className="flex-1 py-6">
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16">
+            <p className="text-sm text-muted-foreground">{errorCarga}</p>
+            <Button asChild variant="outline">
+              <a href="/presala?change=1"><span>Cambiar de evento</span></a>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   if (loading) {
     return (

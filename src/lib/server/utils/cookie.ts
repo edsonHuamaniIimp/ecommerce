@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { NextResponse } from "next/server";
+import { SESION } from "@/lib/shared/constants";
 
 const TOKEN_COOKIE = "token";
 
@@ -11,10 +12,12 @@ const COOKIE_DEFAULTS = {
   path: "/",
 } as const;
 
-const COOKIE_MAX_AGE = 24 * 60 * 60; // 24h
-
-export function setTokenCookie(res: NextResponse, token: string): void {
-  res.cookies.set(TOKEN_COOKIE, token, { ...COOKIE_DEFAULTS, maxAge: COOKIE_MAX_AGE });
+export function setTokenCookie(
+  res: NextResponse,
+  token: string,
+  maxAge: number = SESION.MAX_AGE_ESTANDAR,
+): void {
+  res.cookies.set(TOKEN_COOKIE, token, { ...COOKIE_DEFAULTS, maxAge });
 }
 
 export function clearTokenCookie(res: NextResponse): void {

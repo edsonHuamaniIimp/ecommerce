@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHe
 import { CreditCard, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { BADGE_STYLES, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION } from "@/lib/shared/constants";
@@ -502,11 +503,8 @@ export default function FacturacionPage() {
                 if (!payCuotaId || !comprobanteFile) return;
                 setUploadingComprobante(true);
                 try {
-                  const fd = new FormData(); fd.append("file", comprobanteFile);
-                  const upRes = await fetch("/api/upload", { method: "POST", body: fd });
-                  const upJson = await upRes.json() as { success?: boolean; data?: { url: string } };
-                  if (!upJson.success || !upJson.data?.url) throw new Error("Error al subir");
-                  await internalApi.post("/api/facturacion/pagar-cuota", { cuotaId: payCuotaId, comprobante: upJson.data.url });
+      const urlComprobante = await uploadService.subir(comprobanteFile);
+      await internalApi.post("/api/facturacion/pagar-cuota", { cuotaId: payCuotaId, comprobante: urlComprobante });
                   toast.success("Cuota pagada");
                   setPayCuotaId(null);
                   if (payRow) { const d = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${payRow.id}`); setPayRow(d); }

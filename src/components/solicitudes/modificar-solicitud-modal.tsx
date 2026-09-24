@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Button, Label, Textarea } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Upload, Trash2, Eye } from "lucide-react";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 
 interface Props {
   standCode: string;
@@ -22,13 +23,8 @@ export function ModificarSolicitudModal({ standCode, documentos: docsIniciales, 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const json = await res.json() as { success?: boolean; data?: { url: string } };
-      if (json.success && json.data?.url) {
-        setDocumentos((prev) => [...prev, json.data!.url]);
-      }
+      const url = await uploadService.subir(file);
+      setDocumentos((prev) => [...prev, url]);
     } catch { /* ignore */ }
     setUploading(false);
   };

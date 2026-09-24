@@ -7,11 +7,12 @@ import type { ReservaRequestDTO, ReservaResponseDTO } from "@/types/dto/reserva"
 
 export const gessService = {
   /** Paginado (para bandejas) */
-  list(eventoId: string, params?: { page?: number; per_page?: number; search?: string }) {
+  list(eventoId: string, params?: { page?: number; per_page?: number; search?: string; estado?: string }) {
     const qs = new URLSearchParams({ eventoId });
     if (params?.page) qs.set("page", String(params.page));
     if (params?.per_page) qs.set("per_page", String(params.per_page));
     if (params?.search) qs.set("search", params.search);
+    if (params?.estado) qs.set("estado", params.estado);
     return internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?${qs.toString()}`);
   },
   /** Todos los registros (plano, vinculacion) */

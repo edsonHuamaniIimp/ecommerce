@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2 } from "lucide-react";
 import Script from "next/script";
+import { facturacionService } from "@/lib/client/api/services/facturacion-service";
 
 interface NiubizData {
   sessionToken: string;
@@ -40,16 +41,9 @@ function PagarNiubizzPageContent() {
         return;
       }
       try {
-        const r = await fetch("/api/facturacion/niubizz/sesion", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ facturacionId }),
-        });
-        const json = (await r.json()) as { success: boolean; data?: NiubizData; error?: { message: string } };
-        if (json.success && json.data) setData(json.data);
-        else setError(json.error?.message ?? "Error");
-      } catch {
-        setError("Error de conexion");
+        setData((await facturacionService.sesionNiubizz(facturacionId)) as unknown as NiubizData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error de conexion");
       } finally {
         setLoading(false);
       }

@@ -16,6 +16,7 @@
 export const PUBLIC_ROUTES = [
   "/auth/login",
   "/presala",
+  "/mapa",
   "/",
   "/403",
 ] as const;
@@ -505,10 +506,59 @@ export const MONEDAS = {
 export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
 
 /* ================================================================
+   Solicitudes de cuenta de exhibidor
+   ================================================================ */
+export const ESTADOS_SOLICITUD_CUENTA = {
+  PENDIENTE: "pendiente",
+  APROBADA: "aprobada",
+  RECHAZADA: "rechazada",
+} as const;
+
+export type EstadoSolicitudCuenta = (typeof ESTADOS_SOLICITUD_CUENTA)[keyof typeof ESTADOS_SOLICITUD_CUENTA];
+
+/** Estados a los que un administrador puede llevar una solicitud de cuenta. */
+export const ESTADOS_SOLICITUD_CUENTA_REVISION = [
+  ESTADOS_SOLICITUD_CUENTA.APROBADA,
+  ESTADOS_SOLICITUD_CUENTA.RECHAZADA,
+] as const;
+
+/** Vigencia del enlace de invitacion que recibe el exhibidor al ser aprobado. */
+export const INVITACION_CUENTA_MINUTOS_VIGENCIA = 60;
+
+/** Vigencia del enlace de restablecimiento de contrasena (minutos). */
+export const RESET_PASSWORD_MINUTOS_VIGENCIA = 30;
+
+/** Milisegundos de un minuto (conversion de vigencias expresadas en minutos). */
+export const MS_POR_MINUTO = 60 * 1000;
+
+/** Verificacion de registro de exhibidor por codigo enviado al correo. */
+export const REGISTRO_CODIGO = {
+  /** Longitud del codigo numerico. */
+  LONGITUD: 6,
+  /** Vigencia del codigo (minutos). */
+  MINUTOS_VIGENCIA: 15,
+  /** Intentos fallidos permitidos antes de invalidar el registro. */
+  MAX_INTENTOS: 5,
+} as const;
+
+/* ================================================================
+   Sesion / cookie de autenticacion
+   ================================================================ */
+export const SESION = {
+  /** Duracion de la sesion estandar (24 horas). */
+  MAX_AGE_ESTANDAR: 24 * 60 * 60,
+  /** Duracion de la sesion marcada como "recordar" (30 dias). */
+  MAX_AGE_RECORDADA: 30 * 24 * 60 * 60,
+  /** Expiracion del JWT estandar. */
+  JWT_EXPIRACION_ESTANDAR: "24h",
+  /** Expiracion del JWT cuando se marca "recordar sesion". */
+  JWT_EXPIRACION_RECORDADA: "30d",
+} as const;
+
+/* ================================================================
    Claves de localStorage
    ================================================================ */
 export const LS_KEYS = {
-  VERTICAL: "iimp-vertical",
   EVENTO_PUBLICO: "iimp-evento-publico",
   EVENTO_PENDIENTE: "iimp-pending-evento",
   PLANO_SELECCION: "iimp-plano-seleccion",
@@ -571,6 +621,72 @@ export const BADGE_STYLES = {
 } as const;
 
 export type BadgeStyle = (typeof BADGE_STYLES)[keyof typeof BADGE_STYLES];
+
+/* ================================================================
+   Validaciones de formularios (longitudes y formatos)
+   ================================================================ */
+export const VALIDACIONES = {
+  PASSWORD_MIN: 6,
+  PASSWORD_MAX: 100,
+  EMAIL_MAX: 200,
+  NOMBRE_MAX: 200,
+  APELLIDOS_MAX: 200,
+  RAZON_SOCIAL_MAX: 200,
+  TELEFONO_MIN: 6,
+  TELEFONO_MAX: 20,
+  CARGO_MAX: 100,
+  RUC_LONGITUD: 11,
+  MENSAJE_MAX: 2000,
+} as const;
+
+/** Centinelas de UI: opciones que no representan un valor persistido. */
+export const UI_SENTINEL = {
+  SIN_VINCULAR: "__none__",
+} as const;
+
+/** Identificadores de los campos del formulario de registro de exhibidor. */
+export const CAMPOS_REGISTRO = {
+  EMAIL: "email",
+  PASSWORD: "password",
+  NOMBRE: "nombre",
+  APELLIDOS: "apellidos",
+  RAZON_SOCIAL: "razonSocial",
+  RUC: "ruc",
+  TELEFONO: "telefono",
+} as const;
+
+export type CampoRegistro = (typeof CAMPOS_REGISTRO)[keyof typeof CAMPOS_REGISTRO];
+
+/* ================================================================
+   Filtros de catalogo / bandejas
+   ================================================================ */
+/** Valor de filtro "sin filtrar", reutilizable en catalogos y bandejas. */
+export const FILTRO_TODOS = "todos";
+
+export const FILTROS_EVENTO = {
+  TODOS: FILTRO_TODOS,
+  VIGENTES: "vigentes",
+  OTRAS: "otras",
+} as const;
+
+export type FiltroEvento = (typeof FILTROS_EVENTO)[keyof typeof FILTROS_EVENTO];
+
+/* ================================================================
+   Colores del visor de stands
+   — La leyenda del chrome los replica; si cambian en el visor, cambiar aqui.
+   ================================================================ */
+export const COLOR_STAND_RESERVADO = "#9ca3af";
+export const COLOR_STAND_SELECCIONADO = "#f59e0b";
+
+/* ================================================================
+   Estilos de UI — portal de exhibidores
+   ================================================================ */
+export const PORTAL_UI = {
+  /** Input con icono a la izquierda. */
+  INPUT_CON_ICONO: "h-auto rounded-lg border-border bg-background py-2.5 pr-3 pl-10 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary",
+  /** Input con icono a la izquierda y accion a la derecha (ej. mostrar contrasena). */
+  INPUT_CON_ICONO_Y_ACCION: "h-auto rounded-lg border-border bg-background py-2.5 pr-10 pl-10 text-sm placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary",
+} as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];
 

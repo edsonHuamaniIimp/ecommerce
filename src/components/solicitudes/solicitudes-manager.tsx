@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
@@ -38,15 +38,16 @@ function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluacion
 
 function DetailSection({ id, title, open, onToggle, children }: { id: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden transition-shadow duration-200 hover:shadow-sm">
-      <button
+    <div className="overflow-hidden rounded-xl border border-border transition-shadow duration-200 hover:shadow-sm">
+      <Button
         type="button"
-        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50/80 transition-colors tracking-tight"
+        variant="ghost"
+        className="h-auto w-full justify-between rounded-none px-4 py-2.5 text-sm font-semibold tracking-tight text-foreground hover:bg-secondary"
         onClick={() => onToggle(id)}
       >
         <span>{title}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-      </button>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+      </Button>
       <div
         className={`grid transition-all duration-300 ease-in-out ${
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
@@ -283,30 +284,34 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Solicitudes de alquiler ({pagination.total})</span>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-col gap-3 border-b border-border pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-sm font-semibold text-primary">En bandeja</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                {pagination.total} {pagination.total === 1 ? "activa" : "activas"}
+              </span>
+            </div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => load(page, search, perPage)} disabled={loading}>
+                <Button variant="outline" size="sm" className="h-8 w-8 shrink-0 p-0" onClick={() => load(page, search, perPage)} disabled={loading}>
                   <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent><span>Recargar</span></TooltipContent>
             </Tooltip>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative max-w-xs flex-1">
-              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative w-full sm:flex-1">
+              <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Buscar por empresa o codigo de stand..." value={search} onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(1, e.currentTarget.value, perPage); } }}
-                className="pl-8 text-xs h-8" />
+                className="h-8 border-border bg-secondary pl-8 text-xs placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary" />
             </div>
             <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); load(1, search, Number(v)); }}>
-              <SelectTrigger className="w-[70px] h-8 text-xs">
+              <SelectTrigger className="h-8 w-[70px] shrink-0 border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -316,41 +321,45 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               </SelectContent>
             </Select>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-4">
 
           {loading ? (
             <TableSkeleton rows={perPage} columns={7} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">No hay solicitudes de alquiler pendientes.</p>
-              <p className="text-xs text-muted-foreground mt-1">Cuando un expositor solicite una reserva, aparecera aqui para su revision.</p>
+              <p className="text-sm font-medium text-muted-foreground">No hay solicitudes de alquiler pendientes.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Cuando un expositor solicite una reserva, aparecera aqui para su revision.</p>
             </div>
           ) : (
             <>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead><span>Stand</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span>Empresa</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span>Tipo</span></TableHead>
-                      <TableHead><span>Revision</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span>Docs</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span>Fecha</span></TableHead>
-                      <TableHead className="text-right"><span>Accion</span></TableHead>
+                    <TableRow className="bg-secondary">
+                      <TableHead><span className="text-[10px] uppercase">Stand</span></TableHead>
+                      <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Empresa</span></TableHead>
+                      <TableHead className="hidden md:table-cell"><span className="text-[10px] uppercase">Tipo</span></TableHead>
+                      <TableHead><span className="text-[10px] uppercase">Revision</span></TableHead>
+                      <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Docs</span></TableHead>
+                      <TableHead className="hidden md:table-cell"><span className="text-[10px] uppercase">Fecha</span></TableHead>
+                      <TableHead className="text-right"><span className="text-[10px] uppercase">Accion</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => {
                       return (
-                        <TableRow key={row.id}>
-                          <TableCell className="font-mono text-xs font-medium">
-                            {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
-                            {row.bloqueId && <span className="block text-[10px] text-muted-foreground font-normal">{row.bloqueId}</span>}
+                        <TableRow key={row.id} className="transition-colors hover:bg-secondary/60">
+                          <TableCell className="font-medium">
+                            <span className="inline-flex items-center rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
+                              {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
+                            </span>
+                            {row.bloqueId && <span className="mt-0.5 block font-mono text-[10px] font-normal text-muted-foreground">{row.bloqueId}</span>}
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell max-w-[140px] truncate text-xs text-muted-foreground" title={row.empresa ?? ""}>
+                          <TableCell className="hidden max-w-[140px] truncate text-xs text-foreground sm:table-cell" title={row.empresa ?? ""}>
                             {row.empresa ?? "—"}
                           </TableCell>
-                          <TableCell className="hidden md:table-cell text-xs">{row.tipoStand ?? "—"}</TableCell>
+                          <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{row.tipoStand ?? "—"}</TableCell>
                           <TableCell>
                              {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
@@ -432,7 +441,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                               {estaRechazada(row) && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                                       onClick={() => { setBajaRow(row); setBajaOpen(true); }}>
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
@@ -454,7 +463,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                               {tieneReevaluacionPendiente(row) && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-amber-500 hover:bg-amber-600"
+                                    <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-warning hover:bg-warning/90"
                                       onClick={() => { setReevaluacionRow(row); setReevaluacionOpen(true); }}>
                                       <AlertTriangle className="h-3.5 w-3.5" />
                                     </Button>
@@ -465,7 +474,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                               {estaPendientePago(row) && !row.tieneFacturacion && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-indigo-500 hover:bg-indigo-600"
+                                    <Button variant="default" size="sm" className="h-7 w-7 p-0 bg-primary hover:bg-primary/90"
                                       onClick={async () => {
                                         try {
                                           await solicitudesService.ordenPago({ solicitudId: row.id });
@@ -487,7 +496,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
                   {pagination.total} resultados — pagina {pagination.page} de {pagination.totalPages || 1}
                 </span>
@@ -506,8 +515,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col !px-0 !py-0 overflow-hidden">
           {/* Header */}
-          <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
-            <h3 className="text-sm font-semibold text-slate-800">Detalle de solicitud</h3>
+          <div className="shrink-0 px-5 pt-4 pb-2 border-b border-border !pr-12">
+            <h3 className="text-sm font-semibold text-foreground">Detalle de solicitud</h3>
           </div>
           {/* Body */}
           <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2">
@@ -516,7 +525,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               {/* Info general — siempre visible */}
               <DetailSection id="info" title="Informacion general" open={accordionOpen === "info"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-slate-400 ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
+                  <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-muted-foreground ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
                   <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "—"}</span></div>
                   <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
                   <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "—"}</span></div>
@@ -541,11 +550,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 <DetailSection id="imagenes" title={`Imagenes (${detailRow.imagenes.length})`} open={accordionOpen === "imagenes"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                   <div className="flex gap-1.5">
                     {detailRow.imagenes.slice(0, 4).map((url: string, i: number) => (
-                      <button key={i}
-                        className="h-14 w-14 overflow-hidden rounded border hover:opacity-80 transition-opacity"
+                      <Button key={i} type="button" variant="ghost"                        className="h-14 w-14 overflow-hidden rounded border p-0 hover:opacity-80"
                         onClick={() => setImgCarousel({ images: detailRow.imagenes as string[], idx: i })}>
                         <Image width={64} height={64} src={url} alt={`Imagen ${i + 1}`} className="h-full w-full object-cover" />
-                      </button>
+                      </Button>
                     ))}
                     {detailRow.imagenes.length > 4 && (
                       <span className="flex h-14 w-14 items-center justify-center rounded border bg-muted text-xs text-muted-foreground">
@@ -579,14 +587,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       <div className="space-y-2">
                         {adminDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">Administrador ({adminDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-blue-200 bg-blue-50/50 p-2">
+                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
+                            <div className="space-y-0.5 rounded-md border border-info/30 bg-info/10 p-2">
                               {adminDocs.map((doc, i) => (
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                                  <a href={doc.url} target="_blank" className="text-blue-700 hover:text-blue-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-slate-400 shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="text-slate-400 hover:text-slate-600 shrink-0">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
+                                  <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
                                 </div>
@@ -596,14 +604,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                         )}
                         {clienteDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">Cliente ({clienteDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-green-200 bg-green-50/50 p-2">
+                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Cliente ({clienteDocs.length})</p>
+                            <div className="space-y-0.5 rounded-md border border-success/30 bg-success/10 p-2">
                               {clienteDocs.map((doc, i) => (
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                                  <a href={doc.url} target="_blank" className="text-green-700 hover:text-green-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-slate-400 shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="text-slate-400 hover:text-slate-600 shrink-0">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
+                                  <a href={doc.url} target="_blank" className="text-success hover:text-green-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
                                 </div>
@@ -620,10 +628,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               {/* Pendiente: admin debe subir contrato */}
               {detailRow.standCodes && detailRow.standCodes.length > 1 && estaPendiente(detailRow) && !tieneDocsAdmin(detailRow) && (
                 <DetailSection id="accion" title="Accion requerida" open={accordionOpen === "accion"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                    <Clock className="h-5 w-5 text-amber-500 mx-auto mb-1" />
-                    <p className="text-xs font-semibold text-amber-700">Pendiente: Subir Contrato</p>
-                    <p className="text-[11px] text-amber-600 mt-0.5">Debes subir el contrato como administrador para que el cliente pueda adjuntar sus documentos y continuar con el proceso.</p>
+                  <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-center">
+                    <Clock className="h-5 w-5 text-warning mx-auto mb-1" />
+                    <p className="text-xs font-semibold text-warning">Pendiente: Subir Contrato</p>
+                    <p className="text-[11px] text-warning mt-0.5">Debes subir el contrato como administrador para que el cliente pueda adjuntar sus documentos y continuar con el proceso.</p>
                   </div>
                 </DetailSection>
               )}
@@ -636,9 +644,9 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       const docs = (reev.documentos as string[]) ?? [];
                       return (
                       <div key={i} className={`rounded px-3 py-2 text-xs ${
-                        reev.estado === ESTADOS_REEVALUACION.APROBADO ? "bg-green-50 border border-green-200"
-                        : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "bg-red-50 border border-red-200"
-                        : "bg-amber-50 border border-amber-200"
+                        reev.estado === ESTADOS_REEVALUACION.APROBADO ? "bg-success/10 border border-success/30"
+                        : reev.estado === ESTADOS_REEVALUACION.RECHAZADO ? "bg-destructive/10 border border-destructive/30"
+                        : "bg-warning/10 border border-warning/30"
                       }`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">Solicitud de re-evaluacion</span>
@@ -666,7 +674,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                             ))}
                           </div>
                         )}
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1">
                           <span>{dateUtils.formatDateTime(reev.createdAt)}</span>
                           {reev.createdBy && <span>{reev.createdBy}</span>}
                         </div>
@@ -712,7 +720,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           </div>
           {/* Footer */}
           {hasViewPerm && detailRow && !estaPendientePago(detailRow) && !necesitaDocs(detailRow) && (
-            <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex justify-end">
+            <div className="shrink-0 border-t border-border px-5 py-3 flex justify-end">
               <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold" onClick={() => {
                 setDetailOpen(false);
                 setReviewRow(detailRow);
@@ -786,9 +794,9 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 return (
                   <>
                     {reev.motivo && (
-                      <div className="rounded-lg border bg-amber-50 p-3">
-                        <p className="text-[10px] font-semibold text-amber-700 mb-1">Justificacion del cliente:</p>
-                        <p className="text-xs text-slate-700 italic">&quot;{reev.motivo}&quot;</p>
+                      <div className="rounded-lg border bg-warning/10 p-3">
+                        <p className="text-[10px] font-semibold text-warning mb-1">Justificacion del cliente:</p>
+                        <p className="text-xs text-foreground italic">&quot;{reev.motivo}&quot;</p>
                       </div>
                     )}
                     {reev.documentos && Array.isArray(reev.documentos) && (reev.documentos as string[]).length > 0 && (
@@ -804,13 +812,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       </div>
                     )}
                     {reev.createdBy && (
-                      <p className="text-[11px] text-slate-400">Enviada por: {reev.createdBy}</p>
+                      <p className="text-[11px] text-muted-foreground">Enviada por: {reev.createdBy}</p>
                     )}
                   </>
                 );
               })()}
               <div className="flex gap-2">
-                <Button variant="default" size="sm" className="flex-1 rounded-full text-xs bg-emerald-600 hover:bg-emerald-700"
+                <Button variant="default" size="sm" className="flex-1 rounded-full text-xs bg-primary hover:bg-primary/90"
                   onClick={() => handleAtenderReevaluacion("aprobar")}>
                   <span>Aprobar</span>
                 </Button>
@@ -830,7 +838,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           <DialogHeader>
             <DialogTitle><span>Confirmar rechazo</span></DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600">Al rechazar, la solicitud se eliminara y el stand volvera a estar disponible.</p>
+          <p className="text-sm text-muted-foreground">Al rechazar, la solicitud se eliminara y el stand volvera a estar disponible.</p>
           <div className="flex gap-2 pt-2">
             <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => setReevaluacionAction(null)}>
               <span>Cancelar</span>
@@ -851,10 +859,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           </DialogHeader>
           {bajaRow && (
             <div className="space-y-3 text-sm">
-              <div className="text-xs text-slate-600">
+              <div className="text-xs text-muted-foreground">
                 La solicitud del stand <strong className="font-mono">{bajaRow.standCode}</strong> esta en estado <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>Rechazado</Badge>.
               </div>
-              <p className="text-xs text-slate-500">Al darla de baja, se eliminara logicamente y el stand volvera a estar disponible.</p>
+              <p className="text-xs text-muted-foreground">Al darla de baja, se eliminara logicamente y el stand volvera a estar disponible.</p>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => setBajaOpen(false)}>
                   <span>Cancelar</span>
@@ -876,13 +884,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           </DialogHeader>
           {uploadRow && (
             <div className="space-y-3 text-sm">
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-muted-foreground">
                 Solicitud multiple: <strong className="font-mono">{uploadRow.standCodes?.join(", ")}</strong>
               </p>
-              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 p-6 hover:border-primary hover:bg-primary/5 transition-colors">
-                <Upload className="h-6 w-6 text-slate-400" />
-                <span className="text-xs text-slate-500">{uploading ? "Subiendo..." : "Click para seleccionar archivo"}</span>
-                <span className="text-[10px] text-slate-400">PDF, DOC, DOCX — max 10 MB</span>
+              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 hover:border-primary hover:bg-primary/5 transition-colors">
+                <Upload className="h-6 w-6 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">{uploading ? "Subiendo..." : "Click para seleccionar archivo"}</span>
+                <span className="text-[10px] text-muted-foreground">PDF, DOC, DOCX — max 10 MB</span>
                 <input type="file" className="hidden" accept=".pdf,.doc,.docx" disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -905,21 +913,21 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       {imgCarousel && (
         <Dialog open={true} onOpenChange={() => setImgCarousel(null)}>
           <DialogContent className="sm:max-w-2xl bg-black/90 border-slate-700">
-            <button
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
+            <Button type="button" variant="ghost" size="icon"
+              className="absolute left-2 top-1/2 z-10 h-auto w-auto -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 hover:text-white"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
               <span className="text-lg">‹</span>
-            </button>
+            </Button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
-            <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"
+            <Button type="button" variant="ghost" size="icon"
+              className="absolute right-2 top-1/2 z-10 h-auto w-auto -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 hover:text-white"
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
               <span className="text-lg">›</span>
-            </button>
+            </Button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>
         </Dialog>

@@ -25,6 +25,9 @@ import { PresalaApplicationService } from "@/application/eventos/presala-service
 import { GessApplicationService } from "@/application/gess/gess-service";
 import { ReservaApplicationService } from "@/application/reservas/reserva-service";
 import { AuthApplicationService } from "@/application/auth/auth-service";
+import { DashboardApplicationService } from "@/application/dashboard/dashboard-service";
+import { SolicitudCuentaApplicationService } from "@/application/solicitud-cuenta/solicitud-cuenta-service";
+import { SolicitudCuentaPrismaRepository } from "@/infrastructure/persistence/solicitud-cuenta-repository";
 import { SolicitudesApplicationService } from "@/application/solicitudes/solicitudes-service";
 import { PlanoApplicationService } from "@/application/planos/planos-service";
 
@@ -32,6 +35,7 @@ const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
 const roleRepo = new RolePrismaRepository();
 const authRepo = new AuthPrismaRepository();
+const solicitudCuentaRepo = new SolicitudCuentaPrismaRepository();
 const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
@@ -54,7 +58,9 @@ export const services = {
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo),
-  auth: new AuthApplicationService(authRepo),
+  auth: new AuthApplicationService(authRepo, roleRepo),
+  dashboard: new DashboardApplicationService(gessRepo),
+  solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo),
   kbServicios: kbServiciosClient,
   planogess: planogessClient,
   sgc: sgcIntegracion,

@@ -9,8 +9,10 @@ import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { internalApi } from "@/lib/client/api/services/internal-api";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES } from "@/lib/shared/constants";
+import { stringUtils } from "@/lib/shared/utils/string";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import type { GessStandDTO } from "@/types/dto/gess";
 
@@ -101,12 +103,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
   }, [load]);
 
   const handleUpload = async (file: File): Promise<string> => {
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    const json = await res.json();
-    if (json.success) return json.data.url;
-    throw new Error(json.error?.message ?? "Error al subir");
+    return uploadService.subir(file);
   };
 
   const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,7 +150,11 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle><span>Stands vinculados ({pagination.total})</span></CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle><span>Gestión de Stands</span></CardTitle>
+            <Badge variant="outline"><span>{pagination.total}</span></Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">Administra el expediente digital (documentos e imágenes) de los stands vinculados.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3">
@@ -179,13 +180,13 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead><span>Stand</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span>Bloque</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span>Tipo</span></TableHead>
-                      <TableHead><span>Estado</span></TableHead>
-                      <TableHead className="hidden lg:table-cell"><span>Empresa</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span>Archivos</span></TableHead>
-                      <TableHead className="text-right"><span>Accion</span></TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide"><span>Stand</span></TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell"><span>Bloque</span></TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell"><span>Tipo</span></TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide"><span>Estado</span></TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell"><span>Empresa</span></TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell"><span>Archivos</span></TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide"><span>Acción</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -235,7 +236,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Contrato ({editDocs.length})</p>
               </div>
-              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 py-3 text-xs text-muted-foreground hover:border-primary hover:bg-primary/5 transition-colors">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary py-3 text-xs text-muted-foreground hover:border-primary hover:bg-primary/5 transition-colors">
                 <span>📄</span>
                 <span>Subir contrato (PDF, DOC, DOCX)</span>
                 <input type="file" className="hidden" onChange={handleDocUpload} accept=".pdf,.doc,.docx" />
@@ -244,7 +245,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 <div className="mt-2 divide-y rounded-md border">
                   {editDocs.map((url, i) => {
                     const isPdf = url.endsWith(".pdf");
-                    const name = url.split("/").pop() ?? url;
+                    const name = stringUtils.nombreArchivo(url);
                     return (
                       <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs">
                         <span>{isPdf ? "📕" : "📎"}</span>
@@ -269,7 +270,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Imagenes ({editImgs.length})</p>
               </div>
-              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 py-3 text-xs text-muted-foreground hover:border-primary hover:bg-primary/5 transition-colors">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary py-3 text-xs text-muted-foreground hover:border-primary hover:bg-primary/5 transition-colors">
                 <span>🖼️</span>
                 <span>Subir imagenes (JPG, PNG, WEBP)</span>
                 <input type="file" className="hidden" onChange={handleImgUpload} accept="image/*" multiple />
@@ -278,8 +279,8 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 <div className="mt-2 divide-y rounded-md border">
                   {editImgs.map((url, i) => (
                     <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs">
-                      <Image width={28} height={28} src={url} alt={url.split("/").pop() ?? "Imagen del stand"} className="h-7 w-7 rounded object-cover" />
-                      <span className="flex-1 truncate font-mono">{url.split("/").pop()}</span>
+                      <Image width={28} height={28} src={url} alt={stringUtils.nombreArchivo(url) || "Imagen del stand"} className="h-7 w-7 rounded object-cover" />
+                      <span className="flex-1 truncate font-mono">{stringUtils.nombreArchivo(url)}</span>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="Ver">
                         <a href={url} target="_blank"><Eye className="h-3.5 w-3.5" /></a>
                       </Button>

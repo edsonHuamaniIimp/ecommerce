@@ -23,7 +23,7 @@
 ## 2. Middleware (`src/middleware.ts`)
 
 - **Matcher:** todas las rutas excepto `_next/static`, `_next/image`, `favicon.ico`, `sitemap.xml`, `robots.txt`.
-- **Rutas públicas:** `/`, `/auth/login`, `/presala`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
+- **Rutas públicas:** `/`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
   rutas exactas `/api/maestra`, `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`,
   `/api/planos/publico`; caso especial `GET /api/eventos/listar?presala=1`.
 - **Autenticación:** extrae el token JWT de la cookie `token` y lo verifica con `verifyToken`.
@@ -48,6 +48,8 @@
 | `/api/auth/perfil` | GET | Perfil del usuario autenticado |
 | `/api/auth/perfil` | PATCH | Actualiza datos del perfil |
 | `/api/auth/login` | POST | Login; emite JWT en cookie httpOnly |
+| `/api/auth/registro` | POST | Inicia el registro de exhibidor: guarda datos temporales (password hasheada) y envia un codigo de verificacion al correo |
+| `/api/auth/registro/confirmar` | POST | Confirma el registro con el codigo; crea la cuenta (rol cliente) con auto-login y emite JWT en cookie httpOnly |
 | `/api/auth/logout` | POST | Cierra sesión y limpia la cookie |
 | `/api/auth/seleccionar-evento` | POST | Fija evento activo y reemite token con `eventoId`/`tipoEvento`/`codigoEvento` |
 | `/api/auth/reset-password` | POST | Solicita restablecimiento de contraseña |
@@ -225,3 +227,14 @@
 2. **Sincronizar `docs/04-api/openapi.yaml`** con este inventario real.
 3. **Endurecer permisos** del middleware por endpoint (hoy por prefijo).
 4. **Documentar payloads** de cada endpoint con ejemplos (parcialmente en `openapi.yaml`).
+
+### 5.1 Gaps funcionales: diseño Stitch (Gestión de Stands / Vinculación de Stands)
+
+Elementos del diseño que dependen de endpoints o parámetros que aún no existen. No implementar en UI hasta tener la fuente de datos.
+
+- **Gestión de Stands — KPIs y contadores.** El diseño muestra 4 tarjetas de KPI. No hay endpoint de conteos agregados; hoy solo se conoce `pagination.total` de `/api/stands` (paginado). Falta un endpoint de resumen (p. ej. `GET /api/stands/resumen` con conteos por estado, documentos e imágenes).
+- **Gestión de Stands — filtro por Pabellón.** El modelo de stand no expone `pabellon` como campo consultable ni parámetro de filtro. Falta campo en el entity/DTO y soporte de filtro en el listado.
+- **Gestión de Stands — tabs por estado.** No existe parámetro de estado en el listado de stands. Falta `estado` como query param en `/api/stands` (o en el resumen).
+- **Vinculación de Stands — KPIs.** Mismo caso que Gestión: sin endpoint de conteos para el paso 1 (API) ni el paso 2 (bloques/BD).
+- **Vinculación de Stands — visor CAD y leyenda de geometrías.** No existe fuente de geometría (visor CAD) ni metadatos de leyenda de estados por bloque.
+- **Vinculación de Stands — "Ejecutar Coincidencia Rápida".** El flujo de coincidencia automática no existe; el paso 2 hoy vincula manualmente por tabla (combobox por bloque).

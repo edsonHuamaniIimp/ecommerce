@@ -10,20 +10,6 @@ import { ROLES, LS_KEYS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { EventoPadrePresalaDTO } from "@/types/dto/models";
 
-const VERTICAL_COLORS: Record<string, string> = {
-  proexplo: "#d97706",
-  wmc: "#0891b2",
-  "world-mining-congress": "#0891b2",
-  gess: "#16a34a",
-  perumin: "#b45309",
-  "difusion-minera": "#7c3aed",
-  eventos: "#0ea5e9",
-};
-
-function verticalColor(vertical: string): string {
-  return VERTICAL_COLORS[vertical] ?? "#6b7280";
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [eventos, setEventos] = useState<EventoPadrePresalaDTO[]>([]);
@@ -50,22 +36,14 @@ export default function HomePage() {
     })();
   }, [router]);
 
-  const handleSelect = async (eventoId: string, vertical: string) => {
+  const handleSelect = async (eventoId: string) => {
     if (!isAuth) {
       localStorage.setItem(LS_KEYS.EVENTO_PENDIENTE, eventoId);
-      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
-      document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
-      document.documentElement.classList.add(`vert-${vertical}`);
-      document.documentElement.setAttribute("data-vertical", vertical);
       router.push("/auth/login");
       return;
     }
     try {
       await authService.seleccionarEvento({ eventoId });
-      localStorage.setItem(LS_KEYS.VERTICAL, vertical);
-      document.documentElement.classList.forEach((c) => { if (c.startsWith("vert-")) document.documentElement.classList.remove(c); });
-      document.documentElement.classList.add(`vert-${vertical}`);
-      document.documentElement.setAttribute("data-vertical", vertical);
       router.push("/dashboard");
     } catch { /* ignore */ }
   };
@@ -97,7 +75,7 @@ export default function HomePage() {
               <Card key={ep.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-bold text-white" style={{ backgroundColor: verticalColor(ep.vertical) }}>{ep.nombre.charAt(0)}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">{ep.nombre.charAt(0)}</span>
                     <span>{ep.nombre}</span>
                     <Badge variant="outline" className="ml-1 text-[10px]"><span>{ep.vertical}</span></Badge>
                   </CardTitle>
@@ -105,28 +83,32 @@ export default function HomePage() {
                 <CardContent>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {ep.versiones.map((ver) => (
-                      <button
+                      <Button
                         key={ver.id}
                         type="button"
-                        onClick={() => handleSelect(ver.id, ep.vertical)}
-                        className="flex flex-col gap-1 rounded-lg border p-4 text-left transition-all hover:shadow-md"
-                        style={{ borderColor: "transparent", ...({ "--hover-color": verticalColor(ep.vertical) } as React.CSSProperties) }}
-                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = verticalColor(ep.vertical); }}
-                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "transparent"; }}
+                        variant="outline"
+                        onClick={() => handleSelect(ver.id)}
+                        className="h-auto w-full flex-col items-start gap-1 rounded-lg border-border bg-card p-4 text-left font-normal whitespace-normal transition-all hover:border-primary/40 hover:bg-card hover:shadow-md"
                       >
                         <span className="text-sm font-semibold">{ep.nombre} {ver.anio}</span>
                         {(ver.fecha_inicio || ver.fecha_fin) && (
                           <span className="text-xs text-muted-foreground">{dateUtils.format(ver.fecha_inicio)} — {dateUtils.format(ver.fecha_fin)}</span>
                         )}
                         <div className="mt-2 flex items-center justify-between">
-                          <Badge variant={ver.estado === "active" ? "default" : "secondary"} className="text-[10px]">
+                          <Badge
+                            className={
+                              ver.estado === "active"
+                                ? "pointer-events-none border-transparent bg-success/10 text-success"
+                                : "pointer-events-none border-transparent bg-muted text-muted-foreground"
+                            }
+                          >
                             <span>{ver.estado === "active" ? "Vigente" : ver.estado}</span>
                           </Badge>
-                          <span className="rounded-md px-2 py-1 text-xs font-medium text-white transition-colors" style={{ backgroundColor: verticalColor(ep.vertical) }}>
+                          <span className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-colors">
                             {isAuth ? "Ingresar" : "Ver"}
                           </span>
                         </div>
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </CardContent>

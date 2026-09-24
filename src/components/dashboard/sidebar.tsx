@@ -23,7 +23,7 @@ const navItems = [
   { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
-  { href: "/plano", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
+  { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
 ] as const;
 
 interface Props {
@@ -65,7 +65,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
           <>
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">IIMP</span>
-              <span className="text-xs font-semibold text-slate-700">Contratos Stands</span>
+              <span className="text-xs font-semibold text-foreground">Contratos Stands</span>
             </div>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 lg:hidden" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -122,7 +122,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
     <>
       {/* Desktop: permanent */}
       <aside className={cn(
-        "hidden lg:flex flex-col border-r bg-white transition-all duration-300 shrink-0",
+        "hidden shrink-0 flex-col border-r border-border bg-card transition-all duration-300 lg:flex",
         collapsed ? "w-[56px]" : "w-56"
       )}>
         {content}
@@ -131,7 +131,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
       {/* Mobile: overlay */}
       <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${open ? "visible" : "invisible"}`}>
         <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
-        <aside className={`absolute left-0 top-0 bottom-0 w-64 flex flex-col bg-white shadow-xl z-10 transition-transform duration-300 ease-out ${open ? "translate-x-0" : "-translate-x-full"}`}>
+        <aside className={`absolute top-0 bottom-0 left-0 z-10 flex w-64 flex-col bg-card shadow-xl transition-transform duration-300 ease-out ${open ? "translate-x-0" : "-translate-x-full"}`}>
           {content}
         </aside>
       </div>

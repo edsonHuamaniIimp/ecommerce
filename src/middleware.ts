@@ -24,6 +24,8 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/dashboard/roles", permission: PERMISSIONS.ROLES_MANAGE },
   { path: "/dashboard/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
   { path: "/api/roles", permission: PERMISSIONS.ROLES_MANAGE },
+  { path: "/api/solicitudes-cuenta", permission: PERMISSIONS.ROLES_MANAGE },
+  { path: "/api/dashboard" },
   { path: "/api/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
   { path: "/api/solicitudes", permission: PERMISSIONS.SOLICITUDES_VIEW },
   { path: "/api/sgc", permission: PERMISSIONS.SOLICITUDES_VIEW },
@@ -32,7 +34,6 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/exhibidoras" },
   { path: "/api/alertas" },
   { path: "/plano", permission: PERMISSIONS.STANDS_PLANO },
-  { path: "/mapa", permission: PERMISSIONS.STANDS_PLANO },
   { path: "/dashboard" },
 ];
 

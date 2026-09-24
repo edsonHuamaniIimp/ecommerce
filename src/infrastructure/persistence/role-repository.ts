@@ -10,6 +10,11 @@ export class RolePrismaRepository implements IRoleRepository {
     return rows;
   }
 
+  async findByNombre(nombre: string) {
+    const row = await prisma.role.findUnique({ where: { nombre } });
+    return row ? { ...row, usuarios: [] } : null;
+  }
+
   async create(nombre: string, descripcion: string | null, permisos: string[]) {
     const row = await prisma.role.create({ data: { nombre, descripcion, permisos } });
     return { ...row, usuarios: [] };

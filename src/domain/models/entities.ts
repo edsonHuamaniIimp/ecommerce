@@ -1,5 +1,25 @@
 import type { Rol } from "@/lib/shared/constants";
 
+/** Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico. */
+export interface SolicitudCuentaEntity {
+  id: string;
+  email: string;
+  nombre: string;
+  apellidos: string;
+  telefono: string | null;
+  razonSocial: string;
+  ruc: string | null;
+  cargo: string | null;
+  mensaje: string | null;
+  estado: string;
+  motivoRechazo: string | null;
+  revisadoPor: string | null;
+  revisadoEn: Date | null;
+  usuarioId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface EventoPadreEntity {
   id: string;
   codigo: string;

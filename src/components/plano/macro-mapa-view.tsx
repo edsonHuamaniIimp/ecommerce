@@ -71,31 +71,35 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Layers className="h-4 w-4 text-violet-600" />
-        <h2 className="text-sm font-semibold text-slate-800">{nombrePlano} — Mapa de pabellones</h2>
-        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1 py-0.5 ml-2">
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 rounded-full" title="Alejar" onClick={() => setZoom((z) => clamp(z - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))}>
-            <ZoomOut className="h-3.5 w-3.5" />
-          </Button>
-          <span className="text-[10px] font-mono font-semibold text-slate-600 w-10 text-center">{Math.round(zoom * 100)}%</span>
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 rounded-full" title="Acercar" onClick={() => setZoom((z) => clamp(z + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))}>
-            <ZoomIn className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 rounded-full" title="Zoom 100%" onClick={() => setZoom(1)}>
-            <Maximize className="h-3.5 w-3.5" />
-          </Button>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-bold text-primary">{nombrePlano} — Mapa de pabellones</h2>
         </div>
-        <div className="ml-auto flex items-center gap-3 text-[10px] text-slate-500">
-          <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#22c55e" }} /> Disponible</span>
-          <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#f59e0b" }} /> Pocos</span>
-          <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#ef4444" }} /> Casi lleno</span>
-          <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: "#94a3b8" }} /> Sin datos</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-secondary px-1 py-0.5">
+            <Button size="sm" variant="ghost" className="h-6 w-6 rounded-full p-0" title="Alejar" onClick={() => setZoom((z) => clamp(z - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))}>
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+            <span className="w-10 text-center font-mono text-[10px] font-semibold text-muted-foreground">{Math.round(zoom * 100)}%</span>
+            <Button size="sm" variant="ghost" className="h-6 w-6 rounded-full p-0" title="Acercar" onClick={() => setZoom((z) => clamp(z + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))}>
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-6 w-6 rounded-full p-0" title="Zoom 100%" onClick={() => setZoom(1)}>
+              <Maximize className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#22c55e" }} /> Disponible</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#f59e0b" }} /> Pocos</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#ef4444" }} /> Casi lleno</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#94a3b8" }} /> Sin datos</span>
+          </div>
         </div>
       </div>
 
-      <div ref={scrollRef} className="relative flex-1 min-h-0 rounded-xl border border-slate-200 bg-slate-100 overflow-auto p-3">
+      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
         {imagenFondo ? (
           <div className="relative select-none" style={{ width: `${zoom * 100}%` }}>
             <Image width={0} height={0} sizes="100vw" src={imagenFondo} alt="Mapa de pabellones" className="w-full h-auto block rounded-lg pointer-events-none" draggable={false} />
@@ -142,14 +146,14 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
             })}
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             Este mapa macro no tiene imagen de fondo configurada.
           </div>
         )}
       </div>
 
-      <p className="text-[11px] text-slate-400 text-center">
-        Haz click en un pabellon para entrar a su plano 3D y reservar stands.
+      <p className="border-t border-border bg-secondary px-4 py-2.5 text-center text-[11px] font-medium text-muted-foreground">
+        Haz clic en un pabellon para entrar a su plano 3D y reservar stands.
       </p>
     </div>
   );

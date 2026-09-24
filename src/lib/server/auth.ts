@@ -2,7 +2,7 @@ import 'server-only';
 
 import { SignJWT, jwtVerify } from "jose";
 import type { JWTPayload } from "jose";
-import { ROLES, ROLES_PERMISSIONS } from "../shared/constants";
+import { ROLES, ROLES_PERMISSIONS, SESION } from "../shared/constants";
 import type { Rol } from "../shared/constants";
 import type { NextRequest } from "next/server";
 import { cookies } from "next/headers";
@@ -25,9 +25,10 @@ export interface JwtPayload {
   eventoPadreNombre?: string;
 }
 
-export async function signToken(payload: Omit<JwtPayload, "permissions"> & {
-  permissions?: string[];
-}): Promise<string> {
+export async function signToken(
+  payload: Omit<JwtPayload, "permissions"> & { permissions?: string[] },
+  expiresIn: string | number = SESION.JWT_EXPIRACION_ESTANDAR,
+): Promise<string> {
   const permissions = payload.permissions && payload.permissions.length > 0
     ? payload.permissions
     : payload.roles.flatMap((r) => ROLES_PERMISSIONS[r] ?? []);
@@ -38,7 +39,7 @@ export async function signToken(payload: Omit<JwtPayload, "permissions"> & {
     .setAudience(AUDIENCE)
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("24h")
+    .setExpirationTime(expiresIn)
     .sign(SECRET);
 }
 

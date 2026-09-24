@@ -19,6 +19,12 @@ export const planosService = {
   detalle(id: string) {
     return internalApi.get<PlanoDTO>(`/api/planos/detalle?id=${encodeURIComponent(id)}`);
   },
+  /** Planos (macro + pabellones hijos, o simple) de un evento, con sus bloques. */
+  planosDeEvento(tipoEvento: number, codigoEvento: number) {
+    return internalApi.get<Array<{ codigo: string; bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia: string | null }> }>>(
+      `/api/planos/planos-evento?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`,
+    );
+  },
   detallePorCodigo(codigo: string) {
     return internalApi.get<PlanoDTO>(`/api/planos/detalle?codigo=${encodeURIComponent(codigo)}`);
   },

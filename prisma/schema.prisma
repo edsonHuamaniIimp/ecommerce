@@ -140,6 +140,78 @@ model UserRole {
   @@map("user_role")
 }
 
+/// Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico.
+/// Nace en estado pendiente y la resuelve un administrador (aprobar/rechazar).
+model SolicitudCuenta {
+  id String @id @default(uuid())
+
+  /// Correo electronico corporativo del solicitante.
+  email         String  @db.VarChar(200)
+  /// Nombres del contacto.
+  nombre        String  @db.VarChar(200)
+  /// Apellidos del contacto.
+  apellidos     String  @db.VarChar(200)
+  /// Telefono de contacto.
+  telefono      String? @db.VarChar(20)
+  /// Razon social de la empresa exhibidora.
+  razonSocial   String  @map("razon_social") @db.VarChar(200)
+  /// RUC de la empresa (11 digitos).
+  ruc           String? @db.VarChar(11)
+  /// Cargo del contacto dentro de la empresa.
+  cargo         String? @db.VarChar(100)
+  /// Mensaje adicional del solicitante.
+  mensaje       String? @db.Text
+  /// Estado de la solicitud (ver ESTADOS_SOLICITUD_CUENTA).
+  estado        String  @default("pendiente") @db.VarChar(20)
+  /// Motivo obligatorio cuando la solicitud es rechazada.
+  motivoRechazo String? @map("motivo_rechazo") @db.Text
+  /// Email del administrador que reviso la solicitud.
+  revisadoPor   String? @map("revisado_por") @db.VarChar(200)
+  /// Fecha de la revision.
+  revisadoEn    DateTime? @map("revisado_en")
+  /// userId del usuario creado al aprobar la solicitud.
+  usuarioId     String? @map("usuario_id") @db.VarChar(100)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([estado])
+  @@map("solicitud_cuenta")
+}
+
+/// Registro de exhibidor pendiente de verificacion por codigo enviado al correo.
+/// La contrasena se guarda ya hasheada; el codigo expira y limita intentos.
+model RegistroPendiente {
+  id String @id @default(uuid())
+
+  /// Correo electronico a verificar (unico).
+  email       String  @unique @db.VarChar(200)
+  /// Codigo numerico enviado por correo.
+  codigo      String  @db.VarChar(10)
+  /// Contrasena ya hasheada (se transfiere al usuario al confirmar).
+  password    String  @db.VarChar(100)
+  /// Nombres del contacto.
+  nombre      String  @db.VarChar(200)
+  /// Apellidos del contacto.
+  apellidos   String  @db.VarChar(200)
+  /// Razon social de la empresa exhibidora.
+  razonSocial String  @map("razon_social") @db.VarChar(200)
+  /// Telefono de contacto.
+  telefono    String? @db.VarChar(20)
+  /// RUC de la empresa (11 digitos).
+  ruc         String? @db.VarChar(11)
+  /// Intentos de verificacion fallidos.
+  intentos    Int     @default(0)
+  /// Fecha/hora de expiracion del codigo.
+  expiraEn    DateTime @map("expira_en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("registro_pendiente")
+}
+
 /* ================================================================
    2. TRANSACCIONALES — datos que cambian con frecuencia
    ================================================================ */

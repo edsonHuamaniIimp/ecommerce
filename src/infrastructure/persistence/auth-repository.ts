@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/server/db";
-import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type {
+  IAuthRepository,
+  NuevoUsuarioAuth,
+  RegistroPendienteData,
+} from "@/domain/ports/auth-repository";
 
 export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
@@ -7,6 +11,57 @@ export class AuthPrismaRepository implements IAuthRepository {
       where: { email },
       select: { id: true, userId: true, roleId: true, email: true, password: true, role: { select: { nombre: true, permisos: true } } },
     });
+  }
+
+  async existeEmail(email: string): Promise<boolean> {
+    const total = await prisma.userRole.count({ where: { email } });
+    return total > 0;
+  }
+
+  async crearUsuario(data: NuevoUsuarioAuth): Promise<void> {
+    await prisma.userRole.create({
+      data: {
+        userId: data.userId,
+        roleId: data.roleId,
+        email: data.email,
+        password: data.password,
+        nombre: data.nombre,
+        apellidos: data.apellidos,
+        telefono: data.telefono,
+        nombreEmpresa: data.nombreEmpresa,
+      },
+    });
+  }
+
+  async upsertRegistroPendiente(data: RegistroPendienteData): Promise<void> {
+    const registro = {
+      codigo: data.codigo,
+      password: data.password,
+      nombre: data.nombre,
+      apellidos: data.apellidos,
+      razonSocial: data.razonSocial,
+      telefono: data.telefono,
+      ruc: data.ruc,
+      intentos: 0,
+      expiraEn: data.expiraEn,
+    };
+    await prisma.registroPendiente.upsert({
+      where: { email: data.email },
+      create: { email: data.email, ...registro },
+      update: registro,
+    });
+  }
+
+  async findRegistroPendiente(email: string) {
+    return prisma.registroPendiente.findUnique({ where: { email } });
+  }
+
+  async actualizarIntentosRegistro(id: string, intentos: number): Promise<void> {
+    await prisma.registroPendiente.update({ where: { id }, data: { intentos } });
+  }
+
+  async eliminarRegistroPendiente(id: string): Promise<void> {
+    await prisma.registroPendiente.delete({ where: { id } });
   }
 
   async findEventoById(id: string) {
