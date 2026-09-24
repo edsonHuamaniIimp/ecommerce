@@ -52,5 +52,18 @@ if [ -n "${DATABASE_URL}" ]; then
     fi
 fi
 
+# Seed de assets estaticos al volumen EFS (public/uploads en prod). La imagen
+# commiteada queda tapada por el mount de EFS, por lo que se copia al volumen
+# si aun no existe. Idempotente y NO bloqueante: un fallo aqui no debe tumbar
+# el arranque de la app.
+if [ -f /app/seed-assets/perumin-mapa-pabellones.jpg ]; then
+    mkdir -p /app/public/uploads || true
+    if [ ! -f /app/public/uploads/perumin-mapa-pabellones.jpg ]; then
+        cp /app/seed-assets/perumin-mapa-pabellones.jpg /app/public/uploads/ 2>/dev/null \
+            && echo "[entrypoint] Imagen del macro copiada al volumen (uploads)." \
+            || echo "[entrypoint] AVISO: no se pudo copiar la imagen del macro al volumen."
+    fi
+fi
+
 echo "[entrypoint] Iniciando Next.js standalone..."
 exec node server.js

@@ -59,6 +59,13 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
+# Asset de seed para EFS: en prod el volumen EFS montado en /app/public/uploads
+# tapa los archivos de la imagen, por lo que la imagen del macro se guarda aparte
+# y el entrypoint la copia al volumen si aun no existe (idempotente, no bloqueante).
+RUN mkdir -p /app/seed-assets \
+    && cp /app/public/uploads/perumin-mapa-pabellones.jpg /app/seed-assets/ 2>/dev/null \
+    || echo "seed-assets: imagen del macro no presente en el build (se omite)"
+
 # node_modules COMPLETO: el standalone no incluye .bin/prisma ni deps del CLI
 # (necesarios para `prisma migrate deploy` en el entrypoint).
 # El cliente Prisma (prisma-client-js) vive en node_modules/.prisma + @prisma/client.
