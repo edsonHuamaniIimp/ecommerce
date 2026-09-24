@@ -10,6 +10,7 @@ import Link from "next/link";
 import { LS_KEYS, TIPOS_PLANO } from "@/lib/shared/constants";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
+import { usePlanoCarrito } from "@/lib/client/stores/plano-carrito-store";
 import type { PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
 
 function MapaDinamicoPageContent() {
@@ -23,6 +24,14 @@ function MapaDinamicoPageContent() {
   const openReserva = searchParams.get("openReserva") === "1";
   const codigoParam = searchParams.get("codigo");
   const parentParam = searchParams.get("parent");
+
+  // Registra el codigo del macro para navegacion desde el carrito.
+  const esMacro = payload?.tipo === TIPOS_PLANO.MACRO;
+  useEffect(() => {
+    if (esMacro && payload?.codigo) {
+      usePlanoCarrito.getState().registrarMacro(payload.codigo);
+    }
+  }, [esMacro, payload?.codigo]);
 
   useEffect(() => {
     (async () => {
@@ -89,8 +98,6 @@ function MapaDinamicoPageContent() {
     );
   }
 
-  const esMacro = payload.tipo === TIPOS_PLANO.MACRO;
-
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
@@ -112,7 +119,7 @@ function MapaDinamicoPageContent() {
             nombrePlano={payload.nombre}
           />
         ) : (
-          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} />
+          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} parentCodigo={parentParam} />
         )}
       </div>
     </main>

@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { Layers, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { Layers, ZoomIn, ZoomOut, Maximize, ShoppingBag } from "lucide-react";
+import { usePlanoCarrito, totalCarrito, conteoPorPlano } from "@/lib/client/stores/plano-carrito-store";
 
 export interface SeccionPublica {
   codigo: string;
@@ -49,6 +50,9 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
   const [zoom, setZoom] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ocupMap = new Map((ocupacion ?? []).map((o) => [o.seccionCodigo, o]));
+  const seleccionesCarrito = usePlanoCarrito((s) => s.selecciones);
+  const total = useMemo(() => totalCarrito(seleccionesCarrito), [seleccionesCarrito]);
+  const conteo = useMemo(() => conteoPorPlano(seleccionesCarrito), [seleccionesCarrito]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -76,6 +80,12 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-primary" />
           <h2 className="text-sm font-bold text-primary">{nombrePlano} — Mapa de pabellones</h2>
+          {total > 0 && (
+            <span className="flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-extrabold text-gold-foreground">
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>{total} {total === 1 ? "stand" : "stands"}</span>
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-full border border-border bg-secondary px-1 py-0.5">
@@ -107,6 +117,7 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
               const oc = ocupMap.get(s.codigo);
               const c = colorOcupacion(oc);
               const navegable = !!s.planoHijoCodigo;
+              const enCarrito = s.planoHijoCodigo ? (conteo[s.planoHijoCodigo] ?? 0) : 0;
               return (
                 <button
                   key={s.codigo}
@@ -124,6 +135,11 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
                   }}
                   title={navegable ? `${s.nombre} — Entrar al pabellon` : `${s.nombre} — Sin plano asignado`}
                 >
+                  {enCarrito > 0 && (
+                    <Badge className="pointer-events-none absolute -right-1.5 -top-1.5 z-30 h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-gold px-1 text-[10px] font-extrabold text-gold-foreground shadow">
+                      <span>{enCarrito}</span>
+                    </Badge>
+                  )}
                   <div
                     className={`h-full w-full rounded border-2 flex flex-col items-center justify-center gap-0.5 transition-all ${navegable ? "group-hover:scale-[1.02] group-hover:shadow-xl group-hover:z-20" : "opacity-70"}`}
                     style={{ backgroundColor: `${c.bg}66`, borderColor: c.border }}

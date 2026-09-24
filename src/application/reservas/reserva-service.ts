@@ -18,32 +18,56 @@ export class ReservaApplicationService {
     datos?: { razonSocial: string; tipoDocumento: string; numeroDocumento: string; email: string };
     userEmail?: string;
     userSub?: string;
+    /** Evento de la sesion: los stands deben pertenecer a el. */
+    eventoId?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[] }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
-    const createdStandIds: string[] = [];
     const contactEmail = request.userEmail || request.datos?.email;
+    const idsUnicos = [...new Set(request.standIds)];
 
-    for (const dbId of request.standIds) {
+    // Fase 1: validar todo antes de mutar (existencia, evento y estado).
+    const validos: Array<{ dbId: string; standCode: string }> = [];
+    let eventoComun: string | null = request.eventoId ?? null;
+
+    for (const dbId of idsUnicos) {
       const stand = await this.gessRepo.findById(dbId);
-      if (!stand) { conflicted.push("Stand no encontrado"); continue; }
+      if (!stand) {
+        conflicted.push("Stand no encontrado");
+        continue;
+      }
+      if (!stand.eventoId) {
+        conflicted.push(`${stand.standCode} no tiene evento asignado`);
+        continue;
+      }
+      if (eventoComun === null) eventoComun = stand.eventoId;
+      if (stand.eventoId !== eventoComun) {
+        conflicted.push(`${stand.standCode} no pertenece al evento actual`);
+        continue;
+      }
       if (stand.estado && BLOQUEADOS.includes(stand.estado)) {
         const label = stand.estado === ESTADOS_STAND.RESERVADO || stand.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "Reservado" : "En evaluacion";
         conflicted.push(`${stand.standCode} ya esta en estado ${label}`);
         continue;
       }
+      validos.push({ dbId: stand.id, standCode: stand.standCode });
       standCodes.push(stand.standCode);
-      createdStandIds.push(stand.id);
-      await this.gessRepo.update(stand.id, {
+    }
+
+    if (conflicted.length > 0) {
+      return { ok: false, message: "Conflicto", conflicted };
+    }
+
+    // Fase 2: aplicar los cambios solo si todo paso la validacion.
+    const createdStandIds: string[] = [];
+    for (const { dbId } of validos) {
+      await this.gessRepo.update(dbId, {
         estado: ESTADOS_STAND.EN_EVALUACION,
         email: contactEmail ?? null,
         userId: request.userSub ?? null,
         documentos: request.documentos,
       } as never);
-    }
-
-    if (conflicted.length > 0) {
-      return { ok: false, message: "Conflicto", conflicted };
+      createdStandIds.push(dbId);
     }
 
     let solicitudId: string | undefined;

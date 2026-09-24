@@ -14,6 +14,7 @@ export const reservaController = {
       ...body,
       userEmail: session?.email,
       userSub: session?.sub,
+      eventoId: session?.eventoId,
     });
     if (!result.ok) {
       return error(API_ERROR_CODES.CONFLICT, "Algunos stands ya estan reservados", 409);

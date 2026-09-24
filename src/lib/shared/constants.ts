@@ -562,6 +562,7 @@ export const LS_KEYS = {
   EVENTO_PUBLICO: "iimp-evento-publico",
   EVENTO_PENDIENTE: "iimp-pending-evento",
   PLANO_SELECCION: "iimp-plano-seleccion",
+  PLANO_CARRITO: "iimp-plano-carrito",
 } as const;
 
 /* ================================================================

@@ -267,7 +267,7 @@ class InMemoryWebhookRepository implements ISgcWebhookRepository {
 function setup() {
   const solicitudRepo = new InMemorySolicitudesRepository(SOLICITUD_ID, STAND_CODE, EMPRESA);
   const gessRepo = {
-    findById: vi.fn().mockResolvedValue({ id: "gess-1", standCode: STAND_CODE, estado: "disponible", empresa: EMPRESA }),
+    findById: vi.fn().mockResolvedValue({ id: "gess-1", standCode: STAND_CODE, estado: "disponible", empresa: EMPRESA, eventoId: "evt-1" }),
     update: vi.fn().mockResolvedValue(undefined),
   } as unknown as IGessRepository;
 

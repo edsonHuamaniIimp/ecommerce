@@ -2,10 +2,10 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet, SheetContent, SheetHeader, SheetTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
+import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
@@ -14,6 +14,7 @@ import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
 import { stringUtils } from "@/lib/shared/utils/string";
 import type { ReservaStep } from "@/lib/shared/constants";
+import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } from "@/lib/client/stores/plano-carrito-store";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
@@ -243,7 +244,7 @@ function getIdApi(row: Record<string, unknown>): string {
   return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
 }
 
-export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean }) {
+export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null }) {
   const router = useRouter();
   const [plano, setPlano] = useState<PlanoDefinition | null>(null);
   const [planoLoading, setPlanoLoading] = useState(true);
@@ -264,7 +265,22 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const items=useMemo(()=>plano?.buildItems() ?? [],[plano]);
   const bnd=useMemo(()=>plano?plano.computeBounds(items):{minX:-20,maxX:20,minZ:-20,maxZ:20},[items, plano]);
   const furniture=useMemo(()=>plano?.buildFurniture() ?? [],[plano]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const seleccionesCarrito = usePlanoCarrito((s) => s.selecciones);
+  const itemsCarrito = usePlanoCarrito((s) => s.items);
+  const toggleCarrito = usePlanoCarrito((s) => s.toggle);
+  const seleccionarSolo = usePlanoCarrito((s) => s.seleccionarSolo);
+  const quitarCarrito = usePlanoCarrito((s) => s.quitar);
+  const limpiarPlanoCarrito = usePlanoCarrito((s) => s.limpiarPlano);
+  const idsPlano = useMemo(() => seleccionesCarrito[planoId] ?? [], [seleccionesCarrito, planoId]);
+  const idsGlobales = useMemo(() => Object.values(seleccionesCarrito).flat(), [seleccionesCarrito]);
+  const entradasCarrito = useMemo(() => Object.values(itemsCarrito), [itemsCarrito]);
+  const parentsCarrito = usePlanoCarrito((s) => s.parents);
+  const macroCodigo = usePlanoCarrito((s) => s.macroCodigo);
+
+  // Registra el parent de este plano para navegar desde el carrito.
+  useEffect(() => {
+    usePlanoCarrito.getState().registrarPlano(planoId, parentCodigo ?? null);
+  }, [planoId, parentCodigo]);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const [dataReady, setDataReady] = useState(false);
@@ -347,6 +363,33 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     return () => { cancelled = true; };
   }, [eventoId, tipoEvento, codigoEvento]);
 
+  const carritoInfoDe = useCallback((bloqueId: string): CarritoStandInfo => {
+    const info = linkedMap.get(bloqueId);
+    const item = items.find((it) => it.id === bloqueId);
+    return {
+      bloqueId,
+      standCode: info?.standCode ?? "",
+      pabellonCodigo: planoId,
+      tipoLabel: item ? (plano?.blockLabel[item.type]?.label ?? null) : null,
+    };
+  }, [linkedMap, items, plano, planoId]);
+
+  // Valida la seleccion persistida del plano contra los stands cargados
+  // (descarta ids que desaparecieron o quedaron reservados).
+  useEffect(() => {
+    if (!dataReady) return;
+    const { selecciones, sincronizarPlano } = usePlanoCarrito.getState();
+    const ids = selecciones[planoId] ?? [];
+    if (ids.length === 0) return;
+    const validos: CarritoStandInfo[] = [];
+    for (const id of ids) {
+      const info = linkedMap.get(id);
+      if (!info || info.reserved) continue;
+      validos.push(carritoInfoDe(id));
+    }
+    sincronizarPlano(planoId, validos);
+  }, [dataReady, planoId, linkedMap, carritoInfoDe]);
+
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -365,7 +408,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
-  } = useReservaForm(selectedIds, linkedMap);
+  } = useReservaForm(idsGlobales, linkedMap);
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
 
@@ -378,7 +421,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           const ids = JSON.parse(raw) as string[];
           const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
           if (valid.length > 0) {
-            setSelectedIds(valid);
+            const { sincronizarPlano } = usePlanoCarrito.getState();
+            sincronizarPlano(planoId, valid.map(carritoInfoDe));
             setReservaOpen(true);
             setReservaStep(0);
           }
@@ -387,7 +431,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
       localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
       router.replace("/plano", { scroll: false });
     })();
-  }, [openReserva, dataReady, linkedMap, router, setReservaOpen, setReservaStep]);
+  }, [openReserva, dataReady, linkedMap, router, setReservaOpen, setReservaStep, planoId, carritoInfoDe]);
 
   // Override: auto-open + restore selection from login redirect
   useEffect(() => {
@@ -399,7 +443,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           const ids = JSON.parse(raw) as string[];
           const valid = ids.filter((id) => linkedMap.has(id) && !linkedMap.get(id)?.reserved);
           if (valid.length > 0) {
-            setSelectedIds(valid);
+            const { sincronizarPlano } = usePlanoCarrito.getState();
+            sincronizarPlano(planoId, valid.map(carritoInfoDe));
           }
         }
       } catch { /* ignore */ }
@@ -412,19 +457,24 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   }, [openReserva, dataReady, planoId, router]);
 
   const handleSelect = (id: string) => {
-    const reserved = linkedMap.get(id)?.reserved;
-    if (reserved) {
-      setSelectedIds(prev => prev.length === 1 && prev[0] === id ? [] : [id]);
+    const info = linkedMap.get(id);
+    if (info?.reserved) {
+      if (idsPlano.length === 1 && idsPlano[0] === id) {
+        limpiarPlanoCarrito(planoId);
+      } else {
+        seleccionarSolo(planoId, carritoInfoDe(id));
+      }
       return;
     }
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    toggleCarrito(planoId, carritoInfoDe(id));
   };
-  const selected = items.filter(it => selectedIds.includes(it.id));
-  const hayReservados = selected.some(s => linkedMap.get(s.id)?.reserved);
-  const haySinStand = selected.some(s => !linkedMap.get(s.id)?.dbId);
+  const hayReservados = idsGlobales.some(id => linkedMap.get(id)?.reserved);
+  const haySinStand = idsGlobales.some(id => !linkedMap.get(id)?.dbId);
 
-  const selectedLabels = selected.map(s => plano?.blockLabel[s.type]?.label ?? "?").join(", ");
-  const singleId = selectedIds.length === 1 ? selectedIds[0] : undefined;
+  const selectedLabels = entradasCarrito
+    .map(c => `${c.standCode || c.bloqueId}${c.pabellonCodigo !== planoId ? ` (${c.pabellonCodigo})` : ""}`)
+    .join(", ");
+  const singleId = idsGlobales.length === 1 ? idsGlobales[0] : undefined;
   const gessInfoForSelected = singleId ? (linkedMap.get(singleId) ?? null) : null;
 
   useEffect(() => {
@@ -456,7 +506,10 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   }, [imgCarousel]);
 
   // Contenido del panel "Mi seleccion": se monta en el aside (desktop) y en el
-  // bottom sheet (mobile) sin duplicar el markup.
+  // bottom sheet (mobile) sin duplicar el markup. Muestra el carrito global
+  // (todos los pabellones).
+  const totalCarritoCount = totalCarrito(seleccionesCarrito);
+  const pabellonesConItems = new Set(entradasCarrito.map((c) => c.pabellonCodigo)).size;
   const contenidoPanel = (
     <>
       <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3">
@@ -465,11 +518,11 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           <span>Mi seleccion</span>
         </h3>
         <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-extrabold text-primary-foreground">
-          {selected.length} {selected.length === 1 ? "stand" : "stands"}
+          {totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}
         </span>
       </div>
 
-      {selected.length === 0 ? (
+      {entradasCarrito.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2.5 p-6 text-center">
           <MousePointerClick className="h-5 w-5 text-muted-foreground/60" />
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -478,19 +531,29 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         </div>
       ) : (
         <>
+          {pabellonesConItems > 1 && (
+            <p className="border-b border-border bg-secondary px-4 py-1.5 text-center text-[10px] font-medium text-muted-foreground">
+              Carrito de {pabellonesConItems} pabellones
+            </p>
+          )}
           <div className="flex-1 divide-y divide-border overflow-y-auto">
-            {selected.map((sel) => {
-              const info = linkedMap.get(sel.id);
-              const lbl = blockLabel(sel.type);
+            {entradasCarrito.map((c) => {
+              const info = linkedMap.get(c.bloqueId);
+              const esPlanoActual = c.pabellonCodigo === planoId;
               return (
                 <div
-                  key={sel.id}
+                  key={c.bloqueId}
                   className="group flex cursor-pointer items-start justify-between gap-2 px-4 py-3 transition-colors hover:bg-secondary"
                   onClick={() => info && setDetailModal(info)}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-primary">{sel.id}</span>
+                      <span className="text-sm font-bold text-primary">{c.standCode || c.bloqueId}</span>
+                      {!esPlanoActual && (
+                        <Badge className="pointer-events-none border-transparent bg-info/10 text-[10px] text-info">
+                          <span>{c.pabellonCodigo}</span>
+                        </Badge>
+                      )}
                       {info?.estado && <BadgeEstadoStand estado={info.estado} />}
                       {!info?.dbId && (
                         <Badge
@@ -502,21 +565,35 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
-                      {lbl.nombre}
+                      {c.tipoLabel ?? ""}
                       {info?.tipoStand ? ` • ${info.tipoStand}` : ""}
                       {info?.medidas ? ` • ${info.medidas}` : ""}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={(e) => { e.stopPropagation(); handleSelect(sel.id); }}
-                    title="Quitar de la seleccion"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {!esPlanoActual && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 p-0 text-info hover:bg-info/10 hover:text-info"
+                        title={`Ver pabellon ${c.pabellonCodigo}`}
+                        onClick={(e) => { e.stopPropagation(); router.push(urlPabellon(c.pabellonCodigo, parentsCarrito, macroCodigo)); }}
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); quitarCarrito(c.bloqueId); }}
+                      title="Quitar de la seleccion"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               );
             })}
@@ -525,18 +602,18 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           <div className="space-y-2.5 border-t border-border bg-secondary px-4 py-3.5">
             <div className="flex items-center justify-between text-sm">
               <span className="font-semibold text-primary">Total</span>
-              <span className="font-bold text-primary">{selected.length} {selected.length === 1 ? "stand" : "stands"}</span>
+              <span className="font-bold text-primary">{totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}</span>
             </div>
             <Button
               variant="default"
               className="w-full gap-2 bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90"
-              disabled={selected.length === 0 || hayReservados || haySinStand}
+              disabled={totalCarritoCount === 0 || hayReservados || haySinStand}
               onClick={() => {
                 setReservaOpen(true);
                 setReservaStep(0);
               }}
             >
-              <span>{hayReservados ? "Hay bloques no disponibles" : haySinStand ? "Hay bloques sin stand vinculado" : `Continuar con la Reserva (${selected.length})`}</span>
+              <span>{hayReservados ? "Hay bloques no disponibles" : haySinStand ? "Hay bloques sin stand vinculado" : `Continuar con la Reserva (${totalCarritoCount})`}</span>
               {!hayReservados && !haySinStand && <ChevronRight className="h-4 w-4" />}
             </Button>
             {haySinStand && (
@@ -559,9 +636,9 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
               <Layers className="h-4 w-4 text-primary" />
               <span>Plano de stands</span>
             </h1>
-            {selected.length > 0 && (
+            {totalCarritoCount > 0 && (
               <Badge className="pointer-events-none border-transparent bg-primary/10 text-primary">
-                <span>{selected.length} {selected.length === 1 ? "stand seleccionado" : "stands seleccionados"}</span>
+                <span>{totalCarritoCount} {totalCarritoCount === 1 ? "stand seleccionado" : "stands seleccionados"}</span>
               </Badge>
             )}
           </div>
@@ -578,14 +655,13 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             </div>
           )}
         <Canvas shadows camera={{position:[cx,S*.7,cz+S*.35],fov:50,near:.1,far:300}}
-        gl={{toneMapping:THREE.ACESFilmicToneMapping,outputColorSpace:THREE.SRGBColorSpace}}
-        onPointerMissed={()=>setSelectedIds([])}>
+        gl={{toneMapping:THREE.ACESFilmicToneMapping,outputColorSpace:THREE.SRGBColorSpace}}>
         <fog attach="fog" args={["#E8E0D5",S*.9,S*2.2]}/><ambientLight intensity={.75}/>
         <directionalLight position={[cx+S*.3,S*1.2,cz]} intensity={2.5} castShadow shadow-mapSize={[2048,2048]}
           shadow-camera-left={-S} shadow-camera-right={S} shadow-camera-top={S} shadow-camera-bottom={-S}/>
         <directionalLight position={[cx-S*.2,S*.5,cz-S*.3]} intensity={.4}/>
         <Floor bnd={bnd}/>
-        {items.map((it)=><Bloque3D key={it.id} item={it} selected={selectedIds.includes(it.id)} reserved={linkedMap.get(it.id)?.reserved ?? false} onSelect={handleSelect}/>)}
+        {items.map((it)=><Bloque3D key={it.id} item={it} selected={idsPlano.includes(it.id)} reserved={linkedMap.get(it.id)?.reserved ?? false} onSelect={handleSelect}/>)}
         {furniture.map(f=><Kiosko key={f.id} x={f.x} z={f.z} rotY={f.rotY}/>)}
 
 
@@ -659,7 +735,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
               <span>Mi seleccion</span>
             </span>
             <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
-              {selected.length}
+              {totalCarritoCount}
             </span>
           </Button>
         </div>
@@ -808,11 +884,11 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         selectedCount={selectedCount}
         singleStand={singleStand}
         selectedLabels={selectedLabels}
-        selectedItems={selected.map(sel => {
-          const info = linkedMap.get(sel.id);
+        selectedItems={entradasCarrito.map(c => {
+          const info = linkedMap.get(c.bloqueId);
           return {
-            id: sel.id,
-            typeLabel: blockLabel(sel.type).label,
+            id: c.bloqueId,
+            typeLabel: c.pabellonCodigo !== planoId ? `${c.tipoLabel ?? "?"} (${c.pabellonCodigo})` : (c.tipoLabel ?? "?"),
             medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
           };
@@ -825,6 +901,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {
+            const enviados = [...idsGlobales];
             const esMultiple = selectedCount > 1;
             if (esMultiple) {
               setPostSubmitOpen(true);
@@ -835,13 +912,15 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             }
             setLinkedMap(prev => {
               const next = new Map(prev);
-              for (const id of selectedIds) {
+              for (const id of enviados) {
                 const info = next.get(id);
                 if (info) next.set(id, { ...info, reserved: true, estado: ESTADOS_STAND_LEGACY.EN_EVALUACION });
               }
               return next;
             });
-            setSelectedIds([]);
+            for (const id of enviados) {
+              quitarCarrito(id);
+            }
             resetForm();
           }
           return result === true;
