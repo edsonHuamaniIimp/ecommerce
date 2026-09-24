@@ -27,6 +27,13 @@ function MapaDinamicoPageContent() {
 
   // Registra el codigo del macro para navegacion desde el carrito.
   const esMacro = payload?.tipo === TIPOS_PLANO.MACRO;
+  const parentsCarrito = usePlanoCarrito((s) => s.parents);
+  const macroCodigo = usePlanoCarrito((s) => s.macroCodigo);
+  // Destino de "volver": el `parent` explicito o, si no vino en la URL, el plano
+  // padre/macro registrado en el carrito (permite volver al macro aunque la URL
+  // se haya abierto directo con ?codigo=<pabellon>).
+  const destinoVolver = parentParam
+    ?? (planoId ? (parentsCarrito[planoId] ?? (macroCodigo && macroCodigo !== planoId ? macroCodigo : null)) : null);
   useEffect(() => {
     if (esMacro && payload?.codigo) {
       usePlanoCarrito.getState().registrarMacro(payload.codigo);
@@ -101,10 +108,10 @@ function MapaDinamicoPageContent() {
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
-        {parentParam && (
+        {destinoVolver && (
           <div>
             <Button variant="ghost" size="sm" className="h-7 text-xs -ml-2" asChild>
-              <Link href={`/mapa?codigo=${encodeURIComponent(parentParam)}`}>
+              <Link href={`/mapa?codigo=${encodeURIComponent(destinoVolver)}`}>
                 <ArrowLeft className="h-3.5 w-3.5 mr-1" />
                 <span>Volver al mapa general</span>
               </Link>

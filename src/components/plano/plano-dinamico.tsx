@@ -510,6 +510,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   // (todos los pabellones).
   const totalCarritoCount = totalCarrito(seleccionesCarrito);
   const pabellonesConItems = new Set(entradasCarrito.map((c) => c.pabellonCodigo)).size;
+  // Plano macro al que se puede volver desde este pabellon (padre registrado o macro global).
+  const macroDestino = parentsCarrito[planoId] ?? (macroCodigo && macroCodigo !== planoId ? macroCodigo : null);
   const contenidoPanel = (
     <>
       <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3">
@@ -604,6 +606,16 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
               <span className="font-semibold text-primary">Total</span>
               <span className="font-bold text-primary">{totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}</span>
             </div>
+            {macroDestino && (
+              <Button
+                variant="outline"
+                className="w-full gap-1.5 text-xs font-medium"
+                onClick={() => router.push(`/mapa?codigo=${encodeURIComponent(macroDestino)}`)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Volver al mapa macro</span>
+              </Button>
+            )}
             <Button
               variant="default"
               className="w-full gap-2 bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90"
