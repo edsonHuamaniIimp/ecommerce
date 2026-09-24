@@ -863,9 +863,17 @@ export const SGC_MOTIVO_CARGA_INICIAL = "Carga inicial desde ContratosStands";
 /** Tipos de documento adjunto de una solicitud (clasifica contrato vs anexo). */
 export const TIPOS_DOCUMENTO_SOLICITUD = {
   CONTRATO: "contrato",
+  CONTRATO_FIRMADO: "contrato_firmado",
   ANEXO: "anexo",
 } as const;
 export type TipoDocumentoSolicitud = (typeof TIPOS_DOCUMENTO_SOLICITUD)[keyof typeof TIPOS_DOCUMENTO_SOLICITUD];
+
+/** Tipos de alerta de la campana de notificaciones. */
+export const ALERTA_TIPOS = {
+  REVISION_PENDIENTE: "revision_pendiente",
+  RESERVA_MULTIPLE: "reserva_multiple",
+  CONTRATO_FIRMADO: "contrato_firmado",
+} as const;
 
 /** Anexos requeridos por el SGC para la separación de stands. */
 export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [

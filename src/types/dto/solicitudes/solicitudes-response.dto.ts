@@ -43,7 +43,7 @@ export interface SolicitudDTO {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; createdAt: string }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; createdAt: string }>;
   revisiones: RevisionDTO[];
   reevaluaciones: ReevaluacionDTO[];
   revisionComunicacion: RevisionDTO | null;

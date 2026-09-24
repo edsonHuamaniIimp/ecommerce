@@ -12,9 +12,13 @@ export const ROLES_SEED: { nombre: string; descripcion: string; permisos: string
 
 export const USUARIOS_SEED: { email: string; role: string; password: string; nombre: string; apellidos: string }[] = [
   { email: "admin@iimp.org.pe", role: "admin", password: "admin123", nombre: "Admin", apellidos: "IIMP" },
+  { email: "test.admin@iimp.org.pe", role: "admin", password: "test123", nombre: "Admin", apellidos: "Test" },
   { email: "logistica@iimp.org.pe", role: "logistica", password: "logistica123", nombre: "Carlos", apellidos: "Logistica" },
+  { email: "test.logistica@iimp.org.pe", role: "logistica", password: "test123", nombre: "Carlos", apellidos: "Test Logistica" },
   { email: "legal@iimp.org.pe", role: "legal", password: "legal123", nombre: "Maria", apellidos: "Legal" },
   { email: "comunicacion@iimp.org.pe", role: "comunicacion", password: "comunicacion123", nombre: "Pedro", apellidos: "Comunicacion" },
+  { email: "test.comunicacion@iimp.org.pe", role: "comunicacion", password: "test123", nombre: "Pedro", apellidos: "Test Comunicacion" },
   { email: "cliente@iimp.org.pe", role: "cliente", password: "cliente123", nombre: "Cliente", apellidos: "General" },
+  { email: "test.cliente@iimp.org.pe", role: "cliente", password: "test123", nombre: "Cliente", apellidos: "Test" },
   { email: "ext_analistaprogramador3@iimp.org.pe", role: "admin", password: "admin123", nombre: "Edson", apellidos: "Huamani" },
 ];

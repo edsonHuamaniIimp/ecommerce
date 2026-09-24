@@ -16,6 +16,7 @@ import {
   SGC_ESTADO_ENVIO,
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_SUBSANACION_MOTIVO,
+  TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
 import { construirIdempotencyKey, extraerDocumentosLegacy, sha256Hex } from "@/lib/shared/utils/sgc";
@@ -44,6 +45,16 @@ export class SgcIntegracionApplicationService {
     private readonly documentoOrigen: IDocumentoOrigen,
     private readonly config: SgcIntegracionConfig,
   ) {}
+
+  /** True si la integracion SGC esta activada en el servidor (`SGC_ENABLED=1`). */
+  estaHabilitado(): boolean {
+    return this.config.enabled;
+  }
+
+  /** Correlacion local del expediente (para exponer errores de envio en la UI). */
+  async obtenerRegistroLocal(solicitudId: string): Promise<SgcExpedienteEntity | null> {
+    return this.repo.findExpedientePorSolicitud(solicitudId);
+  }
 
   async crearExpedienteDesdeSolicitud(solicitudId: string): Promise<SgcExpedienteEntity | null> {
     if (!this.config.enabled) return null;
@@ -329,7 +340,9 @@ export class SgcIntegracionApplicationService {
     const contratoUrl = contrato?.url;
     const contratoClave = contrato?.nombre || contratoUrl;
     const candidatos: DocumentoUrl[] = [
-      ...detalle.docsAdjuntos.filter((d) => d.userId !== null).map((d) => ({ url: d.url, nombre: d.nombre })),
+      ...detalle.docsAdjuntos
+        .filter((d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+        .map((d) => ({ url: d.url, nombre: d.nombre })),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
 
@@ -371,12 +384,15 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Documento que representa el contrato v1: el del administrador (`userId === null`).
-   * Los documentos del cliente/anexos (`userId` no nulo) NUNCA son el contrato; en su
-   * defecto se usa la columna legacy `documentos` (compatibilidad). Si no hay ninguno,
-   * no se envia contrato (el flujo debe adjuntar el contrato del administrador).
+   * Documento que representa el contrato para el SGC, por prioridad:
+   *  1. Contrato firmado por el cliente (`categoria = contrato_firmado`).
+   *  2. Contrato v1 del administrador (`userId === null`).
+   *  3. Columna legacy `documentos` (compatibilidad).
+   * Si no hay ninguno, no se envia contrato.
    */
   private seleccionarContrato(detalle: SolicitudRow): DocumentoUrl | null {
+    const firmado = detalle.docsAdjuntos.find((doc) => doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+    if (firmado) return { url: firmado.url, nombre: firmado.nombre };
     const admin = detalle.docsAdjuntos.find((doc) => doc.userId === null);
     if (admin) return { url: admin.url, nombre: admin.nombre };
     return extraerDocumentosLegacy(detalle.documentos)[0] ?? null;

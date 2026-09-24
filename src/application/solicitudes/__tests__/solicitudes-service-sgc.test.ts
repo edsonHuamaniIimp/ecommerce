@@ -4,8 +4,8 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
-import type { RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION } from "@/lib/shared/constants";
+import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
@@ -45,6 +45,7 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     findDocumento: vi.fn(),
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn().mockResolvedValue(undefined),
+    crearAlertaRol: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -88,6 +89,45 @@ function sgcMock(): SgcIntegracionApplicationService {
   return svc;
 }
 
+function detalleMultistand(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
+  return {
+    id: "sol-1",
+    gessStandId: null,
+    standCode: "A-1, A-2",
+    standCodes: ["A-1", "A-2"],
+    tipoStand: null,
+    medidas: null,
+    empresa: null,
+    email: null,
+    userId: "user-1",
+    bloqueId: null,
+    estado: null,
+    estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+    flgActivo: true,
+    documentos: [],
+    imagenes: [],
+    docsAdjuntosCount: 1,
+    clienteDocsAdjuntosCount: 0,
+    docsAdminCount: 1,
+    docsAdjuntos: [],
+    updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+    revisiones: [],
+    reevaluaciones: [],
+    revisionComunicacion: null,
+    revisionLegal: null,
+    revisionLogistica: null,
+    tieneFacturacion: false,
+    tipoFacturacion: null,
+    facturacionId: null,
+    sgcEstadoEnvio: null,
+    sgcLifecycleStatus: null,
+    sgcStage: null,
+    sgcDocumentosEnviados: false,
+    sgcEnabled: false,
+    ...overrides,
+  };
+}
+
 describe("SolicitudesApplicationService + SGC", () => {
   it("deberia delegar al SGC al aprobar Comunicacion (ultima area local)", async () => {
     const sgc = sgcMock();
@@ -129,5 +169,48 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
+  });
+
+  it("deberia alertar al admin cuando el cliente sube el contrato firmado", async () => {
+    const repo = repoMock(REVISION_AREAS.LOGISTICA, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/firmado.pdf",
+      nombre: "firmado.pdf",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
+      "sol-1", "/uploads/firmado.pdf", "firmado.pdf", "user-1", "cliente@iimp.org.pe", "contrato_firmado",
+    );
+    expect(repo.crearAlertaRol).toHaveBeenCalledWith(expect.objectContaining({
+      rol: ROLES.ADMIN,
+      tipo: ALERTA_TIPOS.CONTRATO_FIRMADO,
+      url: expect.stringContaining("/dashboard/solicitudes?id=sol-1"),
+    }));
+  });
+
+  it("no deberia alertar al admin cuando el cliente sube anexos", async () => {
+    const repo = repoMock(REVISION_AREAS.LOGISTICA, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/anexo.pdf",
+      nombre: "anexo.pdf",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+    });
+
+    expect(repo.crearAlertaRol).not.toHaveBeenCalled();
   });
 });

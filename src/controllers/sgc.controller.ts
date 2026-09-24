@@ -117,7 +117,12 @@ export const sgcController = {
 
     const expediente = await services.sgc.crearExpedienteDesdeSolicitud(body.solicitudId);
     if (!expediente?.contractId) {
-      return error(API_ERROR_CODES.INTERNAL, "No se pudo registrar el expediente en el SGC", 500);
+      if (!services.sgc.estaHabilitado()) {
+        return error(API_ERROR_CODES.INTERNAL, "Integracion SGC deshabilitada en el servidor (SGC_ENABLED=0)", 500);
+      }
+      const registro = await services.sgc.obtenerRegistroLocal(body.solicitudId);
+      const causa = registro?.lastError ? `: ${registro.lastError}` : "";
+      return error(API_ERROR_CODES.INTERNAL, `No se pudo registrar el expediente en el SGC${causa}`, 500);
     }
     return success(expediente);
   },

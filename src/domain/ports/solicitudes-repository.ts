@@ -36,8 +36,9 @@ export interface ISolicitudesRepository {
   darDeBajaSolicitud(solicitudId: string): Promise<void>;
   marcarOrdenPago(solicitudId: string): Promise<void>;
   obtenerHistorial(solicitudId: string): Promise<{ revisiones: RevisionEntity[]; historial: RevisionHistorialEntity[] }>;
-  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string): Promise<Record<string, unknown>>;
+  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null): Promise<Record<string, unknown>>;
   findDocumento(docId: string): Promise<{ id: string; userId: string | null } | null>;
   eliminarDocumento(docId: string): Promise<void>;
   crearAlertaRevision(data: { rol: string; solicitudId: string; titulo: string; mensaje: string; standCodes: string }): Promise<void>;
+  crearAlertaRol(data: { rol: string; tipo: string; titulo: string; mensaje: string; url: string }): Promise<void>;
 }

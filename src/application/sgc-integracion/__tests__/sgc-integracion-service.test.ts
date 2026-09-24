@@ -117,6 +117,7 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     findDocumento: vi.fn(),
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn(),
+    crearAlertaRol: vi.fn(),
   };
 }
 

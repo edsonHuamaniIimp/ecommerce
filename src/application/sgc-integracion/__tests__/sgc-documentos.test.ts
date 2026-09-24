@@ -137,6 +137,7 @@ function solicitudRepoMock(row: SolicitudRow | null = detalle()): ISolicitudesRe
     findDocumento: vi.fn(),
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn(),
+    crearAlertaRol: vi.fn(),
   };
 }
 
@@ -304,9 +305,9 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
-        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
-        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
+        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
@@ -326,9 +327,9 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d0", url: "/uploads/contrato.pdf", nombre: "a.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
-        { id: "d1", url: "/uploads/a-otra-url.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
-        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, createdAt: new Date() },
+        { id: "d0", url: "/uploads/contrato.pdf", nombre: "a.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "d1", url: "/uploads/a-otra-url.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
+        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
@@ -344,8 +345,8 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
-        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", createdAt: new Date() },
+        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", categoria: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
@@ -354,6 +355,27 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
 
     expect(docs).toHaveLength(1);
     expect(client.reservarSubida).toHaveBeenCalledTimes(1);
+  });
+
+  it("deberia excluir el contrato firmado del cliente de los anexos", async () => {
+    const client = clientMock();
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "d1", url: "/uploads/firmado.pdf", nombre: "firmado.pdf", userId: "user-1", uploadedBy: null, categoria: "contrato_firmado", createdAt: new Date() },
+        { id: "d2", url: "/uploads/anexo.pdf", nombre: "anexo.pdf", userId: "user-1", uploadedBy: null, categoria: "anexo", createdAt: new Date() },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+
+    const docs = await svc.subirAnexosDeSolicitud("sol-1");
+
+    expect(docs).toHaveLength(1);
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX }),
+    );
   });
 });
 
@@ -364,8 +386,8 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", createdAt: new Date() },
-        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", createdAt: new Date() },
+        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", categoria: null, createdAt: new Date() },
       ],
     });
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
@@ -378,5 +400,26 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.CONTRACT }),
     );
     expect(doc).not.toBeNull();
+  });
+
+  it("prefiere el contrato firmado del cliente como contrato para el SGC", async () => {
+    const client = clientMock();
+    const origen = documentoOrigenMock();
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
+        { id: "firmado", url: "/uploads/firmado.pdf", nombre: "firmado.pdf", userId: "user-1", uploadedBy: null, categoria: "contrato_firmado", createdAt: new Date() },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
+
+    await svc.subirContratoDeSolicitud("sol-1");
+
+    expect(origen.leer).toHaveBeenCalledWith("/uploads/firmado.pdf");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.CONTRACT }),
+    );
   });
 });

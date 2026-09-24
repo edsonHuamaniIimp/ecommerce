@@ -5,16 +5,19 @@ import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from 
 import { FileText, Upload, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { ANEXOS_REQUERIDOS } from "@/lib/shared/constants";
+import { ANEXOS_REQUERIDOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {
   solicitud: SolicitudDTO;
+  /** "contrato" = subir el contrato firmado; "anexos" = documentos anexos del SGC. */
+  modo?: "contrato" | "anexos";
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
+export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
+  const esContrato = modo === "contrato";
   const [clienteDocs, setClienteDocs] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -47,9 +50,10 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
           solicitudId: solicitud.id,
           url,
           nombre: url.split("/").pop() ?? "documento",
+          tipo: esContrato ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
         });
       }
-      toast.success("Anexos enviados correctamente");
+      toast.success(esContrato ? "Contrato firmado enviado correctamente" : "Anexos enviados correctamente");
       onSaved();
       onClose();
     } catch (e) {
@@ -61,29 +65,37 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
-        <h3 className="text-sm font-semibold text-foreground">Adjuntar documentos anexos</h3>
+        <h3 className="text-sm font-semibold text-foreground">{esContrato ? "Subir contrato firmado" : "Adjuntar documentos anexos"}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
-          <p className="text-[11px] font-semibold text-foreground">Documentos anexos requeridos por el SGC</p>
-          <ul className="mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
-            {ANEXOS_REQUERIDOS.map((a) => (
-              <li key={a.key}>• {a.label}</li>
-            ))}
-          </ul>
+          {esContrato ? (
+            <p className="text-[11px] font-semibold text-foreground">
+              Descarga el contrato del administrador (abajo), firmalo y sube el archivo firmado para continuar con tu solicitud.
+            </p>
+          ) : (
+            <>
+              <p className="text-[11px] font-semibold text-foreground">Documentos anexos requeridos por el SGC</p>
+              <ul className="mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
+                {ANEXOS_REQUERIDOS.map((a) => (
+                  <li key={a.key}>• {a.label}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
         {(() => {
           const adminDocs = solicitud.docsAdjuntos?.filter(d => d.userId !== solicitud.userId) ?? [];
-          const misDocs = solicitud.docsAdjuntos?.filter(d => d.userId === solicitud.userId) ?? [];
+          const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId && (esContrato ? d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO));
           return (
             <>
               {adminDocs.length > 0 && (
                 <div>
-                  <Label className="text-xs mb-1 block">Documentos del administrador</Label>
+                  <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
                   <div className="space-y-1 rounded-md border bg-secondary p-2">
                     {adminDocs.map((doc, i) => (
                       <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
@@ -97,7 +109,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
               )}
 
               <div>
-                <Label className="text-xs mb-1 block">Tus documentos anexos</Label>
+                <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Tus documentos anexos"}</Label>
                 {misDocs.length > 0 && (
                   <div className="space-y-1 rounded-md border p-2 mb-2">
                     {misDocs.map((doc, i) => (
@@ -133,7 +145,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
                 }} />
                 <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => fileRef.current?.click()}>
                   <Upload className="mr-1 h-3 w-3" />
-                  {uploading ? "Subiendo..." : "Agregar anexo"}
+                  {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar anexo"}
                 </Button>
               </div>
             </>
@@ -152,7 +164,7 @@ export function ClienteUploadModal({ solicitud, onClose, onSaved }: Props) {
           </Button>
           <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
             disabled={sending || clienteDocs.length === 0} onClick={handleEnviar}>
-            {sending ? "Enviando..." : "Enviar anexos"}
+            {sending ? "Enviando..." : esContrato ? "Enviar contrato firmado" : "Enviar anexos"}
           </Button>
         </div>
       </div>

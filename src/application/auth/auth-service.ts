@@ -128,7 +128,8 @@ export class AuthApplicationService {
   }
 
   async login(dto: LoginRequestDTO): Promise<LoginResult> {
-    const userRoles = await this.repo.findByEmail(dto.email);
+    const email = dto.email.trim().toLowerCase();
+    const userRoles = await this.repo.findByEmail(email);
     const [principal] = userRoles;
     if (!principal) return { error: "Usuario sin roles asignados", status: 403 } as const;
     if (!verificarPassword(dto.password, principal.password)) {
@@ -142,8 +143,8 @@ export class AuthApplicationService {
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);
     const permissions = principal.role.permisos;
     const expiracion = dto.remember ? SESION.JWT_EXPIRACION_RECORDADA : SESION.JWT_EXPIRACION_ESTANDAR;
-    const token = await signToken({ sub: `user|${dto.email}`, email: dto.email, name: dto.email.split("@")[0] ?? dto.email, roles, permissions }, expiracion);
-    return { token, roles, email: dto.email, remember: dto.remember ?? false };
+    const token = await signToken({ sub: `user|${email}`, email, name: email.split("@")[0] ?? email, roles, permissions }, expiracion);
+    return { token, roles, email, remember: dto.remember ?? false };
   }
 
   async getSession(): Promise<SessionResult> {

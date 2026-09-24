@@ -1,6 +1,6 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
@@ -113,17 +113,54 @@ export class SolicitudesApplicationService {
     }
 
     /*
-     * El SGC distingue contrato (documento del admin, `userId` null) de anexos
-     * (documentos del cliente, `userId` no nulo). Un anexo siempre lleva `userId`
-     * para que `subirAnexosDeSolicitud` lo detecte, aunque lo suba un admin.
+     * Clasificacion del documento adjunto:
+     *  - CONTRATO: contrato v1 subido por el administrador (`userId` null).
+     *  - CONTRATO_FIRMADO: contrato firmado subido por el cliente (`userId` propio).
+     *  - ANEXO: documento anexo del cliente para el SGC (`userId` propio).
+     * Sin tipo (legacy): el admin queda como `userId` null y el cliente como propio.
      */
-    const esAnexo = params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO;
-    const userId = esAnexo ? params.userSub : isAdmin ? null : params.userSub;
-    return this.repo.crearDocumentoAdjunto(
+    const tipoValido = Object.values(TIPOS_DOCUMENTO_SOLICITUD).includes(params.tipo as TipoDocumentoSolicitud)
+      ? (params.tipo as TipoDocumentoSolicitud)
+      : null;
+
+    const categoria = tipoValido ?? null;
+    let userId: string | null;
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
+      userId = null;
+    } else if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO || tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
+      userId = params.userSub;
+    } else {
+      userId = isAdmin ? null : params.userSub;
+    }
+
+    const doc = await this.repo.crearDocumentoAdjunto(
       params.solicitudId, params.url, params.nombre,
       userId,
       params.userEmail,
+      categoria,
     );
+
+    /*
+     * Avance del flujo: cuando el cliente sube el contrato firmado, se avisa al
+     * admin para que proceda con la revision de las areas. Best-effort: un fallo
+     * de la alerta no revierte la subida.
+     */
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
+      try {
+        const detalle = await this.repo.detalle(params.solicitudId);
+        if (detalle) {
+          await this.repo.crearAlertaRol({
+            rol: ROLES.ADMIN,
+            tipo: ALERTA_TIPOS.CONTRATO_FIRMADO,
+            titulo: "Contrato firmado subido",
+            mensaje: `El cliente subio el contrato firmado de la solicitud ${detalle.standCode}. Revisa los documentos para continuar con el flujo.`,
+            url: `${APP_URL}/dashboard/solicitudes?id=${params.solicitudId}`,
+          });
+        }
+      } catch { /* best-effort */ }
+    }
+
+    return doc;
   }
 
   async eliminarDocumento(params: {

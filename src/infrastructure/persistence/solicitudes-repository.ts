@@ -127,6 +127,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       nombre: d.nombre,
       userId: d.userId,
       uploadedBy: d.uploadedBy,
+      categoria: d.categoria,
       createdAt: d.createdAt,
     }));
 
@@ -449,9 +450,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: email, userId },
+      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null },
     });
     return { ...doc };
   }
@@ -478,6 +479,24 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           titulo: data.titulo,
           mensaje: data.mensaje,
           url: `${APP_URL}/dashboard/solicitudes?id=${data.solicitudId}`,
+        },
+      });
+    }
+  }
+
+  async crearAlertaRol(data: { rol: string; tipo: string; titulo: string; mensaje: string; url: string }) {
+    const usuarios = await prisma.userRole.findMany({
+      where: { role: { nombre: data.rol } },
+      select: { userId: true },
+    });
+    for (const u of usuarios) {
+      await prisma.alerta.create({
+        data: {
+          userId: u.userId,
+          tipo: data.tipo,
+          titulo: data.titulo,
+          mensaje: data.mensaje,
+          url: data.url,
         },
       });
     }
