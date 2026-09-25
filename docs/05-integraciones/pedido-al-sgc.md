@@ -1,137 +1,97 @@
-# Integración SGC ↔ ContratosStands — bloqueo de autenticación (401)
+# Pedido al equipo del SGC — guía v2 (bloqueo de tipo/ruta)
 
 **Para:** equipo del SGC (autor de `APIS_USE_HOOKS.md`).
 **De:** equipo de ContratosStands (sistema de separación de stands / e-commerce).
-**Fecha:** 22 set. 2026.
+**Fecha:** 25 set. 2026.
+**Estado:** con la **guía v2** quedaron resueltos URL, auth (`Bearer sgc_<clave>`) y el flujo.
+Queda **1 bloqueo** del lado del SGC (tipos con ruta propia).
 
 ---
 
-## TL;DR — lo que necesitamos de ustedes
+## Contexto: qué ya validamos con la guía v2 (QA)
 
-Con la **clave que nos entregaron** (conexión `ECOMMERCE_IIMP_CONEX`) **toda llamada a la API
-responde `401 {"error":"No autorizado."}`**, tanto desde Lima como desde AWS. La ruta usada es la
-de su documentación: `POST/GET https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
-con `Authorization: Bearer sgc_<clave>`.
+La integración está **desplegada contra QA** y probada. Lo que sí funciona:
 
-Necesitamos **una** de estas cosas:
-
-1. **Ejecuten este mismo `curl` contra el origen directo (sin CloudFront).** Si ahí devuelve
-   `201`, entonces CloudFront no está reenviando el header `Authorization` (ver hipótesis abajo).
-2. **Revisen la *Origin request policy* de CloudFront** del distribution de
-   `gestion-contratos.sistemasiimp.org.pe`: debe **reenviar el header `Authorization`** al origen
-   (p. ej. política `AllViewer`). Por defecto CloudFront **excluye** `Authorization`.
-3. **Confirmen que la clave está activa** y asignada al rol `contract-manager`.
-4. **Pásennos un `curl` que les funcione** (con su URL/headers reales) y los códigos reales de
-   `areaCode` y `contractTypeCode` para "separación de stands".
+- `GET /contract-types` (áreas + tipos + ruta vigente) ✅
+- `GET /templates` y `GET /templates/{code}` ✅
+- `GET /templates/{code}/files/{fileId}/download` (URL de 60 s) ✅
+- `POST /contracts` con tipos de **ruta por defecto** (`route.source = "default"`): `201` con
+  `contractTypeCode`, **`route`** (`frozen`, `steps[]`, `requiredRole`) y `routeError` ✅
+- Subida de contrato/anexos en 3 fases (`reservar → transferir → confirmar`) con checksum SHA-256 ✅
+- `POST /contracts/{contractId}/resend` (reabre tras subsanar; `422` correcto si no hay versión nueva) ✅
+- Webhook HMAC (`x-sgc-signature`) procesando `workflow.advanced` ✅
 
 ---
 
-## Qué ya tenemos del lado nuestro (listo, no falta nada)
+## Bloqueo: los tipos con **ruta propia** no permiten crear (`422`)
 
-- Cliente HTTP implementado y probado (fases 0–6): crear expediente, subir contrato v1/anexos
-  (3 fases con checksum SHA-256), consultar estado/stepper, webhooks con HMAC, subsanar y
-  descargar el contrato firmado.
-- `SGC_API_URL` configurada en producción:
-  `https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1`.
-- Integración **dormida** (`SGC_ENABLED=0`); se activa con variables de entorno cuando la auth
-  funcione, sin recompilar.
-- `npx tsc --noEmit` y `npx eslint` en 0 errores.
+`POST /api/integrations/v1/contracts` devuelve
+**`422 {"error":"No se pudo crear el expediente."}`** cuando el `contractTypeCode` es un tipo con
+**ruta propia** (`route.source = "type"`). Con los de **ruta por defecto** (`source = "default"`) crea
+sin problema. El mismo cuerpo/headers/`areaCode`; **solo cambia el tipo**.
 
----
+| `contractTypeCode` | `route.source` | `POST /contracts` |
+|---|---|---|
+| `AUSPICIO`, `SERVICIOS`, `PROVEEDOR`, `ARRENDAMIENTO` | `default` | ✅ `201` |
+| **`PRUEBA_IIMP_1`** | **`type`** (`PRUEBA-IIMP-1-FLUJO`) | ❌ **`422`** |
+| **`PRUEBA_IIMP_2`** | **`type`** (`PRUEBA-IIMP-2-FLUJO`) | ❌ **`422`** |
 
-## La clave que nos dieron
-
-- Conexión: `ECOMMERCE_IIMP_CONEX` — Actor: `ECOMMERCE_IIMP` (usuario Edson Huamani).
-- Clave: `sgc_...` (nos indicaron que corresponde al ambiente **QA**:
-  `https://qa-gestion-contratos.sistemasiimp.org.pe/`).
-- Resultado real hoy: **401 `{"error":"No autorizado."}`** en **ambos** ambientes
-  (QA y producción).
-
----
-
-## Qué probamos y qué pasa
-
-### Formatos de header (con la clave real)
-
-```
-Authorization: Bearer sgc_<clave>     -> 401
-Authorization: Bearer <clave>         -> 401
-Authorization: <clave>                -> 401
-Authorization: ApiKey|Token <clave>   -> 401
-x-api-key / api-key / apikey: <clave> -> 401
-Authorization: Basic <base64>         -> 401
-por query string (?apiKey= / ?key=)   -> 401
-POST + Idempotency-Key + JSON válido  -> 401
-```
-
-### Rutas
-
-```
-/api/integrations/v1/contracts              -> 401 {"error":"No autorizado."}   (correcta)
-/api/integration/v1/contracts               -> 307 redirect /login
-/integrations/v1/contracts                  -> 307 redirect /login
-/api/v1/integrations/contracts              -> 307 redirect /login
-```
-
-### Ambientes y origen de la llamada (para descartar ambiente e IP)
-
-- **Producción** `https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
-  → 401 (desde Lima y desde AWS).
-- **QA** `https://qa-gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts`
-  → 401 (desde Lima).
-- Todas las respuestas (QA y prod) llegan vía **CloudFront** (`via: ...cloudfront.net`,
-  `X-Cache: Error from cloudfront`). El comportamiento es idéntico en ambos ambientes, por lo que
-  el bloqueo no depende del ambiente ni de nuestra IP.
+Probamos con `areaCode = COMUNICACIONES` **y** `EVENTOS`: da igual; los de ruta propia **siempre**
+fallan. Conclusión: el problema está en la **resolución de la ruta personalizada** al crear, no en
+el request.
 
 ### Reproducción
 
 ```bash
-curl -i -X POST https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts \
+curl -i -X POST https://qa-gestion-contratos.sistemasiimp.org.pe/api/integrations/v1/contracts \
   -H "Authorization: Bearer sgc_<clave>" \
-  -H "Idempotency-Key: ecommerce/pedido/12345" \
+  -H "Idempotency-Key: stands/reserva/repro-1" \
   -H "Content-Type: application/json" \
-  -d '{"code":"ECOM-2026-0001","areaCode":"EVENTOS","contractTypeCode":"AUSPICIO",
-       "name":"Prueba","counterpartyLegalName":"Cliente de prueba S.A.C.",
-       "counterpartyTaxIdentifier":"20123456789","processOrigin":"ContratosStands"}'
-# Respuesta actual: 401 {"error":"No autorizado."}
-# Respuesta esperada: 201 {"contractId":"...","status":"created"}
+  -d '{"code":"STAND-REPRO-1","areaCode":"COMUNICACIONES","contractTypeCode":"PRUEBA_IIMP_1",
+       "name":"x","counterpartyLegalName":"X SAC","counterpartyTaxIdentifier":"20123456789",
+       "processOrigin":"ContratosStands"}'
+# PRUEBA_IIMP_1 -> 422 {"error":"No se pudo crear el expediente."}
+# SERVICIOS     -> 201 { "contractId": "...", "route": { "source": "default", "frozen": true, ... } }
 ```
+
+### Impacto
+
+El repositorio de templates **`STANDS_PERUMIN`** está ligado a **`PRUEBA_IIMP_1`**. Como la guía
+recomienda enviar el `contractType.code` del repositorio, nuestro flujo de "separación de stands"
+**no puede crear el expediente** hoy.
 
 ---
 
-## Hipótesis principal
+## Segundo punto: el `422` no trae el detalle que promete la guía
 
-**CloudFront no está reenviando el header `Authorization` al origen.** Así el backend nunca recibe
-la clave y responde 401. Es una configuración por defecto de CloudFront: si la *cache/origin
-request policy* no incluye `Authorization`, ese header se elimina antes de llegar al origen.
-
-> **Actualización (22 set., tras ajustar el WAF):** el request **sí llega a la app** — la respuesta
-> incluye headers de Next.js (`vary: rsc, next-router-state-tree, ...`) y cookies de Auth.js
-> (`__Host-authjs.csrf-token`). Es decir, el 401 **lo emite el propio handler de integración**
-> (`{"error":"No autorizado."}`), no el WAF ni CloudFront. Por eso ahora la causa más probable es
-> **(b) la clave no está activa/validada en ese ambiente**, o **(c) el esquema de auth difiere**
-> del documentado.
-
-**Cómo verificarlo (2 minutos):**
-1. Ejecutar el `curl` de arriba **directamente contra el origen** (la URL del ALB/servicio, sin
-   CloudFront). Si devuelve `201`, queda confirmado.
-2. En CloudFront → Behaviors → *Origin request policy*: agregar `Authorization` (o usar
-   `AllViewer`). Guardar y probar de nuevo por el dominio público.
+La **§3.3** de la guía indica que el `422` ocurre por "Tipo o área inexistente/inactiva
+(**el mensaje lista los códigos válidos**)". Hoy el `422` es **genérico**
+(`"No se pudo crear el expediente."`), sin motivo ni códigos válidos. Pedimos que incluya el
+detalle para poder diagnosticar sin adivinar.
 
 ---
 
-## Cómo debe verse cuando funcione
+## Qué necesitamos (cualquiera de las dos primeras)
 
-```
-POST /api/integrations/v1/contracts   -> 201 {"contractId":"<uuid>","status":"created"}
-GET  /api/integrations/v1/contracts/<contractId> -> 200 { ... }
-```
+1. **Corregir la configuración de la RUTA** de `PRUEBA_IIMP_1` y `PRUEBA_IIMP_2` (la creación falla
+   al resolverla), **o**
+2. **Crear el tipo oficial `ALQUILER_STANDS`** con una ruta **válida** y **apuntar el template
+   `STANDS_PERUMIN` a ese tipo** (hoy la guía nombra `ALQUILER_STANDS`, pero en QA no existe: el
+   catálogo real es `PROVEEDOR, ARRENDAMIENTO, SERVICIOS, AUSPICIO, PRUEBA_IIMP_1, PRUEBA_IIMP_2`).
+3. Que el **`422` traiga el motivo / códigos válidos** (según §3.3).
+
+---
+
+## Mientras tanto
+
+Seguimos con `areaCode = COMUNICACIONES` + `contractTypeCode = AUSPICIO` (verificado `201`), para no
+bloquear las pruebas. En cuanto `ALQUILER_STANDS` (o la ruta de `PRUEBA_IIMP_1`) funcione, cambiamos
+solo la variable `SGC_CONTRACT_TYPE_CODE` (sin recompilar).
 
 ---
 
 ## Recordatorio (webhooks)
 
 El único flujo **sin** Bearer es el **webhook**, y es al revés: lo envía el SGC hacia nosotros,
-firmado con HMAC (`x-sgc-signature`). Cuando lo habiliten: confirmar host autorizado, registrar
-`POST https://ecommerce.sistemasiimp.org.pe/api/integracion/sgc/webhook` y enviarnos el secreto
-HMAC.
+firmado con HMAC (`x-sgc-signature`). Pendiente: registrar como host autorizado
+`POST https://ecommerce.sistemasiimp.org.pe/api/integracion/sgc/webhook` y enviarnos el secreto HMAC.
