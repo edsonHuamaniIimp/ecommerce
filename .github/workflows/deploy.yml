@@ -42,6 +42,21 @@ jobs:
   ci:
     name: CI — Lint, TypeCheck y Tests
     runs-on: ubuntu-latest
+    services:
+      # Postgres efimero para validar que las migraciones reflejan el schema (drift).
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ctrst
+          POSTGRES_PASSWORD: ctrst
+          POSTGRES_DB: shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ctrst"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,6 +81,17 @@ jobs:
 
       - name: Tests
         run: npx vitest run src
+
+      # Guard anti-drift: falla si el schema tiene cambios sin migracion versionada.
+      # (exit 2 = hay diferencias; exit 0 = migraciones == schema).
+      - name: Drift schema vs migraciones
+        env:
+          SHADOW_DATABASE_URL: postgresql://ctrst:ctrst@localhost:5432/shadow
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema.prisma \
+            --exit-code
 
   # ─── Imagen → ECR (arm64 + cache) ─────────────────────────────────────────
   build-image:
@@ -140,11 +166,13 @@ jobs:
   deploy-ecs:
     name: CD — Rollout ECS
     runs-on: ubuntu-latest
-    # No depende de `ci`: los tests no bloquean el deploy (corren en paralelo como informe).
-    needs: build-image
+    # Requiere `ci` (lint/tsc/tests/drift) ademas de la imagen: el guard anti-drift
+    # debe BLOQUEAR el deploy. No suma tiempo: `ci` (~1 min) termina antes que el build (~4 min).
+    needs: [build-image, ci]
     if: |
       github.ref == 'refs/heads/main' &&
-      needs.build-image.result == 'success'
+      needs.build-image.result == 'success' &&
+      needs.ci.result == 'success'
     steps:
       - name: Verificar secrets ECR
         id: check-ecr
