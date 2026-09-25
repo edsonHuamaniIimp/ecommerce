@@ -98,7 +98,11 @@ export class SgcIntegracionApplicationService {
           .catch(() => undefined);
         return null;
       }
-    } catch {
+    } catch (err) {
+      console.error(
+        `[SGC] crearExpedienteDesdeSolicitud(${solicitudId}) fallo:`,
+        err instanceof Error ? (err.stack ?? err.message) : err,
+      );
       return null;
     }
   }
