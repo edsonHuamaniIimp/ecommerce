@@ -45,7 +45,7 @@ Cambios y estado en este repo:
 |---|---|
 | `POST /contracts` responde `contractTypeCode` + **`route`** (`frozen`, `steps[]`) + `routeError` | ✅ `SgcCrearExpedienteResult` extendido (`SgcRutaExpediente`/`SgcRutaStep`) |
 | `areaCode` y `contractTypeCode` **obligatorios** | ✅ ya se envían (400 si faltan) |
-| Códigos: `areaCode` / `contractTypeCode` | ✅ prod usa `EVENTOS`/`AUSPICIO` (existen en QA). ⚠️ `ALQUILER_STANDS` **no existe** todavía en QA; catálogo real hoy: `PROVEEDOR, ARRENDAMIENTO, SERVICIOS, AUSPICIO, PRUEBA_IIMP_1, PRUEBA_IIMP_2`; el template `STANDS_PERUMIN` apunta a **`PRUEBA_IIMP_1`** |
+| Códigos: `areaCode` / `contractTypeCode` | ✅ prod (task `:9`): `COMUNICACIONES` + `AUSPICIO` (verificados `201`). ⚠️ `ALQUILER_STANDS` **no existe**; el template `STANDS_PERUMIN` apunta a **`PRUEBA_IIMP_1`**, pero ese tipo **falla la creación (`422`)** → bug del SGC. Tipos que sí crean: `PROVEEDOR, ARRENDAMIENTO, SERVICIOS, AUSPICIO` |
 | `GET /contract-types` (tipos, áreas y ruta vigente) | ✅ cliente `listarTiposContrato()` |
 | `GET /templates` y `GET /templates/{code}` + descarga de archivo | ✅ cliente `listarTemplates()` / `obtenerTemplate()` + `TEMPLATE_FILE_DOWNLOAD` |
 | **`POST /contracts/{id}/resend`** (reabrir el trámite tras subsanar, con `Idempotency-Key`) | ✅ `subsanarContrato` ahora sube la versión **y** llama `/resend` |
