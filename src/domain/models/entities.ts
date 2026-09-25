@@ -27,6 +27,29 @@ export interface EventoPadreEntity {
   nombre: string;
 }
 
+/** Item del modal informativo de /mapa (config por version de evento). */
+export interface ModalInfoItem {
+  titulo: string;
+  descripcion: string;
+}
+
+/** Bloque de ayuda del modal informativo (link a Mesa de Ayuda, etc.). */
+export interface ModalInfoAyuda {
+  titulo: string;
+  descripcion: string;
+  texto_boton: string;
+  url: string;
+}
+
+/** Contenido configurable del modal informativo que se muestra al entrar a /mapa. */
+export interface ModalInfoConfig {
+  activo: boolean;
+  titulo: string;
+  subtitulo?: string | null;
+  items: ModalInfoItem[];
+  ayuda?: ModalInfoAyuda | null;
+}
+
 export interface EventoEntity {
   id: string;
   eventoPadreId: string;
@@ -73,6 +96,8 @@ export interface UserRoleEntity {
   userId: string;
   email: string;
   roleId: string;
+  /** Ultimo evento seleccionado por el usuario (se reusa al iniciar sesion). */
+  eventoId?: string | null;
 }
 
 export interface AuthUser {

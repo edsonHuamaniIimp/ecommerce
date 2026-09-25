@@ -49,6 +49,8 @@ export interface IAuthRepository {
   eliminarRegistroPendiente(id: string): Promise<void>;
   findEventoById(id: string): Promise<EventoInfo | null>;
   findOrCreateEvento(tipoEvento: number, codigoEvento: number): Promise<{ id: string }>;
+  /** Persiste el ultimo evento elegido para reusarlo en el proximo login. */
+  setEventoSeleccionado(email: string, eventoId: string): Promise<void>;
   findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null } | null>;
   updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null }): Promise<void>;
   findForReset(email: string): Promise<{ id: string; email: string; nombre: string | null } | null>;

@@ -9,8 +9,12 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
     return prisma.userRole.findMany({
       where: { email },
-      select: { id: true, userId: true, roleId: true, email: true, password: true, role: { select: { nombre: true, permisos: true } } },
+      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, role: { select: { nombre: true, permisos: true } } },
     });
+  }
+
+  async setEventoSeleccionado(email: string, eventoId: string): Promise<void> {
+    await prisma.userRole.updateMany({ where: { email }, data: { eventoId } });
   }
 
   async existeEmail(email: string): Promise<boolean> {

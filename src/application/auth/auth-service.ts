@@ -143,7 +143,33 @@ export class AuthApplicationService {
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);
     const permissions = principal.role.permisos;
     const expiracion = dto.remember ? SESION.JWT_EXPIRACION_RECORDADA : SESION.JWT_EXPIRACION_ESTANDAR;
-    const token = await signToken({ sub: `user|${email}`, email, name: email.split("@")[0] ?? email, roles, permissions }, expiracion);
+    /*
+     * Reusa el ultimo evento elegido (persistido en `user_role.eventoId`) para que el
+     * token nazca con `eventoId` y el usuario no tenga que volver a seleccionarlo.
+     */
+    const evento = principal.eventoId
+      ? await this.repo.findEventoById(principal.eventoId).catch(() => null)
+      : null;
+    const token = await signToken(
+      {
+        sub: `user|${email}`,
+        email,
+        name: email.split("@")[0] ?? email,
+        roles,
+        permissions,
+        ...(evento
+          ? {
+              eventoId: evento.id,
+              eventoPadreId: evento.eventoPadreId,
+              tipoEvento: evento.tipoEvento,
+              codigoEvento: evento.codigoEvento,
+              eventoNombre: `${evento.eventoPadre.nombre} ${evento.anio}`,
+              eventoPadreNombre: evento.eventoPadre.nombre,
+            }
+          : {}),
+      },
+      expiracion,
+    );
     return { token, roles, email, remember: dto.remember ?? false };
   }
 
@@ -182,6 +208,11 @@ export class AuthApplicationService {
     }
 
     if (!eventoId) throw new Error("NOT_FOUND:Evento no encontrado");
+
+    /* Persiste el evento elegido para reusarlo en el proximo login (best-effort). */
+    await this.repo
+      .setEventoSeleccionado(payload.email as string, eventoId)
+      .catch(() => undefined);
 
     // jose interpreta un numero como marca de tiempo absoluta: se reusa la exp
     // del token anterior para conservar la vigencia, y la cookie usa los

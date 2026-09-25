@@ -60,6 +60,8 @@ model EventoMetadata {
   plano        String? @db.VarChar(50)
   flgVisible   Boolean @default(false) @map("flg_visible")
   imagen       String? @db.VarChar(500)
+  /// Modal informativo mostrado en /mapa (config por version). Ver ModalInfoConfig.
+  modalInfo    Json?   @map("modal_info")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -129,6 +131,8 @@ model UserRole {
   tipoUsuarioId     Int?      @map("tipo_usuario_id")
   idEmpresa         String?   @map("id_empresa") @db.VarChar(50)
   nombreEmpresa     String?   @map("nombre_empresa") @db.VarChar(200)
+  /** Ultimo evento seleccionado: se reusa al iniciar sesion para no pedirlo de nuevo. */
+  eventoId          String?   @map("evento_id") @db.VarChar(50)
   resetToken        String?   @map("reset_token") @db.VarChar(200)
   resetTokenExpires DateTime? @map("reset_token_expires")
 

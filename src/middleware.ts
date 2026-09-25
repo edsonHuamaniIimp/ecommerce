@@ -65,7 +65,14 @@ export async function middleware(request: NextRequest) {
       if (payload.roles.includes(ROLES.ADMIN)) break;
 
       if (!payload.eventoId) {
-        return NextResponse.redirect(new URL("/presala", request.url));
+        /*
+         * Sin evento en el token: manda a elegirlo. `change=1` hace que /presala muestre
+         * el selector en vez de rebotar a /dashboard (evita el ciclo presala <-> dashboard).
+         */
+        const presala = new URL("/presala", request.url);
+        presala.searchParams.set("change", "1");
+        presala.searchParams.set("returnTo", pathname);
+        return NextResponse.redirect(presala);
       }
       break;
     }
