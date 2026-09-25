@@ -23,7 +23,7 @@
 ## 2. Middleware (`src/middleware.ts`)
 
 - **Matcher:** todas las rutas excepto `_next/static`, `_next/image`, `favicon.ico`, `sitemap.xml`, `robots.txt`.
-- **Rutas públicas:** `/`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
+- **Rutas públicas:** `/`, `/landing`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
   rutas exactas `/api/maestra`, `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`,
   `/api/planos/publico`; caso especial `GET /api/eventos/listar?presala=1`.
 - **Autenticación:** extrae el token JWT de la cookie `token` y lo verifica con `verifyToken`.
