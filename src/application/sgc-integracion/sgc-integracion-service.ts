@@ -71,17 +71,13 @@ export class SgcIntegracionApplicationService {
       if (!detalle) return existente;
 
       const input = await this.conCamposDelTipo(mapSolicitudToExpediente(detalle, this.config));
-      const registro =
-        existente ??
-        (await this.repo.crearExpediente({
-          solicitudId,
-          code: input.code,
-          areaCode: this.config.areaCode,
-          contractTypeCode: this.config.contractTypeCode,
-        }));
+      const registro = existente ?? (await this.crearRegistroConCodigoUnico(solicitudId, input.code));
 
       try {
-        const resultado = await this.client.crearExpediente(input, construirIdempotencyKey(solicitudId));
+        const resultado = await this.client.crearExpediente(
+          { ...input, code: registro.code },
+          construirIdempotencyKey(solicitudId),
+        );
         return await this.repo.actualizarExpediente(registro.id, {
           contractId: resultado.contractId,
           estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
@@ -104,6 +100,27 @@ export class SgcIntegracionApplicationService {
         err instanceof Error ? (err.stack ?? err.message) : err,
       );
       return null;
+    }
+  }
+
+  /**
+   * Crea la correlacion local. El `code` (p. ej. el `standCode`) puede repetirse si el mismo
+   * stand se alquila en otra solicitud; ante la colision (P2002) se usa un sufijo con el id de
+   * la solicitud para garantizar unicidad, y ese mismo `code` se envia al SGC.
+   */
+  private async crearRegistroConCodigoUnico(solicitudId: string, code: string): Promise<SgcExpedienteEntity> {
+    const crear = (codigo: string) =>
+      this.repo.crearExpediente({
+        solicitudId,
+        code: codigo,
+        areaCode: this.config.areaCode,
+        contractTypeCode: this.config.contractTypeCode,
+      });
+    try {
+      return await crear(code);
+    } catch (err) {
+      if ((err as { code?: string }).code !== "P2002") throw err;
+      return crear(`${code}-${solicitudId.slice(0, 8)}`);
     }
   }
 
