@@ -109,6 +109,10 @@ function clientMock(outcome: string = SGC_APPROVAL_RESULT.ACCEPTED): ISgcClient 
     consultarDocumento: vi.fn(),
     resolverVersion: vi.fn(),
     obtenerUrlDescarga: vi.fn(),
+    reabrirExpediente: vi.fn(),
+    listarTiposContrato: vi.fn(),
+    listarTemplates: vi.fn(),
+    obtenerTemplate: vi.fn(),
   };
 }
 
@@ -277,6 +281,11 @@ describe("SgcIntegracionApplicationService.subirDocumentoDesdeUrl", () => {
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
       expect.objectContaining({ documentId: "doc-1", replacementReason: expect.any(String) }),
+    );
+    /* Tras subir la correccion se reabre el tramite (POST /resend). */
+    expect(client.reabrirExpediente).toHaveBeenCalledWith(
+      "contract-1",
+      expect.stringContaining("stands/resend/"),
     );
   });
 });

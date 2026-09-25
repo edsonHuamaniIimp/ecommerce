@@ -1,8 +1,8 @@
 # Integración con el SGC (Sistema de Gestión de Contratos)
 
-> Estado: **plan de integración / diseño** — aún no se escribe código.
-> Rol de ContratosStands en esta integración: **cliente (consumidor)** de la API
-> de integración del SGC. Documento guía de referencia: `APIS_USE_HOOKS.md`
+> Estado: **implementado y desplegado** (la app apunta al SGC **QA**). Ver la
+> "Actualización guía v2" más abajo. Rol de ContratosStands: **cliente (consumidor)** de la
+> API de integración del SGC. Documento guía de referencia: `APIS_USE_HOOKS.md`
 > (provisto por el equipo del SGC); referencia técnica canónica del SGC:
 > `docs/INTEGRATIONS.md` (en el repo del SGC).
 >
@@ -35,6 +35,27 @@
 > Pendiente materializar tablas: `npm run db:push` (o `db:migrate`).
 > Los contratos de la API externa viven en `src/domain/models/sgc.ts` (mismo patrón que
 > `kbservicios-client.ts`); los DTOs en `types/dto/` se reservan para endpoints propios (Fase 3+).
+
+## Actualización guía v2 (`APIS_USE_HOOKS.md`, 2026-09-25)
+
+El equipo del SGC publicó una versión nueva de la guía (responde a `pedido-al-sgc.md`).
+Cambios y estado en este repo:
+
+| Cambio en la guía v2 | Estado en ContratosStands |
+|---|---|
+| `POST /contracts` responde `contractTypeCode` + **`route`** (`frozen`, `steps[]`) + `routeError` | ✅ `SgcCrearExpedienteResult` extendido (`SgcRutaExpediente`/`SgcRutaStep`) |
+| `areaCode` y `contractTypeCode` **obligatorios** | ✅ ya se envían (400 si faltan) |
+| Códigos reales: `areaCode=COMUNICACIONES`, `contractTypeCode=ALQUILER_STANDS` | ⚠️ prod hoy usa `EVENTOS`/`AUSPICIO` → **actualizar variables del task ECS** |
+| `GET /contract-types` (tipos, áreas y ruta vigente) | ✅ cliente `listarTiposContrato()` |
+| `GET /templates` y `GET /templates/{code}` + descarga de archivo | ✅ cliente `listarTemplates()` / `obtenerTemplate()` + `TEMPLATE_FILE_DOWNLOAD` |
+| **`POST /contracts/{id}/resend`** (reabrir el trámite tras subsanar, con `Idempotency-Key`) | ✅ `subsanarContrato` ahora sube la versión **y** llama `/resend` |
+| `workflow.returned` trae `data.reason` + `observations` | ✅ el inbox de webhooks lo persiste |
+| Carga: máx **25 MB**/archivo; PDF, DOCX, XLSX, PNG, JPG | ⚠️ validar en la carga (hoy no se valida el tope) |
+| `category: "annex"` = el mismo "Adjuntos" del panel humano | ✅ ya se usa |
+
+> La **autenticación con `Bearer sgc_<clave>` funciona** (el "401" inicial era un typo en la
+> clave: `0` vs `O`). Pendiente de producto: registrar la URL real del webhook en el SGC y, para
+> contratos reales, usar la **clave del SGC de producción** (hoy se apunta a QA).
 
 ## 1. Contexto y decisión
 

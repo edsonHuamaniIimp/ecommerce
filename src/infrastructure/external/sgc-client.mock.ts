@@ -3,6 +3,7 @@ import { SgcApiError } from "@/domain/models/sgc";
 import type {
   SgcActualizarExpedienteInput,
   SgcConfirmarSubidaResult,
+  SgcContractTypesCatalogo,
   SgcCrearExpedienteInput,
   SgcCrearExpedienteResult,
   SgcDocumentoDetalle,
@@ -11,6 +12,8 @@ import type {
   SgcPaginaExpedientes,
   SgcReservarSubidaInput,
   SgcReservarSubidaResult,
+  SgcResendResult,
+  SgcTemplate,
   SgcUrlDescarga,
   SgcVersion,
   SgcVersionResuelta,
@@ -233,5 +236,23 @@ export class SgcClientMock implements ISgcClient {
       url: `${MOCK_BASE_URL}/download/${versionId}`,
       expiresInSeconds: MOCK_EXPIRES_DOWNLOAD_SECONDS,
     };
+  }
+
+  async reabrirExpediente(contractId: string): Promise<SgcResendResult> {
+    const expediente = [...this.expedientes.values()].find((e) => e.contractId === contractId);
+    if (!expediente) throw new SgcApiError(`Expediente no encontrado: ${contractId}`, 404);
+    return { contractId, status: "resent" };
+  }
+
+  async listarTiposContrato(): Promise<SgcContractTypesCatalogo> {
+    return { areas: [], items: [] };
+  }
+
+  async listarTemplates(): Promise<SgcTemplate[]> {
+    return [];
+  }
+
+  async obtenerTemplate(code: string): Promise<SgcTemplate> {
+    throw new SgcApiError(`Template no encontrado: ${code}`, 404);
   }
 }

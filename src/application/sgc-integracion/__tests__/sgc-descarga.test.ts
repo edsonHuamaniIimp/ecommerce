@@ -91,6 +91,10 @@ function clientMock(documentos: SgcDocumentoResumen[]): ISgcClient {
     consultarDocumento: vi.fn(),
     resolverVersion: vi.fn(),
     obtenerUrlDescarga: vi.fn().mockResolvedValue({ url: "https://sgc/download/1", expiresInSeconds: 60 }),
+    reabrirExpediente: vi.fn(),
+    listarTiposContrato: vi.fn(),
+    listarTemplates: vi.fn(),
+    obtenerTemplate: vi.fn(),
   };
 }
 

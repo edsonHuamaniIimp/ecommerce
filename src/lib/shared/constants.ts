@@ -815,10 +815,17 @@ export const SGC_API_PATHS = {
   CONTRACTS: "/contracts",
   CONTRACT: (id: string) => `/contracts/${encodeURIComponent(id)}`,
   CONTRACT_DOCUMENTS: (id: string) => `/contracts/${encodeURIComponent(id)}/documents`,
+  /** Reabre el tramite tras subir la correccion de una devolucion (subsanacion). */
+  CONTRACT_RESEND: (id: string) => `/contracts/${encodeURIComponent(id)}/resend`,
+  CONTRACT_TYPES: "/contract-types",
   DOCUMENT: (id: string) => `/documents/${encodeURIComponent(id)}`,
   DOCUMENT_VERSION: (id: string) => `/document-versions/${encodeURIComponent(id)}`,
   DOCUMENT_VERSION_COMPLETE: (id: string) => `/document-versions/${encodeURIComponent(id)}/complete`,
   DOCUMENT_VERSION_DOWNLOAD: (id: string) => `/document-versions/${encodeURIComponent(id)}/download`,
+  TEMPLATES: "/templates",
+  TEMPLATE: (code: string) => `/templates/${encodeURIComponent(code)}`,
+  TEMPLATE_FILE_DOWNLOAD: (code: string, fileId: string) =>
+    `/templates/${encodeURIComponent(code)}/files/${encodeURIComponent(fileId)}/download`,
 } as const;
 
 /** Outbox SGC: estados, operaciones y politica de reintentos. */
@@ -843,6 +850,8 @@ export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
 
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
+/** Prefijo de la Idempotency-Key al reabrir el tramite tras subsanar (POST /resend). */
+export const SGC_IDEMPOTENCY_RESEND_PREFIX = "stands/resend";
 export const SGC_WEBHOOK_TOLERANCE_SECONDS = 300;
 export const SGC_WEBHOOK_SIGNATURE_HEADER = "x-sgc-signature";
 export const SGC_WEBHOOK_DELIVERY_HEADER = "x-sgc-delivery";

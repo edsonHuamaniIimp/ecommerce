@@ -100,6 +100,10 @@ function clientMock(): ISgcClient {
     consultarDocumento: vi.fn(),
     resolverVersion: vi.fn(),
     obtenerUrlDescarga: vi.fn(),
+    reabrirExpediente: vi.fn(),
+    listarTiposContrato: vi.fn(),
+    listarTemplates: vi.fn(),
+    obtenerTemplate: vi.fn(),
   };
 }
 

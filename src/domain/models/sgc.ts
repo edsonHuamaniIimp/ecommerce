@@ -22,10 +22,78 @@ export interface SgcCrearExpedienteInput {
   processOrigin: string;
 }
 
-/** Respuesta 201 de creacion de expediente */
+/** Paso de la ruta de revision (la resuelve el SGC al crear el expediente). */
+export interface SgcRutaStep {
+  position: number;
+  code: string;
+  name: string;
+  kind: string;
+  areaName: string;
+  requiredRole: string | null;
+  slaHours: number | null;
+}
+
+/** Ruta de revision congelada en el expediente — viene en la respuesta de creacion. */
+export interface SgcRutaExpediente {
+  definitionCode: string;
+  definitionName: string;
+  definitionVersion: number;
+  source: string;
+  frozen: boolean;
+  steps: SgcRutaStep[];
+}
+
+/** Respuesta 201 de creacion de expediente (incluye la ruta resuelta y congelada). */
 export interface SgcCrearExpedienteResult {
   contractId: string;
+  contractTypeCode?: string;
+  route?: SgcRutaExpediente | null;
+  routeError?: string | null;
   status: string;
+}
+
+/** Respuesta de reabrir el tramite tras subsanar — POST /contracts/{id}/resend */
+export interface SgcResendResult {
+  contractId: string;
+  status: string;
+}
+
+/** Catalogo de tipos de contrato y areas — GET /contract-types */
+export interface SgcContractType {
+  code: string;
+  name: string;
+  categoryName?: string | null;
+  routeError?: string | null;
+  route?: SgcRutaExpediente | null;
+}
+
+export interface SgcContractTypesCatalogo {
+  areas: { code: string; name: string }[];
+  items: SgcContractType[];
+}
+
+/** Repositorio de templates — GET /templates[/{code}] */
+export interface SgcTemplateArchivo {
+  fileId: string;
+  title: string;
+  fileName: string;
+  extension: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+  downloadPath: string;
+}
+
+export interface SgcTemplate {
+  code: string;
+  title: string;
+  descriptionHtml: string;
+  descriptionText: string;
+  contractType: { code: string; name: string } | null;
+  startDocuments: SgcTemplateArchivo[];
+  additionalDocuments: SgcTemplateArchivo[];
+  uploadPolicy: { allowedExtensions: string[]; maxBytes: number };
+  updatedAt: string;
 }
 
 /** Campos actualizables del expediente — PATCH /contracts/{contractId} */

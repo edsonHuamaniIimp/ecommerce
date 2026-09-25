@@ -14,6 +14,7 @@ import {
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
+  SGC_IDEMPOTENCY_RESEND_PREFIX,
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_SUBSANACION_MOTIVO,
   TIPOS_DOCUMENTO_SOLICITUD,
@@ -271,13 +272,27 @@ export class SgcIntegracionApplicationService {
     solicitudId: string,
     params: { url: string; title: string; documentId: string },
   ): Promise<SgcDocumentoEntity | null> {
-    return this.subirDocumentoDesdeUrl(solicitudId, {
+    const documento = await this.subirDocumentoDesdeUrl(solicitudId, {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: params.title,
       url: params.url,
       documentId: params.documentId,
       replacementReason: SGC_SUBSANACION_MOTIVO,
     });
+    if (!documento) return null;
+
+    /*
+     * Tras subir la version corregida hay que reabrir el tramite (POST /resend),
+     * una sola vez por ronda (doc §8.1). Si no, el expediente no vuelve a avanzar.
+     */
+    const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    if (expediente?.contractId) {
+      await this.client.reabrirExpediente(
+        expediente.contractId,
+        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}`,
+      );
+    }
+    return documento;
   }
 
   /**

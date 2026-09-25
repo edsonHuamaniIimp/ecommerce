@@ -3,6 +3,7 @@ import { SgcApiError } from "@/domain/models/sgc";
 import type {
   SgcActualizarExpedienteInput,
   SgcConfirmarSubidaResult,
+  SgcContractTypesCatalogo,
   SgcCrearExpedienteInput,
   SgcCrearExpedienteResult,
   SgcDocumentoDetalle,
@@ -11,6 +12,8 @@ import type {
   SgcPaginaExpedientes,
   SgcReservarSubidaInput,
   SgcReservarSubidaResult,
+  SgcResendResult,
+  SgcTemplate,
   SgcUrlDescarga,
   SgcVersionResuelta,
 } from "@/domain/models/sgc";
@@ -90,6 +93,25 @@ export class SgcClient implements ISgcClient {
     const sufijo = qs.size > 0 ? `?${qs.toString()}` : "";
     const data = await this.request<unknown>(HTTP_METHODS.GET, `${SGC_API_PATHS.CONTRACTS}${sufijo}`);
     return normalizarPagina(data);
+  }
+
+  reabrirExpediente(contractId: string, idempotencyKey: string): Promise<SgcResendResult> {
+    return this.request<SgcResendResult>(HTTP_METHODS.POST, SGC_API_PATHS.CONTRACT_RESEND(contractId), {
+      idempotencyKey,
+    });
+  }
+
+  listarTiposContrato(): Promise<SgcContractTypesCatalogo> {
+    return this.request<SgcContractTypesCatalogo>(HTTP_METHODS.GET, SGC_API_PATHS.CONTRACT_TYPES);
+  }
+
+  async listarTemplates(): Promise<SgcTemplate[]> {
+    const data = await this.request<{ items?: SgcTemplate[] }>(HTTP_METHODS.GET, SGC_API_PATHS.TEMPLATES);
+    return data.items ?? [];
+  }
+
+  obtenerTemplate(code: string): Promise<SgcTemplate> {
+    return this.request<SgcTemplate>(HTTP_METHODS.GET, SGC_API_PATHS.TEMPLATE(code));
   }
 
   reservarSubida(contractId: string, input: SgcReservarSubidaInput): Promise<SgcReservarSubidaResult> {
