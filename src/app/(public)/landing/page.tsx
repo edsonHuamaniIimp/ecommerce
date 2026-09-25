@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -66,20 +67,20 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Visual geométrico (CSS) */}
+        {/* Vista del plano (asset real) */}
         <div className="md:col-span-5">
-          <div className="relative aspect-square w-full border border-[#000000]/10 bg-[#F5F1E8]">
-            <div className="absolute inset-6 grid grid-cols-3 grid-rows-3 gap-2">
-              <div className="col-span-2 row-span-2 bg-[#000000]" />
-              <div className="bg-[#FFFFFF] border border-[#000000]/10" />
-              <div className="bg-[#B38B6D]" />
-              <div className="bg-[#FFFFFF] border border-[#000000]/10" />
-              <div className="row-span-2 bg-[#000000]/85" />
-              <div className="col-span-2 bg-[#FFFFFF] border border-[#000000]/10" />
-            </div>
-            <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between border-t border-[#000000]/10 pt-3">
-              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#808080]">Pabellón A</span>
-              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#808080]">Disponible</span>
+          <div className="relative aspect-square w-full overflow-hidden border border-[#000000]/10">
+            <Image
+              src="/uploads/perumin-mapa-pabellones.jpg"
+              alt="Mapa macro de pabellones del evento"
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 40vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-[#000000]/85 px-4 py-2.5">
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white">Vista macro</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">Plano ferial</span>
             </div>
           </div>
         </div>
@@ -122,6 +123,43 @@ export default function LandingPage() {
               <p className="mt-2 text-sm leading-relaxed text-[#808080]">{p.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── VISTA DEL PLANO ──────────────────────────────────────────────── */}
+      <section className="border-t border-[#000000]/10">
+        <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 items-center gap-12 px-6 py-20 md:grid-cols-12 md:py-28">
+          <div className="md:col-span-5">
+            <SectionLabel>El plano</SectionLabel>
+            <h2 className="mt-3 max-w-[22ch] text-3xl font-bold leading-tight tracking-tight md:text-4xl">
+              Explora pabellones y elige tus espacios
+            </h2>
+            <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-[#808080]">
+              Navega el mapa macro del evento, entra a cada pabellón y selecciona los stands disponibles
+              sobre el plano isométrico 3D. Tu selección se mantiene en el carrito hasta confirmar la reserva.
+            </p>
+            <Link
+              href="/mapa"
+              className="mt-8 inline-flex items-center justify-center gap-2 rounded-none border border-[#000000] px-6 py-3 text-sm font-semibold text-[#000000] transition-colors duration-200 hover:bg-[#000000] hover:text-white"
+            >
+              Abrir el plano
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="md:col-span-7">
+            <div className="relative aspect-[4/3] w-full overflow-hidden border border-[#000000]/10">
+              <Image
+                src="/uploads/perumin-mapa-pabellones.jpg"
+                alt="Plano macro de pabellones del evento"
+                fill
+                sizes="(max-width: 768px) 100vw, 58vw"
+                className="object-cover object-top"
+              />
+            </div>
+            <p className="mt-3 text-xs uppercase tracking-[0.15em] text-[#808080]">
+              Mapa macro · selección por pabellón · vista isométrica 3D
+            </p>
+          </div>
         </div>
       </section>
 
