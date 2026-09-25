@@ -67,20 +67,21 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Vista del plano (asset real) */}
+        {/* Imagen comercial (convención) */}
         <div className="md:col-span-5">
           <div className="relative aspect-square w-full overflow-hidden border border-[#000000]/10">
             <Image
-              src="/uploads/perumin-mapa-pabellones.jpg"
-              alt="Mapa macro de pabellones del evento"
+              src="https://picsum.photos/seed/iimp-convencion/1200/1200"
+              alt="Convención minera"
               fill
               priority
               sizes="(max-width: 768px) 100vw, 40vw"
-              className="object-cover"
+              className="object-cover grayscale contrast-125"
             />
+            <div className="absolute inset-0 bg-[#000000]/20" />
             <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-[#000000]/85 px-4 py-2.5">
-              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white">Vista macro</span>
-              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">Plano ferial</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white">Convención minera</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/70">Eventos IIMP</span>
             </div>
           </div>
         </div>
@@ -126,39 +127,49 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── VISTA DEL PLANO ──────────────────────────────────────────────── */}
+      {/* ── PARA EXPOSITORES ─────────────────────────────────────────────── */}
       <section className="border-t border-[#000000]/10">
         <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 items-center gap-12 px-6 py-20 md:grid-cols-12 md:py-28">
-          <div className="md:col-span-5">
-            <SectionLabel>El plano</SectionLabel>
-            <h2 className="mt-3 max-w-[22ch] text-3xl font-bold leading-tight tracking-tight md:text-4xl">
-              Explora pabellones y elige tus espacios
-            </h2>
-            <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-[#808080]">
-              Navega el mapa macro del evento, entra a cada pabellón y selecciona los stands disponibles
-              sobre el plano isométrico 3D. Tu selección se mantiene en el carrito hasta confirmar la reserva.
-            </p>
-            <Link
-              href="/mapa"
-              className="mt-8 inline-flex items-center justify-center gap-2 rounded-none border border-[#000000] px-6 py-3 text-sm font-semibold text-[#000000] transition-colors duration-200 hover:bg-[#000000] hover:text-white"
-            >
-              Abrir el plano
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-          <div className="md:col-span-7">
+          <div className="order-2 md:order-1 md:col-span-7">
             <div className="relative aspect-[4/3] w-full overflow-hidden border border-[#000000]/10">
               <Image
-                src="/uploads/perumin-mapa-pabellones.jpg"
-                alt="Plano macro de pabellones del evento"
+                src="https://picsum.photos/seed/iimp-expositores/1600/1200"
+                alt="Expositores en una feria minera"
                 fill
                 sizes="(max-width: 768px) 100vw, 58vw"
-                className="object-cover object-top"
+                className="object-cover grayscale contrast-125"
               />
             </div>
-            <p className="mt-3 text-xs uppercase tracking-[0.15em] text-[#808080]">
-              Mapa macro · selección por pabellón · vista isométrica 3D
+          </div>
+          <div className="order-1 md:order-2 md:col-span-5">
+            <SectionLabel>Para expositores</SectionLabel>
+            <h2 className="mt-3 max-w-[22ch] text-3xl font-bold leading-tight tracking-tight md:text-4xl">
+              Más visibilidad para tu empresa
+            </h2>
+            <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-[#808080]">
+              Elige ubicaciones estratégicas dentro del recinto y asegura tu presencia en la convención
+              minera más importante del país.
             </p>
+            <ul className="mt-8 space-y-3 text-sm">
+              {[
+                "Ubicaciones por pabellón y metraje",
+                "Disponibilidad en tiempo real",
+                "Contrato y expediente en línea",
+                "Acompañamiento comercial del IIMP",
+              ].map((t) => (
+                <li key={t} className="flex items-start gap-3 border-t border-[#000000]/10 pt-3 first:border-t-0 first:pt-0">
+                  <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#B38B6D]" />
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/mapa"
+              className="mt-8 inline-flex items-center justify-center gap-2 rounded-none bg-[#000000] px-6 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-[#B38B6D]"
+            >
+              Elegir mi ubicación
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
