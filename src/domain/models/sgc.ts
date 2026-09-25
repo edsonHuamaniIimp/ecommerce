@@ -20,6 +20,12 @@ export interface SgcCrearExpedienteInput {
   counterpartyLegalName: string;
   counterpartyTaxIdentifier: string;
   processOrigin: string;
+  /**
+   * Campos propios del tipo (guia v3, §3.2). Solo se envian si el tipo los declara
+   * como obligatorios en `GET /contract-types` (`fields[].required`). Claves desconocidas
+   * se ignoran; una clave mal formada responde 400.
+   */
+  fields?: Record<string, string | number | boolean>;
 }
 
 /** Paso de la ruta de revision (la resuelve el SGC al crear el expediente). */
@@ -58,6 +64,18 @@ export interface SgcResendResult {
   status: string;
 }
 
+/** Campo propio de un tipo de contrato (guia v3, §3.2) — `fields` de GET /contract-types. */
+export interface SgcCampoTipo {
+  key: string;
+  label: string;
+  /** short-text | long-text | integer | money | date | email | boolean | select | area | person | event-edition */
+  kind: string;
+  required: boolean;
+  options?: string[] | null;
+  /** false = no soportado por API todavia (area, person, event-edition). */
+  apiSupported: boolean;
+}
+
 /** Catalogo de tipos de contrato y areas — GET /contract-types */
 export interface SgcContractType {
   code: string;
@@ -65,6 +83,7 @@ export interface SgcContractType {
   categoryName?: string | null;
   routeError?: string | null;
   route?: SgcRutaExpediente | null;
+  fields?: SgcCampoTipo[] | null;
 }
 
 export interface SgcContractTypesCatalogo {

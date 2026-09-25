@@ -44,6 +44,7 @@ Cambios y estado en este repo:
 | Cambio en la guía v2 | Estado en ContratosStands |
 |---|---|
 | `POST /contracts` responde `contractTypeCode` + **`route`** (`frozen`, `steps[]`) + `routeError` | ✅ `SgcCrearExpedienteResult` extendido (`SgcRutaExpediente`/`SgcRutaStep`) |
+| **§3.2 `fields`**: campos propios del tipo (`required`, `kind`, `options`, `apiSupported`) a enviar en la creación | ⚠️ DTO listo (`SgcCrearExpedienteInput.fields`, `SgcCampoTipo`). **QA aún NO lo soporta**: `/contract-types` no devuelve `fields` y `POST /contracts` con `fields` responde `400 "Campos no admitidos: fields."` |
 | `areaCode` y `contractTypeCode` **obligatorios** | ✅ ya se envían (400 si faltan) |
 | Códigos: `areaCode` / `contractTypeCode` | ✅ prod (task `:9`): `COMUNICACIONES` + `AUSPICIO` (verificados `201`). ⚠️ `ALQUILER_STANDS` **no existe**; el template `STANDS_PERUMIN` apunta a **`PRUEBA_IIMP_1`**, pero ese tipo **falla la creación (`422`)** → bug del SGC. Tipos que sí crean: `PROVEEDOR, ARRENDAMIENTO, SERVICIOS, AUSPICIO` |
 | `GET /contract-types` (tipos, áreas y ruta vigente) | ✅ cliente `listarTiposContrato()` |
