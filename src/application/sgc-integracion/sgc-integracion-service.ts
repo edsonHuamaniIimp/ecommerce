@@ -3,6 +3,8 @@ import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type {
+  SgcCampoTipo,
+  SgcCrearExpedienteInput,
   SgcDocumentoEntity,
   SgcExpedienteDetalle,
   SgcExpedienteEntity,
@@ -68,7 +70,7 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.solicitudRepo.detalle(solicitudId);
       if (!detalle) return existente;
 
-      const input = mapSolicitudToExpediente(detalle, this.config);
+      const input = await this.conCamposDelTipo(mapSolicitudToExpediente(detalle, this.config));
       const registro =
         existente ??
         (await this.repo.crearExpediente({
@@ -98,6 +100,25 @@ export class SgcIntegracionApplicationService {
       }
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, §3.2):
+   * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
+   * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
+   */
+  private async conCamposDelTipo(input: SgcCrearExpedienteInput): Promise<SgcCrearExpedienteInput> {
+    try {
+      const catalogo = await this.client.listarTiposContrato();
+      const tipo = catalogo.items.find((t) => t.code === this.config.contractTypeCode);
+      const requeridos = (tipo?.fields ?? []).filter((f) => f.required && f.apiSupported);
+      if (requeridos.length === 0) return input;
+      const fields: Record<string, string | number | boolean> = {};
+      for (const campo of requeridos) fields[campo.key] = valorPorDefectoCampo(campo, input);
+      return { ...input, fields };
+    } catch {
+      return input;
     }
   }
 
@@ -433,5 +454,30 @@ export class SgcIntegracionApplicationService {
       sizeBytes: pieza.bytes.byteLength,
       estado,
     };
+  }
+}
+
+/**
+ * Valor por defecto para un campo obligatorio del tipo (guia v3, §3.2). Los textos usan el
+ * nombre descriptivo del expediente ("Separacion de stand - <codigo>"); el resto, valores
+ * neutros. Si el tipo exige datos de negocio especificos, revisar este mapeo.
+ */
+function valorPorDefectoCampo(campo: SgcCampoTipo, input: SgcCrearExpedienteInput): string | number | boolean {
+  switch (campo.kind) {
+    case "integer":
+      return 1;
+    case "money":
+      return "1.00";
+    case "boolean":
+      return true;
+    case "date":
+      return new Date().toISOString().slice(0, 10);
+    case "email":
+      return "noreply@iimp.org.pe";
+    case "select":
+      return campo.options?.[0] ?? "";
+    default:
+      /* short-text / long-text: descripcion del stand */
+      return input.name.slice(0, 4000);
   }
 }
