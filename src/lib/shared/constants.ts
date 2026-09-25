@@ -885,6 +885,11 @@ export const ALERTA_TIPOS = {
   CONTRATO_FIRMADO: "contrato_firmado",
 } as const;
 
+/** Límite de carga del SGC: 25 MB por archivo (configurable en el SGC). */
+export const SGC_UPLOAD_MAX_BYTES = 26214400;
+/** Formatos admitidos por el SGC para los documentos. */
+export const SGC_UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "docx", "xlsx", "png", "jpg", "jpeg"] as const;
+
 /** Anexos requeridos por el SGC para la separación de stands. */
 export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
   { key: "ficha-ruc", label: "Ficha RUC (o equivalente, en caso de empresa extranjera)" },

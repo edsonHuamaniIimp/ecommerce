@@ -5,6 +5,7 @@ import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import { SGC_UPLOAD_ALLOWED_EXTENSIONS, SGC_UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
 import type { TipoDocumentoSolicitud } from "@/lib/shared/constants";
 
 /**
@@ -42,7 +43,17 @@ export function SgcDocumentoUpload({
     if (!files || files.length === 0) return;
     setSubiendo(true);
     try {
+      const formatos = SGC_UPLOAD_ALLOWED_EXTENSIONS as readonly string[];
       for (const file of Array.from(files)) {
+        const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+        if (!formatos.includes(ext)) {
+          toast.error(`Formato no permitido (.${ext || "?"}). Admitidos: ${formatos.join(", ")}.`);
+          continue;
+        }
+        if (file.size > SGC_UPLOAD_MAX_BYTES) {
+          toast.error(`${file.name} supera el máximo de ${SGC_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
+          continue;
+        }
         const url = await solicitudesService.subirArchivo(file);
         await solicitudesService.uploadDocumento({ solicitudId, url, nombre: file.name, tipo });
       }

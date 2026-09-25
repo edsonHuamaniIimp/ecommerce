@@ -45,12 +45,12 @@ Cambios y estado en este repo:
 |---|---|
 | `POST /contracts` responde `contractTypeCode` + **`route`** (`frozen`, `steps[]`) + `routeError` | ✅ `SgcCrearExpedienteResult` extendido (`SgcRutaExpediente`/`SgcRutaStep`) |
 | `areaCode` y `contractTypeCode` **obligatorios** | ✅ ya se envían (400 si faltan) |
-| Códigos reales: `areaCode=COMUNICACIONES`, `contractTypeCode=ALQUILER_STANDS` | ⚠️ prod hoy usa `EVENTOS`/`AUSPICIO` → **actualizar variables del task ECS** |
+| Códigos: `areaCode` / `contractTypeCode` | ✅ prod usa `EVENTOS`/`AUSPICIO` (existen en QA). ⚠️ `ALQUILER_STANDS` **no existe** todavía en QA; catálogo real hoy: `PROVEEDOR, ARRENDAMIENTO, SERVICIOS, AUSPICIO, PRUEBA_IIMP_1, PRUEBA_IIMP_2`; el template `STANDS_PERUMIN` apunta a **`PRUEBA_IIMP_1`** |
 | `GET /contract-types` (tipos, áreas y ruta vigente) | ✅ cliente `listarTiposContrato()` |
 | `GET /templates` y `GET /templates/{code}` + descarga de archivo | ✅ cliente `listarTemplates()` / `obtenerTemplate()` + `TEMPLATE_FILE_DOWNLOAD` |
 | **`POST /contracts/{id}/resend`** (reabrir el trámite tras subsanar, con `Idempotency-Key`) | ✅ `subsanarContrato` ahora sube la versión **y** llama `/resend` |
 | `workflow.returned` trae `data.reason` + `observations` | ✅ el inbox de webhooks lo persiste |
-| Carga: máx **25 MB**/archivo; PDF, DOCX, XLSX, PNG, JPG | ⚠️ validar en la carga (hoy no se valida el tope) |
+| Carga: máx **25 MB**/archivo; PDF, DOCX, XLSX, PNG, JPG | ✅ validado en la carga (`SGC_UPLOAD_MAX_BYTES` / `SGC_UPLOAD_ALLOWED_EXTENSIONS` en el step Legal SGC) |
 | `category: "annex"` = el mismo "Adjuntos" del panel humano | ✅ ya se usa |
 
 > La **autenticación con `Bearer sgc_<clave>` funciona** (el "401" inicial era un typo en la
