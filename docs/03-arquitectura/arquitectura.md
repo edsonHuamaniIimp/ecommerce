@@ -398,8 +398,10 @@ src/lib/
 │   │   └── DomainError             # Error tipado (code, status)
 │   ├── api-response.ts             # success() y error() (NextResponse)
 │   ├── handlers.ts                 # handler() wrapper global (legacy)
-│   ├── email.ts                    # sendEmail() via Resend API
-│   ├── email-templates.ts          # buildRevisionEmail() HTML template
+│   ├── email.ts                    # sendEmail() via Resend API (sin HTML)
+│   ├── mail-templates/             # plantillas de correo (HTML), una por modulo
+│   │   ├── reservas-email-templates.ts   # confirmacion al cliente + alerta al admin
+│   │   └── revisiones-email-templates.ts # buildRevisionEmail() (resultado de revision)
 │   ├── services.ts                 # Contenedor DI (singleton)
 │   ├── storage.ts                  # Storage adapter (local/S3)
 │   ├── pagination.ts               # Helpers de paginacion (server)

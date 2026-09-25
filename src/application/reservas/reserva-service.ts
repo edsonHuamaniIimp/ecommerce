@@ -1,7 +1,8 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, REVISION_AREA_ORDER, ROLES, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
-import { sendEmail, buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/server/email";
+import { sendEmail } from "@/lib/server/email";
+import { buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/server/mail-templates/reservas-email-templates";
 
 const BLOQUEADOS: string[] = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, ESTADOS_STAND_LEGACY.RESERVADO, ESTADOS_STAND_LEGACY.EN_EVALUACION];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
@@ -128,7 +129,7 @@ export class ReservaApplicationService {
       });
       sendEmail({ to: contactEmail, ...clientEmail }).catch(() => {});
       if (ADMIN_EMAIL && ADMIN_EMAIL !== contactEmail) {
-        const adminEmail = buildAdminNotificacionEmail(emailData);
+        const adminEmail = buildAdminNotificacionEmail({ ...emailData, solicitudId });
         sendEmail({ to: ADMIN_EMAIL, ...adminEmail }).catch(() => {});
       }
     }

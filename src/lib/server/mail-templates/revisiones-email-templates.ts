@@ -1,6 +1,11 @@
 import 'server-only';
 
-import { RESULTADOS_APROBACION, APP_URL } from "../shared/constants";
+import { RESULTADOS_APROBACION, APP_URL } from "@/lib/shared/constants";
+
+/**
+ * Plantillas de correo del flujo de revisiones (resultado de revision por areas).
+ * Convencion (ref. montaje-iimp `lib/server/mail-templates/`): el HTML vive AQUI.
+ */
 
 interface RevisionEmailOpts {
   standCode: string;

@@ -8,7 +8,7 @@ import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
-import { buildRevisionEmail } from "@/lib/server/email-templates";
+import { buildRevisionEmail } from "@/lib/server/mail-templates/revisiones-email-templates";
 
 export const solicitudesController = {
   async listar(request: Request): Promise<NextResponse> {

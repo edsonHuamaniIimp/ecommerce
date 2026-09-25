@@ -5,6 +5,8 @@ vi.mock("@/lib/server/router", () => ({
 }));
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
+}));
+vi.mock("@/lib/server/mail-templates/reservas-email-templates", () => ({
   buildReservaConfirmationEmail: vi.fn(() => ({ subject: "s", html: "h" })),
   buildAdminNotificacionEmail: vi.fn(() => ({ subject: "s", html: "h" })),
 }));
