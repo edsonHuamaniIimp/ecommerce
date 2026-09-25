@@ -13,15 +13,19 @@
 
 ### 0.1 Pipeline de CI/CD (`.github/workflows/deploy.yml`)
 
-- **Push a `main`** → `ci` (lint / `tsc` / tests) + `build-image` + `deploy-ecs` (**deploy automático**).
+- **Push a `main`** → `ci` (lint / `tsc` / tests / **drift**) + `build-image` + `deploy-ecs` (**deploy automático**).
 - **Deploy manual alternativo**: GitHub → **Actions** → *CI/CD — ContratosStands* → **Run workflow**
   (branch `main`), útil para re-desplegar el mismo commit.
 - Concurrency: un push nuevo **espera** a que termine el deploy en curso (no lo cancela).
-- `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache `type=gha`.
+- **Guard anti-drift (migraciones)**: el job `ci` levanta un Postgres efímero y corre
+  `prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code`
+  (exit 2 = hay diferencias). Si el schema tiene cambios **sin migración versionada**, CI falla.
+- `deploy-ecs` **depende de `ci`** (`needs: [build-image, ci]`): un drift o tests rojos **bloquean el deploy**.
+  No suma tiempo (`ci` ~1.5 min < `build` ~3.5 min).
+- `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache `type:gha`.
   **Idempotente**: si la imagen de ese commit ya existe en ECR, **no se reconstruye**.
 - `deploy-ecs`: `aws ecs update-service --force-new-deployment` + `wait services-stable`.
-  **No depende de `ci`** (los tests no bloquean el deploy; corren en paralelo como informe).
-- ⏱️ Tiempos medidos: `ci` ~1 min (paralelo), `build` ~3.5 min, `rollout` ~3.5 min.
+- ⏱️ Tiempos medidos: `ci` ~1.5 min (paralelo), `build` ~3.5 min, `rollout` ~3.5 min.
 - **Rollback**: re-deploy de una imagen previa (`:<sha>`) o revertir commit.
 - Push de **solo docs** (`docs/**`, `**/*.md`) → no dispara el pipeline.
 

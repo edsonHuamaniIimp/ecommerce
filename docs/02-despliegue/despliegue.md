@@ -37,6 +37,8 @@ npm run db:seed               # Datos iniciales (eventos, roles, tipos stand)
 ```
 
 > **Regla de BD (sin deuda técnica)**: TODO cambio de schema se hace con **migraciones versionadas** (`npx prisma migrate dev --name <descripcion>`), nunca con `db push` en un equipo compartido/producción. Producción/QA se construyen con `prisma migrate deploy`.
+>
+> **El CI lo verifica**: el job `ci` corre `prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code` sobre un Postgres efímero. Si hay drift (schema sin migración), CI falla y `deploy-ecs` queda **bloqueado** (`needs: [build-image, ci]`). Así ningún cambio de schema llega a prod sin su migración.
 
 ### 2.3 Ejecutar
 
