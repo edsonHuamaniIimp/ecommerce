@@ -54,7 +54,7 @@ export class GessApplicationService {
     return this.repo.update(id, { bloqueId });
   }
 
-  async actualizarStand(id: string, data: { documentos?: string[]; imagenes?: string[]; estado?: string }) {
+  async actualizarStand(id: string, data: { documentos?: string[]; imagenes?: string[]; imagenesCategorias?: Record<string, string>; estado?: string }) {
     return this.repo.update(id, data);
   }
 

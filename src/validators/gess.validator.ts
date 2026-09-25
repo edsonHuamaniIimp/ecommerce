@@ -5,6 +5,8 @@ export const updateGessStandSchema = z.object({
   bloqueId: z.string().nullable().optional(),
   documentos: z.array(z.string()).optional(),
   imagenes: z.array(z.string()).optional(),
+  /** Categoria por url de imagen: { "<url>": "<categoria>" }. */
+  imagenesCategorias: z.record(z.string(), z.string()).optional(),
   estado: z.string().optional(),
 });
 

@@ -1,5 +1,6 @@
 import type { GessStandDTO } from "@/types/dto/models";
 import type { GessStand } from "@/types/reserva";
+import { normalizarCategoriasImagen } from "@/lib/shared/constants";
 
 export function mapGessStand(dto: GessStandDTO): GessStand {
   return {
@@ -17,6 +18,7 @@ export function mapGessStand(dto: GessStandDTO): GessStand {
     bloqueId: dto.bloqueId,
     documentos: (Array.isArray(dto.documentos) ? dto.documentos : []) as string[],
     imagenes: (Array.isArray(dto.imagenes) ? dto.imagenes : []) as string[],
+    imagenesCategorias: normalizarCategoriasImagen(dto.imagenesCategorias),
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -38,6 +40,7 @@ export function mapGessStandToDTO(domain: GessStand): GessStandDTO {
     bloqueId: domain.bloqueId,
     documentos: domain.documentos ?? [],
     imagenes: domain.imagenes ?? [],
+    imagenesCategorias: domain.imagenesCategorias ?? {},
     createdAt: domain.createdAt,
     updatedAt: domain.updatedAt,
   };

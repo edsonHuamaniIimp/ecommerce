@@ -15,6 +15,8 @@ export interface GessStandDTO {
   userId?: string | null;
   documentos: unknown;
   imagenes: unknown;
+  /** Categoria por url de imagen: { "<url>": "<categoria>" }. */
+  imagenesCategorias: unknown;
   createdAt: string;
   updatedAt: string;
 }

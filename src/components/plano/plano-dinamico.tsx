@@ -9,7 +9,7 @@ import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Chec
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
 import { stringUtils } from "@/lib/shared/utils/string";
@@ -233,11 +233,20 @@ interface GessLinked {
   medidas: string | null;
   documentos: string[];
   imagenes: string[];
+  imagenesCategorias: Record<string, string>;
 }
 
 interface GessInfoFull extends GessLinked {
   reserved: boolean;
   dbId: string;
+}
+
+/** Agrupa imagenes por categoria respetando el orden canonico. */
+function agruparImagenes(imagenes: string[], categorias: Record<string, string>): { categoria: CategoriaImagen; urls: string[] }[] {
+  return CATEGORIA_IMAGEN_ORDER.map((categoria) => ({
+    categoria,
+    urls: imagenes.filter((url) => (categorias[url] ?? CATEGORIAS_IMAGEN.OTRO) === categoria),
+  })).filter((grupo) => grupo.urls.length > 0);
 }
 
 function getIdApi(row: Record<string, unknown>): string {
@@ -282,9 +291,26 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     usePlanoCarrito.getState().registrarPlano(planoId, parentCodigo ?? null);
   }, [planoId, parentCodigo]);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
-  const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
+  const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number; standCode: string; filtro: string; grupos: { categoria: CategoriaImagen; urls: string[] }[]; todas: string[] } | null>(null);
   const [dataReady, setDataReady] = useState(false);
   const [detailModal, setDetailModal] = useState<GessInfoFull | null>(null);
+  const [imgFiltro, setImgFiltro] = useState<string>("todas");
+
+  /** Abre el carrusel de imagenes del stand con navegacion por categoria. */
+  const abrirCarrusel = (filtro: string, idx = 0) => {
+    if (!detailModal) return;
+    const grupos = agruparImagenes(detailModal.imagenes, detailModal.imagenesCategorias);
+    const images = filtro === "todas" ? detailModal.imagenes : (grupos.find((g) => g.categoria === filtro)?.urls ?? detailModal.imagenes);
+    setImgCarousel({ images, idx: Math.max(0, Math.min(idx, images.length - 1)), standCode: detailModal.standCode, filtro, grupos, todas: detailModal.imagenes });
+  };
+
+  const cambiarFiltroCarrusel = (filtro: string) => {
+    setImgCarousel((prev) => {
+      if (!prev) return prev;
+      const images = filtro === "todas" ? prev.todas : (prev.grupos.find((g) => g.categoria === filtro)?.urls ?? prev.todas);
+      return { ...prev, filtro, images, idx: 0 };
+    });
+  };
   const [legendOpen, setLegendOpen] = useState(false);
   const [standDocs, setStandDocs] = useState<string[]>([]);
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
@@ -350,6 +376,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
+            imagenesCategorias: normalizarCategoriasImagen(r.imagenesCategorias),
             reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION,
             dbId: String(r.id ?? ""),
           });
@@ -546,7 +573,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                 <div
                   key={c.bloqueId}
                   className="group flex cursor-pointer items-start justify-between gap-2 px-4 py-3 transition-colors hover:bg-secondary"
-                  onClick={() => info && setDetailModal(info)}
+                  onClick={() => { if (info) { setImgFiltro("todas"); setDetailModal(info); } }}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -808,7 +835,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                       type="button"
                       variant="ghost"
                       className="h-auto gap-1.5 p-0 text-[11px] font-medium text-primary hover:bg-transparent hover:underline"
-                      onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: 0 })}
+                      onClick={() => abrirCarrusel("todas", 0)}
                     >
                       <span>Ver carrusel completo ({detailModal.imagenes.length} {detailModal.imagenes.length === 1 ? "foto" : "fotos"})</span>
                       <Eye className="h-3 w-3" />
@@ -820,35 +847,80 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                   <p className="rounded-lg border border-dashed border-border bg-secondary px-3 py-3 text-center text-[11px] text-muted-foreground">
                     Sin imagenes cargadas para este stand.
                   </p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {detailModal.imagenes.slice(0, 3).map((url, i) => (
-                      <Button
-                        key={`${url}-${i}`}
-                        type="button"
-                        variant="ghost"
-                        className="group h-auto overflow-hidden rounded-lg border border-border p-0 hover:border-primary/40"
-                        onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: i })}
-                        title={`Ver imagen ${i + 1}`}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={`Imagen ${i + 1} del stand ${detailModal.standCode}`} className="h-20 w-full object-cover transition-transform group-hover:scale-105" />
-                      </Button>
-                    ))}
-                    {detailModal.imagenes.length > 3 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-auto rounded-lg border border-dashed border-border p-0 text-muted-foreground hover:border-primary/40 hover:text-primary"
-                        onClick={() => setImgCarousel({ images: detailModal.imagenes, idx: 3 })}
-                      >
-                        <span className="flex h-20 w-full items-center justify-center text-xs font-semibold">
-                          +{detailModal.imagenes.length - 3}
-                        </span>
-                      </Button>
-                    )}
-                  </div>
-                )}
+                ) : (() => {
+                  const grupos = agruparImagenes(detailModal.imagenes, detailModal.imagenesCategorias);
+                  const activos = imgFiltro === "todas"
+                    ? detailModal.imagenes
+                    : (grupos.find((g) => g.categoria === imgFiltro)?.urls ?? detailModal.imagenes);
+                  const visibles = activos.slice(0, 8);
+                  const conFiltro = grupos.length > 1;
+                  return (
+                    <div className="space-y-2">
+                      {conFiltro && (
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className={`h-6 rounded-full px-2 text-[10px] font-medium ${imgFiltro === "todas" ? "bg-primary/15 text-primary hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"}`}
+                            onClick={() => setImgFiltro("todas")}
+                          >
+                            <span>Todas</span>
+                            <span className="ml-1 opacity-70">{detailModal.imagenes.length}</span>
+                          </Button>
+                          {grupos.map(({ categoria, urls }) => (
+                            <Button
+                              key={categoria}
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className={`h-6 rounded-full px-2 text-[10px] font-medium ${imgFiltro === categoria ? "bg-primary/15 text-primary hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"}`}
+                              onClick={() => setImgFiltro(categoria)}
+                            >
+                              <span>{CATEGORIA_IMAGEN_LABELS[categoria]}</span>
+                              <span className="ml-1 opacity-70">{urls.length}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-4 gap-2">
+                        {visibles.map((url) => {
+                          const categoria = (detailModal.imagenesCategorias[url] ?? CATEGORIAS_IMAGEN.OTRO) as CategoriaImagen;
+                          return (
+                            <Button
+                              key={url}
+                              type="button"
+                              variant="ghost"
+                              className="group relative h-auto overflow-hidden rounded-lg border border-border p-0 hover:border-primary/40"
+                              onClick={() => abrirCarrusel(imgFiltro, Math.max(0, activos.indexOf(url)))}
+                              title={`Ver ${CATEGORIA_IMAGEN_LABELS[categoria]} del stand ${detailModal.standCode}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={url} alt={`${CATEGORIA_IMAGEN_LABELS[categoria]} del stand ${detailModal.standCode}`} className="h-16 w-full object-cover transition-transform group-hover:scale-105" />
+                              {conFiltro && imgFiltro === "todas" && (
+                                <span className="pointer-events-none absolute bottom-0 left-0 max-w-full truncate rounded-tr bg-foreground/70 px-1 text-[9px] font-medium text-background">
+                                  {CATEGORIA_IMAGEN_LABELS[categoria]}
+                                </span>
+                              )}
+                            </Button>
+                          );
+                        })}
+                        {activos.length > 8 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-auto rounded-lg border border-dashed border-border p-0 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                            onClick={() => abrirCarrusel(imgFiltro, 8)}
+                          >
+                            <span className="flex h-16 w-full items-center justify-center text-xs font-semibold">
+                              +{activos.length - 8}
+                            </span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {detailModal.documentos.length > 0 && (
@@ -941,21 +1013,60 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
       {imgCarousel && (
         <Dialog open={true} onOpenChange={() => setImgCarousel(null)}>
-          <DialogContent className="max-w-4xl border-border/20 bg-black/95 p-3 sm:p-4">
+          <DialogContent className="max-w-4xl border-border bg-card p-3 text-card-foreground sm:p-4">
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between gap-3 pr-8">
-                <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
-                  {imgCarousel.idx + 1} / {imgCarousel.images.length}
-                </span>
-                <span className="truncate text-[11px] text-white/60">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-foreground">
+                    {imgCarousel.idx + 1} / {imgCarousel.images.length}
+                  </span>
+                  {(() => {
+                    const urlActual = imgCarousel.images[imgCarousel.idx];
+                    const categoriaActual = urlActual ? imgCarousel.grupos.find((g) => g.urls.includes(urlActual))?.categoria : undefined;
+                    return categoriaActual ? (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        {CATEGORIA_IMAGEN_LABELS[categoriaActual]}
+                      </span>
+                    ) : null;
+                  })()}
+                </div>
+                <span className="truncate text-[11px] text-muted-foreground">
                   {stringUtils.nombreArchivo(imgCarousel.images[imgCarousel.idx])}
                 </span>
               </div>
 
+              {imgCarousel.grupos.length > 1 && (
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 rounded-full px-2 text-[10px] font-medium ${imgCarousel.filtro === "todas" ? "bg-primary/15 text-primary hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"}`}
+                    onClick={() => cambiarFiltroCarrusel("todas")}
+                  >
+                    <span>Todas</span>
+                    <span className="ml-1 opacity-70">{imgCarousel.todas.length}</span>
+                  </Button>
+                  {imgCarousel.grupos.map(({ categoria, urls }) => (
+                    <Button
+                      key={categoria}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={`h-6 rounded-full px-2 text-[10px] font-medium ${imgCarousel.filtro === categoria ? "bg-primary/15 text-primary hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={() => cambiarFiltroCarrusel(categoria)}
+                    >
+                      <span>{CATEGORIA_IMAGEN_LABELS[categoria]}</span>
+                      <span className="ml-1 opacity-70">{urls.length}</span>
+                    </Button>
+                  ))}
+                </div>
+              )}
+
               <div className="relative flex items-center justify-center px-12">
                 {imgCarousel.images.length > 1 && (
                   <Button type="button" variant="ghost" size="icon"
-                    className="absolute left-1 z-10 h-10 w-10 rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/25 hover:text-white disabled:opacity-30"
+                    className="absolute left-1 z-10 h-10 w-10 rounded-full bg-secondary/80 text-foreground backdrop-blur-sm hover:bg-secondary disabled:opacity-30"
                     onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
                     disabled={imgCarousel.idx === 0}
                     title="Anterior (flecha izquierda)"
@@ -971,7 +1082,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                 />
                 {imgCarousel.images.length > 1 && (
                   <Button type="button" variant="ghost" size="icon"
-                    className="absolute right-1 z-10 h-10 w-10 rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/25 hover:text-white disabled:opacity-30"
+                    className="absolute right-1 z-10 h-10 w-10 rounded-full bg-secondary/80 text-foreground backdrop-blur-sm hover:bg-secondary disabled:opacity-30"
                     onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
                     disabled={imgCarousel.idx === imgCarousel.images.length - 1}
                     title="Siguiente (flecha derecha)"
@@ -986,7 +1097,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                   {imgCarousel.images.map((url, i) => (
                     <Button key={`${url}-${i}`} type="button" variant="ghost"
                       className={`h-12 w-16 overflow-hidden rounded-md border p-0 transition-all ${
-                        i === imgCarousel.idx ? "border-white ring-2 ring-white/50" : "border-white/20 opacity-60 hover:opacity-100"
+                        i === imgCarousel.idx ? "border-primary ring-2 ring-primary/40" : "border-border opacity-60 hover:opacity-100"
                       }`}
                       onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: i } : null)}
                       title={`Ir a la imagen ${i + 1}`}

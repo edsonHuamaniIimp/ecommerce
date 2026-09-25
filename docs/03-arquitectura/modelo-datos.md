@@ -260,6 +260,9 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 | empresa | string(200) | Sí | Nombre de la empresa que reservó. |
 | pabellon | string(50) | Sí | Coordenadas X,Y. |
 | bloqueId | string(50) | Sí | ID del bloque 3D vinculado (EXT-IZQ-01, ...). |
+| documentos | json | Sí | URLs de documentos del stand. |
+| imagenes | json | Sí | URLs de imagenes del stand. |
+| imagenesCategorias | json | Sí | Categoria por imagen: `{ "<url>": "<categoria>" }` (ver `CATEGORIAS_IMAGEN`). |
 | rawData | json | Sí | Respuesta completa del API externo. |
 
 Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.

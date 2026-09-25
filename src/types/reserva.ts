@@ -54,6 +54,8 @@ export interface GessStand {
   bloqueId: string | null;
   documentos: string[];
   imagenes: string[];
+  /** Categoria por url de imagen: { "<url>": "<categoria>" }. */
+  imagenesCategorias: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }

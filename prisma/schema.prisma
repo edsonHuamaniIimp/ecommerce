@@ -267,6 +267,8 @@ model GessStand {
   userId      String? @map("user_id") @db.VarChar(100)
   documentos  Json?   @default("[]")
   imagenes    Json?   @default("[]")
+  /// Categoria por imagen: { "<url>": "<categoria>" } (ver CATEGORIAS_IMAGEN).
+  imagenesCategorias Json? @default("{}") @map("imagenes_categorias")
 
   evento      Evento      @relation(fields: [eventoId], references: [id])
   solicitudes Solicitud[]

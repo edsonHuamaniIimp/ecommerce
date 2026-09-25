@@ -660,6 +660,49 @@ export const CAMPOS_REGISTRO = {
 export type CampoRegistro = (typeof CAMPOS_REGISTRO)[keyof typeof CAMPOS_REGISTRO];
 
 /* ================================================================
+   Categorias de imagenes de un stand
+   ================================================================ */
+export const CATEGORIAS_IMAGEN = {
+  RENDER_3D: "render_3d",
+  ISOMETRICO: "isometrico",
+  PLANO: "plano",
+  FOTO: "foto",
+  LOGO: "logo",
+  OTRO: "otro",
+} as const;
+
+export type CategoriaImagen = (typeof CATEGORIAS_IMAGEN)[keyof typeof CATEGORIAS_IMAGEN];
+
+export const CATEGORIA_IMAGEN_LABELS: Record<CategoriaImagen, string> = {
+  [CATEGORIAS_IMAGEN.RENDER_3D]: "Render 3D",
+  [CATEGORIAS_IMAGEN.ISOMETRICO]: "Isometrico",
+  [CATEGORIAS_IMAGEN.PLANO]: "Plano",
+  [CATEGORIAS_IMAGEN.FOTO]: "Foto",
+  [CATEGORIAS_IMAGEN.LOGO]: "Logo",
+  [CATEGORIAS_IMAGEN.OTRO]: "Otro",
+};
+
+/** Orden de presentacion de las categorias. */
+export const CATEGORIA_IMAGEN_ORDER: CategoriaImagen[] = [
+  CATEGORIAS_IMAGEN.RENDER_3D,
+  CATEGORIAS_IMAGEN.ISOMETRICO,
+  CATEGORIAS_IMAGEN.PLANO,
+  CATEGORIAS_IMAGEN.FOTO,
+  CATEGORIAS_IMAGEN.LOGO,
+  CATEGORIAS_IMAGEN.OTRO,
+];
+
+/** Normaliza el mapeo url -> categoria proveniente de la BD. */
+export function normalizarCategoriasImagen(valor: unknown): Record<string, string> {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
+/* ================================================================
    Filtros de catalogo / bandejas
    ================================================================ */
 /** Valor de filtro "sin filtrar", reutilizable en catalogos y bandejas. */
