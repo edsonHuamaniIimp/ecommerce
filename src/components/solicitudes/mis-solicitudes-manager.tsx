@@ -16,7 +16,7 @@ import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
@@ -68,13 +68,27 @@ function etiquetaEstadoArea(estado: string): string {
 /** Item del timeline para el paso "Legal (SGC)" segun el estado del expediente SGC. */
 function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado: string; etiqueta: string; badge: string; comentario: string | null } {
   if (sgcAprobado(row.sgcLifecycleStatus)) {
-    return { key: "sgc", label: REVISION_AREA_SGC_LABEL, estado: RESULTADOS_APROBACION.APROBADO, etiqueta: "Aprobado", badge: BADGE_STYLES.SUCCESS, comentario: null };
+    return { key: "sgc", label: REVISION_AREA_SGC_LABEL, estado: RESULTADOS_APROBACION.APROBADO, etiqueta: "Aprobado por el SGC", badge: BADGE_STYLES.SUCCESS, comentario: null };
+  }
+  /* Devuelto (observado) o rechazado: el cliente debe corregir y volver a firmar. */
+  if (
+    row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+    row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED
+  ) {
+    return {
+      key: "sgc",
+      label: REVISION_AREA_SGC_LABEL,
+      estado: RESULTADOS_APROBACION.RECHAZADO,
+      etiqueta: row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ? "Rechazado por el SGC" : "Devuelto por el SGC",
+      badge: BADGE_STYLES.DESTRUCTIVE,
+      comentario: row.sgcSubsanacionMotivo ?? "Corrige el contrato y vuelve a subirlo firmado.",
+    };
   }
   return {
     key: "sgc",
     label: REVISION_AREA_SGC_LABEL,
     estado: RESULTADOS_APROBACION.PENDIENTE,
-    etiqueta: row.sgcEstadoEnvio ? "En revision (SGC)" : "Delegado al SGC",
+    etiqueta: row.sgcEstadoEnvio ? "En revisión en el SGC" : "Delegado al SGC",
     badge: BADGE_STYLES.INFO,
     comentario: null,
   };
