@@ -181,7 +181,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
 
 export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
-    const where: Record<string, unknown> = {};
+    /* Excluye las bajas logicas (`flgActivo = false`) en TODOS los listados. */
+    const where: Record<string, unknown> = { flgActivo: true };
     if (params.eventoId) {
       where.OR = [
         { gessStand: { eventoId: params.eventoId } },
