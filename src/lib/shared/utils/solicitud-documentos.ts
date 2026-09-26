@@ -65,7 +65,8 @@ export function enVentanaSubsanacionSgc(s: SolicitudDocumentosGate): boolean {
   return (
     s.sgcEnabled &&
     legalDelegadaAlSgc(s.revisiones) &&
-    s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED
+    (s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
+      s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED)
   );
 }
 

@@ -176,7 +176,10 @@ export function SgcExpedientePanel({
     );
   }
 
+  /* Devuelto (observed) o rechazado (rejected): en ambos el SGC permite corregir y reenviar. */
+  const devuelto = data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED;
   const rechazado = data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+  const subsanable = devuelto || rechazado;
   const aprobado =
     data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
     data.lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED;
@@ -237,10 +240,11 @@ export function SgcExpedientePanel({
       )}
 
       {/* ── Acciones ─────────────────────────────────────────────────────── */}
-      {rechazado ? (
+      {subsanable ? (
         <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-destructive">
-            <AlertTriangle className="h-3.5 w-3.5" /> El SGC devolvió el trámite
+            <AlertTriangle className="h-3.5 w-3.5" />{" "}
+            {rechazado ? "El SGC rechazó el trámite" : "El SGC devolvió el trámite (observaciones)"}
           </p>
 
           {!motivo ? (
