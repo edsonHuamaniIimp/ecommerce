@@ -32,6 +32,7 @@ export const PUBLIC_API_PREFIXES = [
 export const PUBLIC_API_ROUTES = [
   "/api/maestra",
   "/api/exhibidoras",
+  "/api/eventos/modal-info",
   "/api/stands/exhibidora",
   "/api/stands/contrato",
   "/api/planos/publico",
@@ -564,6 +565,7 @@ export const LS_KEYS = {
   EVENTO_PENDIENTE: "iimp-pending-evento",
   PLANO_SELECCION: "iimp-plano-seleccion",
   PLANO_CARRITO: "iimp-plano-carrito",
+  MODAL_INFO_VISTO: "iimp-modal-info-visto",
 } as const;
 
 /* ================================================================

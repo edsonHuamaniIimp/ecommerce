@@ -1,3 +1,5 @@
+import type { ModalInfoConfig } from "@/domain/models/entities";
+
 export interface EventoPresalaDTO {
   id: string;
   anio: string;
@@ -9,6 +11,8 @@ export interface EventoPresalaDTO {
   imagen: string | null;
   plano?: string | null;
   flgVisible?: boolean;
+  /** Config del modal informativo de /mapa (solo admin/dashboard). */
+  modal_info?: ModalInfoConfig | null;
 }
 
 export interface EventoPadrePresalaDTO {

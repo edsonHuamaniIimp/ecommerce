@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { RefreshCw, Pencil, ChevronRight, Eye, Calendar, Hash } from "lucide-react";
+import { Card, CardContent, Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Checkbox, Skeleton, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { RefreshCw, Pencil, ChevronRight, Eye, Calendar, Hash, Plus, Trash2 } from "lucide-react";
+import type { ModalInfoConfig } from "@/domain/models/entities";
 import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { listPlanos } from "@/lib/shared/planos/registry";
@@ -16,9 +17,54 @@ interface VersionItem {
   id: string; anio: string; tipoEvento: number; codigoEvento: number; estado: string;
   fecha_inicio: string | null; fecha_fin: string | null; imagen: string | null; plano: string | null;
   flgVisible?: boolean;
+  modal_info?: ModalInfoConfig | null;
 }
 
 interface EventoGrupo { id: string; nombre: string; codigo: string; vertical: string; versiones: VersionItem[]; }
+
+/** Contenido sugerido inicial del modal informativo (se puede editar por version). */
+const MODAL_INFO_PLANTILLA: ModalInfoConfig = {
+  activo: true,
+  titulo: "Protocolo de reserva",
+  subtitulo: "Antes de reservar tu stand, ten en cuenta lo siguiente:",
+  items: [
+    { titulo: "Revision por areas", descripcion: "Logistica y Comunicacion revisan tu documentacion antes de aprobar la solicitud." },
+    { titulo: "Contrato por SGC", descripcion: "La revision legal del contrato se gestiona a traves del Sistema de Gestion de Contratos." },
+    { titulo: "Documentos", descripcion: "Adjunta los documentos del contrato desde Mis solicitudes para continuar con el flujo." },
+  ],
+  ayuda: {
+    titulo: "Asistencia para exhibidores",
+    descripcion: "Si necesitas apoyo con la reserva, los documentos del contrato o el estado de tu solicitud, contacta a la Mesa de Ayuda del IIMP.",
+    texto_boton: "Ir a Mesa de Ayuda",
+    url: "",
+  },
+};
+
+function toModalInfo(value: unknown): ModalInfoConfig | null {
+  if (typeof value !== "object" || value === null) return null;
+  const m = value as Record<string, unknown>;
+  if (typeof m.activo !== "boolean" || typeof m.titulo !== "string") return null;
+  const items = Array.isArray(m.items)
+    ? m.items
+        .filter((i): i is Record<string, unknown> => typeof i === "object" && i !== null)
+        .map((i) => ({ titulo: String(i.titulo ?? ""), descripcion: String(i.descripcion ?? "") }))
+    : [];
+  const ayudaRaw = typeof m.ayuda === "object" && m.ayuda !== null ? (m.ayuda as Record<string, unknown>) : null;
+  return {
+    activo: m.activo,
+    titulo: m.titulo,
+    subtitulo: typeof m.subtitulo === "string" ? m.subtitulo : null,
+    items,
+    ayuda: ayudaRaw
+      ? {
+          titulo: String(ayudaRaw.titulo ?? ""),
+          descripcion: String(ayudaRaw.descripcion ?? ""),
+          texto_boton: String(ayudaRaw.texto_boton ?? ""),
+          url: String(ayudaRaw.url ?? ""),
+        }
+      : null,
+  };
+}
 
 function toEventoGrupo(value: unknown): EventoGrupo | null {
   if (typeof value !== "object" || value === null) return null;
@@ -41,6 +87,7 @@ function toEventoGrupo(value: unknown): EventoGrupo | null {
       imagen: typeof v.imagen === "string" ? v.imagen : null,
       plano: typeof v.plano === "string" ? v.plano : null,
       flgVisible: typeof v.flgVisible === "boolean" ? v.flgVisible : undefined,
+      modal_info: toModalInfo(v.modal_info),
     });
   }
 
@@ -55,6 +102,7 @@ export function EventosMantenedor() {
   const [editItem, setEditItem] = useState<VersionItem | null>(null);
   const [editPlano, setEditPlano] = useState("gess");
   const [editFlgVisible, setEditFlgVisible] = useState(false);
+  const [editModalInfo, setEditModalInfo] = useState<ModalInfoConfig>(MODAL_INFO_PLANTILLA);
   const [planosOpciones, setPlanosOpciones] = useState<PlanoOpcion[]>(listPlanos().map((p) => ({ id: p.id, nombre: p.nombre, tipo: TIPOS_PLANO.SIMPLE, eventoAsignado: null })));
 
   useEffect(() => {
@@ -84,24 +132,37 @@ export function EventosMantenedor() {
     setEditItem(ver);
     setEditPlano(ver.plano ?? "");
     setEditFlgVisible(ver.flgVisible ?? false);
+    setEditModalInfo(ver.modal_info ?? MODAL_INFO_PLANTILLA);
     setEditDialog(true);
   };
 
   const handleSave = async () => {
     if (!editItem) return;
     try {
+      const modalInfo: ModalInfoConfig = {
+        activo: editModalInfo.activo,
+        titulo: editModalInfo.titulo,
+        subtitulo: editModalInfo.subtitulo ?? null,
+        items: editModalInfo.items,
+        ayuda: editModalInfo.ayuda ?? null,
+      };
+      const planoOriginal = editItem.plano ?? "";
+      const planoNuevo = editPlano ?? "";
+      // Solo se envia el plano si cambio: reenviarlo dispara la validacion de
+      // "plano unico" aunque el valor sea el mismo.
       await eventosServiceClient.actualizar({
         tipo_evento: editItem.tipoEvento,
         codigo_evento: editItem.codigoEvento,
-        plano: editPlano,
+        ...(planoNuevo !== planoOriginal ? { plano: planoNuevo } : {}),
         flg_visible: editFlgVisible,
+        modal_info: modalInfo,
       });
       toast.success("Evento actualizado");
       setSelectedGrupo((prev) => (prev ? {
         ...prev,
         versiones: prev.versiones.map((v) =>
           v.tipoEvento === editItem.tipoEvento && v.codigoEvento === editItem.codigoEvento
-            ? { ...v, plano: editPlano || null, flgVisible: editFlgVisible }
+            ? { ...v, plano: editPlano || null, flgVisible: editFlgVisible, modal_info: modalInfo }
             : v,
         ),
       } : prev));
@@ -245,13 +306,13 @@ export function EventosMantenedor() {
 
       {/* Modal de edicion metadata */}
       <Dialog open={editDialog} onOpenChange={setEditDialog}>
-        <DialogContent className="sm:max-w-sm !p-0">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden !p-0">
           <div className="shrink-0 px-5 pt-6 pb-3 border-b border-slate-100 !pr-12">
             <DialogHeader>
               <DialogTitle><span>Editar metadata</span></DialogTitle>
             </DialogHeader>
           </div>
-          <div className="px-5 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
             {editItem && (
               <div className="rounded-lg border bg-muted/20 p-2.5 text-xs text-muted-foreground">
                 <span className="font-semibold text-slate-700">Version {editItem.anio}</span>
@@ -281,6 +342,56 @@ export function EventosMantenedor() {
               <Checkbox checked={editFlgVisible} onCheckedChange={(v) => setEditFlgVisible(v === true)} />
               <span>Visible en presala</span>
             </label>
+
+            <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-xs font-semibold text-slate-600">Modal informativo en el plano</p>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox checked={editModalInfo.activo} onCheckedChange={(v) => setEditModalInfo((m) => ({ ...m, activo: v === true }))} />
+                <span>Mostrar al ingresar al plano (1 vez por sesion)</span>
+              </label>
+              <Input value={editModalInfo.titulo} onChange={(e) => setEditModalInfo((m) => ({ ...m, titulo: e.target.value }))} placeholder="Titulo" />
+              <Input value={editModalInfo.subtitulo ?? ""} onChange={(e) => setEditModalInfo((m) => ({ ...m, subtitulo: e.target.value }))} placeholder="Subtitulo (opcional)" />
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground">Items</p>
+                {editModalInfo.items.map((it, i) => (
+                  <div key={i} className="flex items-start gap-1.5">
+                    <Input value={it.titulo} onChange={(e) => setEditModalInfo((m) => ({ ...m, items: m.items.map((x, j) => (j === i ? { ...x, titulo: e.target.value } : x)) }))} placeholder="Titulo" className="w-36 shrink-0" />
+                    <Input value={it.descripcion} onChange={(e) => setEditModalInfo((m) => ({ ...m, items: m.items.map((x, j) => (j === i ? { ...x, descripcion: e.target.value } : x)) }))} placeholder="Descripcion" />
+                    <Button type="button" variant="ghost" size="sm" className="h-9 w-8 shrink-0 p-0 text-destructive" onClick={() => setEditModalInfo((m) => ({ ...m, items: m.items.filter((_, j) => j !== i) }))} title="Quitar item">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" className="h-7" onClick={() => setEditModalInfo((m) => ({ ...m, items: [...m.items, { titulo: "", descripcion: "" }] }))}>
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  <span>Agregar item</span>
+                </Button>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-muted-foreground">Bloque de ayuda (opcional)</p>
+                {editModalInfo.ayuda ? (
+                  <>
+                    <Input value={editModalInfo.ayuda.titulo} onChange={(e) => setEditModalInfo((m) => ({ ...m, ayuda: { titulo: e.target.value, descripcion: m.ayuda?.descripcion ?? "", texto_boton: m.ayuda?.texto_boton ?? "", url: m.ayuda?.url ?? "" } }))} placeholder="Titulo" />
+                    <Input value={editModalInfo.ayuda.descripcion} onChange={(e) => setEditModalInfo((m) => ({ ...m, ayuda: { titulo: m.ayuda?.titulo ?? "", descripcion: e.target.value, texto_boton: m.ayuda?.texto_boton ?? "", url: m.ayuda?.url ?? "" } }))} placeholder="Descripcion" />
+                    <div className="flex gap-1.5">
+                      <Input value={editModalInfo.ayuda.texto_boton} onChange={(e) => setEditModalInfo((m) => ({ ...m, ayuda: { titulo: m.ayuda?.titulo ?? "", descripcion: m.ayuda?.descripcion ?? "", texto_boton: e.target.value, url: m.ayuda?.url ?? "" } }))} placeholder="Texto del boton" />
+                      <Input value={editModalInfo.ayuda.url} onChange={(e) => setEditModalInfo((m) => ({ ...m, ayuda: { titulo: m.ayuda?.titulo ?? "", descripcion: m.ayuda?.descripcion ?? "", texto_boton: m.ayuda?.texto_boton ?? "", url: e.target.value } }))} placeholder="URL (https://...)" />
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => setEditModalInfo((m) => ({ ...m, ayuda: null }))}>
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      <span>Quitar bloque de ayuda</span>
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="h-7" onClick={() => setEditModalInfo((m) => ({ ...m, ayuda: { titulo: "", descripcion: "", texto_boton: "", url: "" } }))}>
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    <span>Agregar ayuda</span>
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter className="border-t border-slate-100 px-5 py-3 !mt-0">
             <Button onClick={handleSave} className="w-full"><span>Guardar cambios</span></Button>

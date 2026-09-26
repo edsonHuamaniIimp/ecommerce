@@ -25,7 +25,7 @@
 - **Matcher:** todas las rutas excepto `_next/static`, `_next/image`, `favicon.ico`, `sitemap.xml`, `robots.txt`.
 - **Rutas públicas:** `/`, `/landing`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
   rutas exactas `/api/maestra`, `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`,
-  `/api/planos/publico`; caso especial `GET /api/eventos/listar?presala=1`.
+  `/api/planos/publico`, `/api/eventos/modal-info`; caso especial `GET /api/eventos/listar?presala=1`.
 - **Autenticación:** extrae el token JWT de la cookie `token` y lo verifica con `verifyToken`.
   Sin token o inválido → redirect a `/auth/login?returnTo=<ruta>`.
 - **Autorización:** valida el permiso declarado por prefijo con `hasPermission`; si falta → `/403`.
@@ -78,7 +78,8 @@
 |---|---|---|
 | `/api/eventos/listar` | GET | Lista eventos; `?presala=1` (público) y `?id=` devuelve uno |
 | `/api/eventos/crear` | POST | Crea evento |
-| `/api/eventos/actualizar` | PATCH | Actualiza evento |
+| `/api/eventos/actualizar` | PATCH | Actualiza evento (incluye `modal_info` por versión) |
+| `/api/eventos/modal-info` | GET | Modal informativo de `/mapa` por versión; público. `?tipoEvento=&codigoEvento=` |
 
 ### 3.4 GESS — `src/app/api/gess/[...slug]/route.ts`
 

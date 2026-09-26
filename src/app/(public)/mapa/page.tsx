@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlanoDinamico } from "@/components/plano/plano-dinamico";
 import { MacroMapaView } from "@/components/plano/macro-mapa-view";
+import { ModalInformativoEvento } from "@/components/plano/modal-informativo-evento";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -86,9 +87,14 @@ function MapaDinamicoPageContent() {
 
   if (loading || !eventoId) return null;
 
+  const modalInformativo = eventoParams ? (
+    <ModalInformativoEvento tipoEvento={eventoParams.tipoEvento} codigoEvento={eventoParams.codigoEvento} />
+  ) : null;
+
   if (!planoId || !payload) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-20">
+        {modalInformativo}
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center gap-4 py-12">
             <span className="text-4xl">🏗️</span>
@@ -107,6 +113,7 @@ function MapaDinamicoPageContent() {
 
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">
+      {modalInformativo}
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
         {destinoVolver && (
           <div>

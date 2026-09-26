@@ -75,6 +75,7 @@ export class PresalaApplicationService {
               imagen: meta?.imagen ?? null,
               plano: meta?.plano ?? null,
               flgVisible: meta?.flgVisible ?? false,
+              modal_info: meta?.modalInfo ?? null,
             };
           }).filter((v): v is EventoPresalaDTO => v !== null),
         });

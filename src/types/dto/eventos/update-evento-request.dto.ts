@@ -1,3 +1,5 @@
+import type { ModalInfoConfig } from "@/domain/models/entities";
+
 export interface UpdateEventoRequestDTO {
   id?: string;
   tipo_evento?: number;
@@ -9,4 +11,5 @@ export interface UpdateEventoRequestDTO {
   flg_activo?: boolean;
   flg_visible?: boolean;
   plano?: string;
+  modal_info?: ModalInfoConfig | null;
 }

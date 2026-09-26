@@ -1,5 +1,5 @@
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
-import type { EventoEntity } from "@/domain/models/entities";
+import type { EventoEntity, ModalInfoConfig } from "@/domain/models/entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 
@@ -40,6 +40,7 @@ export class EventoApplicationService {
     flg_visible?: boolean;
     plano?: string;
     imagen?: string;
+    modal_info?: ModalInfoConfig | null;
   }) {
     const mapped: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible" | "plano" | "imagen">> = {};
     if (data.estado !== undefined) mapped.estado = data.estado;
@@ -67,9 +68,19 @@ export class EventoApplicationService {
     }
 
     if (tipoEvento !== undefined && codigoEvento !== undefined) {
-      return this.repo.upsertByTipoCodigo(tipoEvento, codigoEvento, mapped);
+      return this.repo.upsertByTipoCodigo(tipoEvento, codigoEvento, {
+        imagen: data.imagen,
+        flgVisible: data.flg_visible,
+        plano: data.plano,
+        modalInfo: data.modal_info,
+      });
     }
     if (data.id) return this.repo.update(data.id, mapped);
     throw new Error("Se requiere id o (tipoEvento + codigoEvento)");
+  }
+
+  /** Config del modal informativo mostrado al entrar a /mapa. */
+  async obtenerModalInfo(tipoEvento: number, codigoEvento: number): Promise<ModalInfoConfig | null> {
+    return this.repo.findModalInfo(tipoEvento, codigoEvento);
   }
 }

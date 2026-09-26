@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/server/db";
-import type { IEventoRepository, EventoCriteria, EventoMetadata } from "@/domain/ports/evento-repository";
-import type { EventoEntity } from "@/domain/models/entities";
+import type { IEventoRepository, EventoCriteria, EventoMetadata, EventoMetadataUpdate } from "@/domain/ports/evento-repository";
+import type { EventoEntity, ModalInfoConfig } from "@/domain/models/entities";
 
 export class EventoPrismaRepository implements IEventoRepository {
   async findAllMetadata(): Promise<EventoMetadata[]> {
     const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT tipo_evento, codigo_evento, imagen, plano, flg_visible FROM evento_metadata`
+      `SELECT tipo_evento, codigo_evento, imagen, plano, flg_visible, modal_info FROM evento_metadata`
     );
     return rows.map((r) => ({
       tipoEvento: r.tipo_evento as number,
@@ -13,9 +13,18 @@ export class EventoPrismaRepository implements IEventoRepository {
       imagen: r.imagen as string | null,
       plano: r.plano as string | null,
       flgVisible: (r.flg_visible as boolean) ?? false,
+      modalInfo: (r.modal_info as ModalInfoConfig | null) ?? null,
       anio: "",
       estado: "active",
     }));
+  }
+
+  async findModalInfo(tipoEvento: number, codigoEvento: number): Promise<ModalInfoConfig | null> {
+    const row = await prisma.eventoMetadata.findUnique({
+      where: { tipoEvento_codigoEvento: { tipoEvento, codigoEvento } },
+      select: { modalInfo: true },
+    });
+    return (row?.modalInfo as ModalInfoConfig | null) ?? null;
   }
 
   async findPadresConVersiones(criteria?: EventoCriteria) {
@@ -72,28 +81,30 @@ export class EventoPrismaRepository implements IEventoRepository {
     return row;
   }
 
-  async upsertByTipoCodigo(tipoEvento: number, codigoEvento: number, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>) {
+  async upsertByTipoCodigo(tipoEvento: number, codigoEvento: number, data: EventoMetadataUpdate) {
     const upsertData: Record<string, unknown> = {};
     if (data.imagen !== undefined) upsertData.imagen = data.imagen;
-    if (data.flgActivo !== undefined) upsertData.flgActivo = data.flgActivo;
     if (data.flgVisible !== undefined) upsertData.flgVisible = data.flgVisible;
     if (data.plano !== undefined) upsertData.plano = data.plano;
+    if (data.modalInfo !== undefined) upsertData.modalInfo = data.modalInfo ? JSON.stringify(data.modalInfo) : null;
 
     try {
       await prisma.$queryRawUnsafe(
-        `INSERT INTO evento_metadata (tipo_evento, codigo_evento, plano, flg_visible, imagen, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        `INSERT INTO evento_metadata (tipo_evento, codigo_evento, plano, flg_visible, imagen, modal_info, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW(), NOW())
          ON CONFLICT (tipo_evento, codigo_evento)
          DO UPDATE SET
            plano = CASE WHEN EXCLUDED.plano = '' THEN NULL ELSE COALESCE(EXCLUDED.plano, evento_metadata.plano) END,
            flg_visible = EXCLUDED.flg_visible,
            imagen = COALESCE(EXCLUDED.imagen, evento_metadata.imagen),
+           modal_info = COALESCE(EXCLUDED.modal_info, evento_metadata.modal_info),
            updated_at = NOW()`,
         tipoEvento,
         codigoEvento,
         upsertData.plano ?? null,
         upsertData.flgVisible ?? false,
         upsertData.imagen ?? null,
+        upsertData.modalInfo ?? null,
       );
     } catch (err) {
       console.error("[upsertByTipoCodigo] Error:", err);

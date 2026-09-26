@@ -147,6 +147,18 @@ erDiagram
 | anio | string(4) | No | Año/versión. |
 | estado | enum | No | draft/active/closed/cancelled. |
 
+### 4.2b `evento_metadata` (Auxiliar — metadata por versión)
+Config por `(tipoEvento, codigoEvento)` que sobreescribe datos del API externo.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| tipoEvento | int | No | PK compuesta. Código de tipo. |
+| codigoEvento | int | No | PK compuesta. Código de evento. |
+| plano | string(50) | Sí | Código del plano 3D asignado (`plano.codigo`). |
+| flgVisible | boolean | No | Visible en presala. |
+| imagen | string(500) | Sí | Imagen de portada del evento. |
+| modalInfo | json | Sí | Modal informativo de `/mapa` (`ModalInfoConfig`: activo, titulo, subtitulo, items, ayuda). |
+
 ### 4.3 `tipo_stand` (Maestra)
 | Campo | Tipo | Nulo | Descripción |
 | --- | --- | --- | --- |
