@@ -50,10 +50,10 @@ import {
 } from "@/lib/shared/constants";
 
 /**
- * Prueba de flujo completo (happy path) que comienza con la CREACIÃƒÆ’Ã¢â‚¬Å“N de la solicitud:
- *   ReservaApplicationService.crear ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ revisiÃƒÆ’Ã‚Â³n LogÃƒÆ’Ã‚Â­stica ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ revisiÃƒÆ’Ã‚Â³n ComunicaciÃƒÆ’Ã‚Â³n
- *   ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ se delega al SGC (la revisiÃƒÆ’Ã‚Â³n Legal pasa a ser el internal-review del SGC)
- *   ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ carga de contrato/anexos (3 fases) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ detalle ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ webhooks ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ descarga del firmado.
+ * Prueba de flujo completo (happy path) que comienza con la CREACIÓN de la solicitud:
+ *   ReservaApplicationService.crear → revisión Logística → revisión Comunicación
+ *   → se delega al SGC (la revisión Legal pasa a ser el internal-review del SGC)
+ *   → carga de contrato/anexos (3 fases) → detalle → webhooks → descarga del firmado.
  */
 
 const SOLICITUD_ID = "11111111-1111-4111-8111-111111111111";
@@ -367,11 +367,11 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
     expect(inicial?.revisiones).toHaveLength(2);
     expect(inicial?.revisiones.every((r) => r.estado === RESULTADOS_APROBACION.PENDIENTE)).toBe(true);
 
-    /* 2. RevisiÃƒÆ’Ã‚Â³n LogÃƒÆ’Ã‚Â­stica (local) */
+    /* 2. Revisión Logística (local) */
     await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.LOGISTICA, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "logistica@iimp.org.pe" });
     expect(await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID)).toBeNull();
 
-    /* 3. RevisiÃƒÆ’Ã‚Â³n ComunicaciÃƒÆ’Ã‚Â³n (local, ÃƒÆ’Ã‚Âºltima) -> se DELEGA al SGC */
+    /* 3. Revisión Comunicación (local, última) -> se DELEGA al SGC */
     const crearSpy = vi.spyOn(SgcClientMock.prototype, "crearExpediente");
     await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.COMUNICACION, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "comunicacion@iimp.org.pe" });
 
@@ -415,7 +415,7 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
     const duplicado = await webhook.procesar(webhookPayload("evt-1", SGC_EVENT_TYPES.WORKFLOW_ADVANCED, contractId, { to: SGC_STAGES.APPROVAL }));
     expect(duplicado.duplicado).toBe(true);
 
-    /* 10. Webhook: aprobaciÃƒÆ’Ã‚Â³n final -> contrato VIGENTE */
+    /* 10. Webhook: aprobación final -> contrato VIGENTE */
     await webhook.procesar(webhookPayload("evt-2", SGC_EVENT_TYPES.WORKFLOW_APPROVED, contractId, { finalization: "active", documentVersionId: contrato?.currentVersionId }));
     expect((await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID))?.lifecycleStatus).toBe(SGC_LIFECYCLE_STATUSES.ACTIVE);
 

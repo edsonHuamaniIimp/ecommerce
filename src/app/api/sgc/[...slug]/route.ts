@@ -13,7 +13,7 @@ export const { GET, POST } = createRouter({
     "subir-documento": (req) => sgcController.subirDocumento(req),
     "subir-anexos": (req) => sgcController.subirAnexos(req),
     "subir-contrato": (req) => sgcController.subirContrato(req),
-    "subsanacion-casuistica": (req) => sgcController.declararMotivo(req),
+    "subsanacion-motivo": (req) => sgcController.declararMotivo(req),
     reenviar: (req) => sgcController.reenviar(req),
   },
 });

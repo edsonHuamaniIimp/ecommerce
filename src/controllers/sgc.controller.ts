@@ -153,7 +153,7 @@ export const sgcController = {
     const body = (await request.json()) as { solicitudId?: string; motivo?: string | null };
     if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
-    /* Motivo libre (la casuÃ­stica no es cerrada); vacÃ­o = limpiar la declaraciÃ³n. */
+    /* Motivo libre (la casuística no es cerrada); vacío = limpiar la declaración. */
     const motivo = (body.motivo ?? "").trim().slice(0, 500) || null;
     const expediente = await services.sgc.declararMotivoSubsanacion(body.solicitudId, motivo, session.email);
     if (!expediente) return error(API_ERROR_CODES.NOT_FOUND, "La solicitud no tiene expediente en el SGC", 404);

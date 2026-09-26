@@ -125,7 +125,7 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, Â§3.2):
+   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, §3.2):
    * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
    * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
    */
@@ -212,7 +212,7 @@ export class SgcIntegracionApplicationService {
     return { sincronizados, reintentados };
   }
 
-  /** Empuja una pieza documental al SGC (reservar â†’ transferir â†’ confirmar). */
+  /** Empuja una pieza documental al SGC (reservar → transferir → confirmar). */
   async subirPiezaDocumental(solicitudId: string, pieza: SgcPiezaDocumental): Promise<SgcDocumentoEntity | null> {
     if (!this.config.enabled) return null;
 
@@ -325,7 +325,7 @@ export class SgcIntegracionApplicationService {
 
     /*
      * Tras subir la version corregida hay que reabrir el tramite (POST /resend),
-     * una sola vez por ronda (doc Â§8.1). Si no, el expediente no vuelve a avanzar.
+     * una sola vez por ronda (doc §8.1). Si no, el expediente no vuelve a avanzar.
      */
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (expediente?.contractId) {
@@ -381,7 +381,7 @@ export class SgcIntegracionApplicationService {
     });
   }
 
-  /** Declara la casuÃ­stica de subsanaciÃ³n (la elige el administrador cuando el SGC rechaza). */
+  /** Declara la casuística de subsanación (la elige el administrador cuando el SGC rechaza). */
   async declararMotivoSubsanacion(
     solicitudId: string,
     motivo: string | null,
@@ -390,7 +390,7 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente) return null;
 
-    /* Auditoría: cada declaración abre una ronda nueva (1, 2, 3…). */
+    /* Auditor�a: cada declaraci�n abre una ronda nueva (1, 2, 3�). */
     if (motivo) {
       const previas = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
       const ronda = previas.reduce((max, r) => Math.max(max, r.ronda), 0) + 1;
@@ -403,9 +403,9 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * ReenvÃ­a el trÃ¡mite al SGC tras una devoluciÃ³n (rechazo): sube **el contrato firmado
-   * del cliente** como versiÃ³n nueva del contrato del expediente y reabre la ronda con
-   * `POST /contracts/{id}/resend` (doc Â§8.1). Limpia la casuÃ­stica declarada al terminar.
+   * Reenvía el trámite al SGC tras una devolución (rechazo): sube **el contrato firmado
+   * del cliente** como versión nueva del contrato del expediente y reabre la ronda con
+   * `POST /contracts/{id}/resend` (doc §8.1). Limpia la casuística declarada al terminar.
    */
   async reenviarCorreccionAlSgc(solicitudId: string, reenviadoPor: string): Promise<SgcDocumentoEntity | null> {
     if (!this.config.enabled) return null;
@@ -441,7 +441,7 @@ export class SgcIntegracionApplicationService {
       expediente.contractId,
       `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
     );
-    /* Auditoría: cierra la ronda vigente con quién/cuándo reenvió y la versión corregida. */
+    /* Auditor�a: cierra la ronda vigente con qui�n/cu�ndo reenvi� y la versi�n corregida. */
     const pendiente = (await this.repo.listarSubsanaciones(expediente.id).catch(() => []))
       .filter((r) => r.estado !== "reenviado")
       .pop();
@@ -559,7 +559,7 @@ export class SgcIntegracionApplicationService {
 }
 
 /**
- * Valor por defecto para un campo obligatorio del tipo (guia v3, Â§3.2). Los textos usan el
+ * Valor por defecto para un campo obligatorio del tipo (guia v3, §3.2). Los textos usan el
  * nombre descriptivo del expediente ("Separacion de stand - <codigo>"); el resto, valores
  * neutros. Si el tipo exige datos de negocio especificos, revisar este mapeo.
  */

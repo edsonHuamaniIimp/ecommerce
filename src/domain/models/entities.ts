@@ -180,7 +180,7 @@ export interface SolicitudRow {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
-  /** CasuÃ­stica de subsanaciÃ³n declarada por el admin (null = no declarada). */
+  /** Casuística de subsanación declarada por el admin (null = no declarada). */
   sgcSubsanacionMotivo: string | null;
   /** True si ya se enviaron documentos al expediente SGC (contrato y/o anexos). */
   sgcDocumentosEnviados: boolean;
