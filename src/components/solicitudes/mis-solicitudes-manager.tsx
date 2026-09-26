@@ -18,7 +18,7 @@ import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { enVentanaContratoMultistand, enVentanaLegalSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -377,6 +377,13 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Adjuntar anexos</span>
                             </Button>
                           )}
+                          {enVentanaSubsanacionSgc(row) && (
+                            <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
+                              onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>Corregir: subir contrato firmado</span>
+                            </Button>
+                          )}
                           <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                         </div>
                       </div>
@@ -447,6 +454,13 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Adjuntar anexos</span>
+                              </Button>
+                            )}
+                            {enVentanaSubsanacionSgc(row) && (
+                              <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
+                                onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>Corregir: subir contrato firmado</span>
                               </Button>
                             )}
                             <VerDetalleButton onClick={() => { void openDetail(row.id); }} />

@@ -173,6 +173,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,
     sgcDocumentosEnviados: (row.sgcExpediente?._count?.documentos ?? 0) > 0,
     sgcEnabled: isSgcEnabled(),
   };

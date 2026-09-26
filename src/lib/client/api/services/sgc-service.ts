@@ -32,4 +32,14 @@ export const sgcService = {
   registrar(solicitudId: string) {
     return internalApi.post<Record<string, unknown>>("/api/sgc/registrar", { solicitudId });
   },
+
+  /** Declara la casuÃƒÆ’Ã‚Â­stica de subsanaciÃƒÆ’Ã‚Â³n (la elige el admin cuando el SGC devuelve el trÃƒÆ’Ã‚Â¡mite). */
+  declararMotivo(body: { solicitudId: string; motivo: string | null }) {
+    return internalApi.post<Record<string, unknown>>("/api/sgc/subsanacion-motivo", body);
+  },
+
+  /** ReenvÃƒÆ’Ã‚Â­a al SGC con el contrato firmado del cliente (reabre la ronda). */
+  reenviar(solicitudId: string) {
+    return internalApi.post<Record<string, unknown>>("/api/sgc/reenviar", { solicitudId });
+  },
 };

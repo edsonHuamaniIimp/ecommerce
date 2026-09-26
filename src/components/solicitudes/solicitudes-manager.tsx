@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
@@ -357,9 +357,9 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                             {row.bloqueId && <span className="mt-0.5 block font-mono text-[10px] font-normal text-muted-foreground">{row.bloqueId}</span>}
                           </TableCell>
                           <TableCell className="hidden max-w-[140px] truncate text-xs text-foreground sm:table-cell" title={row.empresa ?? ""}>
-                            {row.empresa ?? "—"}
+                            {row.empresa ?? "â€”"}
                           </TableCell>
-                          <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{row.tipoStand ?? "—"}</TableCell>
+                          <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{row.tipoStand ?? "â€”"}</TableCell>
                           <TableCell>
                              {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
@@ -498,7 +498,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               </div>
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados — pagina {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados â€” pagina {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination
                   page={pagination.page}
@@ -522,14 +522,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2">
           {detailRow && (
             <>
-              {/* Info general — siempre visible */}
+              {/* Info general â€” siempre visible */}
               <DetailSection id="info" title="Informacion general" open={accordionOpen === "info"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-muted-foreground ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
-                  <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
-                  <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "—"}</span></div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "—"}</span></div>
+                  <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "â€”"}</span></div>
+                  <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "â€”"}</span></div>
+                  <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "â€”"}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "â€”"}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Estado:</span>{" "}
                     <Badge className={`text-[10px] ${
                       detailRow.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? BADGE_STYLES.SUCCESS
@@ -713,7 +713,19 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
               {/* Expediente SGC */}
               <DetailSection id="sgc" title="Expediente SGC" open={accordionOpen === "sgc"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                <SgcExpedientePanel solicitudId={detailRow.id} />
+                <SgcExpedientePanel
+                  solicitudId={detailRow.id}
+                  tieneContratoAdmin={detailRow.docsAdjuntos.some((d) => d.userId === null)}
+                  tieneContratoFirmado={detailRow.docsAdjuntos.some(
+                    (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+                  )}
+                  tieneAnexos={
+                    detailRow.docsAdjuntos.some(
+                      (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+                    ) || (detailRow.documentos as string[]).length > 0
+                  }
+                  motivo={detailRow.sgcSubsanacionMotivo}
+                />
               </DetailSection>
             </>
           )}
@@ -762,7 +774,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           {notificarRow && (
             <NotificarModal
               standCode={notificarRow.standCode}
-              empresa={notificarRow.empresa ?? "—"}
+              empresa={notificarRow.empresa ?? "â€”"}
               tipoStand={notificarRow.tipoStand}
               email={notificarRow.email ?? ""}
               revisiones={notificarRow.revisiones}
@@ -890,7 +902,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 hover:border-primary hover:bg-primary/5 transition-colors">
                 <Upload className="h-6 w-6 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">{uploading ? "Subiendo..." : "Click para seleccionar archivo"}</span>
-                <span className="text-[10px] text-muted-foreground">PDF, DOC, DOCX — max 10 MB</span>
+                <span className="text-[10px] text-muted-foreground">PDF, DOC, DOCX â€” max 10 MB</span>
                 <input type="file" className="hidden" accept=".pdf,.doc,.docx" disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -918,7 +930,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">‹</span>
+              <span className="text-lg">â€¹</span>
             </Button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <Button type="button" variant="ghost" size="icon"
@@ -926,7 +938,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">›</span>
+              <span className="text-lg">â€º</span>
             </Button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>

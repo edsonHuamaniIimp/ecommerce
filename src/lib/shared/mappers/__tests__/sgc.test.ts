@@ -36,6 +36,7 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcSubsanacionMotivo: null,
     sgcDocumentosEnviados: false,
     sgcEnabled: false,
     ...overrides,

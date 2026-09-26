@@ -22,6 +22,7 @@ function expediente(overrides: Partial<SgcExpedienteEntity> = {}): SgcExpediente
     version: null,
     areaCode: "EVENTOS",
     contractTypeCode: "AUSPICIO",
+    subsanacionMotivo: null,
     lastSyncedAt: null,
     lastError: null,
     ...overrides,
@@ -86,6 +87,7 @@ function solicitudDetalle(): SolicitudRow {
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcSubsanacionMotivo: null,
     sgcDocumentosEnviados: false,
     sgcEnabled: false,
   };

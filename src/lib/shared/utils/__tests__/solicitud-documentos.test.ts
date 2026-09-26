@@ -15,6 +15,7 @@ const base = {
   reevaluaciones: [] as Array<{ estado: string }>,
   sgcEnabled: true,
   sgcEstadoEnvio: SGC_ESTADO_ENVIO.CREADO as string | null,
+  sgcLifecycleStatus: null as string | null,
   sgcDocumentosEnviados: false,
   revisiones: [{ area: REVISION_AREAS.LOGISTICA }, { area: REVISION_AREAS.COMUNICACION }],
 };

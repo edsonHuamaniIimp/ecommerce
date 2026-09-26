@@ -204,19 +204,19 @@ export function SolicitudReview({
             <span className="font-mono font-medium text-foreground">{row.standCode}</span>
             {row.bloqueId && (
               <span className="flex items-center gap-2">
-                <span className="text-muted-foreground/50">·</span>
+                <span className="text-muted-foreground/50">Â·</span>
                 <span>{row.bloqueId}</span>
               </span>
             )}
             {row.tipoStand && (
               <span className="flex items-center gap-2">
-                <span className="text-muted-foreground/50">·</span>
+                <span className="text-muted-foreground/50">Â·</span>
                 <span>{row.tipoStand}</span>
               </span>
             )}
             {row.empresa && (
               <span className="flex items-center gap-2">
-                <span className="text-muted-foreground/50">·</span>
+                <span className="text-muted-foreground/50">Â·</span>
                 <span className="max-w-[200px] truncate">{row.empresa}</span>
               </span>
             )}
@@ -282,7 +282,7 @@ export function SolicitudReview({
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
                     <span className="flex-1 truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "â€”"}</span>
                   </a>
                 ))}
               </div>
@@ -299,13 +299,20 @@ export function SolicitudReview({
           </div>
         )}
 
-        {/* Integracion SGC — revision Legal delegada (ultimo paso) */}
+        {/* Integracion SGC â€” revision Legal delegada (ultimo paso) */}
         {esPasoSgc && (
           <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Revision Legal (SGC)</h4>
             <SgcExpedientePanel
-              key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}`}
+              key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}-${row.sgcSubsanacionMotivo ?? "none"}`}
               solicitudId={row.id}
+              tieneContratoAdmin={contratosSolicitud.length > 0}
+              tieneAnexos={anexosSolicitud.length > 0}
+              tieneContratoFirmado={row.docsAdjuntos.some(
+                (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+              )}
+              motivo={row.sgcSubsanacionMotivo}
+              onSolicitudChanged={() => onSaved(row)}
               onSynced={(s) => {
                 /* Si lo sincronizado difiere de la fila, refrescamos para actualizar
                    el step Legal (SGC) y habilitar la orden de pago (flujo regular). */
@@ -321,7 +328,7 @@ export function SolicitudReview({
               archivos={contratosSolicitud}
               ctaVacio="Adjuntar contrato (v1)"
               ctaConArchivos="Reemplazar contrato (v1)"
-              vacioTexto="Aún no adjuntaste el contrato (v1) (documento del administrador)."
+              vacioTexto="AÃºn no adjuntaste el contrato (v1) (documento del administrador)."
               varios={false}
               onAttached={() => onSaved(row)}
             />
@@ -332,8 +339,8 @@ export function SolicitudReview({
               hint={ANEXOS_REQUERIDOS.map((a) => a.label)}
               archivos={anexosSolicitud}
               ctaVacio="Adjuntar los anexos requeridos"
-              ctaConArchivos="Adjuntar más anexos"
-              vacioTexto="Aún no adjuntaste los anexos requeridos."
+              ctaConArchivos="Adjuntar mÃ¡s anexos"
+              vacioTexto="AÃºn no adjuntaste los anexos requeridos."
               onAttached={() => onSaved(row)}
             />
             {todasAprobadas && requiereSgc && !sgcOk && (
@@ -385,7 +392,7 @@ export function SolicitudReview({
           </div>
         )}
 
-        {/* Already reviewed — read-only view */}
+        {/* Already reviewed â€” read-only view */}
         {currentRev && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE && !editing && (
           <div className="space-y-3">
             {currentRev.comentario && (
@@ -413,7 +420,7 @@ export function SolicitudReview({
           </div>
         )}
 
-        {/* Pending or editing — show form */}
+        {/* Pending or editing â€” show form */}
         {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (
           <div className="space-y-3">
             <div>

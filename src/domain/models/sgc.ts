@@ -11,7 +11,7 @@ import type {
   SgcVersionStatus,
 } from "@/lib/shared/constants";
 
-/** Cuerpo de creacion de expediente — POST /contracts */
+/** Cuerpo de creacion de expediente â€” POST /contracts */
 export interface SgcCrearExpedienteInput {
   code: string;
   areaCode: string;
@@ -21,7 +21,7 @@ export interface SgcCrearExpedienteInput {
   counterpartyTaxIdentifier: string;
   processOrigin: string;
   /**
-   * Campos propios del tipo (guia v3, §3.2). Solo se envian si el tipo los declara
+   * Campos propios del tipo (guia v3, Â§3.2). Solo se envian si el tipo los declara
    * como obligatorios en `GET /contract-types` (`fields[].required`). Claves desconocidas
    * se ignoran; una clave mal formada responde 400.
    */
@@ -39,7 +39,7 @@ export interface SgcRutaStep {
   slaHours: number | null;
 }
 
-/** Ruta de revision congelada en el expediente — viene en la respuesta de creacion. */
+/** Ruta de revision congelada en el expediente â€” viene en la respuesta de creacion. */
 export interface SgcRutaExpediente {
   definitionCode: string;
   definitionName: string;
@@ -58,13 +58,13 @@ export interface SgcCrearExpedienteResult {
   status: string;
 }
 
-/** Respuesta de reabrir el tramite tras subsanar — POST /contracts/{id}/resend */
+/** Respuesta de reabrir el tramite tras subsanar â€” POST /contracts/{id}/resend */
 export interface SgcResendResult {
   contractId: string;
   status: string;
 }
 
-/** Campo propio de un tipo de contrato (guia v3, §3.2) — `fields` de GET /contract-types. */
+/** Campo propio de un tipo de contrato (guia v3, Â§3.2) â€” `fields` de GET /contract-types. */
 export interface SgcCampoTipo {
   key: string;
   label: string;
@@ -76,7 +76,7 @@ export interface SgcCampoTipo {
   apiSupported: boolean;
 }
 
-/** Catalogo de tipos de contrato y areas — GET /contract-types */
+/** Catalogo de tipos de contrato y areas â€” GET /contract-types */
 export interface SgcContractType {
   code: string;
   name: string;
@@ -91,7 +91,7 @@ export interface SgcContractTypesCatalogo {
   items: SgcContractType[];
 }
 
-/** Repositorio de templates — GET /templates[/{code}] */
+/** Repositorio de templates â€” GET /templates[/{code}] */
 export interface SgcTemplateArchivo {
   fileId: string;
   title: string;
@@ -115,14 +115,14 @@ export interface SgcTemplate {
   updatedAt: string;
 }
 
-/** Campos actualizables del expediente — PATCH /contracts/{contractId} */
+/** Campos actualizables del expediente â€” PATCH /contracts/{contractId} */
 export interface SgcActualizarExpedienteInput {
   name?: string;
   counterpartyLegalName?: string;
   counterpartyTaxIdentifier?: string;
 }
 
-/** Cuerpo de reserva de subida — POST /contracts/{contractId}/documents */
+/** Cuerpo de reserva de subida â€” POST /contracts/{contractId}/documents */
 export interface SgcReservarSubidaInput {
   category: SgcDocumentCategory;
   title: string;
@@ -145,7 +145,7 @@ export interface SgcReservarSubidaResult {
   expiresInSeconds: number;
 }
 
-/** Respuesta de confirmacion de subida — POST /document-versions/{versionId}/complete */
+/** Respuesta de confirmacion de subida â€” POST /document-versions/{versionId}/complete */
 export interface SgcConfirmarSubidaResult {
   outcome: SgcApprovalResult;
   previewStatus?: string;
@@ -197,7 +197,7 @@ export interface SgcDocumentoResumen {
   currentVersionId: string | null;
 }
 
-/** Detalle completo del expediente — GET /contracts/{contractId} */
+/** Detalle completo del expediente â€” GET /contracts/{contractId} */
 export interface SgcExpedienteDetalle {
   contractId: string;
   code: string;
@@ -234,7 +234,7 @@ export interface SgcVersion {
   sizeBytes: number;
 }
 
-/** Detalle de documento con historial de versiones — GET /documents/{documentId} */
+/** Detalle de documento con historial de versiones â€” GET /documents/{documentId} */
 export interface SgcDocumentoDetalle {
   documentId: string;
   contractId: string;
@@ -244,7 +244,7 @@ export interface SgcDocumentoDetalle {
   versions: SgcVersion[];
 }
 
-/** Resolucion de version a documento/expediente — GET /document-versions/{versionId} */
+/** Resolucion de version a documento/expediente â€” GET /document-versions/{versionId} */
 export interface SgcVersionResuelta {
   versionId: string;
   documentId: string;
@@ -257,7 +257,7 @@ export interface SgcVersionResuelta {
   createdAt: string;
 }
 
-/** Enlace de descarga de vida corta — GET /document-versions/{versionId}/download */
+/** Enlace de descarga de vida corta â€” GET /document-versions/{versionId}/download */
 export interface SgcUrlDescarga {
   url: string;
   expiresInSeconds: number;
@@ -289,6 +289,8 @@ export interface SgcExpedienteEntity {
   version: number | null;
   areaCode: string;
   contractTypeCode: string;
+  /** CasuÃ­stica de subsanaciÃ³n declarada por el admin (null = no declarada). */
+  subsanacionMotivo: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
 }

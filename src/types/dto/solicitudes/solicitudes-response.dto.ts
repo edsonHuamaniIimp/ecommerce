@@ -56,6 +56,8 @@ export interface SolicitudDTO {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
+  /** CasuÃ­stica de subsanaciÃ³n declarada por el admin (null = no declarada). */
+  sgcSubsanacionMotivo: string | null;
   /** True si ya se enviaron documentos al expediente SGC (contrato y/o anexos). */
   sgcDocumentosEnviados: boolean;
   /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */

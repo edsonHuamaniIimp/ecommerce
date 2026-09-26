@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
 import type { SgcIntegracionConfig } from "../sgc-integracion-service";
-import type { CrearSgcDocumentoData, ISgcRepository } from "@/domain/ports/sgc-repository";
+import type {
+  CrearSgcDocumentoData,
+  ISgcRepository,
+} from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -15,10 +18,12 @@ import {
   SGC_MOTIVO_CARGA_INICIAL,
 } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
-
-const CONFIG: SgcIntegracionConfig = { enabled: true, areaCode: "EVENTOS", contractTypeCode: "AUSPICIO" };
+const CONFIG: SgcIntegracionConfig = {
+  enabled: true,
+  areaCode: "EVENTOS",
+  contractTypeCode: "AUSPICIO",
+};
 const BYTES = new Uint8Array([1, 2, 3, 4]);
-
 function expediente(): SgcExpedienteEntity {
   return {
     id: "exp-1",
@@ -31,11 +36,11 @@ function expediente(): SgcExpedienteEntity {
     version: null,
     areaCode: "EVENTOS",
     contractTypeCode: "AUSPICIO",
+    subsanacionMotivo: null,
     lastSyncedAt: null,
     lastError: null,
   };
 }
-
 function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
   return {
     id: "sol-1",
@@ -69,13 +74,15 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcSubsanacionMotivo: null,
     sgcDocumentosEnviados: false,
     sgcEnabled: false,
     ...overrides,
   };
 }
-
-function sgcRepoMock(existente: SgcExpedienteEntity | null = expediente()): ISgcRepository {
+function sgcRepoMock(
+  existente: SgcExpedienteEntity | null = expediente(),
+): ISgcRepository {
   return {
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(existente),
     findExpedientePorContractId: vi.fn().mockResolvedValue(null),
@@ -83,27 +90,40 @@ function sgcRepoMock(existente: SgcExpedienteEntity | null = expediente()): ISgc
     listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn(),
-    crearDocumento: vi.fn().mockImplementation((data: CrearSgcDocumentoData) =>
-      Promise.resolve({ id: "doc-1", currentVersionId: null, estado: SGC_DOCUMENTO_ESTADO.RESERVADO, ...data }),
-    ),
-    actualizarDocumento: vi.fn().mockResolvedValue(undefined),
+    crearDocumento: vi
+      .fn()
+      .mockImplementation((data: CrearSgcDocumentoData) =>
+        Promise.resolve({
+          id: "doc-1",
+          currentVersionId: null,
+          estado: SGC_DOCUMENTO_ESTADO.RESERVADO,
+          ...data,
+        }),
+      ),
+    actualizarDocumento: vi.fn(),
+    crearSubsanacion: vi.fn(),
+    listarSubsanaciones: vi.fn().mockResolvedValue([]),
+    marcarSubsanacionReenviada: vi.fn().mockResolvedValue(undefined),
   };
 }
-
-function clientMock(outcome: string = SGC_APPROVAL_RESULT.ACCEPTED): ISgcClient {
+function clientMock(
+  outcome: string = SGC_APPROVAL_RESULT.ACCEPTED,
+): ISgcClient {
   return {
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn().mockResolvedValue(undefined),
     consultarExpediente: vi.fn(),
     listarExpedientes: vi.fn(),
-    reservarSubida: vi.fn().mockResolvedValue({
-      uploadUrl: "https://sgc/upload/1",
-      headers: { "content-type": "application/pdf" },
-      documentId: "document-1",
-      versionId: "version-1",
-      versionNumber: 1,
-      expiresInSeconds: 300,
-    }),
+    reservarSubida: vi
+      .fn()
+      .mockResolvedValue({
+        uploadUrl: "https://sgc/upload/1",
+        headers: { "content-type": "application/pdf" },
+        documentId: "document-1",
+        versionId: "version-1",
+        versionNumber: 1,
+        expiresInSeconds: 300,
+      }),
     transferirArchivo: vi.fn().mockResolvedValue(undefined),
     confirmarSubida: vi.fn().mockResolvedValue({ outcome }),
     consultarDocumento: vi.fn(),
@@ -115,14 +135,20 @@ function clientMock(outcome: string = SGC_APPROVAL_RESULT.ACCEPTED): ISgcClient 
     obtenerTemplate: vi.fn(),
   };
 }
-
 function documentoOrigenMock(): IDocumentoOrigen {
   return {
-    leer: vi.fn().mockResolvedValue({ bytes: BYTES, mimeType: "application/pdf", fileName: "contrato.pdf" }),
+    leer: vi
+      .fn()
+      .mockResolvedValue({
+        bytes: BYTES,
+        mimeType: "application/pdf",
+        fileName: "contrato.pdf",
+      }),
   };
 }
-
-function solicitudRepoMock(row: SolicitudRow | null = detalle()): ISolicitudesRepository {
+function solicitudRepoMock(
+  row: SolicitudRow | null = detalle(),
+): ISolicitudesRepository {
   return {
     listar: vi.fn(),
     detalle: vi.fn().mockResolvedValue(row),
@@ -144,17 +170,25 @@ function solicitudRepoMock(row: SolicitudRow | null = detalle()): ISolicitudesRe
     crearAlertaRol: vi.fn(),
   };
 }
-
-function build(repo: ISgcRepository, client: ISgcClient, origen: IDocumentoOrigen, solicitudRepo: ISolicitudesRepository) {
-  return new SgcIntegracionApplicationService(solicitudRepo, repo, client, origen, CONFIG);
+function build(
+  repo: ISgcRepository,
+  client: ISgcClient,
+  origen: IDocumentoOrigen,
+  solicitudRepo: ISolicitudesRepository,
+) {
+  return new SgcIntegracionApplicationService(
+    solicitudRepo,
+    repo,
+    client,
+    origen,
+    CONFIG,
+  );
 }
-
 describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
   it("deberia reservar, transferir y confirmar una pieza nueva", async () => {
     const repo = sgcRepoMock();
     const client = clientMock();
     const svc = build(repo, client, documentoOrigenMock(), solicitudRepoMock());
-
     const doc = await svc.subirPiezaDocumental("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: "Contrato v1",
@@ -162,24 +196,36 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       mimeType: "application/pdf",
       bytes: BYTES,
     });
-
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
-      expect.objectContaining({ checksumSha256: await sha256Hex(BYTES), declaredMimeType: "application/pdf" }),
+      expect.objectContaining({
+        checksumSha256: await sha256Hex(BYTES),
+        declaredMimeType: "application/pdf",
+      }),
     );
-    expect(client.transferirArchivo).toHaveBeenCalledWith("https://sgc/upload/1", { "content-type": "application/pdf" }, BYTES);
+    expect(client.transferirArchivo).toHaveBeenCalledWith(
+      "https://sgc/upload/1",
+      { "content-type": "application/pdf" },
+      BYTES,
+    );
     expect(client.confirmarSubida).toHaveBeenCalledWith("version-1");
     expect(repo.crearDocumento).toHaveBeenCalled();
     expect(repo.actualizarDocumento).toHaveBeenCalledWith(
       "document-1",
-      expect.objectContaining({ estado: SGC_DOCUMENTO_ESTADO.CONFIRMADO, currentVersionId: "version-1" }),
+      expect.objectContaining({
+        estado: SGC_DOCUMENTO_ESTADO.CONFIRMADO,
+        currentVersionId: "version-1",
+      }),
     );
     expect(doc?.estado).toBe(SGC_DOCUMENTO_ESTADO.CONFIRMADO);
   });
-
   it("deberia marcar la version como rechazada sin lanzar", async () => {
-    const svc = build(sgcRepoMock(), clientMock(SGC_APPROVAL_RESULT.REJECTED), documentoOrigenMock(), solicitudRepoMock());
-
+    const svc = build(
+      sgcRepoMock(),
+      clientMock(SGC_APPROVAL_RESULT.REJECTED),
+      documentoOrigenMock(),
+      solicitudRepoMock(),
+    );
     const doc = await svc.subirPiezaDocumental("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: "Contrato v1",
@@ -187,15 +233,12 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       mimeType: "application/pdf",
       bytes: BYTES,
     });
-
     expect(doc?.estado).toBe(SGC_DOCUMENTO_ESTADO.RECHAZADO);
   });
-
   it("deberia crear una version nueva sin crear otra pieza cuando recibe documentId", async () => {
     const repo = sgcRepoMock();
     const client = clientMock();
     const svc = build(repo, client, documentoOrigenMock(), solicitudRepoMock());
-
     await svc.subirPiezaDocumental("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: "Contrato v2",
@@ -204,16 +247,22 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       bytes: BYTES,
       documentId: "document-1",
     });
-
     expect(repo.crearDocumento).not.toHaveBeenCalled();
-    expect(repo.actualizarDocumento).toHaveBeenCalledWith("document-1", expect.objectContaining({ estado: SGC_DOCUMENTO_ESTADO.RESERVADO }));
+    expect(repo.actualizarDocumento).toHaveBeenCalledWith(
+      "document-1",
+      expect.objectContaining({ estado: SGC_DOCUMENTO_ESTADO.RESERVADO }),
+    );
   });
-
   it("deberia no hacer nada si la integracion esta deshabilitada", async () => {
     const repo = sgcRepoMock();
     const client = clientMock();
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(), repo, client, documentoOrigenMock(), { ...CONFIG, enabled: false });
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(),
+      repo,
+      client,
+      documentoOrigenMock(),
+      { ...CONFIG, enabled: false },
+    );
     const doc = await svc.subirPiezaDocumental("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: "x",
@@ -221,16 +270,13 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       mimeType: "application/pdf",
       bytes: BYTES,
     });
-
     expect(doc).toBeNull();
     expect(client.reservarSubida).not.toHaveBeenCalled();
   });
-
   it("deberia no subir si el expediente aun no tiene contractId", async () => {
     const repo = sgcRepoMock({ ...expediente(), contractId: null });
     const client = clientMock();
     const svc = build(repo, client, documentoOrigenMock(), solicitudRepoMock());
-
     const doc = await svc.subirPiezaDocumental("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: "x",
@@ -238,67 +284,69 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       mimeType: "application/pdf",
       bytes: BYTES,
     });
-
     expect(doc).toBeNull();
     expect(client.reservarSubida).not.toHaveBeenCalled();
   });
 });
-
 describe("SgcIntegracionApplicationService.subirDocumentoDesdeUrl", () => {
   it("deberia leer el binario desde el origen y subirlo", async () => {
     const client = clientMock();
     const origen = documentoOrigenMock();
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock());
-
     await svc.subirDocumentoDesdeUrl("sol-1", {
       category: SGC_DOCUMENT_CATEGORIES.ANNEX,
       title: "Anexo 1",
       url: "/uploads/anexo.pdf",
     });
-
     expect(origen.leer).toHaveBeenCalledWith("/uploads/anexo.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
       expect.objectContaining({
         declaredMimeType: "application/pdf",
         documentId: null,
-        /* El SGC exige un replacementReason no vacio tambien en la carga inicial. */
-        replacementReason: SGC_MOTIVO_CARGA_INICIAL,
+        /* El SGC exige un replacementReason no vacio tambien en la carga inicial. */ replacementReason:
+          SGC_MOTIVO_CARGA_INICIAL,
       }),
     );
   });
-
   it("deberia conservar el replacementReason explicito (subsanacion)", async () => {
     const client = clientMock();
-    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock());
-
+    const svc = build(
+      sgcRepoMock(),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(),
+    );
     await svc.subsanarContrato("sol-1", {
       url: "/uploads/contrato-v2.pdf",
       title: "Contrato v2",
       documentId: "doc-1",
     });
-
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
-      expect.objectContaining({ documentId: "doc-1", replacementReason: expect.any(String) }),
+      expect.objectContaining({
+        documentId: "doc-1",
+        replacementReason: expect.any(String),
+      }),
     );
-    /* Tras subir la correccion se reabre el tramite (POST /resend). */
-    expect(client.reabrirExpediente).toHaveBeenCalledWith(
+    /* Tras subir la correccion se reabre el tramite (POST /resend). */ expect(
+      client.reabrirExpediente,
+    ).toHaveBeenCalledWith(
       "contract-1",
       expect.stringContaining("stands/resend/"),
     );
   });
 });
-
 describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
   it("usa el documento legacy (columna documentos) cuando no hay docsAdjuntos", async () => {
     const client = clientMock();
     const origen = documentoOrigenMock();
-    const row = detalle({ documentos: ["/uploads/legacy.pdf"], docsAdjuntos: [] });
+    const row = detalle({
+      documentos: ["/uploads/legacy.pdf"],
+      docsAdjuntos: [],
+    });
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
-
     const doc = await svc.subirContratoDeSolicitud("sol-1");
-
     expect(doc).not.toBeNull();
     expect(origen.leer).toHaveBeenCalledWith("/uploads/legacy.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
@@ -307,22 +355,48 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     );
   });
 });
-
 describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
   it("deberia empujar cada adjunto del cliente como anexo (con contrato del admin)", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "d1", url: "/uploads/a.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
-        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
+        {
+          id: "d0",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "d1",
+          url: "/uploads/a.pdf",
+          nombre: "a.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "d2",
+          url: "/uploads/b.pdf",
+          nombre: "b.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: null,
+          createdAt: new Date(),
+        },
       ],
     });
-    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
-
+    const svc = build(
+      sgcRepoMock(),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
     const docs = await svc.subirAnexosDeSolicitud("sol-1");
-
     expect(docs).toHaveLength(2);
     expect(client.reservarSubida).toHaveBeenCalledTimes(2);
     expect(client.reservarSubida).toHaveBeenCalledWith(
@@ -330,56 +404,126 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX }),
     );
   });
-
   it("no repite como anexo un documento con el mismo nombre que el contrato", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d0", url: "/uploads/contrato.pdf", nombre: "a.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "d1", url: "/uploads/a-otra-url.pdf", nombre: "a.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
-        { id: "d2", url: "/uploads/b.pdf", nombre: "b.pdf", userId: "user-1", uploadedBy: null, categoria: null, createdAt: new Date() },
+        {
+          id: "d0",
+          url: "/uploads/contrato.pdf",
+          nombre: "a.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "d1",
+          url: "/uploads/a-otra-url.pdf",
+          nombre: "a.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "d2",
+          url: "/uploads/b.pdf",
+          nombre: "b.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: null,
+          createdAt: new Date(),
+        },
       ],
     });
-    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
-
-    /* El contrato del admin se llama "a.pdf"; el anexo "a.pdf" (otra URL) se excluye por nombre -> solo b.pdf */
-    const docs = await svc.subirAnexosDeSolicitud("sol-1");
-
+    const svc = build(
+      sgcRepoMock(),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    /* El contrato del admin se llama "a.pdf"; el anexo "a.pdf" (otra URL) se excluye por nombre -> solo b.pdf */ const docs =
+      await svc.subirAnexosDeSolicitud("sol-1");
     expect(docs).toHaveLength(1);
   });
-
   it("deberia excluir el documento del admin (userId null) de los anexos", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", categoria: null, createdAt: new Date() },
+        {
+          id: "admin",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "cli",
+          url: "/uploads/evidencia.pdf",
+          nombre: "evidencia.pdf",
+          userId: "user-1",
+          uploadedBy: "cli@x.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
       ],
     });
-    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
-
+    const svc = build(
+      sgcRepoMock(),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
     const docs = await svc.subirAnexosDeSolicitud("sol-1");
-
     expect(docs).toHaveLength(1);
     expect(client.reservarSubida).toHaveBeenCalledTimes(1);
   });
-
   it("deberia excluir el contrato firmado del cliente de los anexos", async () => {
     const client = clientMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "d0", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "d1", url: "/uploads/firmado.pdf", nombre: "firmado.pdf", userId: "user-1", uploadedBy: null, categoria: "contrato_firmado", createdAt: new Date() },
-        { id: "d2", url: "/uploads/anexo.pdf", nombre: "anexo.pdf", userId: "user-1", uploadedBy: null, categoria: "anexo", createdAt: new Date() },
+        {
+          id: "d0",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "d1",
+          url: "/uploads/firmado.pdf",
+          nombre: "firmado.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "contrato_firmado",
+          createdAt: new Date(),
+        },
+        {
+          id: "d2",
+          url: "/uploads/anexo.pdf",
+          nombre: "anexo.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          createdAt: new Date(),
+        },
       ],
     });
-    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
-
+    const svc = build(
+      sgcRepoMock(),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
     const docs = await svc.subirAnexosDeSolicitud("sol-1");
-
     expect(docs).toHaveLength(1);
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
@@ -387,7 +531,6 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     );
   });
 });
-
 describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
   it("deberia subir el documento del admin (userId null) como contrato", async () => {
     const client = clientMock();
@@ -395,14 +538,28 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "cli", url: "/uploads/evidencia.pdf", nombre: "evidencia.pdf", userId: "user-1", uploadedBy: "cli@x.pe", categoria: null, createdAt: new Date() },
+        {
+          id: "admin",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "cli",
+          url: "/uploads/evidencia.pdf",
+          nombre: "evidencia.pdf",
+          userId: "user-1",
+          uploadedBy: "cli@x.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
       ],
     });
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
-
     const doc = await svc.subirContratoDeSolicitud("sol-1");
-
     expect(origen.leer).toHaveBeenCalledWith("/uploads/contrato.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
@@ -410,21 +567,34 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     );
     expect(doc).not.toBeNull();
   });
-
   it("prefiere el contrato firmado del cliente como contrato para el SGC", async () => {
     const client = clientMock();
     const origen = documentoOrigenMock();
     const row = detalle({
       userId: "user-1",
       docsAdjuntos: [
-        { id: "admin", url: "/uploads/contrato.pdf", nombre: "contrato.pdf", userId: null, uploadedBy: "admin@iimp.org.pe", categoria: null, createdAt: new Date() },
-        { id: "firmado", url: "/uploads/firmado.pdf", nombre: "firmado.pdf", userId: "user-1", uploadedBy: null, categoria: "contrato_firmado", createdAt: new Date() },
+        {
+          id: "admin",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: null,
+          createdAt: new Date(),
+        },
+        {
+          id: "firmado",
+          url: "/uploads/firmado.pdf",
+          nombre: "firmado.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "contrato_firmado",
+          createdAt: new Date(),
+        },
       ],
     });
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
-
     await svc.subirContratoDeSolicitud("sol-1");
-
     expect(origen.leer).toHaveBeenCalledWith("/uploads/firmado.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",

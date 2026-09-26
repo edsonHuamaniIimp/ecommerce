@@ -727,11 +727,15 @@ model SgcExpediente {
   version          Int?
   areaCode         String    @map("area_code") @db.VarChar(40)
   contractTypeCode String    @map("contract_type_code") @db.VarChar(40)
+  /// Motivo (libre) de la corrección declarado por el admin cuando el SGC devuelve el
+  /// trámite. Puede repetirse N veces (una por cada devolución); se limpia al reenviar.
+  subsanacionMotivo String? @map("subsanacion_motivo") @db.VarChar(500)
   lastSyncedAt     DateTime? @map("last_synced_at")
   lastError        String?   @map("last_error") @db.VarChar(500)
 
   solicitud        Solicitud     @relation(fields: [solicitudId], references: [id])
   documentos       SgcDocumento[]
+  subsanaciones    SgcSubsanacion[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -739,6 +743,30 @@ model SgcExpediente {
   @@index([estadoEnvio])
   @@index([stage])
   @@map("sgc_expediente")
+}
+
+/// Bitácora auditable de cada ronda de subsanación (rechazo → motivo → corrección → reenvío).
+model SgcSubsanacion {
+  id              String    @id @default(uuid())
+  sgcExpedienteId String    @map("sgc_expediente_id")
+  /// Número de ronda de subsanación (1, 2, 3…).
+  ronda           Int
+  /// Motivo/indicación que declaró el administrador para esta ronda.
+  motivo          String    @db.VarChar(500)
+  /// declarado | reenviado
+  estado          String    @default("declarado") @db.VarChar(20)
+  declaradoPor    String    @map("declarado_por") @db.VarChar(200)
+  declaradoAt     DateTime  @default(now()) @map("declarado_at")
+  reenviadoPor    String?   @map("reenviado_por") @db.VarChar(200)
+  reenviadoAt     DateTime? @map("reenviado_at")
+  /// Pieza documental del contrato en el SGC tras la corrección (trazabilidad).
+  documentId      String?   @map("document_id") @db.VarChar(64)
+  versionId       String?   @map("version_id") @db.VarChar(64)
+
+  sgcExpediente SgcExpediente @relation(fields: [sgcExpedienteId], references: [id])
+
+  @@index([sgcExpedienteId])
+  @@map("sgc_subsanacion")
 }
 
 model SgcDocumento {

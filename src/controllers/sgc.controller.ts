@@ -144,4 +144,38 @@ export const sgcController = {
     }
     return success(documento);
   },
+
+  /** Declara la casuistica de subsanacion cuando el SGC devolvio (rechazo) el tramite. */
+  async declararMotivo(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const body = (await request.json()) as { solicitudId?: string; motivo?: string | null };
+    if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+
+    /* Motivo libre (la casuÃ­stica no es cerrada); vacÃ­o = limpiar la declaraciÃ³n. */
+    const motivo = (body.motivo ?? "").trim().slice(0, 500) || null;
+    const expediente = await services.sgc.declararMotivoSubsanacion(body.solicitudId, motivo, session.email);
+    if (!expediente) return error(API_ERROR_CODES.NOT_FOUND, "La solicitud no tiene expediente en el SGC", 404);
+    return success(expediente);
+  },
+
+  /** Reenvia el tramite al SGC tras la devolucion: sube el firmado del cliente y reabre la ronda. */
+  async reenviar(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const body = (await request.json()) as { solicitudId?: string };
+    if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+
+    const documento = await services.sgc.reenviarCorreccionAlSgc(body.solicitudId, session.email);
+    if (!documento) {
+      return error(
+        API_ERROR_CODES.VALIDATION,
+        "Falta el contrato firmado del cliente (o el expediente no tiene contrato en el SGC).",
+        400,
+      );
+    }
+    return success(documento);
+  },
 };

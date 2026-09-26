@@ -5,6 +5,7 @@ import type {
   CrearSgcDocumentoData,
   CrearSgcExpedienteData,
   ISgcRepository,
+  SgcSubsanacionEntity,
 } from "@/domain/ports/sgc-repository";
 import type { SgcDocumentoEntity, SgcExpedienteEntity } from "@/domain/models/sgc";
 import type { SgcDocumentCategory, SgcDocumentoEstado, SgcEstadoEnvio } from "@/lib/shared/constants";
@@ -20,6 +21,7 @@ interface SgcExpedienteRow {
   version: number | null;
   areaCode: string;
   contractTypeCode: string;
+  subsanacionMotivo: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
 }
@@ -49,6 +51,7 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     version: row.version ?? null,
     areaCode: row.areaCode,
     contractTypeCode: row.contractTypeCode,
+    subsanacionMotivo: row.subsanacionMotivo ?? null,
     lastSyncedAt: row.lastSyncedAt ?? null,
     lastError: row.lastError ?? null,
   };
@@ -115,6 +118,50 @@ export class SgcPrismaRepository implements ISgcRepository {
   async actualizarDocumento(documentId: string, data: ActualizarSgcDocumentoData): Promise<void> {
     await prisma.sgcDocumento.update({ where: { documentId }, data });
   }
+
+  async crearSubsanacion(data: {
+    sgcExpedienteId: string;
+    ronda: number;
+    motivo: string;
+    declaradoPor: string;
+  }): Promise<SgcSubsanacionEntity> {
+    const row = await prisma.sgcSubsanacion.create({ data });
+    return mapSubsanacion(row);
+  }
+
+  async listarSubsanaciones(sgcExpedienteId: string): Promise<SgcSubsanacionEntity[]> {
+    const rows = await prisma.sgcSubsanacion.findMany({
+      where: { sgcExpedienteId },
+      orderBy: { ronda: "asc" },
+    });
+    return rows.map(mapSubsanacion);
+  }
+
+  async marcarSubsanacionReenviada(
+    id: string,
+    data: { reenviadoPor: string; documentId: string | null; versionId: string | null },
+  ): Promise<void> {
+    await prisma.sgcSubsanacion.update({
+      where: { id },
+      data: { estado: "reenviado", reenviadoAt: new Date(), ...data },
+    });
+  }
+}
+
+function mapSubsanacion(row: {
+  id: string;
+  sgcExpedienteId: string;
+  ronda: number;
+  motivo: string;
+  estado: string;
+  declaradoPor: string;
+  declaradoAt: Date;
+  reenviadoPor: string | null;
+  reenviadoAt: Date | null;
+  documentId: string | null;
+  versionId: string | null;
+}): SgcSubsanacionEntity {
+  return { ...row };
 }
 
 export const sgcRepo = new SgcPrismaRepository();

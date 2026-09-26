@@ -59,6 +59,9 @@ function sgcRepoVacio(): ISgcRepository {
     actualizarExpediente: vi.fn(),
     crearDocumento: vi.fn(),
     actualizarDocumento: vi.fn(),
+    crearSubsanacion: vi.fn(),
+    listarSubsanaciones: vi.fn().mockResolvedValue([]),
+    marcarSubsanacionReenviada: vi.fn(),
   };
 }
 
@@ -126,6 +129,7 @@ function detalleMultistand(overrides: Partial<SolicitudRow> = {}): SolicitudRow 
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcSubsanacionMotivo: null,
     sgcDocumentosEnviados: false,
     sgcEnabled: false,
     ...overrides,

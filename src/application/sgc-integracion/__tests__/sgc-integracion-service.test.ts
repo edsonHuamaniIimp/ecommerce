@@ -7,10 +7,16 @@ import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SgcExpedienteEntity } from "@/domain/models/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
-import { SGC_CREATE_STATUS, SGC_ESTADO_ENVIO, SGC_IDEMPOTENCY_PREFIX } from "@/lib/shared/constants";
-
-const CONFIG: SgcIntegracionConfig = { enabled: true, areaCode: "EVENTOS", contractTypeCode: "AUSPICIO" };
-
+import {
+  SGC_CREATE_STATUS,
+  SGC_ESTADO_ENVIO,
+  SGC_IDEMPOTENCY_PREFIX,
+} from "@/lib/shared/constants";
+const CONFIG: SgcIntegracionConfig = {
+  enabled: true,
+  areaCode: "EVENTOS",
+  contractTypeCode: "AUSPICIO",
+};
 function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
   return {
     id: "sol-1",
@@ -44,13 +50,15 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     sgcEstadoEnvio: null,
     sgcLifecycleStatus: null,
     sgcStage: null,
+    sgcSubsanacionMotivo: null,
     sgcDocumentosEnviados: false,
     sgcEnabled: false,
     ...overrides,
   };
 }
-
-function expediente(overrides: Partial<SgcExpedienteEntity> = {}): SgcExpedienteEntity {
+function expediente(
+  overrides: Partial<SgcExpedienteEntity> = {},
+): SgcExpedienteEntity {
   return {
     id: "exp-1",
     solicitudId: "sol-1",
@@ -62,12 +70,12 @@ function expediente(overrides: Partial<SgcExpedienteEntity> = {}): SgcExpediente
     version: null,
     areaCode: "EVENTOS",
     contractTypeCode: "AUSPICIO",
+    subsanacionMotivo: null,
     lastSyncedAt: null,
     lastError: null,
     ...overrides,
   };
 }
-
 function sgcRepoMock(existente: SgcExpedienteEntity | null): ISgcRepository {
   return {
     findExpedientePorSolicitud: vi.fn().mockResolvedValue(existente),
@@ -75,17 +83,26 @@ function sgcRepoMock(existente: SgcExpedienteEntity | null): ISgcRepository {
     listarConContractId: vi.fn().mockResolvedValue([]),
     listarConEstadoEnvio: vi.fn().mockResolvedValue([]),
     crearExpediente: vi.fn().mockResolvedValue(expediente()),
-    actualizarExpediente: vi.fn().mockImplementation((_id: string, data: Partial<SgcExpedienteEntity>) =>
-      Promise.resolve(expediente(data)),
-    ),
+    actualizarExpediente: vi
+      .fn()
+      .mockImplementation((_id: string, data: Partial<SgcExpedienteEntity>) =>
+        Promise.resolve(expediente(data)),
+      ),
     crearDocumento: vi.fn(),
-    actualizarDocumento: vi.fn().mockResolvedValue(undefined),
+    actualizarDocumento: vi.fn(),
+    crearSubsanacion: vi.fn(),
+    listarSubsanaciones: vi.fn().mockResolvedValue([]),
+    marcarSubsanacionReenviada: vi.fn().mockResolvedValue(undefined),
   };
 }
-
 function clientMock(): ISgcClient {
   return {
-    crearExpediente: vi.fn().mockResolvedValue({ contractId: "contract-1", status: SGC_CREATE_STATUS.CREATED }),
+    crearExpediente: vi
+      .fn()
+      .mockResolvedValue({
+        contractId: "contract-1",
+        status: SGC_CREATE_STATUS.CREATED,
+      }),
     actualizarExpediente: vi.fn().mockResolvedValue(undefined),
     consultarExpediente: vi.fn(),
     listarExpedientes: vi.fn(),
@@ -101,7 +118,6 @@ function clientMock(): ISgcClient {
     obtenerTemplate: vi.fn(),
   };
 }
-
 function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
   return {
     listar: vi.fn(),
@@ -124,75 +140,100 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     crearAlertaRol: vi.fn(),
   };
 }
-
 function documentoOrigenMock(): IDocumentoOrigen {
   return { leer: vi.fn() };
 }
-
 describe("SgcIntegracionApplicationService.crearExpedienteDesdeSolicitud", () => {
   it("deberia no hacer nada cuando la integracion esta deshabilitada", async () => {
     const repo = sgcRepoMock(null);
     const client = clientMock();
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, client, documentoOrigenMock(), { ...CONFIG, enabled: false });
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      { ...CONFIG, enabled: false },
+    );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
-
     expect(result).toBeNull();
     expect(repo.findExpedientePorSolicitud).not.toHaveBeenCalled();
     expect(client.crearExpediente).not.toHaveBeenCalled();
   });
-
   it("deberia crear el expediente y persistir la correlacion con contractId", async () => {
     const repo = sgcRepoMock(null);
     const client = clientMock();
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, client, documentoOrigenMock(), CONFIG);
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
-
     expect(client.crearExpediente).toHaveBeenCalledWith(
       expect.objectContaining({ code: "STAND-1" }),
       `${SGC_IDEMPOTENCY_PREFIX}/sol-1`,
     );
     expect(repo.actualizarExpediente).toHaveBeenCalledWith(
       "exp-1",
-      expect.objectContaining({ contractId: "contract-1", estadoEnvio: SGC_ESTADO_ENVIO.CREADO }),
+      expect.objectContaining({
+        contractId: "contract-1",
+        estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+      }),
     );
     expect(result?.contractId).toBe("contract-1");
   });
-
   it("deberia ser idempotente si el expediente ya fue creado", async () => {
-    const repo = sgcRepoMock(expediente({ estadoEnvio: SGC_ESTADO_ENVIO.CREADO, contractId: "contract-1" }));
+    const repo = sgcRepoMock(
+      expediente({
+        estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+        contractId: "contract-1",
+      }),
+    );
     const client = clientMock();
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, client, documentoOrigenMock(), CONFIG);
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
-
     expect(client.crearExpediente).not.toHaveBeenCalled();
     expect(result?.contractId).toBe("contract-1");
   });
-
   it("deberia registrar el error y no lanzar cuando el SGC falla", async () => {
     const repo = sgcRepoMock(null);
     const client = clientMock();
     vi.mocked(client.crearExpediente).mockRejectedValue(new Error("SGC 503"));
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, client, documentoOrigenMock(), CONFIG);
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
-
     expect(result).toBeNull();
     expect(repo.actualizarExpediente).toHaveBeenCalledWith(
       "exp-1",
-      expect.objectContaining({ estadoEnvio: SGC_ESTADO_ENVIO.ERROR, lastError: "SGC 503" }),
+      expect.objectContaining({
+        estadoEnvio: SGC_ESTADO_ENVIO.ERROR,
+        lastError: "SGC 503",
+      }),
     );
   });
-
   it("deberia no llamar al SGC si no existe la solicitud", async () => {
     const repo = sgcRepoMock(null);
     const client = clientMock();
-    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(null), repo, client, documentoOrigenMock(), CONFIG);
-
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(null),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
-
     expect(result).toBeNull();
     expect(client.crearExpediente).not.toHaveBeenCalled();
   });

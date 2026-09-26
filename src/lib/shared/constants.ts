@@ -941,6 +941,22 @@ export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
   { key: "vigencia-poder", label: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)" },
   { key: "dni-representante", label: "DNI o Pasaporte del Representante Legal" },
 ];
+
+/**
+ * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
+ * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
+ * motivo, y puede repetirse N veces (una por cada devolución).
+ */
+export const SGC_SUBSANACION_SUGERENCIAS: { titulo: string; texto: string }[] = [
+  {
+    titulo: "Prepararé un contrato nuevo",
+    texto: "Subiré un contrato corregido para que el cliente lo firme.",
+  },
+  {
+    titulo: "El cliente firmará el mismo contrato",
+    texto: "El cliente vuelve a firmar el contrato que ya tenía.",
+  },
+];
 export const SGC_CODE_PREFIX = "STAND";
 export const SGC_EXPEDIENTE_NAME_PREFIX = "Separacion de stand";
 

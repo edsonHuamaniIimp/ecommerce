@@ -1,4 +1,4 @@
-import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 
 interface RevisionLike {
@@ -22,6 +22,8 @@ export interface SolicitudDocumentosGate {
   sgcEnabled: boolean;
   /** Estado del envio al SGC (`null` = aun sin expediente). */
   sgcEstadoEnvio: string | null;
+  /** Estado del ciclo de vida en el SGC (`active`, `rejected`, ...). */
+  sgcLifecycleStatus: string | null;
   /** True si ya se enviaron documentos (contrato/anexos) al expediente SGC. */
   sgcDocumentosEnviados: boolean;
   /** Revisiones por area de la solicitud. */
@@ -56,6 +58,18 @@ export function enVentanaLegalSgc(s: SolicitudDocumentosGate): boolean {
 }
 
 /**
+ * Ventana de **subsanación SGC**: el SGC devolvió (rechazó) el trámite y el cliente debe
+ * descargar el contrato y subir su versión firmada para que el administrador lo reenvíe.
+ */
+export function enVentanaSubsanacionSgc(s: SolicitudDocumentosGate): boolean {
+  return (
+    s.sgcEnabled &&
+    legalDelegadaAlSgc(s.revisiones) &&
+    s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED
+  );
+}
+
+/**
  * Documentos requeridos para re-evaluacion: reserva multiple rechazada, sin documentos
  * del cliente y sin una re-evaluacion pendiente.
  */
@@ -77,5 +91,10 @@ export function requiereDocsReevaluacion(s: SolicitudDocumentosGate): boolean {
  *  - preparando una re-evaluacion.
  */
 export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean {
-  return enVentanaContratoMultistand(s) || enVentanaLegalSgc(s) || requiereDocsReevaluacion(s);
+  return (
+    enVentanaContratoMultistand(s) ||
+    enVentanaLegalSgc(s) ||
+    enVentanaSubsanacionSgc(s) ||
+    requiereDocsReevaluacion(s)
+  );
 }
