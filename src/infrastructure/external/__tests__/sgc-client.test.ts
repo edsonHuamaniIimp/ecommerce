@@ -32,7 +32,7 @@ describe("SgcClient", () => {
     const client = new SgcClient(CFG);
 
     const res = await client.crearExpediente(
-      { code: "STAND-1", areaCode: "EVENTOS", contractTypeCode: "AUSPICIO", name: "x", counterpartyLegalName: "y", counterpartyTaxIdentifier: "", processOrigin: "ContratosStands" },
+      { code: "STAND-1", areaCode: "EVENTOS", contractTypeCode: "AUSPICIO", name: "x", counterpartyLegalName: "y", counterpartyEmail: "cliente@iimp.org.pe", counterpartyTaxIdentifier: "", processOrigin: "ContratosStands" },
       "stands/reserva/sol-1",
     );
 

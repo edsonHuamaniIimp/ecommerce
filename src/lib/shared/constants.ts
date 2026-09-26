@@ -1,15 +1,15 @@
 /**
  * Constantes compartidas FRONTEND + BACKEND.
  *
- * NUNCA usar strings hardcodeados para validaciones, estados, roles, áreas,
+ * NUNCA usar strings hardcodeados para validaciones, estados, roles, Ã¡reas,
  * verticales ni tipos de comprobante. Siempre referenciar desde este archivo.
  *
  * Ejemplo:
- *   ❌ if (estado === "aprobado") { ... }
- *   ✅ if (estado === ESTADOS_RESERVA.APROBADA) { ... }
+ *   âŒ if (estado === "aprobado") { ... }
+ *   âœ… if (estado === ESTADOS_RESERVA.APROBADA) { ... }
  *
- *   ❌ { area: "legal", ... }
- *   ✅ { area: AREAS_APROBACION.LEGAL, ... }
+ *   âŒ { area: "legal", ... }
+ *   âœ… { area: AREAS_APROBACION.LEGAL, ... }
  */
 
 /** Rutas publicas que el middleware no protege. */
@@ -183,7 +183,7 @@ export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[keyof typeof TIPOS_DOCUMENT
 export const ADMIN_USER_ID = "admin";
 
 /* ================================================================
-   Áreas de aprobación
+   Ãreas de aprobaciÃ³n
    ================================================================ */
 export const AREAS_APROBACION = {
   LOGISTICA: "logistica",
@@ -337,7 +337,7 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
 };
 
 /* ================================================================
-   Flujo de revisión (Solicitudes de alquiler)
+   Flujo de revisiÃ³n (Solicitudes de alquiler)
    ================================================================ */
 export const REVISION_AREAS = {
   COMUNICACION: "comunicacion",
@@ -348,19 +348,19 @@ export const REVISION_AREAS = {
 export type RevisionArea = (typeof REVISION_AREAS)[keyof typeof REVISION_AREAS];
 
 /**
- * Orden de las revisiones LOCALES. La revisión **Legal** ya no es local: se delega
- * al SGC (su `internal-review`). Por eso el pipeline local termina en Comunicación.
+ * Orden de las revisiones LOCALES. La revisiÃ³n **Legal** ya no es local: se delega
+ * al SGC (su `internal-review`). Por eso el pipeline local termina en ComunicaciÃ³n.
  */
 export const REVISION_AREA_ORDER: RevisionArea[] = [
   REVISION_AREAS.LOGISTICA,
   REVISION_AREAS.COMUNICACION,
 ];
 
-/** Etiqueta del paso (visual, no local) que representa la revisión Legal del SGC. */
+/** Etiqueta del paso (visual, no local) que representa la revisiÃ³n Legal del SGC. */
 export const REVISION_AREA_SGC_LABEL = "Legal (SGC)";
 /**
- * Clave del paso pseudo-"area" que representa la revisión Legal delegada al SGC.
- * Es solo de UI (no existe una revisión local con esta área).
+ * Clave del paso pseudo-"area" que representa la revisiÃ³n Legal delegada al SGC.
+ * Es solo de UI (no existe una revisiÃ³n local con esta Ã¡rea).
  */
 export const REVISION_AREA_SGC_STEP = "__sgc__";
 
@@ -380,7 +380,7 @@ export const REVISION_AREA_PERMISSIONS: Record<RevisionArea, string> = {
     Si es null, significa que es la ultima area y se notifica al admin. */
 export const REVISION_AREA_NEXT_ROLE: Record<RevisionArea, string | null> = {
   [REVISION_AREAS.LOGISTICA]: ROLES.COMUNICACION,
-  [REVISION_AREAS.COMUNICACION]: null, // ultima area LOCAL → notificar admin + delegar al SGC
+  [REVISION_AREAS.COMUNICACION]: null, // ultima area LOCAL â†’ notificar admin + delegar al SGC
   [REVISION_AREAS.LEGAL]: null, // delegada al SGC (no local)
 } as const;
 
@@ -484,7 +484,7 @@ export const ESTADOS_REEVALUACION_MAESTRA_ID: Record<string, number> = {
 };
 
 /* ================================================================
-   Estados de interoperabilidad (facturación)
+   Estados de interoperabilidad (facturaciÃ³n)
    ================================================================ */
 export const ESTADOS_INTEROP = {
   ENVIADO: "enviado",
@@ -612,8 +612,8 @@ export const API_ERROR_CODES = {
 
 /* ================================================================
    Estilos de Badge (colores semanticos por estado)
-   — Usar en lugar de strings hardcodeados para mantener consistencia visual
-   — Formato: Tailwind classes (bg-*, text-*, border-*)
+   â€” Usar en lugar de strings hardcodeados para mantener consistencia visual
+   â€” Formato: Tailwind classes (bg-*, text-*, border-*)
    ================================================================ */
 export const BADGE_STYLES = {
   SUCCESS: "bg-green-100 text-green-800 border-green-200",
@@ -720,13 +720,13 @@ export type FiltroEvento = (typeof FILTROS_EVENTO)[keyof typeof FILTROS_EVENTO];
 
 /* ================================================================
    Colores del visor de stands
-   — La leyenda del chrome los replica; si cambian en el visor, cambiar aqui.
+   â€” La leyenda del chrome los replica; si cambian en el visor, cambiar aqui.
    ================================================================ */
 export const COLOR_STAND_RESERVADO = "#9ca3af";
 export const COLOR_STAND_SELECCIONADO = "#f59e0b";
 
 /* ================================================================
-   Estilos de UI — portal de exhibidores
+   Estilos de UI â€” portal de exhibidores
    ================================================================ */
 export const PORTAL_UI = {
   /** Input con icono a la izquierda. */
@@ -738,7 +738,7 @@ export const PORTAL_UI = {
 export type ApiErrorCode = (typeof API_ERROR_CODES)[keyof typeof API_ERROR_CODES];
 
 /* ================================================================
-   Integración SGC (Sistema de Gestión de Contratos)
+   IntegraciÃ³n SGC (Sistema de GestiÃ³n de Contratos)
    Contrato externo: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
    ================================================================ */
 export const SGC_MODES = {
@@ -798,6 +798,7 @@ export const SGC_STEP_STATUSES = {
   COMPLETED: "completed",
   CURRENT: "current",
   PENDING: "pending",
+  REJECTED: "rejected",
 } as const;
 
 export type SgcStepStatus = (typeof SGC_STEP_STATUSES)[keyof typeof SGC_STEP_STATUSES];
@@ -844,7 +845,7 @@ export const SGC_DOCUMENTO_ESTADO = {
 
 export type SgcDocumentoEstado = (typeof SGC_DOCUMENTO_ESTADO)[keyof typeof SGC_DOCUMENTO_ESTADO];
 
-/** Métodos HTTP (evita literales en clientes/servicios). */
+/** MÃ©todos HTTP (evita literales en clientes/servicios). */
 export const HTTP_METHODS = {
   GET: "GET",
   POST: "POST",
@@ -855,7 +856,7 @@ export const HTTP_METHODS = {
 
 export type HttpMethod = (typeof HTTP_METHODS)[keyof typeof HTTP_METHODS];
 
-/** Rutas de la API de integración del SGC, relativas a `SGC_API_URL`. */
+/** Rutas de la API de integraciÃ³n del SGC, relativas a `SGC_API_URL`. */
 export const SGC_API_PATHS = {
   CONTRACTS: "/contracts",
   CONTRACT: (id: string) => `/contracts/${encodeURIComponent(id)}`,
@@ -902,9 +903,9 @@ export const SGC_WEBHOOK_SIGNATURE_HEADER = "x-sgc-signature";
 export const SGC_WEBHOOK_DELIVERY_HEADER = "x-sgc-delivery";
 export const CRON_SECRET_HEADER = "x-cron-secret";
 /**
- * Área local que dispara la delegación al SGC. Las revisiones locales se agotan en
- * Comunicación; la revisión **Legal** pasa a ser el `internal-review` del SGC.
- * Cambiar a `REVISION_AREAS.LEGAL` revierte al disparo por revisión Legal.
+ * Ãrea local que dispara la delegaciÃ³n al SGC. Las revisiones locales se agotan en
+ * ComunicaciÃ³n; la revisiÃ³n **Legal** pasa a ser el `internal-review` del SGC.
+ * Cambiar a `REVISION_AREAS.LEGAL` revierte al disparo por revisiÃ³n Legal.
  */
 export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.COMUNICACION;
 export const SGC_PROCESS_ORIGIN = "ContratosStands";
@@ -930,12 +931,12 @@ export const ALERTA_TIPOS = {
   CONTRATO_FIRMADO: "contrato_firmado",
 } as const;
 
-/** Límite de carga del SGC: 25 MB por archivo (configurable en el SGC). */
+/** LÃ­mite de carga del SGC: 25 MB por archivo (configurable en el SGC). */
 export const SGC_UPLOAD_MAX_BYTES = 26214400;
 /** Formatos admitidos por el SGC para los documentos. */
 export const SGC_UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "docx", "xlsx", "png", "jpg", "jpeg"] as const;
 
-/** Anexos requeridos por el SGC para la separación de stands. */
+/** Anexos requeridos por el SGC para la separaciÃ³n de stands. */
 export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
   { key: "ficha-ruc", label: "Ficha RUC (o equivalente, en caso de empresa extranjera)" },
   { key: "vigencia-poder", label: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)" },
@@ -943,24 +944,24 @@ export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
 ];
 
 /**
- * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
- * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
- * motivo, y puede repetirse N veces (una por cada devolución).
+ * Sugerencias (no cerradas) para el motivo de subsanaciÃ³n que declara el administrador cuando
+ * el SGC devuelve el trÃ¡mite. La casuÃ­stica es **libre**: el admin puede escribir cualquier
+ * motivo, y puede repetirse N veces (una por cada devoluciÃ³n).
  */
 export const SGC_SUBSANACION_SUGERENCIAS: { titulo: string; texto: string }[] = [
   {
-    titulo: "Prepararé un contrato nuevo",
-    texto: "Subiré un contrato corregido para que el cliente lo firme.",
+    titulo: "PrepararÃ© un contrato nuevo",
+    texto: "SubirÃ© un contrato corregido para que el cliente lo firme.",
   },
   {
-    titulo: "El cliente firmará el mismo contrato",
-    texto: "El cliente vuelve a firmar el contrato que ya tenía.",
+    titulo: "El cliente firmarÃ¡ el mismo contrato",
+    texto: "El cliente vuelve a firmar el contrato que ya tenÃ­a.",
   },
 ];
 export const SGC_CODE_PREFIX = "STAND";
 export const SGC_EXPEDIENTE_NAME_PREFIX = "Separacion de stand";
 
-/** Formatos admitidos por el SGC: extension → mime declarado exacto */
+/** Formatos admitidos por el SGC: extension â†’ mime declarado exacto */
 export const SGC_MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -992,6 +993,7 @@ export const SGC_STEP_STATUS_LABELS: Record<string, string> = {
   [SGC_STEP_STATUSES.COMPLETED]: "Completado",
   [SGC_STEP_STATUSES.CURRENT]: "En curso",
   [SGC_STEP_STATUSES.PENDING]: "Pendiente",
+  [SGC_STEP_STATUSES.REJECTED]: "Rechazado",
 };
 
 export const SGC_APPROVAL_MARK_LABELS: Record<string, string> = {

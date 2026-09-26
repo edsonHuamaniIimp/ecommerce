@@ -28,6 +28,7 @@ export function mapSolicitudToExpediente(
     contractTypeCode: catalogo.contractTypeCode,
     name: `${SGC_EXPEDIENTE_NAME_PREFIX} - ${detalle.standCodes.join(", ")}`,
     counterpartyLegalName: detalle.empresa ?? detalle.standCode,
+    counterpartyEmail: detalle.email ?? "",
     counterpartyTaxIdentifier: "",
     processOrigin: SGC_PROCESS_ORIGIN,
   };

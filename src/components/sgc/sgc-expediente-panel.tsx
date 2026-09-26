@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Textarea } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Circle, Clock, Download, Loader2, Send, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Clock, Download, Loader2, Send, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useSgcExpediente } from "@/hooks/use-sgc-expediente";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -27,6 +27,7 @@ const LIFECYCLE_BADGES: Record<string, string> = {
 
 function StepIcon({ status }: { status: string }) {
   if (status === SGC_STEP_STATUSES.COMPLETED) return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />;
+  if (status === SGC_STEP_STATUSES.REJECTED) return <XCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />;
   if (status === SGC_STEP_STATUSES.CURRENT) return <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600" />;
   return <Circle className="h-3.5 w-3.5 shrink-0 text-slate-300" />;
 }

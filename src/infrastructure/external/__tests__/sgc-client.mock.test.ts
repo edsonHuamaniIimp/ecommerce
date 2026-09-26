@@ -10,7 +10,7 @@ function expedienteInput(): SgcCrearExpedienteInput {
     areaCode: "EVENTOS",
     contractTypeCode: "AUSPICIO",
     name: "Separacion de stand - Expo Minera 2026",
-    counterpartyLegalName: "Expositor S.A.C.",
+    counterpartyEmail: "cliente@iimp.org.pe", counterpartyLegalName: "Expositor S.A.C.",
     counterpartyTaxIdentifier: "20123456789",
     processOrigin: "ContratosStands",
   };
