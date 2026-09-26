@@ -7,7 +7,7 @@ import type {
   SgcStage,
 } from "@/lib/shared/constants";
 
-/** Ronda de subsanación (auditoría: rechazo ? motivo ? corrección ? reenvío). */
+/** Ronda de subsanaciÃ³n (auditorÃ­a: rechazo ? motivo ? correcciÃ³n ? reenvÃ­o). */
 export interface SgcSubsanacionEntity {
   id: string;
   sgcExpedienteId: string;
@@ -63,7 +63,7 @@ export interface ISgcRepository {
   listarConEstadoEnvio(estado: SgcEstadoEnvio): Promise<SgcExpedienteEntity[]>;
   crearExpediente(data: CrearSgcExpedienteData): Promise<SgcExpedienteEntity>;
   actualizarExpediente(id: string, data: ActualizarSgcExpedienteData): Promise<SgcExpedienteEntity>;
-  /** Bitácora auditable de subsanaciones (una fila por ronda de devolución). */
+  /** BitÃ¡cora auditable de subsanaciones (una fila por ronda de devoluciÃ³n). */
   crearSubsanacion(data: {
     sgcExpedienteId: string;
     ronda: number;

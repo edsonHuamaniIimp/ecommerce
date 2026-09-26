@@ -390,7 +390,7 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente) return null;
 
-    /* Auditoría: cada declaración abre una ronda nueva (1, 2, 3…). */
+    /* AuditorÃ­a: cada declaraciÃ³n abre una ronda nueva (1, 2, 3â€¦). */
     if (motivo) {
       const previas = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
       const ronda = previas.reduce((max, r) => Math.max(max, r.ronda), 0) + 1;
@@ -441,7 +441,7 @@ export class SgcIntegracionApplicationService {
       expediente.contractId,
       `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
     );
-    /* Auditoría: cierra la ronda vigente con quién/cuándo reenvió y la versión corregida. */
+    /* AuditorÃ­a: cierra la ronda vigente con quiÃ©n/cuÃ¡ndo reenviÃ³ y la versiÃ³n corregida. */
     const pendiente = (await this.repo.listarSubsanaciones(expediente.id).catch(() => []))
       .filter((r) => r.estado !== "reenviado")
       .pop();

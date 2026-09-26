@@ -19,7 +19,7 @@ export interface SgcCrearExpedienteInput {
   name: string;
   counterpartyLegalName: string;
   /**
-   * Correo del cliente (OBLIGATORIO, guia v4 ง3): el SGC le envia automaticamente la copia
+   * Correo del cliente (OBLIGATORIO, guia v4 ยง3): el SGC le envia automaticamente la copia
    * final firmada al terminar el tramite. Sin el, la creacion responde `400`.
    */
   counterpartyEmail: string;
