@@ -275,6 +275,7 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 | documentos | json | Sí | URLs de documentos del stand. |
 | imagenes | json | Sí | URLs de imagenes del stand. |
 | imagenesCategorias | json | Sí | Categoria por imagen: `{ "<url>": "<categoria>" }` (ver `CATEGORIAS_IMAGEN`). |
+| documentosCategorias | json | Sí | Categoria por documento: `{ "<url>": "<categoria>" }` (ver `CATEGORIAS_DOCUMENTO`: contrato/anexo/otro). |
 | rawData | json | Sí | Respuesta completa del API externo. |
 
 Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.

@@ -726,8 +726,8 @@ export const CATEGORIA_IMAGEN_ORDER: CategoriaImagen[] = [
   CATEGORIAS_IMAGEN.OTRO,
 ];
 
-/** Normaliza el mapeo url -> categoria proveniente de la BD. */
-export function normalizarCategoriasImagen(valor: unknown): Record<string, string> {
+/** Normaliza un mapeo url -> categoria proveniente de la BD. */
+export function normalizarCategorias(valor: unknown): Record<string, string> {
   if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
@@ -735,6 +735,33 @@ export function normalizarCategoriasImagen(valor: unknown): Record<string, strin
   }
   return out;
 }
+
+/** Alias retrocompatible para categorias de imagenes. */
+export const normalizarCategoriasImagen = normalizarCategorias;
+
+/* ================================================================
+   Categorias de documentos de un stand
+   ================================================================ */
+export const CATEGORIAS_DOCUMENTO = {
+  CONTRATO: "contrato",
+  ANEXO: "anexo",
+  OTRO: "otro",
+} as const;
+
+export type CategoriaDocumento = (typeof CATEGORIAS_DOCUMENTO)[keyof typeof CATEGORIAS_DOCUMENTO];
+
+export const CATEGORIA_DOCUMENTO_LABELS: Record<CategoriaDocumento, string> = {
+  [CATEGORIAS_DOCUMENTO.CONTRATO]: "Contrato",
+  [CATEGORIAS_DOCUMENTO.ANEXO]: "Anexo",
+  [CATEGORIAS_DOCUMENTO.OTRO]: "Otro",
+};
+
+/** Orden de presentacion de las categorias de documento. */
+export const CATEGORIA_DOCUMENTO_ORDER: CategoriaDocumento[] = [
+  CATEGORIAS_DOCUMENTO.CONTRATO,
+  CATEGORIAS_DOCUMENTO.ANEXO,
+  CATEGORIAS_DOCUMENTO.OTRO,
+];
 
 /* ================================================================
    Filtros de catalogo / bandejas

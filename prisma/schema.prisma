@@ -273,6 +273,8 @@ model GessStand {
   imagenes    Json?   @default("[]")
   /// Categoria por imagen: { "<url>": "<categoria>" } (ver CATEGORIAS_IMAGEN).
   imagenesCategorias Json? @default("{}") @map("imagenes_categorias")
+  /// Categoria por documento: { "<url>": "<categoria>" } (ver CATEGORIAS_DOCUMENTO).
+  documentosCategorias Json? @default("{}") @map("documentos_categorias")
 
   evento      Evento      @relation(fields: [eventoId], references: [id])
   solicitudes Solicitud[]

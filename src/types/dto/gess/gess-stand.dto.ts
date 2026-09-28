@@ -17,6 +17,8 @@ export interface GessStandDTO {
   imagenes: unknown;
   /** Categoria por url de imagen: { "<url>": "<categoria>" }. */
   imagenesCategorias: unknown;
+  /** Categoria por url de documento: { "<url>": "<categoria>" }. */
+  documentosCategorias: unknown;
   createdAt: string;
   updatedAt: string;
 }

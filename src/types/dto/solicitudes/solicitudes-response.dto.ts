@@ -37,6 +37,8 @@ export interface SolicitudDTO {
   pabellon?: string | null;
   /** Ubicacion del stand (segun API externa). */
   ubicacion?: string | null;
+  /** Categoria por documento del stand: { "<url>": "<categoria>" }. */
+  documentosCategorias?: Record<string, string>;
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;

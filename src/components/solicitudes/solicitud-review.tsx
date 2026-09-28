@@ -12,6 +12,7 @@ import {
   BADGE_STYLES,
   PERMISSIONS,
   TIPOS_DOCUMENTO_SOLICITUD,
+  CATEGORIAS_DOCUMENTO,
   ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
@@ -116,7 +117,11 @@ export function SolicitudReview({
   };
 
   /* Documentos legacy del stand (columna JSON `documentos`, normalizados). */
-  const documentosLegacy = ((row.documentos as string[]) ?? []).map((url) => ({ url, nombre: stringUtils.nombreArchivo(url) }));
+  const documentosLegacy = ((row.documentos as string[]) ?? []).map((url) => ({
+    url,
+    nombre: stringUtils.nombreArchivo(url),
+    categoria: row.documentosCategorias?.[url],
+  }));
 
   /* Contrato para el SGC, por prioridad (igual que `sgc-integracion-service.seleccionarContrato`):
      1) firmado por el cliente (`contrato_firmado`), 2) v1 del administrador (`userId` null),
@@ -128,7 +133,11 @@ export function SolicitudReview({
     .filter((d) => d.userId === null)
     .map((d) => ({ nombre: d.nombre, url: d.url }));
   const contratoSgc = [...contratoFirmadoCliente, ...contratosSolicitud];
-  if (contratoSgc.length === 0 && documentosLegacy[0]) contratoSgc.push(documentosLegacy[0]);
+  if (contratoSgc.length === 0) {
+    // Si el admin categorizo un documento legacy como "contrato", se prefiere ese.
+    const legacyContrato = documentosLegacy.find((d) => d.categoria === CATEGORIAS_DOCUMENTO.CONTRATO) ?? documentosLegacy[0];
+    if (legacyContrato) contratoSgc.push(legacyContrato);
+  }
   const tieneContrato = contratoSgc.length > 0;
   const contratoUrl = contratoSgc[0]?.url;
 
@@ -282,7 +291,7 @@ export function SolicitudReview({
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
           for (const url of jsonDocs) {
-            docs.push({ url, nombre: stringUtils.nombreArchivo(url), origen: "solicitud" });
+            docs.push({ url, nombre: stringUtils.nombreArchivo(url), origen: "solicitud", categoria: row.documentosCategorias?.[url] });
           }
 
           // Multi-stand: client's docsAdjuntos

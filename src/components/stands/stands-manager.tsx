@@ -11,7 +11,7 @@ import { gessService } from "@/lib/client/api/services/gess-service";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, CATEGORIAS_DOCUMENTO, CATEGORIA_DOCUMENTO_LABELS, CATEGORIA_DOCUMENTO_ORDER, normalizarCategorias } from "@/lib/shared/constants";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import type { GessStandDTO } from "@/types/dto/gess";
@@ -28,6 +28,7 @@ interface StandDoc {
   imagenes: string[];
   /** Categoria por url de imagen. */
   imagenesCategorias: Record<string, string>;
+  documentosCategorias: Record<string, string>;
 }
 
 function toStringArray(value: unknown): string[] {
@@ -45,7 +46,8 @@ function toStandDoc(dto: GessStandDTO): StandDoc {
     bloqueId: dto.bloqueId,
     documentos: toStringArray(dto.documentos),
     imagenes: toStringArray(dto.imagenes),
-    imagenesCategorias: normalizarCategoriasImagen(dto.imagenesCategorias),
+    imagenesCategorias: normalizarCategorias(dto.imagenesCategorias),
+    documentosCategorias: normalizarCategorias(dto.documentosCategorias),
   };
 }
 
@@ -57,6 +59,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
   const [editDocs, setEditDocs] = useState<string[]>([]);
   const [editImgs, setEditImgs] = useState<string[]>([]);
   const [editImgCats, setEditImgCats] = useState<Record<string, string>>({});
+  const [editDocCats, setEditDocCats] = useState<Record<string, string>>({});
 
   const [search, setSearch] = useState("");
   const [perPage, setPerPage] = useState(10);
@@ -116,6 +119,7 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
     try {
       const url = await handleUpload(file);
       setEditDocs((prev) => [...prev, url]);
+      setEditDocCats((prev) => ({ ...prev, [url]: CATEGORIAS_DOCUMENTO.OTRO }));
     } catch { /* ignore */ }
   };
 
@@ -134,14 +138,16 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
     setEditDocs(row.documentos ?? []);
     setEditImgs(row.imagenes ?? []);
     setEditImgCats(row.imagenesCategorias ?? {});
+    setEditDocCats(row.documentosCategorias ?? {});
     setEditOpen(true);
   };
 
   const handleSave = async () => {
     try {
-      const categorias = Object.fromEntries(editImgs.map((url) => [url, editImgCats[url] ?? CATEGORIAS_IMAGEN.OTRO]));
-      await internalApi.patch("/api/gess/actualizar", { id: editId, documentos: editDocs, imagenes: editImgs, imagenesCategorias: categorias });
-      setRows((prev) => prev.map((r) => (r.id === editId ? { ...r, documentos: editDocs, imagenes: editImgs, imagenesCategorias: categorias } : r)));
+      const imgCategorias = Object.fromEntries(editImgs.map((url) => [url, editImgCats[url] ?? CATEGORIAS_IMAGEN.OTRO]));
+      const docCategorias = Object.fromEntries(editDocs.map((url) => [url, editDocCats[url] ?? CATEGORIAS_DOCUMENTO.OTRO]));
+      await internalApi.patch("/api/gess/actualizar", { id: editId, documentos: editDocs, documentosCategorias: docCategorias, imagenes: editImgs, imagenesCategorias: imgCategorias });
+      setRows((prev) => prev.map((r) => (r.id === editId ? { ...r, documentos: editDocs, documentosCategorias: docCategorias, imagenes: editImgs, imagenesCategorias: imgCategorias } : r)));
       toast.success("Documentos guardados");
       setEditOpen(false);
     } catch (err) {
@@ -150,7 +156,17 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
     }
   };
 
-  const removeDoc = (idx: number) => setEditDocs((prev) => prev.filter((_, i) => i !== idx));
+  const removeDoc = (idx: number) => {
+    const url = editDocs[idx];
+    setEditDocs((prev) => prev.filter((_, i) => i !== idx));
+    if (url) {
+      setEditDocCats((prev) => {
+        const next = { ...prev };
+        delete next[url];
+        return next;
+      });
+    }
+  };
   const removeImg = (idx: number) => {
     const url = editImgs[idx];
     setEditImgs((prev) => prev.filter((_, i) => i !== idx));
@@ -264,15 +280,28 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                     const isPdf = url.endsWith(".pdf");
                     const name = stringUtils.nombreArchivo(url);
                     return (
-                      <div key={i} className="flex items-center gap-3 px-3 py-2 text-xs">
-                        <span>{isPdf ? "📕" : "📎"}</span>
-                        <span className="flex-1 truncate font-mono">{name}</span>
+                      <div key={i} className="flex items-center gap-2 px-3 py-2 text-xs">
+                        <span className="shrink-0">{isPdf ? "📕" : "📎"}</span>
+                        <span className="min-w-0 flex-1 truncate font-mono">{name}</span>
+                        <Select
+                          value={editDocCats[url] ?? CATEGORIAS_DOCUMENTO.OTRO}
+                          onValueChange={(v) => setEditDocCats((prev) => ({ ...prev, [url]: v }))}
+                        >
+                          <SelectTrigger className="h-7 w-[120px] shrink-0 text-[11px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIA_DOCUMENTO_ORDER.map((c) => (
+                              <SelectItem key={c} value={c}><span>{CATEGORIA_DOCUMENTO_LABELS[c]}</span></SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         {isPdf && (
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="Ver">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0" asChild title="Ver">
                             <a href={url} target="_blank"><Eye className="h-3.5 w-3.5" /></a>
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeDoc(i)} title="Eliminar">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0 text-destructive" onClick={() => removeDoc(i)} title="Eliminar">
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>

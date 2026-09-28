@@ -20,6 +20,7 @@ import {
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_SUBSANACION_MOTIVO,
   SGC_LIFECYCLE_STATUSES,
+  CATEGORIAS_DOCUMENTO,
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
@@ -549,7 +550,11 @@ export class SgcIntegracionApplicationService {
     if (firmado) return { url: firmado.url, nombre: firmado.nombre };
     const admin = detalle.docsAdjuntos.find((doc) => doc.userId === null);
     if (admin) return { url: admin.url, nombre: admin.nombre };
-    return extraerDocumentosLegacy(detalle.documentos)[0] ?? null;
+    // Legacy: si el admin categorizo un documento como "contrato", se usa ese;
+    // si no, se mantiene el primero (comportamiento previo).
+    const legacy = extraerDocumentosLegacy(detalle.documentos);
+    const legacyContrato = legacy.find((doc) => detalle.documentosCategorias?.[doc.url] === CATEGORIAS_DOCUMENTO.CONTRATO);
+    return legacyContrato ?? legacy[0] ?? null;
   }
 
   private construirDocumento(

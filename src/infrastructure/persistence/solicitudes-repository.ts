@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 
@@ -90,6 +90,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   let estado: string | null = null;
   let imagenes: unknown = [];
   let documentos: unknown = [];
+  let documentosCategorias: Record<string, string> = {};
 
   if (gessStandId) {
     const stand = row.gessStand;
@@ -105,6 +106,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       estado = stand.estado;
       imagenes = stand.imagenes ?? [];
       documentos = Array.isArray(row.documentos) && row.documentos.length > 0 ? row.documentos : stand.documentos ?? [];
+      documentosCategorias = normalizarCategorias(stand.documentosCategorias);
     }
   } else {
     const stands = await prisma.solicitudStand.findMany({
@@ -123,6 +125,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       pabellon = first.pabellon;
       ubicacion = first.ubicacion;
       imagenes = first.imagenes ?? [];
+      documentosCategorias = normalizarCategorias(first.documentosCategorias);
     }
     documentos = row.documentos ?? [];
   }
@@ -160,6 +163,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     bloqueId,
     pabellon,
     ubicacion,
+    documentosCategorias,
     estado,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,
