@@ -33,6 +33,10 @@ export interface SolicitudDTO {
   email: string | null;
   userId: string | null;
   bloqueId: string | null;
+  /** Pabellon del stand (segun API externa). */
+  pabellon?: string | null;
+  /** Ubicacion del stand (segun API externa). */
+  ubicacion?: string | null;
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;

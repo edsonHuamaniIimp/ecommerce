@@ -8,6 +8,7 @@ import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { useConfirm } from "@/hooks/use-confirm";
 import { BADGE_STYLES, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
 
 interface CuotaItem {
@@ -51,6 +52,7 @@ export default function FacturacionPage() {
   const [archiveId, setArchiveId] = useState<string | null>(null);
   const [modoPago, setModoPago] = useState("cuotas");
   const [deleteCuotaId, setDeleteCuotaId] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
   const [payCuotaId, setPayCuotaId] = useState<string | null>(null);
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
   const [uploadingComprobante, setUploadingComprobante] = useState(false);
@@ -100,6 +102,25 @@ export default function FacturacionPage() {
       setNewCuotaVencimiento("");
       setPayOpen(true);
     } catch { toast.error("Error al cargar detalle"); }
+  };
+
+  /** Confirma el pago de una cuota usando el voucher que adjunto el cliente. */
+  const confirmarConVoucher = async (cuotaId: string, comprobante: string) => {
+    const ok = await confirm({
+      title: "Confirmar pago",
+      description: "¿Confirmar el pago de esta cuota con el voucher adjunto del cliente?",
+      confirmLabel: "Confirmar",
+    });
+    if (!ok) return;
+    try {
+      await internalApi.post("/api/facturacion/pagar-cuota", { cuotaId, comprobante });
+      toast.success("Cuota marcada como pagada");
+      if (payRow) {
+        const d = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${payRow.id}`);
+        setPayRow(d);
+      }
+      load(page);
+    } catch { toast.error("Error al confirmar el pago"); }
   };
 
   const handleAddCuota = async () => {
@@ -328,13 +349,24 @@ export default function FacturacionPage() {
                         <Badge className={`text-[9px] pointer-events-none ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>
                           {c.estado === ESTADOS_CUOTA.PAGADO ? "Pagado" : "Pendiente"}
                         </Badge>
-                        {c.estado === ESTADOS_CUOTA.PAGADO && c.comprobante && (
-                          <a href={c.comprobante} target="_blank" className="text-slate-400 hover:text-slate-600" title="Ver comprobante">
+                        {c.comprobante && (
+                          <a href={c.comprobante} target="_blank" className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700" title="Ver voucher adjunto">
                             <FileText className="h-3 w-3" />
+                            <span>Voucher</span>
                           </a>
                         )}
-                        {c.estado === ESTADOS_CUOTA.PENDIENTE && (
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-emerald-600" onClick={() => { setPayCuotaId(c.id); setComprobanteFile(null); }}>
+                        {c.estado === ESTADOS_CUOTA.PENDIENTE && c.comprobante && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] font-semibold text-emerald-600"
+                            title="Confirmar pago con el voucher del cliente"
+                            onClick={() => { if (c.comprobante) void confirmarConVoucher(c.id, c.comprobante); }}>
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Confirmar</span>
+                          </Button>
+                        )}
+                        {c.estado === ESTADOS_CUOTA.PENDIENTE && !c.comprobante && (
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-emerald-600"
+                            title="Registrar pago (adjuntar comprobante)"
+                            onClick={() => { setPayCuotaId(c.id); setComprobanteFile(null); }}>
                             <Check className="h-3.5 w-3.5" />
                           </Button>
                         )}
@@ -538,6 +570,8 @@ export default function FacturacionPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </main>
   );
 }

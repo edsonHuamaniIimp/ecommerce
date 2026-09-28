@@ -85,6 +85,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   let medidas: string | null = null;
   let empresa: string | null = null;
   let bloqueId: string | null = null;
+  let pabellon: string | null = null;
+  let ubicacion: string | null = null;
   let estado: string | null = null;
   let imagenes: unknown = [];
   let documentos: unknown = [];
@@ -98,6 +100,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       medidas = stand.medidas;
       empresa = stand.empresa;
       bloqueId = stand.bloqueId;
+      pabellon = stand.pabellon;
+      ubicacion = stand.ubicacion;
       estado = stand.estado;
       imagenes = stand.imagenes ?? [];
       documentos = Array.isArray(row.documentos) && row.documentos.length > 0 ? row.documentos : stand.documentos ?? [];
@@ -116,6 +120,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       medidas = first.medidas;
       estado = first.estado;
       bloqueId = first.bloqueId;
+      pabellon = first.pabellon;
+      ubicacion = first.ubicacion;
       imagenes = first.imagenes ?? [];
     }
     documentos = row.documentos ?? [];
@@ -152,6 +158,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     email: row.email,
     userId: row.userId,
     bloqueId,
+    pabellon,
+    ubicacion,
     estado,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,

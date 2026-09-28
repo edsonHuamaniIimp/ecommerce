@@ -13,6 +13,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { Pagination } from "@/components/shared/pagination";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
+import { useConfirm } from "@/hooks/use-confirm";
 import { BADGE_STYLES, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
@@ -48,6 +49,7 @@ interface DialogCuota {
 export function MisPagosManager() {
   const { session } = useSesion();
   const { vista, setVista } = useVistaBandeja("mis-pagos");
+  const { confirm, confirmDialog } = useConfirm();
   const [rows, setRows] = useState<PagoRowDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -141,7 +143,13 @@ export function MisPagosManager() {
   };
 
   const eliminarCuota = async (cuota: CuotaPagoDTO) => {
-    if (!window.confirm(`¿Eliminar la cuota #${cuota.numero}? Las cuotas restantes se renumeraran.`)) return;
+    const ok = await confirm({
+      title: "Eliminar cuota",
+      description: `¿Eliminar la cuota #${cuota.numero}? Las cuotas restantes se renumeraran.`,
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await pagosService.eliminarCuota(cuota.id);
       toast.success("Cuota eliminada");
@@ -386,6 +394,8 @@ export function MisPagosManager() {
         className="hidden"
         onChange={(e) => { void onVoucherFile(e); }}
       />
+
+      {confirmDialog}
 
       <Dialog open={dialog !== null} onOpenChange={(v) => { if (!v) setDialog(null); }}>
         <DialogContent className="rounded-xl border-border sm:max-w-sm">

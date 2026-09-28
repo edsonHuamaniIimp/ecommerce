@@ -376,6 +376,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
                                </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
+                               </Badge>
                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
@@ -536,6 +541,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE
                       : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? BADGE_STYLES.INFO
                       : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? BADGE_STYLES.INDIGO
+                      : detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO ? BADGE_STYLES.SUCCESS
                       : BADGE_STYLES.WARNING
                     }`}>
                       {solicitudEstadoLabels[detailRow.estadoSolicitud] ?? detailRow.estadoSolicitud}

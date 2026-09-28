@@ -109,6 +109,9 @@ function EstadoSolicitudBadge({ estado }: { estado: string | null }) {
   if (estado === ESTADOS_SOLICITUD.PENDIENTE_PAGO) {
     return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INDIGO}`}><Clock className="mr-0.5 h-2.5 w-2.5" /><span>Pendiente Pago</span></Badge>;
   }
+  if (estado === ESTADOS_SOLICITUD.PAGADO) {
+    return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.SUCCESS}`}><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /><span>Pagado</span></Badge>;
+  }
   return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}><Clock className="mr-0.5 h-2.5 w-2.5" /><span>Pendiente</span></Badge>;
 }
 
@@ -136,6 +139,16 @@ function FlujoRevision({ row }: { row: SolicitudRow }) {
       {row.sgcEnabled && legalDelegadaAlSgc(row.revisiones) && (
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.INFO}`}>{REVISION_AREA_SGC_LABEL}</span>
       )}
+    </div>
+  );
+}
+
+/** Dato etiqueta/valor compacto para las bandejas. */
+function Dato({ label, valor }: { label: string; valor: string | null | undefined }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9px] font-semibold tracking-wider text-muted-foreground uppercase">{label}</p>
+      <p className="truncate text-xs text-foreground">{valor && valor.trim() ? valor : "—"}</p>
     </div>
   );
 }
@@ -336,6 +349,39 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     </div>
 
                     <div className="space-y-3 px-4 py-3">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                        <Dato label="Empresa" valor={row.empresa} />
+                        <Dato label="Precio" valor={row.medidas} />
+                        <Dato label="Estado del stand" valor={row.estado} />
+                        <Dato label="Documentos" valor={`${(row.documentos as string[])?.length ?? 0}`} />
+                        <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
+                        <Dato label="Ubicacion" valor={row.ubicacion} />
+                        <Dato label="Bloque" valor={row.bloqueId} />
+                        <Dato label="Tipo" valor={row.tipoStand} />
+                      </div>
+
+                      {Array.isArray(row.imagenes) && row.imagenes.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                            Imagenes ({row.imagenes.length})
+                          </span>
+                          <div className="flex gap-1.5">
+                            {(row.imagenes as string[]).slice(0, 5).map((url, i) => (
+                              <button
+                                key={`${url}-${i}`}
+                                type="button"
+                                className="h-9 w-12 overflow-hidden rounded border border-border transition-colors hover:border-primary/40"
+                                onClick={() => setImgCarousel({ images: row.imagenes as string[], idx: i })}
+                                title={`Ver imagen ${i + 1} del stand`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt={`Imagen ${i + 1} del stand`} className="h-full w-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {(row.standCodes?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Stands</span>
@@ -415,6 +461,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <TableHead className="text-[10px] uppercase tracking-wide">Stand</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Bloque</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Tipo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Empresa</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Precio</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Flujo</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Docs</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Fecha</TableHead>
@@ -433,6 +481,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         </TableCell>
                         <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "—"}</TableCell>
                         <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
+                        <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "—"}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{row.medidas ?? "—"}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
                           {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
