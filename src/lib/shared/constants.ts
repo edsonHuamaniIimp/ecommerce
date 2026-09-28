@@ -211,7 +211,6 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "admin:full",
     "dashboard:view",
     "eventos:datos",
-    "perfil:view",
     "stands:vinculacion",
     "stands:manage",
     "stands:plano",
@@ -238,10 +237,10 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "pagos:view",
     "pagos:manage",
   ],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:logistica"],
-  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
-  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion"],
-  [ROLES.CLIENTE]: ["eventos:datos", "perfil:view", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:logistica"],
+  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
+  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion"],
+  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
 };
 
 export const ALL_PERMISSIONS = [
@@ -249,7 +248,6 @@ export const ALL_PERMISSIONS = [
   // Dashboard general
   { key: "dashboard:view", label: "Panel de Control", descripcion: "Acceder al panel de control principal", section: "dashboard" },
   { key: "eventos:datos", label: "Datos del Evento", descripcion: "Ver datos y precios de la version del evento", section: "dashboard" },
-  { key: "perfil:view", label: "Mi perfil", descripcion: "Ver y editar el perfil propio y la contrasena", section: "dashboard" },
   // Stands
   { key: "stands:vinculacion", label: "Vinculacion de Stands", descripcion: "Vincular stands de GESS como disponibles", section: "stands" },
   { key: "stands:manage", label: "Gestion de Stands", descripcion: "Administrar y editar stands del evento", section: "stands" },
@@ -298,7 +296,6 @@ export const PERMISSIONS = {
   ADMIN_FULL: "admin:full",
   DASHBOARD_VIEW: "dashboard:view",
   EVENTOS_DATOS: "eventos:datos",
-  PERFIL_VIEW: "perfil:view",
   STANDS_VINCULACION: "stands:vinculacion",
   STANDS_MANAGE: "stands:manage",
   STANDS_PLANO: "stands:plano",
