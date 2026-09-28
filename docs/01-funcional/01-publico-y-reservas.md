@@ -13,24 +13,29 @@ registro crea la solicitud que luego recorren las áreas.
 
 | Ruta | Página | Acceso |
 |---|---|---|
-| `/` | Home pública: eventos vigentes y selección de versión | Público (`constants.ts:16-21`) |
-| `/presala` | Selección formal de evento/versión | Público |
+| `/` | Home pública: eventos vigentes y selección de versión | Público (`PUBLIC_ROUTES`) |
+| `/presala` | Selección de evento/versión (solo evento, sin bloques informativos) | Público |
 | `/auth/login` | Ingreso | Público |
 | `/403` | Acceso denegado | Público |
-| `/plano` | Plano isométrico 3D (registro en código) | `stands:plano` + `eventoId` (`middleware.ts:34`) |
-| `/mapa` | Plano dinámico: `macro` (pabellones) o `simple` (3D desde BD) | `stands:plano` + `eventoId` (`middleware.ts:35`) |
+| `/plano` | Plano isométrico 3D (registro en código) | `stands:plano` + `eventoId` |
+| `/mapa` | Plano dinámico: `macro` (pabellones) o `simple` (3D desde BD) + modal informativo | Público (`PUBLIC_ROUTES`); sin evento redirige a `/presala` |
 | `/plano-grid` | Reconstrucción 2D de 52 bloques (**maqueta**) | `stands:plano` (capturado por `/plano`) |
 
-> El grupo `(public)` **no implica acceso público**: `/plano`, `/mapa` y `/plano-grid`
-> siguen protegidos por `src/middleware.ts`. Sin `eventoId` (y no admin) redirige a `/presala`.
+> `PUBLIC_ROUTES` (`src/lib/shared/constants.ts`) incluye `/`, `/presala`, `/mapa`,
+> `/landing`, `/auth/login` y `/403`. El grupo `(public)` no define el acceso: `/plano` y
+> `/plano-grid` siguen protegidos por `src/middleware.ts`. Sin `eventoId` (y no admin)
+> redirigen a `/presala`.
 
 ## 3. Flujo funcional
 
 ### 3.1 Selección de evento
 1. `/` o `/presala` listan versiones de evento (`GET /api/eventos/listar?presala=1`, público con `presala=1`).
-2. La vertical se deriva del código de evento: `2→perumin`, `5→proexplo`, `7/13→wmc`, `14→gess`, fallback `eventos` (`presala-service.ts:6-12`).
-3. Sin sesión: guarda `VERTICAL` y `EVENTO_PUBLICO` en localStorage, aplica theming y va a login (`presala/page.tsx:83-99`).
-4. Con sesión: `POST /api/auth/seleccionar-evento` reemite el JWT con `eventoId` y navega (`auth-service.ts:52-78`).
+2. La vertical se deriva del código de evento: `2→perumin`, `5→proexplo`, `7/13→wmc`, `14→gess`, fallback `eventos` (`presala-service.ts`).
+3. Sin sesión: guarda `EVENTO_PUBLICO` en localStorage y va a login con `returnTo` (o `EVENTO_PENDIENTE` si no hay destino).
+4. Con sesión: `POST /api/auth/seleccionar-evento` reemite el JWT con `eventoId` y navega (`auth-service.ts`).
+5. `/presala` muestra **solo la selección de eventos** (hero + tarjetas por vertical con sus
+   versiones). El protocolo de reserva y la asistencia al exhibidor ya **no** viven aquí:
+   se movieron al [modal informativo de `/mapa`](#36-modal-informativo-del-plano-una-vez-por-sesión).
 
 ### 3.2 Carga del plano
 - `/plano`: resuelve el código de plano del evento y renderiza `PlanoIsometrico` (hardcodea `requirePlano("gess")`, `plano-isometrico.tsx:244`).
@@ -62,11 +67,24 @@ El borrador se guarda en IndexedDB por conjunto de IDs y se borra tras el envío
 - Backend (`reserva-service.ts:15-113`): valida que los stands estén `disponible`; los pasa a `en_evaluacion`; crea `Solicitud` + `Revision` iniciales; genera alertas (a Logística y, si multi-stand, al cliente y al admin) y envía correos.
 - Post-envío: 1 stand muestra toast; N stands muestra modal con el flujo de 5 pasos.
 
+### 3.6 Modal informativo del plano (una vez por sesión)
+Al entrar a `/mapa`, `ModalInformativoEvento` puede mostrar un aviso con el **protocolo de
+reserva** (revisión por áreas, contrato por SGC, documentos) y un **bloque de ayuda**
+(Mesa de Ayuda). El contenido es **configurable por versión de evento** desde
+`/dashboard/eventos` (ver [06-eventos-datos-y-stands.md](./06-eventos-datos-y-stands.md)).
+
+- Fuente: `GET /api/eventos/modal-info?tipoEvento=&codigoEvento=` (**público**) → `ModalInfoConfig | null`.
+- Se muestra **una sola vez por sesión**: `sessionStorage` guarda la clave
+  `LS_KEYS.MODAL_INFO_VISTO:<tipoEvento>-<codigoEvento>` al cerrarlo; recargar la vista no lo repite.
+- Solo aparece si `activo = true`. Aplica a público y autenticado.
+- Si la versión no tiene configuración, no se muestra (no hay fallback en código).
+
 ## 4. Endpoints del módulo
 
 | Método | Ruta | Uso |
 |---|---|---|
 | `GET` | `/api/eventos/listar?presala=1` | Listar versiones de evento (público) |
+| `GET` | `/api/eventos/modal-info?tipoEvento&codigoEvento` | Modal informativo de `/mapa` (público) |
 | `POST` | `/api/auth/login` · `GET /api/auth/session` · `POST /api/auth/seleccionar-evento` | Sesión |
 | `GET` | `/api/planos/publico?codigo=` \| `?tipoEvento&codigoEvento&eventoId` | Definición del plano (+ ocupación en macro) |
 | `GET` | `/api/gess/listar?eventoId=` \| `?bloqueId=` | Stands del evento / por bloque |
@@ -92,6 +110,7 @@ El borrador se guarda en IndexedDB por conjunto de IDs y se borra tras el envío
 - Documento según comprobante: factura → RUC 11, boleta → DNI 8.
 - Un bloque sin stand GESS vinculado no es reservable en `/mapa`.
 - Un plano `simple` puede pertenecer a un solo `macro`.
+- El modal informativo se muestra solo si la versión lo tiene `activo` y **una vez por sesión**.
 
 ## 7. Limitaciones y observaciones
 

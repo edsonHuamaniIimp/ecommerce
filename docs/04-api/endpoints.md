@@ -42,7 +42,8 @@
 | **POST** | **`/auth/seleccionar-evento`** | **Selecciona versión de evento. Re-firma JWT con eventoId.** |
 | **GET** | **`/eventos/presala`** | **Versiones vigentes de eventos (activo + flgActivo + en fecha).** |
 | **POST** | **`/eventos`** | **Crea nueva versión de evento (admin).** |
-| **PATCH** | **`/eventos`** | **Actualiza estado, fechas, flgActivo (admin).** |
+| **PATCH** | **`/eventos`** | **Actualiza estado, fechas, flgActivo, plano y `modal_info` por versión (admin).** |
+| **GET** | **`/eventos/modal-info?tipoEvento=&codigoEvento=`** | **Modal informativo de `/mapa` por versión. Público.** |
 | **PATCH** | **`/roles`** | **Actualiza permisos de un rol (admin).** |
 | POST | `/roles/usuarios` | Asigna rol a usuario `{email, roleId}`. |
 | DELETE | `/roles/usuarios?userId=&roleId=` | Quita rol a usuario. |

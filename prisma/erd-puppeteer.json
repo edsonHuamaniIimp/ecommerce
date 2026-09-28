@@ -1,0 +1,4 @@
+{
+  "logLevel": "error",
+  "defaultViewport": { "width": 8000, "height": 6000, "deviceScaleFactor": 1.5 }
+}

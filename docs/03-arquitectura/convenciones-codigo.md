@@ -105,6 +105,7 @@ src/
 - **Dark mode** nativo vía clase `.dark` (next-themes).
 - **Responsive en bandejas**: columnas ocultas progresivamente (`hidden sm:table-cell`), `overflow-x-auto`, paginación compacta en mobile, `min-w-0` en contenedores `flex-1`.
 - **Anti-flash de vertical**: script `public/vertical-init.js` cargado en `layout.tsx` (hoistado al `<head>`).
+- **Vista de bandeja (cuadrícula/lista)**: usar el util reutilizable `vistaUtils` (`src/lib/shared/utils/vista.ts`) vía el hook `useVistaBandeja("<clave>")`; persiste por bandeja en `localStorage` (`iimp-vista-bandeja:<clave>`). Constantes `VISTAS_BANDEJA` (`grid`/`row`). Bandejas que ya lo usan: `mis-pagos`, `mis-solicitudes`.
 
 ---
 

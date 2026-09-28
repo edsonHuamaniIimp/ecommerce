@@ -16,11 +16,18 @@ endpoints, flujos, estados, reglas de negocio y limitaciones observadas.
 | 1 | Portal público, plano y reserva | [01-publico-y-reservas.md](./01-publico-y-reservas.md) | `/`, `/presala`, `/plano`, `/mapa`, `/plano-grid` | público + `stands:plano` |
 | 2 | Solicitudes de alquiler y aprobaciones | [02-solicitudes-y-aprobaciones.md](./02-solicitudes-y-aprobaciones.md) | `/dashboard/solicitudes`, `/dashboard/mis-solicitudes`, `/dashboard/reservas` | `solicitudes:view` |
 | 3 | Auspicios | [03-auspicios.md](./03-auspicios.md) | `/dashboard/auspicios` | `auspicios:view` |
-| 4 | Facturación y pagos | [04-facturacion.md](./04-facturacion.md) | `/dashboard/facturacion` | `facturacion:view` |
+| 4 | Facturación y pagos | [04-facturacion.md](./04-facturacion.md) | `/dashboard/facturacion` (admin), `/dashboard/mis-pagos` (cliente) | `facturacion:view` / `pagos:view`, `pagos:manage` |
 | 5 | Laboratorio 3D (planos) | [05-laboratorio-3d.md](./05-laboratorio-3d.md) | `/dashboard/laboratorio` | `laboratorio:view` / `laboratorio:manage` |
 | 6 | Eventos, datos del evento y stands | [06-eventos-datos-y-stands.md](./06-eventos-datos-y-stands.md) | `/dashboard/eventos`, `/dashboard/datos-evento`, `/dashboard/stands`, `/dashboard/vinculacion` | `events:manage`, `eventos:datos`, `stands:manage`, `stands:vinculacion` |
 | 7 | Administración (roles, usuarios, perfil) | [07-administracion.md](./07-administracion.md) | `/dashboard/roles`, `/dashboard/perfil` | `roles:manage` |
 | 8 | Integraciones externas y autenticación | [08-integraciones.md](./08-integraciones.md) | — | varias |
+
+> **Novedades de esta iteración:** `/presala` muestra **solo la selección de eventos**; el
+> protocolo de reserva y la asistencia al exhibidor pasaron a un **modal informativo
+> configurable por versión de evento** en `/mapa` (ver
+> [01-publico-y-reservas.md](./01-publico-y-reservas.md) §3.6 y
+> [06-eventos-datos-y-stands.md](./06-eventos-datos-y-stands.md) §3.1). Las imágenes de stand
+> se clasifican por **categoría** ([06](./06-eventos-datos-y-stands.md) §5.1).
 
 ## Actores y roles
 
@@ -32,7 +39,7 @@ Roles definidos en `src/lib/shared/constants.ts:195-201`:
 | `logistica` | Revisa solicitudes (área Logística) y gestiona stands | `dashboard:view`, `stands:manage`, `stands:plano`, `solicitudes:review:logistica`, `auspicios:view` |
 | `legal` | Revisa solicitudes (área Legal) | `dashboard:view`, `stands:plano`, `solicitudes:review:legal`, `auspicios:view` |
 | `comunicacion` | Revisa solicitudes (área Comunicación, última local) | `dashboard:view`, `stands:plano`, `solicitudes:review:comunicacion`, `auspicios:view` |
-| `cliente` | Empresa exhibidora: reserva, consulta sus solicitudes y paga | `eventos:datos`, `solicitudes:view`, `stands:plano`, `read:reservas`, `write:reservas` |
+| `cliente` | Empresa exhibidora: reserva, consulta sus solicitudes y configura su plan de pagos | `eventos:datos`, `solicitudes:view`, `stands:plano`, `read:reservas`, `write:reservas`, `pagos:view`, `pagos:manage` |
 
 Matriz completa en `ROLES_PERMISSIONS` (`src/lib/shared/constants.ts:205-235`) y catálogo de
 permisos en `ALL_PERMISSIONS` (`:237-273`). El permiso viaja en el JWT; el rol `admin`

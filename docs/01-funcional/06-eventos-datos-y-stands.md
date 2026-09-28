@@ -21,12 +21,26 @@ bloques del plano 3D**.
 ## 3. Módulo Eventos
 
 - Página `/dashboard/eventos`; componente `EventosMantenedor`.
-- Modelo **padre–versión**: `EventoPadre` + `Evento`; metadata de visibilidad/plano en `EventoMetadata` (`prisma/schema.prisma:13-69`).
-- Lista tarjetas por evento padre con sus versiones; diálogo "Editar metadata" permite **solo dos campos**: `plano` (mapa 3D) y `flg_visible`.
-- Regla: un mapa 3D solo puede estar asignado a un evento a la vez (`evento-service.ts:57-67`).
-- Presala combina la API externa KB con `evento_metadata` y filtra `active` + vigencia (`presala-service.ts:34-87`).
-- Endpoints: `GET /api/eventos/listar[?presala=1&id=]`, `POST /api/eventos/crear`, `PATCH /api/eventos/actualizar`.
+- Modelo **padre–versión**: `EventoPadre` + `Evento`; metadata por versión en `EventoMetadata`
+  (clave `(tipoEvento, codigoEvento)`): `plano`, `imagen`, `flg_visible` y `modalInfo`.
+- Lista tarjetas por evento padre con sus versiones; el diálogo "Editar metadata" de cada
+  versión permite: `plano` (mapa 3D), `flg_visible` y el **modal informativo** (ver 3.1).
+- Regla: un mapa 3D solo puede estar asignado a un evento a la vez (`evento-service.ts`).
+  El `plano` **solo se envía si cambió** (reenviarlo dispara la validación aunque el valor sea el mismo).
+- Presala combina la API externa KB con `evento_metadata` y filtra `active` + vigencia (`presala-service.ts`).
+- Endpoints: `GET /api/eventos/listar[?presala=1&id=]`, `GET /api/eventos/modal-info`
+  (público), `POST /api/eventos/crear`, `PATCH /api/eventos/actualizar`.
 - Estados: `ESTADOS_EVENTO` (`draft`, `active`, `closed`, `cancelled`).
+
+### 3.1 Modal informativo por versión (`modal_info`)
+- Se configura en el diálogo "Editar metadata" y se muestra al entrar a `/mapa`
+  (ver [01-publico-y-reservas.md](./01-publico-y-reservas.md), §3.6), **una vez por sesión**.
+- Estructura (`ModalInfoConfig`, en `src/domain/models/entities.ts`):
+  `{ activo, titulo, subtitulo?, items[{ titulo, descripcion }], ayuda{ titulo, descripcion, texto_boton, url } | null }`.
+- `activo = true` habilita el modal; el bloque `ayuda` es opcional (si no tiene `url`, no
+  muestra botón). Si la versión no tiene `modal_info`, `/mapa` no muestra nada.
+- Persistencia: columna `evento_metadata.modal_info` (JSONB, migración `0010_add_modal_info_evento_metadata`).
+- Lectura pública: `GET /api/eventos/modal-info?tipoEvento=&codigoEvento=`; escritura vía `PATCH /api/eventos/actualizar { tipo_evento, codigo_evento, modal_info }` (`events:manage`).
 
 ## 4. Módulo Datos del Evento
 
@@ -38,7 +52,13 @@ bloques del plano 3D**.
 
 ### 5.1 Gestión de stands (documentos/imágenes)
 - Página `/dashboard/stands`; componente `StandsManager`.
-- Sube contrato PDF/DOC/DOCX e imágenes vía `POST /api/upload`; guarda con `PATCH /api/gess/actualizar { id, documentos, imagenes }`.
+- Sube contrato PDF/DOC/DOCX e imágenes vía `POST /api/upload`; guarda con
+  `PATCH /api/gess/actualizar { id, documentos, imagenes, imagenesCategorias }`.
+- **Categorías de imagen**: cada imagen tiene una categoría
+  (`CATEGORIAS_IMAGEN`: `render_3d`, `isometrico`, `plano`, `foto`, `logo`, `otro`),
+  persistida como mapa `url → categoría` en `gess_stand.imagenes_categorias` (JSONB,
+  migración `0009_add_imagenes_categorias`). En `/mapa` el modal de detalle agrupa las
+  imágenes por categoría y el carrusel permite navegar por categoría.
 - Etiquetas de estado desde maestra `stand_estado`.
 
 ### 5.2 Vinculación (importar + vincular)
@@ -56,7 +76,7 @@ bloques del plano 3D**.
 | Método | Ruta | Acción |
 |---|---|---|
 | `GET` | `/api/gess/listar?eventoId=` \| `?bloqueId=` | Stands del evento / por bloque |
-| `PATCH` | `/api/gess/actualizar` | Vincular, documentos, imágenes, estado |
+| `PATCH` | `/api/gess/actualizar` | Vincular, documentos, imágenes (+ categorías), estado |
 | `POST` | `/api/gess/sync` · `/api/gess/mockup` | Importar / demo |
 | `POST` | `/api/planogess/fetch` | Fetch crudo al API externo |
 | `GET` | `/api/maestra/listar?tabla=` | Catálogos (`stand_estado`, `stand_tipologia`, …) |

@@ -31,7 +31,7 @@
 - **Autorización:** valida el permiso declarado por prefijo con `hasPermission`; si falta → `/403`.
   Permisos: `stands:vinculacion`, `solicitudes:view`, `facturacion:view`, `laboratorio:view`,
   `roles:manage`, `events:manage`, `auspicios:view`, `read:reservas`, `stands:plano`,
-  `stands:manage`, `eventos:datos`.
+  `stands:manage`, `eventos:datos`, `pagos:view` (prefijo `/api/pagos` y `/dashboard/mis-pagos`).
 - **Contexto de evento:** roles `admin` omiten el chequeo; usuarios sin `eventoId` en el JWT
   son redirigidos a `/presala`.
 - **Cookie:** `token` httpOnly, SameSite=Lax, 24 h (gestionada en `auth.controller.ts`).
@@ -177,8 +177,21 @@
 | `/api/facturacion/eliminar-cuota` | POST | Elimina cuota |
 | `/api/facturacion/actualizar` | PATCH | Actualiza datos de la facturación |
 | `/api/facturacion/eliminar` | DELETE | Elimina facturación |
-| `/api/facturacion/niubizz/sesion` | POST | Crea sesión de pago Niubizz |
-| `/api/facturacion/niubizz/confirmar` | POST | Confirma pago Niubizz con `transactionToken` |
+| `/api/facturacion/niubizz/sesion` | POST | Crea sesión de pago Niubizz (**deshabilitado, 503**) |
+| `/api/facturacion/niubizz/confirmar` | POST | Confirma pago Niubizz (**deshabilitado, 503**) |
+
+### 3.14b Pagos del exhibidor — `src/app/api/pagos/[...slug]/route.ts`
+
+Vista del cliente (`pagos:view`); cada acción valida propiedad de la facturación. Escrituras requieren `pagos:manage`.
+
+| Ruta | Métodos | Descripción |
+|---|---|---|
+| `/api/pagos/listar` | GET | Facturaciones del cliente (paginadas) con sus cuotas |
+| `/api/pagos/detalle` | GET | Detalle de una facturación propia (404/403 si no aplica) |
+| `/api/pagos/agregar-cuota` | POST | Agrega cuota (`facturacionId`, `monto`, `fechaVencimiento?`) |
+| `/api/pagos/actualizar-cuota` | POST | Edita monto/vencimiento (`cuotaId`) |
+| `/api/pagos/adjuntar-voucher` | POST | Adjunta/reemplaza el voucher (`cuotaId`, `comprobante`) sin cambiar estado |
+| `/api/pagos/eliminar-cuota` | POST | Elimina cuota y renumera las restantes |
 
 ### 3.15 Reservas — `src/app/api/reservas/[...slug]/route.ts`
 
