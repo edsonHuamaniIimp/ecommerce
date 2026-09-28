@@ -298,6 +298,8 @@ export interface SgcExpedienteEntity {
   subsanacionMotivo: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
+  /** Bypass admin: aprobado localmente; el sync-on-read no debe revertir el estado. */
+  bypassAprobado?: boolean;
 }
 
 export interface SgcWebhookResource {

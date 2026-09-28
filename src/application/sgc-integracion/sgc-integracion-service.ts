@@ -66,6 +66,7 @@ export class SgcIntegracionApplicationService {
     if (!expediente) return false;
     await this.repo.actualizarExpediente(expediente.id, {
       lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+      bypassAprobado: true,
       lastSyncedAt: new Date(),
     });
     console.warn("[sgc] Bypass admin: expediente aprobado (Vigente)", { solicitudId, autor });
@@ -170,14 +171,16 @@ export class SgcIntegracionApplicationService {
 
     try {
       const detalle = await this.client.consultarExpediente(expediente.contractId);
+      // Con bypass admin, el estado local (Vigente) no se revierte al leer del SGC.
+      const preservar = expediente.bypassAprobado;
       await this.repo.actualizarExpediente(expediente.id, {
         stage: detalle.stage,
-        lifecycleStatus: detalle.lifecycleStatus,
+        lifecycleStatus: preservar ? expediente.lifecycleStatus : detalle.lifecycleStatus,
         version: detalle.version,
         lastSyncedAt: new Date(),
         lastError: null,
       });
-      return detalle;
+      return preservar ? { ...detalle, lifecycleStatus: expediente.lifecycleStatus } : detalle;
     } catch {
       // Lectura best-effort: si el SGC no responde, el panel muestra el estado local.
       return null;
@@ -196,7 +199,7 @@ export class SgcIntegracionApplicationService {
         const detalle = await this.client.consultarExpediente(expediente.contractId);
         await this.repo.actualizarExpediente(expediente.id, {
           stage: detalle.stage,
-          lifecycleStatus: detalle.lifecycleStatus,
+          lifecycleStatus: expediente.bypassAprobado ? expediente.lifecycleStatus : detalle.lifecycleStatus,
           version: detalle.version,
           lastSyncedAt: new Date(),
           lastError: null,

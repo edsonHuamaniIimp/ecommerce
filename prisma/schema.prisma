@@ -734,6 +734,8 @@ model SgcExpediente {
   subsanacionMotivo String? @map("subsanacion_motivo") @db.VarChar(500)
   lastSyncedAt     DateTime? @map("last_synced_at")
   lastError        String?   @map("last_error") @db.VarChar(500)
+  /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
+  bypassAprobado   Boolean   @default(false) @map("bypass_aprobado")
 
   solicitud        Solicitud     @relation(fields: [solicitudId], references: [id])
   documentos       SgcDocumento[]

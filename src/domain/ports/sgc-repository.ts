@@ -39,6 +39,8 @@ export interface ActualizarSgcExpedienteData {
   subsanacionMotivo?: string | null;
   lastSyncedAt?: Date | null;
   lastError?: string | null;
+  /** Marca/limpia el bypass admin (aprobado local sin respuesta del SGC). */
+  bypassAprobado?: boolean;
 }
 
 export interface CrearSgcDocumentoData {

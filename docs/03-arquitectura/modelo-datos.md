@@ -319,6 +319,7 @@ de Contratos (SGC). Ver `docs/05-integraciones/integracion-sgc.md`.
 | contractTypeCode | string(40) | No | Catálogo del SGC. |
 | lastSyncedAt | datetime | Sí | Última sincronización. |
 | lastError | string(500) | Sí | Último error (best-effort). |
+| bypassAprobado | boolean | No | Bypass admin: aprobado localmente; el sync-on-read no revierte el estado. |
 
 Índices: `estadoEnvio`, `stage`.
 

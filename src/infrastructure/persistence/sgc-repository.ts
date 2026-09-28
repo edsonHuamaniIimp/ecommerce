@@ -24,6 +24,7 @@ interface SgcExpedienteRow {
   subsanacionMotivo: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
+  bypassAprobado: boolean;
 }
 
 interface SgcDocumentoRow {
@@ -54,6 +55,7 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     subsanacionMotivo: row.subsanacionMotivo ?? null,
     lastSyncedAt: row.lastSyncedAt ?? null,
     lastError: row.lastError ?? null,
+    bypassAprobado: row.bypassAprobado ?? false,
   };
 }
 
