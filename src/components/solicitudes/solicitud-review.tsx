@@ -13,6 +13,7 @@ import {
   PERMISSIONS,
   TIPOS_DOCUMENTO_SOLICITUD,
   CATEGORIAS_DOCUMENTO,
+  SGC_LIFECYCLE_STATUSES,
   ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
@@ -229,6 +230,12 @@ export function SolicitudReview({
   });
   const requiereSgc = mostrarSgc;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
+  // El SGC devolvio (observed) o rechazo (rejected): ahi si se puede reemplazar el contrato.
+  const sgcSubsanable =
+    row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+    row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+  // Con el contrato ya enviado al SGC no se ofrece reemplazarlo hasta que lo devuelva/rechace.
+  const puedeReemplazarContrato = !row.sgcDocumentosEnviados || sgcSubsanable;
   const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
@@ -384,17 +391,19 @@ export function SolicitudReview({
             />
             {!sgcOk && (
               <>
-                <SgcDocumentoUpload
-                  solicitudId={row.id}
-                  tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
-                  titulo="Contrato (v1)"
-                  archivos={contratoSgc}
-                  ctaVacio="Adjuntar contrato (v1)"
-                  ctaConArchivos="Reemplazar contrato (v1)"
-                  vacioTexto="Aún no hay contrato: ni el firmado por el cliente ni el contrato (v1) del administrador."
-                  varios={false}
-                  onAttached={() => onSaved(row)}
-                />
+                {puedeReemplazarContrato && (
+                  <SgcDocumentoUpload
+                    solicitudId={row.id}
+                    tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
+                    titulo="Contrato (v1)"
+                    archivos={contratoSgc}
+                    ctaVacio="Adjuntar contrato (v1)"
+                    ctaConArchivos="Reemplazar contrato (v1)"
+                    vacioTexto="Aún no hay contrato: ni el firmado por el cliente ni el contrato (v1) del administrador."
+                    varios={false}
+                    onAttached={() => onSaved(row)}
+                  />
+                )}
                 <SgcDocumentoUpload
                   solicitudId={row.id}
                   tipo={TIPOS_DOCUMENTO_SOLICITUD.ANEXO}
