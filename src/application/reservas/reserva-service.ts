@@ -111,7 +111,11 @@ export class ReservaApplicationService {
             });
           } catch { /* ok */ }
         }
-      } catch { /* ok */ }
+      } catch (err) {
+        // No ocultar el fallo: si la solicitud/revisiones no se crean, el flujo de
+        // revision no arranca aunque el stand ya quedo en_evaluacion.
+        console.error("[reserva] Error al crear solicitud/revisiones iniciales:", err);
+      }
     }
 
     if (contactEmail) {

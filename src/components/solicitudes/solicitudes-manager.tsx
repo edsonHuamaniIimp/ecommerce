@@ -123,8 +123,20 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   useEffect(() => {
     (async () => {
       const session = await authService.getSession();
-      setUserPermissions(session.permissions ?? []);
-      setHasViewPerm((session.permissions ?? []).includes(PERMISSIONS.SOLICITUDES_GESTION));
+      const perms = session.permissions ?? [];
+      setUserPermissions(perms);
+      // Habilitar la revision si: gestiona la bandeja, es admin, o es revisor/notificador
+      // de un area (asi no depende de que el permiso nuevo este cargado en el rol de la BD).
+      const esRevisor =
+        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_COMUNICACION) ||
+        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL) ||
+        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_LOGISTICA);
+      setHasViewPerm(
+        perms.includes(PERMISSIONS.SOLICITUDES_GESTION) ||
+        perms.includes(PERMISSIONS.ADMIN_FULL) ||
+        esRevisor ||
+        perms.includes(PERMISSIONS.SOLICITUDES_NOTIFY),
+      );
     })();
   }, []);
 
