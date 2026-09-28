@@ -211,6 +211,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "admin:full",
     "dashboard:view",
     "eventos:datos",
+    "perfil:view",
     "stands:vinculacion",
     "stands:manage",
     "stands:plano",
@@ -220,9 +221,11 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "events:edit",
     "events:toggle",
     "read:reservas",
+    "mis-reservas:view",
     "write:reservas",
     "approve:all",
     "solicitudes:view",
+    "solicitudes:gestion",
     "solicitudes:review:comunicacion",
     "solicitudes:review:legal",
     "solicitudes:review:logistica",
@@ -231,11 +234,14 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "auspicios:view",
     "laboratorio:view",
     "laboratorio:manage",
+    "facturacion:view",
+    "pagos:view",
+    "pagos:manage",
   ],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:review:logistica"],
-  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:review:legal"],
-  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:review:comunicacion"],
-  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "read:reservas", "write:reservas"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:logistica"],
+  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
+  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "perfil:view", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion"],
+  [ROLES.CLIENTE]: ["eventos:datos", "perfil:view", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
 };
 
 export const ALL_PERMISSIONS = [
@@ -243,6 +249,7 @@ export const ALL_PERMISSIONS = [
   // Dashboard general
   { key: "dashboard:view", label: "Panel de Control", descripcion: "Acceder al panel de control principal", section: "dashboard" },
   { key: "eventos:datos", label: "Datos del Evento", descripcion: "Ver datos y precios de la version del evento", section: "dashboard" },
+  { key: "perfil:view", label: "Mi perfil", descripcion: "Ver y editar el perfil propio y la contrasena", section: "dashboard" },
   // Stands
   { key: "stands:vinculacion", label: "Vinculacion de Stands", descripcion: "Vincular stands de GESS como disponibles", section: "stands" },
   { key: "stands:manage", label: "Gestion de Stands", descripcion: "Administrar y editar stands del evento", section: "stands" },
@@ -254,15 +261,20 @@ export const ALL_PERMISSIONS = [
   { key: "laboratorio:manage", label: "Editar Laboratorio 3D", descripcion: "Crear, editar, importar y exportar mapas 3D", section: "laboratorio" },
   // Facturacion
   { key: "facturacion:view", label: "Ver facturacion", descripcion: "Gestionar facturacion y pagos de solicitudes", section: "facturacion" },
+  // Pagos del exhibidor (vista cliente)
+  { key: "pagos:view", label: "Ver mis pagos", descripcion: "Ver el plan de pagos (cuotas) de sus solicitudes", section: "facturacion" },
+  { key: "pagos:manage", label: "Configurar mis pagos", descripcion: "Agregar, editar y eliminar cuotas de sus solicitudes", section: "facturacion" },
   // Solicitudes de alquiler
-  { key: "solicitudes:view", label: "Ver solicitudes", descripcion: "Ver bandeja de solicitudes de alquiler", section: "solicitudes" },
+  { key: "solicitudes:view", label: "Ver solicitudes", descripcion: "Acceder a Mis solicitudes (propias) y a la API de solicitudes", section: "solicitudes" },
+  { key: "solicitudes:gestion", label: "Bandeja de Solicitudes", descripcion: "Ver la bandeja administrativa de solicitudes de alquiler", section: "solicitudes" },
   { key: "solicitudes:review:comunicacion", label: "Revisar Comunicacion", descripcion: "Aprobar/rechazar desde area de Comunicacion", section: "solicitudes" },
   { key: "solicitudes:review:legal", label: "Revisar Legal", descripcion: "Aprobar/rechazar desde area Legal", section: "solicitudes" },
   { key: "solicitudes:review:logistica", label: "Revisar Logistica", descripcion: "Aprobar/rechazar desde area de Logistica", section: "solicitudes" },
   { key: "solicitudes:notify", label: "Notificar solicitudes", descripcion: "Enviar notificacion al cliente cuando todas las areas revisaron", section: "solicitudes" },
   { key: "solicitudes:upload", label: "Subir documentos", descripcion: "Subir documentos a solicitudes de alquiler", section: "solicitudes" },
   // Reservas (legacy)
-  { key: "read:reservas", label: "Ver reservas", descripcion: "Consultar lista y detalle de reservas", section: "reservas" },
+  { key: "mis-reservas:view", label: "Mis reservas", descripcion: "Ver Mis reservas (solicitudes de reserva propias del exhibidor)", section: "reservas" },
+  { key: "read:reservas", label: "Reservas", descripcion: "Ver la bandeja de reservas de stands (/dashboard/reservas)", section: "reservas" },
   { key: "write:reservas", label: "Crear reservas", descripcion: "Registrar nuevas reservas de stands", section: "reservas" },
   { key: "approve:all", label: "Aprobar todo", descripcion: "Aprobar en cualquier area", section: "reservas" },
   { key: "approve:logistica", label: "Aprobar Logistica", descripcion: "Resolver aprobaciones del area de Logistica", section: "reservas" },
@@ -286,6 +298,7 @@ export const PERMISSIONS = {
   ADMIN_FULL: "admin:full",
   DASHBOARD_VIEW: "dashboard:view",
   EVENTOS_DATOS: "eventos:datos",
+  PERFIL_VIEW: "perfil:view",
   STANDS_VINCULACION: "stands:vinculacion",
   STANDS_MANAGE: "stands:manage",
   STANDS_PLANO: "stands:plano",
@@ -293,13 +306,17 @@ export const PERMISSIONS = {
   LABORATORIO_VIEW: "laboratorio:view",
   LABORATORIO_MANAGE: "laboratorio:manage",
   FACTURACION_VIEW: "facturacion:view",
+  PAGOS_VIEW: "pagos:view",
+  PAGOS_MANAGE: "pagos:manage",
   SOLICITUDES_VIEW: "solicitudes:view",
+  SOLICITUDES_GESTION: "solicitudes:gestion",
   SOLICITUDES_REVIEW_COMUNICACION: "solicitudes:review:comunicacion",
   SOLICITUDES_REVIEW_LEGAL: "solicitudes:review:legal",
   SOLICITUDES_REVIEW_LOGISTICA: "solicitudes:review:logistica",
   SOLICITUDES_NOTIFY: "solicitudes:notify",
   SOLICITUDES_UPLOAD: "solicitudes:upload",
   READ_RESERVAS: "read:reservas",
+  MIS_RESERVAS_VIEW: "mis-reservas:view",
   WRITE_RESERVAS: "write:reservas",
   APPROVE_ALL: "approve:all",
   APPROVE_LOGISTICA: "approve:logistica",
@@ -318,6 +335,7 @@ export const PERMISSION_SECTIONS = {
   STANDS: "stands",
   AUSPICIOS: "auspicios",
   LABORATORIO: "laboratorio",
+  FACTURACION: "facturacion",
   SOLICITUDES: "solicitudes",
   RESERVAS: "reservas",
   EVENTOS: "eventos",
@@ -330,6 +348,7 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
   [PERMISSION_SECTIONS.STANDS]: "Gestion de Stands",
   [PERMISSION_SECTIONS.AUSPICIOS]: "Auspicios",
   [PERMISSION_SECTIONS.LABORATORIO]: "Laboratorio 3D",
+  [PERMISSION_SECTIONS.FACTURACION]: "Facturacion",
   [PERMISSION_SECTIONS.SOLICITUDES]: "Solicitudes de alquiler",
   [PERMISSION_SECTIONS.RESERVAS]: "Reservas",
   [PERMISSION_SECTIONS.EVENTOS]: "Eventos",
@@ -392,6 +411,13 @@ export const TIPOS_FACTURACION = {
   MANUAL: "manual",
 } as const;
 export type TipoFacturacion = (typeof TIPOS_FACTURACION)[keyof typeof TIPOS_FACTURACION];
+
+/**
+ * Interruptor global de la pasarela Niubiz.
+ * `false` = deshabilitada: la UI oculta los botones de pago y los endpoints
+ * `/api/facturacion/niubizz/*` responden 503. El codigo se conserva para reactivar.
+ */
+export const NIUBIZ_HABILITADO = false;
 
 export const ESTADOS_FACTURACION = {
   PENDIENTE: "pendiente",
@@ -568,6 +594,14 @@ export const LS_KEYS = {
   MODAL_INFO_VISTO: "iimp-modal-info-visto",
 } as const;
 
+/** Modos de visualizacion de una bandeja (cuadricula o lista). */
+export const VISTAS_BANDEJA = {
+  GRID: "grid",
+  ROW: "row",
+} as const;
+
+export type VistaBandeja = (typeof VISTAS_BANDEJA)[keyof typeof VISTAS_BANDEJA];
+
 /* ================================================================
    Steps del modal de reserva
    ================================================================ */
@@ -608,6 +642,7 @@ export const API_ERROR_CODES = {
   CONFLICT: "CONFLICT",
   INTERNAL: "INTERNAL",
   BAD_GATEWAY: "BAD_GATEWAY",
+  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
 } as const;
 
 /* ================================================================

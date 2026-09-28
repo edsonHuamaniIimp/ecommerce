@@ -8,7 +8,7 @@ import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { BADGE_STYLES, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
 
 interface CuotaItem {
   id: string;
@@ -414,7 +414,7 @@ export default function FacturacionPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={TIPOS_FACTURACION.MANUAL}>Manual</SelectItem>
-                    <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ}>Niubizz</SelectItem>
+                    <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
                   </SelectContent>
                 </Select>
               </div>

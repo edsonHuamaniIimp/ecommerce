@@ -124,7 +124,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     (async () => {
       const session = await authService.getSession();
       setUserPermissions(session.permissions ?? []);
-      setHasViewPerm((session.permissions ?? []).includes(PERMISSIONS.SOLICITUDES_VIEW));
+      setHasViewPerm((session.permissions ?? []).includes(PERMISSIONS.SOLICITUDES_GESTION));
     })();
   }, []);
 

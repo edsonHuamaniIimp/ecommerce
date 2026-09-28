@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { NiubizzApplicationService } from "@/application/facturacion/niubizz-service";
@@ -9,6 +9,7 @@ const niubizzService = new NiubizzApplicationService(facturacionRepo);
 
 export const niubizzController = {
   async crearSesion(request: Request): Promise<NextResponse> {
+    if (!NIUBIZ_HABILITADO) return error(API_ERROR_CODES.SERVICE_UNAVAILABLE, "La pasarela Niubiz esta deshabilitada.", 503);
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
@@ -30,6 +31,7 @@ export const niubizzController = {
   },
 
   async confirmarPago(request: Request): Promise<NextResponse> {
+    if (!NIUBIZ_HABILITADO) return error(API_ERROR_CODES.SERVICE_UNAVAILABLE, "La pasarela Niubiz esta deshabilitada.", 503);
     const { facturacionId, transactionToken } = (await request.json()) as { facturacionId: string; transactionToken: string };
     if (!facturacionId || !transactionToken) return error(API_ERROR_CODES.VALIDATION, "facturacionId y transactionToken requeridos", 400);
 

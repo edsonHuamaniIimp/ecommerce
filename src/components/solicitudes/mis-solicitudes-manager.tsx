@@ -13,10 +13,11 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
+import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
@@ -29,7 +30,7 @@ function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTAD
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function estaDadaDeBaja(row: SolicitudRow) { return row.flgActivo === false; }
 function puedePagarNiubizz(row: SolicitudRow) {
-  return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO && row.tipoFacturacion === "niubizz";
+  return NIUBIZ_HABILITADO && row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO && row.tipoFacturacion === "niubizz";
 }
 function puedeSolicitarReevaluacion(row: SolicitudRow) {
   if (estaDadaDeBaja(row) || !estaRechazada(row) || tieneReevaluacionPendiente(row)) return false;
@@ -180,7 +181,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
   const [clienteUploadModo, setClienteUploadModo] = useState<"contrato" | "anexos">("anexos");
-  const [view, setView] = useState<"cards" | "rows">("cards");
+  // Vista cuadricula/lista persistida por bandeja (util compartido).
+  const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
 
   const pageRef = useRef(page);
   const perPageRef = useRef(perPage);
@@ -261,15 +263,15 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               <ToggleGroup
                 type="single"
                 value={view}
-                onValueChange={(v) => { if (v === "cards" || v === "rows") setView(v); }}
+                onValueChange={(v) => { if (v === VISTAS_BANDEJA.GRID || v === VISTAS_BANDEJA.ROW) setView(v); }}
                 variant="outline"
                 size="sm"
                 className="h-8"
               >
-                <ToggleGroupItem value="cards" className="h-8 px-2" title="Vista de tarjetas" aria-label="Vista de tarjetas">
+                <ToggleGroupItem value={VISTAS_BANDEJA.GRID} className="h-8 px-2" title="Vista de tarjetas" aria-label="Vista de tarjetas">
                   <LayoutGrid className="h-3.5 w-3.5" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="rows" className="h-8 px-2" title="Vista de filas" aria-label="Vista de filas">
+                <ToggleGroupItem value={VISTAS_BANDEJA.ROW} className="h-8 px-2" title="Vista de filas" aria-label="Vista de filas">
                   <List className="h-3.5 w-3.5" />
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -309,7 +311,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
             </div>
           ) : (
             <>
-              {view === "cards" ? (
+              {view === VISTAS_BANDEJA.GRID ? (
               <div className="space-y-3">
                 {rows.map((row) => (
                   <article key={row.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/40">

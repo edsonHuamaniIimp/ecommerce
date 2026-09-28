@@ -5,12 +5,18 @@ import type { IFacturacionRepository, FacturacionRow, FacturacionListResult } fr
 function mockRepo(): IFacturacionRepository {
   return {
     listar: vi.fn(),
+    listarPorCliente: vi.fn(),
     detalle: vi.fn(),
     agregarCuota: vi.fn(),
+    actualizarCuota: vi.fn(),
+    adjuntarVoucher: vi.fn(),
     pagarCuota: vi.fn(),
     actualizar: vi.fn(),
     eliminar: vi.fn(),
     eliminarCuota: vi.fn(),
+    esPropietario: vi.fn(),
+    esPropietarioDeCuota: vi.fn(),
+    facturacionDeCuota: vi.fn(),
   };
 }
 
@@ -18,9 +24,9 @@ const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
   montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", standCode: "44", correoSolicitante: "test@test.com", createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
-    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado" },
-    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente" },
-    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente" },
+    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null },
+    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null },
+    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null },
   ],
 };
 

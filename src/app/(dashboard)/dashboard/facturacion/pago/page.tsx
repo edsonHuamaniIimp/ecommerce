@@ -6,6 +6,7 @@ import { Card, CardContent } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2 } from "lucide-react";
 import Script from "next/script";
 import { facturacionService } from "@/lib/client/api/services/facturacion-service";
+import { NIUBIZ_HABILITADO } from "@/lib/shared/constants";
 
 interface NiubizData {
   sessionToken: string;
@@ -49,6 +50,21 @@ function PagarNiubizzPageContent() {
       }
     })();
   }, [facturacionId]);
+
+  if (!NIUBIZ_HABILITADO) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className="text-sm font-semibold text-foreground">Pago con pasarela no disponible</p>
+            <p className="text-xs text-muted-foreground">
+              El pago en linea (Niubiz) esta deshabilitado. Contacta a la administracion del IIMP para coordinar tu pago.
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   if (loading) {
     return (

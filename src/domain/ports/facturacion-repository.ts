@@ -9,7 +9,7 @@ export interface FacturacionRow {
   standCode: string;
   correoSolicitante: string | null;
   createdAt: string;
-  cuotas: Array<{ id: string; numero: number; monto: number; fechaVencimiento: string | null; estado: string }>;
+  cuotas: Array<{ id: string; numero: number; monto: number; fechaVencimiento: string | null; estado: string; comprobante: string | null }>;
 }
 
 export interface FacturacionListParams {
@@ -23,12 +23,42 @@ export interface FacturacionListResult {
   total: number;
 }
 
+/** Identidad del exhibidor (sesion) para validar propiedad de una facturacion. */
+export interface ClienteIdent {
+  userId?: string | null;
+  email?: string | null;
+}
+
+/** Paginado de facturaciones del propio cliente (opcionalmente del evento activo). */
+export interface FacturacionClienteParams extends ClienteIdent {
+  page: number;
+  perPage: number;
+  eventoId?: string;
+}
+
+/** Datos editables de una cuota por el cliente/admin. */
+export interface CuotaUpdate {
+  monto?: number;
+  fechaVencimiento?: string | null;
+}
+
 export interface IFacturacionRepository {
   listar(params: FacturacionListParams): Promise<FacturacionListResult>;
+  /** Facturaciones cuya solicitud pertenece al cliente (userId o email). */
+  listarPorCliente(params: FacturacionClienteParams): Promise<FacturacionListResult>;
   detalle(id: string): Promise<FacturacionRow | null>;
   agregarCuota(facturacionId: string, monto: number, fechaVencimiento: string | null, createdBy: string): Promise<void>;
+  actualizarCuota(cuotaId: string, data: CuotaUpdate, createdBy: string): Promise<void>;
+  /** Adjunta/reemplaza el voucher (comprobante) de una cuota sin cambiar su estado. */
+  adjuntarVoucher(cuotaId: string, comprobante: string, createdBy: string): Promise<void>;
   pagarCuota(cuotaId: string, createdBy: string, comprobante: string | null): Promise<void>;
   actualizar(id: string, data: { tipo?: string }, createdBy: string): Promise<void>;
   eliminar(id: string, createdBy: string): Promise<void>;
   eliminarCuota(cuotaId: string, createdBy: string): Promise<void>;
+  /** true si la facturacion pertenece al cliente indicado. */
+  esPropietario(facturacionId: string, ident: ClienteIdent): Promise<boolean>;
+  /** true si la cuota pertenece a una facturacion del cliente indicado. */
+  esPropietarioDeCuota(cuotaId: string, ident: ClienteIdent): Promise<boolean>;
+  /** Facturacion (con cuotas) a la que pertenece una cuota. */
+  facturacionDeCuota(cuotaId: string): Promise<FacturacionRow | null>;
 }
