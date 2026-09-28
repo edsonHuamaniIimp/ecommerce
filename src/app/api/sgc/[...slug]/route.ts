@@ -14,6 +14,7 @@ export const { GET, POST } = createRouter({
     "subir-anexos": (req) => sgcController.subirAnexos(req),
     "subir-contrato": (req) => sgcController.subirContrato(req),
     "subsanacion-motivo": (req) => sgcController.declararMotivo(req),
+    "aprobar-bypass": (req) => sgcController.aprobarBypass(req),
     reenviar: (req) => sgcController.reenviar(req),
   },
 });

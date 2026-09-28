@@ -19,6 +19,7 @@ import {
   SGC_IDEMPOTENCY_RESEND_PREFIX,
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_SUBSANACION_MOTIVO,
+  SGC_LIFECYCLE_STATUSES,
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
@@ -52,6 +53,22 @@ export class SgcIntegracionApplicationService {
   /** True si la integracion SGC esta activada en el servidor (`SGC_ENABLED=1`). */
   estaHabilitado(): boolean {
     return this.config.enabled;
+  }
+
+  /**
+   * BYPASS SOLO ADMIN: marca el expediente como aprobado (contrato Vigente) sin
+   * esperar la aprobacion real del SGC, para habilitar la orden de pago.
+   * Deja rastro en el log del servidor (no altera el historial del SGC).
+   */
+  async aprobarBypass(solicitudId: string, autor: string): Promise<boolean> {
+    const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    if (!expediente) return false;
+    await this.repo.actualizarExpediente(expediente.id, {
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+      lastSyncedAt: new Date(),
+    });
+    console.warn("[sgc] Bypass admin: expediente aprobado (Vigente)", { solicitudId, autor });
+    return true;
   }
 
   /** Correlacion local del expediente (para exponer errores de envio en la UI). */

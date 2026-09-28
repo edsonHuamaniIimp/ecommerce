@@ -17,6 +17,9 @@ import {
 } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import { sgcService } from "@/lib/client/api/services/sgc-service";
+import { toast } from "sonner";
+import { useConfirm } from "@/hooks/use-confirm";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
@@ -72,6 +75,8 @@ export function SolicitudReview({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
   const [editing, setEditing] = useState(false);
+  const [aprobandoBypass, setAprobandoBypass] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const areas = areasRevisionLocal(row.revisiones);
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
@@ -88,20 +93,54 @@ export function SolicitudReview({
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
 
-  /* Anexos de la solicitud: documentos del cliente (tabla) + JSON legacy, deduplicados. */
-  const anexosMap = new Map<string, { nombre: string; url: string }>();
-  for (const url of (row.documentos as string[]) ?? []) {
-    anexosMap.set(url, { url, nombre: stringUtils.nombreArchivo(url) });
-  }
-  for (const d of row.docsAdjuntos.filter((x) => x.userId !== null)) {
-    anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
-  }
-  const anexosSolicitud = [...anexosMap.values()];
+  /** BYPASS SOLO ADMIN: aprueba Legal (SGC) sin esperar al SGC real. */
+  const aprobarLegalBypass = async () => {
+    const ok = await confirm({
+      title: "Aprobar Legal (SGC) — bypass admin",
+      description:
+        "Marca el expediente como aprobado (Vigente) sin esperar la aprobacion real del SGC, para habilitar la orden de pago. ¿Continuar?",
+      confirmLabel: "Aprobar",
+      destructive: true,
+    });
+    if (!ok) return;
+    setAprobandoBypass(true);
+    try {
+      await sgcService.aprobarBypass(row.id);
+      toast.success("Legal (SGC) aprobado (bypass admin)");
+      onSaved(row);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al aprobar el SGC");
+    } finally {
+      setAprobandoBypass(false);
+    }
+  };
 
-  /* Contrato v1: documentos del administrador (userId null). */
+  /* Documentos legacy del stand (columna JSON `documentos`, normalizados). */
+  const documentosLegacy = ((row.documentos as string[]) ?? []).map((url) => ({ url, nombre: stringUtils.nombreArchivo(url) }));
+
+  /* Contrato para el SGC, por prioridad (igual que `sgc-integracion-service.seleccionarContrato`):
+     1) firmado por el cliente (`contrato_firmado`), 2) v1 del administrador (`userId` null),
+     3) documento legacy (reserva de 1 stand, que sube el contrato al reservar). */
+  const contratoFirmadoCliente = row.docsAdjuntos
+    .filter((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+    .map((d) => ({ nombre: d.nombre, url: d.url }));
   const contratosSolicitud = row.docsAdjuntos
     .filter((d) => d.userId === null)
     .map((d) => ({ nombre: d.nombre, url: d.url }));
+  const contratoSgc = [...contratoFirmadoCliente, ...contratosSolicitud];
+  if (contratoSgc.length === 0 && documentosLegacy[0]) contratoSgc.push(documentosLegacy[0]);
+  const tieneContrato = contratoSgc.length > 0;
+  const contratoUrl = contratoSgc[0]?.url;
+
+  /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
+     excluyendo el que ya se usa como contrato. */
+  const anexosMap = new Map<string, { nombre: string; url: string }>();
+  for (const d of documentosLegacy) anexosMap.set(d.url, d);
+  for (const d of row.docsAdjuntos.filter((x) => x.userId !== null && x.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)) {
+    anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
+  }
+  if (contratoUrl) anexosMap.delete(contratoUrl);
+  const anexosSolicitud = [...anexosMap.values()];
 
   const goToStep = (step: number) => {
     setEditing(false);
@@ -238,7 +277,7 @@ export function SolicitudReview({
 
         {/* Client documents */}
         {(() => {
-          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string }> = [];
+          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string; categoria?: string }> = [];
 
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
@@ -249,7 +288,7 @@ export function SolicitudReview({
           // Multi-stand: client's docsAdjuntos
           const clienteDocs = (row.docsAdjuntos ?? []).filter(d => d.userId === row.userId);
           for (const d of clienteDocs) {
-            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto" });
+            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined });
           }
 
           // Re-evaluacion documents
@@ -273,18 +312,31 @@ export function SolicitudReview({
                 <span className="text-[11px] text-muted-foreground">{unique.length} archivo(s)</span>
               </div>
               <div className="space-y-1">
-                {unique.map((doc, i) => (
-                  <a
-                    key={i}
-                    href={doc.url}
-                    target="_blank"
-                    className="group flex items-center gap-2 rounded-lg border border-border bg-secondary px-2.5 py-2 text-xs transition-colors hover:border-success/30 hover:bg-success/10"
-                  >
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
-                    <span className="flex-1 truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
-                  </a>
-                ))}
+                {unique.map((doc, i) => {
+                  const esContrato = doc.url === contratoUrl || doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+                  const etiqueta = esContrato
+                    ? "Contrato"
+                    : doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO
+                      ? "Anexo"
+                      : doc.origen === "reevaluacion"
+                        ? "Re-evaluacion"
+                        : "Documento";
+                  return (
+                    <a
+                      key={i}
+                      href={doc.url}
+                      target="_blank"
+                      className="group flex items-center gap-2 rounded-lg border border-border bg-secondary px-2.5 py-2 text-xs transition-colors hover:border-success/30 hover:bg-success/10"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
+                      <span className="flex-1 truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</span>
+                      <Badge className={`pointer-events-none shrink-0 text-[9px] ${esContrato ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
+                        <span>{etiqueta}</span>
+                      </Badge>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
+                    </a>
+                  );
+                })}
               </div>
             </div>
           );
@@ -306,7 +358,7 @@ export function SolicitudReview({
             <SgcExpedientePanel
               key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}-${row.sgcSubsanacionMotivo ?? "none"}`}
               solicitudId={row.id}
-              tieneContratoAdmin={contratosSolicitud.length > 0}
+              tieneContratoAdmin={tieneContrato}
               tieneAnexos={anexosSolicitud.length > 0}
               tieneContratoFirmado={row.docsAdjuntos.some(
                 (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
@@ -327,10 +379,10 @@ export function SolicitudReview({
                   solicitudId={row.id}
                   tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
                   titulo="Contrato (v1)"
-                  archivos={contratosSolicitud}
+                  archivos={contratoSgc}
                   ctaVacio="Adjuntar contrato (v1)"
                   ctaConArchivos="Reemplazar contrato (v1)"
-                  vacioTexto="Aún no adjuntaste el contrato (v1) (documento del administrador)."
+                  vacioTexto="Aún no hay contrato: ni el firmado por el cliente ni el contrato (v1) del administrador."
                   varios={false}
                   onAttached={() => onSaved(row)}
                 />
@@ -351,6 +403,19 @@ export function SolicitudReview({
               <p className="mt-2 text-[11px] text-warning">
                 Pendiente de aprobacion del SGC. La orden de pago se habilita cuando el contrato pase a Vigencia.
               </p>
+            )}
+            {isAdmin && !sgcOk && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
+                disabled={aprobandoBypass}
+                onClick={() => { void aprobarLegalBypass(); }}
+                title="Solo administrador: aprueba Legal (SGC) para habilitar la orden de pago"
+              >
+                <span>{aprobandoBypass ? "Aprobando..." : "Bypass admin: aprobar Legal (SGC)"}</span>
+              </Button>
             )}
           </div>
         )}
@@ -604,6 +669,8 @@ export function SolicitudReview({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   );
 }

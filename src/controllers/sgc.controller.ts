@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 
@@ -125,6 +125,20 @@ export const sgcController = {
       return error(API_ERROR_CODES.INTERNAL, `No se pudo registrar el expediente en el SGC${causa}`, 500);
     }
     return success(expediente);
+  },
+
+  /** Bypass SOLO ADMIN: aprueba la revision Legal (SGC) para habilitar la orden de pago. */
+  async aprobarBypass(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    if (!session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Solo el administrador puede usar este bypass", 403);
+    }
+    const body = (await request.json()) as { solicitudId?: string };
+    if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+    const ok = await services.sgc.aprobarBypass(body.solicitudId, session.email);
+    if (!ok) return error(API_ERROR_CODES.NOT_FOUND, "La solicitud no tiene expediente SGC", 404);
+    return success({ ok: true });
   },
 
   async subirContrato(request: Request): Promise<NextResponse> {

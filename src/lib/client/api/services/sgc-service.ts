@@ -42,4 +42,9 @@ export const sgcService = {
   reenviar(solicitudId: string) {
     return internalApi.post<Record<string, unknown>>("/api/sgc/reenviar", { solicitudId });
   },
+
+  /** BYPASS SOLO ADMIN: aprueba la revision Legal (SGC) sin esperar al SGC real. */
+  aprobarBypass(solicitudId: string) {
+    return internalApi.post<{ ok: boolean }>("/api/sgc/aprobar-bypass", { solicitudId });
+  },
 };
