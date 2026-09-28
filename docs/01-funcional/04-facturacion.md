@@ -43,6 +43,8 @@ Persistencia local en PostgreSQL vía Prisma.
 - Acciones por fila: ver detalle, archivar (solo `pagado`), configurar/eliminar (si no `archivado`), pagar (si `pendiente`).
 - `POST /api/facturacion/agregar-cuota` `{facturacionId, monto, fechaVencimiento?}`.
 - `POST /api/facturacion/pagar-cuota` `{cuotaId, comprobante?}` → si no quedan cuotas pendientes, marca facturación `pagado` y la **solicitud** `pagado`.
+  - En la vista admin, cada cuota muestra el **voucher adjuntado por el cliente** (enlace) y el botón **"Confirmar"** que
+    registra el pago reutilizando ese voucher (sin volver a subirlo); si no hay voucher, ofrece subir un comprobante propio.
 - `POST /api/facturacion/eliminar-cuota` (borrado duro) · `PATCH /api/facturacion/actualizar` · `DELETE /api/facturacion/eliminar` (baja lógica).
 
 ### 5.2 Origen de los registros

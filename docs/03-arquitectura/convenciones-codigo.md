@@ -105,6 +105,7 @@ src/
 - **Dark mode** nativo vía clase `.dark` (next-themes).
 - **Responsive en bandejas**: columnas ocultas progresivamente (`hidden sm:table-cell`), `overflow-x-auto`, paginación compacta en mobile, `min-w-0` en contenedores `flex-1`.
 - **Anti-flash de vertical**: script `public/vertical-init.js` cargado en `layout.tsx` (hoistado al `<head>`).
+- **Componentes transversales**: usar los compartidos (`src/components/shared/`, `src/hooks/`, `src/lib/shared/utils/`) — **prohibido** `window.confirm/alert/prompt`; confirmaciones con `useConfirm()`/`ConfirmDialog`; modales con el `Dialog` del UI Kit; paginación con `Pagination`; skeletons con `TableSkeleton`. Regla: `.opencode/reglas/componentes-transversales`.
 - **Vista de bandeja (cuadrícula/lista)**: usar el util reutilizable `vistaUtils` (`src/lib/shared/utils/vista.ts`) vía el hook `useVistaBandeja("<clave>")`; persiste por bandeja en `localStorage` (`iimp-vista-bandeja:<clave>`). Constantes `VISTAS_BANDEJA` (`grid`/`row`). Bandejas que ya lo usan: `mis-pagos`, `mis-solicitudes`.
 
 ---
