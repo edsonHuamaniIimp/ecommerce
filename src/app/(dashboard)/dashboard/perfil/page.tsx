@@ -10,7 +10,7 @@ import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { MAESTRA_TABLAS, ROLES } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 function PerfilPageContent() {
@@ -32,7 +32,6 @@ function PerfilPageContent() {
   // Empresa
   const [idEmpresa, setIdEmpresa] = useState<string | null>(null);
   const [nombreEmpresa, setNombreEmpresa] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [searchEmpresa, setSearchEmpresa] = useState("");
   const [empresasResults, setEmpresasResults] = useState<Array<{ id_empresa: string; empresa: string; documento: string }>>([]);
   const [searching, setSearching] = useState(false);
@@ -41,7 +40,7 @@ function PerfilPageContent() {
     (async () => {
       const session = await authService.getSession();
       setEmail(session.email ?? "");
-      setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
+
       const [perfilData] = await Promise.all([
         perfilService.get().catch(() => ({} as PerfilDTO)),
         maestraService.listar(MAESTRA_TABLAS.USUARIO_TIPO).then(setTiposUsuario).catch(() => {}),
@@ -176,19 +175,21 @@ function PerfilPageContent() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {nombreEmpresa ? (
+              {nombreEmpresa && (
                 <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-emerald-800">{nombreEmpresa}</p>
                     {idEmpresa && <p className="text-[11px] text-emerald-600">{idEmpresa}</p>}
                   </div>
-                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 h-8 w-8 p-0" onClick={clearEmpresa}>
+                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 h-8 w-8 p-0" onClick={clearEmpresa} title="Desvincular empresa">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-              ) : isAdmin ? (
-                <>
-                  <p className="text-xs text-slate-500">Vincula al usuario a una empresa registrada en el IIMP.</p>
+              )}
+              <>
+                  <p className="text-xs text-slate-500">
+                    {nombreEmpresa ? "Cambia tu empresa: busca por nombre o RUC." : "Vincula tu empresa registrada en el IIMP (búscala por nombre o RUC)."}
+                  </p>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Buscar por nombre o RUC"
@@ -219,9 +220,6 @@ function PerfilPageContent() {
                     </div>
                   )}
                 </>
-              ) : (
-                <p className="text-xs text-slate-500">Solo el administrador puede asignar tu empresa. Contacta a soporte.</p>
-              )}
             </CardContent>
           </Card>
         </div>
