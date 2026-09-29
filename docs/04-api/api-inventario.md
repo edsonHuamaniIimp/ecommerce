@@ -163,8 +163,10 @@
 | Ruta | Métodos | Descripción |
 |---|---|---|
 | `/api/stands/contrato` | GET | Lista contratos de stands por `tipoEvento`/`codigoEvento` (API key M2M) |
-| `/api/stands/exhibidora` | GET | Lista stands de una exhibidora por `empresaId` (API key M2M) |
+| `/api/stands/exhibidora` | GET | Stands de una exhibidora. Requiere `empresaId`, `tipoEvento` y `codigoEvento` (400 si faltan). Devuelve `estado` comercial, `estado_solicitud`, `pabellon` (sección del macro), `zona`, `x`, `y`, `mapa`. (API key M2M) |
 | `/api/exhibidoras` | GET | Lista exhibidoras con búsqueda `q` (API key M2M) |
+
+> Detalle del contrato de integración con el Sistema de Montaje: `docs/05-integraciones/api-sistema-montaje.md`.
 
 ### 3.14 Facturación — `src/app/api/facturacion/[...slug]/route.ts` + `niubizz/*`
 
