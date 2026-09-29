@@ -2,7 +2,14 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import type { IStandsIntegracionRepository } from "@/domain/ports/stands-integracion-repository";
-import type { StandExhibidoraDTO, ContratoStandDTO } from "@/types/dto/stands/stands-integracion.dto";
+import type {
+  StandExhibidoraDTO,
+  ContratoStandDTO,
+  EmpresaMontajistaDTO,
+  AsignarMontajistaInput,
+  AsignacionMontajistaDTO,
+} from "@/types/dto/stands/stands-integracion.dto";
+import { entidadesClient } from "@/infrastructure/external/entidades-client";
 import { mapearEstadoContrato } from "@/lib/shared/utils/estado-contrato";
 import { estadoComercialStand } from "@/lib/shared/utils/estado-stand";
 import { ESTADOS_SOLICITUD } from "@/lib/shared/constants";
@@ -79,7 +86,7 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
 
     const gessStands = await prisma.gessStand.findMany({
       where: eventoId ? { eventoId } : undefined,
-      select: { id: true, standApiId: true, standCode: true, tipoStand: true, estado: true, pabellon: true, empresa: true, bloqueId: true, eventoId: true, rawData: true },
+      select: { id: true, standApiId: true, standCode: true, tipoStand: true, estado: true, pabellon: true, empresa: true, bloqueId: true, eventoId: true, rawData: true, montajistaId: true, montajistaNombre: true },
     });
 
     const eventoIds = [...new Set(gessStands.map((g) => g.eventoId).filter(Boolean) as string[])];
@@ -134,12 +141,119 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
           zona: null,
           ...parsearCoordenadas(g.pabellon),
           empresa: g.empresa ?? null,
+          empresa_montajista_id: g.montajistaId ?? null,
+          empresa_montajista_nombre: g.montajistaNombre ?? null,
           evento_id: g.eventoId,
           tipo_evento: ev?.tipoEvento ?? 0,
           codigo_evento: ev?.codigoEvento ?? 0,
           mapa: plano?.codigo ?? null,
         };
       });
+  }
+
+  async asignarMontajista(input: AsignarMontajistaInput, createdBy: string): Promise<AsignacionMontajistaDTO | null> {
+    const eventoId = await this.resolverEventoId(input.tipo_evento, input.codigo_evento);
+    if (!eventoId) return null;
+    const stand = await prisma.gessStand.findUnique({
+      where: { eventoId_standApiId: { eventoId, standApiId: input.stand_api_id } },
+      select: { id: true, standApiId: true, montajistaId: true, montajistaNombre: true },
+    });
+    if (!stand) return null;
+
+    const nuevoId = input.empresa_montajista?.sie_code?.trim() || null;
+    const nuevoNombre = input.empresa_montajista?.razon_social?.trim() || null;
+    const anteriorId = stand.montajistaId ?? null;
+
+    // Idempotente: mismo valor -> no cambia ni audita.
+    if (anteriorId === nuevoId && (stand.montajistaNombre ?? null) === nuevoNombre) {
+      return {
+        stand_api_id: stand.standApiId,
+        empresa_montajista_id: anteriorId,
+        empresa_montajista_nombre: stand.montajistaNombre ?? null,
+        actualizado_en: null,
+      };
+    }
+
+    const accion = !nuevoId ? "desasignar" : anteriorId ? "reemplazar" : "asignar";
+    const ahora = new Date();
+
+    await prisma.$transaction([
+      prisma.gessStand.update({
+        where: { id: stand.id },
+        data: {
+          montajistaId: nuevoId,
+          montajistaNombre: nuevoNombre,
+          montajistaAsignadaEn: ahora,
+          montajistaAsignadaPor: createdBy,
+        },
+      }),
+      prisma.standMontajistaHistorial.create({
+        data: { gessStandId: stand.id, montajistaId: nuevoId, montajistaNombre: nuevoNombre, accion, createdBy },
+      }),
+    ]);
+
+    return {
+      stand_api_id: stand.standApiId,
+      empresa_montajista_id: nuevoId,
+      empresa_montajista_nombre: nuevoNombre,
+      actualizado_en: ahora.toISOString(),
+    };
+  }
+
+  async listarEmpresasMontajistas(search?: string): Promise<EmpresaMontajistaDTO[]> {
+    const mapa = new Map<string, EmpresaMontajistaDTO>();
+
+    // 1) Montajistas ya asignadas en algun stand (resiliente: si falla, seguimos con el SIE).
+    try {
+      const asignadas = await prisma.gessStand.findMany({
+        where: { montajistaId: { not: null } },
+        select: { montajistaId: true, montajistaNombre: true },
+        distinct: ["montajistaId"],
+      });
+      for (const a of asignadas) {
+        const id = a.montajistaId?.trim();
+        if (id) mapa.set(id, { sie_code: id, razon_social: a.montajistaNombre?.trim() ?? "" });
+      }
+    } catch { /* ignore */ }
+
+    // 2) Busqueda en SIE (por RUC o razon social).
+    const q = (search ?? "").trim();
+    if (q) {
+      try {
+        const esRuc = /^\d{11}$/.test(q);
+        const data = (await entidadesClient.searchEmpresa(esRuc ? { nroDocument: q } : { razonSocial: q })) as unknown as Record<string, unknown>;
+        // El SIE responde con `ListEmpresa` (compat: listEmpresa / ListInfoEmpresa).
+        const items = (data.ListEmpresa ?? data.listEmpresa ?? data.ListInfoEmpresa ?? []) as Array<Record<string, unknown>>;
+        for (const e of items) {
+          const id = String(e.ecicod ?? e.id_empresa ?? e.sie_code ?? "").trim();
+          if (!id) continue;
+          mapa.set(id, { sie_code: id, razon_social: String(e.razonSocial ?? e.empresa ?? "").trim() });
+        }
+      } catch { /* best-effort: si el SIE no responde, se devuelven las ya asignadas */ }
+    }
+
+    return [...mapa.values()].sort((a, b) => a.razon_social.localeCompare(b.razon_social));
+  }
+
+  async esReservaPagadaDelCliente(
+    input: AsignarMontajistaInput,
+    ident: { userId?: string | null; email?: string | null },
+  ): Promise<boolean> {
+    const eventoId = await this.resolverEventoId(input.tipo_evento, input.codigo_evento);
+    if (!eventoId) return false;
+    const stand = await prisma.gessStand.findUnique({
+      where: { eventoId_standApiId: { eventoId, standApiId: input.stand_api_id } },
+      select: {
+        solicitudes: {
+          where: { flgActivo: true, estado: ESTADOS_SOLICITUD.PAGADO },
+          select: { userId: true, email: true },
+        },
+      },
+    });
+    if (!stand) return false;
+    return stand.solicitudes.some(
+      (s) => (ident.userId != null && s.userId === ident.userId) || (ident.email != null && s.email === ident.email),
+    );
   }
 
   async listarContratos(tipoEvento?: number, codigoEvento?: number): Promise<ContratoStandDTO[]> {

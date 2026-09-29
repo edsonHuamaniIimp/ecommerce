@@ -91,12 +91,18 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   let imagenes: unknown = [];
   let documentos: unknown = [];
   let documentosCategorias: Record<string, string> = {};
+  let standApiId: string | null = null;
+  let empresaMontajistaId: string | null = null;
+  let empresaMontajistaNombre: string | null = null;
 
   if (gessStandId) {
     const stand = row.gessStand;
     if (stand) {
       standCode = stand.standCode;
       standCodes = [standCode];
+      standApiId = stand.standApiId;
+      empresaMontajistaId = stand.montajistaId;
+      empresaMontajistaNombre = stand.montajistaNombre;
       tipoStand = stand.tipoStand;
       medidas = stand.medidas;
       empresa = stand.empresa;
@@ -126,6 +132,9 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       ubicacion = first.ubicacion;
       imagenes = first.imagenes ?? [];
       documentosCategorias = normalizarCategorias(first.documentosCategorias);
+      standApiId = first.standApiId;
+      empresaMontajistaId = first.montajistaId;
+      empresaMontajistaNombre = first.montajistaNombre;
     }
     documentos = row.documentos ?? [];
   }
@@ -160,10 +169,13 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     empresa,
     email: row.email,
     userId: row.userId,
+    standApiId,
     bloqueId,
     pabellon,
     ubicacion,
     documentosCategorias,
+    empresaMontajistaId,
+    empresaMontajistaNombre,
     estado,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,

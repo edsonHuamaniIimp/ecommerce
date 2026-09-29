@@ -14,6 +14,8 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
+import { MontajistaAsignada } from "./montajista-asignada";
+import { useSesion } from "@/hooks/use-sesion";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
@@ -196,6 +198,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [clienteUploadModo, setClienteUploadModo] = useState<"contrato" | "anexos">("anexos");
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
+  const { session: sesion } = useSesion();
 
   const pageRef = useRef(page);
   const perPageRef = useRef(perPage);
@@ -587,6 +590,19 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   </div>
                 )}
               </ModalSection>
+
+              {/* Empresa montajista (con la reserva pagada/oficializada) */}
+              {detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO && (
+                <MontajistaAsignada
+                  standApiId={detailRow.standApiId}
+                  standCode={detailRow.standCode}
+                  asignadaId={detailRow.empresaMontajistaId}
+                  asignadaNombre={detailRow.empresaMontajistaNombre}
+                  tipoEvento={sesion?.tipoEvento ?? 0}
+                  codigoEvento={sesion?.codigoEvento ?? 0}
+                  onChanged={() => { void openDetail(detailRow.id); }}
+                />
+              )}
 
               {/* Imagenes */}
               {detailRow.imagenes && (detailRow.imagenes as string[]).length > 0 && (

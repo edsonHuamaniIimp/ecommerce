@@ -165,6 +165,8 @@
 | `/api/stands/contrato` | GET | Lista contratos de stands por `tipoEvento`/`codigoEvento` (API key M2M) |
 | `/api/stands/exhibidora` | GET | Stands de una exhibidora. Requiere `empresaId`, `tipoEvento` y `codigoEvento` (400 si faltan). Devuelve `estado` comercial, `estado_solicitud`, `pabellon` (sección del macro), `zona`, `x`, `y`, `mapa`. (API key M2M) |
 | `/api/exhibidoras` | GET | Lista exhibidoras con búsqueda `q` (API key M2M) |
+| `/api/stands/asignar-montajista` | POST | Asigna/reemplaza/desasigna la empresa montajista de un stand (M2M `x-api-key` o sesión con `stands:manage`). Audita en `stand_montajista_historial` |
+| `/api/empresas-montajistas` | GET | Catálogo de montajistas (`q` = RUC o razón social; sin `q`, las ya asignadas). Misma auth que el anterior |
 
 > Detalle del contrato de integración con el Sistema de Montaje: `docs/05-integraciones/api-sistema-montaje.md`.
 

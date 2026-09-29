@@ -14,6 +14,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
   CATEGORIAS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
+  ESTADOS_SOLICITUD,
   ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
@@ -24,6 +25,8 @@ import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
+import { MontajistaAsignada } from "./montajista-asignada";
+import { useSesion } from "@/hooks/use-sesion";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { SgcDocumentoUpload } from "@/components/sgc/sgc-documento-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -79,6 +82,7 @@ export function SolicitudReview({
   const [editing, setEditing] = useState(false);
   const [aprobandoBypass, setAprobandoBypass] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
+  const { session } = useSesion();
 
   const areas = areasRevisionLocal(row.revisiones);
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
@@ -365,6 +369,19 @@ export function SolicitudReview({
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {submitError}
           </div>
+        )}
+
+        {/* Empresa montajista (solo admin, con la reserva pagada/oficializada) */}
+        {isAdmin && row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO && (
+          <MontajistaAsignada
+            standApiId={row.standApiId}
+            standCode={row.standCode}
+            asignadaId={row.empresaMontajistaId}
+            asignadaNombre={row.empresaMontajistaNombre}
+            tipoEvento={session?.tipoEvento ?? 0}
+            codigoEvento={session?.codigoEvento ?? 0}
+            onChanged={() => onSaved(row)}
+          />
         )}
 
         {/* Integracion SGC — revision Legal delegada (ultimo paso) */}

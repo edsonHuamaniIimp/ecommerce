@@ -27,6 +27,8 @@ export interface SolicitudDTO {
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
+  /** Identificador del stand en el API externo (para integraciones M2M). */
+  standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
   empresa: string | null;
@@ -39,6 +41,9 @@ export interface SolicitudDTO {
   ubicacion?: string | null;
   /** Categoria por documento del stand: { "<url>": "<categoria>" }. */
   documentosCategorias?: Record<string, string>;
+  /** Empresa montajista asignada al stand (SIE) y su nombre. */
+  empresaMontajistaId?: string | null;
+  empresaMontajistaNombre?: string | null;
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;

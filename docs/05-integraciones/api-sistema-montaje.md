@@ -95,6 +95,8 @@ Regla: ContratosStands **nunca** recibe documentos técnicos de montaje; el Mont
 | `y` | number \| null | Coordenada Y (parseada de `gess_stand.pabellon`). |
 | `mapa` | string \| null | Código del plano (ej. `gess`, `perumin-pab`). |
 | `empresa` | string \| null | Nombre de empresa del stand (puede ser `null`; el SM consulta por `empresaId`). |
+| `empresa_montajista_id` | string \| null | SIE de la empresa montajista asignada al stand (`null` si sin asignar). |
+| `empresa_montajista_nombre` | string \| null | Razón social de la montajista asignada. |
 | `evento_id` | string | UUID local del evento (referencia interna). |
 | `tipo_evento` / `codigo_evento` | number | Llave compartida del evento. |
 
@@ -112,6 +114,8 @@ Ejemplo:
   "y": 9.25,
   "mapa": "perumin-pab",
   "empresa": null,
+  "empresa_montajista_id": "E0000105823",
+  "empresa_montajista_nombre": "IIMP",
   "evento_id": "3cc3f9b8-...",
   "tipo_evento": 2,
   "codigo_evento": 19
@@ -154,7 +158,42 @@ Ejemplo:
 - **Nota**: `estado_contrato` deriva de la solicitud (`mapearEstadoContrato`); el estado legal definitivo pertenece al Sistema de Contratos (integración futura).
 - **Estado**: implementado y desplegado.
 
-### 4.4 Eventos — `GET /api/eventos`
+### 4.4 Asignar empresa montajista por stand — `POST /api/stands/asignar-montajista`
+
+- **Auth**: clave M2M (`x-api-key`), **o** sesión con `stands:manage`/admin (staff), **o** el **titular de una reserva pagada** (cliente) para su propio stand.
+- **Request**:
+```json
+{
+  "tipo_evento": 2,
+  "codigo_evento": 19,
+  "stand_api_id": "BLOQUE-06",
+  "empresa_montajista": { "sie_code": "E0000105823", "razon_social": "IIMP" }
+}
+```
+  - `empresa_montajista: null` → **desasigna**.
+  - 400 si falta `tipo_evento`/`codigo_evento`/`stand_api_id`, o si `empresa_montajista` viene sin `sie_code`/`razon_social`.
+  - 404 si el stand no existe para ese evento.
+- **Regla de reemplazo**: si el stand ya tiene otra montajista, se **reemplaza** y queda registro en la **auditoría** (`stand_montajista_historial`: `asignar` | `reemplazar` | `desasignar`, quién y cuándo). Idempotente: si llega el mismo valor, no cambia ni audita.
+- **Respuesta**:
+```json
+{ "stand_api_id": "BLOQUE-06", "empresa_montajista_id": "E0000105823", "empresa_montajista_nombre": "IIMP", "actualizado_en": "2026-09-29T..." }
+```
+- **Persistencia**: `gess_stand.montajista_id`, `montajista_nombre`, `montajista_asignada_en`, `montajista_asignada_por`.
+- **UI**: sección **Empresa montajista** (asignar/reasignar/quitar) cuando la reserva está **pagada**:
+  - Admin/staff: `/dashboard/solicitudes` → "Revisar solicitud".
+  - Cliente: `/dashboard/mis-solicitudes` → detalle de su reserva.
+
+### 4.5 Catálogo de empresas montajistas — `GET /api/empresas-montajistas`
+
+- **Auth**: igual que 4.4 (M2M o sesión con `stands:manage`/admin).
+- **Query**: `q?` (RUC de 11 dígitos o razón social). Sin `q` devuelve las montajistas ya asignadas.
+- **Respuesta**:
+```json
+[{ "sie_code": "E0000105823", "razon_social": "IIMP" }]
+```
+- **Fuente**: montajistas ya asignadas + búsqueda en **SIE** (`/rest/searchempresa`); si el SIE no responde, devuelve lo ya asignado (best-effort).
+
+### 4.6 Eventos — `GET /api/eventos`
 
 - Ya consumido por el SM (tipos y versiones de evento con `tipo_evento`/`codigo_evento`).
 - **Estado**: implementado.

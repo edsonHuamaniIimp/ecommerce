@@ -275,10 +275,16 @@ model GessStand {
   imagenesCategorias Json? @default("{}") @map("imagenes_categorias")
   /// Categoria por documento: { "<url>": "<categoria>" } (ver CATEGORIAS_DOCUMENTO).
   documentosCategorias Json? @default("{}") @map("documentos_categorias")
+  /// Empresa montajista asignada (SIE code, ej. E0000105823).
+  montajistaId        String?   @map("montajista_id") @db.VarChar(20)
+  montajistaNombre    String?   @map("montajista_nombre") @db.VarChar(200)
+  montajistaAsignadaEn DateTime? @map("montajista_asignada_en")
+  montajistaAsignadaPor String?  @map("montajista_asignada_por") @db.VarChar(200)
 
   evento      Evento      @relation(fields: [eventoId], references: [id])
   solicitudes Solicitud[]
   solicitudStands SolicitudStand[] @relation("SolicitudStandGess")
+  montajistaHistorial StandMontajistaHistorial[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -826,4 +832,22 @@ model SgcOutbox {
 
   @@index([estado, programadoAt])
   @@map("sgc_outbox")
+}
+
+/// Auditoria de asignacion/reemplazo de la empresa montajista por stand.
+model StandMontajistaHistorial {
+  id               String   @id @default(uuid())
+  gessStandId      String   @map("gess_stand_id")
+  /// SIE de la montajista (null = desasignacion).
+  montajistaId     String?  @map("montajista_id") @db.VarChar(20)
+  montajistaNombre String?  @map("montajista_nombre") @db.VarChar(200)
+  /// asignar | reemplazar | desasignar
+  accion           String   @db.VarChar(20)
+  createdBy        String?  @map("created_by") @db.VarChar(200)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  gessStand GessStand @relation(fields: [gessStandId], references: [id], onDelete: Cascade)
+
+  @@index([gessStandId])
+  @@map("stand_montajista_historial")
 }

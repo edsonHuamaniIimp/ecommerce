@@ -8,6 +8,9 @@ function mockRepo(): IStandsIntegracionRepository {
   return {
     listarStandsExhibidora: vi.fn(),
     listarContratos: vi.fn(),
+    asignarMontajista: vi.fn(),
+    listarEmpresasMontajistas: vi.fn(),
+    esReservaPagadaDelCliente: vi.fn(),
   };
 }
 
