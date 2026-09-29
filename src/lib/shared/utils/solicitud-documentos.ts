@@ -1,4 +1,4 @@
-import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
+import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 
 interface RevisionLike {
@@ -9,10 +9,19 @@ interface ReevaluacionLike {
   estado: string;
 }
 
+/** Documento adjunto (subconjunto minimo para evaluar el gate del cliente). */
+interface DocumentoLike {
+  categoria?: string | null;
+  userId?: string | null;
+  createdAt?: string | Date | null;
+}
+
 /** Campos de la solicitud necesarios para decidir si el cliente puede subir documentos. */
 export interface SolicitudDocumentosGate {
   estadoSolicitud: string;
   standCodes: string[];
+  /** Titular de la solicitud (para distinguir documentos del cliente vs del admin). */
+  userId?: string | null;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
   /** Documentos subidos por el cliente. */
@@ -26,8 +35,68 @@ export interface SolicitudDocumentosGate {
   sgcLifecycleStatus: string | null;
   /** True si ya se enviaron documentos (contrato/anexos) al expediente SGC. */
   sgcDocumentosEnviados: boolean;
+  /** Modo de la subsanacion vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
+  sgcSubsanacionModo?: string | null;
+  /** Motivo declarado por el admin (permite inferir el modo en declaraciones previas). */
+  sgcSubsanacionMotivo?: string | null;
+  /** Documentos adjuntos (para detectar si el admin ya subio un contrato corregido). */
+  docsAdjuntos?: DocumentoLike[] | null;
   /** Revisiones por area de la solicitud. */
   revisiones: RevisionLike[];
+}
+
+/** Fecha (ms) de un documento; 0 si no es parseable. */
+function fechaDoc(doc: DocumentoLike): number {
+  const ms = doc.createdAt ? new Date(doc.createdAt).getTime() : 0;
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/** Mas reciente primero. */
+function porFechaDesc(a: DocumentoLike, b: DocumentoLike): number {
+  return fechaDoc(b) - fechaDoc(a);
+}
+
+/** True si el SGC devolvio (observed) o rechazo (rejected) el tramite. */
+function sgcDevuelto(s: SolicitudDocumentosGate): boolean {
+  return (
+    s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
+    s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED
+  );
+}
+
+/**
+ * Modo de subsanacion efectivo. Si la declaracion es previa a la columna `modo`
+ * (null), se infiere del texto sugerido elegido por el admin (sin ediciones).
+ */
+export function modoSubsanacionEfectivo(s: SolicitudDocumentosGate): string | null {
+  if (s.sgcSubsanacionModo) return s.sgcSubsanacionModo;
+  const sugerencia = SGC_SUBSANACION_SUGERENCIAS.find((x) => x.texto === s.sgcSubsanacionMotivo);
+  return sugerencia?.modo ?? null;
+}
+
+/**
+ * True si el administrador subio un contrato **posterior** al ultimo contrato firmado por
+ * el cliente (o si el cliente aun no firmo ninguno). En ese caso el cliente debe descargar
+ * esa version nueva y volver a firmarla.
+ */
+export function hayContratoAdminNuevoParaFirmar(s: SolicitudDocumentosGate): boolean {
+  const docs = s.docsAdjuntos ?? [];
+  const firmado = docs
+    .filter((d) => d.userId === s.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+    .sort(porFechaDesc)[0];
+  /* Sin contrato firmado previo no hay nada que esperar. */
+  if (!firmado) return true;
+
+  const contratoAdmin = docs
+    .filter(
+      (d) =>
+        d.userId === null &&
+        (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null || d.categoria === undefined),
+    )
+    .sort(porFechaDesc)[0];
+  if (!contratoAdmin) return false;
+
+  return fechaDoc(contratoAdmin) > fechaDoc(firmado);
 }
 
 /**
@@ -58,15 +127,33 @@ export function enVentanaLegalSgc(s: SolicitudDocumentosGate): boolean {
 }
 
 /**
- * Ventana de **subsanación SGC**: el SGC devolvió (rechazó) el trámite y el cliente debe
- * descargar el contrato y subir su versión firmada para que el administrador lo reenvíe.
+ * Ventana de **subsanacion SGC**: el SGC devolvio (rechazo) el tramite y el cliente debe
+ * descargar el contrato y subir su version firmada para que el administrador lo reenvie.
+ *
+ * Si el administrador declaro el modo `nuevo_contrato`, la ventana se mantiene cerrada
+ * hasta que **el admin suba la version corregida** (contrato posterior al ultimo firmado
+ * del cliente): asi el cliente no re-firma el contrato viejo por error.
  */
 export function enVentanaSubsanacionSgc(s: SolicitudDocumentosGate): boolean {
   return (
     s.sgcEnabled &&
     legalDelegadaAlSgc(s.revisiones) &&
-    (s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
-      s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED)
+    sgcDevuelto(s) &&
+    !esperandoContratoCorregidoSgc(s)
+  );
+}
+
+/**
+ * El admin declaro que subira un **contrato nuevo** y aun no lo adjunto: el cliente debe
+ * esperar (no puede firmar el contrato vigente, que quedo observado por el SGC).
+ */
+export function esperandoContratoCorregidoSgc(s: SolicitudDocumentosGate): boolean {
+  return (
+    s.sgcEnabled &&
+    legalDelegadaAlSgc(s.revisiones) &&
+    sgcDevuelto(s) &&
+    modoSubsanacionEfectivo(s) === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO &&
+    !hayContratoAdminNuevoParaFirmar(s)
   );
 }
 

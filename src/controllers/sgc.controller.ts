@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION } from "@/lib/shared/constants";
-import type { SgcDocumentCategory } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION, SGC_SUBSANACION_MODOS } from "@/lib/shared/constants";
+import type { SgcDocumentCategory, SgcSubsanacionModo } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 
 export const sgcController = {
@@ -164,12 +164,16 @@ export const sgcController = {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
-    const body = (await request.json()) as { solicitudId?: string; motivo?: string | null };
+    const body = (await request.json()) as { solicitudId?: string; motivo?: string | null; modo?: string | null };
     if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
     /* Motivo libre (la casuística no es cerrada); vacío = limpiar la declaración. */
     const motivo = (body.motivo ?? "").trim().slice(0, 500) || null;
-    const expediente = await services.sgc.declararMotivoSubsanacion(body.solicitudId, motivo, session.email);
+    /* Modo declarado: define si el cliente espera un contrato corregido del admin. */
+    const modoValido = Object.values(SGC_SUBSANACION_MODOS).includes(body.modo as SgcSubsanacionModo)
+      ? (body.modo as SgcSubsanacionModo)
+      : null;
+    const expediente = await services.sgc.declararMotivoSubsanacion(body.solicitudId, motivo, session.email, modoValido);
     if (!expediente) return error(API_ERROR_CODES.NOT_FOUND, "La solicitud no tiene expediente en el SGC", 404);
     return success(expediente);
   },

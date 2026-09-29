@@ -296,6 +296,8 @@ export interface SgcExpedienteEntity {
   contractTypeCode: string;
   /** Casuística de subsanación declarada por el admin (null = no declarada). */
   subsanacionMotivo: string | null;
+  /** Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
+  subsanacionModo?: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
   /** Bypass admin: aprobado localmente; el sync-on-read no debe revertir el estado. */

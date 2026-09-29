@@ -537,3 +537,10 @@ flowchart TD
 - **Regla de reenvío**: exige al menos **una versión nueva** del documento principal; si se envía
   el mismo contenido responde 422 ("Carga una versión nueva…"). El historial de la ronda
   rechazada se conserva.
+- **Modo de subsanación (flujo del cliente)**: `POST /sgc/subsanacion-motivo` acepta `modo`
+  (`nuevo_contrato` | `mismo_contrato`). Con `nuevo_contrato` la ventana del cliente en
+  "Mis solicitudes" permanece **cerrada** hasta que el admin adjunte el contrato corregido
+  (contrato del admin posterior al último firmado por el cliente); con `mismo_contrato` el
+  cliente puede volver a firmar el vigente de inmediato. Se persiste en
+  `sgc_expediente.subsanacion_modo` y en la ronda (`sgc_subsanacion.modo`) y se limpia al
+  reenviar al SGC.

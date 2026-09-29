@@ -19,6 +19,7 @@ import {
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { hayContratoAdminNuevoParaFirmar, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
 import { toast } from "sonner";
@@ -145,6 +146,8 @@ export function SolicitudReview({
   }
   const tieneContrato = contratoSgc.length > 0;
   const contratoUrl = contratoSgc[0]?.url;
+  /* El admin ya adjunto un contrato posterior al ultimo firmado del cliente (subsanacion). */
+  const tieneContratoAdminNuevo = hayContratoAdminNuevoParaFirmar(row);
 
   /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
      excluyendo el que ya se usa como contrato. */
@@ -389,14 +392,16 @@ export function SolicitudReview({
           <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Revision Legal (SGC)</h4>
             <SgcExpedientePanel
-              key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}-${row.sgcSubsanacionMotivo ?? "none"}`}
+              key={`${row.sgcEstadoEnvio ?? "none"}-${row.sgcLifecycleStatus ?? "none"}-${row.sgcSubsanacionMotivo ?? "none"}-${row.sgcSubsanacionModo ?? "none"}`}
               solicitudId={row.id}
               tieneContratoAdmin={tieneContrato}
+              tieneContratoAdminNuevo={tieneContratoAdminNuevo}
               tieneAnexos={anexosSolicitud.length > 0}
               tieneContratoFirmado={row.docsAdjuntos.some(
                 (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
               )}
               motivo={row.sgcSubsanacionMotivo}
+              modo={modoSubsanacionEfectivo(row)}
               onSolicitudChanged={() => onSaved(row)}
               onSynced={(s) => {
                 /* Si lo sincronizado difiere de la fila, refrescamos para actualizar
@@ -412,10 +417,10 @@ export function SolicitudReview({
                   <SgcDocumentoUpload
                     solicitudId={row.id}
                     tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
-                    titulo="Contrato (v1)"
+                    titulo={sgcSubsanable ? "Contrato corregido (v1)" : "Contrato (v1)"}
                     archivos={contratoSgc}
-                    ctaVacio="Adjuntar contrato (v1)"
-                    ctaConArchivos="Reemplazar contrato (v1)"
+                    ctaVacio={sgcSubsanable ? "Subir contrato corregido (v1)" : "Adjuntar contrato (v1)"}
+                    ctaConArchivos={sgcSubsanable ? "Reemplazar con contrato corregido (v1)" : "Reemplazar contrato (v1)"}
                     vacioTexto="Aún no hay contrato: ni el firmado por el cliente ni el contrato (v1) del administrador."
                     varios={false}
                     onAttached={() => onSaved(row)}

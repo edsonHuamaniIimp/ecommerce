@@ -386,6 +386,56 @@ paths:
       responses:
         "200":
           description: OK
+  /sgc/subsanacion-motivo:
+    post:
+      tags: [SGC]
+      summary: Declara la casuística de subsanación (el admin elige el flujo de corrección)
+      description: |
+        Cuando el SGC devuelve (observed) o rechaza (rejected) el trámite, el administrador
+        declara qué corregir. El `modo` define el flujo del cliente:
+        - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera**
+          (no puede firmar el contrato observado) hasta que el contrato nuevo esté adjunto.
+        - `mismo_contrato`: el cliente vuelve a firmar el contrato vigente de inmediato.
+        Sin `modo` (null) el cliente puede firmar (comportamiento legacy).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [solicitudId]
+              properties:
+                solicitudId: { type: string, format: uuid }
+                motivo: { type: string, maxLength: 500, nullable: true }
+                modo:
+                  type: string
+                  nullable: true
+                  enum: [nuevo_contrato, mismo_contrato]
+      responses:
+        "200":
+          description: OK
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /sgc/reenviar:
+    post:
+      tags: [SGC]
+      summary: Reenvía al SGC con el contrato firmado del cliente (reabre la ronda)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [solicitudId]
+              properties:
+                solicitudId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Falta el contrato firmado del cliente
+        "404":
+          $ref: "#/components/responses/NotFound"
   /integracion/sgc/webhook:
     post:
       tags: [SGC]

@@ -407,6 +407,7 @@ export class SgcIntegracionApplicationService {
     solicitudId: string,
     motivo: string | null,
     declaradoPor: string,
+    modo: string | null = null,
   ): Promise<SgcExpedienteEntity | null> {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente) return null;
@@ -416,11 +417,14 @@ export class SgcIntegracionApplicationService {
       const previas = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
       const ronda = previas.reduce((max, r) => Math.max(max, r.ronda), 0) + 1;
       await this.repo
-        .crearSubsanacion({ sgcExpedienteId: expediente.id, ronda, motivo, declaradoPor })
+        .crearSubsanacion({ sgcExpedienteId: expediente.id, ronda, motivo, modo, declaradoPor })
         .catch(() => undefined);
     }
 
-    return this.repo.actualizarExpediente(expediente.id, { subsanacionMotivo: motivo });
+    return this.repo.actualizarExpediente(expediente.id, {
+      subsanacionMotivo: motivo,
+      subsanacionModo: motivo ? modo : null,
+    });
   }
 
   /**
@@ -477,7 +481,7 @@ export class SgcIntegracionApplicationService {
     }
 
     await this.repo
-      .actualizarExpediente(expediente.id, { subsanacionMotivo: null, lastError: null })
+      .actualizarExpediente(expediente.id, { subsanacionMotivo: null, subsanacionModo: null, lastError: null })
       .catch(() => undefined);
     return documento;
   }

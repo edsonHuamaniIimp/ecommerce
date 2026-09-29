@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO } from "@/lib/shared/constants";
+import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import {
   enVentanaContratoMultistand,
   enVentanaLegalSgc,
+  enVentanaSubsanacionSgc,
+  esperandoContratoCorregidoSgc,
+  hayContratoAdminNuevoParaFirmar,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
 
+const CLIENTE = "user-cliente";
+
 const base = {
   estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
   standCodes: ["A-1", "A-2"],
+  userId: CLIENTE,
   docsAdminCount: 0,
   clienteDocsAdjuntosCount: 0,
   reevaluaciones: [] as Array<{ estado: string }>,
@@ -17,7 +23,15 @@ const base = {
   sgcEstadoEnvio: SGC_ESTADO_ENVIO.CREADO as string | null,
   sgcLifecycleStatus: null as string | null,
   sgcDocumentosEnviados: false,
+  sgcSubsanacionModo: null as string | null,
+  docsAdjuntos: [] as Array<{ categoria?: string | null; userId?: string | null; createdAt?: string | Date | null }>,
   revisiones: [{ area: REVISION_AREAS.LOGISTICA }, { area: REVISION_AREAS.COMUNICACION }],
+};
+
+const devuelto = {
+  ...base,
+  sgcDocumentosEnviados: true,
+  sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED as string | null,
 };
 
 describe("enVentanaLegalSgc", () => {
@@ -61,6 +75,89 @@ describe("enVentanaContratoMultistand", () => {
 
   it("no aplica si la solicitud no esta pendiente", () => {
     expect(enVentanaContratoMultistand({ ...conContratoAdmin, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO })).toBe(false);
+  });
+});
+
+describe("hayContratoAdminNuevoParaFirmar", () => {
+  const firmado = {
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    userId: CLIENTE,
+    createdAt: "2026-09-20T10:00:00Z",
+  };
+
+  it("true si el cliente aun no firmo ningun contrato", () => {
+    expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [] })).toBe(true);
+  });
+
+  it("true si el contrato del admin es posterior al ultimo firmado", () => {
+    const admin = { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, userId: null, createdAt: "2026-09-30T10:00:00Z" };
+    expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [firmado, admin] })).toBe(true);
+  });
+
+  it("false si el contrato del admin es anterior al ultimo firmado", () => {
+    const admin = { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, userId: null, createdAt: "2026-09-01T10:00:00Z" };
+    expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [firmado, admin] })).toBe(false);
+  });
+
+  it("false si no hay contrato del admin", () => {
+    expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [firmado] })).toBe(false);
+  });
+});
+
+describe("subsanacion SGC segun el modo declarado por el admin", () => {
+  const firmadoCliente = {
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    userId: CLIENTE,
+    createdAt: "2026-09-20T10:00:00Z",
+  };
+  const contratoAdminViejo = {
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+    userId: null,
+    createdAt: "2026-09-10T10:00:00Z",
+  };
+  const mismoContrato = { ...devuelto, sgcSubsanacionModo: SGC_SUBSANACION_MODOS.MISMO_CONTRATO, docsAdjuntos: [firmadoCliente, contratoAdminViejo] };
+  const nuevoContratoSinSubir = { ...devuelto, sgcSubsanacionModo: SGC_SUBSANACION_MODOS.NUEVO_CONTRATO, docsAdjuntos: [firmadoCliente, contratoAdminViejo] };
+
+  it("permite firmar de inmediato con el modo 'mismo contrato'", () => {
+    expect(enVentanaSubsanacionSgc(mismoContrato)).toBe(true);
+    expect(esperandoContratoCorregidoSgc(mismoContrato)).toBe(false);
+  });
+
+  it("bloquea al cliente si el admin declaró 'nuevo contrato' y aun no lo subio", () => {
+    expect(enVentanaSubsanacionSgc(nuevoContratoSinSubir)).toBe(false);
+    expect(esperandoContratoCorregidoSgc(nuevoContratoSinSubir)).toBe(true);
+    expect(puedeClienteSubirDocumentos(nuevoContratoSinSubir)).toBe(false);
+  });
+
+  it("habilita al cliente cuando el admin ya subio el contrato corregido", () => {
+    const conContratoNuevo = {
+      ...nuevoContratoSinSubir,
+      docsAdjuntos: [
+        firmadoCliente,
+        contratoAdminViejo,
+        { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, userId: null, createdAt: "2026-09-30T10:00:00Z" },
+      ],
+    };
+    expect(enVentanaSubsanacionSgc(conContratoNuevo)).toBe(true);
+    expect(esperandoContratoCorregidoSgc(conContratoNuevo)).toBe(false);
+    expect(puedeClienteSubirDocumentos(conContratoNuevo)).toBe(true);
+  });
+
+  it("mantiene el comportamiento anterior cuando no hay modo (legacy)", () => {
+    expect(enVentanaSubsanacionSgc(devuelto)).toBe(true);
+    expect(esperandoContratoCorregidoSgc(devuelto)).toBe(false);
+  });
+
+  it("infiere 'nuevo contrato' en declaraciones previas (motivo sugerido sin modo)", () => {
+    const sugerencia = SGC_SUBSANACION_SUGERENCIAS.find((x) => x.modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO);
+    const legacy = {
+      ...devuelto,
+      sgcSubsanacionModo: null,
+      sgcSubsanacionMotivo: sugerencia?.texto ?? null,
+      docsAdjuntos: [firmadoCliente, contratoAdminViejo],
+    };
+    expect(esperandoContratoCorregidoSgc(legacy)).toBe(true);
+    expect(enVentanaSubsanacionSgc(legacy)).toBe(false);
   });
 });
 

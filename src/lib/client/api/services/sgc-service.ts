@@ -34,7 +34,7 @@ export const sgcService = {
   },
 
   /** Declara la casuística de subsanación (la elige el admin cuando el SGC devuelve el trámite). */
-  declararMotivo(body: { solicitudId: string; motivo: string | null }) {
+  declararMotivo(body: { solicitudId: string; motivo: string | null; modo?: string | null }) {
     return internalApi.post<Record<string, unknown>>("/api/sgc/subsanacion-motivo", body);
   },
 

@@ -22,7 +22,7 @@ import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -41,6 +41,13 @@ function puedeSolicitarReevaluacion(row: SolicitudRow) {
   return true;
 }
 function faltanDocumentosMultiStand(row: SolicitudRow) { return requiereDocsReevaluacion(row); }
+
+/** Documento del administrador mas reciente (contrato vigente para descargar). */
+function adminDocReciente(row: SolicitudRow) {
+  return [...(row.docsAdjuntos ?? [])]
+    .filter((d) => d.userId === null)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+}
 
 /** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
 function ModalSection({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
@@ -450,6 +457,12 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Corregir: subir contrato firmado</span>
                             </Button>
                           )}
+                          {esperandoContratoCorregidoSgc(row) && (
+                            <Badge className={`pointer-events-none gap-1 py-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
+                              <Clock className="h-3 w-3" />
+                              <span>Esperando contrato corregido</span>
+                            </Badge>
+                          )}
                           <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                         </div>
                       </div>
@@ -532,6 +545,12 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Corregir: subir contrato firmado</span>
                               </Button>
+                            )}
+                            {esperandoContratoCorregidoSgc(row) && (
+                              <Badge className={`pointer-events-none gap-1 py-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
+                                <Clock className="h-3 w-3" />
+                                <span>Esperando contrato corregido</span>
+                              </Badge>
                             )}
                             <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                           </div>
@@ -749,7 +768,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       {(() => {
-                        const adminDoc = detailRow.docsAdjuntos?.find((d) => d.userId === null);
+                        const adminDoc = adminDocReciente(detailRow);
                         return adminDoc ? (
                           <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto" asChild>
                             <a href={adminDoc.url} target="_blank" rel="noopener noreferrer">
@@ -788,6 +807,63 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <Upload className="h-3.5 w-3.5" />
                       <span>Adjuntar anexos</span>
                     </Button>
+                  </div>
+                </ModalSection>
+              )}
+
+              {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
+              {detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
+                <ModalSection title="Accion requerida">
+                  <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                    <div className="flex items-start gap-3">
+                      <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <div>
+                        <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                          {detailRow.sgcSubsanacionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {(() => {
+                        const adminDoc = adminDocReciente(detailRow);
+                        return adminDoc ? (
+                          <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto" asChild>
+                            <a href={adminDoc.url} target="_blank" rel="noopener noreferrer">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Descargar contrato</span>
+                            </a>
+                          </Button>
+                        ) : null;
+                      })()}
+                      <Button size="sm" className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>Subir contrato firmado</span>
+                      </Button>
+                    </div>
+                  </div>
+                </ModalSection>
+              )}
+
+              {/* El admin declaró un contrato nuevo: el cliente espera a que lo adjunte */}
+              {detailRow && esperandoContratoCorregidoSgc(detailRow) && detailRow.flgActivo !== false && (
+                <ModalSection title="Accion requerida">
+                  <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <div>
+                      <p className="text-xs font-semibold text-warning">Esperando contrato corregido</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
+                        La administración del IIMP está preparando una nueva versión del contrato.
+                        Cuando esté disponible podrás descargarla, firmarla y subirla.
+                      </p>
+                      {detailRow.sgcSubsanacionMotivo && (
+                        <p className="mt-1 text-[11px] italic text-muted-foreground">&quot;{detailRow.sgcSubsanacionMotivo}&quot;</p>
+                      )}
+                    </div>
                   </div>
                 </ModalSection>
               )}

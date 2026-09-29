@@ -13,6 +13,8 @@ export interface SgcSubsanacionEntity {
   sgcExpedienteId: string;
   ronda: number;
   motivo: string;
+  /** Modo declarado: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
+  modo?: string | null;
   estado: string;
   declaradoPor: string;
   declaradoAt: Date;
@@ -37,6 +39,8 @@ export interface ActualizarSgcExpedienteData {
   version?: number | null;
   /** Casuística de subsanación declarada por el admin (null = limpiar). */
   subsanacionMotivo?: string | null;
+  /** Modo de la subsanación declarada (null = limpiar). */
+  subsanacionModo?: string | null;
   lastSyncedAt?: Date | null;
   lastError?: string | null;
   /** Marca/limpia el bypass admin (aprobado local sin respuesta del SGC). */
@@ -70,6 +74,7 @@ export interface ISgcRepository {
     sgcExpedienteId: string;
     ronda: number;
     motivo: string;
+    modo?: string | null;
     declaradoPor: string;
   }): Promise<SgcSubsanacionEntity>;
   listarSubsanaciones(sgcExpedienteId: string): Promise<SgcSubsanacionEntity[]>;

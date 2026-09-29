@@ -317,6 +317,8 @@ de Contratos (SGC). Ver `docs/05-integraciones/integracion-sgc.md`.
 | version | int | Sí | Versión del expediente en el SGC. |
 | areaCode | string(40) | No | Catálogo del SGC. |
 | contractTypeCode | string(40) | No | Catálogo del SGC. |
+| subsanacionMotivo | string(500) | Sí | Motivo/indicación de la corrección declarada por el admin (se limpia al reenviar). |
+| subsanacionModo | string(20) | Sí | Flujo de subsanación: `nuevo_contrato` (el cliente espera el contrato corregido) o `mismo_contrato`. |
 | lastSyncedAt | datetime | Sí | Última sincronización. |
 | lastError | string(500) | Sí | Último error (best-effort). |
 | bypassAprobado | boolean | No | Bypass admin: aprobado localmente; el sync-on-read no revierte el estado. |

@@ -738,6 +738,8 @@ model SgcExpediente {
   /// Motivo (libre) de la corrección declarado por el admin cuando el SGC devuelve el
   /// trámite. Puede repetirse N veces (una por cada devolución); se limpia al reenviar.
   subsanacionMotivo String? @map("subsanacion_motivo") @db.VarChar(500)
+  /// Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
+  subsanacionModo   String? @map("subsanacion_modo") @db.VarChar(20)
   lastSyncedAt     DateTime? @map("last_synced_at")
   lastError        String?   @map("last_error") @db.VarChar(500)
   /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
@@ -763,6 +765,8 @@ model SgcSubsanacion {
   ronda           Int
   /// Motivo/indicación que declaró el administrador para esta ronda.
   motivo          String    @db.VarChar(500)
+  /// Modo declarado: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
+  modo            String?   @db.VarChar(20)
   /// declarado | reenviado
   estado          String    @default("declarado") @db.VarChar(20)
   declaradoPor    String    @map("declarado_por") @db.VarChar(200)

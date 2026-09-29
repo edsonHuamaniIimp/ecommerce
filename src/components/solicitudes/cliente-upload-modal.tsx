@@ -72,7 +72,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
           {esContrato ? (
             <p className="text-[11px] font-semibold text-foreground">
-              Descarga el contrato del administrador (abajo), firmalo y sube el archivo firmado para continuar con tu solicitud.
+              Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
             </p>
           ) : (
             <>
@@ -89,7 +89,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
         {(() => {
-          const adminDocs = solicitud.docsAdjuntos?.filter(d => d.userId !== solicitud.userId) ?? [];
+          const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
+            .filter(d => d.userId !== solicitud.userId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId && (esContrato ? d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO));
           return (
             <>
@@ -101,6 +103,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                       <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
                         <FileText className="h-3 w-3 text-muted-foreground" />
                         <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+                        {esContrato && i === 0 && (
+                          <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">versión más reciente</span>
+                        )}
                         {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
                       </div>
                     ))}

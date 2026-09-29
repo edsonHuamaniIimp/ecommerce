@@ -195,6 +195,8 @@ export interface SolicitudRow {
   sgcStage: string | null;
   /** Casuística de subsanación declarada por el admin (null = no declarada). */
   sgcSubsanacionMotivo: string | null;
+  /** Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
+  sgcSubsanacionModo?: string | null;
   /** True si ya se enviaron documentos al expediente SGC (contrato y/o anexos). */
   sgcDocumentosEnviados: boolean;
   /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */

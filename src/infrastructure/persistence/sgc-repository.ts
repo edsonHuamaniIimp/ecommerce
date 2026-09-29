@@ -22,6 +22,7 @@ interface SgcExpedienteRow {
   areaCode: string;
   contractTypeCode: string;
   subsanacionMotivo: string | null;
+  subsanacionModo: string | null;
   lastSyncedAt: Date | null;
   lastError: string | null;
   bypassAprobado: boolean;
@@ -53,6 +54,7 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     areaCode: row.areaCode,
     contractTypeCode: row.contractTypeCode,
     subsanacionMotivo: row.subsanacionMotivo ?? null,
+    subsanacionModo: row.subsanacionModo ?? null,
     lastSyncedAt: row.lastSyncedAt ?? null,
     lastError: row.lastError ?? null,
     bypassAprobado: row.bypassAprobado ?? false,
@@ -125,6 +127,7 @@ export class SgcPrismaRepository implements ISgcRepository {
     sgcExpedienteId: string;
     ronda: number;
     motivo: string;
+    modo?: string | null;
     declaradoPor: string;
   }): Promise<SgcSubsanacionEntity> {
     const row = await prisma.sgcSubsanacion.create({ data });
@@ -155,6 +158,7 @@ function mapSubsanacion(row: {
   sgcExpedienteId: string;
   ronda: number;
   motivo: string;
+  modo: string | null;
   estado: string;
   declaradoPor: string;
   declaradoAt: Date;

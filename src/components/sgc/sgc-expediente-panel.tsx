@@ -14,6 +14,7 @@ import {
   SGC_LIFECYCLE_STATUSES,
   SGC_STEP_STATUSES,
   SGC_STEP_STATUS_LABELS,
+  SGC_SUBSANACION_MODOS,
   SGC_SUBSANACION_SUGERENCIAS,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -36,9 +37,11 @@ export function SgcExpedientePanel({
   solicitudId,
   onSynced,
   tieneContratoAdmin = false,
+  tieneContratoAdminNuevo = false,
   tieneAnexos = false,
   tieneContratoFirmado = false,
   motivo = null,
+  modo = null,
   onSolicitudChanged,
 }: {
   solicitudId: string;
@@ -46,12 +49,16 @@ export function SgcExpedientePanel({
   onSynced?: (estado: { lifecycleStatus: string | null; stage: string | null }) => void;
   /** Hay un contrato del administrador adjunto a la solicitud. */
   tieneContratoAdmin?: boolean;
+  /** El admin ya adjunto un contrato **posterior** al ultimo firmado del cliente. */
+  tieneContratoAdminNuevo?: boolean;
   /** Hay anexos adjuntos (documentos que no son el contrato). */
   tieneAnexos?: boolean;
   /** El cliente ya subió su contrato firmado. */
   tieneContratoFirmado?: boolean;
   /** Motivo (libre) de la corrección declarado por el administrador. */
   motivo?: string | null;
+  /** Modo declarado: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
+  modo?: string | null;
   /** Refresca la fila de la solicitud tras una acción (subida/reenvío/declaración). */
   onSolicitudChanged?: () => void;
 }) {
@@ -60,6 +67,7 @@ export function SgcExpedientePanel({
   const [enviandoContrato, setEnviandoContrato] = useState(false);
   const [registrando, setRegistrando] = useState(false);
   const [selMotivo, setSelMotivo] = useState("");
+  const [selModo, setSelModo] = useState<string | null>(null);
   const [guardandoMotivo, setGuardandoMotivo] = useState(false);
   const [reenviando, setReenviando] = useState(false);
 
@@ -91,10 +99,10 @@ export function SgcExpedientePanel({
     }
   }
 
-  async function declararMotivo(motivoNuevo: string | null) {
+  async function declararMotivo(motivoNuevo: string | null, modoNuevo: string | null) {
     setGuardandoMotivo(true);
     try {
-      await sgcService.declararMotivo({ solicitudId, motivo: motivoNuevo });
+      await sgcService.declararMotivo({ solicitudId, motivo: motivoNuevo, modo: modoNuevo });
       toast.success(motivoNuevo ? "Listo. El cliente verá qué debe corregir." : "Puedes volver a describir la corrección.");
       onSolicitudChanged?.();
       refetch();
@@ -250,16 +258,23 @@ export function SgcExpedientePanel({
           {!motivo ? (
             <>
               <p className="text-[11px] text-muted-foreground">
-                Explica qué debe corregirse para que el cliente lo vea en “Mis solicitudes”. Puedes
-                escribir cualquier indicación: este paso se repite cada vez que el SGC devuelve el trámite.
+                Explica qué debe corregirse para que el cliente lo vea en “Mis solicitudes”. Elige una
+                opción para definir el flujo: con <strong className="text-foreground">contrato nuevo</strong> el
+                cliente espera a que lo adjuntes abajo; con <strong className="text-foreground">el mismo contrato</strong>{" "}
+                puede volver a firmarlo de inmediato. Este paso se repite cada vez que el SGC devuelve el trámite.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {SGC_SUBSANACION_SUGERENCIAS.map((s) => (
                   <button
                     key={s.titulo}
                     type="button"
-                    onClick={() => setSelMotivo(s.texto)}
-                    className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                    aria-pressed={selModo === s.modo}
+                    onClick={() => { setSelModo(s.modo); setSelMotivo(s.texto); }}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                      selModo === s.modo
+                        ? "border-primary bg-primary/10 font-semibold text-primary"
+                        : "border-border bg-background text-muted-foreground hover:border-primary hover:text-foreground"
+                    }`}
                   >
                     {s.titulo}
                   </button>
@@ -275,7 +290,7 @@ export function SgcExpedientePanel({
                 size="sm"
                 className="w-full"
                 disabled={!selMotivo.trim() || guardandoMotivo}
-                onClick={() => declararMotivo(selMotivo.trim())}
+                onClick={() => declararMotivo(selMotivo.trim(), selModo)}
               >
                 {guardandoMotivo ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
                 Guardar indicación
@@ -287,18 +302,32 @@ export function SgcExpedientePanel({
                 <p className="text-[11px] text-muted-foreground">
                   <strong className="text-foreground">Qué corregir:</strong> {motivo}
                 </p>
+                {modo && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    <strong className="text-foreground">Flujo:</strong>{" "}
+                    {modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO
+                      ? "el cliente esperará el contrato corregido que subas aquí abajo."
+                      : "el cliente vuelve a firmar el contrato que ya tenía."}
+                  </p>
+                )}
               </div>
 
               <ol className="space-y-1.5 text-[11px]">
                 <li className="flex items-start gap-1.5">
-                  {tieneContratoAdmin ? (
+                  {(modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO ? tieneContratoAdminNuevo : tieneContratoAdmin) ? (
                     <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
                   ) : (
                     <Clock className="mt-0.5 h-3 w-3 shrink-0 text-amber-600" />
                   )}
                   <span className="text-muted-foreground">
-                    <strong className="text-foreground">1. Prepara el contrato</strong> — adjunta abajo una versión
-                    nueva si hace falta; si no, el cliente firmará la que ya tiene.
+                    <strong className="text-foreground">1. Prepara el contrato</strong>{" "}
+                    {modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO
+                      ? tieneContratoAdminNuevo
+                        ? "· versión corregida adjunta, listo"
+                        : "· adjunta abajo la versión corregida (el cliente espera hasta que la subas)"
+                      : tieneContratoAdmin
+                        ? "· el cliente firmará la que ya esta adjunta"
+                        : "· adjunta abajo una versión nueva si hace falta"}
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
@@ -311,7 +340,9 @@ export function SgcExpedientePanel({
                     <strong className="text-foreground">2. El cliente sube su contrato firmado</strong>{" "}
                     {tieneContratoFirmado
                       ? "· listo"
-                      : "· lo hace desde “Mis solicitudes” (descarga, firma y sube el contrato firmado)"}
+                      : modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO && !tieneContratoAdminNuevo
+                        ? "· esperando el contrato corregido del administrador"
+                        : "· lo hace desde “Mis solicitudes” (descarga, firma y sube el contrato firmado)"}
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
@@ -335,7 +366,7 @@ export function SgcExpedientePanel({
               <button
                 type="button"
                 className="w-full text-[11px] text-muted-foreground underline-offset-2 hover:underline"
-                onClick={() => declararMotivo(null)}
+                onClick={() => { setSelModo(null); declararMotivo(null, null); }}
               >
                 Cambiar la indicación
               </button>

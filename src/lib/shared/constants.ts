@@ -1026,16 +1026,31 @@ export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
 ];
 
 /**
+ * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:
+ *  - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
+ *    el contrato nuevo esté adjunto antes de poder firmarlo.
+ *  - `mismo_contrato`: el cliente vuelve a firmar el contrato que ya tenía (puede firmar de inmediato).
+ */
+export const SGC_SUBSANACION_MODOS = {
+  NUEVO_CONTRATO: "nuevo_contrato",
+  MISMO_CONTRATO: "mismo_contrato",
+} as const;
+export type SgcSubsanacionModo = (typeof SGC_SUBSANACION_MODOS)[keyof typeof SGC_SUBSANACION_MODOS];
+
+/**
  * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
  * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
- * motivo, y puede repetirse N veces (una por cada devolución).
+ * motivo, y puede repetirse N veces (una por cada devolución). El `modo` define si el cliente
+ * debe esperar a un contrato corregido del admin (`nuevo_contrato`) o puede firmar el vigente.
  */
-export const SGC_SUBSANACION_SUGERENCIAS: { titulo: string; texto: string }[] = [
+export const SGC_SUBSANACION_SUGERENCIAS: { modo: SgcSubsanacionModo; titulo: string; texto: string }[] = [
   {
+    modo: SGC_SUBSANACION_MODOS.NUEVO_CONTRATO,
     titulo: "Prepararé un contrato nuevo",
     texto: "Subiré un contrato corregido para que el cliente lo firme.",
   },
   {
+    modo: SGC_SUBSANACION_MODOS.MISMO_CONTRATO,
     titulo: "El cliente firmará el mismo contrato",
     texto: "El cliente vuelve a firmar el contrato que ya tenía.",
   },
