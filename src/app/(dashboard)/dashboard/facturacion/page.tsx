@@ -196,7 +196,7 @@ export default function FacturacionPage() {
                           )}
                           {row.estado !== ESTADOS_FACTURACION.ARCHIVADO && (
                             <>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditRow(row); setEditTipo(row.tipo); setEditOpen(true); }} title="Configurar">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditRow(row); setEditTipo(row.tipo); setEditOpen(true); }} title="Cambiar tipo de pago">
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
@@ -206,7 +206,7 @@ export default function FacturacionPage() {
                             </>
                           )}
                           {row.estado === ESTADOS_FACTURACION.PENDIENTE && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-500 hover:text-amber-600" onClick={() => handleOpenPay(row)} title="Pagar">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-500 hover:text-amber-600" onClick={() => handleOpenPay(row)} title="Configurar cuotas / registrar pago">
                               <Wallet className="h-3.5 w-3.5" />
                             </Button>
                           )}
