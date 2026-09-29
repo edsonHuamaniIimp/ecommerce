@@ -4,7 +4,27 @@ import { prisma } from "@/lib/server/db";
 import type { IStandsIntegracionRepository } from "@/domain/ports/stands-integracion-repository";
 import type { StandExhibidoraDTO, ContratoStandDTO } from "@/types/dto/stands/stands-integracion.dto";
 import { mapearEstadoContrato } from "@/lib/shared/utils/estado-contrato";
+import { estadoComercialStand } from "@/lib/shared/utils/estado-stand";
 import { ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+
+/** Prioridad entre estados de solicitud para elegir el mas avanzado por stand. */
+const PRIORIDAD_ESTADO: Record<string, number> = {
+  [ESTADOS_SOLICITUD.RECHAZADO]: 0,
+  [ESTADOS_SOLICITUD.PENDIENTE]: 1,
+  [ESTADOS_SOLICITUD.EN_PROCESO]: 2,
+  [ESTADOS_SOLICITUD.APROBADO]: 3,
+  [ESTADOS_SOLICITUD.PENDIENTE_PAGO]: 4,
+  [ESTADOS_SOLICITUD.PAGADO]: 5,
+};
+
+/** Parsea "x,y" del campo pabellon (coordenadas del API externa). */
+function parsearCoordenadas(pabellon: string | null): { x: number | null; y: number | null } {
+  if (!pabellon) return { x: null, y: null };
+  const partes = pabellon.split(",");
+  const x = Number(partes[0]);
+  const y = Number(partes[1]);
+  return { x: Number.isFinite(x) ? x : null, y: Number.isFinite(y) ? y : null };
+}
 
 export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepository {
   private async resolverEventoId(tipoEvento?: number, codigoEvento?: number): Promise<string | undefined> {
@@ -28,19 +48,34 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
     return mapa;
   }
 
-  async resolverMapaPorBloque(): Promise<Map<string, string>> {
-    const mapa = new Map<string, string>();
+  /** bloqueId -> { id, codigo } del plano al que pertenece. */
+  async resolverPlanoPorBloque(): Promise<Map<string, { id: string; codigo: string }>> {
+    const mapa = new Map<string, { id: string; codigo: string }>();
     const bloques = await prisma.planoBloque.findMany({
       where: { flgActivo: true },
-      select: { bloqueId: true, plano: { select: { codigo: true } } },
+      select: { bloqueId: true, plano: { select: { id: true, codigo: true } } },
     });
-    for (const b of bloques) mapa.set(b.bloqueId, b.plano.codigo);
+    for (const b of bloques) mapa.set(b.bloqueId, { id: b.plano.id, codigo: b.plano.codigo });
+    return mapa;
+  }
+
+  /** plano hijo -> nombre del pabellon (seccion del macro que lo enlaza). */
+  async resolverPabellonPorPlano(): Promise<Map<string, string>> {
+    const mapa = new Map<string, string>();
+    const secciones = await prisma.planoSeccion.findMany({
+      where: { planoHijoId: { not: null } },
+      select: { planoHijoId: true, nombre: true },
+    });
+    for (const s of secciones) {
+      if (s.planoHijoId && !mapa.has(s.planoHijoId)) mapa.set(s.planoHijoId, s.nombre);
+    }
     return mapa;
   }
 
   async listarStandsExhibidora(empresaId: string, tipoEvento?: number, codigoEvento?: number): Promise<StandExhibidoraDTO[]> {
     const eventoId = await this.resolverEventoId(tipoEvento, codigoEvento);
-    const mapaPorBloque = await this.resolverMapaPorBloque();
+    const planoPorBloque = await this.resolverPlanoPorBloque();
+    const pabellonPorPlano = await this.resolverPabellonPorPlano();
 
     const gessStands = await prisma.gessStand.findMany({
       where: eventoId ? { eventoId } : undefined,
@@ -52,7 +87,7 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
 
     const solicitudes = await prisma.solicitud.findMany({
       where: { flgActivo: true },
-      select: { id: true, userId: true, gessStandId: true, stands: { select: { gessStandId: true } } },
+      select: { id: true, userId: true, estado: true, gessStandId: true, stands: { select: { gessStandId: true } } },
     });
     const userIds = [...new Set(solicitudes.map((s) => s.userId).filter(Boolean) as string[])];
     const usuarios = userIds.length > 0
@@ -61,10 +96,19 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
     const userIdsDeExhibidora = new Set(usuarios.filter((u) => u.idEmpresa?.trim() === empresaId).map((u) => u.userId));
 
     const gessIdsDeSolicitudes = new Set<string>();
+    // Estado comercial por stand: el mas avanzado entre sus solicitudes activas.
+    const estadoPorGess = new Map<string, string>();
     for (const s of solicitudes) {
+      const ids = [s.gessStandId, ...s.stands.map((x) => x.gessStandId)].filter(Boolean) as string[];
       if (s.userId && userIdsDeExhibidora.has(s.userId)) {
-        if (s.gessStandId) gessIdsDeSolicitudes.add(s.gessStandId);
-        for (const st of s.stands) gessIdsDeSolicitudes.add(st.gessStandId);
+        for (const id of ids) gessIdsDeSolicitudes.add(id);
+      }
+      if (!s.estado) continue;
+      for (const id of ids) {
+        const prev = estadoPorGess.get(id);
+        if (!prev || (PRIORIDAD_ESTADO[s.estado] ?? -1) > (PRIORIDAD_ESTADO[prev] ?? -1)) {
+          estadoPorGess.set(id, s.estado);
+        }
       }
     }
 
@@ -76,17 +120,24 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
       })
       .map((g) => {
         const ev = g.eventoId ? (eventosMap.get(g.eventoId) ?? null) : null;
+        const plano = g.bloqueId ? planoPorBloque.get(g.bloqueId) : undefined;
         return {
           stand_api_id: g.standApiId || g.id,
           stand_numero: g.standCode,
           tipo_stand: g.tipoStand ?? null,
-          estado: g.estado ?? null,
-          pabellon: g.pabellon ?? null,
+          // Estado comercial real (reserva/solicitud), no el tecnico del plano.
+          estado: estadoComercialStand(estadoPorGess.get(g.id) ?? null, g.estado),
+          estado_solicitud: estadoPorGess.get(g.id) ?? null,
+          // Pabellon = nombre de la seccion del macro que enlaza al plano del stand.
+          // Si el plano no cuelga de un macro, no es pabellon (null). Coordenadas en x/y.
+          pabellon: plano ? (pabellonPorPlano.get(plano.id) ?? null) : null,
+          zona: null,
+          ...parsearCoordenadas(g.pabellon),
           empresa: g.empresa ?? null,
           evento_id: g.eventoId,
           tipo_evento: ev?.tipoEvento ?? 0,
           codigo_evento: ev?.codigoEvento ?? 0,
-          mapa: g.bloqueId ? (mapaPorBloque.get(g.bloqueId) ?? null) : null,
+          mapa: plano?.codigo ?? null,
         };
       });
   }

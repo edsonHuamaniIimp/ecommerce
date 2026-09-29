@@ -20,6 +20,10 @@ export const standsExhibidoraController = {
     if (!empresaId) {
       return error(API_ERROR_CODES.VALIDATION, "empresaId requerido", 400);
     }
+    // Requeridos: sin ellos se mezclarian stands de todos los eventos.
+    if (tipoEvento === undefined || codigoEvento === undefined || !Number.isFinite(tipoEvento) || !Number.isFinite(codigoEvento)) {
+      return error(API_ERROR_CODES.VALIDATION, "tipoEvento y codigoEvento requeridos", 400);
+    }
 
     try {
       return success(await service.listarStandsExhibidora(empresaId, tipoEvento, codigoEvento));
