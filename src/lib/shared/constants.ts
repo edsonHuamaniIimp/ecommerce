@@ -530,6 +530,29 @@ export const MONEDAS = {
 
 export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
 
+/**
+ * Precios por tipo de stand (USD).
+ *
+ * Catalogo provisional mientras no exista una tarifa oficial por evento
+ * (`tipo_stand.monto_base`). Es la unica fuente de precios para:
+ *  - la sincronizacion/mockup y el plano (texto de `medidas`, formato "XXXX.XX US$"),
+ *  - la resolucion del precio mostrado en las bandejas,
+ *  - el `montoTotal` de la orden de pago (`marcarOrdenPago`).
+ */
+export const PRECIOS_STAND_POR_TIPO: Record<string, number> = {
+  PREFERENCIAL: 3000,
+  PREREFERENCIAL: 3000,
+  ESTANDAR_01: 2000,
+  ESTANDAR_02: 2500,
+  ISLAS: 12000,
+  ISLA: 12000,
+  INSTITUCIONAL: 2000,
+  ALAMEDA: 1500,
+  ESTANDAR: 2000,
+};
+/** Precio por defecto cuando el tipo de stand no esta en el catalogo. */
+export const PRECIO_STAND_DEFAULT = 2000;
+
 /* ================================================================
    Solicitudes de cuenta de exhibidor
    ================================================================ */

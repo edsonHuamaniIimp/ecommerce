@@ -11,6 +11,7 @@ import { gessService } from "@/lib/client/api/services/gess-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { ESTADOS_STAND, MAESTRA_TABLAS, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, PERMISSIONS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 
 interface ReservaRow {
   id: string;
@@ -184,7 +185,7 @@ export function ReservasManager({ eventoId }: { eventoId: string }) {
                 <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span></div>
                 <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "—"}</span></div>
                 <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
-                <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "—"}</span></div>
+                <div><span className="text-muted-foreground">Precio:</span> <span>{precioTexto(resolverPrecioStand(detailRow))}</span></div>
                 <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "—"}</span></div>
                 <div className="col-span-2"><span className="text-muted-foreground">Fecha solicitud:</span> <span>{dateUtils.formatDateTime(detailRow.updatedAt)}</span></div>
               </div>

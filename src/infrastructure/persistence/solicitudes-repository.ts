@@ -5,6 +5,7 @@ import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginate
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity } from "@/domain/models/entities";
 import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 
 type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
@@ -94,6 +95,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   let standApiId: string | null = null;
   let empresaMontajistaId: string | null = null;
   let empresaMontajistaNombre: string | null = null;
+  /* Precio de la reserva (USD): del stand simple o la suma de los stands de la reserva multiple. */
+  let precio = 0;
 
   if (gessStandId) {
     const stand = row.gessStand;
@@ -105,6 +108,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       empresaMontajistaNombre = stand.montajistaNombre;
       tipoStand = stand.tipoStand;
       medidas = stand.medidas;
+      precio = resolverPrecioStand(stand);
       empresa = stand.empresa;
       bloqueId = stand.bloqueId;
       pabellon = stand.pabellon;
@@ -121,6 +125,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     });
     standCodes = stands.map((s) => s.gessStand.standCode);
     standCode = standCodes.join(", ");
+    precio = stands.reduce((sum, s) => sum + resolverPrecioStand(s.gessStand), 0);
     const firstStand = stands[0];
     if (firstStand) {
       const first = firstStand.gessStand;
@@ -173,6 +178,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     bloqueId,
     pabellon,
     ubicacion,
+    precio,
     documentosCategorias,
     empresaMontajistaId,
     empresaMontajistaNombre,
@@ -419,12 +425,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     const stands = sol?.gessStandId
       ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
       : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
-    const montoTotal = stands.reduce((sum, s) => {
-      const raw = (s.rawData ?? {}) as Record<string, unknown>;
-      const monto = raw.monto ?? raw.precio ?? raw.importe;
-      const num = parseFloat(String(s.medidas ?? monto ?? "0").replace(/[^0-9.]/g, ""));
-      return sum + (isNaN(num) ? 0 : num);
-    }, 0);
+    const montoTotal = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
 
     const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
     if (existing) {

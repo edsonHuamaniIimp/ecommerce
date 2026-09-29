@@ -11,6 +11,7 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { precioTexto } from "@/lib/shared/utils/precio-stand";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -545,7 +546,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                   <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-muted-foreground ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
                   <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "â€”"}</span></div>
                   <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "â€”"}</span></div>
-                  <div><span className="text-muted-foreground">Precio:</span> <span>{detailRow.medidas ?? "â€”"}</span></div>
+                  <div><span className="text-muted-foreground">Precio:</span> <span>{precioTexto(detailRow.precio)}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "â€”"}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Estado:</span>{" "}
                     <Badge className={`text-[10px] ${

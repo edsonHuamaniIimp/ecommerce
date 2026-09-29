@@ -21,6 +21,7 @@ import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { precioTexto } from "@/lib/shared/utils/precio-stand";
 import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
@@ -354,7 +355,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     <div className="space-y-3 px-4 py-3">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                         <Dato label="Empresa" valor={row.empresa} />
-                        <Dato label="Precio" valor={row.medidas} />
+                        <Dato label="Precio" valor={precioTexto(row.precio)} />
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.documentos as string[])?.length ?? 0}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
@@ -485,7 +486,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "—"}</TableCell>
                         <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "—"}</TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{row.medidas ?? "—"}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
                           {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}

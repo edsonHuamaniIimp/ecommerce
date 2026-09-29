@@ -31,6 +31,8 @@ export interface SolicitudDTO {
   standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
+  /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
+  precio: number;
   empresa: string | null;
   email: string | null;
   userId: string | null;

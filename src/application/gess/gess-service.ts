@@ -2,6 +2,7 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import { ESTADOS_STAND } from "@/lib/shared/constants";
+import { precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
 
 const TIPO_STAND_POR_NOMBRE: Record<string, string> = {
   Preferencial: "PREFERENCIAL",
@@ -11,28 +12,9 @@ const TIPO_STAND_POR_NOMBRE: Record<string, string> = {
   "Isla Grande": "ISLAS",
 };
 
-/** Precios reales del catalogo GESS (replica de data real de otro evento) */
-const PRECIOS_REALES: Record<string, string> = {
-  PREFERENCIAL: "3000.00 US$",
-  ESTANDAR_01: "2000.00 US$",
-  ESTANDAR_02: "2500.00 US$",
-  ISLAS: "ISLA",
-  ISLA: "ISLA",
-  INSTITUCIONAL: "2000.00 US$",
-  ALAMEDA: "1500.00 US$",
-  ESTANDAR: "2000.00 US$",
-};
-
-const PRECIO_DEFAULT = "2000.00 US$";
-
 function tipoStandDesdeNombre(nombre: string, fallback: string): string {
   const match = Object.keys(TIPO_STAND_POR_NOMBRE).find((k) => nombre.includes(k));
   return match ? TIPO_STAND_POR_NOMBRE[match] ?? fallback : fallback;
-}
-
-function medidasDesdeTipo(tipo: string): string {
-  if (!tipo) return PRECIO_DEFAULT;
-  return PRECIOS_REALES[tipo.toUpperCase()] ?? PRECIO_DEFAULT;
 }
 
 export class GessApplicationService {
@@ -73,7 +55,7 @@ export class GessApplicationService {
       if (!uid) continue;
 
       const tipo = String(r.type ?? r.tipo ?? r.tipo_stand ?? "");
-      const medidas = medidasDesdeTipo(tipo);
+      const medidas = precioTextoDesdeTipo(tipo);
 
       const exists = await this.repo.findByStandApiId(eventoId, uid);
       const data = {
@@ -111,7 +93,7 @@ export class GessApplicationService {
         return {
           bloqueId: b.bloqueId,
           tipoStand,
-          medidas: medidasDesdeTipo(tipoStand),
+          medidas: precioTextoDesdeTipo(tipoStand),
           plan: p.codigo,
           x: b.x,
           z: b.z,

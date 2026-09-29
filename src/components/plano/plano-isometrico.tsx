@@ -9,8 +9,9 @@ import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
+import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
@@ -297,14 +298,14 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           const estadoApi = apiRow ? (apiRow.status ?? apiRow.estado) as string | null : null;
           const estado = estadoDb ?? estadoApi;
           const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
-          const precio = apiRow ? String(apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand ?? "") : null;
-          const medidas = precio
-            ? precio.startsWith("PREFERENCIAL") ? `3000.00 ${MONEDAS.US_DOLAR}`
-            : precio.startsWith("ESTANDAR_01") ? `2000.00 ${MONEDAS.US_DOLAR}`
-            : precio.startsWith("ESTANDAR_02") ? `2500.00 ${MONEDAS.US_DOLAR}`
-            : precio.startsWith("ISLAS") ? "ISLA"
-            : (r.medidas ?? null) as string | null
-            : (r.medidas ?? null) as string | null;
+          /* Precio mostrado como `medidas` (compatibilidad del plano): catalogo por tipo + fallback de la fila. */
+          const medidas = precioTexto(
+            resolverPrecioStand({
+              medidas: (r.medidas ?? null) as string | null,
+              tipoStand,
+              rawData: r.rawData,
+            }),
+          );
 
           map.set(String(bloqueId), {
             standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
