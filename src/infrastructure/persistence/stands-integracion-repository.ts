@@ -243,15 +243,20 @@ export class StandsIntegracionPrismaRepository implements IStandsIntegracionRepo
     if (!eventoId) return false;
     const stand = await prisma.gessStand.findUnique({
       where: { eventoId_standApiId: { eventoId, standApiId: input.stand_api_id } },
-      select: {
-        solicitudes: {
-          where: { flgActivo: true, estado: ESTADOS_SOLICITUD.PAGADO },
-          select: { userId: true, email: true },
-        },
-      },
+      select: { id: true },
     });
     if (!stand) return false;
-    return stand.solicitudes.some(
+    // Solicitud PAGADA del cliente que incluya el stand: single-stand (`gessStandId`)
+    // o multi-stand (relacion via `solicitud_stand`).
+    const solicitudes = await prisma.solicitud.findMany({
+      where: {
+        flgActivo: true,
+        estado: ESTADOS_SOLICITUD.PAGADO,
+        OR: [{ gessStandId: stand.id }, { stands: { some: { gessStandId: stand.id } } }],
+      },
+      select: { userId: true, email: true },
+    });
+    return solicitudes.some(
       (s) => (ident.userId != null && s.userId === ident.userId) || (ident.email != null && s.email === ident.email),
     );
   }
