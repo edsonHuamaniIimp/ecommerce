@@ -297,8 +297,12 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | userId | string(100) | No | ID del usuario (ej: `user\|email`). |
 | roleId | FK | No | → role. |
 | email | string(200) | No | Email del usuario. |
+| password | string(100) | No | Hash scrypt de la contraseña. |
+| nombreEmpresa | string(200) | Sí | Razón social vinculada (cliente). |
+| empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente creada por backoffice (1 por empresa). |
+| debeCambiarPassword | boolean | No | Credencial temporal: exige cambio de contraseña en el primer ingreso. |
 
-Unique: `[userId, roleId]`. Índices: `userId`, `email`.
+Unique: `[userId, roleId]`. Índices: `userId`, `email`, `empresaId`.
 
 ### 4.15 `sgc_expediente` (Integración · correlación)
 
@@ -424,6 +428,34 @@ al usuario al confirmar; el registro se elimina una vez verificado o vencido.
 | expiraEn | datetime | No | Vencimiento del código (15 min). |
 
 Índices: `email` (único).
+
+### 4.21 `empresa` (Transaccional · Portal del Cliente)
+
+Empresa exhibidora registrada por el **backoffice** (alta individual/masiva). Los campos
+marcados como contractuales alimentan el **contrato de alquiler**; la cuenta del Portal del
+Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se envían al crearla.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| ruc | string(11) | No | RUC (11 dígitos). **Único**. |
+| razonSocial | string(200) | No | Razón social; usada en el contrato. |
+| nombreComercial | string(200) | Sí | Nombre comercial (no contractual). |
+| direccionFiscal | string(250) | Sí | Dirección fiscal; usada en el contrato. |
+| telefono | string(30) | Sí | Teléfono de contacto. |
+| emailContacto | string(200) | Sí | Correo general de contacto. |
+| emailFacturacion | string(200) | Sí | Correo para facturación/comprobantes. |
+| representanteLegalNombre | string(200) | Sí | Representante legal (firma el contrato). |
+| representanteLegalDni | string(15) | Sí | DNI/pasaporte del representante legal. |
+| tipoComprobante | string(20) | No | `factura` \| `boleta` (preferido por la empresa). |
+| sitioWeb | string(200) | Sí | Sitio web (opcional). |
+| estado | string(20) | No | `activa` \| `inactiva` (baja lógica). |
+| cuentaCreada | boolean | No | Cuenta del Portal creada y credenciales enviadas. |
+| primerAccesoCompletado | boolean | No | Primer acceso (validación de datos) completado. |
+| datosValidadosEn | datetime | Sí | Fecha de validación de datos contractuales. |
+| creadoPor | string(200) | Sí | Usuario del backoffice que registró la empresa. |
+
+Índices: `ruc` (único), `razonSocial`, `estado`.
 
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 

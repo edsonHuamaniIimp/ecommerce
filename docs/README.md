@@ -10,10 +10,10 @@ orden de lectura recomendado.
 
 | Carpeta | Contexto | Documentos |
 |---|---|---|
-| [`00-inicio/`](./00-inicio) | Negocio y alcance | `resumen-ejecutivo.md`, `requerimientos.md`, `flujos.md` |
+| [`00-inicio/`](./00-inicio) | Negocio y alcance | `resumen-ejecutivo.md`, `requerimientos.md`, `flujos.md`, `requerimientos-portal-empresas.md` |
 | [`01-funcional/`](./01-funcional) | Funcionalidad implementada | `README.md` + un documento por módulo |
 | [`02-despliegue/`](./02-despliegue) | Despliegue e infraestructura AWS | `despliegue.md`, `arquitectura-aws.md`, `aws-terraform.md`, `REGLAS-DESPLIEGUE.md`, `arquitectura-preview.html` |
-| [`03-arquitectura/`](./03-arquitectura) | Arquitectura y estándares | `vision-general.md`, `arquitectura.md`, `stack-tecnologico.md`, `modelo-datos.md`, `convenciones-codigo.md` |
+| [`03-arquitectura/`](./03-arquitectura) | Arquitectura y estándares | `vision-general.md`, `arquitectura.md`, `stack-tecnologico.md`, `modelo-datos.md`, `convenciones-codigo.md`, `DESIGN.md` |
 | [`04-api/`](./04-api) | Contrato y endpoints | `api-inventario.md`, `endpoints.md`, `openapi.yaml` |
 | [`05-integraciones/`](./05-integraciones) | Sistemas externos | `integracion-sgc.md`, `api-sistema-montaje.md`, `guia-consumo-servicio-persona.md` |
 | [`06-operacion/`](./06-operacion) | Operación y DevOps | `infraestructura-devops.md`, `pruebas-produccion.md` |
@@ -27,6 +27,7 @@ orden de lectura recomendado.
 | [resumen-ejecutivo.md](./00-inicio/resumen-ejecutivo.md) | Qué es, alcance, estado, riesgos y traspaso |
 | [requerimientos.md](./00-inicio/requerimientos.md) | Requerimientos funcionales y no funcionales |
 | [flujos.md](./00-inicio/flujos.md) | Flujos de negocio y procesos técnicos |
+| [requerimientos-portal-empresas.md](./00-inicio/requerimientos-portal-empresas.md) | Requerimientos 2026 (portal único, empresas, contrato, revisión y comprobante): análisis de brecha, decisiones pendientes y fases |
 
 ### 01 — Funcional
 | Documento | Contenido |
@@ -57,6 +58,7 @@ orden de lectura recomendado.
 | [stack-tecnologico.md](./03-arquitectura/stack-tecnologico.md) | Dependencias y versiones |
 | [modelo-datos.md](./03-arquitectura/modelo-datos.md) | Modelo de datos (ER + diccionario) |
 | [convenciones-codigo.md](./03-arquitectura/convenciones-codigo.md) | Reglas y estándares obligatorios |
+| [DESIGN.md](./03-arquitectura/DESIGN.md) | **Especificación maestra UX/UI IIMP (Stitch)**: tokens, shell, componentes, estados y criterios para toda pantalla nueva |
 
 ### 04 — API
 | Documento | Contenido |

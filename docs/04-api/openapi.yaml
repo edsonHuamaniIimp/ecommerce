@@ -317,6 +317,273 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Empresa"
+  /empresas/listar:
+    get:
+      tags: [Empresas]
+      summary: Bandeja paginada de empresas registradas por el backoffice
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+        - name: search
+          in: query
+          description: Razón social o RUC
+          schema: { type: string }
+        - name: estado
+          in: query
+          schema: { type: string, enum: [activa, inactiva] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total, page, perPage, totalPages]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EmpresaRegistrada"
+                  total: { type: integer }
+                  page: { type: integer }
+                  perPage: { type: integer }
+                  totalPages: { type: integer }
+        "403":
+          description: Sin permiso empresas:view
+  /empresas/detalle:
+    get:
+      tags: [Empresas]
+      summary: Detalle de una empresa registrada
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaRegistrada"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /empresas/crear:
+    post:
+      tags: [Empresas]
+      summary: Alta individual de empresa (valida RUC, correos y duplicados)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmpresaRegistradaInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaRegistrada"
+        "400":
+          description: Datos inválidos (RUC, razón social, correos o comprobante)
+        "409":
+          description: RUC ya registrado
+  /empresas/actualizar:
+    post:
+      tags: [Empresas]
+      summary: Edición parcial de una empresa (solo campos enviados)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/EmpresaRegistradaInput"
+                - type: object
+                  required: [id]
+                  properties:
+                    id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /empresas/estado:
+    post:
+      tags: [Empresas]
+      summary: Activa o desactiva una empresa (baja lógica)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, estado]
+              properties:
+                id: { type: string, format: uuid }
+                estado: { type: string, enum: [activa, inactiva] }
+      responses:
+        "200":
+          description: OK
+  /empresas/carga-masiva/previsualizar:
+    post:
+      tags: [Empresas]
+      summary: Valida un archivo Excel/CSV de empresas (validación previa por fila)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [archivo]
+              properties:
+                archivo: { type: string, format: binary }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrevisualizacionCargaEmpresas"
+        "400":
+          description: Formato/tamaño inválido o archivo sin filas
+  /empresas/carga-masiva/importar:
+    post:
+      tags: [Empresas]
+      summary: Importa las filas válidas de la carga masiva (omite las que tienen error)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filas]
+              properties:
+                filas:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/FilaCargaEmpresa"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [creadas, omitidas]
+                properties:
+                  creadas: { type: integer }
+                  omitidas: { type: integer }
+  /empresas/crear-cuenta:
+    post:
+      tags: [Empresas]
+      summary: Crea la cuenta del Portal del Cliente y envía las credenciales por correo
+      description: |
+        1 cuenta por empresa (creada explícitamente por el backoffice). Genera una
+        contraseña temporal (cambio obligatorio en el primer ingreso), vincula el usuario
+        a la empresa y envía el correo. La respuesta indica si el correo salió.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
+        "400":
+          description: La empresa no tiene correo de contacto/facturación
+        "409":
+          description: La empresa ya tiene cuenta o el correo ya está registrado
+  /empresas/reenviar-credenciales:
+    post:
+      tags: [Empresas]
+      summary: Regenera la contraseña temporal y reenvía las credenciales
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /auth/cambiar-password:
+    post:
+      tags: [Auth]
+      summary: Cambia la contraseña temporal (primer ingreso) y reemite la sesión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [passwordActual, passwordNueva]
+              properties:
+                passwordActual: { type: string }
+                passwordNueva: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, requiereValidarDatos]
+                properties:
+                  ok: { type: boolean }
+                  requiereValidarDatos: { type: boolean, description: "La empresa aún debe validar sus datos" }
+        "400":
+          description: Contraseña actual incorrecta o nueva inválida
+  /portal/empresa/mis-datos:
+    get:
+      tags: [Portal]
+      summary: Datos de la empresa vinculada al usuario autenticado
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaRegistrada"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /portal/empresa/validar:
+    post:
+      tags: [Portal]
+      summary: Valida/actualiza los datos contractuales de la empresa (primer ingreso)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmpresaRegistradaInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaRegistrada"
   /sgc/detalle:
     get:
       tags: [SGC]
@@ -663,6 +930,77 @@ components:
         origen:
           type: string
           enum: [john, niel, local]
+    EmpresaRegistradaInput:
+      type: object
+      required: [ruc, razonSocial]
+      properties:
+        ruc: { type: string, minLength: 11, maxLength: 11 }
+        razonSocial: { type: string, maxLength: 200 }
+        nombreComercial: { type: string, nullable: true, maxLength: 200 }
+        direccionFiscal: { type: string, nullable: true, maxLength: 250 }
+        telefono: { type: string, nullable: true, maxLength: 30 }
+        emailContacto: { type: string, nullable: true, format: email }
+        emailFacturacion: { type: string, nullable: true, format: email }
+        representanteLegalNombre: { type: string, nullable: true, maxLength: 200 }
+        representanteLegalDni: { type: string, nullable: true, maxLength: 15 }
+        tipoComprobante: { type: string, enum: [factura, boleta], default: factura }
+        sitioWeb: { type: string, nullable: true, maxLength: 200 }
+    EmpresaRegistrada:
+      allOf:
+        - $ref: "#/components/schemas/EmpresaRegistradaInput"
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            estado: { type: string, enum: [activa, inactiva] }
+            cuentaCreada: { type: boolean }
+            primerAccesoCompletado: { type: boolean }
+            datosValidadosEn: { type: string, format: date-time, nullable: true }
+            creadoPor: { type: string, nullable: true }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    FilaCargaEmpresa:
+      type: object
+      required: [numero]
+      properties:
+        numero: { type: integer, description: "Fila del archivo (1 = encabezado)" }
+        ruc: { type: string }
+        razonSocial: { type: string }
+        nombreComercial: { type: string }
+        direccionFiscal: { type: string }
+        telefono: { type: string }
+        emailContacto: { type: string }
+        emailFacturacion: { type: string }
+        representanteLegalNombre: { type: string }
+        representanteLegalDni: { type: string }
+        tipoComprobante: { type: string }
+        sitioWeb: { type: string }
+    PrevisualizacionCargaEmpresas:
+      type: object
+      required: [filas, resumen]
+      properties:
+        filas:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/FilaCargaEmpresa"
+              - type: object
+                required: [estado, mensajes]
+                properties:
+                  estado: { type: string, enum: [lista, advertencia, error] }
+                  mensajes: { type: array, items: { type: string } }
+        resumen:
+          type: object
+          required: [listas, advertencias, errores]
+          properties:
+            listas: { type: integer }
+            advertencias: { type: integer }
+            errores: { type: integer }
+    ResultadoCredencialesEmpresa:
+      type: object
+      required: [email, emailEnviado]
+      properties:
+        email: { type: string, format: email, description: "Usuario de la cuenta del Portal" }
+        emailEnviado: { type: boolean, description: "True si el correo con las credenciales salió" }
     ApiError:
       type: object
       required: [error]

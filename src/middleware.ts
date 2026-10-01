@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getTokenFromRequest, verifyToken, hasPermission } from "@/lib/server/auth";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES } from "@/lib/shared/constants";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
@@ -25,6 +25,11 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/planos", permission: PERMISSIONS.LABORATORIO_VIEW },
   { path: "/dashboard/roles", permission: PERMISSIONS.ROLES_MANAGE },
   { path: "/dashboard/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
+  /* Empresas (Portal del Cliente). El prefijo exacto de montajistas va primero para no
+     quedar capturado por `/api/empresas` (catalogo SIE usado tambien por clientes). */
+  { path: "/api/empresas-montajistas" },
+  { path: "/dashboard/empresas", permission: PERMISSIONS.EMPRESAS_VIEW },
+  { path: "/api/empresas", permission: PERMISSIONS.EMPRESAS_VIEW },
   { path: "/api/roles", permission: PERMISSIONS.ROLES_MANAGE },
   { path: "/api/solicitudes-cuenta", permission: PERMISSIONS.ROLES_MANAGE },
   { path: "/api/dashboard" },
@@ -60,6 +65,14 @@ export async function middleware(request: NextRequest) {
 
       const payload = await verifyToken(token);
       if (!payload) return redirectToLogin(request);
+
+      /* Credencial temporal: solo puede cambiar contrasena/validar datos hasta completarlo. */
+      if (
+        payload.debeCambiarPassword === true &&
+        !(RUTAS_PERMITIDAS_CAMBIO_PASSWORD as readonly string[]).some((p) => pathname.startsWith(p))
+      ) {
+        return NextResponse.redirect(new URL("/auth/cambiar-password", request.url));
+      }
 
       if (route.permission && !hasPermission(payload, route.permission)) {
         return NextResponse.redirect(new URL("/403", request.url));

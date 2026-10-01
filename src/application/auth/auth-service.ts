@@ -5,7 +5,7 @@ import { sendEmail } from "@/lib/server/email";
 import { generarCodigoNumerico, generarTokenAleatorio } from "@/lib/server/utils/token";
 import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/password";
 import { buildRegistroCodigoEmail } from "@/lib/server/registro-email";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO } from "@/lib/shared/constants";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH } from "@/lib/shared/constants";
 import type { Rol } from "@/lib/shared/constants";
 import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
@@ -22,6 +22,8 @@ import type { RegistroRequestDTO } from "@/types/dto/auth/registro-request.dto";
 import type { RegistroResult } from "@/types/dto/auth/registro-result.dto";
 import type { RegistroConfirmarRequestDTO } from "@/types/dto/auth/registro-confirmar-request.dto";
 import type { RegistroConfirmarResult } from "@/types/dto/auth/registro-confirmar-result.dto";
+import type { CambiarPasswordRequestDTO } from "@/types/dto/auth/cambiar-password-request.dto";
+import type { CambiarPasswordResult } from "@/types/dto/auth/cambiar-password-result.dto";
 
 const MENSAJE_CUENTA_EXISTENTE = "Este correo ya tiene una cuenta. Inicia sesion.";
 
@@ -150,6 +152,15 @@ export class AuthApplicationService {
     const evento = principal.eventoId
       ? await this.repo.findEventoById(principal.eventoId).catch(() => null)
       : null;
+
+    /* Credencial temporal (cuenta creada por backoffice): cambio obligatorio en el portal. */
+    const debeCambiarPassword = principal.debeCambiarPassword === true;
+    /* Primer ingreso de la empresa: debe validar sus datos contractuales. */
+    const estadoEmpresa = debeCambiarPassword
+      ? null
+      : await this.repo.estadoEmpresaPortal(email).catch(() => null);
+    const requiereValidarDatos = Boolean(estadoEmpresa && !estadoEmpresa.primerAccesoCompletado);
+
     const token = await signToken(
       {
         sub: `user|${email}`,
@@ -157,6 +168,7 @@ export class AuthApplicationService {
         name: email.split("@")[0] ?? email,
         roles,
         permissions,
+        ...(debeCambiarPassword ? { debeCambiarPassword: true } : {}),
         ...(evento
           ? {
               eventoId: evento.id,
@@ -170,7 +182,67 @@ export class AuthApplicationService {
       },
       expiracion,
     );
-    return { token, roles, email, remember: dto.remember ?? false };
+    return { token, roles, email, remember: dto.remember ?? false, debeCambiarPassword, requiereValidarDatos };
+  }
+
+  /**
+   * Credencial temporal -> contrasena definitiva (primer ingreso de una cuenta
+   * creada por backoffice). Valida la actual, exige minimo de longitud, guarda el
+   * hash, limpia la exigencia y reemite el token sin el flag.
+   */
+  async cambiarPassword(dto: CambiarPasswordRequestDTO): Promise<CambiarPasswordResult> {
+    const { getSession } = await import("@/lib/server/auth");
+    const session = await getSession();
+    if (!session) return { ok: false, error: "No autorizado", status: 401 };
+
+    const email = session.email;
+    const userRoles = await this.repo.findByEmail(email);
+    const principal = userRoles[0];
+    if (!principal) return { ok: false, error: "Usuario no encontrado", status: 404 };
+
+    if (!verificarPassword(dto.passwordActual ?? "", principal.password)) {
+      return { ok: false, error: "La contrasena actual no es correcta", status: 400 };
+    }
+    const nueva = (dto.passwordNueva ?? "").trim();
+    if (nueva.length < PASSWORD_MIN_LENGTH) {
+      return { ok: false, error: `La nueva contrasena debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`, status: 400 };
+    }
+    if (verificarPassword(nueva, principal.password)) {
+      return { ok: false, error: "La nueva contrasena debe ser distinta a la actual", status: 400 };
+    }
+
+    await this.repo.updatePassword(principal.id, hashPassword(nueva));
+    await this.repo.marcarCambioPasswordRequerido(email, false);
+
+    /* Reemite el token (sin el flag) conservando roles, permisos y evento elegido. */
+    const roles = userRoles.map((ur) => ur.role.nombre as Rol);
+    const permissions = principal.role.permisos;
+    const evento = principal.eventoId
+      ? await this.repo.findEventoById(principal.eventoId).catch(() => null)
+      : null;
+    const token = await signToken(
+      {
+        sub: `user|${email}`,
+        email,
+        name: session.name ?? email.split("@")[0] ?? email,
+        roles,
+        permissions,
+        ...(evento
+          ? {
+              eventoId: evento.id,
+              eventoPadreId: evento.eventoPadreId,
+              tipoEvento: evento.tipoEvento,
+              codigoEvento: evento.codigoEvento,
+              eventoNombre: `${evento.eventoPadre.nombre} ${evento.anio}`,
+              eventoPadreNombre: evento.eventoPadre.nombre,
+            }
+          : {}),
+      },
+      SESION.JWT_EXPIRACION_ESTANDAR,
+    );
+
+    const estadoEmpresa = await this.repo.estadoEmpresaPortal(email).catch(() => null);
+    return { ok: true, token, requiereValidarDatos: Boolean(estadoEmpresa && !estadoEmpresa.primerAccesoCompletado) };
   }
 
   async getSession(): Promise<SessionResult> {

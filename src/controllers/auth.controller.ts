@@ -29,6 +29,7 @@ import type { ResetPasswordRequestDTO } from "@/types/dto/auth/reset-password-re
 import type { RequestResetResult } from "@/types/dto/auth/request-reset-result.dto";
 import type { ConfirmResetRequestDTO } from "@/types/dto/auth/confirm-reset-request.dto";
 import type { ConfirmResetResult } from "@/types/dto/auth/confirm-reset-result.dto";
+import type { CambiarPasswordRequestDTO } from "@/types/dto/auth/cambiar-password-request.dto";
 
 export const authController = {
   /** @request LoginRequestDTO */
@@ -85,6 +86,19 @@ export const authController = {
   logout(): NextResponse {
     const res = NextResponse.json({ ok: true });
     clearTokenCookie(res);
+    return res;
+  },
+
+  /** Cambio de la contrasena temporal (primer ingreso). Reemite la sesion sin el flag. */
+  async cambiarPassword(request: Request): Promise<NextResponse> {
+    const dto = (await request.json()) as CambiarPasswordRequestDTO;
+    const result = await services.auth.cambiarPassword(dto);
+    if (!result.ok) {
+      const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.VALIDATION;
+      return error(code, result.error, result.status);
+    }
+    const res = NextResponse.json({ ok: true, requiereValidarDatos: result.requiereValidarDatos });
+    setTokenCookie(res, result.token, SESION.MAX_AGE_ESTANDAR);
     return res;
   },
 

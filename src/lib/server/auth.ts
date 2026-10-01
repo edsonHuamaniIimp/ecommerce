@@ -23,6 +23,8 @@ export interface JwtPayload {
   codigoEvento?: number;
   eventoNombre?: string;
   eventoPadreNombre?: string;
+  /** Credencial temporal: el portal exige cambiar la contrasena antes de navegar. */
+  debeCambiarPassword?: boolean;
 }
 
 export async function signToken(

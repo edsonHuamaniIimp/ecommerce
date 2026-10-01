@@ -22,6 +22,23 @@ export function esHash(valor: string): boolean {
   return valor.startsWith(`${PREFIJO}$`);
 }
 
+const ALFABETO_PASSWORD_TEMPORAL = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+const LONGITUD_PASSWORD_TEMPORAL = 10;
+
+/**
+ * Contrasena temporal criptograficamente segura (sin caracteres ambiguos 0/O/1/l/I).
+ * Se envia por correo al crear la cuenta; el primer ingreso exige cambiarla.
+ */
+export function generarPasswordTemporal(longitud = LONGITUD_PASSWORD_TEMPORAL): string {
+  const bytes = randomBytes(longitud);
+  let password = "";
+  for (let i = 0; i < longitud; i += 1) {
+    const byte = bytes[i] ?? 0;
+    password += ALFABETO_PASSWORD_TEMPORAL[byte % ALFABETO_PASSWORD_TEMPORAL.length];
+  }
+  return password;
+}
+
 /**
  * Verifica una contrasena contra el valor almacenado.
  * Soporta el formato legacy en texto plano para migrar sin romper accesos.

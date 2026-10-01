@@ -9,7 +9,7 @@ export interface EventoInfo {
   codigoEvento?: number;
 }
 
-/** Datos minimos para crear una cuenta de exhibidor (auto-registro). */
+/** Datos minimos para crear una cuenta de exhibidor (auto-registro o backoffice). */
 export interface NuevoUsuarioAuth {
   userId: string;
   email: string;
@@ -19,6 +19,10 @@ export interface NuevoUsuarioAuth {
   telefono: string | null;
   nombreEmpresa: string;
   roleId: string;
+  /** Empresa del Portal del Cliente vinculada (alta por backoffice). */
+  empresaId?: string | null;
+  /** Credencial temporal: exigir cambio de contrasena en el primer ingreso. */
+  debeCambiarPassword?: boolean;
 }
 
 /** Datos de un registro de exhibidor pendiente de verificacion por codigo. */
@@ -57,4 +61,8 @@ export interface IAuthRepository {
   setResetToken(id: string, token: string, expires: Date): Promise<void>;
   findByResetToken(token: string): Promise<{ id: string } | null>;
   updatePassword(id: string, password: string): Promise<void>;
+  /** Marca/limpia la exigencia de cambio de contrasena (credencial temporal). */
+  marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void>;
+  /** Estado de la empresa del Portal vinculada al usuario (null si no tiene empresa). */
+  estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null>;
 }

@@ -3,6 +3,9 @@
 > Fuente: [designmd.app](https://designmd.app/library/minimalism-swiss-style) — *Minimalism & Swiss Style*.
 > **Alcance:** este diseño aplica **únicamente** a la página `/landing`. El resto de la app
 > sigue el UI Kit IIMP (`@nrivera-iimp/ui-kit-iimp`) y los tokens semánticos.
+>
+> **Estado (2026-09-30):** la ruta `/landing` fue **retirada** (no se muestra). Este documento
+> se conserva como referencia y el componente vive en `src/components/landing/legacy/`.
 
 ```markdown
 ---

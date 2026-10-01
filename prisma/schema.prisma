@@ -135,12 +135,18 @@ model UserRole {
   eventoId          String?   @map("evento_id") @db.VarChar(50)
   resetToken        String?   @map("reset_token") @db.VarChar(200)
   resetTokenExpires DateTime? @map("reset_token_expires")
+  /// Empresa del Portal del Cliente a la que pertenece la cuenta (registrada por backoffice).
+  empresaId         String?   @map("empresa_id")
+  /// Credencial temporal: el usuario debe cambiar la contrasena en el primer ingreso.
+  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
 
   role     Role   @relation(fields: [roleId], references: [id])
+  empresa  Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
 
   @@unique([userId, roleId])
   @@index([userId])
   @@index([email])
+  @@index([empresaId])
   @@map("user_role")
 }
 
@@ -219,6 +225,53 @@ model RegistroPendiente {
 /* ================================================================
    2. TRANSACCIONALES — datos que cambian con frecuencia
    ================================================================ */
+
+/// Empresa exhibidora registrada por el backoffice (cuenta del Portal del Cliente).
+/// Los datos marcados como contractuales alimentan el contrato de alquiler.
+model Empresa {
+  id       String @id @default(uuid())
+  /// RUC (11 digitos). Identificador de negocio; unico.
+  ruc      String @unique @db.VarChar(11)
+  /// Razon social; usada en el cuerpo del contrato.
+  razonSocial String @map("razon_social") @db.VarChar(200)
+  /// Nombre comercial (opcional, no contractual).
+  nombreComercial String? @map("nombre_comercial") @db.VarChar(200)
+  /// Direccion fiscal; usada en el contrato.
+  direccionFiscal String? @map("direccion_fiscal") @db.VarChar(250)
+  /// Telefono de contacto de la empresa.
+  telefono String? @db.VarChar(30)
+  /// Correo de contacto general.
+  emailContacto String? @map("email_contacto") @db.VarChar(200)
+  /// Correo para facturacion y comprobantes (Tributos).
+  emailFacturacion String? @map("email_facturacion") @db.VarChar(200)
+  /// Representante legal (nombre completo); firma el contrato.
+  representanteLegalNombre String? @map("representante_legal_nombre") @db.VarChar(200)
+  /// DNI/pasaporte del representante legal.
+  representanteLegalDni String? @map("representante_legal_dni") @db.VarChar(15)
+  /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).
+  tipoComprobante String @default("factura") @map("tipo_comprobante") @db.VarChar(20)
+  /// Sitio web (opcional).
+  sitioWeb String? @map("sitio_web") @db.VarChar(200)
+  /// Estado de la empresa: activa | inactiva (ver ESTADOS_EMPRESA).
+  estado String @default("activa") @db.VarChar(20)
+  /// La cuenta del Portal del Cliente ya fue creada/enviada.
+  cuentaCreada Boolean @default(false) @map("cuenta_creada")
+  /// El primer acceso (validacion de datos) fue completado.
+  primerAccesoCompletado Boolean @default(false) @map("primer_acceso_completado")
+  /// Registro de datos validados por la empresa (primer login).
+  datosValidadosEn DateTime? @map("datos_validados_en")
+  /// Usuario (correo) que dio de alta la empresa en el backoffice.
+  creadoPor String? @map("creado_por") @db.VarChar(200)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  usuarios UserRole[]
+
+  @@index([razonSocial])
+  @@index([estado])
+  @@map("empresa")
+}
 
 model Stand {
   id           String     @id @default(uuid())

@@ -98,6 +98,10 @@ export interface UserRoleEntity {
   roleId: string;
   /** Ultimo evento seleccionado por el usuario (se reusa al iniciar sesion). */
   eventoId?: string | null;
+  /** Empresa del Portal del Cliente vinculada (alta por backoffice). */
+  empresaId?: string | null;
+  /** Credencial temporal: debe cambiar la contrasena en el primer ingreso. */
+  debeCambiarPassword?: boolean;
 }
 
 export interface AuthUser {

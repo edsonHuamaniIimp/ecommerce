@@ -26,4 +26,8 @@ export const authService = {
   seleccionarEvento(body: SeleccionarEventoRequestDTO) {
     return internalApi.post<void>("/api/auth/seleccionar-evento", body);
   },
+  /** Cambio de la contrasena temporal en el primer ingreso (reemite la sesion). */
+  cambiarPassword(body: { passwordActual: string; passwordNueva: string }) {
+    return internalApi.post<{ ok: boolean; requiereValidarDatos: boolean }>("/api/auth/cambiar-password", body);
+  },
 };

@@ -11,6 +11,8 @@ export type { ResetPasswordRequestDTO } from "./reset-password-request.dto";
 export type { RequestResetResult } from "./request-reset-result.dto";
 export type { ConfirmResetRequestDTO } from "./confirm-reset-request.dto";
 export type { ConfirmResetResult } from "./confirm-reset-result.dto";
+export type { CambiarPasswordRequestDTO } from "./cambiar-password-request.dto";
+export type { CambiarPasswordResult } from "./cambiar-password-result.dto";
 
 // backward compat
 export type { LoginResponseDTO as AuthLoginResponse } from "./login-response.dto";

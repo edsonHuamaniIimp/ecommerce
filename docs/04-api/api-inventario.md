@@ -23,7 +23,7 @@
 ## 2. Middleware (`src/middleware.ts`)
 
 - **Matcher:** todas las rutas excepto `_next/static`, `_next/image`, `favicon.ico`, `sitemap.xml`, `robots.txt`.
-- **Rutas públicas:** `/`, `/landing`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
+- **Rutas públicas:** `/`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
   rutas exactas `/api/maestra`, `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`,
   `/api/planos/publico`, `/api/eventos/modal-info`; caso especial `GET /api/eventos/listar?presala=1`.
 - **Autenticación:** extrae el token JWT de la cookie `token` y lo verifica con `verifyToken`.
@@ -225,6 +225,35 @@ Vista del cliente (`pagos:view`); cada acción valida propiedad de la facturaci�
 | Ruta | Métodos | Descripción |
 |---|---|---|
 | `/api/errors/log` | POST | Registra un error (message/stack/digest/url/metadata) con userId si hay sesión |
+
+### 3.19 Empresas (Portal del Cliente) - `src/app/api/empresas/[...slug]/route.ts`
+
+Bandeja y mantenimiento de empresas registradas por el backoffice. Lectura con `empresas:view`
+y escritura con `empresas:manage` (el admin `admin:full` siempre accede).
+
+| Ruta | Métodos | Descripción |
+|---|---|---|
+| `/api/empresas/listar` | GET | Bandeja paginada (`page`, `perPage`, `search` por razón social/RUC, `estado`) |
+| `/api/empresas/detalle` | GET | Detalle de una empresa (`id`) |
+| `/api/empresas/crear` | POST | Alta individual: valida RUC (11 dígitos), correos, comprobante y duplicados (409) |
+| `/api/empresas/actualizar` | POST | Edición parcial (`id` + campos enviados) |
+| `/api/empresas/estado` | POST | Activa/desactiva (`id`, `estado`: `activa` \| `inactiva`) |
+| `/api/empresas/carga-masiva/previsualizar` | POST | Sube Excel/CSV (`multipart`, campo `archivo`) y valida por fila: RUC/correos/comprobante, duplicados (archivo y BD), datos contractuales faltantes |
+| `/api/empresas/carga-masiva/importar` | POST | Importa las filas válidas (`{ filas }`); las filas con error se omiten. Máx. 500 filas / 5 MB |
+| `/api/empresas/crear-cuenta` | POST | Crea la cuenta del Portal (`id`): usuario + contraseña temporal, rol cliente, vínculo `empresa_id`; envía credenciales por correo y exige cambio en el primer ingreso |
+| `/api/empresas/reenviar-credenciales` | POST | Regenera la contraseña temporal y reenvía las credenciales (`id`) |
+
+### 3.20 Portal del Cliente (empresa propia) - `src/app/api/portal/empresa/[...slug]/route.ts`
+
+Endpoints para la empresa vinculada al usuario autenticado (sin permiso especial; sesión propia).
+El middleware exige cambiar contraseña/validar datos cuando la credencial es temporal
+(`debeCambiarPassword`).
+
+| Ruta | Métodos | Descripción |
+|---|---|---|
+| `/api/auth/cambiar-password` | POST | Cambio de la contraseña temporal (valida actual, longitud mínima); reemite la sesión sin el flag |
+| `/api/portal/empresa/mis-datos` | GET | Datos de la empresa vinculada al usuario (primer ingreso / Mi empresa) |
+| `/api/portal/empresa/validar` | POST | Valida/actualiza los datos contractuales y marca `primerAccesoCompletado` |
 
 ---
 

@@ -30,6 +30,8 @@ import { SolicitudCuentaApplicationService } from "@/application/solicitud-cuent
 import { SolicitudCuentaPrismaRepository } from "@/infrastructure/persistence/solicitud-cuenta-repository";
 import { SolicitudesApplicationService } from "@/application/solicitudes/solicitudes-service";
 import { PlanoApplicationService } from "@/application/planos/planos-service";
+import { EmpresaPrismaRepository } from "@/infrastructure/persistence/empresa-repository";
+import { EmpresaApplicationService } from "@/application/empresas/empresa-service";
 
 const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
@@ -38,6 +40,7 @@ const authRepo = new AuthPrismaRepository();
 const solicitudCuentaRepo = new SolicitudCuentaPrismaRepository();
 const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
+const empresaRepo = new EmpresaPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new PlanogessClient();
 const sgcConfig = getSgcConfig();
@@ -68,6 +71,7 @@ export const services = {
   sgcOutbox,
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion),
   planos: new PlanoApplicationService(planoRepo),
+  empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
   gessRepo,
   roleRepo,
 };

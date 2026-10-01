@@ -17,7 +17,6 @@ export const PUBLIC_ROUTES = [
   "/auth/login",
   "/presala",
   "/mapa",
-  "/landing",
   "/",
   "/403",
 ] as const;
@@ -209,6 +208,8 @@ export type Rol = (typeof ROLES)[keyof typeof ROLES];
 export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
   [ROLES.ADMIN]: [
     "admin:full",
+    "empresas:view",
+    "empresas:manage",
     "dashboard:view",
     "eventos:datos",
     "stands:vinculacion",
@@ -278,6 +279,9 @@ export const ALL_PERMISSIONS = [
   { key: "approve:logistica", label: "Aprobar Logistica", descripcion: "Resolver aprobaciones del area de Logistica", section: "reservas" },
   { key: "approve:legal", label: "Aprobar Legal", descripcion: "Resolver aprobaciones del area Legal", section: "reservas" },
   { key: "approve:comunicacion", label: "Aprobar Comunicacion", descripcion: "Resolver aprobaciones del area de Comunicacion", section: "reservas" },
+  // Empresas (Portal del Cliente)
+  { key: "empresas:view", label: "Ver empresas", descripcion: "Ver la bandeja de empresas registradas", section: "empresas" },
+  { key: "empresas:manage", label: "Gestionar empresas", descripcion: "Registrar y editar empresas (alta individual y masiva)", section: "empresas" },
   // Roles y Eventos
   { key: "roles:manage", label: "Roles y Permisos", descripcion: "Administrar roles, usuarios y permisos del sistema", section: "admin" },
   { key: "events:manage", label: "Gestion de Eventos", descripcion: "Administrar eventos y sus versiones", section: "admin" },
@@ -324,6 +328,8 @@ export const PERMISSIONS = {
   EVENTS_CREATE: "events:create",
   EVENTS_EDIT: "events:edit",
   EVENTS_TOGGLE: "events:toggle",
+  EMPRESAS_VIEW: "empresas:view",
+  EMPRESAS_MANAGE: "empresas:manage",
 } as const satisfies Record<string, Permission>;
 
 export const PERMISSION_SECTIONS = {
@@ -337,6 +343,7 @@ export const PERMISSION_SECTIONS = {
   RESERVAS: "reservas",
   EVENTOS: "eventos",
   ADMIN: "admin",
+  EMPRESAS: "empresas",
 } as const;
 
 export const PERMISSION_SECTION_LABELS: Record<string, string> = {
@@ -350,6 +357,7 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
   [PERMISSION_SECTIONS.RESERVAS]: "Reservas",
   [PERMISSION_SECTIONS.EVENTOS]: "Eventos",
   [PERMISSION_SECTIONS.ADMIN]: "Administracion",
+  [PERMISSION_SECTIONS.EMPRESAS]: "Empresas",
 };
 
 /* ================================================================
@@ -563,6 +571,94 @@ export const ESTADOS_SOLICITUD_CUENTA = {
 } as const;
 
 export type EstadoSolicitudCuenta = (typeof ESTADOS_SOLICITUD_CUENTA)[keyof typeof ESTADOS_SOLICITUD_CUENTA];
+
+/* ================================================================
+   Empresas (backoffice / Portal del Cliente)
+   ================================================================ */
+
+/** Estado de una empresa registrada por el backoffice. */
+export const ESTADOS_EMPRESA = {
+  ACTIVA: "activa",
+  INACTIVA: "inactiva",
+} as const;
+
+export type EstadoEmpresa = (typeof ESTADOS_EMPRESA)[keyof typeof ESTADOS_EMPRESA];
+
+/** Etiquetas legibles del tipo de comprobante (ver TIPOS_COMPROBANTE). */
+export const TIPO_COMPROBANTE_LABELS: Record<string, string> = {
+  [TIPOS_COMPROBANTE.FACTURA]: "Factura",
+  [TIPOS_COMPROBANTE.BOLETA]: "Boleta",
+};
+
+/** RUC peruano: 11 digitos. */
+export const REGEX_RUC = /^\d{11}$/;
+
+/** Correo electronico simple (validacion de formularios). */
+export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* ================================================================
+   Carga masiva de empresas (Excel / CSV)
+   ================================================================ */
+
+/** Estado de una fila tras la validacion previa de la carga masiva. */
+export const ESTADOS_FILA_CARGA = {
+  LISTA: "lista",
+  ADVERTENCIA: "advertencia",
+  ERROR: "error",
+} as const;
+
+export type EstadoFilaCarga = (typeof ESTADOS_FILA_CARGA)[keyof typeof ESTADOS_FILA_CARGA];
+
+export type CampoPlantillaEmpresa =
+  | "ruc"
+  | "razonSocial"
+  | "nombreComercial"
+  | "direccionFiscal"
+  | "telefono"
+  | "emailContacto"
+  | "emailFacturacion"
+  | "representanteLegalNombre"
+  | "representanteLegalDni"
+  | "tipoComprobante"
+  | "sitioWeb";
+
+/** Columnas de la plantilla de carga masiva (orden = columnas del archivo). */
+export const CAMPOS_CARGA_EMPRESA: { campo: CampoPlantillaEmpresa; header: string; requerido: boolean; alias?: string[] }[] = [
+  { campo: "ruc", header: "RUC", requerido: true, alias: ["RUC EMPRESA"] },
+  { campo: "razonSocial", header: "RAZON SOCIAL", requerido: true, alias: ["RAZON SOCIAL EMPRESA", "EMPRESA"] },
+  { campo: "nombreComercial", header: "NOMBRE COMERCIAL", requerido: false },
+  { campo: "direccionFiscal", header: "DIRECCION FISCAL", requerido: false, alias: ["DIRECCION"] },
+  { campo: "telefono", header: "TELEFONO", requerido: false, alias: ["CELULAR"] },
+  { campo: "emailContacto", header: "CORREO CONTACTO", requerido: false, alias: ["EMAIL CONTACTO", "CORREO"] },
+  { campo: "emailFacturacion", header: "CORREO FACTURACION", requerido: false, alias: ["EMAIL FACTURACION"] },
+  { campo: "representanteLegalNombre", header: "REPRESENTANTE LEGAL", requerido: false, alias: ["REPRESENTANTE LEGAL NOMBRE"] },
+  { campo: "representanteLegalDni", header: "DNI REPRESENTANTE", requerido: false, alias: ["DNI REPRESENTANTE LEGAL", "DNI"] },
+  { campo: "tipoComprobante", header: "TIPO COMPROBANTE", requerido: false, alias: ["COMPROBANTE"] },
+  { campo: "sitioWeb", header: "SITIO WEB", requerido: false, alias: ["WEB"] },
+];
+
+export const CARGA_MASIVA_MAX_FILAS = 500;
+export const CARGA_MASIVA_MAX_BYTES = 5 * 1024 * 1024;
+export const CARGA_MASIVA_EXTENSIONES = ["xlsx", "csv"] as const;
+
+/* ================================================================
+   Credenciales del Portal del Cliente
+   ================================================================ */
+
+/** Longitud minima de la contrasena al cambiarla (credencial temporal -> definitiva). */
+export const PASSWORD_MIN_LENGTH = 8;
+
+/**
+ * Rutas permitidas mientras el usuario tiene una credencial temporal
+ * (`debeCambiarPassword`): cambiar contrasena, validar datos y cerrar sesion.
+ */
+export const RUTAS_PERMITIDAS_CAMBIO_PASSWORD = [
+  "/auth/cambiar-password",
+  "/auth/validar-datos",
+  "/api/auth",
+  "/api/portal",
+  "/403",
+] as const;
 
 /** Estados a los que un administrador puede llevar una solicitud de cuenta. */
 export const ESTADOS_SOLICITUD_CUENTA_REVISION = [

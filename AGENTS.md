@@ -4,6 +4,14 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Diseño (UI) — fuente de verdad
+
+La especificación maestra UX/UI del proyecto es **`docs/03-arquitectura/DESIGN.md`**
+(estándar corporativo IIMP: identidad, tokens, shell, componentes, estados, wizards,
+microcopy, accesibilidad y responsive). Toda pantalla nueva —mockups de Stitch o
+implementación en código— debe seguir ese documento; el design system de Stitch se
+alinea a él.
+
 # Skills y reglas del proyecto
 
 Este proyecto define skills y reglas en `.opencode/`. opencode las descubre

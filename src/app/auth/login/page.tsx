@@ -28,7 +28,15 @@ function LoginPageContent() {
     setLoading(true);
     setError(null);
     try {
-      await authService.login({ email: email.trim(), password, remember });
+      const resultado = await authService.login({ email: email.trim(), password, remember });
+      if (resultado.debeCambiarPassword) {
+        router.push("/auth/cambiar-password");
+        return;
+      }
+      if (resultado.requiereValidarDatos) {
+        router.push("/auth/validar-datos");
+        return;
+      }
       await sincronizarEventoPublicoEnSesion();
       const returnTo = params.get("returnTo") ?? "/presala";
       router.push(returnTo);

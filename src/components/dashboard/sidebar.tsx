@@ -24,6 +24,7 @@ const navItems = [
   { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
+  { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW },
   { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
 ] as const;
 

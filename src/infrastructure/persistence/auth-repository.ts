@@ -9,7 +9,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
     return prisma.userRole.findMany({
       where: { email },
-      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, role: { select: { nombre: true, permisos: true } } },
+      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, empresaId: true, debeCambiarPassword: true, role: { select: { nombre: true, permisos: true } } },
     });
   }
 
@@ -33,6 +33,8 @@ export class AuthPrismaRepository implements IAuthRepository {
         apellidos: data.apellidos,
         telefono: data.telefono,
         nombreEmpresa: data.nombreEmpresa,
+        empresaId: data.empresaId ?? null,
+        debeCambiarPassword: data.debeCambiarPassword ?? false,
       },
     });
   }
@@ -136,5 +138,18 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async updatePassword(id: string, password: string) {
     await prisma.userRole.update({ where: { id }, data: { password, resetToken: null, resetTokenExpires: null } });
+  }
+
+  async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
+    await prisma.userRole.updateMany({ where: { email }, data: { debeCambiarPassword: requerido } });
+  }
+
+  async estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null> {
+    const row = await prisma.userRole.findFirst({
+      where: { email, empresaId: { not: null } },
+      select: { empresaId: true, empresa: { select: { primerAccesoCompletado: true } } },
+    });
+    if (!row?.empresaId) return null;
+    return { empresaId: row.empresaId, primerAccesoCompletado: row.empresa?.primerAccesoCompletado ?? false };
   }
 }

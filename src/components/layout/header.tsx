@@ -9,7 +9,6 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { LS_KEYS } from "@/lib/shared/constants";
 
 const links = [
-  { href: "/landing", label: "Reserva de Stands" },
   { href: "/plano", label: "Isometrico" },
   { href: "/mapa", label: "Dinamico" },
   { href: "/dashboard", label: "Dashboard" },

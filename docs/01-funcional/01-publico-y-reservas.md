@@ -22,9 +22,10 @@ registro crea la solicitud que luego recorren las áreas.
 | `/plano-grid` | Reconstrucción 2D de 52 bloques (**maqueta**) | `stands:plano` (capturado por `/plano`) |
 
 > `PUBLIC_ROUTES` (`src/lib/shared/constants.ts`) incluye `/`, `/presala`, `/mapa`,
-> `/landing`, `/auth/login` y `/403`. El grupo `(public)` no define el acceso: `/plano` y
+> `/auth/login` y `/403`. El grupo `(public)` no define el acceso: `/plano` y
 > `/plano-grid` siguen protegidos por `src/middleware.ts`. Sin `eventoId` (y no admin)
-> redirigen a `/presala`.
+> redirigen a `/presala`. *(La ruta `/landing` fue retirada; el componente se conserva en
+> `src/components/landing/legacy/`.)*
 
 ## 3. Flujo funcional
 
