@@ -81,6 +81,19 @@ export interface PlanoListItemDTO {
   updatedAt: string;
 }
 
+export interface PlanoTipoSugeridoDTO {
+  codigo: string;
+  label: string;
+  nombre: string;
+  w: number;
+  d: number;
+  h: number;
+  color: string;
+  planoCodigo: string;
+  planosCount: number;
+  bloquesCount: number;
+}
+
 export interface PlanoExportDTO {
   codigo: string;
   nombre: string;

@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
-import type { PlanoEntity, PlanoListItem, PlanoExportJSON, SeccionOcupacion, PlanoSeccionEntity } from "@/domain/models/plano-entities";
+import type { PlanoEntity, PlanoListItem, PlanoExportJSON, SeccionOcupacion, PlanoSeccionEntity, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, TIPOLOGIAS_STAND, TIPOS_PLANO } from "@/lib/shared/constants";
 import { tsCodegenUtils } from "@/lib/shared/utils/ts-codegen";
@@ -11,6 +11,11 @@ export class PlanoApplicationService {
 
   async listar(): Promise<PlanoListItem[]> {
     return this.repo.listar();
+  }
+
+  /** Tipos de bloque existentes en otros planos, para reutilizarlos como sugerencia. */
+  async tiposSugeridos(): Promise<PlanoTipoSugerido[]> {
+    return this.repo.listarTiposSugeridos();
   }
 
   async detalle(id: string): Promise<PlanoEntity> {
@@ -81,14 +86,19 @@ export class PlanoApplicationService {
       throw new DomainError(`Codigos de seccion duplicados: ${[...new Set(dupes)].join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
     }
 
-    const hijos = secciones.map((s) => s.planoHijoId).filter((v): v is string => !!v);
-    const vistos = new Set<string>();
-    for (const hijoId of hijos) {
-      if (vistos.has(hijoId)) {
-        throw new DomainError(`El plano hijo esta duplicado en este macro (seccion: ${secciones.find((s) => s.planoHijoId === hijoId)?.codigo})`, API_ERROR_CODES.VALIDATION, 400);
+    const usados = new Map<string, string>();
+    for (const seccion of secciones) {
+      if (!seccion.planoHijoId) continue;
+      const previo = usados.get(seccion.planoHijoId);
+      if (previo) {
+        throw new DomainError(
+          `El plano 3D esta asignado a dos secciones del macro (${previo} y ${seccion.codigo}). Cada pabellon debe tener un plano distinto.`,
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
       }
-      vistos.add(hijoId);
-      const otroMacro = await this.repo.findMacroConPlanoHijo(hijoId, id);
+      usados.set(seccion.planoHijoId, seccion.codigo);
+      const otroMacro = await this.repo.findMacroConPlanoHijo(seccion.planoHijoId, id);
       if (otroMacro) {
         throw new DomainError(
           `El plano hijo ya esta asignado al macro "${otroMacro.codigo}". Un plano 3D solo puede pertenecer a un macro a la vez.`,
@@ -166,7 +176,7 @@ ${plano.tipos.map(tiposConCodigo).join("\n")}
 
 export type BlockType = ${unionTypes};
 
-export interface Item { id: string; dim: Dim; type: BlockType; tipologia?: string; x: number; z: number; }
+export interface Item { id: string; dim: Dim; type: BlockType; tipologia?: string; rotY?: number; x: number; z: number; }
 
 export const BLOCK_LABEL: Record<BlockType, { label: string; nombre: string }> = {
 ${plano.tipos.map(labelsConCodigo).join("\n")}
@@ -181,11 +191,12 @@ export type ${constName}BloqueId = (typeof ${constName}_BLOQUE_IDS)[number];
 `;
 
     const itemLines = plano.bloques.map((b) =>
-      `    { id: "${b.bloqueId}", dim: DIMENSIONES.${b.tipoCodigo}, type: "${b.tipoCodigo}", tipologia: "${b.tipologia ?? TIPOLOGIAS_STAND.SIMPLE}", x: ${b.x}, z: ${b.z} },`,
+      `    { id: "${b.bloqueId}", dim: DIMENSIONES.${b.tipoCodigo}, type: "${b.tipoCodigo}", tipologia: "${b.tipologia ?? TIPOLOGIAS_STAND.SIMPLE}", rotY: ${b.rotY ?? 0}, x: ${b.x}, z: ${b.z} },`,
     );
-    const furnitureLines = plano.furniture.map((f) =>
-      `    { id: "${f.refId}", type: "${f.tipo}" as const, x: ${f.x}, z: ${f.z}, rotY: ${f.rotY} },`,
-    );
+    const furnitureLines = plano.furniture.map((f) => {
+      const config = f.config ? `, config: ${JSON.stringify(f.config)}` : "";
+      return `    { id: "${f.refId}", type: "${f.tipo}" as const, x: ${f.x}, z: ${f.z}, rotY: ${f.rotY}${config} },`;
+    });
 
     const construccion = `import { DIMENSIONES, type Item } from "./tipos";
 

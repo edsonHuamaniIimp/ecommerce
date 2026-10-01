@@ -4,6 +4,7 @@ import { planosController } from "@/controllers/planos.controller";
 export const { GET, POST, PATCH, DELETE } = createRouter({
   GET: {
     listar: () => planosController.listar(),
+    "tipos-sugeridos": () => planosController.tiposSugeridos(),
     detalle: (req) => planosController.detalle(req),
     "planos-evento": (req) => planosController.planosDeEvento(req),
     "macros-de-plano": (req) => planosController.macrosDePlano(req),

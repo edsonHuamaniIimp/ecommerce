@@ -97,6 +97,7 @@
 | Ruta | Métodos | Descripción |
 |---|---|---|
 | `/api/planos/listar` | GET | Lista todos los planos |
+| `/api/planos/tipos-sugeridos` | GET | Tipos de bloque existentes en otros planos, para reutilizarlos en el editor |
 | `/api/planos/detalle` | GET | Detalle por `id` o `codigo` |
 | `/api/planos/planos-evento` | GET | Planos asociados a `tipoEvento`/`codigoEvento` |
 | `/api/planos/macros-de-plano` | GET | Macros que contienen un `planoId` |

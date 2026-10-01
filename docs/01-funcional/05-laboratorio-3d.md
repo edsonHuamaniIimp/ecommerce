@@ -21,17 +21,21 @@ Editor visual de mapas 3D de pabellones para eventos, con dos tipos:
 
 ## 3. Funcionalidad — planos simples
 
+- Creación de mapa con código autogenerado `pab-#####` (regenerable) y validación de formato/unicidad en vivo.
 - Canvas con `@react-three/fiber` + `OrbitControls` y grilla según bounds.
+- **Líneas de apoyo**: rejilla de 1 m (líneas cada 5 m), ejes X=0/Z=0 y guías magnéticas al arrastrar (el objeto se alinea al centro de otro objeto o al origen cuando está a menos de `EDITOR_PLANO.UMBRAL_GUIA`). El checkbox "Lineas de apoyo" de la barra activa/desactiva rejilla, ejes y guías (solo afecta al editor).
 - Bloques con dimensiones/color por tipo; mobiliario/kiosko.
+- **Decoraciones opt-in**: paleta `Kiosko` / `Plaza` (preset: 4 mesas + 16 sillones) / `Mesa` / `Sillon` / `Piso` / `Persona`, drag&drop al mapa o alta en el centro, panel de propiedades (RefId, X/Z, rotación, ancho/fondo en Piso, tonos en Persona) y eliminar. No hay componentes automáticos: el plano renderiza exactamente el furniture declarado (`plano_furniture.tipo` + `config`). El piso base (`Floor`) sigue siendo parte del visor y se adapta a los bounds.
 - Arrastre con snap `0.25`; creación de bloque desde panel o diálogo "Agregar bloque".
-- Edición del bloque: **ID** (se vincula a `gess_stand.bloqueId`), tipo, **tipología** (Complejo/Simple/Octanorm, `TIPOLOGIAS_STAND`), coordenadas X/Z, eliminar.
-- Creación de tipos de bloque personalizados (código, label, dimensiones, color).
+- **Rotación**: al seleccionar un bloque o decoración aparece una manija en el canvas (drag con snap 5°, Shift = 15°) y el panel permite grados exactos y giros de ±90°. El visor público respeta `rotY` de `plano_bloque` y `plano_furniture`.
+- Edición del bloque: **ID** (se vincula a `gess_stand.bloqueId`), tipo, **tipología** (Complejo/Simple/Octanorm, `TIPOLOGIAS_STAND`), coordenadas X/Z, eliminar. El diálogo "Agregar bloque" ya no declara tipología: crea con `Simple` por defecto y la tipología se edita en el panel del bloque seleccionado.
+- Creación de tipos de bloque personalizados (código, label, dimensiones, color), con **sugerencias de tipos ya usados en otros planos** (`GET /api/planos/tipos-sugeridos`), código sugerido a partir del nombre y validación de duplicados por plano.
 - Guardar layout (`POST /api/planos/guardar-layout`), importar/exportar JSON.
 - **Exportar TypeScript**: genera 4 archivos (`bloques.ts`, `tipos.ts`, `construccion.ts`, `index.ts`) + snippet para `registry.ts`, mostrados para copiar/descargar. **No escribe en disco**.
 
 ## 4. Funcionalidad — mapas macro
 
-- Subida de imagen de fondo de pabellones.
+- Subida/cambio de fondo de pabellones: **imagen o PDF**. El PDF se renderiza a canvas con `pdfjs-dist` (pagina 1, sin el chrome del visor nativo) tanto en el editor como en `/mapa`. El worker se sirve desde `public/pdf.worker.min.mjs` (regenerar con `npm run pdf:worker` al actualizar la dependencia).
 - Secciones rectangulares en coordenadas normalizadas 0-1, con mover/redimensionar/rotar (snap 5°), zoom (Ctrl+rueda) y pan.
 - Edición de sección: código, nombre, color, rotación y asignación de **plano 3D hijo**.
 - Guardar secciones (`POST /api/planos/guardar-secciones`).
@@ -41,7 +45,7 @@ Editor visual de mapas 3D de pabellones para eventos, con dos tipos:
 
 | Método | Acción | Permiso |
 |---|---|---|
-| `GET` | `listar`, `detalle`, `planos-evento`, `macros-de-plano`, `ocupacion` | sesión / `laboratorio:view` |
+| `GET` | `listar`, `detalle`, `planos-evento`, `macros-de-plano`, `ocupacion`, `tipos-sugeridos` | sesión / `laboratorio:view` |
 | `GET` | `exportar`, `exportar-ts` | `laboratorio:manage` |
 | `POST` | `crear`, `guardar-layout`, `guardar-secciones`, `asignar-macro`, `quitar-macro`, `eliminar`, `importar` | `laboratorio:manage` |
 | `PATCH` | `actualizar-meta` | `laboratorio:manage` |

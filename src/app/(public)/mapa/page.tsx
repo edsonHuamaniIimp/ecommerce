@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlanoDinamico } from "@/components/plano/plano-dinamico";
 import { MacroMapaView } from "@/components/plano/macro-mapa-view";
 import { ModalInformativoEvento } from "@/components/plano/modal-informativo-evento";
+import { MapaSkeleton } from "@/components/shared/mapa-skeleton";
 import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -12,19 +13,31 @@ import { LS_KEYS, TIPOS_PLANO } from "@/lib/shared/constants";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { usePlanoCarrito } from "@/lib/client/stores/plano-carrito-store";
+import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
 import type { PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
 
 function MapaDinamicoPageContent() {
   const router = useRouter();
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
   const searchParams = useSearchParams();
-  const [eventoId, setEventoId] = useState<string | null>(null);
-  const [planoId, setPlanoId] = useState<string | null>(null);
-  const [payload, setPayload] = useState<PlanoPublicoPayloadDTO | null>(null);
-  const [eventoParams, setEventoParams] = useState<{ tipoEvento: number; codigoEvento: number } | null>(null);
-  const [loading, setLoading] = useState(true);
   const openReserva = searchParams.get("openReserva") === "1";
   const codigoParam = searchParams.get("codigo");
   const parentParam = searchParams.get("parent");
+
+  // Seed desde el cache de sesion: al volver del pabellon al macro no se ve skeleton.
+  const [cacheInicial] = useState(() => {
+    const visita = planoVisitaCache.eventoObtener() ?? null;
+    const payloadCache = codigoParam ? (planoVisitaCache.payloadObtener(codigoParam) ?? null) : null;
+    return { visita, payloadCache };
+  });
+  const [eventoId, setEventoId] = useState<string | null>(cacheInicial.visita?.eventoId ?? null);
+  const [planoId, setPlanoId] = useState<string | null>(cacheInicial.payloadCache?.codigo ?? null);
+  const [payload, setPayload] = useState<PlanoPublicoPayloadDTO | null>(cacheInicial.payloadCache);
+  const [eventoParams, setEventoParams] = useState<{ tipoEvento: number; codigoEvento: number } | null>(
+    cacheInicial.visita ? { tipoEvento: cacheInicial.visita.tipoEvento, codigoEvento: cacheInicial.visita.codigoEvento } : null,
+  );
+  const [loading, setLoading] = useState(!(cacheInicial.visita?.eventoId && cacheInicial.payloadCache));
 
   // Registra el codigo del macro para navegacion desde el carrito.
   const esMacro = payload?.tipo === TIPOS_PLANO.MACRO;
@@ -64,28 +77,33 @@ function MapaDinamicoPageContent() {
 
       if (!eid) {
         const returnTo = openReserva ? "/mapa?openReserva=1" : "/mapa";
-        router.replace(`/presala?returnTo=${encodeURIComponent(returnTo)}`);
+        routerRef.current.replace(`/presala?returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
       setEventoId(eid);
       setEventoParams({ tipoEvento: te ?? 0, codigoEvento: ce ?? 1 });
+      planoVisitaCache.eventoMarcar({ eventoId: eid, tipoEvento: te ?? 0, codigoEvento: ce ?? 0 });
 
       try {
         const data = await planosService.publico({
           ...(codigoParam ? { codigo: codigoParam } : { tipoEvento: te, codigoEvento: ce }),
           eventoId: eid,
         });
+        planoVisitaCache.payloadMarcar(codigoParam ?? `${te}-${ce}`, data);
         setPayload(data);
         setPlanoId(data?.codigo ?? null);
       } catch {
-        setPayload(null);
-        setPlanoId(null);
+        // Si ya hay payload en cache, se mantiene; sino se muestra el estado "en construccion".
+        if (!cacheInicial.payloadCache) {
+          setPayload(null);
+          setPlanoId(null);
+        }
       }
       setLoading(false);
     })();
-  }, [router, openReserva, codigoParam]);
+  }, [openReserva, codigoParam, cacheInicial]);
 
-  if (loading || !eventoId) return null;
+  if (loading || !eventoId) return <MapaSkeleton />;
 
   const modalInformativo = eventoParams ? (
     <ModalInformativoEvento tipoEvento={eventoParams.tipoEvento} codigoEvento={eventoParams.codigoEvento} />

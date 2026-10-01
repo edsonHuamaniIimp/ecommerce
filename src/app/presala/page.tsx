@@ -85,7 +85,7 @@ function PresalaPageContent() {
           try {
             await authService.seleccionarEvento({ eventoId: pendingEvento });
             const returnTo = searchParams.get("returnTo");
-            router.replace(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
+            window.location.assign(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
             return;
           } catch { /* fall through to show presala */ }
         }
@@ -117,7 +117,9 @@ function PresalaPageContent() {
     setSelecting(eventoId);
     try {
       await authService.seleccionarEvento({ eventoId, tipoEvento, codigoEvento: codigoEventoNum, eventoNombre: nombre, eventoPadreNombre });
-      router.push(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
+      // El JWT cambia de evento: recarga completa para que el layout del dashboard
+      // (header, datos por evento) vuelva a leer la sesion nueva.
+      window.location.assign(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
     } catch (err) {
       console.error("[presala] Error al seleccionar evento:", err);
     } finally {

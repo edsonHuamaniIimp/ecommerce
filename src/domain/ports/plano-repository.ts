@@ -1,7 +1,8 @@
-import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion } from "../models/plano-entities";
+import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "../models/plano-entities";
 
 export interface IPlanoRepository {
   listar(): Promise<PlanoListItem[]>;
+  listarTiposSugeridos(): Promise<PlanoTipoSugerido[]>;
   detalle(id: string): Promise<PlanoEntity | null>;
   detallePorCodigo(codigo: string): Promise<PlanoEntity | null>;
 

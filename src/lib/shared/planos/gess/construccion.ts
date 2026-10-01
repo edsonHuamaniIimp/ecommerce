@@ -1,5 +1,6 @@
 import type { Item, BlockType, Dim } from "./tipos";
 import { DIMENSIONES as D } from "./tipos";
+import { PISO_FURNITURE_DEFAULT, PERSONA_FURNITURE_DEFAULT, TIPOS_FURNITURE } from "@/lib/shared/constants";
 
 function dimOf(key: string): Dim {
   const dim = D[key];
@@ -59,10 +60,18 @@ export function buildItems(): Item[] {
   return items;
 }
 
-export function buildFurniture(): { id:string; type:"kiosko"; x:number; z:number; rotY:number }[] {
+export function buildFurniture(): { id:string; type:string; x:number; z:number; rotY:number; config?:unknown }[] {
   return [
-    {id:"KIOSKO_IZQ", type:"kiosko", x:-4.9, z:-0.0, rotY:1.6},
-    {id:"KIOSKO_DER", type:"kiosko", x:4.9, z:-0.0, rotY:-1.6},
+    {id:"KIOSKO_IZQ", type:TIPOS_FURNITURE.KIOSKO, x:-4.9, z:-0.0, rotY:1.6},
+    {id:"KIOSKO_DER", type:TIPOS_FURNITURE.KIOSKO, x:4.9, z:-0.0, rotY:-1.6},
+    {id:"PLAZA-01", type:TIPOS_FURNITURE.PLAZA, x:0, z:0, rotY:0},
+    {id:"PISO-01", type:TIPOS_FURNITURE.PISO, x:0, z:0, rotY:0, config:{...PISO_FURNITURE_DEFAULT}},
+    {id:"PERSONA-01", type:TIPOS_FURNITURE.PERSONA, x:0, z:0, rotY:0.5, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:0}},
+    {id:"PERSONA-02", type:TIPOS_FURNITURE.PERSONA, x:0.8, z:-0.5, rotY:-1.2, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:1}},
+    {id:"PERSONA-03", type:TIPOS_FURNITURE.PERSONA, x:-0.7, z:0.6, rotY:2.8, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:2}},
+    {id:"PERSONA-04", type:TIPOS_FURNITURE.PERSONA, x:-0.4, z:-1, rotY:1.1, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:3}},
+    {id:"PERSONA-05", type:TIPOS_FURNITURE.PERSONA, x:-3, z:1.5, rotY:-0.3, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:4}},
+    {id:"PERSONA-06", type:TIPOS_FURNITURE.PERSONA, x:3.2, z:-1.5, rotY:2.0, config:{...PERSONA_FURNITURE_DEFAULT, colorIdx:5}},
   ];
 }
 

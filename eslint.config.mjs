@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Agentes/skills instalados: no son codigo del proyecto.
     ".agents/**",
     ".opencode/**",
+    // Worker de pdfjs-dist copiado a public (minificado, no es codigo del proyecto).
+    "public/pdf.worker.min.mjs",
   ]),
   {
     rules: {

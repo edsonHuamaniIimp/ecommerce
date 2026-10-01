@@ -1,12 +1,13 @@
 "use client";
 
-import Image from "next/image";
-
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { Layers, ZoomIn, ZoomOut, Maximize, ShoppingBag } from "lucide-react";
+import { Button, Badge, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
+import { Layers, ZoomIn, ZoomOut, Maximize, ShoppingBag, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import { usePlanoCarrito, totalCarrito, conteoPorPlano } from "@/lib/client/stores/plano-carrito-store";
+import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { PdfCanvas } from "@/components/plano/pdf-canvas";
 
 export interface SeccionPublica {
   codigo: string;
@@ -40,6 +41,32 @@ function colorOcupacion(oc: OcupacionPublica | undefined): { bg: string; border:
   return { bg: "#ef4444", border: "#b91c1c", label: `${oc.disponibles}/${oc.total} disp.` };
 }
 
+/** D-pad flotante para desplazar el mapa en pantallas tactiles (donde no hay drag con mouse). */
+function PadDesplazamiento({ onMover, className }: { onMover: (dx: number, dy: number) => void; className?: string }) {
+  const boton = "h-10 w-10 rounded-full shadow-md";
+  return (
+    <div className={`grid grid-cols-3 grid-rows-3 place-items-center gap-1 rounded-2xl border border-border bg-card/90 p-1.5 shadow-sm backdrop-blur-sm ${className ?? ""}`}>
+      <span />
+      <Button type="button" size="icon" variant="secondary" className={boton} title="Desplazar arriba" onClick={() => onMover(0, -1)}>
+        <ChevronUp className="h-4 w-4" />
+      </Button>
+      <span />
+      <Button type="button" size="icon" variant="secondary" className={boton} title="Desplazar izquierda" onClick={() => onMover(-1, 0)}>
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+      <Button type="button" size="icon" variant="secondary" className={boton} title="Desplazar derecha" onClick={() => onMover(1, 0)}>
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <span />
+      <Button type="button" size="icon" variant="secondary" className={boton} title="Desplazar abajo" onClick={() => onMover(0, 1)}>
+        <ChevronDown className="h-4 w-4" />
+      </Button>
+      <span />
+    </div>
+  );
+}
+
 export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }: {
   imagenFondo: string | null;
   secciones: SeccionPublica[];
@@ -48,7 +75,18 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
 }) {
   const router = useRouter();
   const [zoom, setZoom] = useState(1);
+  const [panning, setPanning] = useState(false);
+  const [estadoFondo, setEstadoFondo] = useState<{ url: string; listo: boolean; error: boolean; anchoAlto?: number }>(() => {
+    const cache = imagenFondo ? planoVisitaCache.fondoObtener(imagenFondo) : undefined;
+    // Al volver al macro se muestra el skeleton SIEMPRE (estado intermedio limpio),
+    // pero el cache hace el re-render casi instantaneo: aspecto reservado + documento PDF en memoria.
+    return { url: imagenFondo ?? "", listo: false, error: false, anchoAlto: cache?.anchoAlto };
+  });
+  const [reintentos, setReintentos] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const fondoListo = !!imagenFondo && estadoFondo.url === imagenFondo && estadoFondo.listo;
+  const fondoError = !!imagenFondo && estadoFondo.url === imagenFondo && estadoFondo.error;
   const ocupMap = new Map((ocupacion ?? []).map((o) => [o.seccionCodigo, o]));
   const seleccionesCarrito = usePlanoCarrito((s) => s.selecciones);
   const total = useMemo(() => totalCarrito(seleccionesCarrito), [seleccionesCarrito]);
@@ -66,12 +104,76 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
     return () => el.removeEventListener("wheel", onWheel);
   }, [imagenFondo]);
 
+  // Seguridad: si la imagen/PDF no emite evento de carga en 8s, se muestra el error con reintento
+  // (evita quedar clavado en la precarga).
+  useEffect(() => {
+    if (!imagenFondo || fondoListo || fondoError) return;
+    const timer = setTimeout(() => {
+      setEstadoFondo((prev) => (prev.url === imagenFondo && !prev.listo && !prev.error ? { url: imagenFondo, listo: false, error: true } : prev));
+      planoVisitaCache.fondoMarcar(imagenFondo, { listo: false, error: true });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [imagenFondo, fondoListo, fondoError]);
+
+  const marcarFondo = (listo: boolean, error: boolean, anchoAlto?: number) => {
+    if (!imagenFondo) return;
+    setEstadoFondo({ url: imagenFondo, listo, error, anchoAlto: anchoAlto ?? estadoFondo.anchoAlto });
+    planoVisitaCache.fondoMarcar(imagenFondo, { listo, error, anchoAlto: anchoAlto ?? estadoFondo.anchoAlto });
+  };
+
   const irAPabellon = (s: SeccionPublica) => {
     if (!s.planoHijoCodigo) return;
     const parent = new URLSearchParams(window.location.search).get("codigo");
     const qs = new URLSearchParams({ codigo: s.planoHijoCodigo });
     if (parent) qs.set("parent", parent);
     router.push(`/mapa?${qs.toString()}`);
+  };
+
+  /** Arrastra el fondo para desplazar el mapa (las secciones siguen clickeables). */
+  const startPan = (e: React.PointerEvent) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // En tactil el desplazamiento nativo + el D-pad se encargan.
+    if (e.pointerType === "touch") return;
+    if ((e.target as HTMLElement).closest("button")) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    panRef.current = { startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
+    setPanning(true);
+
+    const onMove = (ev: PointerEvent) => {
+      const pan = panRef.current;
+      if (!pan) return;
+      el.scrollLeft = pan.scrollLeft - (ev.clientX - pan.startX);
+      el.scrollTop = pan.scrollTop - (ev.clientY - pan.startY);
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (el.hasPointerCapture(ev.pointerId)) el.releasePointerCapture(ev.pointerId);
+      panRef.current = null;
+      setPanning(false);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+  };
+
+  /** Desplaza el mapa un paso en la direccion indicada (controles tactiles). */
+  const moverMapa = (dx: number, dy: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const pasoX = Math.max(140, Math.round(el.clientWidth * 0.5));
+    const pasoY = Math.max(120, Math.round(el.clientHeight * 0.5));
+    el.scrollBy({ left: dx * pasoX, top: dy * pasoY, behavior: "smooth" });
+  };
+
+  const reintentarFondo = () => {
+    setEstadoFondo({ url: "", listo: false, error: false });
+    if (imagenFondo) planoVisitaCache.fondoMarcar(imagenFondo, { listo: false, error: false });
+    setReintentos((n) => n + 1);
   };
 
   return (
@@ -109,11 +211,37 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
         </div>
       </div>
 
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="absolute inset-0 overflow-auto bg-slate-100 p-3" style={{ scrollbarGutter: "stable" }}>
         {imagenFondo ? (
-          <div className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-            <Image width={0} height={0} sizes="100vw" src={imagenFondo} alt="Mapa de pabellones" className="w-full h-auto block rounded-lg pointer-events-none" draggable={false} />
-            {secciones.map((s) => {
+            <div
+              className={`relative select-none transition-opacity duration-200 ${panning ? "cursor-grabbing" : "cursor-grab"} ${fondoListo ? "opacity-100" : "opacity-0"}`}
+              style={{ width: `${zoom * 100}%`, ...(estadoFondo.anchoAlto ? { aspectRatio: String(estadoFondo.anchoAlto) } : {}) }}
+              onPointerDown={startPan}
+            >
+              {archivoUtils.esPdf(imagenFondo) ? (
+                <PdfCanvas
+                  key={`pdf-${imagenFondo}-${reintentos}`}
+                  url={imagenFondo}
+                  className="overflow-hidden rounded-lg bg-white"
+                  alt="Mapa de pabellones (PDF)"
+                  onListo={(anchoAlto) => marcarFondo(true, false, anchoAlto)}
+                  onError={() => marcarFondo(false, true)}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={`img-${reintentos}`}
+                  src={imagenFondo}
+                  alt="Mapa de pabellones"
+                  loading="eager"
+                  className="w-full h-auto block rounded-lg pointer-events-none"
+                  draggable={false}
+                  onLoad={(e) => marcarFondo(true, false, e.currentTarget.naturalWidth / (e.currentTarget.naturalHeight || 1))}
+                  onError={() => marcarFondo(false, true)}
+                />
+              )}
+            {fondoListo && secciones.map((s) => {
               const oc = ocupMap.get(s.codigo);
               const c = colorOcupacion(oc);
               const navegable = !!s.planoHijoCodigo;
@@ -163,12 +291,34 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            Este mapa macro no tiene imagen de fondo configurada.
+            Este mapa macro no tiene imagen o PDF de fondo configurado.
           </div>
         )}
+        </div>
+        {imagenFondo && !fondoListo && !fondoError && (
+          <div className="absolute inset-0 z-50 overflow-hidden rounded-xl">
+            <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <p className="text-[11px] text-muted-foreground">Cargando mapa de pabellones...</p>
+            </div>
+          </div>
+        )}
+        {imagenFondo && fondoError && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-slate-100">
+            <Layers className="h-8 w-8 text-muted-foreground/60" />
+            <p className="text-xs text-muted-foreground">No se pudo cargar el fondo del mapa.</p>
+            <Button size="sm" variant="outline" className="rounded-full" onClick={reintentarFondo}>
+              Reintentar
+            </Button>
+          </div>
+        )}
+        <PadDesplazamiento onMover={moverMapa} className="absolute bottom-3 right-3 z-30 md:hidden" />
       </div>
 
       <p className="border-t border-border bg-secondary px-4 py-2.5 text-center text-[11px] font-medium text-muted-foreground">
+        <span className="hidden md:inline">Arrastra para mover · Ctrl + rueda para zoom · </span>
+        <span className="md:hidden">Usa las flechas para desplazarte · </span>
         Haz clic en un pabellon para entrar a su plano 3D y reservar stands.
       </p>
     </div>

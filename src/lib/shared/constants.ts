@@ -130,6 +130,90 @@ export const TIPOS_PLANO = {
 
 export type TipoPlano = (typeof TIPOS_PLANO)[keyof typeof TIPOS_PLANO];
 
+/** Codigo unico de plano (columna plano.codigo): minusculas, numeros y guiones. */
+export const PLANO_CODIGO_REGEX = /^[a-z0-9-]+$/;
+
+/** Codigo de tipo de bloque del Laboratorio 3D: mayusculas, numeros, guion y guion bajo. */
+export const PLANO_TIPO_CODIGO_REGEX = /^[A-Z0-9_-]+$/;
+
+/** Longitud maxima del codigo de tipo de bloque (coincide con plano_tipo_bloque.codigo). */
+export const PLANO_TIPO_CODIGO_MAX = 20;
+
+/** Prefijo de los codigos de mapa autogenerados en el Laboratorio 3D. */
+export const PLANO_CODIGO_PREFIJO = "pab";
+
+/* ================================================================
+   Componentes decorativos del plano 3D (PlanoFurniture)
+   Se colocan por plano; no hay componentes automaticos.
+   ================================================================ */
+export const TIPOS_FURNITURE = {
+  KIOSKO: "kiosko",
+  PLAZA: "plaza",
+  MESA: "mesa",
+  SILLON: "sillon",
+  PISO: "piso",
+  PERSONA: "persona",
+} as const;
+
+export type TipoFurniture = (typeof TIPOS_FURNITURE)[keyof typeof TIPOS_FURNITURE];
+
+export const FURNITURE_LABELS: Record<string, { label: string; nombre: string }> = {
+  [TIPOS_FURNITURE.KIOSKO]: { label: "Kiosko", nombre: "Kiosko rustico" },
+  [TIPOS_FURNITURE.PLAZA]: { label: "Plaza", nombre: "Plaza (4 mesas + 16 sillones)" },
+  [TIPOS_FURNITURE.MESA]: { label: "Mesa", nombre: "Mesa individual" },
+  [TIPOS_FURNITURE.SILLON]: { label: "Sillon", nombre: "Sillon individual" },
+  [TIPOS_FURNITURE.PISO]: { label: "Piso", nombre: "Parche de piso (tamano configurable)" },
+  [TIPOS_FURNITURE.PERSONA]: { label: "Persona", nombre: "Figura humana decorativa" },
+};
+
+/** Dimensiones iniciales del parche de piso (metros). */
+export const PISO_FURNITURE_DEFAULT = { w: 11, d: 7 } as const;
+
+export interface PisoFurnitureConfig {
+  w: number;
+  d: number;
+}
+
+/** Huella aproximada (metros) de cada componente decorativo, para el editor. */
+export const FURNITURE_FOOTPRINT: Record<string, { w: number; d: number }> = {
+  [TIPOS_FURNITURE.KIOSKO]: { w: 1.8, d: 1.2 },
+  [TIPOS_FURNITURE.PLAZA]: { w: 7, d: 7 },
+  [TIPOS_FURNITURE.MESA]: { w: 0.8, d: 0.8 },
+  [TIPOS_FURNITURE.SILLON]: { w: 0.8, d: 0.8 },
+  [TIPOS_FURNITURE.PISO]: { w: PISO_FURNITURE_DEFAULT.w, d: PISO_FURNITURE_DEFAULT.d },
+  [TIPOS_FURNITURE.PERSONA]: { w: 0.5, d: 0.5 },
+};
+
+/** Tonos de cabeza disponibles para el componente Persona. */
+export const PERSONA_COLORES_CABEZA = ["#f5d0a9", "#e0ac69", "#c68642", "#8d5524", "#d4a574", "#f0c8a0"] as const;
+
+/** Config inicial del componente Persona (colorIdx indexa PERSONA_COLORES_CABEZA). */
+export const PERSONA_FURNITURE_DEFAULT = {
+  colorIdx: 0,
+  torsoColor: "#f5f5f5",
+  piernasColor: "#3b5998",
+} as const;
+
+export interface PersonaFurnitureConfig {
+  colorIdx: number;
+  torsoColor: string;
+  piernasColor: string;
+}
+
+/* ================================================================
+   Editor 3D del Laboratorio (snap y guias de apoyo)
+   ================================================================ */
+export const EDITOR_PLANO = {
+  /** Snap de posicion al arrastrar (metros). */
+  SNAP_POSICION: 0.25,
+  /** Snap de rotacion al girar (grados). */
+  SNAP_ROTACION_GRADOS: 5,
+  /** Snap de rotacion con Shift (grados). */
+  SNAP_ROTACION_MAYOR_GRADOS: 15,
+  /** Distancia maxima para que una guia magnetica alinee el objeto (metros). */
+  UMBRAL_GUIA: 0.35,
+} as const;
+
 /* ================================================================
    Estados de reserva (ciclo de vida)
    ================================================================ */

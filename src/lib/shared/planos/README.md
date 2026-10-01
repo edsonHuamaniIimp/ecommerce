@@ -64,7 +64,7 @@ export const DIMENSIONES: Record<string, Dim> = {
 
 export type BlockType = "S" | "BG" | "P" | "C";
 
-export interface Item { id: string; dim: Dim; type: BlockType; x: number; z: number; }
+export interface Item { id: string; dim: Dim; type: BlockType; x: number; z: number; rotY?: number; }
 
 export const BLOCK_LABEL: Record<BlockType, { label: string; nombre: string }> = {
   S:  { label: "S",  nombre: "Columna" },
@@ -265,12 +265,15 @@ El panel lateral muestra la leyenda de colores:
 
 ## Modelos 3D compartidos
 
-Los modelos 3D son compartidos entre todos los planos desde `src/components/plano/plano-isometrico.tsx`:
+Los modelos 3D son compartidos entre todos los planos desde `src/components/plano/plano-3d-componentes.tsx`:
 
-- `Bloque3D` — bloque individual con selección y color por estado
+- `Bloque3D` — bloque individual con selección, rotación y color por estado
 - `Kiosko` — kiosko rústico CSG de 5 piezas
-- `ConjuntoPlaza` — 4 mesas centrales + 16 sillones
-- `Persona` — figura humana con capsuleGeometry (6 colores de cabeza)
-- `Floor` — piso del plano
+- `Plaza` — preset de 4 mesas con 16 sillones
+- `Mesa` / `Sillon` — piezas individuales (rotan)
+- `Piso` — parche de piso configurable (ancho/fondo)
+- `Persona` — figura humana con capsuleGeometry (6 colores de cabeza, torso/piernas configurables)
+- `Floor` — piso base del plano (se adapta a los bounds, siempre visible)
+- `FurnitureRenderer` — despacha por `tipo` (`kiosko`, `plaza`, `mesa`, `sillon`, `piso`, `persona`) y aplica `config`
 
-Cada plano solo define la **disposición espacial** (buildItems, buildFurniture). Los modelos se renderizan igual para todos los eventos.
+Cada plano solo define la **disposición espacial** (buildItems, buildFurniture). Las decoraciones se guardan en `PlanoFurniture` (`tipo` + `config` JSON) y **no hay componentes automáticos**: si el plano no declara plaza/personas/kioskos, no se renderizan. Bloques (`PlanoBloque.rotY`) y decoraciones (`PlanoFurniture.rotY`) respetan la rotación guardada.

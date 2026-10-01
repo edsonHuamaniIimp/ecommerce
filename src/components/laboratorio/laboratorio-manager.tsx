@@ -4,13 +4,17 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, Dialog, DialogContent, DialogHeader, DialogTitle, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw } from "lucide-react";
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
+import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw, RotateCw, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFurnitureDTO } from "@/types/dto/planos/planos-response.dto";
+import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFurnitureDTO, PlanoTipoSugeridoDTO } from "@/types/dto/planos/planos-response.dto";
+import { codigoPlanoUtils } from "@/lib/shared/utils/codigo-plano";
+import { furnitureUtils } from "@/lib/shared/utils/furniture";
+import { planoEditorUtils, type PuntoAlineable } from "@/lib/shared/utils/plano-editor";
+import { FurnitureRenderer } from "@/components/plano/plano-3d-componentes";
 import { MacroEditor } from "./macro-editor";
-import { TIPOLOGIAS_STAND, TIPOLOGIAS_STAND_LABELS, TIPOS_PLANO, type TipoPlano } from "@/lib/shared/constants";
+import { EDITOR_PLANO, PERSONA_COLORES_CABEZA, TIPOLOGIAS_STAND, TIPOLOGIAS_STAND_LABELS, TIPOS_FURNITURE, TIPOS_PLANO, FURNITURE_LABELS, type PersonaFurnitureConfig, type PisoFurnitureConfig, type TipoPlano } from "@/lib/shared/constants";
 
 /* TIPOS LOCALES DE EDICION */
 
@@ -18,20 +22,18 @@ type EditTipo = Omit<PlanoTipoDTO, "id">;
 type EditBloque = Omit<PlanoBloqueDTO, "id">;
 type EditFurniture = Omit<PlanoFurnitureDTO, "id">;
 
-const SNAP = 0.25;
-const snap = (v: number) => Math.round(v / SNAP) * SNAP;
+const snap = (v: number) => Math.round(v / EDITOR_PLANO.SNAP_POSICION) * EDITOR_PLANO.SNAP_POSICION;
 
 /** Sentinel del dropdown de secciones: crea una seccion nueva en el centro */
 const OPCION_NUEVA_SECCION = "__nueva";
 
 /* COMPONENTES 3D */
 
-interface DragState {
-  kind: "bloque" | "furniture";
-  id: string; // bloqueId o refId
-  offsetX: number;
-  offsetZ: number;
-}
+type ObjetoKind = "bloque" | "furniture";
+
+type DragState =
+  | { mode: "move"; kind: ObjetoKind; id: string; offsetX: number; offsetZ: number }
+  | { mode: "rotate"; kind: ObjetoKind; id: string; centerX: number; centerZ: number; inicioRad: number; inicioAngulo: number };
 
 function EditorBloque({ bloque, dim, selected, onPointerDown }: {
   bloque: EditBloque;
@@ -42,6 +44,7 @@ function EditorBloque({ bloque, dim, selected, onPointerDown }: {
   return (
     <mesh
       position={[bloque.x, dim.h / 2, bloque.z]}
+      rotation={[0, bloque.rotY ?? 0, 0]}
       onPointerDown={onPointerDown}
     >
       <boxGeometry args={[dim.w - 0.15, dim.h + (selected ? 0.6 : 0), dim.d - 0.15]} />
@@ -56,34 +59,28 @@ function EditorBloque({ bloque, dim, selected, onPointerDown }: {
   );
 }
 
-function EditorKiosko({ item, selected, onPointerDown }: {
+function EditorFurniture({ item, selected, onPointerDown }: {
   item: EditFurniture;
   selected: boolean;
   onPointerDown: (e: { stopPropagation: () => void; point: { x: number; z: number } }) => void;
 }) {
+  const huella = furnitureUtils.huella(item.tipo, item.config);
   return (
-    <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]} onPointerDown={onPointerDown}>
-      <mesh position={[0, 0.05, 0]}>
-        <boxGeometry args={[1.8, 0.1, 1.2]} />
-        <meshStandardMaterial color={selected ? "#f59e0b" : "#8B5A2B"} />
-      </mesh>
-      <mesh position={[0, 1.5, 0]}>
-        <boxGeometry args={[2.0, 0.12, 1.4]} />
-        <meshStandardMaterial color={selected ? "#f59e0b" : "#A0522D"} />
-      </mesh>
-      {[[-0.85, -0.55], [0.85, -0.55], [-0.85, 0.55], [0.85, 0.55]].map(([px = 0, pz = 0], i) => (
-        <mesh key={i} position={[px, 0.78, pz]}>
-          <cylinderGeometry args={[0.04, 0.04, 1.45, 8]} />
-          <meshStandardMaterial color="#6B4226" />
+    <group onPointerDown={onPointerDown}>
+      <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]}>
+        <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[huella.w, huella.d]} />
+          <meshBasicMaterial color={selected ? "#f59e0b" : "#94a3b8"} transparent opacity={selected ? 0.45 : 0.15} depthWrite={false} />
         </mesh>
-      ))}
+      </group>
+      <FurnitureRenderer item={{ id: item.refId, type: item.tipo, x: item.x, z: item.z, rotY: item.rotY, config: item.config }} />
     </group>
   );
 }
 
 function DragManager({ dragging, onMove, onEnd }: {
   dragging: DragState | null;
-  onMove: (x: number, z: number) => void;
+  onMove: (x: number, z: number, shift: boolean) => void;
   onEnd: () => void;
 }) {
   const { gl, camera, raycaster } = useThree();
@@ -101,7 +98,7 @@ function DragManager({ dragging, onMove, onEnd }: {
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
       if (raycaster.ray.intersectPlane(ground, point)) {
-        onMove(point.x, point.z);
+        onMove(point.x, point.z, e.shiftKey);
       }
     };
     const onPointerUp = () => {
@@ -143,14 +140,37 @@ function DropCoordinator({ register }: { register: (fn: (clientX: number, client
   return null;
 }
 
-function GridFloor({ minX, maxX, minZ, maxZ }: { minX: number; maxX: number; minZ: number; maxZ: number }) {
+function GridFloor({ minX, maxX, minZ, maxZ, mostrarGuias }: { minX: number; maxX: number; minZ: number; maxZ: number; mostrarGuias: boolean }) {
   const w = maxX - minX;
   const d = maxZ - minZ;
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const tamano = Math.max(20, Math.ceil(Math.max(w, d) / 5) * 5);
+  const divisionesFinas = Math.min(Math.round(tamano), 200);
+  const divisionesGruesas = Math.max(2, Math.round(tamano / 5));
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[(minX + maxX) / 2, -0.01, (minZ + maxZ) / 2]}>
-      <planeGeometry args={[w, d]} />
-      <meshStandardMaterial color="#f1f5f9" />
-    </mesh>
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, -0.01, cz]}>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial color="#f1f5f9" />
+      </mesh>
+      {mostrarGuias && (
+        <>
+          <gridHelper args={[tamano, divisionesFinas, "#e2e8f0", "#e2e8f0"]} position={[cx, 0.002, cz]} />
+          <gridHelper args={[tamano, divisionesGruesas, "#cbd5e1", "#cbd5e1"]} position={[cx, 0.004, cz]} />
+          {/* Eje X (z = 0) */}
+          <mesh position={[cx, 0.02, 0]}>
+            <boxGeometry args={[w + 2, 0.01, 0.05]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+          {/* Eje Z (x = 0) */}
+          <mesh position={[0, 0.02, cz]}>
+            <boxGeometry args={[0.05, 0.01, d + 2]} />
+            <meshBasicMaterial color="#3b82f6" />
+          </mesh>
+        </>
+      )}
+    </group>
   );
 }
 
@@ -164,13 +184,17 @@ export function LaboratorioManager() {
   const [furniture, setFurniture] = useState<EditFurniture[]>([]);
   const [selected, setSelected] = useState<{ kind: "bloque" | "furniture"; id: string } | null>(null);
   const [dragging, setDragging] = useState<DragState | null>(null);
+  const [guias, setGuias] = useState<{ x: number | null; z: number | null }>({ x: null, z: null });
+  const [mostrarGuias, setMostrarGuias] = useState(true);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [nuevoPlanoOpen, setNuevoPlanoOpen] = useState(false);
+  const [nuevoPlanoKey, setNuevoPlanoKey] = useState(0);
   const [eliminarPlanoOpen, setEliminarPlanoOpen] = useState(false);
   const [nuevoTipoOpen, setNuevoTipoOpen] = useState(false);
+  const [nuevoTipoKey, setNuevoTipoKey] = useState(0);
   const [nuevoBloqueOpen, setNuevoBloqueOpen] = useState(false);
   const [tsExportOpen, setTsExportOpen] = useState(false);
   const [tsFiles, setTsFiles] = useState<{ bloques: string; tipos: string; construccion: string; index: string; registrySnippet: string } | null>(null);
@@ -214,6 +238,17 @@ export function LaboratorioManager() {
     })();
   }, [loadPlanos, loadDetalle]);
 
+  /** Abre el dialogo con `key` nueva para que el formulario se remonte limpio. */
+  const abrirNuevoPlano = useCallback(() => {
+    setNuevoPlanoKey((k) => k + 1);
+    setNuevoPlanoOpen(true);
+  }, []);
+
+  const abrirNuevoTipo = useCallback(() => {
+    setNuevoTipoKey((k) => k + 1);
+    setNuevoTipoOpen(true);
+  }, []);
+
   
 
   const bounds = useMemo(() => {
@@ -235,28 +270,74 @@ export function LaboratorioManager() {
     return { position: [cx, s * 0.85, cz + s * 0.5] as [number, number, number], target: [cx, 0, cz] as [number, number, number] };
   }, [bounds]);
 
+  /** Centros de bloques y decoraciones (mas el origen) para las guias magneticas. */
+  const candidatosGuia = useMemo<PuntoAlineable[]>(() => {
+    const out: PuntoAlineable[] = [{ id: "origen", x: 0, z: 0 }];
+    for (const b of bloques) out.push({ id: `bloque:${b.bloqueId}`, x: b.x, z: b.z });
+    for (const f of furniture) out.push({ id: `furniture:${f.refId}`, x: f.x, z: f.z });
+    return out;
+  }, [bloques, furniture]);
+
   
 
-  const startDrag = (kind: "bloque" | "furniture", id: string, pointX: number, pointZ: number) => {
+  const startDrag = (kind: ObjetoKind, id: string, pointX: number, pointZ: number) => {
     const item = kind === "bloque" ? bloques.find((b) => b.bloqueId === id) : furniture.find((f) => f.refId === id);
     if (!item) return;
     setSelected({ kind, id });
-    setDragging({ kind, id, offsetX: item.x - pointX, offsetZ: item.z - pointZ });
+    setDragging({ mode: "move", kind, id, offsetX: item.x - pointX, offsetZ: item.z - pointZ });
   };
 
-  const moveDrag = (pointX: number, pointZ: number) => {
+  const startRotate = (kind: ObjetoKind, id: string, pointX: number, pointZ: number) => {
+    const item = kind === "bloque" ? bloques.find((b) => b.bloqueId === id) : furniture.find((f) => f.refId === id);
+    if (!item) return;
+    setSelected({ kind, id });
+    setDragging({
+      mode: "rotate",
+      kind,
+      id,
+      centerX: item.x,
+      centerZ: item.z,
+      inicioRad: item.rotY ?? 0,
+      inicioAngulo: Math.atan2(pointZ - item.z, pointX - item.x),
+    });
+  };
+
+  const moveDrag = (pointX: number, pointZ: number, shift: boolean) => {
     if (!dragging) return;
+    if (dragging.mode === "rotate") {
+      const angulo = Math.atan2(pointZ - dragging.centerZ, pointX - dragging.centerX);
+      const deltaGrados = planoEditorUtils.aGrados(angulo - dragging.inicioAngulo);
+      const bruto = planoEditorUtils.aGrados(dragging.inicioRad) - deltaGrados;
+      const paso = shift ? EDITOR_PLANO.SNAP_ROTACION_MAYOR_GRADOS : EDITOR_PLANO.SNAP_ROTACION_GRADOS;
+      const rotY = planoEditorUtils.aRadianes(planoEditorUtils.snapGrados(bruto, paso));
+      if (dragging.kind === "bloque") {
+        setBloques((prev) => prev.map((b) => (b.bloqueId === dragging.id ? { ...b, rotY } : b)));
+      } else {
+        setFurniture((prev) => prev.map((f) => (f.refId === dragging.id ? { ...f, rotY } : f)));
+      }
+      setDirty(true);
+      return;
+    }
     const nx = snap(pointX + dragging.offsetX);
     const nz = snap(pointZ + dragging.offsetZ);
+    const prefijo = dragging.kind === "bloque" ? "bloque:" : "furniture:";
+    const otros = candidatosGuia.filter((c) => c.id !== `${prefijo}${dragging.id}`);
+    const alineado = mostrarGuias
+      ? planoEditorUtils.alinear(nx, nz, otros, EDITOR_PLANO.UMBRAL_GUIA)
+      : { x: nx, z: nz, guiaX: null, guiaZ: null };
+    setGuias({ x: alineado.guiaX, z: alineado.guiaZ });
     if (dragging.kind === "bloque") {
-      setBloques((prev) => prev.map((b) => (b.bloqueId === dragging.id ? { ...b, x: nx, z: nz } : b)));
+      setBloques((prev) => prev.map((b) => (b.bloqueId === dragging.id ? { ...b, x: alineado.x, z: alineado.z } : b)));
     } else {
-      setFurniture((prev) => prev.map((f) => (f.refId === dragging.id ? { ...f, x: nx, z: nz } : f)));
+      setFurniture((prev) => prev.map((f) => (f.refId === dragging.id ? { ...f, x: alineado.x, z: alineado.z } : f)));
     }
     setDirty(true);
   };
 
-  const endDrag = () => setDragging(null);
+  const endDrag = () => {
+    setDragging(null);
+    setGuias({ x: null, z: null });
+  };
 
   // Drag desde paleta o dialogo
   const addBlockAt = (tipoCodigo: string, x: number, z: number) => {
@@ -271,6 +352,15 @@ export function LaboratorioManager() {
     setSelected({ kind: "bloque", id: candidate });
     setDirty(true);
     toast.success(`Bloque ${candidate} creado — arrastralo para posicionarlo`);
+  };
+
+  const addFurnitureAt = (tipo: string, x: number, z: number) => {
+    const refId = furnitureUtils.refIdSugerido(tipo, furniture.map((f) => f.refId));
+    const nuevo: EditFurniture = { refId, tipo, x: snap(x), z: snap(z), rotY: 0, config: furnitureUtils.configPorDefecto(tipo) };
+    setFurniture((prev) => [...prev, nuevo]);
+    setSelected({ kind: "furniture", id: refId });
+    setDirty(true);
+    toast.success(`${FURNITURE_LABELS[tipo]?.label ?? tipo} ${refId} agregado — arrastralo para posicionarlo`);
   };
 
   
@@ -291,10 +381,76 @@ export function LaboratorioManager() {
     toast.success(`Bloque ${bloqueSel.bloqueId} eliminado (guardar para aplicar)`);
   };
 
+  const furnitureSel = selected?.kind === "furniture" ? (furniture.find((f) => f.refId === selected.id) ?? null) : null;
+
+  const updateFurniture = (patch: Partial<EditFurniture>) => {
+    if (!furnitureSel) return;
+    setFurniture((prev) => prev.map((f) => (f.refId === furnitureSel.refId ? { ...f, ...patch } : f)));
+    setDirty(true);
+  };
+
+  const deleteFurniture = () => {
+    if (!furnitureSel) return;
+    setFurniture((prev) => prev.filter((f) => f.refId !== furnitureSel.refId));
+    setSelected(null);
+    setDirty(true);
+    toast.success(`${furnitureSel.refId} eliminado (guardar para aplicar)`);
+  };
+
+  const cambiarTipoFurniture = (tipo: string) => {
+    if (!furnitureSel) return;
+    const config = tipo === TIPOS_FURNITURE.PERSONA && furnitureSel.tipo === TIPOS_FURNITURE.PERSONA
+      ? furnitureSel.config
+      : furnitureUtils.configPorDefecto(tipo);
+    updateFurniture({ tipo, config });
+  };
+
+  const patchPersonaConfig = (patch: Partial<PersonaFurnitureConfig>) => {
+    if (!furnitureSel) return;
+    updateFurniture({ config: { ...furnitureUtils.personaConfig(furnitureSel.config), ...patch } });
+  };
+
+  const patchPisoConfig = (patch: Partial<PisoFurnitureConfig>) => {
+    if (!furnitureSel) return;
+    updateFurniture({ config: { ...furnitureUtils.pisoConfig(furnitureSel.config), ...patch } });
+  };
+
+  /** Objeto seleccionado con datos para la manija de rotacion. */
+  const objetoSel = useMemo(() => {
+    if (bloqueSel) {
+      const dim = tipos.find((t) => t.codigo === bloqueSel.tipoCodigo);
+      return {
+        kind: "bloque" as const,
+        id: bloqueSel.bloqueId,
+        x: bloqueSel.x,
+        z: bloqueSel.z,
+        rotY: bloqueSel.rotY ?? 0,
+        radio: Math.max(dim?.w ?? 2, dim?.d ?? 2) / 2 + 0.8,
+      };
+    }
+    if (furnitureSel) {
+      const huella = furnitureUtils.huella(furnitureSel.tipo, furnitureSel.config);
+      return {
+        kind: "furniture" as const,
+        id: furnitureSel.refId,
+        x: furnitureSel.x,
+        z: furnitureSel.z,
+        rotY: furnitureSel.rotY,
+        radio: Math.max(huella.w, huella.d) / 2 + 0.8,
+      };
+    }
+    return null;
+  }, [bloqueSel, furnitureSel, tipos]);
+
   
 
   const handleSave = async () => {
     if (!planoSel) return;
+    const refIds = furniture.map((f) => f.refId.trim());
+    if (refIds.some((r) => !r) || new Set(refIds).size !== refIds.length) {
+      toast.error("Hay decoraciones con RefId vacio o duplicado");
+      return;
+    }
     setSaving(true);
     try {
       await planosService.guardarLayout({
@@ -395,13 +551,25 @@ export function LaboratorioManager() {
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" onClick={() => setNuevoPlanoOpen(true)}>
+        <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" onClick={abrirNuevoPlano}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Nuevo mapa
         </Button>
         <Button size="sm" variant="outline" className="rounded-full h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200" disabled={!planoSel} title="Eliminar mapa"
           onClick={() => setEliminarPlanoOpen(true)}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
+        <div className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 h-8">
+          <Checkbox
+            id="editor-guias"
+            checked={mostrarGuias}
+            onCheckedChange={(v) => {
+              const activo = v === true;
+              setMostrarGuias(activo);
+              if (!activo) setGuias({ x: null, z: null });
+            }}
+          />
+          <Label htmlFor="editor-guias" className="cursor-pointer text-xs text-slate-600">Lineas de apoyo</Label>
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" disabled={!planoSel || planoSel.tipo === TIPOS_PLANO.MACRO} onClick={() => setNuevoBloqueOpen(true)} title={planoSel?.tipo === TIPOS_PLANO.MACRO ? "Los mapas macro usan secciones, no bloques" : undefined}>
             <Box className="h-3.5 w-3.5 mr-1" /> Agregar bloque
@@ -437,10 +605,12 @@ export function LaboratorioManager() {
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
           onDrop={(e) => {
             e.preventDefault();
-            const tipoCodigo = e.dataTransfer.getData("application/x-plano-tipo");
-            if (!tipoCodigo || !planoSel) return;
+            if (!planoSel) return;
             const pos = dropConverterRef.current?.(e.clientX, e.clientY) ?? { x: 0, z: 0 };
-            addBlockAt(tipoCodigo, pos.x, pos.z);
+            const tipoFurniture = e.dataTransfer.getData("application/x-plano-furniture");
+            if (tipoFurniture) { addFurnitureAt(tipoFurniture, pos.x, pos.z); return; }
+            const tipoCodigo = e.dataTransfer.getData("application/x-plano-tipo");
+            if (tipoCodigo) addBlockAt(tipoCodigo, pos.x, pos.z);
           }}
         >
           {loadingDetail ? (
@@ -450,7 +620,7 @@ export function LaboratorioManager() {
               <color attach="background" args={["#e2e8f0"]} />
               <ambientLight intensity={0.6} />
               <directionalLight position={[15, 25, 10]} intensity={1.1} castShadow shadow-mapSize={[2048, 2048]} />
-              <GridFloor {...bounds} />
+              <GridFloor {...bounds} mostrarGuias={mostrarGuias} />
               <DropCoordinator register={(fn) => { dropConverterRef.current = fn; }} />
               {bloques.map((b) => {
                 const dim = tipos.find((t) => t.codigo === b.tipoCodigo);
@@ -466,19 +636,48 @@ export function LaboratorioManager() {
                 );
               })}
               {furniture.map((f) => (
-                <EditorKiosko
+                <EditorFurniture
                   key={f.refId}
                   item={f}
                   selected={selected?.kind === "furniture" && selected.id === f.refId}
                   onPointerDown={(e) => { e.stopPropagation(); startDrag("furniture", f.refId, e.point.x, e.point.z); }}
                 />
               ))}
+              {mostrarGuias && guias.x !== null && (
+                <mesh position={[guias.x, 0.03, (bounds.minZ + bounds.maxZ) / 2]}>
+                  <boxGeometry args={[0.04, 0.01, bounds.maxZ - bounds.minZ + 4]} />
+                  <meshBasicMaterial color="#f43f5e" />
+                </mesh>
+              )}
+              {mostrarGuias && guias.z !== null && (
+                <mesh position={[(bounds.minX + bounds.maxX) / 2, 0.03, guias.z]}>
+                  <boxGeometry args={[bounds.maxX - bounds.minX + 4, 0.01, 0.04]} />
+                  <meshBasicMaterial color="#f43f5e" />
+                </mesh>
+              )}
+              {objetoSel && (
+                <group position={[objetoSel.x, 0, objetoSel.z]} rotation={[0, objetoSel.rotY, 0]}>
+                  <mesh position={[objetoSel.radio / 2, 0.05, 0]}>
+                    <boxGeometry args={[objetoSel.radio, 0.02, 0.03]} />
+                    <meshBasicMaterial color="#f59e0b" />
+                  </mesh>
+                  <mesh
+                    position={[objetoSel.radio, 0.2, 0]}
+                    onPointerDown={(e) => { e.stopPropagation(); startRotate(objetoSel.kind, objetoSel.id, e.point.x, e.point.z); }}
+                    onPointerOver={() => { document.body.style.cursor = "grab"; }}
+                    onPointerOut={() => { document.body.style.cursor = "auto"; }}
+                  >
+                    <sphereGeometry args={[0.18, 16, 16]} />
+                    <meshBasicMaterial color="#f59e0b" />
+                  </mesh>
+                </group>
+              )}
               <DragManager dragging={dragging} onMove={moveDrag} onEnd={endDrag} />
               <OrbitControls makeDefault enabled={!dragging} target={camPos.target} maxPolarAngle={Math.PI / 2.15} minDistance={5} maxDistance={150} />
             </Canvas>
           )}
           <div className="absolute left-2 top-2 rounded-md bg-white/80 backdrop-blur px-2 py-1 text-[10px] text-slate-500 pointer-events-none">
-            Arrastra un tipo desde el panel para crear un bloque — arrastra bloques para moverlos
+            Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)
           </div>
         </div>
 
@@ -531,30 +730,155 @@ export function LaboratorioManager() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-[10px]">X</Label>
-                  <Input className="h-7 text-xs" type="number" step={SNAP} value={bloqueSel.x}
+                  <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={bloqueSel.x}
                     onChange={(e) => updateBloque({ x: Number(e.target.value) })} />
                 </div>
                 <div>
                   <Label className="text-[10px]">Z</Label>
-                  <Input className="h-7 text-xs" type="number" step={SNAP} value={bloqueSel.z}
+                  <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={bloqueSel.z}
                     onChange={(e) => updateBloque({ z: Number(e.target.value) })} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px]">Rotacion (grados)</Label>
+                <div className="flex items-center gap-1">
+                  <Input className="h-7 text-xs flex-1" type="number" step={EDITOR_PLANO.SNAP_ROTACION_GRADOS}
+                    value={Math.round(planoEditorUtils.normalizarGrados(planoEditorUtils.aGrados(bloqueSel.rotY ?? 0)))}
+                    onChange={(e) => updateBloque({ rotY: planoEditorUtils.aRadianes(Number(e.target.value)) })} />
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar -90"
+                    onClick={() => updateBloque({ rotY: (bloqueSel.rotY ?? 0) - Math.PI / 2 })}>
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar +90"
+                    onClick={() => updateBloque({ rotY: (bloqueSel.rotY ?? 0) + Math.PI / 2 })}>
+                    <RotateCw className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
               <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteBloque}>
                 <Trash2 className="h-3 w-3 mr-1" /> Eliminar bloque
               </Button>
             </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-[11px] text-slate-400">Selecciona un bloque en el canvas para editarlo</p>
+          ) : null}
+
+          {/* Propiedades de la decoracion seleccionada */}
+          {furnitureSel ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-700">Decoracion seleccionada</p>
+                <Badge className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">{FURNITURE_LABELS[furnitureSel.tipo]?.label ?? furnitureSel.tipo}</Badge>
+              </div>
+              <div>
+                <Label className="text-[10px]">RefId</Label>
+                <Input className="h-7 text-xs font-mono" value={furnitureSel.refId}
+                  onChange={(e) => {
+                    const nuevoId = e.target.value;
+                    setFurniture((prev) => prev.map((f) => (f.refId === furnitureSel.refId ? { ...f, refId: nuevoId } : f)));
+                    setSelected({ kind: "furniture", id: nuevoId });
+                    setDirty(true);
+                  }} />
+              </div>
+              <div>
+                <Label className="text-[10px]">Tipo</Label>
+                <Select value={furnitureSel.tipo} onValueChange={cambiarTipoFurniture}>
+                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.values(TIPOS_FURNITURE).map((t) => (
+                      <SelectItem key={t} value={t}><span>{FURNITURE_LABELS[t]?.label ?? t}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px]">X</Label>
+                  <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={furnitureSel.x}
+                    onChange={(e) => updateFurniture({ x: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <Label className="text-[10px]">Z</Label>
+                  <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={furnitureSel.z}
+                    onChange={(e) => updateFurniture({ z: Number(e.target.value) })} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-[10px]">Rotacion (grados)</Label>
+                <div className="flex items-center gap-1">
+                  <Input className="h-7 text-xs flex-1" type="number" step={EDITOR_PLANO.SNAP_ROTACION_GRADOS}
+                    value={Math.round(planoEditorUtils.normalizarGrados(planoEditorUtils.aGrados(furnitureSel.rotY)))}
+                    onChange={(e) => updateFurniture({ rotY: planoEditorUtils.aRadianes(Number(e.target.value)) })} />
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar -90"
+                    onClick={() => updateFurniture({ rotY: furnitureSel.rotY - Math.PI / 2 })}>
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar +90"
+                    onClick={() => updateFurniture({ rotY: furnitureSel.rotY + Math.PI / 2 })}>
+                    <RotateCw className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              {furnitureSel.tipo === TIPOS_FURNITURE.PERSONA && (() => {
+                const config = furnitureUtils.personaConfig(furnitureSel.config);
+                return (
+                  <div className="space-y-2 rounded-lg border border-amber-200 bg-white/60 p-2">
+                    <div>
+                      <Label className="text-[10px]">Color de cabeza</Label>
+                      <Select value={String(config.colorIdx)} onValueChange={(v) => patchPersonaConfig({ colorIdx: Number(v) })}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PERSONA_COLORES_CABEZA.map((c, i) => (
+                            <SelectItem key={c} value={String(i)}>
+                              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm border" style={{ backgroundColor: c }} />Tono {i + 1}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[10px]">Torso</Label>
+                        <input type="color" value={config.torsoColor} onChange={(e) => patchPersonaConfig({ torsoColor: e.target.value })} className="h-7 w-full cursor-pointer rounded border" />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Piernas</Label>
+                        <input type="color" value={config.piernasColor} onChange={(e) => patchPersonaConfig({ piernasColor: e.target.value })} className="h-7 w-full cursor-pointer rounded border" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {furnitureSel.tipo === TIPOS_FURNITURE.PISO && (() => {
+                const config = furnitureUtils.pisoConfig(furnitureSel.config);
+                return (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px]">Ancho (m)</Label>
+                      <Input className="h-7 text-xs" type="number" step={0.5} min={0.5} value={config.w}
+                        onChange={(e) => patchPisoConfig({ w: Number(e.target.value) })} />
+                    </div>
+                    <div>
+                      <Label className="text-[10px]">Fondo (m)</Label>
+                      <Input className="h-7 text-xs" type="number" step={0.5} min={0.5} value={config.d}
+                        onChange={(e) => patchPisoConfig({ d: Number(e.target.value) })} />
+                    </div>
+                  </div>
+                );
+              })()}
+              <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteFurniture}>
+                <Trash2 className="h-3 w-3 mr-1" /> Eliminar decoracion
+              </Button>
             </div>
-          )}
+          ) : !bloqueSel ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+              <p className="text-[11px] text-slate-400">Selecciona un bloque o decoracion en el canvas para editarlo</p>
+            </div>
+          ) : null}
 
           {/* Tipos de bloque */}
           <div className="rounded-xl border border-slate-200 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-700">Tipos de bloque ({tipos.length})</p>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setNuevoTipoOpen(true)}>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={abrirNuevoTipo}>
                 <Plus className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -580,6 +904,41 @@ export function LaboratorioManager() {
             </div>
           </div>
 
+          {/* Decoraciones */}
+          <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+            <p className="text-xs font-semibold text-slate-700">Decoraciones ({furniture.length})</p>
+            <p className="text-[10px] text-slate-400">Arrastra al mapa o usa + para agregar en el centro</p>
+            <div className="space-y-1">
+              {Object.values(TIPOS_FURNITURE).map((t) => {
+                const lbl = FURNITURE_LABELS[t];
+                return (
+                  <div
+                    key={t}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/x-plano-furniture", t);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    title="Arrastra al mapa para agregar la decoracion"
+                    className="flex items-center gap-2 rounded border border-slate-100 bg-white px-2 py-1.5 text-[11px] cursor-grab active:cursor-grabbing hover:border-violet-300 hover:bg-violet-50/50 hover:shadow-sm transition-all select-none"
+                  >
+                    <span className="font-medium">{lbl?.label ?? t}</span>
+                    <span className="text-slate-400 truncate flex-1">{lbl?.nombre ?? ""}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0 text-slate-400 hover:text-primary"
+                      title="Agregar en el centro (0, 0)"
+                      onClick={() => addFurnitureAt(t, 0, 0)}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Info */}
           <div className="rounded-xl border border-slate-200 p-3 text-[10px] text-slate-500 space-y-1">
             <p><span className="font-medium">{bloques.length}</span> bloques, <span className="font-medium">{furniture.length}</span> decoraciones</p>
@@ -595,7 +954,7 @@ export function LaboratorioManager() {
       )}
 
       {/* DIALOG: Nuevo plano */}
-      <NuevoPlanoDialog open={nuevoPlanoOpen} onClose={() => setNuevoPlanoOpen(false)} onCreated={async (id) => { setNuevoPlanoOpen(false); await loadPlanos(); await loadDetalle(id); }} />
+      <NuevoPlanoDialog key={`plano-${nuevoPlanoKey}`} open={nuevoPlanoOpen} codigosExistentes={planos.map((p) => p.codigo)} onClose={() => setNuevoPlanoOpen(false)} onCreated={async (id) => { setNuevoPlanoOpen(false); await loadPlanos(); await loadDetalle(id); }} />
 
       {/* DIALOG: Eliminar plano */}
       <Dialog open={eliminarPlanoOpen} onOpenChange={setEliminarPlanoOpen}>
@@ -623,11 +982,19 @@ export function LaboratorioManager() {
       </Dialog>
 
       {/* DIALOG: Nuevo tipo */}
-      <NuevoTipoDialog open={nuevoTipoOpen} onClose={() => setNuevoTipoOpen(false)} onAdd={(t) => { setTipos((prev) => [...prev, t]); setDirty(true); setNuevoTipoOpen(false); }} />
+      <NuevoTipoDialog key={`tipo-${nuevoTipoKey}`} open={nuevoTipoOpen} tipos={tipos} onClose={() => setNuevoTipoOpen(false)} onAdd={(t) => {
+        if (tipos.some((x) => x.codigo.trim().toUpperCase() === t.codigo.trim().toUpperCase())) {
+          toast.error("Ya existe un tipo con ese codigo en este mapa");
+          return;
+        }
+        setTipos((prev) => [...prev, t]);
+        setDirty(true);
+        setNuevoTipoOpen(false);
+      }} />
 
       {/* DIALOG: Nuevo bloque */}
       <NuevoBloqueDialog open={nuevoBloqueOpen} onClose={() => setNuevoBloqueOpen(false)} tipos={tipos} bloques={bloques}
-        onCrearTipo={() => setNuevoTipoOpen(true)}
+        onCrearTipo={abrirNuevoTipo}
         onAdd={(b) => { setBloques((prev) => [...prev, b]); setSelected({ kind: "bloque", id: b.bloqueId }); setDirty(true); setNuevoBloqueOpen(false); }} />
 
       {/* DIALOG: Export TS */}
@@ -810,20 +1177,29 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
   );
 }
 
-function NuevoPlanoDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
-  const [codigo, setCodigo] = useState("");
+function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { open: boolean; onClose: () => void; onCreated: (id: string) => void; codigosExistentes: string[] }) {
+  const [codigo, setCodigo] = useState(() => codigoPlanoUtils.generar(codigosExistentes));
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [tipo, setTipo] = useState<TipoPlano>(TIPOS_PLANO.SIMPLE);
   const [creating, setCreating] = useState(false);
 
+  const codigoLimpio = codigo.trim();
+  const codigoError = !codigoLimpio
+    ? "El codigo es requerido"
+    : !codigoPlanoUtils.esValido(codigoLimpio)
+      ? "Solo minusculas, numeros y guiones"
+      : codigoPlanoUtils.existe(codigoLimpio, codigosExistentes)
+        ? "Ya existe un mapa con ese codigo"
+        : null;
+  const nombreError = nombre.trim() ? null : "El nombre es requerido";
+
   const handleCreate = async () => {
-    if (!codigo.trim() || !nombre.trim()) { toast.error("Codigo y nombre requeridos"); return; }
+    if (codigoError || nombreError) { toast.error(codigoError ?? nombreError ?? "Revisa los campos"); return; }
     setCreating(true);
     try {
-      const plano = await planosService.crear({ codigo: codigo.trim().toLowerCase(), nombre: nombre.trim(), descripcion: descripcion.trim() || null, tipo });
+      const plano = await planosService.crear({ codigo: codigoLimpio, nombre: nombre.trim(), descripcion: descripcion.trim() || null, tipo });
       toast.success(`Mapa "${plano.nombre}" creado${tipo === TIPOS_PLANO.MACRO ? " — sube la imagen de pabellones" : ""}`);
-      setCodigo(""); setNombre(""); setDescripcion(""); setTipo(TIPOS_PLANO.SIMPLE);
       onCreated(plano.id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al crear");
@@ -838,12 +1214,34 @@ function NuevoPlanoDialog({ open, onClose, onCreated }: { open: boolean; onClose
         <div className="space-y-3 text-xs">
           <div>
             <Label>Codigo (identificador unico)</Label>
-            <Input className="text-xs font-mono" placeholder="perumin" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-            <p className="text-[10px] text-slate-400 mt-0.5">Minusculas, numeros y guiones. Se guarda en evento_metadata.plano</p>
+            <div className="flex gap-2">
+              <Input
+                className="text-xs font-mono flex-1"
+                placeholder="pab-54621"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toLowerCase())}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                title="Generar otro codigo"
+                onClick={() => setCodigo(codigoPlanoUtils.generar(codigosExistentes))}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {codigoError ? (
+              <p className="text-[10px] text-red-500 mt-0.5">{codigoError}</p>
+            ) : (
+              <p className="text-[10px] text-slate-400 mt-0.5">Minusculas, numeros y guiones. Se guarda en evento_metadata.plano</p>
+            )}
           </div>
           <div>
             <Label>Nombre</Label>
-            <Input className="text-xs" placeholder="PERUMIN" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            <Input className="text-xs" placeholder="Pabellon 4" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            {nombreError && <p className="text-[10px] text-red-500 mt-0.5">{nombreError}</p>}
           </div>
           <div>
             <Label>Tipo de mapa</Label>
@@ -859,7 +1257,7 @@ function NuevoPlanoDialog({ open, onClose, onCreated }: { open: boolean; onClose
             <Label>Descripcion</Label>
             <Input className="text-xs" placeholder="Opcional" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
           </div>
-          <Button className="w-full rounded-full" disabled={creating} onClick={handleCreate}>
+          <Button className="w-full rounded-full" disabled={creating || !!codigoError || !!nombreError} onClick={handleCreate}>
             {creating ? "Creando..." : "Crear mapa"}
           </Button>
         </div>
@@ -868,13 +1266,57 @@ function NuevoPlanoDialog({ open, onClose, onCreated }: { open: boolean; onClose
   );
 }
 
-function NuevoTipoDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (t: EditTipo) => void }) {
+function NuevoTipoDialog({ open, onClose, onAdd, tipos }: { open: boolean; onClose: () => void; onAdd: (t: EditTipo) => void; tipos: EditTipo[] }) {
   const [form, setForm] = useState<EditTipo>({ codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32" });
+  const [codigoEditado, setCodigoEditado] = useState(false);
+  const [sugerencias, setSugerencias] = useState<PlanoTipoSugeridoDTO[]>([]);
+  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      setCargandoSugerencias(true);
+      try {
+        setSugerencias(await planosService.tiposSugeridos());
+      } catch {
+        setSugerencias([]);
+      }
+      setCargandoSugerencias(false);
+    })();
+  }, [open]);
+
+  const codigosActuales = useMemo(() => tipos.map((t) => t.codigo), [tipos]);
+  const codigoLimpio = form.codigo.trim().toUpperCase();
+  const codigoDuplicado = codigosActuales.some((c) => c.trim().toUpperCase() === codigoLimpio);
+  const codigoError = !codigoLimpio
+    ? "El codigo es requerido"
+    : !codigoPlanoUtils.esTipoCodigoValido(codigoLimpio)
+      ? "Solo mayusculas, numeros y guiones (max. 20)"
+      : codigoDuplicado
+        ? "Ya existe un tipo con ese codigo en este mapa"
+        : null;
+  const nombreError = form.nombre.trim() ? null : "El nombre es requerido";
+
+  const cambiarNombre = (valor: string) => {
+    setForm((p) => {
+      const next = { ...p, nombre: valor };
+      if (!codigoEditado) {
+        const codigoSugerido = codigoPlanoUtils.sugerirTipoCodigo(valor, codigosActuales);
+        next.codigo = codigoSugerido;
+        if (!p.label.trim()) next.label = codigoSugerido;
+      }
+      return next;
+    });
+  };
+
+  const aplicarSugerencia = (s: PlanoTipoSugeridoDTO) => {
+    setForm({ codigo: s.codigo, label: s.label, nombre: s.nombre, w: s.w, d: s.d, h: s.h, color: s.color });
+    setCodigoEditado(true);
+  };
 
   const handleAdd = () => {
-    if (!form.codigo.trim() || !form.nombre.trim()) { toast.error("Codigo y nombre requeridos"); return; }
-    onAdd({ ...form, codigo: form.codigo.trim().toUpperCase(), label: form.label.trim() || form.codigo.trim().toUpperCase() });
-    setForm({ codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32" });
+    if (codigoError || nombreError) { toast.error(codigoError ?? nombreError ?? "Revisa los campos"); return; }
+    onAdd({ ...form, codigo: codigoLimpio, label: form.label.trim() || codigoLimpio, nombre: form.nombre.trim() });
   };
 
   return (
@@ -882,10 +1324,47 @@ function NuevoTipoDialog({ open, onClose, onAdd }: { open: boolean; onClose: () 
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle><span>Nuevo tipo de bloque</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
+          {cargandoSugerencias ? (
+            <p className="text-[10px] text-slate-400">Buscando tipos de otros mapas...</p>
+          ) : sugerencias.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reutilizar de otros mapas</p>
+              <div className="max-h-40 space-y-1 overflow-y-auto">
+                {sugerencias.map((s) => {
+                  const yaExiste = codigosActuales.some((c) => c.trim().toUpperCase() === s.codigo.trim().toUpperCase());
+                  return (
+                    <button
+                      key={s.codigo}
+                      type="button"
+                      disabled={yaExiste}
+                      onClick={() => aplicarSugerencia(s)}
+                      title={`Usado en ${s.planosCount} mapa(s), ${s.bloquesCount} bloque(s)`}
+                      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] transition-colors hover:border-violet-300 hover:bg-violet-50/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="h-3 w-3 shrink-0 rounded-sm border" style={{ backgroundColor: s.color }} />
+                      <span className="font-mono font-medium">{s.codigo}</span>
+                      <span className="truncate text-slate-500">{s.nombre}</span>
+                      {yaExiste ? (
+                        <span className="ml-auto shrink-0 text-[9px] text-slate-400">ya existe</span>
+                      ) : (
+                        <span className="ml-auto shrink-0 text-[9px] text-slate-400">{s.w}x{s.d}x{s.h}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Codigo</Label>
-              <Input className="text-xs font-mono" placeholder="VIP" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} />
+              <Input
+                className="text-xs font-mono"
+                placeholder="VIP"
+                value={form.codigo}
+                onChange={(e) => { setForm((p) => ({ ...p, codigo: e.target.value.toUpperCase() })); setCodigoEditado(true); }}
+              />
+              {codigoError && <p className="text-[10px] text-red-500 mt-0.5">{codigoError}</p>}
             </div>
             <div>
               <Label>Label</Label>
@@ -894,7 +1373,8 @@ function NuevoTipoDialog({ open, onClose, onAdd }: { open: boolean; onClose: () 
           </div>
           <div>
             <Label>Nombre</Label>
-            <Input className="text-xs" placeholder="Stand VIP" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} />
+            <Input className="text-xs" placeholder="Stand VIP" value={form.nombre} onChange={(e) => cambiarNombre(e.target.value)} />
+            {nombreError && <p className="text-[10px] text-red-500 mt-0.5">{nombreError}</p>}
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div><Label>W (ancho)</Label><Input className="text-xs" type="number" step={0.1} value={form.w} onChange={(e) => setForm((p) => ({ ...p, w: Number(e.target.value) }))} /></div>
@@ -908,7 +1388,7 @@ function NuevoTipoDialog({ open, onClose, onAdd }: { open: boolean; onClose: () 
               <Input className="text-xs font-mono flex-1" value={form.color} onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))} />
             </div>
           </div>
-          <Button className="w-full rounded-full" onClick={handleAdd}>Agregar tipo</Button>
+          <Button className="w-full rounded-full" disabled={!!codigoError || !!nombreError} onClick={handleAdd}>Agregar tipo</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -920,7 +1400,6 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
 }) {
   const [bloqueId, setBloqueId] = useState("");
   const [tipoCodigo, setTipoCodigo] = useState("");
-  const [tipologia, setTipologia] = useState<string>(TIPOLOGIAS_STAND.SIMPLE);
 
   // Al abrir: resetear seleccion, auto-seleccionar primer tipo y sugerir siguiente ID disponible
   useEffect(() => {
@@ -942,8 +1421,8 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
     if (!id) { toast.error("ID requerido"); return; }
     if (bloques.some((b) => b.bloqueId === id)) { toast.error("Ese ID ya existe"); return; }
     if (!tipoCodigo) { toast.error("Selecciona un tipo"); return; }
-    onAdd({ bloqueId: id, tipoCodigo, tipologia, x: 0, z: 0, rotY: 0, orden: bloques.length, flgActivo: true });
-    setBloqueId(""); setTipoCodigo(""); setTipologia(TIPOLOGIAS_STAND.SIMPLE);
+    onAdd({ bloqueId: id, tipoCodigo, tipologia: TIPOLOGIAS_STAND.SIMPLE, x: 0, z: 0, rotY: 0, orden: bloques.length, flgActivo: true });
+    setBloqueId(""); setTipoCodigo("");
   };
 
   return (
@@ -975,21 +1454,6 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
                 </SelectContent>
               </Select>
             )}
-          </div>
-          <div>
-            <Label>Tipologia (expediente tecnico)</Label>
-            <Select value={tipologia} onValueChange={setTipologia}>
-              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.values(TIPOLOGIAS_STAND).map((t) => {
-                  const lbl = TIPOLOGIAS_STAND_LABELS[t];
-                  if (!lbl) return null;
-                  return (
-                    <SelectItem key={t} value={t}><span>[{lbl.label}] {lbl.nombre}</span></SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
           </div>
           <Button className="w-full rounded-full" onClick={handleAdd} disabled={tipos.length === 0}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Agregar en el centro (0, 0)

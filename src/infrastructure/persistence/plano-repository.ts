@@ -2,7 +2,7 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
-import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion } from "@/domain/models/plano-entities";
+import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_PLANO } from "@/lib/shared/constants";
 
 interface PlanoTipoRow {
@@ -185,6 +185,40 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       eventoAsignado: asignMap.get(r.codigo) ?? null,
       updatedAt: r.updatedAt,
     }));
+  }
+
+  async listarTiposSugeridos(): Promise<PlanoTipoSugerido[]> {
+    const rows = await prisma.planoTipoBloque.findMany({
+      include: {
+        _count: { select: { bloques: true } },
+        plano: { select: { codigo: true } },
+      },
+      orderBy: { plano: { updatedAt: "desc" } },
+      take: 500,
+    });
+    const map = new Map<string, PlanoTipoSugerido>();
+    for (const r of rows) {
+      const key = r.codigo.trim().toUpperCase();
+      const existente = map.get(key);
+      if (existente) {
+        existente.planosCount += 1;
+        existente.bloquesCount += r._count.bloques;
+        continue;
+      }
+      map.set(key, {
+        codigo: r.codigo,
+        label: r.label,
+        nombre: r.nombre,
+        w: r.w,
+        d: r.d,
+        h: r.h,
+        color: r.color,
+        planoCodigo: r.plano.codigo,
+        planosCount: 1,
+        bloquesCount: r._count.bloques,
+      });
+    }
+    return [...map.values()].sort((a, b) => b.bloquesCount - a.bloquesCount || a.codigo.localeCompare(b.codigo));
   }
 
   async detalle(id: string): Promise<PlanoEntity | null> {

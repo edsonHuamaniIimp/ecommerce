@@ -9,7 +9,7 @@ export const DIMENSIONES: Record<string, Dim> = {
 
 export type BlockType = "S" | "BG" | "P" | "C";
 
-export interface Item { id: string; dim: Dim; type: BlockType; x: number; z: number; }
+export interface Item { id: string; dim: Dim; type: BlockType; x: number; z: number; rotY?: number; }
 
 export const BLOCK_LABEL: Record<BlockType, { label: string; nombre: string }> = {
   S:  { label: "S",  nombre: "Columna" },

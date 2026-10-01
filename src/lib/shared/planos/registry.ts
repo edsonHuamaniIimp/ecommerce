@@ -9,6 +9,7 @@ export interface PlanoItem {
   type: string;
   x: number;
   z: number;
+  rotY?: number;
 }
 
 export interface PlanoFurnitureItem {
@@ -17,6 +18,7 @@ export interface PlanoFurnitureItem {
   x: number;
   z: number;
   rotY: number;
+  config?: unknown;
 }
 
 export interface PlanoBounds {
@@ -86,7 +88,7 @@ interface PlanoPublicoResponse {
   nombre: string;
   tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }>;
   bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number }>;
-  furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number }>;
+  furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown }>;
 }
 
 /**
@@ -111,13 +113,14 @@ export async function loadPlanoDefinition(codigo: string): Promise<PlanoDefiniti
         type: b.tipoCodigo,
         x: b.x,
         z: b.z,
+        rotY: b.rotY ?? 0,
       }));
       return {
         id: data.codigo,
         nombre: data.nombre,
         descripcion: "",
         buildItems: () => items,
-        buildFurniture: () => data.furniture.map((f) => ({ id: f.refId, type: f.tipo, x: f.x, z: f.z, rotY: f.rotY })),
+        buildFurniture: () => data.furniture.map((f) => ({ id: f.refId, type: f.tipo, x: f.x, z: f.z, rotY: f.rotY, config: f.config })),
         computeBounds: computeBoundsDefault,
         bloqueIds: data.bloques.map((b) => b.bloqueId),
         blockLabel: labelMap,

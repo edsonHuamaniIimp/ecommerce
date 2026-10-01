@@ -21,6 +21,12 @@ export const planosController = {
     return success(await services.planos.listar());
   },
 
+  async tiposSugeridos(): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    return success(await services.planos.tiposSugeridos());
+  },
+
   async detalle(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);

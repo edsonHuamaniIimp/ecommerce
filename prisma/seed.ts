@@ -182,7 +182,7 @@ async function seedPlanoGess() {
   await prisma.planoFurniture.deleteMany({ where: { planoId: plano.id } });
   for (const f of furniture) {
     await prisma.planoFurniture.create({
-      data: { planoId: plano.id, refId: f.id, tipo: f.type, x: f.x, z: f.z, rotY: f.rotY },
+      data: { planoId: plano.id, refId: f.id, tipo: f.type, x: f.x, z: f.z, rotY: f.rotY, config: (f.config as never) ?? undefined },
     });
   }
 

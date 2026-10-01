@@ -78,6 +78,20 @@ export interface SeccionOcupacion {
   pctDisponible: number;
 }
 
+/** Tipo de bloque existente en otro plano, reutilizable desde el Laboratorio 3D. */
+export interface PlanoTipoSugerido {
+  codigo: string;
+  label: string;
+  nombre: string;
+  w: number;
+  d: number;
+  h: number;
+  color: string;
+  planoCodigo: string;
+  planosCount: number;
+  bloquesCount: number;
+}
+
 export interface PlanoListItem {
   id: string;
   codigo: string;

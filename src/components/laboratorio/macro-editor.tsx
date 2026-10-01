@@ -1,12 +1,13 @@
 "use client";
 
-import Image from "next/image";
-
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { Plus, Save, Trash2, Upload, ImageIcon, Move, Expand, RotateCw, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
+import { Plus, Save, Trash2, Upload, ImageIcon, Move, Expand, RotateCw, ZoomIn, ZoomOut, Maximize, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
+import { PdfCanvas } from "@/components/plano/pdf-canvas";
 import { TIPOS_PLANO } from "@/lib/shared/constants";
 import type { PlanoDTO, PlanoListItemDTO } from "@/types/dto/planos/planos-response.dto";
 
@@ -48,6 +49,19 @@ export function MacroEditor({ plano, planos, onChange }: {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [estadoFondo, setEstadoFondo] = useState<{ url: string; listo: boolean; error: boolean; anchoAlto?: number }>(() => {
+    const cache = plano.imagenFondo ? planoVisitaCache.fondoObtener(plano.imagenFondo) : undefined;
+    return { url: plano.imagenFondo ?? "", listo: !!cache?.listo, error: !!cache?.error, anchoAlto: cache?.anchoAlto };
+  });
+  const fondoListo = !!plano.imagenFondo && estadoFondo.url === plano.imagenFondo && estadoFondo.listo;
+  const fondoError = !!plano.imagenFondo && estadoFondo.url === plano.imagenFondo && estadoFondo.error;
+  const fondoUrl = plano.imagenFondo ?? "";
+
+  const marcarFondo = (listo: boolean, error: boolean, anchoAlto?: number) => {
+    if (!fondoUrl) return;
+    setEstadoFondo({ url: fondoUrl, listo, error, anchoAlto: anchoAlto ?? estadoFondo.anchoAlto });
+    planoVisitaCache.fondoMarcar(fondoUrl, { listo, error, anchoAlto: anchoAlto ?? estadoFondo.anchoAlto });
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -91,8 +105,10 @@ export function MacroEditor({ plano, planos, onChange }: {
   const startPan = (e: React.PointerEvent) => {
     const el = scrollRef.current;
     if (!el) return;
+    // En tactil el desplazamiento nativo se encarga.
+    if (e.pointerType === "touch") return;
     const target = e.target as HTMLElement;
-    const esFondo = target === containerRef.current || target.tagName === "IMG";
+    const esFondo = target === containerRef.current || target.tagName === "IMG" || target.tagName === "CANVAS";
     // Solo se pannea sobre el fondo/imagen (no sobre secciones) o con boton medio siempre
     if (!esFondo && e.button !== 1) return;
     e.preventDefault();
@@ -120,6 +136,17 @@ export function MacroEditor({ plano, planos, onChange }: {
     el.addEventListener("pointercancel", onUp);
   };
 
+  // Seguridad: si el fondo no emite evento de carga en 8s, se muestra el error con boton de cambio.
+  useEffect(() => {
+    if (!plano.imagenFondo || fondoListo || fondoError) return;
+    const url = plano.imagenFondo;
+    const timer = setTimeout(() => {
+      setEstadoFondo((prev) => (prev.url === url && !prev.listo && !prev.error ? { url, listo: false, error: true } : prev));
+      planoVisitaCache.fondoMarcar(url, { listo: false, error: true });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [plano.imagenFondo, fondoListo, fondoError]);
+
   useEffect(() => {
     (async () => {
       setSecciones(plano.secciones.map((s) => ({ codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, rotacion: s.rotacion ?? 0, color: s.color, planoHijoId: s.planoHijoId, orden: s.orden })));
@@ -130,6 +157,17 @@ export function MacroEditor({ plano, planos, onChange }: {
 
   const planosHijos = planos.filter((p) => p.tipo === TIPOS_PLANO.SIMPLE && p.id !== plano.id);
   const seccionSel = selected ? secciones.find((s) => s.codigo === selected) : null;
+
+  /** Hijos ya usados por OTRAS secciones del macro (no se pueden repetir). */
+  const hijosEnUso = new Set(
+    secciones
+      .filter((s) => s.planoHijoId && s.codigo !== seccionSel?.codigo)
+      .map((s) => s.planoHijoId as string),
+  );
+  const hijosDisponibles = planosHijos.filter((p) => !hijosEnUso.has(p.id) || p.id === seccionSel?.planoHijoId);
+  const duplicadoEn = seccionSel?.planoHijoId
+    ? secciones.filter((s) => s.codigo !== seccionSel.codigo && s.planoHijoId === seccionSel.planoHijoId).map((s) => s.codigo)
+    : [];
 
   
 
@@ -235,6 +273,26 @@ export function MacroEditor({ plano, planos, onChange }: {
   };
 
   const handleSave = async () => {
+    const codigos = secciones.map((s) => s.codigo.trim());
+    if (codigos.some((c) => !c)) {
+      toast.error("Hay secciones sin codigo");
+      return;
+    }
+    const codigosDuplicados = [...new Set(codigos.filter((c, i) => codigos.indexOf(c) !== i))];
+    if (codigosDuplicados.length > 0) {
+      toast.error(`Codigos de seccion duplicados: ${codigosDuplicados.join(", ")}`);
+      return;
+    }
+    const usados = new Map<string, string>();
+    for (const s of secciones) {
+      if (!s.planoHijoId) continue;
+      const previo = usados.get(s.planoHijoId);
+      if (previo) {
+        toast.error(`El mismo plano 3D esta asignado a ${previo} y ${s.codigo}. Cada seccion debe tener un plano distinto.`);
+        return;
+      }
+      usados.set(s.planoHijoId, s.codigo);
+    }
     setSaving(true);
     try {
       const updated = await planosService.guardarSecciones({
@@ -286,21 +344,37 @@ export function MacroEditor({ plano, planos, onChange }: {
           <span className="text-[10px] text-slate-400">Ctrl + rueda = zoom (ancla al cursor) · arrastra el fondo para navegar · barras de scroll como respaldo</span>
         </div>
 
-        <div ref={scrollRef} className="flex-1 min-h-0 rounded-xl border border-slate-200 bg-slate-100 overflow-auto overscroll-contain p-3" style={{ scrollbarGutter: "stable" }}>
+        <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="absolute inset-0 rounded-xl border border-slate-200 bg-slate-100 overflow-auto overscroll-contain p-3" style={{ scrollbarGutter: "stable" }}>
         {plano.imagenFondo ? (
           <div
             ref={containerRef}
-            className="relative select-none"
-            style={{ width: `${zoom * 100}%`, minWidth: "100%", cursor: zoom > 1 ? "grab" : "default" }}
+            className={`relative select-none transition-opacity duration-200 ${fondoListo || fondoError ? "opacity-100" : "opacity-0"} ${fondoError ? "min-h-full rounded-lg bg-slate-100" : ""}`}
+            style={{ width: `${zoom * 100}%`, minWidth: "100%", cursor: zoom > 1 ? "grab" : "default", ...(estadoFondo.anchoAlto ? { aspectRatio: String(estadoFondo.anchoAlto) } : {}) }}
             onPointerDown={(e) => { setSelected(null); startPan(e); }}
           >
-            <Image width={0} height={0} sizes="100vw"
-              src={plano.imagenFondo}
-              alt="Mapa de pabellones"
-              className="w-full h-auto block pointer-events-none rounded-lg"
-              draggable={false}
-            />
-            {secciones.map((s) => (
+            {archivoUtils.esPdf(plano.imagenFondo) ? (
+              <PdfCanvas
+                key={`pdf-${fondoUrl}`}
+                url={plano.imagenFondo}
+                className="overflow-hidden rounded-lg bg-white"
+                alt="Mapa de pabellones (PDF)"
+                onListo={(anchoAlto) => marcarFondo(true, false, anchoAlto)}
+                onError={() => marcarFondo(false, true)}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={fondoUrl}
+                alt="Mapa de pabellones"
+                loading="eager"
+                className="w-full h-auto block pointer-events-none rounded-lg"
+                draggable={false}
+                onLoad={(e) => marcarFondo(true, false, e.currentTarget.naturalWidth / (e.currentTarget.naturalHeight || 1))}
+                onError={() => marcarFondo(false, true)}
+              />
+            )}
+            {(fondoListo || fondoError) && secciones.map((s) => (
               <div
                 key={s.codigo}
                 className={`absolute group cursor-move touch-none ${selected === s.codigo ? "z-20" : "z-10"}`}
@@ -351,7 +425,25 @@ export function MacroEditor({ plano, planos, onChange }: {
             <ImageIcon className="h-12 w-12" />
             <p className="text-sm">Este plano macro no tiene imagen de fondo.</p>
             <Button size="sm" variant="outline" className="rounded-full" onClick={() => imgInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" /> Subir imagen de pabellones
+              <Upload className="h-4 w-4 mr-1" /> Subir imagen o PDF
+            </Button>
+          </div>
+        )}
+        </div>
+        {plano.imagenFondo && !fondoListo && !fondoError && (
+          <div className="absolute inset-0 z-50 overflow-hidden rounded-xl">
+            <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <p className="text-[11px] text-muted-foreground">Cargando mapa de pabellones...</p>
+            </div>
+          </div>
+        )}
+        {plano.imagenFondo && fondoError && (
+          <div className="absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 shadow-sm">
+            <p className="text-[11px] text-red-600">No se pudo cargar el fondo.</p>
+            <Button size="sm" variant="outline" className="h-6 rounded-full text-[10px]" onClick={() => imgInputRef.current?.click()}>
+              Cambiar fondo
             </Button>
           </div>
         )}
@@ -363,15 +455,15 @@ export function MacroEditor({ plano, planos, onChange }: {
         <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
           <p className="text-xs font-semibold text-slate-700">Mapa macro: {plano.nombre}</p>
           <p className="text-[10px] text-slate-500">{secciones.length} secciones (pabellones)</p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs flex-1" onClick={addSeccion}>
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" onClick={addSeccion}>
               <Plus className="h-3 w-3 mr-1" /> Seccion
             </Button>
-            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" disabled={uploading} onClick={() => imgInputRef.current?.click()}>
-              <Upload className="h-3 w-3 mr-1" /> {uploading ? "..." : "Imagen"}
+            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" disabled={uploading} onClick={() => imgInputRef.current?.click()} title="Cambiar imagen o PDF de fondo">
+              <Upload className="h-3 w-3 mr-1" /> {uploading ? "..." : "Fondo"}
             </Button>
-            <Button size="sm" className="rounded-full h-7 text-xs bg-violet-600 hover:bg-violet-700" disabled={!dirty || saving} onClick={handleSave}>
-              <Save className="h-3 w-3 mr-1" /> {saving ? "..." : dirty ? "Guardar *" : "Guardar"}
+            <Button size="sm" className="col-span-2 rounded-full h-7 text-xs bg-violet-600 hover:bg-violet-700" disabled={!dirty || saving} onClick={handleSave}>
+              <Save className="h-3 w-3 mr-1" /> {saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}
             </Button>
           </div>
         </div>
@@ -403,11 +495,14 @@ export function MacroEditor({ plano, planos, onChange }: {
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none"><span>— Sin asignar —</span></SelectItem>
-                  {planosHijos.map((p) => (
+                  {hijosDisponibles.map((p) => (
                     <SelectItem key={p.id} value={p.id}><span>{p.nombre} ({p.bloquesCount} bloques)</span></SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {duplicadoEn.length > 0 && (
+                <p className="text-[10px] text-red-500 mt-0.5">Este plano 3D ya esta asignado a: {duplicadoEn.join(", ")}</p>
+              )}
             </div>
             <div>
               <Label className="text-[10px]">Color</Label>
@@ -448,7 +543,7 @@ export function MacroEditor({ plano, planos, onChange }: {
         </div>
       </div>
 
-      <input ref={imgInputRef} type="file" accept="image/*" className="hidden"
+      <input ref={imgInputRef} type="file" accept="image/*,application/pdf,.pdf" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadImagen(f); e.target.value = ""; }} />
     </div>
   );

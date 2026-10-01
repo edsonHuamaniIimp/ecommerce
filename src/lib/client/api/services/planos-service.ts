@@ -1,12 +1,15 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
-import type { PlanoDTO, PlanoListItemDTO, PlanoExportDTO, PlanoTsExportDTO, SeccionOcupacionDTO, PlanoSeccionDTO, PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
+import type { PlanoDTO, PlanoListItemDTO, PlanoTipoSugeridoDTO, PlanoExportDTO, PlanoTsExportDTO, SeccionOcupacionDTO, PlanoSeccionDTO, PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
 import type { TipoPlano } from "@/lib/shared/constants";
 
 export const planosService = {
   listar() {
     return internalApi.get<PlanoListItemDTO[]>("/api/planos/listar");
+  },
+  tiposSugeridos() {
+    return internalApi.get<PlanoTipoSugeridoDTO[]>("/api/planos/tipos-sugeridos");
   },
   publico(params: { codigo?: string; eventoId?: string; tipoEvento?: number; codigoEvento?: number }) {
     const qs = new URLSearchParams();
