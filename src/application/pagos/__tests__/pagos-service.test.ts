@@ -21,6 +21,7 @@ function mockRepo(): IFacturacionRepository {
     actualizarCuota: vi.fn(),
     adjuntarVoucher: vi.fn(),
     pagarCuota: vi.fn(),
+    adjuntarComprobanteFiscal: vi.fn(),
     actualizar: vi.fn(),
     eliminar: vi.fn(),
     eliminarCuota: vi.fn(),
@@ -38,7 +39,7 @@ function rowConVoucher(): FacturacionRow {
     id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
     montoTotal: 2000, moneda: "US$", modoPago: "cuotas", standCode: "44",
     correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
-    cuotas: [{ id: "c1", numero: 1, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: "/uploads/v.pdf" }],
+    cuotas: [{ id: "c1", numero: 1, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: "/uploads/v.pdf", comprobanteFiscal: null }],
   };
 }
 
@@ -49,7 +50,7 @@ function rowConCuotas(total: number, montos: number[]): FacturacionRow {
     correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
     cuotas: montos.map((m, i) => ({
       id: `c${i + 1}`, numero: i + 1, monto: m,
-      fechaVencimiento: null, estado: "pendiente", comprobante: null,
+      fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null,
     })),
   };
 }

@@ -168,6 +168,15 @@ export const TIPOS_COMPROBANTE = {
 
 export type TipoComprobante = (typeof TIPOS_COMPROBANTE)[keyof typeof TIPOS_COMPROBANTE];
 
+/**
+ * Extensiones aceptadas para el comprobante fiscal (boleta/factura) que adjunta
+ * Facturacion en la bandeja de cuotas.
+ */
+export const COMPROBANTE_FISCAL_EXTENSIONES = [".pdf", ".jpg", ".jpeg", ".png"] as const;
+
+/** Valor del atributo `accept` para el input de archivo del comprobante fiscal. */
+export const COMPROBANTE_FISCAL_ACCEPT = COMPROBANTE_FISCAL_EXTENSIONES.join(",");
+
 /* ================================================================
    Tipos de documento de identidad
    ================================================================ */

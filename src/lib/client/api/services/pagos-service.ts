@@ -1,6 +1,7 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
+import type { ComprobanteFiscalDTO } from "@/types/dto/facturacion";
 
 export interface CuotaPagoDTO {
   id: string;
@@ -9,6 +10,7 @@ export interface CuotaPagoDTO {
   fechaVencimiento: string | null;
   estado: string;
   comprobante: string | null;
+  comprobanteFiscal: ComprobanteFiscalDTO | null;
 }
 
 export interface PagoRowDTO {

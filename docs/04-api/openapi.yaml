@@ -609,6 +609,33 @@ paths:
                   idioma: { type: string, enum: [es, en] }
         "400":
           description: Idioma no soportado
+  /facturacion/adjuntar-comprobante:
+    post:
+      tags: [Facturacion]
+      summary: Adjunta el comprobante fiscal (boleta/factura) de una cuota pagada y notifica al cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cuotaId, tipo, numero, url]
+              properties:
+                cuotaId: { type: string, format: uuid }
+                tipo: { type: string, enum: [factura, boleta] }
+                numero: { type: string, maxLength: 30 }
+                url: { type: string, maxLength: 500, description: URL devuelta por /api/upload }
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Datos invalidos
+        "403":
+          description: Sin permiso de facturacion
+        "404":
+          description: Cuota no encontrada
+        "409":
+          description: La cuota no esta pagada
   /sgc/detalle:
     get:
       tags: [SGC]

@@ -1,3 +1,12 @@
+/** Comprobante fiscal (boleta/factura) adjuntado a una cuota pagada. */
+export interface ComprobanteFiscalRow {
+  tipo: string;
+  numero: string;
+  url: string;
+  at: string;
+  by: string | null;
+}
+
 export interface FacturacionRow {
   id: string;
   solicitudId: string;
@@ -9,7 +18,15 @@ export interface FacturacionRow {
   standCode: string;
   correoSolicitante: string | null;
   createdAt: string;
-  cuotas: Array<{ id: string; numero: number; monto: number; fechaVencimiento: string | null; estado: string; comprobante: string | null }>;
+  cuotas: Array<{
+    id: string;
+    numero: number;
+    monto: number;
+    fechaVencimiento: string | null;
+    estado: string;
+    comprobante: string | null;
+    comprobanteFiscal: ComprobanteFiscalRow | null;
+  }>;
 }
 
 export interface FacturacionListParams {
@@ -42,6 +59,13 @@ export interface CuotaUpdate {
   fechaVencimiento?: string | null;
 }
 
+/** Datos del comprobante fiscal que adjunta Facturacion a una cuota pagada. */
+export interface DatosComprobanteFiscal {
+  tipo: string;
+  numero: string;
+  url: string;
+}
+
 export interface IFacturacionRepository {
   listar(params: FacturacionListParams): Promise<FacturacionListResult>;
   /** Facturaciones cuya solicitud pertenece al cliente (userId o email). */
@@ -52,6 +76,8 @@ export interface IFacturacionRepository {
   /** Adjunta/reemplaza el voucher (comprobante) de una cuota sin cambiar su estado. */
   adjuntarVoucher(cuotaId: string, comprobante: string, createdBy: string): Promise<void>;
   pagarCuota(cuotaId: string, createdBy: string, comprobante: string | null): Promise<void>;
+  /** Adjunta/reemplaza el comprobante fiscal (boleta/factura) de una cuota pagada. */
+  adjuntarComprobanteFiscal(cuotaId: string, data: DatosComprobanteFiscal, createdBy: string): Promise<void>;
   actualizar(id: string, data: { tipo?: string }, createdBy: string): Promise<void>;
   eliminar(id: string, createdBy: string): Promise<void>;
   eliminarCuota(cuotaId: string, createdBy: string): Promise<void>;

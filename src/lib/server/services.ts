@@ -32,6 +32,8 @@ import { SolicitudesApplicationService } from "@/application/solicitudes/solicit
 import { PlanoApplicationService } from "@/application/planos/planos-service";
 import { EmpresaPrismaRepository } from "@/infrastructure/persistence/empresa-repository";
 import { EmpresaApplicationService } from "@/application/empresas/empresa-service";
+import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
+import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 
 const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
@@ -72,6 +74,7 @@ export const services = {
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion),
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
+  facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
   gessRepo,
   roleRepo,
 };

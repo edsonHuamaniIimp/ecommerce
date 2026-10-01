@@ -180,6 +180,7 @@
 | `/api/facturacion/detalle` | GET | Detalle de facturación con cuotas |
 | `/api/facturacion/agregar-cuota` | POST | Agrega cuota con monto y vencimiento |
 | `/api/facturacion/pagar-cuota` | POST | Marca cuota como pagada (comprobante opcional) |
+| `/api/facturacion/adjuntar-comprobante` | POST | Adjunta el comprobante fiscal (boleta/factura) de una cuota pagada y notifica al cliente |
 | `/api/facturacion/eliminar-cuota` | POST | Elimina cuota |
 | `/api/facturacion/actualizar` | PATCH | Actualiza datos de la facturación |
 | `/api/facturacion/eliminar` | DELETE | Elimina facturación |

@@ -1,4 +1,4 @@
-import { APP_URL, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION } from "@/lib/shared/constants";
+import { APP_URL, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { PIE_EN, envoltura, esc, fila } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
 
@@ -378,6 +378,28 @@ export const plantillasEn: PlantillasEmail = {
 </table>
 </body>
 </html>`,
+    };
+  },
+
+  "comprobante-pago": ({ standCode, tipo, numero }) => {
+    const label = tipo === TIPOS_COMPROBANTE.FACTURA ? "Invoice" : "Receipt";
+    return {
+      subject: `Payment document (${label} ${numero}) - IIMP Stand Contracts`,
+      html: envoltura(
+        "Payment document available",
+        `
+        <p>Billing attached the document for your payment:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Stand", esc(standCode))}
+          ${fila("Document", esc(`${label} ${numero}`))}
+        </table>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${APP_URL}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my payments</a>
+        </div>
+        <p style="font-size:13px;color:#475569">You can view and download it from the Client Portal.</p>
+      `,
+        PIE_EN,
+      ),
     };
   },
 };

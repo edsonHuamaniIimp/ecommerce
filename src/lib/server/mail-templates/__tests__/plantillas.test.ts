@@ -43,6 +43,11 @@ const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
     modo: "automatico",
     revisiones: [{ area: "logistica", estado: "aprobado", comentario: null }],
   },
+  "comprobante-pago": {
+    standCode: "BLOQUE-01",
+    tipo: "factura",
+    numero: "F001-1234",
+  },
 };
 
 const KINDS = Object.keys(DATOS) as (keyof DatosPlantilla)[];

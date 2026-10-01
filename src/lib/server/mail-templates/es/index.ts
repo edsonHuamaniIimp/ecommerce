@@ -1,4 +1,4 @@
-import { APP_URL, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION } from "@/lib/shared/constants";
+import { APP_URL, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { PIE_ES, envoltura, esc, fila } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
 
@@ -378,6 +378,28 @@ export const plantillasEs: PlantillasEmail = {
 </table>
 </body>
 </html>`,
+    };
+  },
+
+  "comprobante-pago": ({ standCode, tipo, numero }) => {
+    const label = tipo === TIPOS_COMPROBANTE.FACTURA ? "Factura" : "Boleta";
+    return {
+      subject: `Comprobante de pago (${label} ${numero}) - IIMP Contratos Stands`,
+      html: envoltura(
+        "Comprobante de pago disponible",
+        `
+        <p>Facturacion adjunto el comprobante de tu pago:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Stand", esc(standCode))}
+          ${fila("Comprobante", esc(`${label} ${numero}`))}
+        </table>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${APP_URL}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver mis pagos</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Puedes verlo y descargarlo desde el Portal del Cliente.</p>
+      `,
+        PIE_ES,
+      ),
     };
   },
 };

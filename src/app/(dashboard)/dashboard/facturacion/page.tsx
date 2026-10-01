@@ -2,14 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive } from "lucide-react";
+import { CreditCard, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
+
+interface ComprobanteFiscalItem {
+  tipo: string;
+  numero: string;
+  url: string;
+  at: string;
+  by: string | null;
+}
 
 interface CuotaItem {
   id: string;
@@ -18,6 +26,7 @@ interface CuotaItem {
   fechaVencimiento: string | null;
   estado: string;
   comprobante: string | null;
+  comprobanteFiscal: ComprobanteFiscalItem | null;
 }
 
 interface FacturacionItem {
@@ -56,6 +65,13 @@ export default function FacturacionPage() {
   const [payCuotaId, setPayCuotaId] = useState<string | null>(null);
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
   const [uploadingComprobante, setUploadingComprobante] = useState(false);
+
+  // Comprobante fiscal (boleta/factura) que adjunta Facturacion a una cuota pagada.
+  const [fiscalCuotaId, setFiscalCuotaId] = useState<string | null>(null);
+  const [fiscalTipo, setFiscalTipo] = useState<string>(TIPOS_COMPROBANTE.FACTURA);
+  const [fiscalNumero, setFiscalNumero] = useState("");
+  const [fiscalFile, setFiscalFile] = useState<File | null>(null);
+  const [savingFiscal, setSavingFiscal] = useState(false);
 
   // Cuota form state
   const [newCuotaMonto, setNewCuotaMonto] = useState("");
@@ -121,6 +137,36 @@ export default function FacturacionPage() {
       }
       load(page);
     } catch { toast.error("Error al confirmar el pago"); }
+  };
+
+  const abrirComprobanteFiscal = (cuota: CuotaItem) => {
+    setFiscalCuotaId(cuota.id);
+    setFiscalTipo(cuota.comprobanteFiscal?.tipo ?? TIPOS_COMPROBANTE.FACTURA);
+    setFiscalNumero(cuota.comprobanteFiscal?.numero ?? "");
+    setFiscalFile(null);
+  };
+
+  /** Sube el archivo y adjunta el comprobante fiscal; el cliente recibe correo. */
+  const guardarComprobanteFiscal = async () => {
+    if (!fiscalCuotaId || !fiscalFile || !fiscalNumero.trim()) return;
+    setSavingFiscal(true);
+    try {
+      const url = await uploadService.subir(fiscalFile);
+      await internalApi.post("/api/facturacion/adjuntar-comprobante", {
+        cuotaId: fiscalCuotaId,
+        tipo: fiscalTipo,
+        numero: fiscalNumero.trim(),
+        url,
+      });
+      toast.success("Comprobante adjuntado");
+      setFiscalCuotaId(null);
+      if (payRow) {
+        const d = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${payRow.id}`);
+        setPayRow(d);
+      }
+      load(page);
+    } catch { toast.error("Error al adjuntar el comprobante"); }
+    setSavingFiscal(false);
   };
 
   const handleAddCuota = async () => {
@@ -262,8 +308,13 @@ export default function FacturacionPage() {
                           {c.estado === ESTADOS_CUOTA.PAGADO ? "Pagado" : "Pendiente"}
                         </Badge>
                         {c.comprobante && (
-                          <a href={c.comprobante} target="_blank" className="text-slate-400 hover:text-slate-600" title="Ver comprobante">
+                          <a href={c.comprobante} target="_blank" className="text-slate-400 hover:text-slate-600" title="Ver voucher">
                             <FileText className="h-3 w-3" />
+                          </a>
+                        )}
+                        {c.comprobanteFiscal && (
+                          <a href={c.comprobanteFiscal.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title={`Comprobante fiscal: ${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero}`}>
+                            <Receipt className="h-3 w-3" />
                           </a>
                         )}
                       </div>
@@ -354,6 +405,19 @@ export default function FacturacionPage() {
                             <FileText className="h-3 w-3" />
                             <span>Voucher</span>
                           </a>
+                        )}
+                        {c.comprobanteFiscal && (
+                          <a href={c.comprobanteFiscal.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700" title={`Comprobante fiscal: ${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero}`}>
+                            <Receipt className="h-3 w-3" />
+                            <span>Comprobante</span>
+                          </a>
+                        )}
+                        {c.estado === ESTADOS_CUOTA.PAGADO && (
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500"
+                            title={c.comprobanteFiscal ? "Reemplazar comprobante fiscal" : "Adjuntar comprobante fiscal"}
+                            onClick={() => abrirComprobanteFiscal(c)} disabled={savingFiscal}>
+                            <Receipt className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                         {c.estado === ESTADOS_CUOTA.PENDIENTE && c.comprobante && (
                           <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] font-semibold text-emerald-600"
@@ -567,6 +631,64 @@ export default function FacturacionPage() {
                 catch { toast.error("Error"); }
                 setArchiveId(null);
               }}>Archivar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Comprobante fiscal — boleta/factura adjuntada por Facturacion */}
+      <Dialog open={!!fiscalCuotaId} onOpenChange={() => setFiscalCuotaId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle><span>Comprobante fiscal</span></DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-xs text-slate-500">
+              Adjunta la boleta o factura de la cuota pagada. El cliente podra verla y descargarla
+              en el portal, y recibira un correo de aviso.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Tipo</Label>
+                <Select value={fiscalTipo} onValueChange={setFiscalTipo}>
+                  <SelectTrigger className="text-xs mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TIPOS_COMPROBANTE.FACTURA}><span>Factura</span></SelectItem>
+                    <SelectItem value={TIPOS_COMPROBANTE.BOLETA}><span>Boleta</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Numero</Label>
+                <Input className="text-xs mt-1" placeholder="F001-1234" maxLength={30}
+                  value={fiscalNumero} onChange={(e) => setFiscalNumero(e.target.value)} />
+              </div>
+            </div>
+            <label className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-4 transition-all ${
+              fiscalFile ? "border-emerald-300 bg-emerald-50/50" : "border-slate-300 bg-slate-50/50 hover:border-emerald-300"
+            }`}>
+              {fiscalFile ? (
+                <div className="flex items-center gap-2 text-xs text-emerald-700">
+                  <Check className="h-4 w-4" />
+                  <span className="truncate max-w-[180px]">{fiscalFile.name}</span>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-6 w-6 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">Subir comprobante</span>
+                  <span className="text-[10px] text-slate-400">PDF o imagen — max 10 MB</span>
+                </>
+              )}
+              <input type="file" className="hidden" accept={COMPROBANTE_FISCAL_ACCEPT}
+                onChange={(e) => { const f = e.target.files?.[0] ?? null; setFiscalFile(f); e.target.value = ""; }} />
+            </label>
+            <Button size="sm" className="rounded-full w-full"
+              disabled={!fiscalFile || !fiscalNumero.trim() || savingFiscal}
+              onClick={() => { void guardarComprobanteFiscal(); }}>
+              {savingFiscal ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+              Guardar comprobante
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

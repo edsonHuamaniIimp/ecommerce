@@ -9,6 +9,7 @@ export const { GET, POST, PATCH, DELETE } = createRouter({
   POST: {
     "agregar-cuota": (req) => facturacionController.agregarCuota(req),
     "pagar-cuota": (req) => facturacionController.pagarCuota(req),
+    "adjuntar-comprobante": (req) => facturacionController.adjuntarComprobante(req),
     "eliminar-cuota": (req) => facturacionController.eliminarCuota(req),
   },
   PATCH: {

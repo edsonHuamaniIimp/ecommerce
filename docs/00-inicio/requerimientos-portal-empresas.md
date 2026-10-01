@@ -253,3 +253,18 @@
 3. Diseñar UX de los flujos nuevos — **en curso en Stitch** (backoffice de empresas, primer
    login, condiciones de pago, contrato/firma, comprobante, visuales y token de Montaje).
 4. Abrir tickets por fase y arrancar por **Fase 1**.
+
+---
+
+## 7. Avance de implementación
+
+| Requerimiento | Estado | Detalle |
+|---|---|---|
+| RF-04→RF-07 (Fase 1) | ✅ Hecho (commit `308b718`) | Backoffice de empresas (bandeja + alta/edición + carga masiva Excel/CSV), cuentas con credenciales por correo, primer login (cambio de contraseña + validación de datos), permisos `empresas:view`/`empresas:manage`. |
+| RF-01 idiomas (F1–F2) | ✅ Hecho (commit `ce0322f`) | Selector ES/EN + Google Translate + `user_role.idioma`; plantillas de correo es/en (10 puntos de envío). F3 (documentos) y F4 (selector público, QA) pendientes — ver `plan-idiomas.md`. |
+| RF-18/RF-19 comprobante | ✅ Hecho (local) | Comprobante fiscal (boleta/factura) por cuota pagada: `POST /api/facturacion/adjuntar-comprobante` (permiso `facturacion:view`), visible/descargable en *Mis pagos* y correo al cliente (es/en). Migración `0021_add_facturacion_cuota_comprobante_fiscal`. |
+| RF-03 retirar `/landing` | ✅ Hecho (commit `308b718`) | Ruta retirada; componentes se conservan en el repo. |
+| RF-10 condiciones de pago | ⏳ Pendiente | Configurador de modalidades en backoffice + elección del cliente al iniciar la reserva. |
+| Fase 2 contrato (RF-11→RF-17) | ⏳ Pendiente | Bloqueado por insumos: plantilla DOCX real, proveedor de firma digital y rol Asociado. |
+| RF-08/09 visuales + hover | ⏳ Pendiente | Depende del plano (coordinar con el trabajo 3D en curso en otra sesión). |
+| RF-13 adjuntos bloqueantes | ⏳ Pendiente | Vigencia de Poderes + DNI bloquean el envío a revisión Legal. |

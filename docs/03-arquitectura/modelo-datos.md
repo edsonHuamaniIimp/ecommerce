@@ -458,6 +458,31 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 
 Índices: `ruc` (único), `razonSocial`, `estado`.
 
+### 4.22 `facturacion` / `facturacion_cuota` (Transaccional · plan de pagos)
+
+Plan de pagos por solicitud (una `facturacion` por stand/solicitud, con N `facturacion_cuota`).
+La cuota guarda el **voucher** que sube el cliente y el **comprobante fiscal** (boleta/factura)
+que adjunta **Facturación** al confirmar el pago; el cliente lo ve/descarga en *Mis pagos* y
+recibe un correo (plantilla es/en).
+
+| Campo (`facturacion_cuota`) | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| facturacionId | id/uuid | No | FK → `facturacion` (índice). |
+| numero | int | No | N.° de cuota (se renumera al eliminar). |
+| monto | decimal(12,2) | No | Monto de la cuota. |
+| fechaVencimiento | datetime | Sí | Vencimiento (opcional). |
+| estado | string(20) | No | `pendiente` \| `pagado` \| `vencido`. |
+| comprobante | string(500) | Sí | Voucher subido por el cliente (pendiente de confirmación). |
+| comprobanteFiscal | string(500) | Sí | URL del comprobante fiscal adjuntado por Facturación. |
+| comprobanteFiscalTipo | string(10) | Sí | `factura` \| `boleta`. |
+| comprobanteFiscalNumero | string(30) | Sí | Serie-número del comprobante. |
+| comprobanteFiscalAt | datetime | Sí | Fecha/hora del adjuntado. |
+| comprobanteFiscalBy | string(100) | Sí | Usuario de Facturación que adjuntó. |
+
+Índices: `facturacion_cuota.facturacionId`; `facturacion.solicitudId`, `facturacion.estado`.
+Auditoría de cambios en `facturacion_historial` (`agregar_cuota`, `pagar_cuota`, `adjuntar_comprobante`, …).
+
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 
 - **`empresa` / `persona_contacto`** — origen: sistema de John o base centralizada de

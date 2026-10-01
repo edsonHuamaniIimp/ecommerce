@@ -59,6 +59,13 @@ export interface DatosPlantilla {
     mensaje?: string;
     revisiones: { area: string; estado: string; comentario: string | null }[];
   };
+  /** Aviso al cliente de que Facturacion adjunto el comprobante fiscal de su pago. */
+  "comprobante-pago": {
+    standCode: string;
+    /** "boleta" | "factura" (ver TIPOS_COMPROBANTE). */
+    tipo: string;
+    numero: string;
+  };
 }
 
 export type PlantillaEmailKind = keyof DatosPlantilla;

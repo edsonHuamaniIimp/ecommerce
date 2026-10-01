@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, LayoutGrid, Paperclip, Pencil, Plus, Rows3, Trash2, Wallet } from "lucide-react";
+import { CreditCard, Eye, LayoutGrid, Paperclip, Pencil, Plus, Receipt, Rows3, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -213,6 +213,18 @@ export function MisPagosManager() {
                   >
                     <Eye className="h-3.5 w-3.5" />
                     <span>Voucher</span>
+                  </a>
+                )}
+                {cuota.comprobanteFiscal && (
+                  <a
+                    href={cuota.comprobanteFiscal.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 text-primary hover:underline"
+                    title={`Comprobante fiscal: ${cuota.comprobanteFiscal.tipo} ${cuota.comprobanteFiscal.numero}`}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    <span>Comprobante</span>
                   </a>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (

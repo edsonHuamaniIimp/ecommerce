@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
-import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
+import { services } from "@/lib/server/services";
+import { adjuntarComprobanteFiscalSchema } from "@/validators/facturacion.validator";
+import type { AdjuntarComprobanteFiscalRequestDTO } from "@/types/dto/facturacion";
 
-const service = new FacturacionApplicationService(facturacionRepo);
+const service = services.facturacion;
 
 export const facturacionController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -44,6 +45,24 @@ export const facturacionController = {
     const { cuotaId, comprobante } = (await request.json()) as { cuotaId: string; comprobante?: string };
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
     await service.pagarCuota(cuotaId, session.email, comprobante ?? null);
+    return success({ ok: true });
+  },
+
+  /** Adjunta el comprobante fiscal (boleta/factura) de una cuota pagada y notifica al cliente. */
+  async adjuntarComprobante(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarGestion(session.permissions);
+    const parsed = adjuntarComprobanteFiscalSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const body: AdjuntarComprobanteFiscalRequestDTO = parsed.data;
+    await service.adjuntarComprobanteFiscal(
+      body.cuotaId,
+      { tipo: body.tipo, numero: body.numero, url: body.url },
+      session.email,
+    );
     return success({ ok: true });
   },
 

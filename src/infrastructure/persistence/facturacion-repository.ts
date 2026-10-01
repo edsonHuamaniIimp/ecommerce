@@ -10,6 +10,7 @@ import type {
   FacturacionClienteParams,
   ClienteIdent,
   CuotaUpdate,
+  DatosComprobanteFiscal,
 } from "@/domain/ports/facturacion-repository";
 
 /** Forma cruda (Prisma) de una facturacion con cuotas + solicitud. */
@@ -22,7 +23,20 @@ interface FacturacionRaw {
   moneda: string;
   modoPago: string;
   createdAt: Date;
-  cuotas: Array<{ id: string; numero: number; monto: unknown; fechaVencimiento: Date | null; estado: string; comprobante: string | null }>;
+  cuotas: Array<{
+    id: string;
+    numero: number;
+    monto: unknown;
+    fechaVencimiento: Date | null;
+    estado: string;
+    comprobante: string | null;
+    comprobanteFiscal: string | null;
+    comprobanteFiscalTipo: string | null;
+    comprobanteFiscalNumero: string | null;
+    comprobanteFiscalAt: Date | null;
+    comprobanteFiscalBy: string | null;
+    createdAt: Date;
+  }>;
   solicitud: {
     email: string | null;
     gessStand: { standCode: string } | null;
@@ -57,6 +71,15 @@ function toRow(r: FacturacionRaw): FacturacionRow {
       id: c.id, numero: c.numero, monto: Number(c.monto),
       fechaVencimiento: c.fechaVencimiento?.toISOString() ?? null, estado: c.estado,
       comprobante: c.comprobante,
+      comprobanteFiscal: c.comprobanteFiscal && c.comprobanteFiscalTipo && c.comprobanteFiscalNumero
+        ? {
+            tipo: c.comprobanteFiscalTipo,
+            numero: c.comprobanteFiscalNumero,
+            url: c.comprobanteFiscal,
+            at: (c.comprobanteFiscalAt ?? c.createdAt).toISOString(),
+            by: c.comprobanteFiscalBy,
+          }
+        : null,
     })),
   };
 }
@@ -175,6 +198,27 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         data: { facturacionId: cuota.facturacionId, accion: "actualizar", detalle: `Facturacion marcada como pagada (todas las cuotas pagadas)`, createdBy },
       });
     }
+  }
+
+  async adjuntarComprobanteFiscal(cuotaId: string, data: DatosComprobanteFiscal, createdBy: string) {
+    const cuota = await prisma.facturacionCuota.update({
+      where: { id: cuotaId },
+      data: {
+        comprobanteFiscal: data.url,
+        comprobanteFiscalTipo: data.tipo,
+        comprobanteFiscalNumero: data.numero,
+        comprobanteFiscalAt: new Date(),
+        comprobanteFiscalBy: createdBy,
+      },
+    });
+    await prisma.facturacionHistorial.create({
+      data: {
+        facturacionId: cuota.facturacionId,
+        accion: "adjuntar_comprobante",
+        detalle: `Comprobante fiscal (${data.tipo} ${data.numero}) adjuntado a la cuota #${cuota.numero}`,
+        createdBy,
+      },
+    });
   }
 
   async actualizar(id: string, data: { tipo?: string }, createdBy: string) {
