@@ -29,7 +29,8 @@ Editor visual de mapas 3D de pabellones para eventos, con dos tipos:
 - Arrastre con snap `0.25`; creación de bloque desde panel o diálogo "Agregar bloque".
 - **Rotación**: al seleccionar un bloque o decoración aparece una manija en el canvas (drag con snap 5°, Shift = 15°) y el panel permite grados exactos y giros de ±90°. El visor público respeta `rotY` de `plano_bloque` y `plano_furniture`.
 - Edición del bloque: **ID** (se vincula a `gess_stand.bloqueId`), tipo, **tipología** (Complejo/Simple/Octanorm, `TIPOLOGIAS_STAND`), coordenadas X/Z, eliminar. El diálogo "Agregar bloque" ya no declara tipología: crea con `Simple` por defecto y la tipología se edita en el panel del bloque seleccionado.
-- Creación de tipos de bloque personalizados (código, label, dimensiones, color), con **sugerencias de tipos ya usados en otros planos** (`GET /api/planos/tipos-sugeridos`), código sugerido a partir del nombre y validación de duplicados por plano.
+- **Borrado lógico con checklist "Mostrar eliminados"**: tipos de bloque, bloques y decoraciones se marcan `flgActivo = false` en lugar de borrarse. Los eliminados se ocultan del canvas y de la paleta; al activar el checklist se muestran (atenuados/rojo) y se pueden restaurar desde su panel. Regla: un tipo en uso por bloques no se puede eliminar (hay que reasignar o eliminar esos bloques primero). El visor público y el export TS ignoran los inactivos.
+- Edición de tipos de bloque (lápiz en el panel): código (con cascada a los bloques), label, nombre, W/D/H y color.
 - Guardar layout (`POST /api/planos/guardar-layout`), importar/exportar JSON.
 - **Exportar TypeScript**: genera 4 archivos (`bloques.ts`, `tipos.ts`, `construccion.ts`, `index.ts`) + snippet para `registry.ts`, mostrados para copiar/descargar. **No escribe en disco**.
 

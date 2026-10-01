@@ -5,7 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
-import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw, RotateCw, RefreshCw } from "lucide-react";
+import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw, RotateCw, RefreshCw, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFurnitureDTO, PlanoTipoSugeridoDTO } from "@/types/dto/planos/planos-response.dto";
@@ -13,8 +13,9 @@ import { codigoPlanoUtils } from "@/lib/shared/utils/codigo-plano";
 import { furnitureUtils } from "@/lib/shared/utils/furniture";
 import { planoEditorUtils, type PuntoAlineable } from "@/lib/shared/utils/plano-editor";
 import { FurnitureRenderer } from "@/components/plano/plano-3d-componentes";
+import { useConfirm } from "@/hooks/use-confirm";
 import { MacroEditor } from "./macro-editor";
-import { EDITOR_PLANO, PERSONA_COLORES_CABEZA, TIPOLOGIAS_STAND, TIPOLOGIAS_STAND_LABELS, TIPOS_FURNITURE, TIPOS_PLANO, FURNITURE_LABELS, type PersonaFurnitureConfig, type PisoFurnitureConfig, type TipoPlano } from "@/lib/shared/constants";
+import { AMBITO_TIPO_BLOQUE_LABELS, AMBITOS_TIPO_BLOQUE, EDITOR_PLANO, PERSONA_COLORES_CABEZA, TIPOLOGIAS_STAND, TIPOS_FURNITURE, TIPOS_PLANO, FURNITURE_LABELS, type PersonaFurnitureConfig, type PisoFurnitureConfig, type TipoPlano } from "@/lib/shared/constants";
 
 /* TIPOS LOCALES DE EDICION */
 
@@ -35,10 +36,11 @@ type DragState =
   | { mode: "move"; kind: ObjetoKind; id: string; offsetX: number; offsetZ: number }
   | { mode: "rotate"; kind: ObjetoKind; id: string; centerX: number; centerZ: number; inicioRad: number; inicioAngulo: number };
 
-function EditorBloque({ bloque, dim, selected, onPointerDown }: {
+function EditorBloque({ bloque, dim, selected, inactive, onPointerDown }: {
   bloque: EditBloque;
   dim: { w: number; d: number; h: number; color: string };
   selected: boolean;
+  inactive?: boolean;
   onPointerDown: (e: { stopPropagation: () => void; point: { x: number; z: number } }) => void;
 }) {
   return (
@@ -54,14 +56,17 @@ function EditorBloque({ bloque, dim, selected, onPointerDown }: {
         metalness={0.1}
         emissive={selected ? "#f59e0b" : "#000000"}
         emissiveIntensity={selected ? 0.35 : 0}
+        transparent={inactive}
+        opacity={inactive ? 0.35 : 1}
       />
     </mesh>
   );
 }
 
-function EditorFurniture({ item, selected, onPointerDown }: {
+function EditorFurniture({ item, selected, inactive, onPointerDown }: {
   item: EditFurniture;
   selected: boolean;
+  inactive?: boolean;
   onPointerDown: (e: { stopPropagation: () => void; point: { x: number; z: number } }) => void;
 }) {
   const huella = furnitureUtils.huella(item.tipo, item.config);
@@ -70,7 +75,7 @@ function EditorFurniture({ item, selected, onPointerDown }: {
       <group position={[item.x, 0, item.z]} rotation={[0, item.rotY, 0]}>
         <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[huella.w, huella.d]} />
-          <meshBasicMaterial color={selected ? "#f59e0b" : "#94a3b8"} transparent opacity={selected ? 0.45 : 0.15} depthWrite={false} />
+          <meshBasicMaterial color={selected ? "#f59e0b" : inactive ? "#ef4444" : "#94a3b8"} transparent opacity={selected ? 0.45 : inactive ? 0.3 : 0.15} depthWrite={false} />
         </mesh>
       </group>
       <FurnitureRenderer item={{ id: item.refId, type: item.tipo, x: item.x, z: item.z, rotY: item.rotY, config: item.config }} />
@@ -186,15 +191,19 @@ export function LaboratorioManager() {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [guias, setGuias] = useState<{ x: number | null; z: number | null }>({ x: null, z: null });
   const [mostrarGuias, setMostrarGuias] = useState(true);
+  const [mostrarEliminados, setMostrarEliminados] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [nuevoPlanoOpen, setNuevoPlanoOpen] = useState(false);
   const [nuevoPlanoKey, setNuevoPlanoKey] = useState(0);
-  const [eliminarPlanoOpen, setEliminarPlanoOpen] = useState(false);
+  const [nuevoPlanoCodigo, setNuevoPlanoCodigo] = useState("");
   const [nuevoTipoOpen, setNuevoTipoOpen] = useState(false);
   const [nuevoTipoKey, setNuevoTipoKey] = useState(0);
+  const [ultimoTipoCreado, setUltimoTipoCreado] = useState<string | null>(null);
+  const [tipoEditando, setTipoEditando] = useState<EditTipo | null>(null);
   const [nuevoBloqueOpen, setNuevoBloqueOpen] = useState(false);
   const [tsExportOpen, setTsExportOpen] = useState(false);
   const [tsFiles, setTsFiles] = useState<{ bloques: string; tipos: string; construccion: string; index: string; registrySnippet: string } | null>(null);
@@ -219,9 +228,9 @@ export function LaboratorioManager() {
     try {
       const plano = await planosService.detalle(id);
       setPlanoSel(plano);
-      setTipos(plano.tipos.map(({ codigo, label, nombre, w, d, h, color }) => ({ codigo, label, nombre, w, d, h, color })));
+      setTipos(plano.tipos.map(({ codigo, label, nombre, w, d, h, color, ambito, flgActivo }) => ({ codigo, label, nombre, w, d, h, color, ambito, flgActivo })));
       setBloques(plano.bloques.map(({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo }) => ({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo })));
-      setFurniture(plano.furniture.map(({ refId, tipo, x, z, rotY, config }) => ({ refId, tipo, x, z, rotY, config })));
+      setFurniture(plano.furniture.map(({ refId, tipo, x, z, rotY, config, flgActivo }) => ({ refId, tipo, x, z, rotY, config, flgActivo })));
       setSelected(null);
       setDirty(false);
     } catch (e) {
@@ -240,28 +249,42 @@ export function LaboratorioManager() {
 
   /** Abre el dialogo con `key` nueva para que el formulario se remonte limpio. */
   const abrirNuevoPlano = useCallback(() => {
+    setNuevoPlanoCodigo(codigoPlanoUtils.generar(planos.map((p) => p.codigo)));
     setNuevoPlanoKey((k) => k + 1);
     setNuevoPlanoOpen(true);
-  }, []);
+  }, [planos]);
 
   const abrirNuevoTipo = useCallback(() => {
+    setTipoEditando(null);
+    setNuevoTipoKey((k) => k + 1);
+    setNuevoTipoOpen(true);
+  }, []);
+
+  const abrirEditarTipo = useCallback((t: EditTipo) => {
+    setTipoEditando(t);
     setNuevoTipoKey((k) => k + 1);
     setNuevoTipoOpen(true);
   }, []);
 
   
 
+  const tiposVisibles = useMemo(() => (mostrarEliminados ? tipos : tipos.filter((t) => t.flgActivo !== false)), [tipos, mostrarEliminados]);
+  const bloquesVisibles = useMemo(() => (mostrarEliminados ? bloques : bloques.filter((b) => b.flgActivo !== false)), [bloques, mostrarEliminados]);
+  const furnitureVisibles = useMemo(() => (mostrarEliminados ? furniture : furniture.filter((f) => f.flgActivo !== false)), [furniture, mostrarEliminados]);
+  const bloquesActivosCount = useMemo(() => bloques.filter((b) => b.flgActivo !== false).length, [bloques]);
+  const furnitureActivaCount = useMemo(() => furniture.filter((f) => f.flgActivo !== false).length, [furniture]);
+
   const bounds = useMemo(() => {
-    if (bloques.length === 0) return { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
+    if (bloquesVisibles.length === 0) return { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const b of bloques) {
+    for (const b of bloquesVisibles) {
       const dim = tipos.find((t) => t.codigo === b.tipoCodigo);
       const w = dim?.w ?? 2, d = dim?.d ?? 2;
       minX = Math.min(minX, b.x - w / 2); maxX = Math.max(maxX, b.x + w / 2);
       minZ = Math.min(minZ, b.z - d / 2); maxZ = Math.max(maxZ, b.z + d / 2);
     }
     return { minX: minX - 6, maxX: maxX + 6, minZ: minZ - 6, maxZ: maxZ + 6 };
-  }, [bloques, tipos]);
+  }, [bloquesVisibles, tipos]);
 
   const camPos = useMemo(() => {
     const cx = (bounds.minX + bounds.maxX) / 2;
@@ -273,10 +296,10 @@ export function LaboratorioManager() {
   /** Centros de bloques y decoraciones (mas el origen) para las guias magneticas. */
   const candidatosGuia = useMemo<PuntoAlineable[]>(() => {
     const out: PuntoAlineable[] = [{ id: "origen", x: 0, z: 0 }];
-    for (const b of bloques) out.push({ id: `bloque:${b.bloqueId}`, x: b.x, z: b.z });
-    for (const f of furniture) out.push({ id: `furniture:${f.refId}`, x: f.x, z: f.z });
+    for (const b of bloquesVisibles) out.push({ id: `bloque:${b.bloqueId}`, x: b.x, z: b.z });
+    for (const f of furnitureVisibles) out.push({ id: `furniture:${f.refId}`, x: f.x, z: f.z });
     return out;
-  }, [bloques, furniture]);
+  }, [bloquesVisibles, furnitureVisibles]);
 
   
 
@@ -356,7 +379,7 @@ export function LaboratorioManager() {
 
   const addFurnitureAt = (tipo: string, x: number, z: number) => {
     const refId = furnitureUtils.refIdSugerido(tipo, furniture.map((f) => f.refId));
-    const nuevo: EditFurniture = { refId, tipo, x: snap(x), z: snap(z), rotY: 0, config: furnitureUtils.configPorDefecto(tipo) };
+    const nuevo: EditFurniture = { refId, tipo, x: snap(x), z: snap(z), rotY: 0, config: furnitureUtils.configPorDefecto(tipo), flgActivo: true };
     setFurniture((prev) => [...prev, nuevo]);
     setSelected({ kind: "furniture", id: refId });
     setDirty(true);
@@ -373,12 +396,25 @@ export function LaboratorioManager() {
     setDirty(true);
   };
 
-  const deleteBloque = () => {
+  const deleteBloque = async () => {
     if (!bloqueSel) return;
-    setBloques((prev) => prev.filter((b) => b.bloqueId !== bloqueSel.bloqueId));
-    setSelected(null);
+    const id = bloqueSel.bloqueId;
+    const ok = await confirm({
+      title: `Eliminar bloque ${id}`,
+      description: "Se marcará como eliminado (borrado lógico). Podés restaurarlo activando \"Mostrar eliminados\" y guardar para aplicar.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    setBloques((prev) => prev.map((b) => (b.bloqueId === id ? { ...b, flgActivo: false } : b)));
     setDirty(true);
-    toast.success(`Bloque ${bloqueSel.bloqueId} eliminado (guardar para aplicar)`);
+    toast.success(`Bloque ${id} eliminado (guardar para aplicar)`);
+  };
+
+  const restaurarBloque = () => {
+    if (!bloqueSel) return;
+    updateBloque({ flgActivo: true });
+    toast.success(`Bloque ${bloqueSel.bloqueId} restaurado (guardar para aplicar)`);
   };
 
   const furnitureSel = selected?.kind === "furniture" ? (furniture.find((f) => f.refId === selected.id) ?? null) : null;
@@ -389,12 +425,67 @@ export function LaboratorioManager() {
     setDirty(true);
   };
 
-  const deleteFurniture = () => {
+  const deleteFurniture = async () => {
     if (!furnitureSel) return;
-    setFurniture((prev) => prev.filter((f) => f.refId !== furnitureSel.refId));
-    setSelected(null);
+    const id = furnitureSel.refId;
+    const ok = await confirm({
+      title: `Eliminar decoración ${id}`,
+      description: "Se marcará como eliminada (borrado lógico). Podés restaurarla activando \"Mostrar eliminados\" y guardar para aplicar.",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    setFurniture((prev) => prev.map((f) => (f.refId === id ? { ...f, flgActivo: false } : f)));
     setDirty(true);
-    toast.success(`${furnitureSel.refId} eliminado (guardar para aplicar)`);
+    toast.success(`${id} eliminado (guardar para aplicar)`);
+  };
+
+  const restaurarFurniture = () => {
+    if (!furnitureSel) return;
+    updateFurniture({ flgActivo: true });
+    toast.success(`${furnitureSel.refId} restaurado (guardar para aplicar)`);
+  };
+
+  const persistirTipos = async (nuevosTipos: EditTipo[]) => {
+    if (!planoSel) return;
+    try {
+      await planosService.guardarTipos({ id: planoSel.id, tipos: nuevosTipos });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudieron guardar los tipos");
+    }
+  };
+
+  const usageDeTipo = (codigo: string) => bloques.filter((b) => b.tipoCodigo === codigo).length;
+
+  const deleteTipo = async (codigo: string) => {
+    const enUso = usageDeTipo(codigo);
+    if (enUso > 0) {
+      await confirm({
+        title: "No se puede eliminar el tipo",
+        description: `El tipo ${codigo} está en uso por ${enUso} bloque(s). Reasigná o eliminá esos bloques primero.`,
+        confirmLabel: "Entendido",
+        cancelLabel: "Cerrar",
+      });
+      return;
+    }
+    const ok = await confirm({
+      title: `Eliminar tipo ${codigo}`,
+      description: "Se marcará como eliminado (borrado lógico). Podés restaurarlo activando \"Mostrar eliminados\".",
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    const nuevos = tipos.map((t) => (t.codigo === codigo ? { ...t, flgActivo: false } : t));
+    setTipos(nuevos);
+    void persistirTipos(nuevos);
+    toast.success(`Tipo ${codigo} eliminado`);
+  };
+
+  const restaurarTipo = (codigo: string) => {
+    const nuevos = tipos.map((t) => (t.codigo === codigo ? { ...t, flgActivo: true } : t));
+    setTipos(nuevos);
+    void persistirTipos(nuevos);
+    toast.success(`Tipo ${codigo} restaurado`);
   };
 
   const cambiarTipoFurniture = (tipo: string) => {
@@ -468,12 +559,25 @@ export function LaboratorioManager() {
     setSaving(false);
   };
 
-  const handleEliminarPlano = async () => {
+  const confirmarEliminarPlano = async () => {
     if (!planoSel) return;
+    const plano = planoSel;
+    const detalle = plano.tipo === TIPOS_PLANO.MACRO
+      ? `Se eliminará el mapa macro y sus ${plano.secciones.length} secciones.`
+      : `Se eliminará el layout con ${plano.bloques.length} bloques.`;
+    const vinculo = plano.tipo !== TIPOS_PLANO.MACRO
+      ? " Si pertenece a un macro, su vínculo con las secciones se desasignará (las secciones se conservan sin plano)."
+      : "";
+    const ok = await confirm({
+      title: `Eliminar mapa ${plano.nombre}`,
+      description: `${detalle}${vinculo} Esta acción no se puede deshacer. No se puede eliminar si está asignado a un evento.`,
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
-      await planosService.eliminar(planoSel.id);
-      toast.success(`Mapa "${planoSel.nombre}" eliminado`);
-      setEliminarPlanoOpen(false);
+      await planosService.eliminar(plano.id);
+      toast.success(`Mapa "${plano.nombre}" eliminado`);
       setPlanoSel(null);
       const lista = await loadPlanos();
       const first = lista[0];
@@ -532,19 +636,19 @@ export function LaboratorioManager() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <FlaskConical className="h-5 w-5 text-violet-600" />
-          <h1 className="text-lg font-semibold text-slate-800">Laboratorio 3D</h1>
+          <h1 className="text-lg font-semibold text-slate-800"><span>Laboratorio 3D</span></h1>
         </div>
         <Select value={planoSel?.id ?? ""} onValueChange={(v) => loadDetalle(v)}>
           <SelectTrigger className="w-[260px] h-8 text-xs"><SelectValue placeholder="Seleccionar mapa" /></SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mapas 3D — pabellones</SelectLabel>
+              <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400"><span>Mapas 3D — pabellones</span></SelectLabel>
               {planos.filter((p) => p.tipo !== TIPOS_PLANO.MACRO).map((p) => (
                 <SelectItem key={p.id} value={p.id}><span>{p.nombre} ({p.bloquesCount} bloques)</span></SelectItem>
               ))}
             </SelectGroup>
             <SelectGroup>
-              <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mapas macro</SelectLabel>
+              <SelectLabel className="text-[10px] font-bold uppercase tracking-wider text-slate-400"><span>Mapas macro</span></SelectLabel>
               {planos.filter((p) => p.tipo === TIPOS_PLANO.MACRO).map((p) => (
                 <SelectItem key={p.id} value={p.id}><span>{p.nombre} — agrupa pabellones</span></SelectItem>
               ))}
@@ -552,10 +656,10 @@ export function LaboratorioManager() {
           </SelectContent>
         </Select>
         <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" onClick={abrirNuevoPlano}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Nuevo mapa
+          <Plus className="h-3.5 w-3.5 mr-1" /> <span>Nuevo mapa</span>
         </Button>
         <Button size="sm" variant="outline" className="rounded-full h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200" disabled={!planoSel} title="Eliminar mapa"
-          onClick={() => setEliminarPlanoOpen(true)}>
+          onClick={() => void confirmarEliminarPlano()}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
         <div className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 h-8">
@@ -568,23 +672,31 @@ export function LaboratorioManager() {
               if (!activo) setGuias({ x: null, z: null });
             }}
           />
-          <Label htmlFor="editor-guias" className="cursor-pointer text-xs text-slate-600">Lineas de apoyo</Label>
+          <Label htmlFor="editor-guias" className="cursor-pointer text-xs text-slate-600"><span>Lineas de apoyo</span></Label>
+        </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 h-8">
+          <Checkbox
+            id="editor-eliminados"
+            checked={mostrarEliminados}
+            onCheckedChange={(v) => setMostrarEliminados(v === true)}
+          />
+          <Label htmlFor="editor-eliminados" className="cursor-pointer text-xs text-slate-600"><span>Mostrar eliminados</span></Label>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" disabled={!planoSel || planoSel.tipo === TIPOS_PLANO.MACRO} onClick={() => setNuevoBloqueOpen(true)} title={planoSel?.tipo === TIPOS_PLANO.MACRO ? "Los mapas macro usan secciones, no bloques" : undefined}>
-            <Box className="h-3.5 w-3.5 mr-1" /> Agregar bloque
+            <Box className="h-3.5 w-3.5 mr-1" /> <span>Agregar bloque</span>
           </Button>
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-3.5 w-3.5 mr-1" /> Importar
+            <Upload className="h-3.5 w-3.5 mr-1" /> <span>Importar</span>
           </Button>
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" disabled={!planoSel} onClick={handleExportJson}>
-            <FileJson className="h-3.5 w-3.5 mr-1" /> Exportar JSON
+            <FileJson className="h-3.5 w-3.5 mr-1" /> <span>Exportar JSON</span>
           </Button>
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" disabled={!planoSel} onClick={handleExportTs}>
-            <FileCode2 className="h-3.5 w-3.5 mr-1" /> Exportar TS
+            <FileCode2 className="h-3.5 w-3.5 mr-1" /> <span>Exportar TS</span>
           </Button>
           <Button size="sm" className="rounded-full h-8 text-xs bg-violet-600 hover:bg-violet-700" disabled={!planoSel || !dirty || saving} onClick={handleSave}>
-            <Save className="h-3.5 w-3.5 mr-1" /> {saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}
+            <Save className="h-3.5 w-3.5 mr-1" /> <span>{saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}</span>
           </Button>
         </div>
         <input ref={fileInputRef} type="file" accept=".json" className="hidden"
@@ -614,7 +726,7 @@ export function LaboratorioManager() {
           }}
         >
           {loadingDetail ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Cargando mapa...</div>
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground"><span>Cargando mapa...</span></div>
           ) : (
             <Canvas shadows camera={{ position: camPos.position, fov: 45 }} key={planoSel?.id ?? "empty"}>
               <color attach="background" args={["#e2e8f0"]} />
@@ -622,7 +734,7 @@ export function LaboratorioManager() {
               <directionalLight position={[15, 25, 10]} intensity={1.1} castShadow shadow-mapSize={[2048, 2048]} />
               <GridFloor {...bounds} mostrarGuias={mostrarGuias} />
               <DropCoordinator register={(fn) => { dropConverterRef.current = fn; }} />
-              {bloques.map((b) => {
+              {bloquesVisibles.map((b) => {
                 const dim = tipos.find((t) => t.codigo === b.tipoCodigo);
                 if (!dim) return null;
                 return (
@@ -631,15 +743,17 @@ export function LaboratorioManager() {
                     bloque={b}
                     dim={dim}
                     selected={selected?.kind === "bloque" && selected.id === b.bloqueId}
+                    inactive={b.flgActivo === false}
                     onPointerDown={(e) => { e.stopPropagation(); startDrag("bloque", b.bloqueId, e.point.x, e.point.z); }}
                   />
                 );
               })}
-              {furniture.map((f) => (
+              {furnitureVisibles.map((f) => (
                 <EditorFurniture
                   key={f.refId}
                   item={f}
                   selected={selected?.kind === "furniture" && selected.id === f.refId}
+                  inactive={f.flgActivo === false}
                   onPointerDown={(e) => { e.stopPropagation(); startDrag("furniture", f.refId, e.point.x, e.point.z); }}
                 />
               ))}
@@ -677,7 +791,7 @@ export function LaboratorioManager() {
             </Canvas>
           )}
           <div className="absolute left-2 top-2 rounded-md bg-white/80 backdrop-blur px-2 py-1 text-[10px] text-slate-500 pointer-events-none">
-            Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)
+            <span>Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)</span>
           </div>
         </div>
 
@@ -687,11 +801,14 @@ export function LaboratorioManager() {
           {bloqueSel ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-700">Bloque seleccionado</p>
-                <Badge className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">{bloqueSel.tipoCodigo}</Badge>
+                <p className="text-xs font-semibold text-slate-700"><span>Bloque seleccionado</span></p>
+                <div className="flex items-center gap-1">
+                  {bloqueSel.flgActivo === false && <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200"><span>Eliminado</span></Badge>}
+                  <Badge className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">{bloqueSel.tipoCodigo}</Badge>
+                </div>
               </div>
               <div>
-                <Label className="text-[10px]">ID del bloque</Label>
+                <Label className="text-[10px]"><span>ID del bloque</span></Label>
                 <Input className="h-7 text-xs font-mono" value={bloqueSel.bloqueId}
                   onChange={(e) => {
                     const nuevoId = e.target.value;
@@ -701,7 +818,7 @@ export function LaboratorioManager() {
                   }} />
               </div>
               <div>
-                <Label className="text-[10px]">Tipo</Label>
+                <Label className="text-[10px]"><span>Tipo</span></Label>
                 <Select value={bloqueSel.tipoCodigo} onValueChange={(v) => updateBloque({ tipoCodigo: v })}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -711,36 +828,20 @@ export function LaboratorioManager() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-[10px]">Tipologia (expediente tecnico)</Label>
-                <Select value={bloqueSel.tipologia ?? TIPOLOGIAS_STAND.SIMPLE} onValueChange={(v) => updateBloque({ tipologia: v })}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.values(TIPOLOGIAS_STAND).map((t) => {
-                      const lbl = TIPOLOGIAS_STAND_LABELS[t];
-                      if (!lbl) return null;
-                      return (
-                        <SelectItem key={t} value={t}><span>[{lbl.label}] {lbl.nombre}</span></SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <p className="text-[9px] text-slate-400 mt-0.5">Determina la matriz documental en el Sistema de Montaje</p>
-              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px]">X</Label>
+                  <Label className="text-[10px]"><span>X</span></Label>
                   <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={bloqueSel.x}
                     onChange={(e) => updateBloque({ x: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <Label className="text-[10px]">Z</Label>
+                  <Label className="text-[10px]"><span>Z</span></Label>
                   <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={bloqueSel.z}
                     onChange={(e) => updateBloque({ z: Number(e.target.value) })} />
                 </div>
               </div>
               <div>
-                <Label className="text-[10px]">Rotacion (grados)</Label>
+                <Label className="text-[10px]"><span>Rotacion (grados)</span></Label>
                 <div className="flex items-center gap-1">
                   <Input className="h-7 text-xs flex-1" type="number" step={EDITOR_PLANO.SNAP_ROTACION_GRADOS}
                     value={Math.round(planoEditorUtils.normalizarGrados(planoEditorUtils.aGrados(bloqueSel.rotY ?? 0)))}
@@ -755,9 +856,15 @@ export function LaboratorioManager() {
                   </Button>
                 </div>
               </div>
-              <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteBloque}>
-                <Trash2 className="h-3 w-3 mr-1" /> Eliminar bloque
-              </Button>
+              {bloqueSel.flgActivo === false ? (
+                <Button size="sm" variant="outline" className="w-full rounded-full h-7 text-xs" onClick={restaurarBloque}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> <span>Restaurar bloque (eliminado)</span>
+                </Button>
+              ) : (
+                <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteBloque}>
+                  <Trash2 className="h-3 w-3 mr-1" /> <span>Eliminar bloque</span>
+                </Button>
+              )}
             </div>
           ) : null}
 
@@ -765,11 +872,14 @@ export function LaboratorioManager() {
           {furnitureSel ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-700">Decoracion seleccionada</p>
-                <Badge className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">{FURNITURE_LABELS[furnitureSel.tipo]?.label ?? furnitureSel.tipo}</Badge>
+                <p className="text-xs font-semibold text-slate-700"><span>Decoracion seleccionada</span></p>
+                <div className="flex items-center gap-1">
+                  {furnitureSel.flgActivo === false && <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200"><span>Eliminado</span></Badge>}
+                  <Badge className="text-[10px] bg-amber-100 text-amber-800 border-amber-200">{FURNITURE_LABELS[furnitureSel.tipo]?.label ?? furnitureSel.tipo}</Badge>
+                </div>
               </div>
               <div>
-                <Label className="text-[10px]">RefId</Label>
+                <Label className="text-[10px]"><span>RefId</span></Label>
                 <Input className="h-7 text-xs font-mono" value={furnitureSel.refId}
                   onChange={(e) => {
                     const nuevoId = e.target.value;
@@ -779,7 +889,7 @@ export function LaboratorioManager() {
                   }} />
               </div>
               <div>
-                <Label className="text-[10px]">Tipo</Label>
+                <Label className="text-[10px]"><span>Tipo</span></Label>
                 <Select value={furnitureSel.tipo} onValueChange={cambiarTipoFurniture}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -791,18 +901,18 @@ export function LaboratorioManager() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px]">X</Label>
+                  <Label className="text-[10px]"><span>X</span></Label>
                   <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={furnitureSel.x}
                     onChange={(e) => updateFurniture({ x: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <Label className="text-[10px]">Z</Label>
+                  <Label className="text-[10px]"><span>Z</span></Label>
                   <Input className="h-7 text-xs" type="number" step={EDITOR_PLANO.SNAP_POSICION} value={furnitureSel.z}
                     onChange={(e) => updateFurniture({ z: Number(e.target.value) })} />
                 </div>
               </div>
               <div>
-                <Label className="text-[10px]">Rotacion (grados)</Label>
+                <Label className="text-[10px]"><span>Rotacion (grados)</span></Label>
                 <div className="flex items-center gap-1">
                   <Input className="h-7 text-xs flex-1" type="number" step={EDITOR_PLANO.SNAP_ROTACION_GRADOS}
                     value={Math.round(planoEditorUtils.normalizarGrados(planoEditorUtils.aGrados(furnitureSel.rotY)))}
@@ -822,13 +932,13 @@ export function LaboratorioManager() {
                 return (
                   <div className="space-y-2 rounded-lg border border-amber-200 bg-white/60 p-2">
                     <div>
-                      <Label className="text-[10px]">Color de cabeza</Label>
+                      <Label className="text-[10px]"><span>Color de cabeza</span></Label>
                       <Select value={String(config.colorIdx)} onValueChange={(v) => patchPersonaConfig({ colorIdx: Number(v) })}>
                         <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {PERSONA_COLORES_CABEZA.map((c, i) => (
                             <SelectItem key={c} value={String(i)}>
-                              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm border" style={{ backgroundColor: c }} />Tono {i + 1}</span>
+                              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm border" style={{ backgroundColor: c }} /><span>{`Tono ${i + 1}`}</span></span>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -836,11 +946,11 @@ export function LaboratorioManager() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label className="text-[10px]">Torso</Label>
+                        <Label className="text-[10px]"><span>Torso</span></Label>
                         <input type="color" value={config.torsoColor} onChange={(e) => patchPersonaConfig({ torsoColor: e.target.value })} className="h-7 w-full cursor-pointer rounded border" />
                       </div>
                       <div>
-                        <Label className="text-[10px]">Piernas</Label>
+                        <Label className="text-[10px]"><span>Piernas</span></Label>
                         <input type="color" value={config.piernasColor} onChange={(e) => patchPersonaConfig({ piernasColor: e.target.value })} className="h-7 w-full cursor-pointer rounded border" />
                       </div>
                     </div>
@@ -852,62 +962,107 @@ export function LaboratorioManager() {
                 return (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[10px]">Ancho (m)</Label>
+                      <Label className="text-[10px]"><span>Ancho (m)</span></Label>
                       <Input className="h-7 text-xs" type="number" step={0.5} min={0.5} value={config.w}
                         onChange={(e) => patchPisoConfig({ w: Number(e.target.value) })} />
                     </div>
                     <div>
-                      <Label className="text-[10px]">Fondo (m)</Label>
+                      <Label className="text-[10px]"><span>Fondo (m)</span></Label>
                       <Input className="h-7 text-xs" type="number" step={0.5} min={0.5} value={config.d}
                         onChange={(e) => patchPisoConfig({ d: Number(e.target.value) })} />
                     </div>
                   </div>
                 );
               })()}
-              <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteFurniture}>
-                <Trash2 className="h-3 w-3 mr-1" /> Eliminar decoracion
-              </Button>
+              {furnitureSel.flgActivo === false ? (
+                <Button size="sm" variant="outline" className="w-full rounded-full h-7 text-xs" onClick={restaurarFurniture}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> <span>Restaurar decoracion (eliminada)</span>
+                </Button>
+              ) : (
+                <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteFurniture}>
+                  <Trash2 className="h-3 w-3 mr-1" /> <span>Eliminar decoracion</span>
+                </Button>
+              )}
             </div>
           ) : !bloqueSel ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
-              <p className="text-[11px] text-slate-400">Selecciona un bloque o decoracion en el canvas para editarlo</p>
+              <p className="text-[11px] text-slate-400"><span>Selecciona un bloque o decoracion en el canvas para editarlo</span></p>
             </div>
           ) : null}
 
           {/* Tipos de bloque */}
           <div className="rounded-xl border border-slate-200 p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-700">Tipos de bloque ({tipos.length})</p>
+              <p className="text-xs font-semibold text-slate-700"><span>Tipos de bloque ({tiposVisibles.length}{mostrarEliminados && tipos.length !== tiposVisibles.length ? `/${tipos.length}` : ""})</span></p>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={abrirNuevoTipo}>
                 <Plus className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <p className="text-[10px] text-slate-400">Arrastra un tipo al mapa para crear un bloque</p>
+            <p className="text-[10px] text-slate-400"><span>Arrastra un tipo al mapa para crear un bloque · lapiz edita · papelera elimina</span></p>
             <div className="space-y-1">
-              {tipos.map((t) => (
+              {tiposVisibles.map((t) => {
+                const eliminado = t.flgActivo === false;
+                return (
                 <div
                   key={t.codigo}
-                  draggable
+                  draggable={!eliminado}
                   onDragStart={(e) => {
                     e.dataTransfer.setData("application/x-plano-tipo", t.codigo);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  title="Arrastra al mapa para crear un bloque"
-                  className="flex items-center gap-2 rounded border border-slate-100 bg-white px-2 py-1.5 text-[11px] cursor-grab active:cursor-grabbing hover:border-violet-300 hover:bg-violet-50/50 hover:shadow-sm transition-all select-none"
+                  title={eliminado ? "Tipo eliminado (restaurar para usar)" : "Arrastra al mapa para crear un bloque"}
+                  className={`flex items-center gap-2 rounded border px-2 py-1.5 text-[11px] transition-all select-none ${eliminado ? "border-dashed border-red-200 bg-red-50/40 opacity-70" : "border-slate-100 bg-white cursor-grab active:cursor-grabbing hover:border-violet-300 hover:bg-violet-50/50 hover:shadow-sm"}`}
                 >
                   <span className="h-3 w-3 rounded-sm border shrink-0" style={{ backgroundColor: t.color }} />
                   <span className="font-mono font-medium">{t.codigo}</span>
                   <span className="text-slate-400 truncate flex-1">{t.nombre}</span>
+                  <span className="rounded border border-slate-200 px-1 text-[9px] text-slate-500">{AMBITO_TIPO_BLOQUE_LABELS[t.ambito]?.label ?? t.ambito}</span>
                   <span className="text-[9px] text-slate-400">{t.w}x{t.d}x{t.h}</span>
+                  {eliminado ? (
+                    <>
+                      <span className="shrink-0 text-[9px] text-red-500">eliminado</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-5 w-5 p-0 text-slate-400 hover:text-primary"
+                        title="Restaurar tipo"
+                        onClick={(e) => { e.stopPropagation(); restaurarTipo(t.codigo); }}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-5 w-5 p-0 text-slate-400 hover:text-primary"
+                        title="Editar tipo (nombre, medidas, color)"
+                        onClick={(e) => { e.stopPropagation(); abrirEditarTipo(t); }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-5 w-5 p-0 text-slate-400 hover:text-red-500"
+                        title="Eliminar tipo (logico)"
+                        onClick={(e) => { e.stopPropagation(); deleteTipo(t.codigo); }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Decoraciones */}
           <div className="rounded-xl border border-slate-200 p-3 space-y-2">
-            <p className="text-xs font-semibold text-slate-700">Decoraciones ({furniture.length})</p>
-            <p className="text-[10px] text-slate-400">Arrastra al mapa o usa + para agregar en el centro</p>
+            <p className="text-xs font-semibold text-slate-700"><span>Decoraciones ({furnitureActivaCount}{mostrarEliminados && furniture.length !== furnitureActivaCount ? `/${furniture.length}` : ""})</span></p>
+            <p className="text-[10px] text-slate-400"><span>Arrastra al mapa o usa + para agregar en el centro</span></p>
             <div className="space-y-1">
               {Object.values(TIPOS_FURNITURE).map((t) => {
                 const lbl = FURNITURE_LABELS[t];
@@ -941,8 +1096,8 @@ export function LaboratorioManager() {
 
           {/* Info */}
           <div className="rounded-xl border border-slate-200 p-3 text-[10px] text-slate-500 space-y-1">
-            <p><span className="font-medium">{bloques.length}</span> bloques, <span className="font-medium">{furniture.length}</span> decoraciones</p>
-            {dirty && <p className="text-amber-600 font-medium">Cambios sin guardar — presiona Guardar</p>}
+            <p><span className="font-medium">{bloquesActivosCount}</span> <span>bloques, </span><span className="font-medium">{furnitureActivaCount}</span> <span>decoraciones</span>{mostrarEliminados && (bloques.length !== bloquesActivosCount || furniture.length !== furnitureActivaCount) ? <span className="text-red-500">{` (+${bloques.length - bloquesActivosCount} bloques, +${furniture.length - furnitureActivaCount} decoraciones eliminadas)`}</span> : null}</p>
+            {dirty && <p className="text-amber-600 font-medium"><span>Cambios sin guardar — presiona Guardar</span></p>}
           </div>
 
           {/* Pertenencia a macro (solo planos simples) */}
@@ -954,46 +1109,41 @@ export function LaboratorioManager() {
       )}
 
       {/* DIALOG: Nuevo plano */}
-      <NuevoPlanoDialog key={`plano-${nuevoPlanoKey}`} open={nuevoPlanoOpen} codigosExistentes={planos.map((p) => p.codigo)} onClose={() => setNuevoPlanoOpen(false)} onCreated={async (id) => { setNuevoPlanoOpen(false); await loadPlanos(); await loadDetalle(id); }} />
-
-      {/* DIALOG: Eliminar plano */}
-      <Dialog open={eliminarPlanoOpen} onOpenChange={setEliminarPlanoOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle><span>Eliminar mapa</span></DialogTitle></DialogHeader>
-          {planoSel && (
-            <div className="space-y-3 text-xs">
-              <p className="text-sm text-slate-600">
-                Estas seguro de eliminar <strong>{planoSel.nombre}</strong> ({planoSel.codigo})?
-              </p>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-[11px] text-red-700 space-y-1">
-                <p>Se eliminara: {planoSel.tipo === TIPOS_PLANO.MACRO ? `el mapa macro con ${planoSel.secciones.length} secciones` : `el layout con ${planoSel.bloques.length} bloques`}.</p>
-                {planoSel.tipo !== TIPOS_PLANO.MACRO && <p>Si pertenece a un macro, su vinculo con las secciones se desasignara (las secciones se conservan sin plano).</p>}
-                <p>No se puede eliminar si esta asignado a un evento.</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => setEliminarPlanoOpen(false)}>Cancelar</Button>
-                <Button variant="destructive" size="sm" className="flex-1 rounded-full text-xs" onClick={handleEliminarPlano}>
-                  <Trash2 className="h-3 w-3 mr-1" /> Eliminar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <NuevoPlanoDialog key={`plano-${nuevoPlanoKey}`} open={nuevoPlanoOpen} codigoInicial={nuevoPlanoCodigo} codigosExistentes={planos.map((p) => p.codigo)} onClose={() => setNuevoPlanoOpen(false)} onCreated={async (id) => { setNuevoPlanoOpen(false); await loadPlanos(); await loadDetalle(id); }} />
 
       {/* DIALOG: Nuevo tipo */}
-      <NuevoTipoDialog key={`tipo-${nuevoTipoKey}`} open={nuevoTipoOpen} tipos={tipos} onClose={() => setNuevoTipoOpen(false)} onAdd={(t) => {
-        if (tipos.some((x) => x.codigo.trim().toUpperCase() === t.codigo.trim().toUpperCase())) {
+      <NuevoTipoDialog key={`tipo-${nuevoTipoKey}`} open={nuevoTipoOpen} tipos={tipos} tipoInicial={tipoEditando} onClose={() => setNuevoTipoOpen(false)} onAdd={(t) => {
+        const normalizado = (c: string) => c.trim().toUpperCase();
+        const original = tipoEditando;
+        if (tipos.some((x) => x !== original && normalizado(x.codigo) === normalizado(t.codigo))) {
           toast.error("Ya existe un tipo con ese codigo en este mapa");
           return;
         }
-        setTipos((prev) => [...prev, t]);
-        setDirty(true);
+        if (original) {
+          const nuevos = tipos.map((x) => (x === original ? t : x));
+          setTipos(nuevos);
+          if (normalizado(t.codigo) !== normalizado(original.codigo)) {
+            // El cambio de codigo requiere actualizar los bloques: se aplica con Guardar.
+            setBloques((prev) => prev.map((b) => (b.tipoCodigo === original.codigo ? { ...b, tipoCodigo: t.codigo } : b)));
+            setDirty(true);
+            toast.info("Codigo cambiado: presioná Guardar para aplicarlo a los bloques");
+          } else {
+            void persistirTipos(nuevos);
+            toast.success("Tipo actualizado");
+          }
+          setUltimoTipoCreado(null);
+        } else {
+          const nuevos = [...tipos, t];
+          setTipos(nuevos);
+          setUltimoTipoCreado(t.codigo);
+          void persistirTipos(nuevos);
+          toast.success("Tipo agregado");
+        }
         setNuevoTipoOpen(false);
       }} />
 
       {/* DIALOG: Nuevo bloque */}
-      <NuevoBloqueDialog open={nuevoBloqueOpen} onClose={() => setNuevoBloqueOpen(false)} tipos={tipos} bloques={bloques}
+      <NuevoBloqueDialog open={nuevoBloqueOpen} onClose={() => setNuevoBloqueOpen(false)} tipos={tipos} bloques={bloques} tipoSugerido={ultimoTipoCreado}
         onCrearTipo={abrirNuevoTipo}
         onAdd={(b) => { setBloques((prev) => [...prev, b]); setSelected({ kind: "bloque", id: b.bloqueId }); setDirty(true); setNuevoBloqueOpen(false); }} />
 
@@ -1006,26 +1156,28 @@ export function LaboratorioManager() {
               {(["bloques", "tipos", "construccion", "index"] as const).map((name) => (
                 <div key={name}>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="font-mono font-semibold text-slate-700">{name}.ts</p>
+                    <p className="font-mono font-semibold text-slate-700"><span>{name}.ts</span></p>
                     <Button size="sm" variant="outline" className="h-6 text-[10px] rounded-full" onClick={() => {
                       const blob = new Blob([tsFiles[name]], { type: "text/plain" });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
                       a.href = url; a.download = `${name}.ts`; a.click();
                       URL.revokeObjectURL(url);
-                    }}>Descargar</Button>
+                    }}><span>Descargar</span></Button>
                   </div>
-                  <pre className="rounded-md bg-slate-950 text-slate-200 p-3 overflow-x-auto max-h-48 overflow-y-auto text-[10px]">{tsFiles[name]}</pre>
+                  <pre className="rounded-md bg-slate-950 text-slate-200 p-3 overflow-x-auto max-h-48 overflow-y-auto text-[10px]"><span>{tsFiles[name]}</span></pre>
                 </div>
               ))}
               <div>
-                <p className="font-mono font-semibold text-slate-700 mb-1">Snippet para registry.ts</p>
-                <pre className="rounded-md bg-slate-950 text-emerald-300 p-3 overflow-x-auto text-[10px]">{tsFiles.registrySnippet}</pre>
+                <p className="font-mono font-semibold text-slate-700 mb-1"><span>Snippet para registry.ts</span></p>
+                <pre className="rounded-md bg-slate-950 text-emerald-300 p-3 overflow-x-auto text-[10px]"><span>{tsFiles.registrySnippet}</span></pre>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   );
 }
@@ -1126,12 +1278,12 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
 
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3 space-y-2">
-      <p className="text-xs font-semibold text-slate-700">Macro al que pertenece</p>
+      <p className="text-xs font-semibold text-slate-700"><span>Macro al que pertenece</span></p>
       {!cargado ? (
-        <p className="text-[10px] text-slate-400">Cargando...</p>
+        <p className="text-[10px] text-slate-400"><span>Cargando...</span></p>
       ) : macros.length === 0 ? (
         <div className="space-y-2">
-          <p className="text-[10px] text-slate-500">Este plano 3D aun no esta asignado a ningun macro.</p>
+          <p className="text-[10px] text-slate-500"><span>Este plano 3D aun no esta asignado a ningun macro.</span></p>
           <Select value={macroSel} onValueChange={setMacroSel}>
             <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Seleccionar macro" /></SelectTrigger>
             <SelectContent>
@@ -1154,7 +1306,7 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
             </Select>
           )}
           <Button size="sm" className="w-full rounded-full h-7 text-xs bg-violet-600 hover:bg-violet-700" disabled={!macroSel || trabajando} onClick={handleAsignar}>
-            {seccionSel && seccionSel !== OPCION_NUEVA_SECCION ? "Asignar a seccion existente" : "Asignar como nueva seccion"}
+            <span>{seccionSel && seccionSel !== OPCION_NUEVA_SECCION ? "Asignar a seccion existente" : "Asignar como nueva seccion"}</span>
           </Button>
         </div>
       ) : (
@@ -1162,27 +1314,28 @@ function PertenenciaMacro({ planoId, planos }: { planoId: string; planos: PlanoL
           {macros.map((m) => (
             <div key={m.id} className="flex items-center justify-between rounded border border-violet-200 bg-white px-2 py-1.5">
               <div className="min-w-0">
-                <p className="text-[11px] font-medium text-slate-700 truncate">{m.nombre}</p>
-                <p className="text-[9px] text-slate-400 font-mono">{m.codigo}</p>
+                <p className="text-[11px] font-medium text-slate-700 truncate"><span>{m.nombre}</span></p>
+                <p className="text-[9px] text-slate-400 font-mono"><span>{m.codigo}</span></p>
               </div>
                 <Button size="sm" variant="outline" className="h-6 text-[10px] rounded-full" disabled={trabajando} onClick={() => handleQuitar()}>
-                Quitar
+                <span>Quitar</span>
               </Button>
             </div>
           ))}
         </div>
       )}
-      <p className="text-[9px] text-slate-400">Un plano 3D solo puede pertenecer a un macro a la vez.</p>
+      <p className="text-[9px] text-slate-400"><span>Un plano 3D solo puede pertenecer a un macro a la vez.</span></p>
     </div>
   );
 }
 
-function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { open: boolean; onClose: () => void; onCreated: (id: string) => void; codigosExistentes: string[] }) {
-  const [codigo, setCodigo] = useState(() => codigoPlanoUtils.generar(codigosExistentes));
+function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes, codigoInicial }: { open: boolean; onClose: () => void; onCreated: (id: string) => void; codigosExistentes: string[]; codigoInicial: string }) {
+  const [codigo, setCodigo] = useState(codigoInicial);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [tipo, setTipo] = useState<TipoPlano>(TIPOS_PLANO.SIMPLE);
   const [creating, setCreating] = useState(false);
+  const [intentoEnviar, setIntentoEnviar] = useState(false);
 
   const codigoLimpio = codigo.trim();
   const codigoError = !codigoLimpio
@@ -1195,7 +1348,11 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { ope
   const nombreError = nombre.trim() ? null : "El nombre es requerido";
 
   const handleCreate = async () => {
-    if (codigoError || nombreError) { toast.error(codigoError ?? nombreError ?? "Revisa los campos"); return; }
+    if (codigoError || nombreError) {
+      setIntentoEnviar(true);
+      toast.error(codigoError ?? nombreError ?? "Revisa los campos");
+      return;
+    }
     setCreating(true);
     try {
       const plano = await planosService.crear({ codigo: codigoLimpio, nombre: nombre.trim(), descripcion: descripcion.trim() || null, tipo });
@@ -1213,7 +1370,7 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { ope
         <DialogHeader><DialogTitle><span>Nuevo mapa 3D</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
           <div>
-            <Label>Codigo (identificador unico)</Label>
+            <Label><span>Codigo (identificador unico)</span></Label>
             <div className="flex gap-2">
               <Input
                 className="text-xs font-mono flex-1"
@@ -1233,18 +1390,18 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { ope
               </Button>
             </div>
             {codigoError ? (
-              <p className="text-[10px] text-red-500 mt-0.5">{codigoError}</p>
+              <p className="text-[10px] text-red-500 mt-0.5"><span>{codigoError}</span></p>
             ) : (
-              <p className="text-[10px] text-slate-400 mt-0.5">Minusculas, numeros y guiones. Se guarda en evento_metadata.plano</p>
+              <p className="text-[10px] text-slate-400 mt-0.5"><span>Minusculas, numeros y guiones. Se guarda en evento_metadata.plano</span></p>
             )}
           </div>
           <div>
-            <Label>Nombre</Label>
+            <Label><span>Nombre</span></Label>
             <Input className="text-xs" placeholder="Pabellon 4" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-            {nombreError && <p className="text-[10px] text-red-500 mt-0.5">{nombreError}</p>}
+            {intentoEnviar && nombreError && <p className="text-[10px] text-red-500 mt-0.5"><span>{nombreError}</span></p>}
           </div>
           <div>
-            <Label>Tipo de mapa</Label>
+            <Label><span>Tipo de mapa</span></Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as TipoPlano)}>
               <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -1254,11 +1411,11 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { ope
             </Select>
           </div>
           <div>
-            <Label>Descripcion</Label>
+            <Label><span>Descripcion</span></Label>
             <Input className="text-xs" placeholder="Opcional" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
           </div>
-          <Button className="w-full rounded-full" disabled={creating || !!codigoError || !!nombreError} onClick={handleCreate}>
-            {creating ? "Creando..." : "Crear mapa"}
+          <Button className="w-full rounded-full" disabled={creating} onClick={handleCreate}>
+            <span>{creating ? "Creando..." : "Crear mapa"}</span>
           </Button>
         </div>
       </DialogContent>
@@ -1266,14 +1423,17 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes }: { ope
   );
 }
 
-function NuevoTipoDialog({ open, onClose, onAdd, tipos }: { open: boolean; onClose: () => void; onAdd: (t: EditTipo) => void; tipos: EditTipo[] }) {
-  const [form, setForm] = useState<EditTipo>({ codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32" });
-  const [codigoEditado, setCodigoEditado] = useState(false);
+function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: boolean; onClose: () => void; onAdd: (t: EditTipo) => void; tipos: EditTipo[]; tipoInicial?: EditTipo | null }) {
+  const [form, setForm] = useState<EditTipo>(() => tipoInicial ?? { codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32", ambito: AMBITOS_TIPO_BLOQUE.INTERNO, flgActivo: true });
+  const [codigoEditado, setCodigoEditado] = useState(!!tipoInicial);
+  const [codigoTocado, setCodigoTocado] = useState(false);
+  const [nombreTocado, setNombreTocado] = useState(false);
+  const [intentoEnviar, setIntentoEnviar] = useState(false);
   const [sugerencias, setSugerencias] = useState<PlanoTipoSugeridoDTO[]>([]);
   const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || tipoInicial) return;
     void (async () => {
       setCargandoSugerencias(true);
       try {
@@ -1283,9 +1443,18 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos }: { open: boolean; onClo
       }
       setCargandoSugerencias(false);
     })();
-  }, [open]);
+  }, [open, tipoInicial]);
 
-  const codigosActuales = useMemo(() => tipos.map((t) => t.codigo), [tipos]);
+  const codigosActuales = useMemo(() => tipos.filter((t) => t !== tipoInicial).map((t) => t.codigo), [tipos, tipoInicial]);
+  // Los tipos de este mapa se muestran tambien en la lista (marcados "ya existe"),
+  // aunque aun no esten guardados en BD.
+  const sugerenciasVisibles = useMemo<PlanoTipoSugeridoDTO[]>(() => {
+    const codigos = new Set(sugerencias.map((s) => s.codigo.trim().toUpperCase()));
+    const locales: PlanoTipoSugeridoDTO[] = tipos
+      .filter((t) => !codigos.has(t.codigo.trim().toUpperCase()))
+      .map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, planoCodigo: "", planosCount: 1, bloquesCount: 0 }));
+    return [...locales, ...sugerencias];
+  }, [sugerencias, tipos]);
   const codigoLimpio = form.codigo.trim().toUpperCase();
   const codigoDuplicado = codigosActuales.some((c) => c.trim().toUpperCase() === codigoLimpio);
   const codigoError = !codigoLimpio
@@ -1296,125 +1465,168 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos }: { open: boolean; onClo
         ? "Ya existe un tipo con ese codigo en este mapa"
         : null;
   const nombreError = form.nombre.trim() ? null : "El nombre es requerido";
+  const mostrarCodigoError = (codigoTocado || intentoEnviar) && codigoError;
+  const mostrarNombreError = (nombreTocado || intentoEnviar) && nombreError;
 
   const cambiarNombre = (valor: string) => {
     setForm((p) => {
       const next = { ...p, nombre: valor };
       if (!codigoEditado) {
         const codigoSugerido = codigoPlanoUtils.sugerirTipoCodigo(valor, codigosActuales);
-        next.codigo = codigoSugerido;
-        if (!p.label.trim()) next.label = codigoSugerido;
+        next.codigo = valor.trim() ? codigoSugerido : "";
+        if (!p.label.trim()) next.label = valor.trim() ? codigoSugerido : "";
       }
       return next;
     });
   };
 
   const aplicarSugerencia = (s: PlanoTipoSugeridoDTO) => {
-    setForm({ codigo: s.codigo, label: s.label, nombre: s.nombre, w: s.w, d: s.d, h: s.h, color: s.color });
+    // La sugerencia solo prellena la data: no crea vinculo con el tipo original.
+    // Si el codigo ya existe en este mapa, se genera una variante para no duplicar.
+    const yaExiste = codigosActuales.some((c) => c.trim().toUpperCase() === s.codigo.trim().toUpperCase());
+    const codigo = yaExiste ? codigoPlanoUtils.sugerirTipoCodigo(s.codigo, codigosActuales) : s.codigo;
+    setForm({ codigo, label: s.label, nombre: s.nombre, w: s.w, d: s.d, h: s.h, color: s.color, ambito: s.ambito, flgActivo: true });
     setCodigoEditado(true);
+    setCodigoTocado(false);
+    setIntentoEnviar(false);
   };
 
   const handleAdd = () => {
-    if (codigoError || nombreError) { toast.error(codigoError ?? nombreError ?? "Revisa los campos"); return; }
+    if (codigoError || nombreError) {
+      setIntentoEnviar(true);
+      toast.error(codigoError ?? nombreError ?? "Revisa los campos");
+      return;
+    }
     onAdd({ ...form, codigo: codigoLimpio, label: form.label.trim() || codigoLimpio, nombre: form.nombre.trim() });
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle><span>Nuevo tipo de bloque</span></DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle><span>{tipoInicial ? "Editar tipo de bloque" : "Nuevo tipo de bloque"}</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
-          {cargandoSugerencias ? (
-            <p className="text-[10px] text-slate-400">Buscando tipos de otros mapas...</p>
-          ) : sugerencias.length > 0 && (
+          {!tipoInicial && (cargandoSugerencias ? (
+            <p className="text-[10px] text-slate-400"><span>Buscando tipos de otros mapas...</span></p>
+          ) : sugerenciasVisibles.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reutilizar de otros mapas</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400"><span>Reutilizar de otros mapas</span></p>
+              <p className="text-[9px] text-slate-400"><span>Click prellena la data del formulario (no vincula el tipo)</span></p>
               <div className="max-h-40 space-y-1 overflow-y-auto">
-                {sugerencias.map((s) => {
+                {sugerenciasVisibles.map((s) => {
                   const yaExiste = codigosActuales.some((c) => c.trim().toUpperCase() === s.codigo.trim().toUpperCase());
                   return (
                     <button
                       key={s.codigo}
                       type="button"
-                      disabled={yaExiste}
                       onClick={() => aplicarSugerencia(s)}
-                      title={`Usado en ${s.planosCount} mapa(s), ${s.bloquesCount} bloque(s)`}
-                      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] transition-colors hover:border-violet-300 hover:bg-violet-50/50 disabled:cursor-not-allowed disabled:opacity-50"
+                      title={yaExiste
+                        ? "Tipo ya usado en este mapa: se prellenará la data con un código nuevo"
+                        : s.planoCodigo ? `Usado en ${s.planosCount} mapa(s), ${s.bloquesCount} bloque(s)` : "Tipo de este mapa (se guarda junto con el mapa)"}
+                      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-[11px] transition-colors hover:border-violet-300 hover:bg-violet-50/50"
                     >
                       <span className="h-3 w-3 shrink-0 rounded-sm border" style={{ backgroundColor: s.color }} />
                       <span className="font-mono font-medium">{s.codigo}</span>
                       <span className="truncate text-slate-500">{s.nombre}</span>
-                      {yaExiste ? (
-                        <span className="ml-auto shrink-0 text-[9px] text-slate-400">ya existe</span>
-                      ) : (
-                        <span className="ml-auto shrink-0 text-[9px] text-slate-400">{s.w}x{s.d}x{s.h}</span>
+                      <span className="ml-auto shrink-0 text-[9px] text-slate-400">{AMBITO_TIPO_BLOQUE_LABELS[s.ambito]?.label ?? s.ambito}</span>
+                      <span className="shrink-0 text-[9px] text-slate-400">{s.w}x{s.d}x{s.h}</span>
+                      {yaExiste && (
+                        <span className="shrink-0 rounded border border-amber-200 bg-amber-50 px-1 text-[9px] text-amber-700">en uso</span>
                       )}
                     </button>
                   );
                 })}
               </div>
             </div>
-          )}
+          ))}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label>Codigo</Label>
+              <Label><span>Codigo</span></Label>
               <Input
                 className="text-xs font-mono"
                 placeholder="VIP"
                 value={form.codigo}
-                onChange={(e) => { setForm((p) => ({ ...p, codigo: e.target.value.toUpperCase() })); setCodigoEditado(true); }}
+                onChange={(e) => {
+                  const valor = e.target.value.toUpperCase();
+                  setForm((p) => ({ ...p, codigo: valor }));
+                  setCodigoEditado(valor.trim().length > 0);
+                  setCodigoTocado(true);
+                }}
               />
-              {codigoError && <p className="text-[10px] text-red-500 mt-0.5">{codigoError}</p>}
+              {mostrarCodigoError ? (
+                <p className="text-[10px] text-red-500 mt-0.5"><span>{codigoError}</span></p>
+              ) : (!codigoEditado && form.nombre.trim() ? (
+                <p className="text-[10px] text-slate-400 mt-0.5"><span>Sugerido desde el nombre</span></p>
+              ) : null)}
             </div>
             <div>
-              <Label>Label</Label>
+              <Label><span>Label</span></Label>
               <Input className="text-xs font-mono" placeholder="VIP" value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
             </div>
           </div>
           <div>
-            <Label>Nombre</Label>
-            <Input className="text-xs" placeholder="Stand VIP" value={form.nombre} onChange={(e) => cambiarNombre(e.target.value)} />
-            {nombreError && <p className="text-[10px] text-red-500 mt-0.5">{nombreError}</p>}
+            <Label><span>Nombre</span></Label>
+            <Input className="text-xs" placeholder="Stand VIP" value={form.nombre} onChange={(e) => { setNombreTocado(true); cambiarNombre(e.target.value); }} />
+            {mostrarNombreError && <p className="text-[10px] text-red-500 mt-0.5"><span>{nombreError}</span></p>}
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <div><Label>W (ancho)</Label><Input className="text-xs" type="number" step={0.1} value={form.w} onChange={(e) => setForm((p) => ({ ...p, w: Number(e.target.value) }))} /></div>
-            <div><Label>D (fondo)</Label><Input className="text-xs" type="number" step={0.1} value={form.d} onChange={(e) => setForm((p) => ({ ...p, d: Number(e.target.value) }))} /></div>
-            <div><Label>H (alto)</Label><Input className="text-xs" type="number" step={0.1} value={form.h} onChange={(e) => setForm((p) => ({ ...p, h: Number(e.target.value) }))} /></div>
+            <div><Label><span>W (ancho)</span></Label><Input className="text-xs" type="number" step={0.1} value={form.w} onChange={(e) => setForm((p) => ({ ...p, w: Number(e.target.value) }))} /></div>
+            <div><Label><span>D (fondo)</span></Label><Input className="text-xs" type="number" step={0.1} value={form.d} onChange={(e) => setForm((p) => ({ ...p, d: Number(e.target.value) }))} /></div>
+            <div><Label><span>H (alto)</span></Label><Input className="text-xs" type="number" step={0.1} value={form.h} onChange={(e) => setForm((p) => ({ ...p, h: Number(e.target.value) }))} /></div>
           </div>
           <div>
-            <Label>Color</Label>
+            <Label><span>Color</span></Label>
             <div className="flex items-center gap-2">
               <input type="color" value={form.color} onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))} className="h-8 w-12 cursor-pointer rounded border" />
               <Input className="text-xs font-mono flex-1" value={form.color} onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))} />
             </div>
           </div>
-          <Button className="w-full rounded-full" disabled={!!codigoError || !!nombreError} onClick={handleAdd}>Agregar tipo</Button>
+          <div>
+            <Label><span>Ámbito</span></Label>
+            <Select value={form.ambito} onValueChange={(v) => setForm((p) => ({ ...p, ambito: v }))}>
+              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.values(AMBITOS_TIPO_BLOQUE).map((a) => (
+                  <SelectItem key={a} value={a}><span>{AMBITO_TIPO_BLOQUE_LABELS[a]?.nombre ?? a}</span></SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full rounded-full" onClick={handleAdd}><span>{tipoInicial ? "Guardar cambios" : "Agregar tipo"}</span></Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }: {
-  open: boolean; onClose: () => void; tipos: EditTipo[]; bloques: EditBloque[]; onAdd: (b: EditBloque) => void; onCrearTipo: () => void;
+function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd, onCrearTipo }: {
+  open: boolean; onClose: () => void; tipos: EditTipo[]; bloques: EditBloque[]; tipoSugerido?: string | null; onAdd: (b: EditBloque) => void; onCrearTipo: () => void;
 }) {
   const [bloqueId, setBloqueId] = useState("");
   const [tipoCodigo, setTipoCodigo] = useState("");
+  const tipoCodigoRef = useRef(tipoCodigo);
+  useEffect(() => { tipoCodigoRef.current = tipoCodigo; }, [tipoCodigo]);
 
-  // Al abrir: resetear seleccion, auto-seleccionar primer tipo y sugerir siguiente ID disponible
+  // Al abrir (o al crear un tipo desde este dialogo): elegir el tipo nuevo si existe,
+  // conservar el actual si sigue siendo valido, y sugerir el siguiente ID disponible.
   useEffect(() => {
     (async () => {
       if (!open) return;
-      setTipoCodigo(tipos[0]?.codigo ?? "");
-      let n = bloques.length + 1;
-      let candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
-      while (bloques.some((b) => b.bloqueId === candidate)) {
-        n++;
-        candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
-      }
-      setBloqueId(candidate);
+      const actual = tipoCodigoRef.current;
+      const sugeridoValido = tipoSugerido && tipos.some((t) => t.codigo === tipoSugerido) ? tipoSugerido : null;
+      const actualValido = tipos.some((t) => t.codigo === actual) ? actual : null;
+      setTipoCodigo(sugeridoValido ?? actualValido ?? tipos[tipos.length - 1]?.codigo ?? "");
+      setBloqueId((prev) => {
+        if (prev.trim() && !bloques.some((b) => b.bloqueId === prev.trim().toUpperCase())) return prev;
+        let n = bloques.length + 1;
+        let candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
+        while (bloques.some((b) => b.bloqueId === candidate)) {
+          n++;
+          candidate = `BLOQUE-${String(n).padStart(2, "0")}`;
+        }
+        return candidate;
+      });
     })();
-  }, [open, tipos, bloques]);
+  }, [open, tipos, bloques, tipoSugerido]);
 
   const handleAdd = () => {
     const id = bloqueId.trim().toUpperCase();
@@ -1431,17 +1643,17 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
         <DialogHeader><DialogTitle><span>Agregar bloque</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
           <div>
-            <Label>ID del bloque</Label>
+            <Label><span>ID del bloque</span></Label>
             <Input className="text-xs font-mono" placeholder="BLOQUE-A1" value={bloqueId} onChange={(e) => setBloqueId(e.target.value)} />
-            <p className="text-[10px] text-slate-400 mt-0.5">Este ID se usa para vincular con gess_stand.bloqueId</p>
+            <p className="text-[10px] text-slate-400 mt-0.5"><span>Este ID se usa para vincular con gess_stand.bloqueId</span></p>
           </div>
           <div>
-            <Label>Tipo</Label>
+            <Label><span>Tipo</span></Label>
             {tipos.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center space-y-2">
-                <p className="text-[11px] text-amber-700">Este mapa no tiene tipos de bloque.</p>
+                <p className="text-[11px] text-amber-700"><span>Este mapa no tiene tipos de bloque.</span></p>
                 <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={onCrearTipo}>
-                  <Plus className="h-3 w-3 mr-1" /> Crear tipo de bloque
+                  <Plus className="h-3 w-3 mr-1" /> <span>Crear tipo de bloque</span>
                 </Button>
               </div>
             ) : (
@@ -1456,7 +1668,7 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, onAdd, onCrearTipo }
             )}
           </div>
           <Button className="w-full rounded-full" onClick={handleAdd} disabled={tipos.length === 0}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Agregar en el centro (0, 0)
+            <RotateCcw className="h-3.5 w-3.5 mr-1" /> <span>Agregar en el centro (0, 0)</span>
           </Button>
         </div>
       </DialogContent>

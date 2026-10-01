@@ -75,6 +75,21 @@ export class PlanoApplicationService {
     return this.repo.guardarLayout(id, data);
   }
 
+  async guardarTipos(id: string, tipos: Parameters<IPlanoRepository["guardarTipos"]>[1]): Promise<PlanoEntity> {
+    const plano = await this.detalle(id);
+    const codigos = tipos.map((t) => t.codigo.trim().toUpperCase());
+    const dupes = codigos.filter((v, i) => codigos.indexOf(v) !== i);
+    if (dupes.length > 0) {
+      throw new DomainError(`Codigos de tipo duplicados: ${[...new Set(dupes)].join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    const codigosSet = new Set(tipos.map((t) => t.codigo));
+    const huerfanos = plano.bloques.filter((b) => b.flgActivo !== false && !codigosSet.has(b.tipoCodigo));
+    if (huerfanos.length > 0) {
+      throw new DomainError(`Hay bloques activos con tipo inexistente: ${huerfanos.map((b) => b.bloqueId).join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    return this.repo.guardarTipos(id, tipos);
+  }
+
   async guardarSecciones(id: string, secciones: Array<Omit<PlanoSeccionEntity, "id" | "planoId">>): Promise<PlanoEntity> {
     const plano = await this.detalle(id);
     if (plano.tipo !== TIPOS_PLANO.MACRO) {
@@ -161,8 +176,11 @@ export class PlanoApplicationService {
 
   async exportarTypeScript(id: string): Promise<{ bloques: string; tipos: string; construccion: string; index: string; registrySnippet: string }> {
     const plano = await this.detalle(id);
+    const tiposActivos = plano.tipos.filter((t) => t.flgActivo !== false);
+    const bloquesActivos = plano.bloques.filter((b) => b.flgActivo !== false);
+    const furnitureActiva = plano.furniture.filter((f) => f.flgActivo !== false);
     const constName = tsCodegenUtils.toConstName(plano.codigo);
-    const unionTypes = tsCodegenUtils.toUnionType(plano.tipos.map((t) => t.codigo));
+    const unionTypes = tsCodegenUtils.toUnionType(tiposActivos.map((t) => t.codigo));
     const tiposConCodigo = (t: { codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }) =>
       `  ${t.codigo}: { w: ${t.w}, d: ${t.d}, h: ${t.h}, color: "${t.color}" },`;
     const labelsConCodigo = (t: { codigo: string; label: string; nombre: string }) =>
@@ -171,7 +189,7 @@ export class PlanoApplicationService {
     const tipos = `export interface Dim { w: number; d: number; h: number; color: string; }
 
 export const DIMENSIONES: Record<string, Dim> = {
-${plano.tipos.map(tiposConCodigo).join("\n")}
+${tiposActivos.map(tiposConCodigo).join("\n")}
 };
 
 export type BlockType = ${unionTypes};
@@ -179,21 +197,21 @@ export type BlockType = ${unionTypes};
 export interface Item { id: string; dim: Dim; type: BlockType; tipologia?: string; rotY?: number; x: number; z: number; }
 
 export const BLOCK_LABEL: Record<BlockType, { label: string; nombre: string }> = {
-${plano.tipos.map(labelsConCodigo).join("\n")}
+${tiposActivos.map(labelsConCodigo).join("\n")}
 };
 `;
 
     const bloques = `export const ${constName}_BLOQUE_IDS = [
-${plano.bloques.map((b) => `  "${b.bloqueId}",`).join("\n")}
+${bloquesActivos.map((b) => `  "${b.bloqueId}",`).join("\n")}
 ] as const;
 
 export type ${constName}BloqueId = (typeof ${constName}_BLOQUE_IDS)[number];
 `;
 
-    const itemLines = plano.bloques.map((b) =>
+    const itemLines = bloquesActivos.map((b) =>
       `    { id: "${b.bloqueId}", dim: DIMENSIONES.${b.tipoCodigo}, type: "${b.tipoCodigo}", tipologia: "${b.tipologia ?? TIPOLOGIAS_STAND.SIMPLE}", rotY: ${b.rotY ?? 0}, x: ${b.x}, z: ${b.z} },`,
     );
-    const furnitureLines = plano.furniture.map((f) => {
+    const furnitureLines = furnitureActiva.map((f) => {
       const config = f.config ? `, config: ${JSON.stringify(f.config)}` : "";
       return `    { id: "${f.refId}", type: "${f.tipo}" as const, x: ${f.x}, z: ${f.z}, rotY: ${f.rotY}${config} },`;
     });

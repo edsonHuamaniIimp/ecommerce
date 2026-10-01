@@ -15,6 +15,7 @@ export const { GET, POST, PATCH, DELETE } = createRouter({
   POST: {
     crear: (req) => planosController.crear(req),
     "guardar-layout": (req) => planosController.guardarLayout(req),
+    "guardar-tipos": (req) => planosController.guardarTipos(req),
     "guardar-secciones": (req) => planosController.guardarSecciones(req),
     "asignar-macro": (req) => planosController.asignarAMacro(req),
     "quitar-macro": (req) => planosController.quitarDeMacros(req),

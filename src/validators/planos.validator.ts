@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, TIPOS_PLANO } from "@/lib/shared/constants";
 
 export const planoCrearSchema = z.object({
   codigo: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, "Solo minusculas, numeros y guiones"),
@@ -16,17 +16,26 @@ export const planoMetaSchema = z.object({
   imagenFondo: z.string().max(500).nullish(),
 });
 
+export const tipoBloqueSchema = z.object({
+  codigo: z.string().min(1).max(20),
+  label: z.string().min(1).max(20),
+  nombre: z.string().min(1).max(50),
+  w: z.number().positive(),
+  d: z.number().positive(),
+  h: z.number().positive(),
+  color: z.string().min(1).max(10),
+  ambito: z.enum([AMBITOS_TIPO_BLOQUE.INTERNO, AMBITOS_TIPO_BLOQUE.EXTERNO]).default(AMBITOS_TIPO_BLOQUE.INTERNO),
+  flgActivo: z.boolean().default(true),
+});
+
+export const planoTiposSchema = z.object({
+  id: z.string().min(1),
+  tipos: z.array(tipoBloqueSchema),
+});
+
 export const planoLayoutSchema = z.object({
   id: z.string().min(1),
-  tipos: z.array(z.object({
-    codigo: z.string().min(1).max(20),
-    label: z.string().min(1).max(20),
-    nombre: z.string().min(1).max(50),
-    w: z.number().positive(),
-    d: z.number().positive(),
-    h: z.number().positive(),
-    color: z.string().min(1).max(10),
-  })),
+  tipos: z.array(tipoBloqueSchema),
   bloques: z.array(z.object({
     bloqueId: z.string().min(1).max(50),
     tipoCodigo: z.string().min(1).max(20),
@@ -44,6 +53,7 @@ export const planoLayoutSchema = z.object({
     z: z.number(),
     rotY: z.number().default(0),
     config: z.unknown().nullish(),
+    flgActivo: z.boolean().default(true),
   })).default([]),
 });
 

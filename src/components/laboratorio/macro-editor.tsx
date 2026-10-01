@@ -423,9 +423,9 @@ export function MacroEditor({ plano, planos, onChange }: {
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
             <ImageIcon className="h-12 w-12" />
-            <p className="text-sm">Este plano macro no tiene imagen de fondo.</p>
+            <p className="text-sm"><span>Este plano macro no tiene imagen de fondo.</span></p>
             <Button size="sm" variant="outline" className="rounded-full" onClick={() => imgInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" /> Subir imagen o PDF
+              <Upload className="h-4 w-4 mr-1" /> <span>Subir imagen o PDF</span>
             </Button>
           </div>
         )}
@@ -435,15 +435,15 @@ export function MacroEditor({ plano, planos, onChange }: {
             <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <p className="text-[11px] text-muted-foreground">Cargando mapa de pabellones...</p>
+              <p className="text-[11px] text-muted-foreground"><span>Cargando mapa de pabellones...</span></p>
             </div>
           </div>
         )}
         {plano.imagenFondo && fondoError && (
           <div className="absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 shadow-sm">
-            <p className="text-[11px] text-red-600">No se pudo cargar el fondo.</p>
+            <p className="text-[11px] text-red-600"><span>No se pudo cargar el fondo.</span></p>
             <Button size="sm" variant="outline" className="h-6 rounded-full text-[10px]" onClick={() => imgInputRef.current?.click()}>
-              Cambiar fondo
+              <span>Cambiar fondo</span>
             </Button>
           </div>
         )}
@@ -453,17 +453,17 @@ export function MacroEditor({ plano, planos, onChange }: {
       {/* PANEL */}
       <div className="w-[280px] shrink-0 flex flex-col gap-3 overflow-y-auto">
         <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
-          <p className="text-xs font-semibold text-slate-700">Mapa macro: {plano.nombre}</p>
-          <p className="text-[10px] text-slate-500">{secciones.length} secciones (pabellones)</p>
+          <p className="text-xs font-semibold text-slate-700"><span>Mapa macro: </span><span>{plano.nombre}</span></p>
+          <p className="text-[10px] text-slate-500"><span>{`${secciones.length} secciones (pabellones)`}</span></p>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" onClick={addSeccion}>
-              <Plus className="h-3 w-3 mr-1" /> Seccion
+              <Plus className="h-3 w-3 mr-1" /> <span>Seccion</span>
             </Button>
             <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" disabled={uploading} onClick={() => imgInputRef.current?.click()} title="Cambiar imagen o PDF de fondo">
-              <Upload className="h-3 w-3 mr-1" /> {uploading ? "..." : "Fondo"}
+              <Upload className="h-3 w-3 mr-1" /> <span>{uploading ? "..." : "Fondo"}</span>
             </Button>
             <Button size="sm" className="col-span-2 rounded-full h-7 text-xs bg-violet-600 hover:bg-violet-700" disabled={!dirty || saving} onClick={handleSave}>
-              <Save className="h-3 w-3 mr-1" /> {saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}
+              <Save className="h-3 w-3 mr-1" /> <span>{saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}</span>
             </Button>
           </div>
         </div>
@@ -471,11 +471,11 @@ export function MacroEditor({ plano, planos, onChange }: {
         {seccionSel ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-700">Seccion seleccionada</p>
-              <Badge className="text-[10px]" style={{ backgroundColor: seccionSel.color, color: "#fff" }}>{seccionSel.codigo}</Badge>
+              <p className="text-xs font-semibold text-slate-700"><span>Seccion seleccionada</span></p>
+              <Badge className="text-[10px]" style={{ backgroundColor: seccionSel.color, color: "#fff" }}><span>{seccionSel.codigo}</span></Badge>
             </div>
             <div>
-              <Label className="text-[10px]">Codigo</Label>
+              <Label className="text-[10px]"><span>Codigo</span></Label>
               <Input className="h-7 text-xs font-mono" value={seccionSel.codigo}
                 onChange={(e) => {
                   const nuevo = e.target.value.toUpperCase();
@@ -485,12 +485,12 @@ export function MacroEditor({ plano, planos, onChange }: {
                 }} />
             </div>
             <div>
-              <Label className="text-[10px]">Nombre</Label>
+              <Label className="text-[10px]"><span>Nombre</span></Label>
               <Input className="h-7 text-xs" value={seccionSel.nombre}
                 onChange={(e) => updateSeccion({ nombre: e.target.value })} />
             </div>
             <div>
-              <Label className="text-[10px]">Plano 3D del pabellon</Label>
+              <Label className="text-[10px]"><span>Plano 3D del pabellon</span></Label>
               <Select value={seccionSel.planoHijoId ?? "none"} onValueChange={(v) => updateSeccion({ planoHijoId: v === "none" ? null : v })}>
                 <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -501,18 +501,18 @@ export function MacroEditor({ plano, planos, onChange }: {
                 </SelectContent>
               </Select>
               {duplicadoEn.length > 0 && (
-                <p className="text-[10px] text-red-500 mt-0.5">Este plano 3D ya esta asignado a: {duplicadoEn.join(", ")}</p>
+                <p className="text-[10px] text-red-500 mt-0.5"><span>Este plano 3D ya esta asignado a: </span><span>{duplicadoEn.join(", ")}</span></p>
               )}
             </div>
             <div>
-              <Label className="text-[10px]">Color</Label>
+              <Label className="text-[10px]"><span>Color</span></Label>
               <div className="flex items-center gap-2">
                 <input type="color" value={seccionSel.color} onChange={(e) => updateSeccion({ color: e.target.value })} className="h-7 w-10 cursor-pointer rounded border" />
                 <Input className="h-7 text-xs font-mono flex-1" value={seccionSel.color} onChange={(e) => updateSeccion({ color: e.target.value })} />
               </div>
             </div>
             <div>
-              <Label className="text-[10px]">Rotacion (grados)</Label>
+              <Label className="text-[10px]"><span>Rotacion (grados)</span></Label>
               <div className="flex items-center gap-2">
                 <Input className="h-7 text-xs flex-1" type="number" step={5} min={0} max={360} value={Math.round(seccionSel.rotacion)}
                   onChange={(e) => updateSeccion({ rotacion: clamp(Number(e.target.value), 0, 360) })} />
@@ -523,23 +523,23 @@ export function MacroEditor({ plano, planos, onChange }: {
               </div>
             </div>
             <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteSeccion}>
-              <Trash2 className="h-3 w-3 mr-1" /> Eliminar seccion
+              <Trash2 className="h-3 w-3 mr-1" /> <span>Eliminar seccion</span>
             </Button>
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center space-y-1">
             <Move className="h-4 w-4 mx-auto text-slate-400" />
-            <p className="text-[11px] text-slate-400">Arrastra para mover — esquina ↘ redimensiona — circulo superior rota</p>
+            <p className="text-[11px] text-slate-400"><span>Arrastra para mover — esquina ↘ redimensiona — circulo superior rota</span></p>
             <Expand className="h-4 w-4 mx-auto text-slate-400" />
           </div>
         )}
 
         <div className="rounded-xl border border-slate-200 p-3 text-[10px] text-slate-500 space-y-1">
-          <p className="font-semibold text-slate-600">Como funciona</p>
-          <p>1. Dibuja una seccion por pabellon sobre la imagen</p>
-          <p>2. Asigna a cada seccion su plano 3D</p>
-          <p>3. Asigna este plano macro al evento</p>
-          <p>4. En /mapa el visitante ve el mapa de calor y entra a cada pabellon</p>
+          <p className="font-semibold text-slate-600"><span>Como funciona</span></p>
+          <p><span>1. Dibuja una seccion por pabellon sobre la imagen</span></p>
+          <p><span>2. Asigna a cada seccion su plano 3D</span></p>
+          <p><span>3. Asigna este plano macro al evento</span></p>
+          <p><span>4. En /mapa el visitante ve el mapa de calor y entra a cada pabellon</span></p>
         </div>
       </div>
 

@@ -201,6 +201,21 @@ export interface PersonaFurnitureConfig {
 }
 
 /* ================================================================
+   Ambito de un tipo de bloque (Laboratorio 3D)
+   ================================================================ */
+export const AMBITOS_TIPO_BLOQUE = {
+  INTERNO: "interno",
+  EXTERNO: "externo",
+} as const;
+
+export type AmbitoTipoBloque = (typeof AMBITOS_TIPO_BLOQUE)[keyof typeof AMBITOS_TIPO_BLOQUE];
+
+export const AMBITO_TIPO_BLOQUE_LABELS: Record<string, { label: string; nombre: string }> = {
+  [AMBITOS_TIPO_BLOQUE.INTERNO]: { label: "Interno", nombre: "Bloque interno (dentro del pabellon)" },
+  [AMBITOS_TIPO_BLOQUE.EXTERNO]: { label: "Externo", nombre: "Bloque externo (perimetro / exterior)" },
+};
+
+/* ================================================================
    Editor 3D del Laboratorio (snap y guias de apoyo)
    ================================================================ */
 export const EDITOR_PLANO = {

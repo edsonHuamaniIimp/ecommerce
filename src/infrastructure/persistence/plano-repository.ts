@@ -3,7 +3,7 @@ import 'server-only';
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_PLANO } from "@/lib/shared/constants";
 
 interface PlanoTipoRow {
   id: string;
@@ -15,6 +15,8 @@ interface PlanoTipoRow {
   d: number;
   h: number;
   color: string;
+  ambito: string;
+  flgActivo: boolean;
 }
 
 interface PlanoBloqueRow {
@@ -40,6 +42,7 @@ interface PlanoFurnitureRow {
   z: number;
   rotY: number;
   config: unknown;
+  flgActivo: boolean;
 }
 
 interface PlanoSeccionRow {
@@ -85,6 +88,8 @@ function mapTipo(r: PlanoTipoRow): PlanoTipoBloqueEntity {
     d: r.d,
     h: r.h,
     color: r.color,
+    ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
+    flgActivo: r.flgActivo,
   };
 }
 
@@ -114,6 +119,7 @@ function mapFurniture(r: PlanoFurnitureRow): PlanoFurnitureEntity {
     z: r.z,
     rotY: r.rotY,
     config: r.config ?? null,
+    flgActivo: r.flgActivo,
   };
 }
 
@@ -213,6 +219,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
         d: r.d,
         h: r.h,
         color: r.color,
+        ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
         planoCodigo: r.plano.codigo,
         planosCount: 1,
         bloquesCount: r._count.bloques,
@@ -301,7 +308,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       const tipoIdMap = new Map<string, string>();
       for (const t of data.tipos) {
         const created = await tx.planoTipoBloque.create({
-          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color },
+          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
         });
         tipoIdMap.set(t.codigo, created.id);
       }
@@ -327,13 +334,34 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       await tx.planoFurniture.deleteMany({ where: { planoId: id } });
       for (const f of data.furniture) {
         await tx.planoFurniture.create({
-          data: { planoId: id, refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, config: (f.config as never) ?? undefined },
+          data: { planoId: id, refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, config: (f.config as never) ?? undefined, flgActivo: f.flgActivo },
         });
       }
     });
 
     const result = await this.detalle(id);
     if (!result) throw new Error("Plano no encontrado despues de guardar");
+    return result;
+  }
+
+  async guardarTipos(id: string, tipos: Array<Omit<PlanoTipoBloqueEntity, "id" | "planoId">>): Promise<PlanoEntity> {
+    await prisma.$transaction(async (tx) => {
+      await tx.planoTipoBloque.deleteMany({ where: { planoId: id } });
+      const tipoIdMap = new Map<string, string>();
+      for (const t of tipos) {
+        const created = await tx.planoTipoBloque.create({
+          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
+        });
+        tipoIdMap.set(t.codigo, created.id);
+      }
+      // Relink de bloques por tipoCodigo (tipoId es redundante para queries pero se mantiene consistente).
+      const bloques = await tx.planoBloque.findMany({ where: { planoId: id }, select: { id: true, tipoCodigo: true } });
+      for (const b of bloques) {
+        await tx.planoBloque.update({ where: { id: b.id }, data: { tipoId: tipoIdMap.get(b.tipoCodigo) ?? null } });
+      }
+    });
+    const result = await this.detalle(id);
+    if (!result) throw new Error("Plano no encontrado despues de guardar tipos");
     return result;
   }
 
@@ -485,9 +513,9 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       descripcion: plano.descripcion,
       tipo: plano.tipo,
       imagenFondo: plano.imagenFondo,
-      tipos: plano.tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color })),
-      bloques: plano.bloques.map((b) => ({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, x: b.x, z: b.z, rotY: b.rotY, orden: b.orden })),
-      furniture: plano.furniture.map((f) => ({ refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, ...(f.config ? { config: f.config } : {}) })),
+      tipos: plano.tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo })),
+      bloques: plano.bloques.map((b) => ({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, x: b.x, z: b.z, rotY: b.rotY, orden: b.orden, flgActivo: b.flgActivo })),
+      furniture: plano.furniture.map((f) => ({ refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, ...(f.config ? { config: f.config } : {}), flgActivo: f.flgActivo })),
       secciones: plano.secciones.map((s) => ({
         codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h,
         rotacion: s.rotacion, color: s.color,
@@ -505,9 +533,9 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       : await this.crear({ codigo: data.codigo, nombre: data.nombre, descripcion: data.descripcion, tipo: data.tipo });
 
     await this.guardarLayout(plano.id, {
-      tipos: data.tipos,
-      bloques: data.bloques.map((b) => ({ ...b, tipologia: (b as { tipologia?: string | null }).tipologia ?? null, flgActivo: true })),
-      furniture: data.furniture.map((f) => ({ ...f, config: f.config ?? null })),
+      tipos: data.tipos.map((t) => ({ ...t, ambito: t.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO, flgActivo: t.flgActivo ?? true })),
+      bloques: data.bloques.map((b) => ({ ...b, tipologia: (b as { tipologia?: string | null }).tipologia ?? null, flgActivo: b.flgActivo ?? true })),
+      furniture: data.furniture.map((f) => ({ ...f, config: f.config ?? null, flgActivo: f.flgActivo ?? true })),
     });
 
     if (plano.tipo === "macro" && Array.isArray(data.secciones) && data.secciones.length > 0) {

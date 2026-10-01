@@ -86,9 +86,9 @@ function computeBoundsDefault(items: PlanoItem[]): PlanoBounds {
 interface PlanoPublicoResponse {
   codigo: string;
   nombre: string;
-  tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }>;
-  bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number }>;
-  furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown }>;
+  tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; flgActivo?: boolean }>;
+  bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number; flgActivo?: boolean }>;
+  furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown; flgActivo?: boolean }>;
 }
 
 /**
@@ -104,10 +104,11 @@ export async function loadPlanoDefinition(codigo: string): Promise<PlanoDefiniti
       const dimMap: Record<string, { w: number; d: number; h: number; color: string }> = {};
       const labelMap: Record<string, { label: string; nombre: string }> = {};
       for (const t of data.tipos) {
+        if (t.flgActivo === false) continue;
         dimMap[t.codigo] = { w: t.w, d: t.d, h: t.h, color: t.color };
         labelMap[t.codigo] = { label: t.label, nombre: t.nombre };
       }
-      const items: PlanoItem[] = data.bloques.map((b) => ({
+      const items: PlanoItem[] = data.bloques.filter((b) => b.flgActivo !== false).map((b) => ({
         id: b.bloqueId,
         dim: dimMap[b.tipoCodigo] ?? { w: 2, d: 2, h: 2.4, color: "#94a3b8" },
         type: b.tipoCodigo,
@@ -120,9 +121,9 @@ export async function loadPlanoDefinition(codigo: string): Promise<PlanoDefiniti
         nombre: data.nombre,
         descripcion: "",
         buildItems: () => items,
-        buildFurniture: () => data.furniture.map((f) => ({ id: f.refId, type: f.tipo, x: f.x, z: f.z, rotY: f.rotY, config: f.config })),
+        buildFurniture: () => data.furniture.filter((f) => f.flgActivo !== false).map((f) => ({ id: f.refId, type: f.tipo, x: f.x, z: f.z, rotY: f.rotY, config: f.config })),
         computeBounds: computeBoundsDefault,
-        bloqueIds: data.bloques.map((b) => b.bloqueId),
+        bloqueIds: items.map((b) => b.id),
         blockLabel: labelMap,
       };
     }

@@ -39,11 +39,17 @@ export const planosService = {
   },
   guardarLayout(body: {
     id: string;
-    tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }>;
+    tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; ambito: string; flgActivo: boolean }>;
     bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number; orden: number; flgActivo: boolean }>;
-    furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown }>;
+    furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown; flgActivo: boolean }>;
   }) {
     return internalApi.post<PlanoDTO>("/api/planos/guardar-layout", body);
+  },
+  guardarTipos(body: {
+    id: string;
+    tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; ambito: string; flgActivo: boolean }>;
+  }) {
+    return internalApi.post<PlanoDTO>("/api/planos/guardar-tipos", body);
   },
   eliminar(id: string) {
     return internalApi.post<{ ok: boolean }>("/api/planos/eliminar", { id });

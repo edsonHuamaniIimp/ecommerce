@@ -23,6 +23,9 @@ export interface IPlanoRepository {
 
   guardarSecciones(id: string, secciones: Array<Omit<PlanoSeccionEntity, "id" | "planoId">>): Promise<PlanoEntity>;
 
+  /** Persiste solo el catalogo de tipos (sin tocar bloques ni decoraciones). */
+  guardarTipos(id: string, tipos: Array<Omit<PlanoTipoBloqueEntity, "id" | "planoId">>): Promise<PlanoEntity>;
+
   macrosQueContienen(planoHijoId: string): Promise<Array<{ id: string; codigo: string; nombre: string }>>;
 
   findMacroConPlanoHijo(planoHijoId: string, exceptPlanoId: string): Promise<{ id: string; codigo: string; nombre: string } | null>;

@@ -3,7 +3,7 @@ import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { planoCrearSchema, planoMetaSchema, planoLayoutSchema, planoImportarSchema, planoSeccionesSchema } from "@/validators/planos.validator";
+import { planoCrearSchema, planoMetaSchema, planoLayoutSchema, planoImportarSchema, planoSeccionesSchema, planoTiposSchema } from "@/validators/planos.validator";
 
 async function requireAdmin() {
   const session = await getSession();
@@ -77,6 +77,13 @@ export const planosController = {
       bloques: data.bloques.map((b) => ({ ...b, tipologia: b.tipologia ?? null })),
       furniture: data.furniture.map((f) => ({ ...f, config: f.config ?? null })),
     }));
+  },
+
+  async guardarTipos(request: Request): Promise<NextResponse> {
+    const auth = await requireAdmin();
+    if ("err" in auth && auth.err) return auth.err;
+    const body = planoTiposSchema.parse(await request.json());
+    return success(await services.planos.guardarTipos(body.id, body.tipos));
   },
 
   async eliminar(request: Request): Promise<NextResponse> {

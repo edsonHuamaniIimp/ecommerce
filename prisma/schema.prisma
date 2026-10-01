@@ -739,6 +739,8 @@ model PlanoTipoBloque {
   d        Float   @db.Real
   h        Float   @db.Real
   color    String  @db.VarChar(10)                     // "#FFD700"
+  ambito   String  @default("interno") @db.VarChar(10) // "interno" | "externo"
+  flgActivo Boolean @default(true) @map("flg_activo")
 
   plano    Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
   bloques  PlanoBloque[]
@@ -777,6 +779,7 @@ model PlanoFurniture {
   z       Float   @db.Real
   rotY    Float   @default(0) @map("rot_y") @db.Real
   config  Json?
+  flgActivo Boolean @default(true) @map("flg_activo")
 
   plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
 
