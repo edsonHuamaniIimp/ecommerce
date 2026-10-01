@@ -138,6 +138,7 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn(),
     crearAlertaRol: vi.fn(),
+    findNombreUsuario: vi.fn().mockResolvedValue(null),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {

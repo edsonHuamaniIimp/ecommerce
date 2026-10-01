@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { PortalAuthCardHeader, PortalAuthLayout } from "@/components/layout/portal-auth-layout";
 import { TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
-import type { EmpresaDTO } from "@/types/dto/empresas/empresa.dto";
+import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface FormState {
   ruc: string;
@@ -176,7 +176,7 @@ function ValidarDatosContent() {
                 <SelectContent>
                   {Object.values(TIPOS_COMPROBANTE).map((tipo) => (
                     <SelectItem key={tipo} value={tipo}>
-                      {TIPO_COMPROBANTE_LABELS[tipo] ?? tipo}
+                      <span>{TIPO_COMPROBANTE_LABELS[tipo] ?? tipo}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

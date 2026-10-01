@@ -6,4 +6,6 @@ export interface LoginResponseDTO {
   debeCambiarPassword?: boolean;
   /** Primer ingreso de una empresa: debe validar sus datos contractuales. */
   requiereValidarDatos?: boolean;
+  /** Idioma preferido del usuario (es | en). */
+  idioma?: string;
 }

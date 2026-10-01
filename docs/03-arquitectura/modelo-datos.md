@@ -301,6 +301,7 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | nombreEmpresa | string(200) | Sí | Razón social vinculada (cliente). |
 | empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente creada por backoffice (1 por empresa). |
 | debeCambiarPassword | boolean | No | Credencial temporal: exige cambio de contraseña en el primer ingreso. |
+| idioma | string(5) | No | Idioma preferido: `es` (default) \| `en`. Se usa en el selector y en las plantillas de correo/documentos. |
 
 Unique: `[userId, roleId]`. Índices: `userId`, `email`, `empresaId`.
 

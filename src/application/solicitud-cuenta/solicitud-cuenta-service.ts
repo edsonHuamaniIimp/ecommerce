@@ -1,16 +1,13 @@
 import type { ISolicitudCuentaRepository } from "@/domain/ports/solicitud-cuenta-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { SolicitudCuentaEntity } from "@/domain/models/entities";
-import { sendEmail } from "@/lib/server/email";
-import {
-  buildInvitacionCuentaEmail,
-  buildRechazoCuentaEmail,
-  buildSolicitudCuentaAdminEmail,
-} from "@/lib/server/solicitud-cuenta-email";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { generarTokenAleatorio } from "@/lib/server/utils/token";
 import { hashPassword } from "@/lib/server/utils/password";
 import {
   ESTADOS_SOLICITUD_CUENTA,
+  IDIOMA_DEFAULT,
   INVITACION_CUENTA_MINUTOS_VIGENCIA,
   MS_POR_MINUTO,
   ROLES,
@@ -107,13 +104,15 @@ export class SolicitudCuentaApplicationService {
     if (!motivoRechazo) return { ok: false, message: "El motivo de rechazo es obligatorio" };
 
     await this.repo.rechazar(solicitud.id, { revisadoPor: revisor, motivoRechazo });
-    await sendEmail({
+    await enviarEmailPlantilla({
       to: solicitud.email,
-      ...buildRechazoCuentaEmail({
+      plantilla: "rechazo-cuenta",
+      idioma: await resolverIdiomaPeticion(),
+      datos: {
         nombre: solicitud.nombre,
         razonSocial: solicitud.razonSocial,
         motivo: motivoRechazo,
-      }),
+      },
     }).catch(() => {});
     return { ok: true, message: "Solicitud rechazada. Se notifico al solicitante." };
   }
@@ -146,13 +145,15 @@ export class SolicitudCuentaApplicationService {
       },
     });
 
-    await sendEmail({
+    await enviarEmailPlantilla({
       to: solicitud.email,
-      ...buildInvitacionCuentaEmail({
+      plantilla: "invitacion-cuenta",
+      idioma: await resolverIdiomaPeticion(),
+      datos: {
         nombre: solicitud.nombre,
         razonSocial: solicitud.razonSocial,
         token,
-      }),
+      },
     }).catch(() => {});
     return { ok: true, message: "Solicitud aprobada. Se envio la invitacion al exhibidor." };
   }
@@ -160,9 +161,11 @@ export class SolicitudCuentaApplicationService {
   private async notificarAdmin(solicitud: SolicitudCuentaEntity): Promise<void> {
     const destino = process.env.ADMIN_EMAIL;
     if (!destino) return;
-    await sendEmail({
+    await enviarEmailPlantilla({
       to: destino,
-      ...buildSolicitudCuentaAdminEmail({
+      plantilla: "notificacion-solicitud-cuenta",
+      idioma: IDIOMA_DEFAULT,
+      datos: {
         email: solicitud.email,
         nombre: solicitud.nombre,
         apellidos: solicitud.apellidos,
@@ -171,7 +174,7 @@ export class SolicitudCuentaApplicationService {
         telefono: solicitud.telefono,
         cargo: solicitud.cargo,
         mensaje: solicitud.mensaje,
-      }),
+      },
     });
   }
 }

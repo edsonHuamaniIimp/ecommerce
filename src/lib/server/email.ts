@@ -1,5 +1,8 @@
 import 'server-only';
 
+import { getPlantillaEmail } from "@/lib/server/mail-templates";
+import type { DatosPlantilla, PlantillaEmailKind } from "@/lib/server/mail-templates";
+
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 const API_KEY = process.env.RESEND_API_KEY;
@@ -47,4 +50,18 @@ export async function sendEmail({ to, subject, html }: EmailParams): Promise<boo
     console.error("[email] Error al enviar correo:", err);
     return false;
   }
+}
+
+/**
+ * Envia un correo resolviendo la plantilla del idioma indicado
+ * (`mail-templates/es` o `mail-templates/en`, fallback español).
+ */
+export async function enviarEmailPlantilla<K extends PlantillaEmailKind>(params: {
+  to: string;
+  plantilla: K;
+  idioma: string | null | undefined;
+  datos: DatosPlantilla[K];
+}): Promise<boolean> {
+  const { subject, html } = getPlantillaEmail(params.plantilla, params.idioma, params.datos);
+  return sendEmail({ to: params.to, subject, html });
 }

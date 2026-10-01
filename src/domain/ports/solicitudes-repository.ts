@@ -41,4 +41,6 @@ export interface ISolicitudesRepository {
   eliminarDocumento(docId: string): Promise<void>;
   crearAlertaRevision(data: { rol: string; solicitudId: string; titulo: string; mensaje: string; standCodes: string }): Promise<void>;
   crearAlertaRol(data: { rol: string; tipo: string; titulo: string; mensaje: string; url: string }): Promise<void>;
+  /** Nombre completo del usuario titular de una solicitud (para correos). */
+  findNombreUsuario(userId: string): Promise<string | null>;
 }

@@ -60,7 +60,7 @@ export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo),
-  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo),
+  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
   auth: new AuthApplicationService(authRepo, roleRepo),
   dashboard: new DashboardApplicationService(gessRepo),
   solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo),

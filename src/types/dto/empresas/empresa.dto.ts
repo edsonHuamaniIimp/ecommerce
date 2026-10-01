@@ -1,5 +1,3 @@
-import type { ApiResponse } from "@/lib/server/api-response";
-
 /** Empresa exhibidora registrada por el backoffice (respuesta API). */
 export interface EmpresaDTO {
   id: string;
@@ -22,21 +20,3 @@ export interface EmpresaDTO {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface EmpresasPaginatedDTO {
-  data: EmpresaDTO[];
-  total: number;
-  page: number;
-  perPage: number;
-  totalPages: number;
-}
-
-/** Resultado de crear la cuenta del Portal / reenviar credenciales. */
-export interface ResultadoCredencialesEmpresaDTO {
-  email: string;
-  emailEnviado: boolean;
-}
-
-export type EmpresasListResponse = ApiResponse<EmpresasPaginatedDTO>;
-export type EmpresaDetalleResponse = ApiResponse<EmpresaDTO>;
-export type EmpresaMutacionResponse = ApiResponse<EmpresaDTO>;

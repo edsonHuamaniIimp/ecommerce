@@ -1,13 +1,17 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
-import type { EmpresaDTO, EmpresasPaginatedDTO, ResultadoCredencialesEmpresaDTO } from "@/types/dto/empresas/empresa.dto";
 import type {
   ActualizarEmpresaRequestDTO,
   CrearEmpresaRequestDTO,
+  EmpresaDTO,
+  EmpresasPaginatedDTO,
+  FilaCargaEmpresaDTO,
   ListarEmpresasQueryDTO,
-} from "@/types/dto/empresas/empresa-request.dto";
-import type { FilaCargaEmpresaDTO, PrevisualizacionCargaEmpresasDTO, ResultadoImportacionEmpresasDTO } from "@/types/dto/empresas/carga-masiva.dto";
+  PrevisualizacionCargaEmpresasDTO,
+  ResultadoCredencialesEmpresaDTO,
+  ResultadoImportacionEmpresasDTO,
+} from "@/types/dto/empresas";
 
 /** Empresas registradas por el backoffice (bandeja + alta/edicion). */
 export const empresasService = {

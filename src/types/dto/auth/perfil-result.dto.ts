@@ -6,4 +6,6 @@ export interface PerfilResult {
   tipoUsuarioId: number | null;
   idEmpresa: string | null;
   nombreEmpresa: string | null;
+  /** Idioma preferido (es | en). */
+  idioma: string | null;
 }

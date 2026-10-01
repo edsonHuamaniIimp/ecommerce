@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, PERMISSIONS, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import type { ActualizarEmpresaData, IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -21,9 +21,9 @@ vi.mock("@/lib/server/router", () => ({
   },
 }));
 
-vi.mock("@/lib/server/email", () => ({ sendEmail: vi.fn(async () => true) }));
-vi.mock("@/lib/server/empresas-email", () => ({
-  buildCredencialesEmpresaEmail: vi.fn(() => ({ subject: "Credenciales", html: "<p>ok</p>" })),
+vi.mock("@/lib/server/email", () => ({
+  sendEmail: vi.fn(async () => true),
+  enviarEmailPlantilla: vi.fn(async () => true),
 }));
 vi.mock("@/lib/server/utils/password", () => ({
   hashPassword: (plano: string) => `hash:${plano}`,
@@ -271,6 +271,28 @@ describe("EmpresaApplicationService.listar", () => {
 
     expect(resultado.total).toBe(1);
     expect(repo.listarCalls[0]).toEqual({ page: 2, perPage: 10, search: "cordillera" });
+  });
+});
+
+describe("EmpresaApplicationService autorizacion (capa de aplicacion)", () => {
+  it("autorizarLectura permite empresas:view y admin:full; rechaza sin permiso", () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+
+    expect(() => service.autorizarLectura([PERMISSIONS.EMPRESAS_VIEW])).not.toThrow();
+    expect(() => service.autorizarLectura([PERMISSIONS.ADMIN_FULL])).not.toThrow();
+    expect(() => service.autorizarLectura([PERMISSIONS.PAGOS_VIEW])).toThrowError(
+      expect.objectContaining({ status: 403 }),
+    );
+  });
+
+  it("autorizarGestion permite empresas:manage y admin:full; rechaza view-only", () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+
+    expect(() => service.autorizarGestion([PERMISSIONS.EMPRESAS_MANAGE])).not.toThrow();
+    expect(() => service.autorizarGestion([PERMISSIONS.ADMIN_FULL])).not.toThrow();
+    expect(() => service.autorizarGestion([PERMISSIONS.EMPRESAS_VIEW])).toThrowError(
+      expect.objectContaining({ status: 403 }),
+    );
   });
 });
 

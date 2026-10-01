@@ -1,8 +1,7 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
-import type { EmpresaDTO } from "@/types/dto/empresas/empresa.dto";
-import type { ValidarDatosEmpresaRequestDTO } from "@/types/dto/empresas/portal.dto";
+import type { EmpresaDTO, ValidarDatosEmpresaRequestDTO } from "@/types/dto/empresas";
 
 /** Empresa del propio usuario (Portal del Cliente). */
 export const portalEmpresaService = {

@@ -584,6 +584,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EmpresaRegistrada"
+  /auth/idioma:
+    patch:
+      tags: [Auth]
+      summary: Guarda el idioma preferido del usuario (selector ES/EN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idioma]
+              properties:
+                idioma: { type: string, enum: [es, en] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [idioma]
+                properties:
+                  idioma: { type: string, enum: [es, en] }
+        "400":
+          description: Idioma no soportado
   /sgc/detalle:
     get:
       tags: [SGC]

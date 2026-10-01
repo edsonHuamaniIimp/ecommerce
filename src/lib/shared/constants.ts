@@ -538,6 +538,58 @@ export const MONEDAS = {
 
 export type Moneda = (typeof MONEDAS)[keyof typeof MONEDAS];
 
+/* ================================================================
+   Idiomas (español por defecto / inglés)
+   ================================================================ */
+
+/** Idiomas soportados por el sistema. */
+export const IDIOMAS = {
+  ES: "es",
+  EN: "en",
+} as const;
+
+export type Idioma = (typeof IDIOMAS)[keyof typeof IDIOMAS];
+
+/** Idioma por defecto del sistema (español). */
+export const IDIOMA_DEFAULT: Idioma = IDIOMAS.ES;
+
+export const IDIOMAS_DISPONIBLES: Idioma[] = [IDIOMAS.ES, IDIOMAS.EN];
+
+export const IDIOMA_LABELS: Record<Idioma, string> = {
+  [IDIOMAS.ES]: "Español",
+  [IDIOMAS.EN]: "English",
+};
+
+/** Etiqueta corta del selector (ES / EN). */
+export const IDIOMA_LABELS_CORTOS: Record<Idioma, string> = {
+  [IDIOMAS.ES]: "ES",
+  [IDIOMAS.EN]: "EN",
+};
+
+/** Cookie con la preferencia de idioma (público y usuarios; no httpOnly). */
+export const IDIOMA_COOKIE = "iimp_idioma";
+
+/** Cookie del Website Translator de Google (`/es/en` traduce, `/es/es` vuelve al original). */
+export const GOOGTRANS_COOKIE = "googtrans";
+
+/** Vigencia de la cookie de idioma (segundos): 1 año. */
+export const IDIOMA_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
+
+/** Clave de sessionStorage para sincronizar `googtrans` una sola vez por sesión. */
+export const IDIOMA_SYNC_SESSION_KEY = "iimp_gt_idioma_sync";
+
+/** Valor de la cookie googtrans para cada idioma (origen siempre español). */
+export const GOOGTRANS_VALUES: Record<Idioma, string> = {
+  [IDIOMAS.ES]: "/es/es",
+  [IDIOMAS.EN]: "/es/en",
+};
+
+/** Locale para formateo de fechas y montos según idioma. */
+export const IDIOMA_LOCALES: Record<Idioma, string> = {
+  [IDIOMAS.ES]: "es-PE",
+  [IDIOMAS.EN]: "en-US",
+};
+
 /**
  * Precios por tipo de stand (USD).
  *
@@ -1108,6 +1160,14 @@ export const ALERTA_TIPOS = {
   RESERVA_MULTIPLE: "reserva_multiple",
   CONTRATO_FIRMADO: "contrato_firmado",
 } as const;
+
+/** Modos de la notificacion manual al cliente desde la bandeja de solicitudes. */
+export const MODOS_NOTIFICACION = {
+  AUTOMATICO: "automatico",
+  PERSONALIZADO: "personalizado",
+} as const;
+
+export type ModoNotificacion = (typeof MODOS_NOTIFICACION)[keyof typeof MODOS_NOTIFICACION];
 
 /** Límite de carga del SGC: 25 MB por archivo (configurable en el SGC). */
 export const SGC_UPLOAD_MAX_BYTES = 26214400;

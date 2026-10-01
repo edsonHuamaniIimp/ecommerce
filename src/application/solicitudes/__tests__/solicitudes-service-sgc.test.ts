@@ -10,6 +10,10 @@ import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMEN
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
 }));
+vi.mock("@/lib/server/email", () => ({
+  sendEmail: vi.fn().mockResolvedValue(true),
+  enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
+}));
 
 function revision(area: string, estado: string): RevisionEntity {
   return {
@@ -46,6 +50,7 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn().mockResolvedValue(undefined),
     crearAlertaRol: vi.fn().mockResolvedValue(undefined),
+    findNombreUsuario: vi.fn().mockResolvedValue(null),
   };
 }
 

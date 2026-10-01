@@ -5,10 +5,11 @@ vi.mock("@/lib/server/router", () => ({
 }));
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
+  enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
 }));
-vi.mock("@/lib/server/mail-templates/reservas-email-templates", () => ({
-  buildReservaConfirmationEmail: vi.fn(() => ({ subject: "s", html: "h" })),
-  buildAdminNotificacionEmail: vi.fn(() => ({ subject: "s", html: "h" })),
+vi.mock("@/lib/server/idioma", () => ({
+  resolverIdiomaUsuario: vi.fn().mockResolvedValue("es"),
+  resolverIdiomaPeticion: vi.fn().mockResolvedValue("es"),
 }));
 
 import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
@@ -328,7 +329,7 @@ function setup() {
   const sgc = new SgcIntegracionApplicationService(solicitudRepo as unknown as ISolicitudesRepository, sgcRepo, client, documentoOrigen, CONFIG);
   const webhook = new SgcWebhookApplicationService(webhookRepo, sgcRepo, CONFIG);
   const solicitudes = new SolicitudesApplicationService(solicitudRepo as unknown as ISolicitudesRepository, sgc);
-  const reserva = new ReservaApplicationService(gessRepo, solicitudRepo as unknown as ISolicitudesRepository);
+    const reserva = new ReservaApplicationService(gessRepo, solicitudRepo as unknown as ISolicitudesRepository, { findPerfilByEmail: async () => null } as never);
 
   return { solicitudRepo, gessRepo, sgcRepo, webhookRepo, client, sgc, webhook, solicitudes, reserva };
 }

@@ -20,5 +20,6 @@ export const { GET, POST, PATCH } = createRouter({
   },
   PATCH: {
     perfil: (req) => authController.updatePerfil(req),
+    idioma: (req) => authController.cambiarIdioma(req),
   },
 });

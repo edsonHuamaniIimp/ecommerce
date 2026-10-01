@@ -1,6 +1,7 @@
 "use client";
 
 import { BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, MONEDAS } from "@/lib/shared/constants";
+import { numberUtils } from "@/lib/shared/utils/number";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, RefreshCw } from "lucide-react";
@@ -76,7 +77,7 @@ export function PlanogessView({ tipoEvento, codigoEvento }: Props) {
     }
     if (key === "precio" || key === "monto" || key === "y") {
       const num = Number(value);
-      if (!isNaN(num) && num > 0) return `${MONEDAS.USD} ${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+      if (!isNaN(num) && num > 0) return numberUtils.monto(num, MONEDAS.USD, { decimales: 2 });
     }
     return String(value);
   };

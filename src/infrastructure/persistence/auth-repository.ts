@@ -35,6 +35,7 @@ export class AuthPrismaRepository implements IAuthRepository {
         nombreEmpresa: data.nombreEmpresa,
         empresaId: data.empresaId ?? null,
         debeCambiarPassword: data.debeCambiarPassword ?? false,
+        ...(data.idioma ? { idioma: data.idioma } : {}),
       },
     });
   }
@@ -110,7 +111,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findPerfilByEmail(email: string) {
     return prisma.userRole.findFirst({
       where: { email },
-      select: { email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true, idEmpresa: true, nombreEmpresa: true },
+      select: { email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true, idEmpresa: true, nombreEmpresa: true, idioma: true },
     });
   }
 
@@ -151,5 +152,9 @@ export class AuthPrismaRepository implements IAuthRepository {
     });
     if (!row?.empresaId) return null;
     return { empresaId: row.empresaId, primerAccesoCompletado: row.empresa?.primerAccesoCompletado ?? false };
+  }
+
+  async setIdioma(email: string, idioma: string): Promise<void> {
+    await prisma.userRole.updateMany({ where: { email }, data: { idioma } });
   }
 }

@@ -529,4 +529,13 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       });
     }
   }
+
+  async findNombreUsuario(userId: string): Promise<string | null> {
+    const u = await prisma.userRole.findFirst({
+      where: { userId },
+      select: { nombre: true, apellidos: true },
+    });
+    if (!u?.nombre) return null;
+    return [u.nombre, u.apellidos].filter(Boolean).join(" ") || u.nombre;
+  }
 }

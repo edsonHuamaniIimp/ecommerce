@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload
 import { toast } from "sonner";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { BADGE_STYLES, CAMPOS_CARGA_EMPRESA, CARGA_MASIVA_EXTENSIONES, ESTADOS_FILA_CARGA } from "@/lib/shared/constants";
-import type { FilaCargaEmpresaDTO, PrevisualizacionCargaEmpresasDTO } from "@/types/dto/empresas/carga-masiva.dto";
+import type { FilaCargaEmpresaDTO, PrevisualizacionCargaEmpresasDTO } from "@/types/dto/empresas";
 
 interface Props {
   onClose: () => void;
@@ -173,7 +173,7 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
             <input
               ref={inputRef}
               type="file"
-              accept=".xlsx,.csv"
+              accept={CARGA_MASIVA_EXTENSIONES.map((ext) => `.${ext}`).join(",")}
               className="hidden"
               onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }}
             />

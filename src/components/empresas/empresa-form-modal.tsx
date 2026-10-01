@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
-import type { EmpresaDTO } from "@/types/dto/empresas/empresa.dto";
+import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface Props {
   /** Empresa a editar; null = alta. */
@@ -174,7 +174,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
                 <SelectContent>
                   {Object.values(TIPOS_COMPROBANTE).map((tipo) => (
                     <SelectItem key={tipo} value={tipo}>
-                      {TIPO_COMPROBANTE_LABELS[tipo] ?? tipo}
+                      <span>{TIPO_COMPROBANTE_LABELS[tipo] ?? tipo}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

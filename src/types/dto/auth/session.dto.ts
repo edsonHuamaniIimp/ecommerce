@@ -11,4 +11,6 @@ export interface SessionDTO {
   eventoPadreNombre?: string | null;
   tipoEvento?: number;
   codigoEvento?: number;
+  /** Idioma preferido del usuario (es | en). */
+  idioma?: string;
 }

@@ -7,6 +7,7 @@ import { LogOut, User, Bell } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { alertasService } from "@/lib/client/api/services/alertas-service";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { LS_KEYS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -27,6 +28,7 @@ export function DashboardHeader() {
   const [eventoNombre, setEventoNombre] = useState<string | null>(null);
   const [eventoPadreNombre, setEventoPadreNombre] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [idioma, setIdioma] = useState<string | null>(null);
   const [alertas, setAlertas] = useState<AlertaItem[]>([]);
   const [noLeidas, setNoLeidas] = useState(0);
 
@@ -38,6 +40,7 @@ export function DashboardHeader() {
           setEventoNombre(json.eventoNombre ?? null);
           setEventoPadreNombre(json.eventoPadreNombre ?? null);
           setEmail(json.email ?? null);
+          setIdioma(json.idioma ?? null);
         }
       } catch { /* ignore */ }
     })();
@@ -88,6 +91,9 @@ export function DashboardHeader() {
           {eventoPadreNombre && <span className="text-muted-foreground/60"> — {eventoNombre}</span>}
         </Link>
       )}
+
+      {/* Selector de idioma (ES/EN) */}
+      <LanguageSwitcher idiomaActual={idioma} />
 
       {/* Bell icon */}
       <DropdownMenu>

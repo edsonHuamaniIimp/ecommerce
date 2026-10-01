@@ -5,12 +5,12 @@
  */
 import "dotenv/config";
 import { sendEmail } from "@/lib/server/email";
-import { buildAdminNotificacionEmail } from "@/lib/server/mail-templates/reservas-email-templates";
+import { getPlantillaEmail } from "@/lib/server/mail-templates";
 
 const TO = process.env.PREVIEW_TO ?? "ext_analistaprogramador3@iimp.org.pe";
 
 async function main() {
-  const { subject, html } = buildAdminNotificacionEmail({
+  const { subject, html } = getPlantillaEmail("reserva-admin", "es", {
     standCodes: "A-12, B-04, C-07",
     razonSocial: "Minera Andina del Sur S.A.C.",
     documento: "RUC 20512345678",

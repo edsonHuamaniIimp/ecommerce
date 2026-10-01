@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, SESION } from "@/lib/shared/constants";
-import { setTokenCookie, clearTokenCookie, getTokenFromHeaders } from "@/lib/server/utils/cookie";
+import { API_ERROR_CODES, IDIOMA_DEFAULT, SESION } from "@/lib/shared/constants";
+import { setTokenCookie, clearTokenCookie, getTokenFromHeaders, setIdiomaCookie } from "@/lib/server/utils/cookie";
 import { registroSchema, registroConfirmarSchema } from "@/validators/auth.validator";
+import { cambiarIdiomaSchema } from "@/validators/empresas.validator";
 import type { ApiErrorCode } from "@/lib/shared/constants";
 import type { RegistroRequestDTO } from "@/types/dto/auth/registro-request.dto";
 import type { RegistroResult } from "@/types/dto/auth/registro-result.dto";
@@ -30,6 +31,7 @@ import type { RequestResetResult } from "@/types/dto/auth/request-reset-result.d
 import type { ConfirmResetRequestDTO } from "@/types/dto/auth/confirm-reset-request.dto";
 import type { ConfirmResetResult } from "@/types/dto/auth/confirm-reset-result.dto";
 import type { CambiarPasswordRequestDTO } from "@/types/dto/auth/cambiar-password-request.dto";
+import type { CambiarIdiomaRequestDTO } from "@/types/dto/auth/cambiar-idioma-request.dto";
 
 export const authController = {
   /** @request LoginRequestDTO */
@@ -40,9 +42,11 @@ export const authController = {
       const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.UNAUTHORIZED;
       return error(code, result.error, result.status);
     }
-    const body: LoginResponseDTO = { token: result.token, roles: result.roles, email: result.email };
+    const body: LoginResponseDTO = { token: result.token, roles: result.roles, email: result.email, idioma: result.idioma };
     const res = NextResponse.json(body);
     setTokenCookie(res, result.token, result.remember ? SESION.MAX_AGE_RECORDADA : SESION.MAX_AGE_ESTANDAR);
+    /* Sincroniza la preferencia de idioma (Google Translate) desde el primer ingreso. */
+    setIdiomaCookie(res, result.idioma ?? IDIOMA_DEFAULT);
     return res;
   },
 
@@ -99,6 +103,23 @@ export const authController = {
     }
     const res = NextResponse.json({ ok: true, requiereValidarDatos: result.requiereValidarDatos });
     setTokenCookie(res, result.token, SESION.MAX_AGE_ESTANDAR);
+    return res;
+  },
+
+  /** Cambia el idioma preferido del usuario (selector ES/EN) y sincroniza la cookie. */
+  async cambiarIdioma(request: Request): Promise<NextResponse> {
+    const parsed = cambiarIdiomaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const dto: CambiarIdiomaRequestDTO = parsed.data;
+    const result = await services.auth.cambiarIdioma(dto);
+    if (!result.ok) {
+      const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.VALIDATION;
+      return error(code, result.error, result.status);
+    }
+    const res = NextResponse.json({ idioma: result.idioma });
+    setIdiomaCookie(res, result.idioma ?? IDIOMA_DEFAULT);
     return res;
   },
 

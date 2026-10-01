@@ -1,4 +1,5 @@
 import { MONEDAS, PRECIO_STAND_DEFAULT, PRECIOS_STAND_POR_TIPO } from "@/lib/shared/constants";
+import { numberUtils } from "./number";
 
 /** Normaliza el tipo de stand: mayusculas y sin espacios ("E STANDAR_01" -> "ESTANDAR_01"). */
 function normalizarTipo(tipo: string): string {
@@ -24,7 +25,7 @@ export function precioTextoDesdeTipo(tipoStand: string | null | undefined): stri
 
 /** Formato de presentacion (ej. "US$ 12,000.00"). */
 export function precioTexto(monto: number): string {
-  return `${MONEDAS.US_DOLAR} ${monto.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return numberUtils.monto(monto, MONEDAS.US_DOLAR, { decimales: 2 });
 }
 
 /** Stand con los campos necesarios para resolver su precio. */

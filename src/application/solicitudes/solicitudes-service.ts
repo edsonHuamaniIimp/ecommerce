@@ -3,6 +3,10 @@ import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
+import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import type { JwtPayload } from "@/lib/server/auth";
+import type { ModoNotificacion } from "@/lib/shared/constants";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 
 export class SolicitudesApplicationService {
@@ -21,6 +25,71 @@ export class SolicitudesApplicationService {
 
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
     return this.repo.detalle(solicitudId);
+  }
+
+  /**
+   * Notificacion manual del resultado de revision al cliente (desde la bandeja).
+   * La autorizacion se decide aqui (doble validacion JWT + BD), no en el controlador.
+   */
+  async notificarCliente(
+    params: {
+      solicitudId: string;
+      to: string;
+      modo: ModoNotificacion;
+      mensaje?: string;
+      /** Idioma del destinatario ya resuelto (capa web). */
+      idioma: string | null;
+    },
+    session: JwtPayload,
+  ): Promise<void> {
+    await this.autorizarNotificacion(session);
+
+    const detalle = await this.detalle(params.solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+
+    const faltaRevision = areasRevisionLocal(detalle.revisiones).some(
+      (area) =>
+        (detalle.revisiones.find((r) => r.area === area)?.estado ?? RESULTADOS_APROBACION.PENDIENTE) ===
+        RESULTADOS_APROBACION.PENDIENTE,
+    );
+    if (faltaRevision) {
+      throw new DomainError("Faltan revisiones pendientes", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const nombreUsuario = detalle.userId
+      ? (await this.repo.findNombreUsuario(detalle.userId)) ?? "Estimad@"
+      : "Estimad@";
+
+    const enviado = await enviarEmailPlantilla({
+      to: params.to,
+      plantilla: "revision-resultado",
+      idioma: params.idioma,
+      datos: {
+        standCode: detalle.standCode,
+        empresa: detalle.empresa ?? "-",
+        nombre: nombreUsuario,
+        email: detalle.email ?? params.to,
+        gessStandId: detalle.id,
+        modo: params.modo,
+        mensaje: params.mensaje,
+        revisiones: detalle.revisiones.map((r) => ({ area: r.area, estado: r.estado, comentario: r.comentario })),
+      },
+    });
+    if (!enviado) throw new DomainError("Error al enviar el correo", API_ERROR_CODES.INTERNAL, 500);
+  }
+
+  /** Permiso de notificacion: JWT + revalidacion en BD (permisos pueden cambiar). */
+  private async autorizarNotificacion(session: JwtPayload): Promise<void> {
+    if (
+      !session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) &&
+      !session.permissions.includes(PERMISSIONS.ADMIN_FULL)
+    ) {
+      throw new DomainError("Sin permisos para notificar", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    const { hasDBPermission } = await import("@/lib/server/auth");
+    if (!(await hasDBPermission(session, PERMISSIONS.SOLICITUDES_NOTIFY))) {
+      throw new DomainError("Permiso revocado. Cierra sesion y vuelve a ingresar.", API_ERROR_CODES.FORBIDDEN, 403);
+    }
   }
 
   async revisar(data: {

@@ -1,6 +1,3 @@
-import type { ApiResponse } from "@/lib/server/api-response";
-import type { EmpresaDTO } from "./empresa.dto";
-
 /**
  * Datos que la empresa confirma/actualiza en su primer ingreso al Portal.
  * Los campos contractuales alimentan el contrato; la validacion marca el primer acceso.
@@ -17,6 +14,3 @@ export interface ValidarDatosEmpresaRequestDTO {
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }
-
-export type MisDatosEmpresaResponse = ApiResponse<EmpresaDTO>;
-export type ValidarDatosEmpresaResponse = ApiResponse<EmpresaDTO>;

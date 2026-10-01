@@ -139,6 +139,8 @@ model UserRole {
   empresaId         String?   @map("empresa_id")
   /// Credencial temporal: el usuario debe cambiar la contrasena en el primer ingreso.
   debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
+  /// Idioma preferido del usuario: es | en (ver IDIOMAS). Default espanol.
+  idioma            String    @default("es") @db.VarChar(5)
 
   role     Role   @relation(fields: [roleId], references: [id])
   empresa  Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)

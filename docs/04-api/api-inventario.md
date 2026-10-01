@@ -54,6 +54,8 @@
 | `/api/auth/seleccionar-evento` | POST | Fija evento activo y reemite token con `eventoId`/`tipoEvento`/`codigoEvento` |
 | `/api/auth/reset-password` | POST | Solicita restablecimiento de contraseña |
 | `/api/auth/reset-password/confirm` | POST | Confirma el reset con token |
+| `/api/auth/cambiar-password` | POST | Cambia la contraseña temporal (primer ingreso) y reemite la sesión |
+| `/api/auth/idioma` | PATCH | Guarda el idioma preferido (`es` \| `en`) y sincroniza la cookie `iimp_idioma` |
 
 ### 3.2 Solicitudes — `src/app/api/solicitudes/[...slug]/route.ts`
 

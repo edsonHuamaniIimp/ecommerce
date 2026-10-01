@@ -1,9 +1,8 @@
-import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, IDIOMA_DEFAULT, PERMISSIONS, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
-import { sendEmail } from "@/lib/server/email";
-import { buildCredencialesEmpresaEmail } from "@/lib/server/empresas-email";
+import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -65,6 +64,23 @@ export class EmpresaApplicationService {
 
   async listar(params: EmpresasListParams): Promise<EmpresasPaginatedResult> {
     return this.repo.listarPaginated(params);
+  }
+
+  /**
+   * Autorizacion (la decide la capa de aplicacion, no el controlador):
+   * lectura de empresas (empresas:view).
+   */
+  autorizarLectura(userPermissions: string[]): void {
+    if (!userPermissions.includes(PERMISSIONS.ADMIN_FULL) && !userPermissions.includes(PERMISSIONS.EMPRESAS_VIEW)) {
+      throw new DomainError("Sin permiso para ver empresas", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+  }
+
+  /** Autorizacion de gestion de empresas y cuentas (empresas:manage). */
+  autorizarGestion(userPermissions: string[]): void {
+    if (!userPermissions.includes(PERMISSIONS.ADMIN_FULL) && !userPermissions.includes(PERMISSIONS.EMPRESAS_MANAGE)) {
+      throw new DomainError("Sin permiso para gestionar empresas", API_ERROR_CODES.FORBIDDEN, 403);
+    }
   }
 
   async obtener(id: string): Promise<EmpresaEntity> {
@@ -412,14 +428,17 @@ export class EmpresaApplicationService {
   /** Envio best-effort del correo con las credenciales (no revierte la cuenta). */
   private async enviarCredenciales(empresa: EmpresaEntity, email: string, passwordTemporal: string): Promise<boolean> {
     try {
-      return await sendEmail({
+      /* Nota: la empresa aun no tiene idioma propio; se envia en español (default). */
+      return await enviarEmailPlantilla({
         to: email,
-        ...buildCredencialesEmpresaEmail({
+        plantilla: "credenciales-empresa",
+        idioma: IDIOMA_DEFAULT,
+        datos: {
           razonSocial: empresa.razonSocial,
           nombreContacto: empresa.representanteLegalNombre,
           email,
           passwordTemporal,
-        }),
+        },
       });
     } catch {
       return false;

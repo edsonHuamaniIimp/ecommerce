@@ -1,13 +1,13 @@
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import { signToken } from "@/lib/server/auth";
-import { sendEmail } from "@/lib/server/email";
+import { enviarEmailPlantilla } from "@/lib/server/email";
 import { generarCodigoNumerico, generarTokenAleatorio } from "@/lib/server/utils/token";
 import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/password";
-import { buildRegistroCodigoEmail } from "@/lib/server/registro-email";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH } from "@/lib/shared/constants";
-import type { Rol } from "@/lib/shared/constants";
-import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
+import { resolverIdiomaPeticion } from "@/lib/server/idioma";
+import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, APP_URL } from "@/lib/shared/constants";
+import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
 import type { SessionResult } from "@/types/dto/auth/session-result.dto";
 import type { SeleccionarEventoRequestDTO } from "@/types/dto/auth/seleccionar-evento-request.dto";
@@ -24,6 +24,9 @@ import type { RegistroConfirmarRequestDTO } from "@/types/dto/auth/registro-conf
 import type { RegistroConfirmarResult } from "@/types/dto/auth/registro-confirmar-result.dto";
 import type { CambiarPasswordRequestDTO } from "@/types/dto/auth/cambiar-password-request.dto";
 import type { CambiarPasswordResult } from "@/types/dto/auth/cambiar-password-result.dto";
+import type { CambiarIdiomaRequestDTO } from "@/types/dto/auth/cambiar-idioma-request.dto";
+import type { CambiarIdiomaResult } from "@/types/dto/auth/cambiar-idioma-result.dto";
+import { esIdioma, idiomaODefecto } from "@/lib/shared/utils/idioma";
 
 const MENSAJE_CUENTA_EXISTENTE = "Este correo ya tiene una cuenta. Inicia sesion.";
 
@@ -57,9 +60,11 @@ export class AuthApplicationService {
       expiraEn: new Date(Date.now() + REGISTRO_CODIGO.MINUTOS_VIGENCIA * MS_POR_MINUTO),
     });
 
-    const enviado = await sendEmail({
+    const enviado = await enviarEmailPlantilla({
       to: email,
-      ...buildRegistroCodigoEmail({ codigo, nombre: dto.nombre.trim() }),
+      plantilla: "codigo-registro",
+      idioma: await resolverIdiomaPeticion(),
+      datos: { codigo, nombre: dto.nombre.trim() },
     });
     if (!enviado) {
       return { error: "No se pudo enviar el codigo al correo. Intenta nuevamente.", status: 502 } as const;
@@ -113,6 +118,8 @@ export class AuthApplicationService {
       telefono: pendiente.telefono,
       nombreEmpresa: pendiente.razonSocial,
       roleId: rol.id,
+      /* Persiste el idioma elegido durante el registro (los correos siguientes lo respetan). */
+      idioma: await resolverIdiomaPeticion(),
     });
     await this.repo.eliminarRegistroPendiente(pendiente.id);
 
@@ -155,6 +162,9 @@ export class AuthApplicationService {
 
     /* Credencial temporal (cuenta creada por backoffice): cambio obligatorio en el portal. */
     const debeCambiarPassword = principal.debeCambiarPassword === true;
+    /* Idioma preferido del usuario (para plantillas de correo y selector ES/EN). */
+    const perfilIdioma = await this.repo.findPerfilByEmail(email).catch(() => null);
+    const idioma = idiomaODefecto(perfilIdioma?.idioma ?? null);
     /* Primer ingreso de la empresa: debe validar sus datos contractuales. */
     const estadoEmpresa = debeCambiarPassword
       ? null
@@ -182,7 +192,7 @@ export class AuthApplicationService {
       },
       expiracion,
     );
-    return { token, roles, email, remember: dto.remember ?? false, debeCambiarPassword, requiereValidarDatos };
+    return { token, roles, email, remember: dto.remember ?? false, debeCambiarPassword, requiereValidarDatos, idioma };
   }
 
   /**
@@ -256,12 +266,17 @@ export class AuthApplicationService {
       if (ev) eventoNombre = `${ev.eventoPadre.nombre} ${ev.anio}`;
     }
 
+    /* Idioma preferido (selector ES/EN del dashboard). */
+    const perfil = await this.repo.findPerfilByEmail(session.email).catch(() => null);
+    const idioma = idiomaODefecto(perfil?.idioma ?? null);
+
     return {
       authenticated: true, userId: session.sub, email: session.email, roles: session.roles,
       permissions: session.permissions, eventoId: session.eventoId ?? null,
       eventoPadreId: session.eventoPadreId ?? null, eventoNombre,
       eventoPadreNombre: session.eventoPadreNombre ?? null,
       tipoEvento: session.tipoEvento, codigoEvento: session.codigoEvento,
+      idioma,
     };
   }
 
@@ -311,7 +326,27 @@ export class AuthApplicationService {
     const session = await getSession();
     if (!session) return null;
     const u = await this.repo.findPerfilByEmail(session.email);
-    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null };
+    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, idioma: null };
+  }
+
+  /** Guarda el idioma preferido del usuario (selector ES/EN del dashboard). */
+  async cambiarIdioma(dto: CambiarIdiomaRequestDTO): Promise<CambiarIdiomaResult> {
+    const { getSession } = await import("@/lib/server/auth");
+    const session = await getSession();
+    if (!session) return { ok: false, error: "No autorizado", status: 401 };
+    if (!esIdioma(dto?.idioma)) {
+      return { ok: false, error: "Idioma no soportado (usa es o en)", status: 400 };
+    }
+    await this.repo.setIdioma(session.email, dto.idioma);
+    return { ok: true, idioma: dto.idioma };
+  }
+
+  /**
+   * Idioma preferido del usuario para correos/documentos (BD -> cookie -> español).
+   * Expuesto a los controladores para no saltar capas.
+   */
+  async resolverIdiomaUsuario(email?: string | null): Promise<Idioma> {
+    return resolverIdiomaDestinatario(this.repo, email ?? null);
   }
 
   async updatePerfil(dto: PerfilUpdateRequestDTO): Promise<boolean> {
@@ -329,8 +364,13 @@ export class AuthApplicationService {
     const token = generarTokenAleatorio();
     await this.repo.setResetToken(user.id, token, new Date(Date.now() + RESET_PASSWORD_MINUTOS_VIGENCIA * MS_POR_MINUTO));
 
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/recuperar/${token}`;
-    await sendEmail({ to: user.email, subject: "Restablecer contrasena — IIMP", html: `<div style="font-family:Inter,Arial,sans-serif;padding:24px"><h2 style="color:#1B365D">Restablecer contrasena</h2><p>Haz clic para crear una nueva. Expira en 30 min.</p><a href="${resetUrl}" style="background:#1B365D;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">Restablecer</a></div>` }).catch(() => {});
+    const resetUrl = `${APP_URL}/auth/recuperar/${token}`;
+    await enviarEmailPlantilla({
+      to: user.email,
+      plantilla: "reset-password",
+      idioma: await resolverIdiomaDestinatario(this.repo, user.email),
+      datos: { nombre: user.nombre, url: resetUrl, minutos: RESET_PASSWORD_MINUTOS_VIGENCIA },
+    }).catch(() => {});
     return { ok: true, message: "Si el email existe, recibiras un enlace" };
   }
 

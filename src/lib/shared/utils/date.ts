@@ -1,22 +1,34 @@
+import { localeDeIdioma } from "./idioma";
+
+const SIN_VALOR = "-";
+
+/** Opciones comunes de formateo por idioma. */
+interface OpcionesFecha {
+  /** Idioma (es | en). Sin valor usa espanol (es-PE). */
+  idioma?: string | null;
+}
+
 export const dateUtils = {
-  format(iso: string | null | undefined): string {
-    if (!iso) return "—";
-    const [datePart] = iso.split("T");
-    if (!datePart) return "—";
-    const [y, m, d] = datePart.split("-");
-    if (!y || !m || !d) return "—";
-    return new Date(+y, +m - 1, +d).toLocaleDateString("es-PE", {
+  /** Fecha (dd MMM yyyy) según el idioma. */
+  format(iso: string | null | undefined, opciones?: OpcionesFecha): string {
+    if (!iso) return SIN_VALOR;
+    /* Se parsea en local (sin desfase UTC) y solo si la fecha es valida. */
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!match) return SIN_VALOR;
+    const [y = "0", m = "1", d = "1"] = match.slice(1);
+    return new Date(+y, +m - 1, +d).toLocaleDateString(localeDeIdioma(opciones?.idioma), {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
   },
 
-  formatDateTime(iso: string | Date | null | undefined): string {
-    if (!iso) return "—";
+  /** Fecha + hora según el idioma. */
+  formatDateTime(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
+    if (!iso) return SIN_VALOR;
     const d = iso instanceof Date ? iso : new Date(iso);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-PE", {
+    if (isNaN(d.getTime())) return SIN_VALOR;
+    return d.toLocaleDateString(localeDeIdioma(opciones?.idioma), {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -25,12 +37,12 @@ export const dateUtils = {
     });
   },
 
-  /** Fecha + hora sin anio (para historiales compactos). */
-  formatDateTimeShort(iso: string | Date | null | undefined): string {
-    if (!iso) return "—";
+  /** Fecha + hora sin anio (para historiales compactos), según el idioma. */
+  formatDateTimeShort(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
+    if (!iso) return SIN_VALOR;
     const d = iso instanceof Date ? iso : new Date(iso);
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-PE", {
+    if (isNaN(d.getTime())) return SIN_VALOR;
+    return d.toLocaleDateString(localeDeIdioma(opciones?.idioma), {
       day: "2-digit",
       month: "short",
       hour: "2-digit",

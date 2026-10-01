@@ -22,6 +22,7 @@ import {
 import type { PlanoStand, TipoComprobante } from "@/types/reserva";
 import type { ReservaCreateInput } from "@/lib/client/api/services/types";
 import { TIPOS_COMPROBANTE, MONEDAS } from "@/lib/shared/constants";
+import { numberUtils } from "@/lib/shared/utils/number";
 
 interface ReservaFormProps {
   selectedStands: PlanoStand[];
@@ -93,7 +94,7 @@ export function ReservaForm({ selectedStands, onClear, onReservar, error }: Rese
         <CardDescription>
           <span>
             {selectedStands.length} stand(s) seleccionado(s) — Total:{" "}
-            <strong>{total.toLocaleString("en-US")} {moneda}</strong>
+            <strong>{numberUtils.monto(total, moneda)}</strong>
           </span>
         </CardDescription>
       </CardHeader>
@@ -106,14 +107,14 @@ export function ReservaForm({ selectedStands, onClear, onReservar, error }: Rese
                 Stand {st.numero} ({st.tipoStand} · {st.medidas})
               </span>
               <span className="font-medium">
-                {st.monto.toLocaleString("en-US")} {st.moneda}
+                {numberUtils.monto(st.monto, st.moneda)}
               </span>
             </div>
           ))}
           <Separator />
           <div className="flex justify-between text-sm font-bold">
             <span>Total</span>
-            <span>{total.toLocaleString("en-US")} {moneda}</span>
+            <span>{numberUtils.monto(total, moneda)}</span>
           </div>
         </div>
 

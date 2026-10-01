@@ -1,5 +1,5 @@
 import type { EmpresaEntity, EmpresasPaginatedResult } from "@/domain/models/empresa";
-import type { EmpresaDTO, EmpresasPaginatedDTO } from "@/types/dto/empresas/empresa.dto";
+import type { EmpresaDTO, EmpresasPaginatedDTO } from "@/types/dto/empresas";
 
 /** Entidad de dominio -> DTO de respuesta (fechas ISO para la API). */
 export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {

@@ -2,14 +2,21 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
+  enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
 }));
-vi.mock("@/lib/server/mail-templates/reservas-email-templates", () => ({
-  buildReservaConfirmationEmail: vi.fn(() => ({ subject: "s", html: "h" })),
-  buildAdminNotificacionEmail: vi.fn(() => ({ subject: "s", html: "h" })),
+vi.mock("@/lib/server/idioma", () => ({
+  resolverIdiomaUsuario: vi.fn().mockResolvedValue("es"),
+  resolverIdiomaPeticion: vi.fn().mockResolvedValue("es"),
 }));
 
 import { ReservaApplicationService } from "../reserva-service";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
+
+/** Repositorio de auth falso (solo se usa para resolver el idioma del correo). */
+function authRepoFalso(): IAuthRepository {
+  return { findPerfilByEmail: vi.fn(async () => null) } as unknown as IAuthRepository;
+}
 
 function gessRepoCon(stands: Array<{ id: string; standCode: string; eventoId?: string | null; estado?: string | null }>) {
   const findById = vi.fn(async (id: string) => {
@@ -40,7 +47,7 @@ describe("ReservaApplicationService — validacion de evento", () => {
       { id: "g1", standCode: "A-1", eventoId: "evt-1" },
       { id: "g2", standCode: "A-2", eventoId: "evt-1" },
     ]);
-    const svc = new ReservaApplicationService(repo);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
     const res = await svc.crear({ standIds: ["g1", "g2"], eventoId: "evt-1" });
     expect(res.ok).toBe(true);
     expect(update).toHaveBeenCalledTimes(2);
@@ -51,7 +58,7 @@ describe("ReservaApplicationService — validacion de evento", () => {
       { id: "g1", standCode: "A-1", eventoId: "evt-1" },
       { id: "g2", standCode: "B-2", eventoId: "evt-2" },
     ]);
-    const svc = new ReservaApplicationService(repo);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
     const res = await svc.crear({ standIds: ["g1", "g2"], eventoId: "evt-1" });
     expect(res.ok).toBe(false);
     expect(res.conflicted).toContain("B-2 no pertenece al evento actual");
@@ -63,7 +70,7 @@ describe("ReservaApplicationService — validacion de evento", () => {
       { id: "g1", standCode: "A-1", eventoId: "evt-1" },
       { id: "g2", standCode: "B-2", eventoId: "evt-2" },
     ]);
-    const svc = new ReservaApplicationService(repo);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
     const res = await svc.crear({ standIds: ["g1", "g2"] });
     expect(res.ok).toBe(false);
     expect(res.conflicted).toContain("B-2 no pertenece al evento actual");
@@ -75,7 +82,7 @@ describe("ReservaApplicationService — validacion de evento", () => {
       { id: "g1", standCode: "A-1", eventoId: "evt-1" },
       { id: "g2", standCode: "A-2", eventoId: "evt-1", estado: "en_evaluacion" },
     ]);
-    const svc = new ReservaApplicationService(repo);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
     const res = await svc.crear({ standIds: ["g1", "g2"], eventoId: "evt-1" });
     expect(res.ok).toBe(false);
     expect(update).not.toHaveBeenCalled();

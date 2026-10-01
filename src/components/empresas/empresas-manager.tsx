@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Button, Card, CardContent, CardHeader, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@nrivera-iimp/ui-kit-iimp";
-import { Loader2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
+import { Badge, Button, Card, CardContent, CardHeader, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -10,7 +10,7 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { BADGE_STYLES, ESTADOS_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
-import type { EmpresaDTO } from "@/types/dto/empresas/empresa.dto";
+import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
 
@@ -256,46 +256,64 @@ export function EmpresasManager() {
                         <EstadoEmpresaBadge estado={empresa.estado} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-0.5">
                           {!empresa.cuentaCreada ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-primary hover:text-primary"
-                              title="Crear cuenta del Portal y enviar credenciales"
-                              onClick={() => { void crearCuenta(empresa); }}
-                            >
-                              <KeyRound className="h-3.5 w-3.5" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-primary hover:text-primary"
+                                  onClick={() => { void crearCuenta(empresa); }}
+                                >
+                                  <KeyRound className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top"><span>Crear cuenta del Portal y enviar credenciales</span></TooltipContent>
+                            </Tooltip>
                           ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              title="Reenviar credenciales (regenera la contrasena temporal)"
-                              onClick={() => { void reenviarCredenciales(empresa); }}
-                            >
-                              <Mail className="h-3.5 w-3.5" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => { void reenviarCredenciales(empresa); }}
+                                >
+                                  <Mail className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top"><span>Reenviar credenciales (regenera la contrasena temporal)</span></TooltipContent>
+                            </Tooltip>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            title="Editar empresa"
-                            onClick={() => { setEditando(empresa); setFormOpen(true); }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`h-8 w-8 p-0 ${empresa.estado === ESTADOS_EMPRESA.ACTIVA ? "text-destructive hover:text-destructive" : "text-success hover:text-success"}`}
-                            title={empresa.estado === ESTADOS_EMPRESA.ACTIVA ? "Desactivar empresa" : "Activar empresa"}
-                            onClick={() => { void cambiarEstado(empresa); }}
-                          >
-                            {loading ? <Loader2 className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => { setEditando(empresa); setFormOpen(true); }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top"><span>Editar empresa</span></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-7 w-7 p-0 ${empresa.estado === ESTADOS_EMPRESA.ACTIVA ? "text-destructive hover:text-destructive" : "text-success hover:text-success"}`}
+                                onClick={() => { void cambiarEstado(empresa); }}
+                              >
+                                <Power className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <span>{empresa.estado === ESTADOS_EMPRESA.ACTIVA ? "Desactivar empresa" : "Activar empresa"}</span>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>

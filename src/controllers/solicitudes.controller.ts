@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
-import { prisma } from "@/lib/server/db";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
-import { sendEmail } from "@/lib/server/email";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
-import { buildRevisionEmail } from "@/lib/server/mail-templates/revisiones-email-templates";
 
 export const solicitudesController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -45,42 +42,20 @@ export const solicitudesController = {
     return success(await services.solicitudes.revisar({ ...body, reviewerEmail: session.email }));
   },
 
+  /** @request SolicitudesNotificarRequestDTO */
   async notificar(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-      return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para notificar", 403);
-    }
-    // Validar contra BD (el JWT puede estar desactualizado si se editaron permisos)
-    const { hasDBPermission } = await import("@/lib/server/auth");
-    if (!(await hasDBPermission(session, PERMISSIONS.SOLICITUDES_NOTIFY))) {
-      return error(API_ERROR_CODES.FORBIDDEN, "Permiso revocado. Cierra sesion y vuelve a ingresar.", 403);
-    }
-    const raw = await request.json() as { solicitudId: string; to: string; modo: "automatico" | "personalizado"; mensaje?: string };
-    if (!raw.solicitudId || !raw.to || !raw.modo) return error(API_ERROR_CODES.VALIDATION, "Campos requeridos", 400);
 
-    const detalle = await services.solicitudes.detalle(raw.solicitudId);
-    if (!detalle) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
-    if (!areasRevisionLocal(detalle.revisiones).every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
-      return error(API_ERROR_CODES.CONFLICT, "Faltan revisiones pendientes", 409);
+    const parsed = solicitudesNotificarSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
 
-    let nombreUsuario = "Estimad@";
-    if (detalle.userId) {
-      try {
-        const user = await prisma.userRole.findFirst({ where: { userId: detalle.userId }, select: { nombre: true, apellidos: true } });
-        if (user?.nombre) nombreUsuario = [user.nombre, user.apellidos].filter(Boolean).join(" ") || user.nombre;
-      } catch { /* ok */ }
-    }
-
-    const emailData = buildRevisionEmail({
-      standCode: detalle.standCode, empresa: detalle.empresa ?? "—",
-      nombre: nombreUsuario, email: detalle.email ?? raw.to,
-      gessStandId: detalle.id, modo: raw.modo, mensaje: raw.mensaje,
-      revisiones: detalle.revisiones.map((r) => ({ area: r.area, estado: r.estado, comentario: r.comentario })),
-    });
-    const result = await sendEmail({ to: raw.to, ...emailData });
-    if (!result) return error(API_ERROR_CODES.INTERNAL, "Error al enviar el correo", 500);
+    /* El idioma del destinatario se resuelve via servicio de auth; la autorizacion
+       y el envio los decide la capa de aplicacion. */
+    const idioma = await services.auth.resolverIdiomaUsuario(parsed.data.to);
+    await services.solicitudes.notificarCliente({ ...parsed.data, idioma }, session);
     return success({ ok: true });
   },
 

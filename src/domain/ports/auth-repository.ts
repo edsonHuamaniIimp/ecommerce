@@ -23,6 +23,8 @@ export interface NuevoUsuarioAuth {
   empresaId?: string | null;
   /** Credencial temporal: exigir cambio de contrasena en el primer ingreso. */
   debeCambiarPassword?: boolean;
+  /** Idioma preferido al crear la cuenta (es | en); default espanol. */
+  idioma?: string;
 }
 
 /** Datos de un registro de exhibidor pendiente de verificacion por codigo. */
@@ -55,7 +57,7 @@ export interface IAuthRepository {
   findOrCreateEvento(tipoEvento: number, codigoEvento: number): Promise<{ id: string }>;
   /** Persiste el ultimo evento elegido para reusarlo en el proximo login. */
   setEventoSeleccionado(email: string, eventoId: string): Promise<void>;
-  findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null } | null>;
+  findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null; idioma: string | null } | null>;
   updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null }): Promise<void>;
   findForReset(email: string): Promise<{ id: string; email: string; nombre: string | null } | null>;
   setResetToken(id: string, token: string, expires: Date): Promise<void>;
@@ -65,4 +67,6 @@ export interface IAuthRepository {
   marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void>;
   /** Estado de la empresa del Portal vinculada al usuario (null si no tiene empresa). */
   estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null>;
+  /** Guarda el idioma preferido del usuario (es | en). */
+  setIdioma(email: string, idioma: string): Promise<void>;
 }

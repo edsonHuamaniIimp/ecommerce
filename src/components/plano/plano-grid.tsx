@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from "@nrivera-iimp/ui-kit-iimp";
 import type { PlanoStand } from "@/types/reserva";
 import { ESTADOS_STAND, MONEDAS } from "@/lib/shared/constants";
+import { numberUtils } from "@/lib/shared/utils/number";
 
 /* ================================================================
    Layout tipo sistema de viajes interprovinciales:
@@ -129,7 +130,7 @@ export function PlanoGrid({ stands }: PlanoGridProps) {
                         <span className="text-muted-foreground">{s.tipoStand}</span>
                       </div>
                       <span className="font-medium">
-                        {s.monto.toLocaleString("en-US")} {s.moneda}
+                        {numberUtils.monto(s.monto, s.moneda)}
                       </span>
                     </div>
                   ))}
@@ -137,7 +138,7 @@ export function PlanoGrid({ stands }: PlanoGridProps) {
                 <div className="flex items-center justify-between border-t pt-3 text-sm font-bold">
                   <span>Total</span>
                   <span>
-                    {total.toLocaleString("en-US")} {moneda}
+                    {numberUtils.monto(total, moneda)}
                   </span>
                 </div>
                 <Button disabled variant="default" className="w-full">

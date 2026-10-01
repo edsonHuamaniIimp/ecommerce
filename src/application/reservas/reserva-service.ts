@@ -1,8 +1,9 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, REVISION_AREA_ORDER, ROLES, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
-import { sendEmail } from "@/lib/server/email";
-import { buildReservaConfirmationEmail, buildAdminNotificacionEmail } from "@/lib/server/mail-templates/reservas-email-templates";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 
 const BLOQUEADOS: string[] = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, ESTADOS_STAND_LEGACY.RESERVADO, ESTADOS_STAND_LEGACY.EN_EVALUACION];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
@@ -10,7 +11,8 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.or
 export class ReservaApplicationService {
   constructor(
     private readonly gessRepo: IGessRepository,
-    private readonly solicitudesRepo?: ISolicitudesRepository,
+    private readonly solicitudesRepo: ISolicitudesRepository | undefined,
+    private readonly authRepo: IAuthRepository,
   ) {}
 
   async crear(request: {
@@ -119,22 +121,32 @@ export class ReservaApplicationService {
     }
 
     if (contactEmail) {
-      const emailData = {
-        standCodes: standCodes.join(", "),
-        razonSocial: request.datos?.razonSocial || "—",
-        documento: `${request.datos?.tipoDocumento || ""} ${request.datos?.numeroDocumento || ""}`.trim() || "—",
-        emailCliente: contactEmail,
-      };
-      const clientEmail = buildReservaConfirmationEmail({
-        ...emailData,
-        email: contactEmail,
-        esMultiple: createdStandIds.length > 1,
-        solicitudId,
-      });
-      sendEmail({ to: contactEmail, ...clientEmail }).catch(() => {});
+      const idiomaCliente = await resolverIdiomaDestinatario(this.authRepo, contactEmail);
+      enviarEmailPlantilla({
+        to: contactEmail,
+        plantilla: "reserva-confirmacion",
+        idioma: idiomaCliente,
+        datos: {
+          standCodes: standCodes.join(", "),
+          razonSocial: request.datos?.razonSocial || "-",
+          documento: `${request.datos?.tipoDocumento || ""} ${request.datos?.numeroDocumento || ""}`.trim() || "-",
+          esMultiple: createdStandIds.length > 1,
+          solicitudId,
+        },
+      }).catch(() => {});
       if (ADMIN_EMAIL && ADMIN_EMAIL !== contactEmail) {
-        const adminEmail = buildAdminNotificacionEmail({ ...emailData, solicitudId });
-        sendEmail({ to: ADMIN_EMAIL, ...adminEmail }).catch(() => {});
+        enviarEmailPlantilla({
+          to: ADMIN_EMAIL,
+          plantilla: "reserva-admin",
+          idioma: IDIOMA_DEFAULT,
+          datos: {
+            standCodes: standCodes.join(", "),
+            razonSocial: request.datos?.razonSocial || "-",
+            documento: `${request.datos?.tipoDocumento || ""} ${request.datos?.numeroDocumento || ""}`.trim() || "-",
+            emailCliente: contactEmail,
+            solicitudId,
+          },
+        }).catch(() => {});
       }
     }
 

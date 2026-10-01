@@ -13,6 +13,8 @@ export type { ConfirmResetRequestDTO } from "./confirm-reset-request.dto";
 export type { ConfirmResetResult } from "./confirm-reset-result.dto";
 export type { CambiarPasswordRequestDTO } from "./cambiar-password-request.dto";
 export type { CambiarPasswordResult } from "./cambiar-password-result.dto";
+export type { CambiarIdiomaRequestDTO } from "./cambiar-idioma-request.dto";
+export type { CambiarIdiomaResult } from "./cambiar-idioma-result.dto";
 
 // backward compat
 export type { LoginResponseDTO as AuthLoginResponse } from "./login-response.dto";

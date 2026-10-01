@@ -209,3 +209,18 @@ button.p-1.bg-primary:not(.text-white):not(:hover) {
   color: #94a3b8;
   font-style: normal;
 }
+
+/* Google Translate (Website Translator): widget nativo oculto; usamos el selector propio. */
+.skiptranslate,
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+#goog-gt-tt {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}

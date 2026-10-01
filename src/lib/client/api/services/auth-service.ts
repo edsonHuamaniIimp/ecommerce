@@ -30,4 +30,8 @@ export const authService = {
   cambiarPassword(body: { passwordActual: string; passwordNueva: string }) {
     return internalApi.post<{ ok: boolean; requiereValidarDatos: boolean }>("/api/auth/cambiar-password", body);
   },
+  /** Cambia el idioma preferido del usuario (selector ES/EN). */
+  cambiarIdioma(idioma: string) {
+    return internalApi.patch<{ idioma: string }>("/api/auth/idioma", { idioma });
+  },
 };

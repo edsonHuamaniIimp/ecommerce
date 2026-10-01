@@ -47,6 +47,9 @@ src/
 - Arquitectura hexagonal (arriba).
 - **Zod** para toda validación de entrada.
 - **DTOs explícitos** de request/response — **un archivo por DTO** (SOLID).
+- **Nomenclatura de DTOs**: la **API interna** (dashboard/portal) usa **`camelCase`** (el DTO
+  declara la forma exacta del JSON); la **API M2M/externa** usa **`snake_case`** (contrato de
+  integración, ver `types/dto/stands/*`). El **Mapper** convierte al cruzar el límite.
 - **Mapper** snake_case ↔ camelCase.
 - **`handler()` wrapper** global de errores.
 - **Constantes** para validaciones (nunca strings hardcodeados).

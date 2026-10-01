@@ -168,6 +168,7 @@ function solicitudRepoMock(
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn(),
     crearAlertaRol: vi.fn(),
+    findNombreUsuario: vi.fn().mockResolvedValue(null),
   };
 }
 function build(
