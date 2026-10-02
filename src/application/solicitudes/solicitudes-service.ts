@@ -1,6 +1,6 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, ANEXOS_REQUERIDOS, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
@@ -158,6 +158,8 @@ export class SolicitudesApplicationService {
     userEmail: string;
     userPermissions: string[];
     tipo?: string;
+    /** Requisito del anexo (clave de ANEXOS_REQUERIDOS); RF-13. */
+    requisito?: string | null;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
 
@@ -193,6 +195,21 @@ export class SolicitudesApplicationService {
       : null;
 
     const categoria = tipoValido ?? null;
+    /*
+     * Requisito del anexo (Ficha RUC / Vigencia de Poderes / DNI del representante):
+     * solo aplica a documentos ANEXO del cliente y debe ser una clave valida.
+     */
+    let requisito: string | null = null;
+    if (params.requisito && tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO) {
+      if (!ANEXOS_REQUERIDOS.some((a) => a.key === params.requisito)) {
+        throw new DomainError(
+          `Requisito de anexo invalido: ${params.requisito}`,
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      requisito = params.requisito;
+    }
     let userId: string | null;
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
       userId = null;
@@ -207,6 +224,7 @@ export class SolicitudesApplicationService {
       userId,
       params.userEmail,
       categoria,
+      requisito,
     );
 
     /*

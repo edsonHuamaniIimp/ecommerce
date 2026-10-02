@@ -7,6 +7,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     id: entity.id,
     ruc: entity.ruc,
     razonSocial: entity.razonSocial,
+    logoUrl: entity.logoUrl,
     nombreComercial: entity.nombreComercial,
     direccionFiscal: entity.direccionFiscal,
     telefono: entity.telefono,

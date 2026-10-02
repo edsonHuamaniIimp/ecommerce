@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Loader2 } from "lucide-react";
+import { Image as ImageIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 
@@ -18,6 +19,7 @@ interface Props {
 interface FormState {
   ruc: string;
   razonSocial: string;
+  logoUrl: string;
   nombreComercial: string;
   direccionFiscal: string;
   telefono: string;
@@ -33,6 +35,7 @@ function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
   return {
     ruc: empresa?.ruc ?? "",
     razonSocial: empresa?.razonSocial ?? "",
+    logoUrl: empresa?.logoUrl ?? "",
     nombreComercial: empresa?.nombreComercial ?? "",
     direccionFiscal: empresa?.direccionFiscal ?? "",
     telefono: empresa?.telefono ?? "",
@@ -77,7 +80,23 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const [form, setForm] = useState<FormState>(() => formDesdeEmpresa(empresa));
   const [errores, setErrores] = useState<Partial<Record<keyof FormState, string>>>({});
   const [enviando, setEnviando] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
   const esEdicion = empresa !== null;
+
+  const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSubiendoLogo(true);
+    try {
+      const url = await uploadService.subir(file);
+      setCampo("logoUrl", url);
+    } catch {
+      toast.error("No se pudo subir el logo");
+    }
+    setSubiendoLogo(false);
+  };
 
   const setCampo = (campo: keyof FormState, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }));
@@ -105,6 +124,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
       const payload = {
         ruc: form.ruc.trim(),
         razonSocial: form.razonSocial.trim(),
+        logoUrl: form.logoUrl || null,
         nombreComercial: form.nombreComercial.trim() || null,
         direccionFiscal: form.direccionFiscal.trim() || null,
         telefono: form.telefono.trim() || null,
@@ -163,6 +183,29 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Representante legal" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" />
             <CampoForm label="DNI del representante" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", v)} placeholder="45871233" mono />
+          </div>
+          <div>
+            <Label className="text-xs">Logo de la empresa</Label>
+            <div className="mt-1 flex items-center gap-3">
+              {form.logoUrl ? (
+                <img src={form.logoUrl} alt="Logo de la empresa" className="h-12 w-12 rounded-lg border bg-white object-contain p-1" />
+              ) : (
+                <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                  <ImageIcon className="h-4 w-4" />
+                </span>
+              )}
+              <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void onLogoFile(e); }} />
+              <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoLogo} onClick={() => logoRef.current?.click()}>
+                {subiendoLogo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                {form.logoUrl ? "Cambiar logo" : "Subir logo"}
+              </Button>
+              {form.logoUrl && (
+                <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => setCampo("logoUrl", "")}>
+                  Quitar
+                </Button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">PNG o JPG; se pinta en los stands reservados de la empresa en el mapa.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

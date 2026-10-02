@@ -34,6 +34,8 @@ import { EmpresaPrismaRepository } from "@/infrastructure/persistence/empresa-re
 import { EmpresaApplicationService } from "@/application/empresas/empresa-service";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
+import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
+import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
 
 const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
@@ -61,7 +63,7 @@ const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion,
 export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
-  gess: new GessApplicationService(gessRepo, planogessClient, planoRepo),
+  gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
   auth: new AuthApplicationService(authRepo, roleRepo),
   dashboard: new DashboardApplicationService(gessRepo),
@@ -75,6 +77,7 @@ export const services = {
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
+  tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
   gessRepo,
   roleRepo,
 };

@@ -36,6 +36,9 @@ interface GessLinked {
   standCode: string;
   tipoStand: string | null;
   empresa: string | null;
+  empresaLogo: string | null;
+  /** Imagen referencial del tipo de stand (RF-08); aplica a todos los stands del tipo. */
+  tipoImagen: string | null;
   estado: string | null;
   medidas: string | null;
   documentos: string[];
@@ -122,6 +125,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const [standDocs, setStandDocs] = useState<string[]>([]);
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
   const [panelMovil, setPanelMovil] = useState(false);
+  /** Tooltip del hover sobre un stand reservado: posicion del cursor + razon social (RF-09). */
+  const [hoverStand, setHoverStand] = useState<{ x: number; y: number; text: string } | null>(null);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   const blockLabel = (type: PlanoItem["type"]) => plano?.blockLabel[type] ?? { label: "?", nombre: "?" };
@@ -179,6 +184,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
             tipoStand,
             empresa,
+            empresaLogo: (r.empresaLogo ?? null) as string | null,
+            tipoImagen: (r.tipoImagen ?? null) as string | null,
             estado,
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
@@ -507,10 +514,33 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           shadow-camera-left={-S} shadow-camera-right={S} shadow-camera-top={S} shadow-camera-bottom={-S}/>
         <directionalLight position={[cx-S*.2,S*.5,cz-S*.3]} intensity={.4}/>
         <Floor bnd={bnd}/>
-        {items.map((it)=><Bloque3D key={it.id} item={it} selected={idsPlano.includes(it.id)} reserved={linkedMap.get(it.id)?.reserved ?? false} onSelect={handleSelect}/>)}
+        {items.map((it)=>{
+          const info = linkedMap.get(it.id);
+          const reserved = info?.reserved ?? false;
+          return (
+            <Bloque3D
+              key={it.id}
+              item={it}
+              selected={idsPlano.includes(it.id)}
+              reserved={reserved}
+              hoverText={reserved ? (info?.empresa?.trim() || "Reservado") : null}
+              logoUrl={reserved ? (info?.empresaLogo ?? null) : null}
+              onHover={setHoverStand}
+              onSelect={handleSelect}
+            />
+          );
+        })}
         {furniture.map((f)=><FurnitureRenderer key={f.id} item={f}/>)}
         <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}/>
       </Canvas>
+        {hoverStand && (
+          <div
+            className="pointer-events-none fixed z-50 max-w-[260px] rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-lg"
+            style={{ left: hoverStand.x + 14, top: hoverStand.y + 14 }}
+          >
+            <span>{hoverStand.text}</span>
+          </div>
+        )}
         </div>
 
         <div className="border-t border-border bg-secondary px-4 py-3">
@@ -640,6 +670,21 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                     </Button>
                   )}
                 </div>
+
+                {/* Imagen referencial del tipo de stand (RF-08) */}
+                {detailModal.tipoImagen && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Imagen referencial{detailModal.tipoStand ? ` (${detailModal.tipoStand})` : ""}
+                    </p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={detailModal.tipoImagen}
+                      alt={`Imagen referencial del tipo ${detailModal.tipoStand ?? ""}`}
+                      className="max-h-48 w-full rounded-lg border border-border bg-white object-contain"
+                    />
+                  </div>
+                )}
 
                 {detailModal.imagenes.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border bg-secondary px-3 py-3 text-center text-[11px] text-muted-foreground">

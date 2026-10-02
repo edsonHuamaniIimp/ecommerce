@@ -4,6 +4,7 @@ import { internalApi } from "./internal-api";
 import type { GessStandDTO, GessSyncResultDTO } from "@/types/dto/models";
 import type { PaginatedResponseDTO } from "@/types/dto/pagination.dto";
 import type { ReservaRequestDTO, ReservaResponseDTO } from "@/types/dto/reserva";
+import type { TipoStandImagenDTO } from "@/types/dto/gess/tipo-stand-imagen.dto";
 
 export const gessService = {
   /** Paginado (para bandejas) */
@@ -37,6 +38,18 @@ export const gessService = {
   },
   fetchFromApi(tipoEvento: number, codigoEvento: number) {
     return internalApi.post<Record<string, unknown>[]>("/api/planogess/fetch", { tipoEvento, codigoEvento });
+  },
+  /** Catalogo de imagenes referenciales por tipo de stand (admin). */
+  tiposImagenListar() {
+    return internalApi.get<TipoStandImagenDTO[]>("/api/gess/tipos-imagen");
+  },
+  /** Sube/reemplaza la imagen referencial de un tipo (aplica a todos sus stands). */
+  tipoImagenGuardar(body: { tipo: string; imagenUrl: string }) {
+    return internalApi.post<{ ok: boolean }>("/api/gess/tipos-imagen", body);
+  },
+  /** Quita la imagen referencial de un tipo. */
+  tipoImagenEliminar(tipo: string) {
+    return internalApi.delete<{ ok: boolean }>(`/api/gess/tipos-imagen?tipo=${encodeURIComponent(tipo)}`);
   },
   /** Enviar solicitud de reserva */
   reservar(body: ReservaRequestDTO) {

@@ -9,6 +9,8 @@ export interface EmpresaEntity {
   id: string;
   ruc: string;
   razonSocial: string;
+  /** Logo (URL en /uploads/*) que se pinta en los stands reservados del mapa. */
+  logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
   telefono: string | null;
@@ -31,6 +33,7 @@ export interface EmpresaEntity {
 export interface EmpresaInput {
   ruc: string;
   razonSocial: string;
+  logoUrl?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
   telefono?: string | null;
@@ -46,6 +49,7 @@ export interface EmpresaInput {
 export interface CrearEmpresaData {
   ruc: string;
   razonSocial: string;
+  logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
   telefono: string | null;

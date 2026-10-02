@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Eye, Trash2, Search } from "lucide-react";
+import { Eye, Trash2, Search, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { gessService } from "@/lib/client/api/services/gess-service";
@@ -15,11 +15,14 @@ import { MAESTRA_TABLAS, ESTADOS_STAND, ESTADOS_STAND_MAESTRA_ID, BADGE_STYLES, 
 import { stringUtils } from "@/lib/shared/utils/string";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import type { GessStandDTO } from "@/types/dto/gess";
+import type { TipoStandImagenDTO } from "@/types/dto/gess/tipo-stand-imagen.dto";
 
 interface StandDoc {
   id: string;
   standCode: string;
   tipoStand: string | null;
+  /** Imagen referencial del tipo (aplica a todos los stands del tipo). */
+  tipoImagen: string | null;
   medidas: string | null;
   estado: string | null;
   empresa: string | null;
@@ -40,6 +43,7 @@ function toStandDoc(dto: GessStandDTO): StandDoc {
     id: dto.id,
     standCode: dto.standCode,
     tipoStand: dto.tipoStand,
+    tipoImagen: dto.tipoImagen ?? null,
     medidas: dto.medidas,
     estado: dto.estado,
     empresa: dto.empresa,
@@ -65,6 +69,13 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
   const [perPage, setPerPage] = useState(10);
   const [pagination, setPagination] = useState({ page: 1, perPage: 10, total: 0, totalPages: 0 });
   const [estadoLabels, setEstadoLabels] = useState<Record<string, string>>({});
+
+  // Imagen referencial por tipo de stand (RF-08)
+  const [editTipoImagen, setEditTipoImagen] = useState<string | null>(null);
+  const [tiposOpen, setTiposOpen] = useState(false);
+  const [tiposImagen, setTiposImagen] = useState<TipoStandImagenDTO[]>([]);
+  const [tiposLoading, setTiposLoading] = useState(false);
+  const [subiendoTipo, setSubiendoTipo] = useState<string | null>(null);
 
   useEffect(() => {
     maestraService.listar(MAESTRA_TABLAS.STAND_ESTADO).then((items) => {
@@ -139,7 +150,45 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
     setEditImgs(row.imagenes ?? []);
     setEditImgCats(row.imagenesCategorias ?? {});
     setEditDocCats(row.documentosCategorias ?? {});
+    setEditTipoImagen(row.tipoImagen);
     setEditOpen(true);
+  };
+
+  const openTipos = async () => {
+    setTiposOpen(true);
+    setTiposLoading(true);
+    try {
+      setTiposImagen(await gessService.tiposImagenListar());
+    } catch {
+      toast.error("No se pudieron cargar las imágenes por tipo");
+    }
+    setTiposLoading(false);
+  };
+
+  /** Sube la imagen de un tipo y la aplica a todos los stands de ese tipo. */
+  const subirImagenTipo = async (tipo: string, file: File) => {
+    setSubiendoTipo(tipo);
+    try {
+      const url = await uploadService.subir(file);
+      await gessService.tipoImagenGuardar({ tipo, imagenUrl: url });
+      setTiposImagen((prev) => prev.map((t) => (t.tipo === tipo ? { ...t, imagenUrl: url } : t)));
+      toast.success("Imagen del tipo actualizada");
+      await load(pagination.page, perPage, search);
+    } catch {
+      toast.error("No se pudo subir la imagen del tipo");
+    }
+    setSubiendoTipo(null);
+  };
+
+  const quitarImagenTipo = async (tipo: string) => {
+    try {
+      await gessService.tipoImagenEliminar(tipo);
+      setTiposImagen((prev) => prev.map((t) => (t.tipo === tipo ? { ...t, imagenUrl: null } : t)));
+      toast.success("Imagen del tipo eliminada");
+      await load(pagination.page, perPage, search);
+    } catch {
+      toast.error("No se pudo eliminar la imagen del tipo");
+    }
   };
 
   const handleSave = async () => {
@@ -201,6 +250,11 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
                 {[5, 10, 25, 50].map((n) => (<SelectItem key={n} value={String(n)}><span>{n} / pag</span></SelectItem>))}
               </SelectContent>
             </Select>
+            <div className="flex-1" />
+            <Button variant="outline" size="sm" className="h-8 rounded-full text-xs" onClick={() => { void openTipos(); }}>
+              <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+              <span>Imágenes por tipo</span>
+            </Button>
           </div>
 
           {loading ? (
@@ -264,6 +318,22 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle><span>Documentos e Imagenes</span></DialogTitle></DialogHeader>
           <div className="space-y-5">
+            {/* Imagen referencial del tipo (RF-08) */}
+            {editTipoImagen && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Imagen referencial del tipo</p>
+                <Image
+                  width={640}
+                  height={360}
+                  src={editTipoImagen}
+                  alt="Imagen referencial del tipo de stand"
+                  className="max-h-40 w-full rounded-md border bg-white object-contain"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Aplica a todos los stands de este tipo; se administra en &quot;Imágenes por tipo&quot;.
+                </p>
+              </div>
+            )}
             {/* Contrato */}
             <div>
               <div className="mb-2 flex items-center justify-between">
@@ -354,6 +424,59 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
           </div>
           <DialogFooter>
             <Button onClick={handleSave} className="w-full"><span>Guardar cambios</span></Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Imagenes referenciales por tipo de stand (RF-08) */}
+      <Dialog open={tiposOpen} onOpenChange={setTiposOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle><span>Imágenes por tipo de stand</span></DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            La imagen de un tipo se usa como referencia en <strong>todos los stands de ese tipo</strong> en el mapa.
+          </p>
+          {tiposLoading ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">Cargando...</p>
+          ) : (
+            <div className="divide-y rounded-md border">
+              {tiposImagen.map((t) => (
+                <div key={t.tipo} className="flex items-center gap-3 px-3 py-2.5 text-xs">
+                  {t.imagenUrl ? (
+                    <Image width={56} height={36} src={t.imagenUrl} alt={`Imagen referencial: ${t.label}`} className="h-9 w-14 shrink-0 rounded border bg-white object-cover" />
+                  ) : (
+                    <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded border border-dashed text-muted-foreground">
+                      <ImagePlus className="h-4 w-4" />
+                    </span>
+                  )}
+                  <span className="flex-1">
+                    <span className="font-medium">{t.label}</span>
+                    <span className="ml-2 font-mono text-[10px] text-muted-foreground">{t.tipo}</span>
+                  </span>
+                  <label className="shrink-0 cursor-pointer rounded-full border px-3 py-1 text-[11px] font-medium hover:bg-secondary">
+                    <span>{subiendoTipo === t.tipo ? "Subiendo..." : t.imagenUrl ? "Cambiar" : "Subir"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={subiendoTipo !== null}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void subirImagenTipo(t.tipo, f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {t.imagenUrl && (
+                    <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0 text-destructive" title="Quitar imagen" onClick={() => { void quitarImagenTipo(t.tipo); }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTiposOpen(false)}><span>Cerrar</span></Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

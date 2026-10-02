@@ -131,6 +131,8 @@ model UserRole {
   tipoUsuarioId     Int?      @map("tipo_usuario_id")
   idEmpresa         String?   @map("id_empresa") @db.VarChar(50)
   nombreEmpresa     String?   @map("nombre_empresa") @db.VarChar(200)
+  /// Logo propio del usuario (URL en /uploads/*); tiene prioridad sobre el de la empresa en el mapa.
+  logoUrl           String?   @map("logo_url") @db.VarChar(500)
   /** Ultimo evento seleccionado: se reusa al iniciar sesion para no pedirlo de nuevo. */
   eventoId          String?   @map("evento_id") @db.VarChar(50)
   resetToken        String?   @map("reset_token") @db.VarChar(200)
@@ -236,6 +238,8 @@ model Empresa {
   ruc      String @unique @db.VarChar(11)
   /// Razon social; usada en el cuerpo del contrato.
   razonSocial String @map("razon_social") @db.VarChar(200)
+  /// Logo de la empresa (URL en /uploads/*); se pinta en sus stands reservados del mapa.
+  logoUrl String? @map("logo_url") @db.VarChar(500)
   /// Nombre comercial (opcional, no contractual).
   nombreComercial String? @map("nombre_comercial") @db.VarChar(200)
   /// Direccion fiscal; usada en el contrato.
@@ -350,6 +354,20 @@ model GessStand {
   @@index([eventoId])
   @@index([bloqueId])
   @@map("gess_stand")
+}
+
+/// Imagen referencial por tipo de stand: una imagen por tipo, aplicada a todos los
+/// stands de ese tipo (se administra en la bandeja de Stands y se muestra en el mapa).
+model TipoStandImagen {
+  id        String   @id @default(uuid())
+  /// Clave canonica del tipo de stand (ver TIPOS_STAND_CATALOGO); unica.
+  tipo      String   @unique @db.VarChar(50)
+  /// URL de la imagen referencial (en /uploads/*).
+  imagenUrl String   @map("imagen_url") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("tipo_stand_imagen")
 }
 
 /* ================================================================
@@ -637,6 +655,8 @@ model SolicitudDocumento {
   uploadedBy  String?  @map("uploaded_by") @db.VarChar(100)
   userId      String?  @map("user_id") @db.VarChar(100)
   categoria   String?  @db.VarChar(30)
+  /// Requisito del anexo que cubre el documento (clave de ANEXOS_REQUERIDOS); null = otro anexo.
+  requisito   String?  @db.VarChar(30)
   flgActivo   Boolean  @default(true) @map("flg_activo")
   createdAt   DateTime @default(now()) @map("created_at")
 

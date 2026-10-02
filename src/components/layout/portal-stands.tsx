@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Building2, HelpCircle, ShieldCheck } from "lucide-react";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 /** Header institucional del portal de exhibidores. */
 export function PortalHeader() {
@@ -27,6 +28,7 @@ export function PortalHeader() {
             <span>Mesa de Ayuda</span>
           </a>
           <div className="hidden h-4 w-px bg-border sm:block" />
+          <LanguageSwitcher />
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-gold" />
             <span>Acceso Seguro SSL</span>

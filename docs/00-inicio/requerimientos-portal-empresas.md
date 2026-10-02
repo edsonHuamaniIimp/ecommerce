@@ -266,5 +266,6 @@
 | RF-03 retirar `/landing` | ✅ Hecho (commit `308b718`) | Ruta retirada; componentes se conservan en el repo. |
 | RF-10 condiciones de pago | ⏳ Pendiente | Configurador de modalidades en backoffice + elección del cliente al iniciar la reserva. |
 | Fase 2 contrato (RF-11→RF-17) | ⏳ Pendiente | Bloqueado por insumos: plantilla DOCX real, proveedor de firma digital y rol Asociado. |
-| RF-08/09 visuales + hover | ⏳ Pendiente | Depende del plano (coordinar con el trabajo 3D en curso en otra sesión). |
-| RF-13 adjuntos bloqueantes | ⏳ Pendiente | Vigencia de Poderes + DNI bloquean el envío a revisión Legal. |
+| RF-09 hover razón social | ✅ Hecho (local) | En `/mapa`, al pasar el cursor por un stand reservado se muestra la razón social de la **empresa del cliente** que reservó (solicitud → `user_role` → `empresa`). El backend completa `empresa` en `/api/gess/listar`; tooltip sobre el bloque 3D. |
+| RF-08 visuales del stand | 🔶 Parcial | **Imagen referencial por tipo** ✅: se sube una vez por tipo en `/dashboard/stands` (*Imágenes por tipo*, permisos `stands:manage`) y **aplica a todos los stands de ese tipo**; se muestra en el detalle del stand en `/mapa`. **Logo de empresa/usuario** ✅ pintado en stands reservados. Pendiente: **recorte del plano** con la ubicación del stand. |
+| RF-13 adjuntos bloqueantes | ✅ Hecho (local) | Anexos con etiqueta de requisito (Ficha RUC / Vigencia de Poderes / DNI) en el modal del cliente; **Vigencia de Poderes + DNI bloquean** el envío al SGC para revisión Legal en el panel del expediente. Migración `0024_add_solicitud_documento_requisito`. |

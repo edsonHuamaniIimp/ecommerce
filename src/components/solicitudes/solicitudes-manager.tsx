@@ -11,6 +11,7 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
@@ -743,6 +744,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
                     ) || (detailRow.documentos as string[]).length > 0
                   }
+                  requisitosFaltantes={anexosBloqueantesFaltantes(detailRow.docsAdjuntos)}
                   motivo={detailRow.sgcSubsanacionMotivo}
                 />
               </DetailSection>

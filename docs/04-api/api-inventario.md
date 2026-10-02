@@ -71,7 +71,7 @@
 | `/api/solicitudes/atender-reevaluacion` | POST | Aprueba o rechaza una re-evaluación |
 | `/api/solicitudes/baja` | POST | Da de baja la solicitud |
 | `/api/solicitudes/orden-pago` | POST | Marca la solicitud con orden de pago generada |
-| `/api/solicitudes/upload-doc` | POST | Asocia documento subido a la solicitud |
+| `/api/solicitudes/upload-doc` | POST | Asocia documento subido a la solicitud (contrato, firmado o anexo con `requisito` RF-13) |
 | `/api/solicitudes/eliminar-doc` | POST | Elimina documento de la solicitud |
 
 ### 3.3 Eventos — `src/app/api/eventos/[...slug]/route.ts`
@@ -87,7 +87,10 @@
 
 | Ruta | Métodos | Descripción |
 |---|---|---|
-| `/api/gess/listar` | GET | Lista stands GESS por `eventoId` (paginado) o `bloqueId` |
+| `/api/gess/listar` | GET | Lista stands GESS por `eventoId` (paginado) o `bloqueId`. Completa `empresa`, `empresaLogo` (RF-09) y `tipoImagen` (imagen referencial del tipo, RF-08) |
+| `/api/gess/tipos-imagen` | GET | Catálogo de imágenes referenciales por tipo de stand (admin) |
+| `/api/gess/tipos-imagen` | POST | Sube/reemplaza la imagen de un tipo (aplica a todos los stands de ese tipo) |
+| `/api/gess/tipos-imagen` | DELETE | Quita la imagen referencial de un tipo |
 | `/api/gess/sync` | POST | Sincroniza stands seleccionados desde GESS |
 | `/api/gess/mockup` | POST | Genera mockup/datos de stands para un evento |
 | `/api/gess/actualizar` | PATCH | Actualiza datos de un stand GESS |

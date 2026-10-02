@@ -14,6 +14,7 @@ interface EmpresaRow {
   id: string;
   ruc: string;
   razonSocial: string;
+  logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
   telefono: string | null;
@@ -37,6 +38,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     id: row.id,
     ruc: row.ruc,
     razonSocial: row.razonSocial,
+    logoUrl: row.logoUrl ?? null,
     nombreComercial: row.nombreComercial ?? null,
     direccionFiscal: row.direccionFiscal ?? null,
     telefono: row.telefono ?? null,

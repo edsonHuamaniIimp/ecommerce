@@ -34,28 +34,32 @@ type ObjetoKind = "bloque" | "furniture";
 
 type DragState =
   | { mode: "move"; kind: ObjetoKind; id: string; offsetX: number; offsetZ: number }
+  | { mode: "move-multi"; ids: string[]; primaryId: string; offsetX: number; offsetZ: number; inicio: Array<{ id: string; x: number; z: number }>; yaEstaba: boolean }
   | { mode: "rotate"; kind: ObjetoKind; id: string; centerX: number; centerZ: number; inicioRad: number; inicioAngulo: number };
 
-function EditorBloque({ bloque, dim, selected, inactive, onPointerDown }: {
+function EditorBloque({ bloque, dim, selected, multiSelected, inactive, onPointerDown }: {
   bloque: EditBloque;
   dim: { w: number; d: number; h: number; color: string };
   selected: boolean;
+  multiSelected?: boolean;
   inactive?: boolean;
   onPointerDown: (e: { stopPropagation: () => void; point: { x: number; z: number } }) => void;
 }) {
+  const resaltado = selected || multiSelected;
+  const color = selected ? "#f59e0b" : multiSelected ? "#3b82f6" : dim.color;
   return (
     <mesh
       position={[bloque.x, dim.h / 2, bloque.z]}
       rotation={[0, bloque.rotY ?? 0, 0]}
       onPointerDown={onPointerDown}
     >
-      <boxGeometry args={[dim.w - 0.15, dim.h + (selected ? 0.6 : 0), dim.d - 0.15]} />
+      <boxGeometry args={[dim.w - 0.15, dim.h + (resaltado ? 0.6 : 0), dim.d - 0.15]} />
       <meshStandardMaterial
-        color={selected ? "#f59e0b" : dim.color}
+        color={color}
         roughness={0.55}
         metalness={0.1}
-        emissive={selected ? "#f59e0b" : "#000000"}
-        emissiveIntensity={selected ? 0.35 : 0}
+        emissive={color}
+        emissiveIntensity={selected ? 0.35 : multiSelected ? 0.3 : 0}
         transparent={inactive}
         opacity={inactive ? 0.35 : 1}
       />
@@ -192,6 +196,9 @@ export function LaboratorioManager() {
   const [guias, setGuias] = useState<{ x: number | null; z: number | null }>({ x: null, z: null });
   const [mostrarGuias, setMostrarGuias] = useState(true);
   const [mostrarEliminados, setMostrarEliminados] = useState(false);
+  const [multiSeleccion, setMultiSeleccion] = useState(false);
+  const [bloquesMulti, setBloquesMulti] = useState<string[]>([]);
+  const dragMovidoRef = useRef(false);
   const { confirm, confirmDialog } = useConfirm();
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -232,6 +239,8 @@ export function LaboratorioManager() {
       setBloques(plano.bloques.map(({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo }) => ({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo })));
       setFurniture(plano.furniture.map(({ refId, tipo, x, z, rotY, config, flgActivo }) => ({ refId, tipo, x, z, rotY, config, flgActivo })));
       setSelected(null);
+      setMultiSeleccion(false);
+      setBloquesMulti([]);
       setDirty(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error al cargar plano");
@@ -325,8 +334,58 @@ export function LaboratorioManager() {
     });
   };
 
+  /** En modo seleccion multiple: agrega el bloque a la seleccion y prepara el arrastre grupal. */
+  const startDragMulti = (bloqueId: string, pointX: number, pointZ: number) => {
+    const item = bloques.find((b) => b.bloqueId === bloqueId);
+    if (!item) return;
+    const yaEstaba = bloquesMulti.includes(bloqueId);
+    const ids = planoEditorUtils.agregarSeleccion(bloquesMulti, bloqueId);
+    if (!yaEstaba) setBloquesMulti(ids);
+    dragMovidoRef.current = false;
+    setDragging({
+      mode: "move-multi",
+      ids,
+      primaryId: bloqueId,
+      offsetX: item.x - pointX,
+      offsetZ: item.z - pointZ,
+      inicio: ids
+        .map((id) => bloques.find((b) => b.bloqueId === id))
+        .filter((b): b is EditBloque => !!b)
+        .map((b) => ({ id: b.bloqueId, x: b.x, z: b.z })),
+      yaEstaba,
+    });
+  };
+
+  const handleBloquePointerDown = (bloqueId: string, pointX: number, pointZ: number) => {
+    if (multiSeleccion) startDragMulti(bloqueId, pointX, pointZ);
+    else startDrag("bloque", bloqueId, pointX, pointZ);
+  };
+
   const moveDrag = (pointX: number, pointZ: number, shift: boolean) => {
     if (!dragging) return;
+    if (dragging.mode === "move-multi") {
+      const nx = snap(pointX + dragging.offsetX);
+      const nz = snap(pointZ + dragging.offsetZ);
+      const otros = candidatosGuia.filter((c) => !(c.id.startsWith("bloque:") && dragging.ids.includes(c.id.slice("bloque:".length))));
+      const alineado = mostrarGuias
+        ? planoEditorUtils.alinear(nx, nz, otros, EDITOR_PLANO.UMBRAL_GUIA)
+        : { x: nx, z: nz, guiaX: null, guiaZ: null };
+      setGuias({ x: alineado.guiaX, z: alineado.guiaZ });
+      const primario = dragging.inicio.find((i) => i.id === dragging.primaryId);
+      if (!primario) return;
+      const dx = alineado.x - primario.x;
+      const dz = alineado.z - primario.z;
+      if (dx !== 0 || dz !== 0) dragMovidoRef.current = true;
+      const posiciones = new Map(planoEditorUtils.desplazarGrupo(dragging.inicio, dx, dz).map((i) => [i.id, i]));
+      setBloques((prev) =>
+        prev.map((b) => {
+          const pos = posiciones.get(b.bloqueId);
+          return pos ? { ...b, x: pos.x, z: pos.z } : b;
+        }),
+      );
+      setDirty(true);
+      return;
+    }
     if (dragging.mode === "rotate") {
       const angulo = Math.atan2(pointZ - dragging.centerZ, pointX - dragging.centerX);
       const deltaGrados = planoEditorUtils.aGrados(angulo - dragging.inicioAngulo);
@@ -358,6 +417,9 @@ export function LaboratorioManager() {
   };
 
   const endDrag = () => {
+    if (dragging?.mode === "move-multi" && !dragMovidoRef.current && dragging.yaEstaba) {
+      setBloquesMulti((prev) => planoEditorUtils.quitarSeleccion(prev, dragging.primaryId));
+    }
     setDragging(null);
     setGuias({ x: null, z: null });
   };
@@ -707,6 +769,21 @@ export function LaboratorioManager() {
           />
           <Label htmlFor="editor-eliminados" className="cursor-pointer text-xs text-slate-600"><span>Mostrar eliminados</span></Label>
         </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 h-8" title="Permite seleccionar varios bloques para moverlos juntos (no edita propiedades)">
+          <Checkbox
+            id="editor-multi"
+            checked={multiSeleccion}
+            onCheckedChange={(v) => {
+              const activo = v === true;
+              setMultiSeleccion(activo);
+              setBloquesMulti([]);
+              setSelected(null);
+              setDragging(null);
+              setGuias({ x: null, z: null });
+            }}
+          />
+          <Label htmlFor="editor-multi" className="cursor-pointer text-xs text-slate-600"><span>Selección múltiple</span></Label>
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" className="rounded-full h-8 text-xs" disabled={!planoSel || planoSel.tipo === TIPOS_PLANO.MACRO} onClick={() => setNuevoBloqueOpen(true)} title={planoSel?.tipo === TIPOS_PLANO.MACRO ? "Los mapas macro usan secciones, no bloques" : undefined}>
             <Box className="h-3.5 w-3.5 mr-1" /> <span>Agregar bloque</span>
@@ -768,8 +845,9 @@ export function LaboratorioManager() {
                     bloque={b}
                     dim={dim}
                     selected={selected?.kind === "bloque" && selected.id === b.bloqueId}
+                    multiSelected={multiSeleccion && bloquesMulti.includes(b.bloqueId)}
                     inactive={b.flgActivo === false}
-                    onPointerDown={(e) => { e.stopPropagation(); startDrag("bloque", b.bloqueId, e.point.x, e.point.z); }}
+                    onPointerDown={(e) => { e.stopPropagation(); handleBloquePointerDown(b.bloqueId, e.point.x, e.point.z); }}
                   />
                 );
               })}
@@ -779,7 +857,7 @@ export function LaboratorioManager() {
                   item={f}
                   selected={selected?.kind === "furniture" && selected.id === f.refId}
                   inactive={f.flgActivo === false}
-                  onPointerDown={(e) => { e.stopPropagation(); startDrag("furniture", f.refId, e.point.x, e.point.z); }}
+                  onPointerDown={(e) => { e.stopPropagation(); if (multiSeleccion) return; startDrag("furniture", f.refId, e.point.x, e.point.z); }}
                 />
               ))}
               {mostrarGuias && guias.x !== null && (
@@ -816,12 +894,26 @@ export function LaboratorioManager() {
             </Canvas>
           )}
           <div className="absolute left-2 top-2 rounded-md bg-white/80 backdrop-blur px-2 py-1 text-[10px] text-slate-500 pointer-events-none">
-            <span>Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)</span>
+            <span>{multiSeleccion ? "Selección múltiple: clic agrega o quita bloques — arrastra cualquiera para mover el grupo" : "Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)"}</span>
           </div>
         </div>
 
         {/* PANEL DERECHO */}
         <div className="w-[280px] shrink-0 flex flex-col gap-3 overflow-y-auto">
+          {/* Seleccion multiple */}
+          {multiSeleccion && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-700"><span>Selección múltiple</span></p>
+              <p className="text-[11px] text-slate-500">
+                <span>{bloquesMulti.length === 0 ? "Haz clic en los bloques para seleccionarlos; arrastra cualquiera para mover el grupo." : `${bloquesMulti.length} bloque(s) seleccionado(s). Arrastra cualquiera para moverlos juntos.`}</span>
+              </p>
+              {bloquesMulti.length > 0 && (
+                <Button size="sm" variant="outline" className="h-7 w-full rounded-full text-xs" onClick={() => setBloquesMulti([])}>
+                  <span>Limpiar selección</span>
+                </Button>
+              )}
+            </div>
+          )}
           {/* Propiedades del bloque seleccionado */}
           {bloqueSel ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">

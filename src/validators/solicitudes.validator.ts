@@ -26,3 +26,12 @@ export const solicitudesNotificarSchema = z.object({
   modo: z.enum([MODOS_NOTIFICACION.AUTOMATICO, MODOS_NOTIFICACION.PERSONALIZADO]),
   mensaje: z.string().max(5000).optional(),
 });
+
+/** Documento adjunto de una solicitud (contrato, firmado o anexo con requisito RF-13). */
+export const uploadDocumentoSchema = z.object({
+  solicitudId: z.string().min(1, "solicitudId requerido"),
+  url: z.string().min(1, "url requerida").max(500),
+  nombre: z.string().trim().max(200).optional(),
+  tipo: z.string().max(30).optional(),
+  requisito: z.string().max(30).optional().nullable(),
+});

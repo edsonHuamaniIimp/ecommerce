@@ -151,6 +151,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       userId: d.userId,
       uploadedBy: d.uploadedBy,
       categoria: d.categoria,
+      requisito: d.requisito,
       createdAt: d.createdAt,
     }));
 
@@ -478,9 +479,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null },
+      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null, requisito: requisito ?? null },
     });
     return { ...doc };
   }

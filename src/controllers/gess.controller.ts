@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { getSession } from "@/lib/server/auth";
 import { updateGessStandSchema } from "@/validators/gess.validator";
+import { guardarTipoStandImagenSchema } from "@/validators/tipos-stand.validator";
 
 export const gessController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -34,6 +36,38 @@ export const gessController = {
     const raw = await request.json();
     const body = updateGessStandSchema.parse(raw);
     return success(await services.gess.actualizarStand(body.id, body));
+  },
+
+  /** Catalogo de imagenes referenciales por tipo de stand (RF-08, admin). */
+  async tiposImagenListar(): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    services.tiposStandImagen.autorizarGestion(session.permissions);
+    return success(await services.tiposStandImagen.listar());
+  },
+
+  /** Sube/reemplaza la imagen referencial de un tipo de stand (aplica a todos sus stands). */
+  async tiposImagenGuardar(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    services.tiposStandImagen.autorizarGestion(session.permissions);
+    const parsed = guardarTipoStandImagenSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    await services.tiposStandImagen.guardar(parsed.data.tipo, parsed.data.imagenUrl);
+    return success({ ok: true });
+  },
+
+  /** Quita la imagen referencial de un tipo de stand. */
+  async tiposImagenEliminar(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    services.tiposStandImagen.autorizarGestion(session.permissions);
+    const tipo = new URL(request.url).searchParams.get("tipo");
+    if (!tipo) return error(API_ERROR_CODES.VALIDATION, "tipo requerido", 400);
+    await services.tiposStandImagen.eliminar(tipo);
+    return success({ ok: true });
   },
 
   async sync(request: Request): Promise<NextResponse> {

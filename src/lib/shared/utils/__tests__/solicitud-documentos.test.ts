@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import {
+  anexosBloqueantesFaltantes,
+  anexosRequeridosFaltantes,
   enVentanaContratoMultistand,
   enVentanaLegalSgc,
   enVentanaSubsanacionSgc,
   esperandoContratoCorregidoSgc,
+  faltanAnexosBloqueantes,
   hayContratoAdminNuevoParaFirmar,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
@@ -202,5 +205,45 @@ describe("puedeClienteSubirDocumentos", () => {
     expect(
       puedeClienteSubirDocumentos({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO, sgcEstadoEnvio: null, sgcDocumentosEnviados: true }),
     ).toBe(false);
+  });
+});
+
+describe("anexos requeridos (RF-13)", () => {
+  const doc = (requisito: string | null, overrides: Partial<{ userId: string | null; categoria: string | null }> = {}) => ({
+    requisito,
+    userId: CLIENTE,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+    ...overrides,
+  });
+
+  it("lista los tres requisitos cuando no hay documentos", () => {
+    expect(anexosRequeridosFaltantes([])).toEqual(["ficha-ruc", "vigencia-poder", "dni-representante"]);
+  });
+
+  it("descuenta los requisitos ya cubiertos por documentos del cliente", () => {
+    expect(anexosRequeridosFaltantes([doc("vigencia-poder")])).toEqual(["ficha-ruc", "dni-representante"]);
+  });
+
+  it("ignora el contrato firmado y los documentos del admin", () => {
+    const docs = [
+      doc("vigencia-poder", { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO }),
+      doc("dni-representante", { userId: null }),
+    ];
+    expect(anexosRequeridosFaltantes(docs)).toEqual(["ficha-ruc", "vigencia-poder", "dni-representante"]);
+  });
+
+  it("solo vigencia-poder y dni-representante bloquean (ficha-ruc no)", () => {
+    expect(anexosBloqueantesFaltantes([doc("ficha-ruc")])).toEqual(["vigencia-poder", "dni-representante"]);
+    expect(faltanAnexosBloqueantes([doc("ficha-ruc")])).toBe(true);
+  });
+
+  it("sin faltantes bloqueantes no bloquea el envio a Legal", () => {
+    const docs = [doc("vigencia-poder"), doc("dni-representante")];
+    expect(anexosBloqueantesFaltantes(docs)).toEqual([]);
+    expect(faltanAnexosBloqueantes(docs)).toBe(false);
+  });
+
+  it("tolera docs sin requisito (otros anexos)", () => {
+    expect(faltanAnexosBloqueantes([doc(null)])).toBe(true);
   });
 });

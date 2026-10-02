@@ -7,6 +7,7 @@ import { useEffect, useState, useRef } from "react";
 import { LogOut, LogIn, Menu, User, ChevronDown } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { LS_KEYS } from "@/lib/shared/constants";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 const links = [
   { href: "/plano", label: "Isometrico" },
@@ -111,6 +112,9 @@ export function Header() {
             <Link href={`/presala?returnTo=${encodeURIComponent(pathname)}`}><span>Seleccionar evento</span></Link>
           </Button>
         )}
+
+        {/* Idioma (sitio publico) */}
+        <LanguageSwitcher />
 
         {/* Auth */}
         {session?.authenticated ? (

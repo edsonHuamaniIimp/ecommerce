@@ -3,7 +3,7 @@ import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, uploadDocumentoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 
@@ -176,8 +176,11 @@ export const solicitudesController = {
   async uploadDocumento(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    const raw = await request.json() as { solicitudId: string; url: string; nombre: string; tipo?: string };
-    if (!raw.solicitudId || !raw.url) return error(API_ERROR_CODES.VALIDATION, "solicitudId y url requeridos", 400);
+    const parsed = uploadDocumentoSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const raw = parsed.data;
 
     const doc = await services.solicitudes.uploadDocumento({
       solicitudId: raw.solicitudId,
@@ -187,6 +190,7 @@ export const solicitudesController = {
       userEmail: session.email,
       userPermissions: session.permissions,
       tipo: raw.tipo,
+      requisito: raw.requisito ?? null,
     });
     return success(doc);
   },

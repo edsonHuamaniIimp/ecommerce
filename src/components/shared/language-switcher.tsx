@@ -1,12 +1,14 @@
 "use client";
 
+import { useId, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { Check, Globe } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import {
   GOOGTRANS_COOKIE,
   GOOGTRANS_VALUES,
+  IDIOMAS,
   IDIOMAS_DISPONIBLES,
   IDIOMA_COOKIE,
   IDIOMA_COOKIE_MAX_AGE,
@@ -22,21 +24,64 @@ function escribirCookiesIdioma(idioma: Idioma): void {
   document.cookie = `${GOOGTRANS_COOKIE}=${GOOGTRANS_VALUES[idioma]};path=/`;
 }
 
+/** Lee la cookie de idioma actual (solo cliente). */
+function leerCookieIdioma(): string | null {
+  const match = document.cookie.split("; ").find((c) => c.startsWith(`${IDIOMA_COOKIE}=`));
+  return match ? match.slice(IDIOMA_COOKIE.length + 1) : null;
+}
+
+/** La cookie no emite eventos: la suscripcion es un no-op (el cambio recarga la pagina). */
+function suscribirCookieIdioma(): () => void {
+  return () => {};
+}
+
+/** Bandera de Espana (idioma espanol), simplificada sin escudo. */
+function BanderaEspana() {
+  return (
+    <svg viewBox="0 0 3 2" className="h-3 w-[18px] shrink-0 rounded-[2px] ring-1 ring-black/10" aria-hidden="true">
+      <rect width="3" height="2" fill="#AA151B" />
+      <rect y="0.5" width="3" height="1" fill="#F1BF00" />
+    </svg>
+  );
+}
+
+/** Bandera del Reino Unido (idioma ingles): Union Jack simplificada. */
+function BanderaReinoUnido() {
+  const clipId = useId().replace(/:/g, "uk");
+  return (
+    <svg viewBox="0 0 60 30" className="h-3 w-[18px] shrink-0 rounded-[2px] ring-1 ring-black/10" aria-hidden="true">
+      <clipPath id={clipId}>
+        <path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z" />
+      </clipPath>
+      <rect width="60" height="30" fill="#012169" />
+      <path d="M0,0 L60,30 M60,0 L0,30" stroke="#FFFFFF" strokeWidth="6" />
+      <path d="M0,0 L60,30 M60,0 L0,30" clipPath={`url(#${clipId})`} stroke="#C8102E" strokeWidth="4" />
+      <path d="M30,0 v30 M0,15 h60" stroke="#FFFFFF" strokeWidth="10" />
+      <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6" />
+    </svg>
+  );
+}
+
 /**
- * Selector de idioma (ES/EN) del portal. Guarda la preferencia en el usuario (si hay
- * sesión), sincroniza las cookies `iimp_idioma` y `googtrans` y recarga para que
- * Google Translate aplique el idioma.
+ * Selector de idioma (ES/EN) del portal: listado desplegable compacto con banderas.
+ * Guarda la preferencia del usuario (si hay sesion), sincroniza las cookies
+ * `iimp_idioma` y `googtrans` y recarga para que Google Translate aplique el idioma.
  */
 export function LanguageSwitcher({ idiomaActual }: { idiomaActual?: string | null }) {
   const router = useRouter();
-  const actual: Idioma = idiomaODefecto(idiomaActual);
+  // En vistas publicas (sin prop) el idioma real vive en la cookie; el snapshot de
+  // servidor es null para no romper la hidratacion.
+  const cookieIdioma = useSyncExternalStore(suscribirCookieIdioma, leerCookieIdioma, () => null);
+  const [optimista, setOptimista] = useState<Idioma | null>(null);
+  const actual = optimista ?? idiomaODefecto(cookieIdioma ?? idiomaActual);
 
   const cambiar = async (idioma: Idioma) => {
     if (idioma === actual) return;
+    setOptimista(idioma);
     try {
       await authService.cambiarIdioma(idioma);
     } catch {
-      /* Sin sesión (sitio público): la preferencia queda solo en cookies. */
+      /* Sin sesion (sitio publico): la preferencia queda solo en cookies. */
     }
     escribirCookiesIdioma(idioma);
     router.refresh();
@@ -46,18 +91,23 @@ export function LanguageSwitcher({ idiomaActual }: { idiomaActual?: string | nul
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs font-semibold" title="Cambiar idioma">
-          <Globe className="h-3.5 w-3.5" />
-          <span>{IDIOMA_LABELS_CORTOS[actual]}</span>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2" title="Cambiar idioma / Change language">
+          {actual === IDIOMAS.ES ? <BanderaEspana /> : <BanderaReinoUnido />}
+          <span className="text-xs font-semibold">{IDIOMA_LABELS_CORTOS[actual]}</span>
+          <ChevronDown className="h-3 w-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        {IDIOMAS_DISPONIBLES.map((idioma) => (
-          <DropdownMenuItem key={idioma} className="gap-2 text-xs" onClick={() => { void cambiar(idioma); }}>
-            <span className="flex-1">{IDIOMA_LABELS[idioma]}</span>
-            {actual === idioma && <Check className="h-3.5 w-3.5 text-primary" />}
-          </DropdownMenuItem>
-        ))}
+        {IDIOMAS_DISPONIBLES.map((idioma) => {
+          const activo = idioma === actual;
+          return (
+            <DropdownMenuItem key={idioma} className="gap-2 text-xs" onClick={() => { void cambiar(idioma); }}>
+              {idioma === IDIOMAS.ES ? <BanderaEspana /> : <BanderaReinoUnido />}
+              <span className="flex-1">{IDIOMA_LABELS[idioma]}</span>
+              {activo && <Check className="h-3.5 w-3.5 text-primary" />}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

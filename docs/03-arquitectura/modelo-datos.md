@@ -299,6 +299,7 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | email | string(200) | No | Email del usuario. |
 | password | string(100) | No | Hash scrypt de la contraseña. |
 | nombreEmpresa | string(200) | Sí | Razón social vinculada (cliente). |
+| logoUrl | string(500) | Sí | Logo propio del usuario (URL); tiene prioridad sobre el de su empresa en el mapa. |
 | empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente creada por backoffice (1 por empresa). |
 | debeCambiarPassword | boolean | No | Credencial temporal: exige cambio de contraseña en el primer ingreso. |
 | idioma | string(5) | No | Idioma preferido: `es` (default) \| `en`. Se usa en el selector y en las plantillas de correo/documentos. |
@@ -441,6 +442,7 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 | id | id/uuid | No | PK. |
 | ruc | string(11) | No | RUC (11 dígitos). **Único**. |
 | razonSocial | string(200) | No | Razón social; usada en el contrato. |
+| logoUrl | string(500) | Sí | Logo de la empresa (URL en `/uploads/*`); se pinta en sus stands reservados del mapa. |
 | nombreComercial | string(200) | Sí | Nombre comercial (no contractual). |
 | direccionFiscal | string(250) | Sí | Dirección fiscal; usada en el contrato. |
 | telefono | string(30) | Sí | Teléfono de contacto. |
@@ -482,6 +484,39 @@ recibe un correo (plantilla es/en).
 
 Índices: `facturacion_cuota.facturacionId`; `facturacion.solicitudId`, `facturacion.estado`.
 Auditoría de cambios en `facturacion_historial` (`agregar_cuota`, `pagar_cuota`, `adjuntar_comprobante`, …).
+
+### 4.23 `solicitud_documento` (Transaccional · adjuntos de la solicitud)
+
+Documentos adjuntos a una solicitud: contrato del administrador (`userId` null), contrato
+firmado y anexos del cliente (`userId` propio). Cada anexo puede indicar qué **requisito** del
+SGC cubre (RF-13): sin Vigencia de Poderes ni DNI del representante no se envía a revisión Legal.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| solicitudId | id/uuid | No | FK → `solicitud` (índice). |
+| url | string(500) | No | URL del archivo (`/uploads/*`). |
+| nombre | string(200) | No | Nombre original del archivo. |
+| uploadedBy | string(100) | Sí | Usuario que lo subió (correo). |
+| userId | string(100) | Sí | Titular del documento (`null` = administrador/contrato). |
+| categoria | string(30) | Sí | `contrato` \| `contrato_firmado` \| `anexo` (ver `TIPOS_DOCUMENTO_SOLICITUD`). |
+| requisito | string(30) | Sí | Clave de `ANEXOS_REQUERIDOS` (`ficha-ruc`, `vigencia-poder`, `dni-representante`); `null` = otro anexo. |
+| flgActivo | boolean | No | Baja lógica. |
+| createdAt | datetime | No | Fecha de subida. |
+
+### 4.24 `tipo_stand_imagen` (Auxiliar · imagen referencial por tipo)
+
+Una imagen por **tipo de stand** (catálogo `TIPOS_STAND_CATALOGO`); se administra en la
+bandeja de Stands (*Imágenes por tipo*) y se aplica a **todos los stands de ese tipo** en el
+mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` → `ISLAS`).
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| tipo | string(50) | No | Clave canónica del tipo. **Único**. |
+| imagenUrl | string(500) | No | URL de la imagen referencial (`/uploads/*`). |
+| createdAt | datetime | No | Alta. |
+| updatedAt | datetime | No | Última modificación. |
 
 ## 5. Entidades consumidas (externas, no persistidas como maestra)
 

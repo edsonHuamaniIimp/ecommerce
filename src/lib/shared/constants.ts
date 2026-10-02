@@ -731,6 +731,20 @@ export const PRECIOS_STAND_POR_TIPO: Record<string, number> = {
 /** Precio por defecto cuando el tipo de stand no esta en el catalogo. */
 export const PRECIO_STAND_DEFAULT = 2000;
 
+/**
+ * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
+ * `key` = clave normalizada que se persiste en `tipo_stand_imagen`; `alias` agrupa
+ * variantes del API externo ("ISLA" → ISLAS, "PREREFERENCIAL" → PREFERENCIAL).
+ */
+export const TIPOS_STAND_CATALOGO: { key: string; label: string; alias: string[] }[] = [
+  { key: "PREFERENCIAL", label: "Preferencial", alias: ["PREREFERENCIAL"] },
+  { key: "ESTANDAR_01", label: "Estandar", alias: ["ESTANDAR"] },
+  { key: "ESTANDAR_02", label: "Estandar 02", alias: [] },
+  { key: "ISLAS", label: "Isla", alias: ["ISLA"] },
+  { key: "INSTITUCIONAL", label: "Institucional", alias: [] },
+  { key: "ALAMEDA", label: "Alameda", alias: [] },
+];
+
 /* ================================================================
    Solicitudes de cuenta de exhibidor
    ================================================================ */
@@ -1298,6 +1312,12 @@ export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
   { key: "vigencia-poder", label: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)" },
   { key: "dni-representante", label: "DNI o Pasaporte del Representante Legal" },
 ];
+
+/**
+ * Anexos que **bloquean** el envío a revisión Legal (SGC) si faltan
+ * (decisión RF-13). La Ficha RUC se exige pero no bloquea.
+ */
+export const ANEXOS_BLOQUEANTES: string[] = ["vigencia-poder", "dni-representante"];
 
 /**
  * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:

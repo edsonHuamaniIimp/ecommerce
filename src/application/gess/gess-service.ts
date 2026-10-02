@@ -1,8 +1,10 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
+import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-imagen-repository";
 import { ESTADOS_STAND } from "@/lib/shared/constants";
 import { precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
+import { claveTipoStand } from "@/lib/shared/utils/tipo-stand";
 
 const TIPO_STAND_POR_NOMBRE: Record<string, string> = {
   Preferencial: "PREFERENCIAL",
@@ -22,14 +24,52 @@ export class GessApplicationService {
     private readonly repo: IGessRepository,
     private readonly api: IPlanogessClient,
     private readonly planoRepo: IPlanoRepository,
+    private readonly tiposImagenRepo: ITipoStandImagenRepository,
   ) {}
 
+  /** Mapa clave canonica del tipo → imagen referencial (RF-08). */
+  private async imagenesPorTipo(): Promise<Map<string, string>> {
+    const filas = await this.tiposImagenRepo.listar();
+    return new Map(filas.map((f) => [claveTipoStand(f.tipo) ?? f.tipo, f.imagenUrl]));
+  }
+
+  /** Agrega `tipoImagen` (imagen referencial del tipo) a un stand. */
+  private conTipoImagen<T extends { tipoStand: string | null }>(row: T, porTipo: Map<string, string>): T & { tipoImagen: string | null } {
+    const clave = claveTipoStand(row.tipoStand);
+    return { ...row, tipoImagen: clave ? (porTipo.get(clave) ?? null) : null };
+  }
+
   async listar(eventoId: string, params: { page: number; perPage: number; search?: string; estado?: string }) {
-    return this.repo.findAllPaginated(eventoId, params);
+    const result = await this.repo.findAllPaginated(eventoId, params);
+
+    /*
+     * RF-09: completa razon social y logo de los stands reservados desde la empresa/usuario
+     * que reservo (solicitud → user_role → empresa), porque el API externo no conoce las
+     * reservas hechas en este sistema.
+     */
+    const sinEmpresa = result.data.filter((d) => !d.empresa);
+    if (sinEmpresa.length > 0) {
+      const datos = await this.repo.datosEmpresaPorStands(sinEmpresa.map((d) => d.id));
+      if (datos.size > 0) {
+        result.data = result.data.map((d) => {
+          if (d.empresa) return d;
+          const reserva = datos.get(d.id);
+          return reserva ? { ...d, empresa: reserva.razonSocial, empresaLogo: reserva.logoUrl } : d;
+        });
+      }
+    }
+
+    /* RF-08: imagen referencial por tipo (una imagen por tipo, para todos sus stands). */
+    const porTipo = await this.imagenesPorTipo();
+    result.data = result.data.map((d) => this.conTipoImagen(d, porTipo));
+    return result;
   }
 
   async findByBloque(bloqueId: string) {
-    return this.repo.findByBloque(bloqueId);
+    const row = await this.repo.findByBloque(bloqueId);
+    if (!row) return row;
+    const porTipo = await this.imagenesPorTipo();
+    return this.conTipoImagen(row, porTipo);
   }
 
   async vincular(id: string, bloqueId: string | null) {

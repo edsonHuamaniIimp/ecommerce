@@ -89,4 +89,19 @@ export const planoEditorUtils = {
     }
     return out;
   },
+
+  /** Agrega un id a la seleccion multiple sin duplicar. */
+  agregarSeleccion(ids: string[], id: string): string[] {
+    return ids.includes(id) ? ids : [...ids, id];
+  },
+
+  /** Quita un id de la seleccion multiple. */
+  quitarSeleccion(ids: string[], id: string): string[] {
+    return ids.filter((x) => x !== id);
+  },
+
+  /** Desplaza un conjunto de posiciones por (dx, dz). */
+  desplazarGrupo(inicio: Array<{ id: string; x: number; z: number }>, dx: number, dz: number): Array<{ id: string; x: number; z: number }> {
+    return inicio.map((i) => ({ id: i.id, x: i.x + dx, z: i.z + dz }));
+  },
 };

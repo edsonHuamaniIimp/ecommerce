@@ -77,6 +77,10 @@ export interface GessStandEntity {
   medidas: string | null;
   estado: string | null;
   empresa: string | null;
+  /** Logo de la empresa/usuario que reservo el stand (solo en la respuesta de listar). */
+  empresaLogo?: string | null;
+  /** Imagen referencial del tipo de stand (solo en la respuesta de listar). */
+  tipoImagen?: string | null;
   bloqueId: string | null;
   email: string | null;
   userId: string | null;
@@ -183,7 +187,7 @@ export interface SolicitudRow {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; createdAt: Date }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: Date }>;
   updatedAt: Date;
   revisiones: RevisionEntity[];
   reevaluaciones: ReevaluacionEntity[];

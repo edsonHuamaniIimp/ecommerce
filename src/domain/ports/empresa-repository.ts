@@ -9,6 +9,7 @@ import type {
 export interface ActualizarEmpresaData {
   ruc?: string;
   razonSocial?: string;
+  logoUrl?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
   telefono?: string | null;

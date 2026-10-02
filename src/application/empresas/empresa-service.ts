@@ -110,6 +110,7 @@ export class EmpresaApplicationService {
     const data: CrearEmpresaData = {
       ruc,
       razonSocial,
+      logoUrl: limpiar(input.logoUrl),
       nombreComercial: limpiar(input.nombreComercial),
       direccionFiscal: limpiar(input.direccionFiscal),
       telefono: limpiar(input.telefono),
@@ -165,7 +166,7 @@ export class EmpresaApplicationService {
       cambios.tipoComprobante = validarTipoComprobante(input.tipoComprobante);
     }
 
-    for (const campo of ["nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "sitioWeb"] as const) {
+    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "sitioWeb"] as const) {
       if (input[campo] !== undefined) cambios[campo] = limpiar(input[campo]);
     }
 

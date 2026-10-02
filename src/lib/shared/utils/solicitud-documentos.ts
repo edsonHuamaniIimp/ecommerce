@@ -1,4 +1,4 @@
-import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 
 interface RevisionLike {
@@ -13,6 +13,7 @@ interface ReevaluacionLike {
 interface DocumentoLike {
   categoria?: string | null;
   userId?: string | null;
+  requisito?: string | null;
   createdAt?: string | Date | null;
 }
 
@@ -170,6 +171,37 @@ export function requiereDocsReevaluacion(s: SolicitudDocumentosGate): boolean {
     s.clienteDocsAdjuntosCount === 0 &&
     !reevaluacionPendiente
   );
+}
+
+/**
+ * Anexos requeridos que aun no tienen un archivo adjunto (se identifica por el
+ * `requisito` de cada documento). Devuelve las claves faltantes de `ANEXOS_REQUERIDOS`.
+ */
+export function anexosRequeridosFaltantes(
+  docs: DocumentoLike[] | null | undefined,
+  requeridos: { key: string }[] = ANEXOS_REQUERIDOS,
+): string[] {
+  const presentes = new Set(
+    (docs ?? [])
+      .filter((d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+      .map((d) => d.requisito)
+      .filter((r): r is string => Boolean(r)),
+  );
+  return requeridos.map((r) => r.key).filter((k) => !presentes.has(k));
+}
+
+/** Claves de los anexos **bloqueantes** (Vigencia de Poderes / DNI) que aun faltan. */
+export function anexosBloqueantesFaltantes(docs: DocumentoLike[] | null | undefined): string[] {
+  const bloqueantes = ANEXOS_REQUERIDOS.filter((a) => ANEXOS_BLOQUEANTES.includes(a.key));
+  return anexosRequeridosFaltantes(docs, bloqueantes);
+}
+
+/**
+ * True si falta algun anexo **bloqueante** (Vigencia de Poderes o DNI del
+ * representante legal): sin ellos no se puede enviar a revision Legal (RF-13).
+ */
+export function faltanAnexosBloqueantes(docs: DocumentoLike[] | null | undefined): boolean {
+  return anexosBloqueantesFaltantes(docs).length > 0;
 }
 
 /**

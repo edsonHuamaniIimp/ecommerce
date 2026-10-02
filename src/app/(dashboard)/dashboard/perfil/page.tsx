@@ -1,13 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Search, X, Loader2 } from "lucide-react";
+import { Building2, Search, X, Loader2, Image as ImageIcon, Upload } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { uploadService } from "@/lib/client/api/services/upload-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { MAESTRA_TABLAS } from "@/lib/shared/constants";
@@ -23,6 +24,9 @@ function PerfilPageContent() {
   const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
   const [tipoUsuarioId, setTipoUsuarioId] = useState<number | null>(null);
   const [, setTiposUsuario] = useState<MaestraItemDTO[]>([]);
   const [resetPassword, setResetPassword] = useState("");
@@ -49,6 +53,7 @@ function PerfilPageContent() {
       setNombre(perfilData.nombre ?? "");
       setApellidos(perfilData.apellidos ?? "");
       setTelefono(perfilData.telefono ?? "");
+      setLogoUrl(perfilData.logoUrl ?? "");
       setTipoUsuarioId(perfilData.tipoUsuarioId ?? null);
       setIdEmpresa(perfilData.idEmpresa ?? null);
       setNombreEmpresa(perfilData.nombreEmpresa ?? null);
@@ -60,10 +65,24 @@ function PerfilPageContent() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await perfilService.update({ nombre, apellidos, telefono, tipoUsuarioId, idEmpresa, nombreEmpresa });
+      await perfilService.update({ nombre, apellidos, telefono, tipoUsuarioId, idEmpresa, nombreEmpresa, logoUrl: logoUrl || null });
       toast.success("Perfil actualizado");
     } catch { toast.error("Error al guardar"); }
     setSaving(false);
+  };
+
+  const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSubiendoLogo(true);
+    try {
+      const url = await uploadService.subir(file);
+      setLogoUrl(url);
+    } catch {
+      toast.error("No se pudo subir el logo");
+    }
+    setSubiendoLogo(false);
   };
 
   const handleSearchEmpresa = async () => {
@@ -163,6 +182,29 @@ function PerfilPageContent() {
               <div className="space-y-1.5">
                 <Label htmlFor="telefono"><span>Telefono</span></Label>
                 <Input id="telefono" placeholder="999888777" maxLength={9} value={telefono} onChange={(e) => setTelefono(e.target.value.replace(/\D/g, "").slice(0, 9))} className="text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label><span>Logo personal (opcional)</span></Label>
+                <div className="flex items-center gap-3">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo personal" className="h-12 w-12 rounded-lg border bg-white object-contain p-1" />
+                  ) : (
+                    <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                      <ImageIcon className="h-4 w-4" />
+                    </span>
+                  )}
+                  <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void onLogoFile(e); }} />
+                  <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoLogo} onClick={() => logoRef.current?.click()}>
+                    {subiendoLogo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                    {logoUrl ? "Cambiar logo" : "Subir logo"}
+                  </Button>
+                  {logoUrl && (
+                    <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => setLogoUrl("")}>
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Tiene prioridad sobre el logo de tu empresa en los stands reservados del mapa.</p>
               </div>
             </CardContent>
           </Card>

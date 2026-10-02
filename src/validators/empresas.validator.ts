@@ -12,6 +12,7 @@ const textoOpcional = z.string().trim().max(250).optional().nullable();
 export const crearEmpresaSchema = z.object({
   ruc: z.string().trim().regex(REGEX_RUC, "El RUC debe tener 11 digitos"),
   razonSocial: z.string().trim().min(2, "La razon social es obligatoria").max(200),
+  logoUrl: z.string().max(500).optional().nullable(),
   nombreComercial: z.string().trim().max(200).optional().nullable(),
   direccionFiscal: textoOpcional,
   telefono: z.string().trim().max(30).optional().nullable(),

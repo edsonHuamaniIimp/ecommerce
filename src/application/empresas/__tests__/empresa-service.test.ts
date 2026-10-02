@@ -42,6 +42,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       id: data.id ?? `emp-${++this.seq}`,
       ruc: data.ruc,
       razonSocial: data.razonSocial,
+      logoUrl: data.logoUrl ?? null,
       nombreComercial: data.nombreComercial ?? null,
       direccionFiscal: data.direccionFiscal ?? null,
       telefono: data.telefono ?? null,

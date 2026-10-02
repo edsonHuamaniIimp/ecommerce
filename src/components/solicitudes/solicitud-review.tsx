@@ -19,7 +19,7 @@ import {
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { hayContratoAdminNuevoParaFirmar, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, hayContratoAdminNuevoParaFirmar, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
 import { toast } from "sonner";
@@ -397,6 +397,7 @@ export function SolicitudReview({
               tieneContratoAdmin={tieneContrato}
               tieneContratoAdminNuevo={tieneContratoAdminNuevo}
               tieneAnexos={anexosSolicitud.length > 0}
+              requisitosFaltantes={anexosBloqueantesFaltantes(row.docsAdjuntos)}
               tieneContratoFirmado={row.docsAdjuntos.some(
                 (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
               )}

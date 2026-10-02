@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import * as THREE from "three";
 import { PERSONA_COLORES_CABEZA, TIPOS_FURNITURE } from "@/lib/shared/constants";
 import { furnitureUtils } from "@/lib/shared/utils/furniture";
 import type { PlanoBounds, PlanoItem } from "@/lib/shared/planos/registry";
@@ -14,8 +16,60 @@ export interface FurnitureRenderItem {
 }
 
 /* ---------- Bloque ---------- */
-export function Bloque3D({ item, selected, reserved, onSelect }: {
-  item: PlanoItem; selected: boolean; reserved: boolean; onSelect: (id: string) => void;
+
+/**
+ * Carga imperativa de la textura del logo (sin Suspense): devuelve null mientras
+ * carga y la textura lista cuando termina.
+ */
+function useLogoTexture(url: string): THREE.Texture | null {
+  const [textura, setTextura] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    new THREE.TextureLoader().load(
+      url,
+      (t) => {
+        if (!vivo) return;
+        t.colorSpace = THREE.SRGBColorSpace;
+        setTextura(t);
+      },
+      undefined,
+      () => { /* si falla, se mantiene el color solido */ },
+    );
+    return () => { vivo = false; };
+  }, [url]);
+  return textura;
+}
+
+/** Materiales del bloque reservado con logo: caras laterales con textura, tapa/base solidas. */
+function MaterialesLogo({ url, colorFondo }: { url: string; colorFondo: string }) {
+  const textura = useLogoTexture(url);
+  /* Caras del box: 0=+X, 1=-X, 2=+Y (tapa), 3=-Y (base), 4=+Z, 5=-Z. */
+  return (
+    <>
+      {[0, 1, 4, 5].map((i) => (
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          map={textura ?? undefined}
+          color={textura ? "#ffffff" : colorFondo}
+          roughness={.7}
+          metalness={.05}
+        />
+      ))}
+      <meshStandardMaterial attach="material-2" color={colorFondo} roughness={.7} metalness={.05} />
+      <meshStandardMaterial attach="material-3" color={colorFondo} roughness={.7} metalness={.05} />
+    </>
+  );
+}
+
+export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, onSelect, onHover }: {
+  item: PlanoItem; selected: boolean; reserved: boolean;
+  /** Texto a mostrar al pasar el cursor (razon social de la empresa que reservo; RF-09). */
+  hoverText?: string | null;
+  /** Logo de la empresa/usuario a pintar en las caras del bloque reservado. */
+  logoUrl?: string | null;
+  onSelect: (id: string) => void;
+  onHover?: (info: { x: number; y: number; text: string } | null) => void;
 }) {
   const { w, d, h, color } = item.dim;
   return (
@@ -24,17 +78,27 @@ export function Bloque3D({ item, selected, reserved, onSelect }: {
       rotation={[0, item.rotY ?? 0, 0]}
       castShadow receiveShadow
       onClick={(e) => { e.stopPropagation(); onSelect(item.id); }}
-      onPointerOver={() => { document.body.style.cursor = "pointer"; }}
-      onPointerOut={() => { document.body.style.cursor = "auto"; }}
+      onPointerOver={(e) => {
+        document.body.style.cursor = "pointer";
+        if (hoverText && onHover) onHover({ x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, text: hoverText });
+      }}
+      onPointerMove={(e) => {
+        if (hoverText && onHover) onHover({ x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, text: hoverText });
+      }}
+      onPointerOut={() => { document.body.style.cursor = "auto"; onHover?.(null); }}
     >
       <boxGeometry args={[w - .15, h + (selected ? 0.6 : 0), d - .15]} />
-      <meshStandardMaterial
-        color={reserved ? "#9ca3af" : selected ? "#f59e0b" : color}
-        roughness={reserved ? .7 : .55}
-        metalness={.1}
-        emissive={selected ? "#f59e0b" : "#000000"}
-        emissiveIntensity={selected ? 0.3 : 0}
-      />
+      {reserved && logoUrl ? (
+        <MaterialesLogo url={logoUrl} colorFondo="#9ca3af" />
+      ) : (
+        <meshStandardMaterial
+          color={reserved ? "#9ca3af" : selected ? "#f59e0b" : color}
+          roughness={reserved ? .7 : .55}
+          metalness={.1}
+          emissive={selected ? "#f59e0b" : "#000000"}
+          emissiveIntensity={selected ? 0.3 : 0}
+        />
+      )}
     </mesh>
   );
 }

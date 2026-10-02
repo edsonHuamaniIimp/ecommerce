@@ -369,6 +369,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -378,6 +379,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -387,6 +389,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
       ],
@@ -417,6 +420,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -426,6 +430,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -435,6 +440,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
       ],
@@ -461,6 +467,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -470,6 +477,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: "cli@x.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
       ],
@@ -496,6 +504,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -505,6 +514,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: "contrato_firmado",
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -514,6 +524,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: "anexo",
+          requisito: null,
           createdAt: new Date(),
         },
       ],
@@ -546,6 +557,7 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -555,6 +567,7 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: "cli@x.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
       ],
@@ -581,6 +594,7 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
           userId: null,
           uploadedBy: "admin@iimp.org.pe",
           categoria: null,
+          requisito: null,
           createdAt: new Date(),
         },
         {
@@ -590,6 +604,7 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
           userId: "user-1",
           uploadedBy: null,
           categoria: "contrato_firmado",
+          requisito: null,
           createdAt: new Date(),
         },
       ],

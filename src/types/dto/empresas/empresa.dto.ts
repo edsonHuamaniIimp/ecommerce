@@ -3,6 +3,8 @@ export interface EmpresaDTO {
   id: string;
   ruc: string;
   razonSocial: string;
+  /** Logo (URL) que se pinta en los stands reservados del mapa. */
+  logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
   telefono: string | null;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { Building2, CalendarDays, HelpCircle, LifeBuoy, LogIn } from "lucide-react";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 interface PresalaHeaderProps {
   autenticado: boolean;
@@ -74,6 +75,8 @@ export function PresalaHeader({ autenticado, nombreUsuario, empresa, codigoEmpre
           </nav>
 
           <div className="hidden h-6 w-px bg-border sm:block" />
+
+          <LanguageSwitcher />
 
           {autenticado ? (
             <div className="flex items-center gap-3 pl-1">

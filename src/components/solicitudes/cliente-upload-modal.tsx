@@ -2,10 +2,10 @@
 
 import { useState, useRef } from "react";
 import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Upload, X, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, Upload, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { ANEXOS_REQUERIDOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {
@@ -16,41 +16,55 @@ interface Props {
   onSaved: () => void;
 }
 
+/** Archivo elegido aun no enviado: su URL y el requisito que cubre (null = otro anexo). */
+interface Pendiente {
+  url: string;
+  requisito: string | null;
+}
+
 export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
   const esContrato = modo === "contrato";
-  const [clienteDocs, setClienteDocs] = useState<string[]>([]);
+  const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const requisitoRef = useRef<string | null>(null);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
-      setClienteDocs(prev => [...prev, url]);
+      const requisito = esContrato ? null : requisitoRef.current;
+      setPendientes(prev => [...prev, { url, requisito }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
     setUploading(false);
   };
 
+  const abrirSelector = (requisito: string | null) => {
+    requisitoRef.current = requisito;
+    fileRef.current?.click();
+  };
+
   const handleRemove = (idx: number) => {
-    setClienteDocs(prev => prev.filter((_, i) => i !== idx));
+    setPendientes(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleEnviar = async () => {
-    if (clienteDocs.length === 0) return;
+    if (pendientes.length === 0) return;
     setSending(true);
     setError(null);
     try {
-      for (const url of clienteDocs) {
+      for (const p of pendientes) {
         await solicitudesService.uploadDocumento({
           solicitudId: solicitud.id,
-          url,
-          nombre: url.split("/").pop() ?? "documento",
+          url: p.url,
+          nombre: p.url.split("/").pop() ?? "documento",
           tipo: esContrato ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+          requisito: esContrato ? null : p.requisito,
         });
       }
       toast.success(esContrato ? "Contrato firmado enviado correctamente" : "Anexos enviados correctamente");
@@ -61,6 +75,17 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     }
     setSending(false);
   };
+
+  const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
+    .filter(d => d.userId !== solicitud.userId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const misDocs = (solicitud.docsAdjuntos ?? []).filter(
+    d =>
+      d.userId === solicitud.userId &&
+      (esContrato ? d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO),
+  );
+  const otrosDocs = misDocs.filter(d => !d.requisito);
+  const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -75,87 +100,114 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
             </p>
           ) : (
-            <>
-              <p className="text-[11px] font-semibold text-foreground">Documentos anexos requeridos por el SGC</p>
-              <ul className="mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
-                {ANEXOS_REQUERIDOS.map((a) => (
-                  <li key={a.key}>• {a.label}</li>
-                ))}
-              </ul>
-            </>
+            <p className="text-[11px] text-muted-foreground">
+              <span className="font-semibold text-foreground">Obligatorios para la revisión Legal:</span>{" "}
+              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite al SGC.
+            </p>
           )}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
-        {(() => {
-          const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
-            .filter(d => d.userId !== solicitud.userId)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId && (esContrato ? d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO));
-          return (
-            <>
-              {adminDocs.length > 0 && (
-                <div>
-                  <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
-                  <div className="space-y-1 rounded-md border bg-secondary p-2">
-                    {adminDocs.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
-                        <FileText className="h-3 w-3 text-muted-foreground" />
-                        <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
-                        {esContrato && i === 0 && (
-                          <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">versión más reciente</span>
-                        )}
-                        {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                      </div>
-                    ))}
-                  </div>
+        {adminDocs.length > 0 && (
+          <div>
+            <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
+            <div className="space-y-1 rounded-md border bg-secondary p-2">
+              {adminDocs.map((doc, i) => (
+                <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
+                  <FileText className="h-3 w-3 text-muted-foreground" />
+                  <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+                  {esContrato && i === 0 && (
+                    <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">versión más reciente</span>
+                  )}
+                  {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
                 </div>
-              )}
+              ))}
+            </div>
+          </div>
+        )}
 
-              <div>
-                <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Tus documentos anexos"}</Label>
-                {misDocs.length > 0 && (
-                  <div className="space-y-1 rounded-md border p-2 mb-2">
-                    {misDocs.map((doc, i) => (
-                      <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
-                        <FileText className="h-3 w-3 text-muted-foreground" />
-                        <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
-                        {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                        <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
-                          onClick={() => setDeleteConfirm(doc.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {clienteDocs.length > 0 && (
-                  <div className="space-y-1 rounded-md border p-2 mb-2">
-                    {clienteDocs.map((url, i) => (
-                      <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
-                        <FileText className="h-3 w-3 text-muted-foreground" />
-                        <span className="truncate flex-1">{url.split("/").pop()}</span>
-                        <button className="opacity-0 group-hover:opacity-100 text-red-500" onClick={() => handleRemove(i)}>
+        {!esContrato && (
+          <div>
+            <Label className="text-xs mb-1 block">Anexos requeridos</Label>
+            <div className="space-y-1">
+              {ANEXOS_REQUERIDOS.map((a) => {
+                const existente = misDocs.find(d => d.requisito === a.key);
+                const idxPendiente = pendientes.findIndex(p => p.requisito === a.key);
+                const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
+                return (
+                  <div key={a.key} className="flex items-center gap-2 rounded-md border px-2.5 py-2 text-xs">
+                    {existente
+                      ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="flex-1">
+                      {a.label}
+                      {ANEXOS_BLOQUEANTES.includes(a.key) && (
+                        <span className="ml-1 text-[10px] font-semibold text-red-500">obligatorio</span>
+                      )}
+                    </span>
+                    {existente ? (
+                      <a href={existente.url} target="_blank" className="shrink-0 text-primary hover:underline">Ver</a>
+                    ) : pendiente ? (
+                      <span className="flex shrink-0 items-center gap-1">
+                        <span className="text-[10px] font-medium text-emerald-600">Listo para enviar</span>
+                        <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
                           <X className="h-3 w-3" />
                         </button>
-                      </div>
-                    ))}
+                      </span>
+                    ) : (
+                      <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                        disabled={uploading} onClick={() => abrirSelector(a.key)}>
+                        Adjuntar
+                      </Button>
+                    )}
                   </div>
-                )}
-                <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUpload(file);
-                  e.target.value = "";
-                }} />
-                <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => fileRef.current?.click()}>
-                  <Upload className="mr-1 h-3 w-3" />
-                  {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar anexo"}
-                </Button>
-              </div>
-            </>
-          );
-        })()}
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Otros anexos (opcional)"}</Label>
+          {otrosDocs.length > 0 && (
+            <div className="space-y-1 rounded-md border p-2 mb-2">
+              {otrosDocs.map((doc) => (
+                <div key={doc.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
+                  <FileText className="h-3 w-3 text-muted-foreground" />
+                  <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+                  {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
+                  <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
+                    onClick={() => setDeleteConfirm(doc.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {pendientes.some(p => !p.requisito) && (
+            <div className="space-y-1 rounded-md border p-2 mb-2">
+              {pendientes.map((p, i) => p.requisito ? null : (
+                <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
+                  <FileText className="h-3 w-3 text-muted-foreground" />
+                  <span className="truncate flex-1">{p.url.split("/").pop()}</span>
+                  <button className="opacity-0 group-hover:opacity-100 text-red-500" onClick={() => handleRemove(i)}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file);
+            e.target.value = "";
+          }} />
+          <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => abrirSelector(null)}>
+            <Upload className="mr-1 h-3 w-3" />
+            {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro anexo"}
+          </Button>
+        </div>
 
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</div>
@@ -168,7 +220,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             Cancelar
           </Button>
           <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
-            disabled={sending || clienteDocs.length === 0} onClick={handleEnviar}>
+            disabled={sending || pendientes.length === 0} onClick={handleEnviar}>
             {sending ? "Enviando..." : esContrato ? "Enviar contrato firmado" : "Enviar anexos"}
           </Button>
         </div>

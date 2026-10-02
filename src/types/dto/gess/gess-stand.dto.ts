@@ -7,6 +7,10 @@ export interface GessStandDTO {
   medidas: string | null;
   estado: string | null;
   empresa: string | null;
+  /** Logo de la empresa/usuario que reservo el stand (se pinta en el mapa). */
+  empresaLogo?: string | null;
+  /** Imagen referencial del tipo de stand (RF-08). */
+  tipoImagen?: string | null;
   pabellon: string | null;
   ubicacion: string | null;
   rawData: unknown;

@@ -77,3 +77,26 @@ describe("planoEditorUtils.siguientesIdsBloque", () => {
     expect(planoEditorUtils.siguientesIdsBloque("BLOQUE-11", 1)).toEqual(["BLOQUE-11"]);
   });
 });
+
+describe("planoEditorUtils seleccion multiple", () => {
+  it("agrega un id nuevo", () => {
+    expect(planoEditorUtils.agregarSeleccion(["A"], "B")).toEqual(["A", "B"]);
+  });
+
+  it("no duplica al agregar un id existente", () => {
+    const actuales = ["A", "B"];
+    expect(planoEditorUtils.agregarSeleccion(actuales, "A")).toBe(actuales);
+  });
+
+  it("quita un id de la seleccion", () => {
+    expect(planoEditorUtils.quitarSeleccion(["A", "B", "C"], "B")).toEqual(["A", "C"]);
+  });
+
+  it("desplaza el grupo conservando las posiciones relativas", () => {
+    const inicio = [{ id: "A", x: 0, z: 0 }, { id: "B", x: 2.5, z: -1 }];
+    expect(planoEditorUtils.desplazarGrupo(inicio, 1.25, 0.5)).toEqual([
+      { id: "A", x: 1.25, z: 0.5 },
+      { id: "B", x: 3.75, z: -0.5 },
+    ]);
+  });
+});

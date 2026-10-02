@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useSgcExpediente } from "@/hooks/use-sgc-expediente";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
 import {
+  ANEXOS_REQUERIDOS,
   BADGE_STYLES,
   SGC_APPROVAL_MARK_LABELS,
   SGC_DOCUMENT_CATEGORIES,
@@ -39,6 +40,7 @@ export function SgcExpedientePanel({
   tieneContratoAdmin = false,
   tieneContratoAdminNuevo = false,
   tieneAnexos = false,
+  requisitosFaltantes = [],
   tieneContratoFirmado = false,
   motivo = null,
   modo = null,
@@ -53,6 +55,8 @@ export function SgcExpedientePanel({
   tieneContratoAdminNuevo?: boolean;
   /** Hay anexos adjuntos (documentos que no son el contrato). */
   tieneAnexos?: boolean;
+  /** Claves de ANEXOS_REQUERIDOS que faltan y **bloquean** el envío a Legal (RF-13). */
+  requisitosFaltantes?: string[];
   /** El cliente ya subió su contrato firmado. */
   tieneContratoFirmado?: boolean;
   /** Motivo (libre) de la corrección declarado por el administrador. */
@@ -70,6 +74,10 @@ export function SgcExpedientePanel({
   const [selModo, setSelModo] = useState<string | null>(null);
   const [guardandoMotivo, setGuardandoMotivo] = useState(false);
   const [reenviando, setReenviando] = useState(false);
+
+  /** Etiquetas de los anexos bloqueantes que faltan (Vigencia de Poderes / DNI; RF-13). */
+  const etiquetasFaltantes = ANEXOS_REQUERIDOS.filter((a) => requisitosFaltantes.includes(a.key)).map((a) => a.label);
+  const faltanBloqueantes = etiquetasFaltantes.length > 0;
 
   /* El GET de detalle persiste el estado en BD (sync-on-read); avisamos al padre
      una sola vez por montaje para que refresque la fila/step/orden de pago. */
@@ -389,14 +397,21 @@ export function SgcExpedientePanel({
             </p>
           )}
 
+          {!contratoEnviado && faltanBloqueantes && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
+              <AlertTriangle className="mr-1 inline h-3 w-3" />
+              Obligatorio para revisión Legal: falta adjuntar {etiquetasFaltantes.join(", ")}.
+            </p>
+          )}
+
           {!contratoEnviado && (
             <Button
               size="sm"
               variant="outline"
               className="w-full"
-              disabled={!tieneContratoAdmin || !tieneAnexos || enviandoContrato}
+              disabled={!tieneContratoAdmin || !tieneAnexos || faltanBloqueantes || enviandoContrato}
               onClick={enviarContrato}
-              title="Envía el contrato y los anexos juntos para la revisión del SGC"
+              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Envía el contrato y los anexos juntos para la revisión del SGC"}
             >
               {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
               Enviar al SGC para revisión
@@ -408,9 +423,9 @@ export function SgcExpedientePanel({
               size="sm"
               variant="outline"
               className="w-full"
-              disabled={enviandoContrato}
+              disabled={enviandoContrato || faltanBloqueantes}
               onClick={enviarContrato}
-              title="Vuelve a enviar los anexos que falten"
+              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Vuelve a enviar los anexos que falten"}
             >
               {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
               Enviar anexos faltantes

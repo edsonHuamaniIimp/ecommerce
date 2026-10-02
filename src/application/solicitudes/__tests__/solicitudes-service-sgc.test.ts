@@ -200,7 +200,7 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
-      "sol-1", "/uploads/firmado.pdf", "firmado.pdf", "user-1", "cliente@iimp.org.pe", "contrato_firmado",
+      "sol-1", "/uploads/firmado.pdf", "firmado.pdf", "user-1", "cliente@iimp.org.pe", "contrato_firmado", null,
     );
     expect(repo.crearAlertaRol).toHaveBeenCalledWith(expect.objectContaining({
       rol: ROLES.ADMIN,
