@@ -54,4 +54,39 @@ export const planoEditorUtils = {
       guiaZ: mejorZ?.valor ?? null,
     };
   },
+
+  /**
+   * Genera `cantidad` IDs consecutivos a partir de un ID base, evitando los ya existentes.
+   * - "BLOQUE-11" -> BLOQUE-11, BLOQUE-12, ... (mismo relleno de ceros)
+   * - "VIP4334"   -> VIP4334, VIP4335, ...
+   * - "MESA-A"    -> MESA-A-01, MESA-A-02, ...
+   */
+  siguientesIdsBloque(base: string, cantidad: number, existentes: Iterable<string> = []): string[] {
+    const usados = new Set(Array.from(existentes, (e) => e.trim().toUpperCase()));
+    const limpio = base.trim().toUpperCase();
+    const match = /^(.*?)(\d+)$/.exec(limpio);
+    let prefijo: string;
+    let numero: number;
+    let relleno: number;
+    if (match && match[1] !== undefined && match[2] !== undefined) {
+      prefijo = match[1];
+      numero = Number.parseInt(match[2], 10);
+      relleno = match[2].length;
+    } else {
+      prefijo = limpio ? `${limpio}-` : "BLOQUE-";
+      numero = 1;
+      relleno = 2;
+    }
+    const total = Math.max(1, Math.floor(cantidad));
+    const out: string[] = [];
+    let n = numero;
+    let intentos = 0;
+    while (out.length < total && intentos < total + 1000) {
+      const id = `${prefijo}${String(n).padStart(relleno, "0")}`;
+      if (!usados.has(id)) out.push(id);
+      n += 1;
+      intentos += 1;
+    }
+    return out;
+  },
 };

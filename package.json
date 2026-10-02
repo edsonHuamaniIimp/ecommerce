@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "pdf:worker": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\"",
-    "sgc:webhook": "node scripts/sgc-webhook-sim.mjs"
+    "sgc:webhook": "node scripts/sgc-webhook-sim.mjs",
+    "tipos:conflictos": "tsx scripts/tipos-globales-conflictos.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

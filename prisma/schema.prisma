@@ -749,6 +749,23 @@ model PlanoTipoBloque {
   @@map("plano_tipo_bloque")
 }
 
+model TipoBloqueGlobal {
+  id        String   @id @default(uuid())
+  codigo    String   @unique @db.VarChar(20)
+  label     String   @db.VarChar(20)
+  nombre    String   @db.VarChar(50)
+  w         Float    @db.Real
+  d         Float    @db.Real
+  h         Float    @db.Real
+  color     String   @db.VarChar(10)
+  ambito    String   @default("interno") @db.VarChar(10)
+  flgActivo Boolean  @default(true) @map("flg_activo")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("tipo_bloque_global")
+}
+
 model PlanoBloque {
   id         String   @id @default(uuid())
   planoId    String   @map("plano_id")

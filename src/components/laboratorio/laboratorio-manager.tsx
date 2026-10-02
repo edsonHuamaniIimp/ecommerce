@@ -5,7 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, Dialog, DialogContent, DialogHeader, DialogTitle, Badge, Checkbox } from "@nrivera-iimp/ui-kit-iimp";
-import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw, RotateCw, RefreshCw, Pencil } from "lucide-react";
+import { FlaskConical, Plus, Save, Upload, Trash2, Box, FileJson, FileCode2, RotateCcw, RotateCw, RefreshCw, Pencil, Download } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFurnitureDTO, PlanoTipoSugeridoDTO } from "@/types/dto/planos/planos-response.dto";
@@ -453,6 +453,31 @@ export function LaboratorioManager() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudieron guardar los tipos");
     }
+  };
+
+  /** Importa al mapa actual los tipos transversales (de otros mapas) que aun no existan. Devuelve cuantos agrego. */
+  const importarTiposSugeridos = async (): Promise<number> => {
+    const sugeridos = await planosService.tiposSugeridos();
+    const normalizar = (c: string) => c.trim().toUpperCase();
+    const existentes = new Set(tipos.map((t) => normalizar(t.codigo)));
+    const nuevos: EditTipo[] = sugeridos
+      .filter((s) => !existentes.has(normalizar(s.codigo)))
+      .map((s) => ({
+        codigo: s.codigo,
+        label: s.label,
+        nombre: s.nombre,
+        w: s.w,
+        d: s.d,
+        h: s.h,
+        color: s.color,
+        ambito: s.ambito,
+        flgActivo: true,
+      }));
+    if (nuevos.length === 0) return 0;
+    const todos = [...tipos, ...nuevos];
+    setTipos(todos);
+    void persistirTipos(todos);
+    return nuevos.length;
   };
 
   const usageDeTipo = (codigo: string) => bloques.filter((b) => b.tipoCodigo === codigo).length;
@@ -1145,7 +1170,18 @@ export function LaboratorioManager() {
       {/* DIALOG: Nuevo bloque */}
       <NuevoBloqueDialog open={nuevoBloqueOpen} onClose={() => setNuevoBloqueOpen(false)} tipos={tipos} bloques={bloques} tipoSugerido={ultimoTipoCreado}
         onCrearTipo={abrirNuevoTipo}
-        onAdd={(b) => { setBloques((prev) => [...prev, b]); setSelected({ kind: "bloque", id: b.bloqueId }); setDirty(true); setNuevoBloqueOpen(false); }} />
+        onImportarTipos={importarTiposSugeridos}
+        onAdd={(bs) => {
+  const usados = new Set(bloques.map((b) => b.bloqueId.trim().toUpperCase()));
+  const aceptados = bs.filter((b) => !usados.has(b.bloqueId.trim().toUpperCase()));
+  if (aceptados.length === 0) { toast.error("Los IDs ya existen"); return; }
+  if (aceptados.length < bs.length) toast.error(`${bs.length - aceptados.length} bloque(s) omitido(s): ID ya existente`);
+  setBloques((prev) => [...prev, ...aceptados]);
+  setSelected({ kind: "bloque", id: aceptados[aceptados.length - 1]?.bloqueId ?? "" });
+  setDirty(true);
+  setNuevoBloqueOpen(false);
+  if (aceptados.length > 1) toast.success(`${aceptados.length} bloques agregados — arrastralos a su posicion`);
+}} />
 
       {/* DIALOG: Export TS */}
       <Dialog open={tsExportOpen} onOpenChange={setTsExportOpen}>
@@ -1598,10 +1634,12 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
   );
 }
 
-function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd, onCrearTipo }: {
-  open: boolean; onClose: () => void; tipos: EditTipo[]; bloques: EditBloque[]; tipoSugerido?: string | null; onAdd: (b: EditBloque) => void; onCrearTipo: () => void;
+function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd, onCrearTipo, onImportarTipos }: {
+  open: boolean; onClose: () => void; tipos: EditTipo[]; bloques: EditBloque[]; tipoSugerido?: string | null; onAdd: (bs: EditBloque[]) => void; onCrearTipo: () => void; onImportarTipos: () => Promise<number>;
 }) {
   const [bloqueId, setBloqueId] = useState("");
+  const [cantidad, setCantidad] = useState(1);
+  const [importando, setImportando] = useState(false);
   const [tipoCodigo, setTipoCodigo] = useState("");
   const tipoCodigoRef = useRef(tipoCodigo);
   useEffect(() => { tipoCodigoRef.current = tipoCodigo; }, [tipoCodigo]);
@@ -1611,6 +1649,7 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd,
   useEffect(() => {
     (async () => {
       if (!open) return;
+      setCantidad(1);
       const actual = tipoCodigoRef.current;
       const sugeridoValido = tipoSugerido && tipos.some((t) => t.codigo === tipoSugerido) ? tipoSugerido : null;
       const actualValido = tipos.some((t) => t.codigo === actual) ? actual : null;
@@ -1628,13 +1667,64 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd,
     })();
   }, [open, tipos, bloques, tipoSugerido]);
 
+  const cantidadEfectiva = Math.max(1, Math.min(100, Math.floor(cantidad) || 1));
+  const idsPreview = useMemo(
+    () => planoEditorUtils.siguientesIdsBloque(bloqueId, cantidadEfectiva, bloques.map((b) => b.bloqueId)),
+    [bloqueId, cantidadEfectiva, bloques],
+  );
+  const idsResumen =
+    idsPreview.slice(0, 3).join(", ") +
+    (idsPreview.length > 3 ? ` … ${idsPreview[idsPreview.length - 1]}` : "");
+
+  const handleImportar = async () => {
+    setImportando(true);
+    try {
+      const n = await onImportarTipos();
+      if (n > 0) toast.success(`${n} tipo(s) importado(s) de otros mapas`);
+      else toast.info("No hay tipos nuevos para importar");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudieron importar los tipos");
+    } finally {
+      setImportando(false);
+    }
+  };
+
   const handleAdd = () => {
-    const id = bloqueId.trim().toUpperCase();
-    if (!id) { toast.error("ID requerido"); return; }
-    if (bloques.some((b) => b.bloqueId === id)) { toast.error("Ese ID ya existe"); return; }
     if (!tipoCodigo) { toast.error("Selecciona un tipo"); return; }
-    onAdd({ bloqueId: id, tipoCodigo, tipologia: TIPOLOGIAS_STAND.SIMPLE, x: 0, z: 0, rotY: 0, orden: bloques.length, flgActivo: true });
-    setBloqueId(""); setTipoCodigo("");
+    const baseLimpio = bloqueId.trim().toUpperCase();
+    const usados = new Set(bloques.map((b) => b.bloqueId.trim().toUpperCase()));
+    if (cantidadEfectiva === 1) {
+      if (!baseLimpio) { toast.error("ID requerido"); return; }
+      if (usados.has(baseLimpio)) { toast.error("Ese ID ya existe"); return; }
+    }
+    const ids = planoEditorUtils
+      .siguientesIdsBloque(baseLimpio, cantidadEfectiva, usados)
+      .filter((id) => !usados.has(id));
+    if (ids.length < cantidadEfectiva) {
+      toast.error(`Solo se pudieron generar ${ids.length} IDs unicos de ${cantidadEfectiva}`);
+      return;
+    }
+    const COLS = 5;
+    const ESPACIADO = 2.5;
+    const filas = Math.ceil(ids.length / COLS);
+    const nuevos: EditBloque[] = ids.map((id, i) => {
+      const col = i % COLS;
+      const fila = Math.floor(i / COLS);
+      const x = (col - (Math.min(ids.length, COLS) - 1) / 2) * ESPACIADO;
+      const z = (fila - (filas - 1) / 2) * ESPACIADO;
+      return {
+        bloqueId: id,
+        tipoCodigo,
+        tipologia: TIPOLOGIAS_STAND.SIMPLE,
+        x: snap(x),
+        z: snap(z),
+        rotY: 0,
+        orden: bloques.length + i,
+        flgActivo: true,
+      };
+    });
+    onAdd(nuevos);
+    setBloqueId(""); setTipoCodigo(""); setCantidad(1);
   };
 
   return (
@@ -1642,19 +1732,44 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd,
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle><span>Agregar bloque</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
-          <div>
-            <Label><span>ID del bloque</span></Label>
-            <Input className="text-xs font-mono" placeholder="BLOQUE-A1" value={bloqueId} onChange={(e) => setBloqueId(e.target.value)} />
-            <p className="text-[10px] text-slate-400 mt-0.5"><span>Este ID se usa para vincular con gess_stand.bloqueId</span></p>
+          <div className="grid grid-cols-[1fr_92px] gap-2">
+            <div>
+              <Label><span>ID del bloque</span></Label>
+              <Input className="text-xs font-mono" placeholder="BLOQUE-A1" value={bloqueId} onChange={(e) => setBloqueId(e.target.value)} />
+            </div>
+            <div>
+              <Label><span>Cantidad</span></Label>
+              <Input
+                className="text-xs"
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                value={cantidad}
+                onChange={(e) => setCantidad(Math.max(1, Math.min(100, Math.floor(Number(e.target.value)) || 1)))}
+              />
+            </div>
           </div>
+          {cantidadEfectiva > 1 ? (
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              <span>{`Se crearán ${idsPreview.length} bloques: ${idsResumen} (en cuadrícula, 5 por fila)`}</span>
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-400 mt-0.5"><span>Este ID se usa para vincular con gess_stand.bloqueId</span></p>
+          )}
           <div>
             <Label><span>Tipo</span></Label>
             {tipos.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center space-y-2">
                 <p className="text-[11px] text-amber-700"><span>Este mapa no tiene tipos de bloque.</span></p>
-                <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={onCrearTipo}>
-                  <Plus className="h-3 w-3 mr-1" /> <span>Crear tipo de bloque</span>
-                </Button>
+                <div className="flex flex-col gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={onCrearTipo}>
+                    <Plus className="h-3 w-3 mr-1" /> <span>Crear tipo de bloque</span>
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs rounded-full" onClick={handleImportar} disabled={importando}>
+                    <Download className="h-3 w-3 mr-1" /> <span>{importando ? "Importando..." : "Traer tipos de otros mapas"}</span>
+                  </Button>
+                </div>
               </div>
             ) : (
               <Select value={tipoCodigo} onValueChange={setTipoCodigo}>
@@ -1668,7 +1783,8 @@ function NuevoBloqueDialog({ open, onClose, tipos, bloques, tipoSugerido, onAdd,
             )}
           </div>
           <Button className="w-full rounded-full" onClick={handleAdd} disabled={tipos.length === 0}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> <span>Agregar en el centro (0, 0)</span>
+            <RotateCcw className="h-3.5 w-3.5 mr-1" />
+            <span>{cantidadEfectiva > 1 ? `Agregar ${idsPreview.length} bloques (cuadrícula)` : "Agregar en el centro (0, 0)"}</span>
           </Button>
         </div>
       </DialogContent>

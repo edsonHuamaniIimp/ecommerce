@@ -216,6 +216,16 @@ export const AMBITO_TIPO_BLOQUE_LABELS: Record<string, { label: string; nombre: 
 };
 
 /* ================================================================
+   Catalogo global de tipos de bloque
+   false = lectura por mapa (comportamiento actual)
+   true  = lectura/escritura desde tipo_bloque_global
+   Override local/CI: env TIPOS_BLOQUE_GLOBALES=1
+   ================================================================ */
+export const TIPOS_BLOQUE_GLOBALES = {
+  USAR_CATALOGO: process.env.TIPOS_BLOQUE_GLOBALES === "1",
+} as const;
+
+/* ================================================================
    Editor 3D del Laboratorio (snap y guias de apoyo)
    ================================================================ */
 export const EDITOR_PLANO = {

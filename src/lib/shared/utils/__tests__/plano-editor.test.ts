@@ -51,3 +51,29 @@ describe("planoEditorUtils.alinear", () => {
     expect(r).toEqual({ x: 1.25, z: -2.5, guiaX: null, guiaZ: null });
   });
 });
+
+describe("planoEditorUtils.siguientesIdsBloque", () => {
+  it("genera IDs consecutivos manteniendo el relleno", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("BLOQUE-11", 3)).toEqual(["BLOQUE-11", "BLOQUE-12", "BLOQUE-13"]);
+  });
+
+  it("evita IDs ya existentes", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("BLOQUE-11", 2, ["BLOQUE-11", "BLOQUE-12"])).toEqual(["BLOQUE-13", "BLOQUE-14"]);
+  });
+
+  it("funciona con prefijo sin guion", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("VIP4334", 2)).toEqual(["VIP4334", "VIP4335"]);
+  });
+
+  it("agrega correlativo con relleno cuando no hay numero final", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("MESA-A", 2)).toEqual(["MESA-A-01", "MESA-A-02"]);
+  });
+
+  it("usa BLOQUE-01 como base si el ID esta vacio", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("", 2)).toEqual(["BLOQUE-01", "BLOQUE-02"]);
+  });
+
+  it("cantidad 1 devuelve solo el ID base", () => {
+    expect(planoEditorUtils.siguientesIdsBloque("BLOQUE-11", 1)).toEqual(["BLOQUE-11"]);
+  });
+});

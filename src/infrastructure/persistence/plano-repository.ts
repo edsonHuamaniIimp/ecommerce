@@ -1,9 +1,11 @@
 import 'server-only';
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
-import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
+import { normalizarCodigoTipo, planSincronizacionCatalogo } from "@/lib/shared/utils/catalogo-tipos";
 
 interface PlanoTipoRow {
   id: string;
@@ -179,6 +181,9 @@ export class PlanoPrismaRepository implements IPlanoRepository {
     for (const a of asignaciones) {
       if (a.plano) asignMap.set(a.plano, { tipoEvento: a.tipoEvento, codigoEvento: a.codigoEvento });
     }
+    const tiposGlobales = TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO
+      ? await prisma.tipoBloqueGlobal.count({ where: { flgActivo: true } })
+      : null;
     return rows.map((r) => ({
       id: r.id,
       codigo: r.codigo,
@@ -186,7 +191,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       descripcion: r.descripcion,
       tipo: r.tipo,
       bloquesCount: r._count.bloques,
-      tiposCount: r._count.tipos,
+      tiposCount: tiposGlobales ?? r._count.tipos,
       flgActivo: r.flgActivo,
       eventoAsignado: asignMap.get(r.codigo) ?? null,
       updatedAt: r.updatedAt,
@@ -194,7 +199,9 @@ export class PlanoPrismaRepository implements IPlanoRepository {
   }
 
   async listarTiposSugeridos(): Promise<PlanoTipoSugerido[]> {
+    if (TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO) return this.listarTiposSugeridosDesdeCatalogo();
     const rows = await prisma.planoTipoBloque.findMany({
+      where: { flgActivo: true },
       include: {
         _count: { select: { bloques: true } },
         plano: { select: { codigo: true } },
@@ -228,14 +235,99 @@ export class PlanoPrismaRepository implements IPlanoRepository {
     return [...map.values()].sort((a, b) => b.bloquesCount - a.bloquesCount || a.codigo.localeCompare(b.codigo));
   }
 
+  private async listarTiposSugeridosDesdeCatalogo(): Promise<PlanoTipoSugerido[]> {
+    const [rows, bloquesPorCodigo, planosPorCodigo] = await Promise.all([
+      prisma.tipoBloqueGlobal.findMany({
+        where: { flgActivo: true },
+        orderBy: { updatedAt: "desc" },
+        take: 500,
+      }),
+      prisma.planoBloque.groupBy({ by: ["tipoCodigo"], _count: { _all: true } }),
+      prisma.planoTipoBloque.groupBy({ by: ["codigo"], _count: { _all: true } }),
+    ]);
+    const bloques = new Map(bloquesPorCodigo.map((r) => [r.tipoCodigo.trim().toUpperCase(), r._count._all]));
+    const planos = new Map(planosPorCodigo.map((r) => [r.codigo.trim().toUpperCase(), r._count._all]));
+    return rows
+      .map((r): PlanoTipoSugerido => {
+        const key = r.codigo.trim().toUpperCase();
+        return {
+          codigo: r.codigo,
+          label: r.label,
+          nombre: r.nombre,
+          w: r.w,
+          d: r.d,
+          h: r.h,
+          color: r.color,
+          ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
+          planoCodigo: "catalogo-global",
+          planosCount: planos.get(key) ?? 0,
+          bloquesCount: bloques.get(key) ?? 0,
+        };
+      })
+      .sort((a, b) => b.bloquesCount - a.bloquesCount || a.codigo.localeCompare(b.codigo));
+  }
+
   async detalle(id: string): Promise<PlanoEntity | null> {
     const r = await prisma.plano.findUnique({ where: { id }, include: FULL_INCLUDE });
-    return r ? mapPlano(r) : null;
+    if (!r) return null;
+    const entidad = mapPlano(r);
+    return TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO ? { ...entidad, tipos: await this.tiposDesdeCatalogo(entidad.id) } : entidad;
   }
 
   async detallePorCodigo(codigo: string): Promise<PlanoEntity | null> {
     const r = await prisma.plano.findUnique({ where: { codigo }, include: FULL_INCLUDE });
-    return r ? mapPlano(r) : null;
+    if (!r) return null;
+    const entidad = mapPlano(r);
+    return TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO ? { ...entidad, tipos: await this.tiposDesdeCatalogo(entidad.id) } : entidad;
+  }
+
+  private async tiposDesdeCatalogo(planoId: string): Promise<PlanoTipoBloqueEntity[]> {
+    const rows = await prisma.tipoBloqueGlobal.findMany({ orderBy: { codigo: "asc" } });
+    return rows.map((g) => ({
+      id: g.id,
+      planoId,
+      codigo: g.codigo,
+      label: g.label,
+      nombre: g.nombre,
+      w: g.w,
+      d: g.d,
+      h: g.h,
+      color: g.color,
+      ambito: g.ambito,
+      flgActivo: g.flgActivo,
+    }));
+  }
+
+  private async usoGlobalTipos(tx: Prisma.TransactionClient): Promise<Map<string, number>> {
+    const rows = await tx.planoBloque.groupBy({ by: ["tipoCodigo"], _count: { _all: true } });
+    return new Map(rows.map((r) => [normalizarCodigoTipo(r.tipoCodigo), r._count._all]));
+  }
+
+  private async sincronizarCatalogo(
+    tx: Prisma.TransactionClient,
+    tipos: Array<Omit<PlanoTipoBloqueEntity, "id" | "planoId">>,
+  ): Promise<void> {
+    const existentes = await tx.tipoBloqueGlobal.findMany();
+    const codigoAlmacenado = new Map(existentes.map((e) => [normalizarCodigoTipo(e.codigo), e.codigo]));
+    const plan = planSincronizacionCatalogo(
+      existentes.map((e) => ({ codigo: e.codigo, label: e.label, nombre: e.nombre, w: e.w, d: e.d, h: e.h, color: e.color, ambito: e.ambito, flgActivo: e.flgActivo })),
+      tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo })),
+      await this.usoGlobalTipos(tx),
+    );
+    for (const t of plan.altas) {
+      await tx.tipoBloqueGlobal.create({ data: { ...t, codigo: normalizarCodigoTipo(t.codigo) } });
+    }
+    for (const t of plan.cambios) {
+      const original = codigoAlmacenado.get(normalizarCodigoTipo(t.codigo));
+      if (!original) continue;
+      await tx.tipoBloqueGlobal.update({
+        where: { codigo: original },
+        data: { codigo: normalizarCodigoTipo(t.codigo), label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
+      });
+    }
+    if (plan.desactivar.length > 0) {
+      await tx.tipoBloqueGlobal.updateMany({ where: { codigo: { in: plan.desactivar } }, data: { flgActivo: false } });
+    }
   }
 
   async planosDeEvento(tipoEvento: number, codigoEvento: number): Promise<PlanoEntity[]> {
@@ -330,6 +422,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
           },
         });
       }
+      if (TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO) await this.sincronizarCatalogo(tx, data.tipos);
 
       await tx.planoFurniture.deleteMany({ where: { planoId: id } });
       for (const f of data.furniture) {
@@ -359,6 +452,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       for (const b of bloques) {
         await tx.planoBloque.update({ where: { id: b.id }, data: { tipoId: tipoIdMap.get(b.tipoCodigo) ?? null } });
       }
+      if (TIPOS_BLOQUE_GLOBALES.USAR_CATALOGO) await this.sincronizarCatalogo(tx, tipos);
     });
     const result = await this.detalle(id);
     if (!result) throw new Error("Plano no encontrado despues de guardar tipos");
