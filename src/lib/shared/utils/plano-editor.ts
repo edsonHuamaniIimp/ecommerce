@@ -104,4 +104,42 @@ export const planoEditorUtils = {
   desplazarGrupo(inicio: Array<{ id: string; x: number; z: number }>, dx: number, dz: number): Array<{ id: string; x: number; z: number }> {
     return inicio.map((i) => ({ id: i.id, x: i.x + dx, z: i.z + dz }));
   },
+
+  /**
+   * Rota un grupo alrededor de un centro (radianes, rotacion three.js sobre Y):
+   * gira las posiciones y suma el mismo delta a la orientacion de cada bloque.
+   */
+  rotarGrupo(
+    inicio: Array<{ id: string; x: number; z: number; rotY: number }>,
+    centro: { x: number; z: number },
+    dTheta: number,
+  ): Array<{ id: string; x: number; z: number; rotY: number }> {
+    const cos = Math.cos(dTheta);
+    const sin = Math.sin(dTheta);
+    return inicio.map((i) => {
+      const dx = i.x - centro.x;
+      const dz = i.z - centro.z;
+      return {
+        id: i.id,
+        x: centro.x + dx * cos + dz * sin,
+        z: centro.z - dx * sin + dz * cos,
+        rotY: i.rotY + dTheta,
+      };
+    });
+  },
+
+  /**
+   * Rotacion comun (grados normalizados 0-360) si todos los valores coinciden; null si hay mixtas.
+   * Los valores de entrada son radianes (rotY).
+   */
+  rotacionComunGrados(valores: number[]): number | null {
+    if (valores.length === 0) return null;
+    const normalizar = (rad: number) => (((rad * GRADOS_POR_RADIAN) % 360) + 360) % 360;
+    const primero = Math.round(normalizar(valores[0]!) * 100) / 100;
+    const iguales = valores.every((v) => {
+      const g = normalizar(v);
+      return Math.abs(g - primero) < 0.01 || Math.abs(g - primero - 360) < 0.01 || Math.abs(g - primero + 360) < 0.01;
+    });
+    return iguales ? primero : null;
+  },
 };

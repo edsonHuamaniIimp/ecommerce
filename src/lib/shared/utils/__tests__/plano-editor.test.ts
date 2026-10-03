@@ -100,3 +100,53 @@ describe("planoEditorUtils seleccion multiple", () => {
     ]);
   });
 });
+
+describe("planoEditorUtils.rotarGrupo", () => {
+  const grados = Math.PI / 180;
+
+  it("rota 90 grados alrededor del centro y gira la orientacion", () => {
+    const inicio = [
+      { id: "A", x: 2, z: 0, rotY: 0 },
+      { id: "B", x: 0, z: 2, rotY: grados * 30 },
+    ];
+    const r = planoEditorUtils.rotarGrupo(inicio, { x: 0, z: 0 }, grados * 90);
+    expect(r[0]!.x).toBeCloseTo(0, 6);
+    expect(r[0]!.z).toBeCloseTo(-2, 6);
+    expect(r[1]!.x).toBeCloseTo(2, 6);
+    expect(r[1]!.z).toBeCloseTo(0, 6);
+    expect(r[0]!.rotY).toBeCloseTo(grados * 90, 6);
+    expect(r[1]!.rotY).toBeCloseTo(grados * 120, 6);
+  });
+
+  it("rota alrededor de un centro desplazado", () => {
+    const inicio = [{ id: "A", x: 12, z: 8, rotY: 0 }];
+    const r = planoEditorUtils.rotarGrupo(inicio, { x: 10, z: 8 }, grados * 90);
+    expect(r[0]!.x).toBeCloseTo(10, 6);
+    expect(r[0]!.z).toBeCloseTo(6, 6);
+  });
+
+  it("delta 0 no cambia nada", () => {
+    const inicio = [{ id: "A", x: 3.25, z: -1.5, rotY: 0.7 }];
+    expect(planoEditorUtils.rotarGrupo(inicio, { x: 1, z: 1 }, 0)).toEqual(inicio);
+  });
+});
+
+describe("planoEditorUtils.rotacionComunGrados", () => {
+  const rad = (g: number) => (g * Math.PI) / 180;
+
+  it("devuelve la rotacion normalizada cuando todos coinciden", () => {
+    expect(planoEditorUtils.rotacionComunGrados([rad(90), rad(90), rad(450)])).toBe(90);
+  });
+
+  it("devuelve null cuando hay rotaciones mixtas", () => {
+    expect(planoEditorUtils.rotacionComunGrados([rad(0), rad(45)])).toBeNull();
+  });
+
+  it("devuelve null sin valores", () => {
+    expect(planoEditorUtils.rotacionComunGrados([])).toBeNull();
+  });
+
+  it("trata como iguales los extremos del rango 0/360", () => {
+    expect(planoEditorUtils.rotacionComunGrados([rad(0), rad(359.995)])).toBe(0);
+  });
+});

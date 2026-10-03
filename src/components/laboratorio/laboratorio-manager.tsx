@@ -35,7 +35,8 @@ type ObjetoKind = "bloque" | "furniture";
 type DragState =
   | { mode: "move"; kind: ObjetoKind; id: string; offsetX: number; offsetZ: number }
   | { mode: "move-multi"; ids: string[]; primaryId: string; offsetX: number; offsetZ: number; inicio: Array<{ id: string; x: number; z: number }>; yaEstaba: boolean }
-  | { mode: "rotate"; kind: ObjetoKind; id: string; centerX: number; centerZ: number; inicioRad: number; inicioAngulo: number };
+  | { mode: "rotate"; kind: ObjetoKind; id: string; centerX: number; centerZ: number; inicioRad: number; inicioAngulo: number }
+  | { mode: "rotate-multi"; ids: string[]; centerX: number; centerZ: number; inicioAngulo: number; inicio: Array<{ id: string; x: number; z: number; rotY: number }> };
 
 function EditorBloque({ bloque, dim, selected, multiSelected, inactive, onPointerDown }: {
   bloque: EditBloque;
@@ -310,7 +311,38 @@ export function LaboratorioManager() {
     return out;
   }, [bloquesVisibles, furnitureVisibles]);
 
-  
+  /** Manija de rotacion para el grupo en seleccion multiple (centroide + radio). */
+  const grupoHandle = useMemo(() => {
+    if (!multiSeleccion || bloquesMulti.length === 0) return null;
+    const seleccionados = bloques.filter((b) => bloquesMulti.includes(b.bloqueId) && (mostrarEliminados || b.flgActivo !== false));
+    if (seleccionados.length === 0) return null;
+    const x = seleccionados.reduce((s, b) => s + b.x, 0) / seleccionados.length;
+    const z = seleccionados.reduce((s, b) => s + b.z, 0) / seleccionados.length;
+    const radio = Math.max(...seleccionados.map((b) => Math.hypot(b.x - x, b.z - z))) + 1.2;
+    return { x, z, radio };
+  }, [multiSeleccion, bloquesMulti, bloques, mostrarEliminados]);
+
+  /** Rotacion comun del grupo en grados; null si los seleccionados tienen valores mixtos. */
+  const rotacionGrupo = useMemo(() => {
+    if (!multiSeleccion || bloquesMulti.length === 0) return null;
+    const seleccionados = bloques.filter((b) => bloquesMulti.includes(b.bloqueId));
+    return planoEditorUtils.rotacionComunGrados(seleccionados.map((b) => b.rotY ?? 0));
+  }, [multiSeleccion, bloquesMulti, bloques]);
+
+  /** Aplica la misma rotacion absoluta (grados) a todos los bloques seleccionados, sin moverlos. */
+  const aplicarRotacionGrupo = (grados: number) => {
+    if (!Number.isFinite(grados)) return;
+    const rotY = planoEditorUtils.aRadianes(grados);
+    setBloques((prev) => prev.map((b) => (bloquesMulti.includes(b.bloqueId) ? { ...b, rotY } : b)));
+    setDirty(true);
+  };
+
+  /** Suma un delta de grados a la orientacion de cada bloque seleccionado, sin moverlos. */
+  const aplicarRotacionGrupoDelta = (delta: number) => {
+    const dRad = planoEditorUtils.aRadianes(delta);
+    setBloques((prev) => prev.map((b) => (bloquesMulti.includes(b.bloqueId) ? { ...b, rotY: (b.rotY ?? 0) + dRad } : b)));
+    setDirty(true);
+  };
 
   const startDrag = (kind: ObjetoKind, id: string, pointX: number, pointZ: number) => {
     const item = kind === "bloque" ? bloques.find((b) => b.bloqueId === id) : furniture.find((f) => f.refId === id);
@@ -361,8 +393,42 @@ export function LaboratorioManager() {
     else startDrag("bloque", bloqueId, pointX, pointZ);
   };
 
+  /** Inicia la rotacion del grupo seleccionado alrededor de su centroide. */
+  const startRotateMulti = (pointX: number, pointZ: number) => {
+    const seleccionados = bloques.filter((b) => bloquesMulti.includes(b.bloqueId));
+    if (seleccionados.length === 0) return;
+    const centerX = seleccionados.reduce((s, b) => s + b.x, 0) / seleccionados.length;
+    const centerZ = seleccionados.reduce((s, b) => s + b.z, 0) / seleccionados.length;
+    dragMovidoRef.current = false;
+    setDragging({
+      mode: "rotate-multi",
+      ids: seleccionados.map((b) => b.bloqueId),
+      centerX,
+      centerZ,
+      inicioAngulo: Math.atan2(pointZ - centerZ, pointX - centerX),
+      inicio: seleccionados.map((b) => ({ id: b.bloqueId, x: b.x, z: b.z, rotY: b.rotY ?? 0 })),
+    });
+  };
+
   const moveDrag = (pointX: number, pointZ: number, shift: boolean) => {
     if (!dragging) return;
+    if (dragging.mode === "rotate-multi") {
+      const angulo = Math.atan2(pointZ - dragging.centerZ, pointX - dragging.centerX);
+      const paso = shift ? EDITOR_PLANO.SNAP_ROTACION_MAYOR_GRADOS : EDITOR_PLANO.SNAP_ROTACION_GRADOS;
+      const deltaGrados = planoEditorUtils.snapGrados(planoEditorUtils.aGrados(angulo - dragging.inicioAngulo), paso);
+      const porId = new Map(
+        planoEditorUtils
+          .rotarGrupo(dragging.inicio, { x: dragging.centerX, z: dragging.centerZ }, planoEditorUtils.aRadianes(-deltaGrados))
+          .map((r) => [r.id, r]),
+      );
+      dragMovidoRef.current = true;
+      setBloques((prev) => prev.map((b) => {
+        const r = porId.get(b.bloqueId);
+        return r ? { ...b, x: snap(r.x), z: snap(r.z), rotY: r.rotY } : b;
+      }));
+      setDirty(true);
+      return;
+    }
     if (dragging.mode === "move-multi") {
       const nx = snap(pointX + dragging.offsetX);
       const nz = snap(pointZ + dragging.offsetZ);
@@ -889,12 +955,29 @@ export function LaboratorioManager() {
                   </mesh>
                 </group>
               )}
+              {grupoHandle && (
+                <group position={[grupoHandle.x, 0, grupoHandle.z]}>
+                  <mesh position={[grupoHandle.radio / 2, 0.05, 0]}>
+                    <boxGeometry args={[grupoHandle.radio, 0.02, 0.03]} />
+                    <meshBasicMaterial color="#3b82f6" />
+                  </mesh>
+                  <mesh
+                    position={[grupoHandle.radio, 0.2, 0]}
+                    onPointerDown={(e) => { e.stopPropagation(); startRotateMulti(e.point.x, e.point.z); }}
+                    onPointerOver={() => { document.body.style.cursor = "grab"; }}
+                    onPointerOut={() => { document.body.style.cursor = "auto"; }}
+                  >
+                    <sphereGeometry args={[0.18, 16, 16]} />
+                    <meshBasicMaterial color="#3b82f6" />
+                  </mesh>
+                </group>
+              )}
               <DragManager dragging={dragging} onMove={moveDrag} onEnd={endDrag} />
               <OrbitControls makeDefault enabled={!dragging} target={camPos.target} maxPolarAngle={Math.PI / 2.15} minDistance={5} maxDistance={150} />
             </Canvas>
           )}
           <div className="absolute left-2 top-2 rounded-md bg-white/80 backdrop-blur px-2 py-1 text-[10px] text-slate-500 pointer-events-none">
-            <span>{multiSeleccion ? "Selección múltiple: clic agrega o quita bloques — arrastra cualquiera para mover el grupo" : "Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)"}</span>
+            <span>{multiSeleccion ? "Selección múltiple: clic agrega o quita bloques — arrastra para mover el grupo o usa la manija azul para girarlo (Shift = 15°)" : "Arrastra tipos o decoraciones al mapa — mueve con drag, gira con la manija (Shift = 15°)"}</span>
           </div>
         </div>
 
@@ -905,12 +988,35 @@ export function LaboratorioManager() {
             <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 space-y-2">
               <p className="text-xs font-semibold text-slate-700"><span>Selección múltiple</span></p>
               <p className="text-[11px] text-slate-500">
-                <span>{bloquesMulti.length === 0 ? "Haz clic en los bloques para seleccionarlos; arrastra cualquiera para mover el grupo." : `${bloquesMulti.length} bloque(s) seleccionado(s). Arrastra cualquiera para moverlos juntos.`}</span>
+                <span>{bloquesMulti.length === 0 ? "Haz clic en los bloques para seleccionarlos; luego puedes moverlos, girarlos con la manija azul o fijar su rotación." : `${bloquesMulti.length} bloque(s) seleccionado(s). Arrastra para moverlos, usa la manija azul o edita la rotación.`}</span>
               </p>
               {bloquesMulti.length > 0 && (
-                <Button size="sm" variant="outline" className="h-7 w-full rounded-full text-xs" onClick={() => setBloquesMulti([])}>
-                  <span>Limpiar selección</span>
-                </Button>
+                <div className="space-y-1.5">
+                  <div>
+                    <Label className="text-[10px]"><span>Rotación (grados)</span></Label>
+                    <div className="flex items-center gap-1">
+                      <Input className="h-7 text-xs flex-1" type="number" step={EDITOR_PLANO.SNAP_ROTACION_GRADOS}
+                        disabled={rotacionGrupo === null}
+                        placeholder={rotacionGrupo === null ? "mixto" : undefined}
+                        value={rotacionGrupo === null ? "" : Math.round(rotacionGrupo)}
+                        onChange={(e) => { if (e.target.value === "") return; aplicarRotacionGrupo(Number(e.target.value)); }} />
+                      <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar -90 (sin mover)"
+                        onClick={() => aplicarRotacionGrupoDelta(-90)}>
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 w-7 p-0" title="Girar +90 (sin mover)"
+                        onClick={() => aplicarRotacionGrupoDelta(90)}>
+                        <RotateCw className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    {rotacionGrupo === null && (
+                      <p className="text-[10px] text-slate-400 mt-0.5"><span>Todos los bloques deben compartir la misma rotación para editarla en grupo.</span></p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 w-full rounded-full text-xs" onClick={() => setBloquesMulti([])}>
+                    <span>Limpiar selección</span>
+                  </Button>
+                </div>
               )}
             </div>
           )}
