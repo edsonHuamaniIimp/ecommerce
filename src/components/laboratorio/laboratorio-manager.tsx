@@ -344,6 +344,26 @@ export function LaboratorioManager() {
     setDirty(true);
   };
 
+  /** Gira el grupo seleccionado alrededor de su centro (posiciones + orientaciones). Requiere rotacion comun. */
+  const rotarGrupoEje = (grados: number) => {
+    if (rotacionGrupo === null) return;
+    const seleccionados = bloques.filter((b) => bloquesMulti.includes(b.bloqueId));
+    if (seleccionados.length === 0) return;
+    const centro = {
+      x: seleccionados.reduce((s, b) => s + b.x, 0) / seleccionados.length,
+      z: seleccionados.reduce((s, b) => s + b.z, 0) / seleccionados.length,
+    };
+    const inicio = seleccionados.map((b) => ({ id: b.bloqueId, x: b.x, z: b.z, rotY: b.rotY ?? 0 }));
+    const girados = new Map(
+      planoEditorUtils.rotarGrupo(inicio, centro, planoEditorUtils.aRadianes(grados)).map((r) => [r.id, r]),
+    );
+    setBloques((prev) => prev.map((b) => {
+      const r = girados.get(b.bloqueId);
+      return r ? { ...b, x: snap(r.x), z: snap(r.z), rotY: r.rotY } : b;
+    }));
+    setDirty(true);
+  };
+
   const startDrag = (kind: ObjetoKind, id: string, pointX: number, pointZ: number) => {
     const item = kind === "bloque" ? bloques.find((b) => b.bloqueId === id) : furniture.find((f) => f.refId === id);
     if (!item) return;
@@ -1010,8 +1030,25 @@ export function LaboratorioManager() {
                       </Button>
                     </div>
                     {rotacionGrupo === null && (
-                      <p className="text-[10px] text-slate-400 mt-0.5"><span>Todos los bloques deben compartir la misma rotación para editarla en grupo.</span></p>
+                      <p className="text-[10px] text-slate-400 mt-0.5"><span>Todos los bloques deben compartir la misma rotación para editar el grado o girar el grupo sobre su eje.</span></p>
                     )}
+                  </div>
+                  <div>
+                    <Label className="text-[10px]"><span>Girar grupo sobre su eje</span></Label>
+                    <div className="flex gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7 flex-1 rounded-full text-xs"
+                        disabled={rotacionGrupo === null}
+                        onClick={() => rotarGrupoEje(-90)}
+                        title="Gira todo el grupo alrededor de su centro (mueve posiciones y orientaciones)">
+                        <RotateCcw className="h-3 w-3 mr-1" /> <span>Grupo 90°</span>
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 flex-1 rounded-full text-xs"
+                        disabled={rotacionGrupo === null}
+                        onClick={() => rotarGrupoEje(90)}
+                        title="Gira todo el grupo alrededor de su centro (mueve posiciones y orientaciones)">
+                        <RotateCw className="h-3 w-3 mr-1" /> <span>Grupo 90°</span>
+                      </Button>
+                    </div>
                   </div>
                   <Button size="sm" variant="outline" className="h-7 w-full rounded-full text-xs" onClick={() => setBloquesMulti([])}>
                     <span>Limpiar selección</span>
