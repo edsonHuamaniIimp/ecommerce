@@ -2,8 +2,9 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
-import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, TIPOS_FACTURACION, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud } from "@/domain/models/entities";
+import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, IDIOMAS, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
@@ -82,6 +83,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
 
   let standCode = "";
   let standCodes: string[] = [];
+  let standsDetalle: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }> = [];
   let tipoStand: string | null = null;
   let medidas: string | null = null;
   let empresa: string | null = null;
@@ -103,6 +105,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     if (stand) {
       standCode = stand.standCode;
       standCodes = [standCode];
+      standsDetalle = [{ standCode: stand.standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
       standApiId = stand.standApiId;
       empresaMontajistaId = stand.montajistaId;
       empresaMontajistaNombre = stand.montajistaNombre;
@@ -124,6 +127,24 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       include: { gessStand: true },
     });
     standCodes = stands.map((s) => s.gessStand.standCode);
+    standsDetalle = stands.map((s) => ({ standCode: s.gessStand.standCode, bloqueId: s.gessStand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }));
+    /* Plano (pabellon) de cada bloque, para agrupar ubicaciones por pabellon. */
+    const bloquesReserva = standsDetalle.map((s) => s.bloqueId).filter((v): v is string => Boolean(v));
+    if (bloquesReserva.length > 0) {
+      const bloquesPlano = await prisma.planoBloque.findMany({
+        where: { bloqueId: { in: bloquesReserva } },
+        select: { bloqueId: true, plano: { select: { id: true, codigo: true, nombre: true } } },
+        orderBy: { plano: { updatedAt: "desc" } },
+      });
+      const planoPorBloque = new Map<string, { id: string; codigo: string; nombre: string }>();
+      for (const b of bloquesPlano) {
+        if (!planoPorBloque.has(b.bloqueId) && b.plano) planoPorBloque.set(b.bloqueId, b.plano);
+      }
+      standsDetalle = standsDetalle.map((s) => {
+        const p = s.bloqueId ? (planoPorBloque.get(s.bloqueId) ?? null) : null;
+        return { ...s, planoId: p?.id ?? null, planoCodigo: p?.codigo ?? null, planoNombre: p?.nombre ?? null };
+      });
+    }
     standCode = standCodes.join(", ");
     precio = stands.reduce((sum, s) => sum + resolverPrecioStand(s.gessStand), 0);
     const firstStand = stands[0];
@@ -170,6 +191,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     gessStandId,
     standCode,
     standCodes,
+    standsDetalle,
     tipoStand,
     medidas,
     empresa,
@@ -184,6 +206,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     empresaMontajistaId,
     empresaMontajistaNombre,
     estado,
+    recortePlanoUrl: row.recortePlanoUrl ?? null,
+    planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,
     documentos,
@@ -195,9 +219,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     updatedAt: row.updatedAt,
     revisiones,
     reevaluaciones,
-    revisionComunicacion: revisiones.find((r) => r.area === REVISION_AREAS.COMUNICACION) ?? null,
+    revisionAsociado: revisiones.find((r) => r.area === REVISION_AREAS.ASOCIADO) ?? null,
     revisionLegal: revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null,
-    revisionLogistica: revisiones.find((r) => r.area === REVISION_AREAS.LOGISTICA) ?? null,
     tieneFacturacion: row.facturaciones.length > 0,
     tipoFacturacion: row.facturaciones[0]?.tipo ?? null,
     facturacionId: row.facturaciones[0]?.id ?? null,
@@ -352,8 +375,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return created.id;
   }
 
-  async crearAlertaReserva(data: { userId: string; tipo: string; titulo: string; mensaje: string; url?: string }): Promise<void> {
-    await prisma.alerta.create({ data });
+  async crearAlertaReserva(data: { userId: string; tipo: string; clave: string; datos: unknown; url?: string }): Promise<void> {
+    const { titulo, mensaje } = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
+    await prisma.alerta.create({
+      data: { userId: data.userId, tipo: data.tipo, titulo, mensaje, clave: data.clave, datos: data.datos as never, url: data.url },
+    });
   }
 
   async crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity> {
@@ -495,36 +521,42 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.solicitudDocumento.update({ where: { id: docId }, data: { flgActivo: false } });
   }
 
-  async crearAlertaRevision(data: { rol: string; solicitudId: string; titulo: string; mensaje: string; standCodes: string }) {
+  async crearAlertaRevision(data: { rol: string; solicitudId: string; clave: string; datos: unknown }) {
     const usuarios = await prisma.userRole.findMany({
       where: { role: { nombre: data.rol } },
       select: { userId: true },
     });
+    const render = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
     for (const u of usuarios) {
       await prisma.alerta.create({
         data: {
           userId: u.userId,
           tipo: "revision_pendiente",
-          titulo: data.titulo,
-          mensaje: data.mensaje,
+          titulo: render.titulo,
+          mensaje: render.mensaje,
+          clave: data.clave,
+          datos: data.datos as never,
           url: `${APP_URL}/dashboard/solicitudes?id=${data.solicitudId}`,
         },
       });
     }
   }
 
-  async crearAlertaRol(data: { rol: string; tipo: string; titulo: string; mensaje: string; url: string }) {
+  async crearAlertaRol(data: { rol: string; tipo: string; clave: string; datos: unknown; url: string }) {
     const usuarios = await prisma.userRole.findMany({
       where: { role: { nombre: data.rol } },
       select: { userId: true },
     });
+    const render = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
     for (const u of usuarios) {
       await prisma.alerta.create({
         data: {
           userId: u.userId,
           tipo: data.tipo,
-          titulo: data.titulo,
-          mensaje: data.mensaje,
+          titulo: render.titulo,
+          mensaje: render.mensaje,
+          clave: data.clave,
+          datos: data.datos as never,
           url: data.url,
         },
       });
@@ -538,5 +570,39 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     });
     if (!u?.nombre) return null;
     return [u.nombre, u.apellidos].filter(Boolean).join(" ") || u.nombre;
+  }
+
+  /** RF-08: persiste la URL de la imagen del recorte del pabellon de la solicitud. */
+  async guardarRecortePlano(solicitudId: string, url: string): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { recortePlanoUrl: url },
+    });
+  }
+
+  /** RF-10/11: snapshot del plan de cuotas configurado por el cliente. */
+  async guardarPlanCuotas(solicitudId: string, plan: PlanCuotasSolicitud): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { planCuotas: plan as never },
+    });
+  }
+
+  /**
+   * RF-11: un unico contrato generado por el sistema por solicitud (idempotente).
+   * Si ya existe uno vigente lo actualiza; si no, lo crea como `categoria = contrato`.
+   */
+  async upsertContratoSistema(solicitudId: string, url: string, nombre: string): Promise<void> {
+    const existente = await prisma.solicitudDocumento.findFirst({
+      where: { solicitudId, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, uploadedBy: "sistema", flgActivo: true },
+      select: { id: true },
+    });
+    if (existente) {
+      await prisma.solicitudDocumento.update({ where: { id: existente.id }, data: { url, nombre } });
+      return;
+    }
+    await prisma.solicitudDocumento.create({
+      data: { solicitudId, url, nombre, uploadedBy: "sistema", userId: null, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO },
+    });
   }
 }

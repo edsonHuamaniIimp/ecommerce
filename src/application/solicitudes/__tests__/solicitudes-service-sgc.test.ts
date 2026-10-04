@@ -51,6 +51,9 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     crearAlertaRevision: vi.fn().mockResolvedValue(undefined),
     crearAlertaRol: vi.fn().mockResolvedValue(undefined),
     findNombreUsuario: vi.fn().mockResolvedValue(null),
+    guardarRecortePlano: vi.fn(),
+    guardarPlanCuotas: vi.fn(),
+    upsertContratoSistema: vi.fn(),
   };
 }
 
@@ -125,9 +128,8 @@ function detalleMultistand(overrides: Partial<SolicitudRow> = {}): SolicitudRow 
     updatedAt: new Date("2026-09-15T00:00:00.000Z"),
     revisiones: [],
     reevaluaciones: [],
-    revisionComunicacion: null,
+    revisionAsociado: null,
     revisionLegal: null,
-    revisionLogistica: null,
     tieneFacturacion: false,
     tipoFacturacion: null,
     facturacionId: null,
@@ -142,29 +144,29 @@ function detalleMultistand(overrides: Partial<SolicitudRow> = {}): SolicitudRow 
 }
 
 describe("SolicitudesApplicationService + SGC", () => {
-  it("deberia delegar al SGC al aprobar Comunicacion (ultima area local)", async () => {
+  it("deberia delegar al SGC al aprobar Asociado (unico nivel local)", async () => {
     const sgc = sgcMock();
-    const svc = new SolicitudesApplicationService(repoMock(REVISION_AREAS.COMUNICACION, RESULTADOS_APROBACION.APROBADO), sgc);
+    const svc = new SolicitudesApplicationService(repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO), sgc);
 
     await svc.revisar({
       solicitudId: "sol-1",
-      area: REVISION_AREAS.COMUNICACION,
+      area: REVISION_AREAS.ASOCIADO,
       estado: RESULTADOS_APROBACION.APROBADO,
-      reviewerEmail: "comunicacion@iimp.org.pe",
+      reviewerEmail: "asociado@iimp.org.pe",
     });
 
     expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
   });
 
-  it("deberia no disparar si el area no es Comunicacion", async () => {
+  it("deberia no disparar si Asociado aun queda pendiente", async () => {
     const sgc = sgcMock();
-    const svc = new SolicitudesApplicationService(repoMock(REVISION_AREAS.LOGISTICA, RESULTADOS_APROBACION.APROBADO), sgc);
+    const svc = new SolicitudesApplicationService(repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE), sgc);
 
     await svc.revisar({
       solicitudId: "sol-1",
-      area: REVISION_AREAS.LOGISTICA,
-      estado: RESULTADOS_APROBACION.APROBADO,
-      reviewerEmail: "logistica@iimp.org.pe",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.PENDIENTE,
+      reviewerEmail: "asociado@iimp.org.pe",
     });
 
     expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
@@ -185,7 +187,7 @@ describe("SolicitudesApplicationService + SGC", () => {
   });
 
   it("deberia alertar al admin cuando el cliente sube el contrato firmado", async () => {
-    const repo = repoMock(REVISION_AREAS.LOGISTICA, RESULTADOS_APROBACION.PENDIENTE);
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
     repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
     const svc = new SolicitudesApplicationService(repo, sgcMock());
 
@@ -210,7 +212,7 @@ describe("SolicitudesApplicationService + SGC", () => {
   });
 
   it("no deberia alertar al admin cuando el cliente sube anexos", async () => {
-    const repo = repoMock(REVISION_AREAS.LOGISTICA, RESULTADOS_APROBACION.PENDIENTE);
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
     repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
     const svc = new SolicitudesApplicationService(repo, sgcMock());
 

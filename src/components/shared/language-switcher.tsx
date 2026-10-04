@@ -17,17 +17,12 @@ import {
 } from "@/lib/shared/constants";
 import type { Idioma } from "@/lib/shared/constants";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
+import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
 
 /** Escribe las cookies de preferencia y de Google Translate (fuera del render). */
 function escribirCookiesIdioma(idioma: Idioma): void {
   document.cookie = `${IDIOMA_COOKIE}=${idioma};path=/;max-age=${IDIOMA_COOKIE_MAX_AGE}`;
   document.cookie = `${GOOGTRANS_COOKIE}=${GOOGTRANS_VALUES[idioma]};path=/`;
-}
-
-/** Lee la cookie de idioma actual (solo cliente). */
-function leerCookieIdioma(): string | null {
-  const match = document.cookie.split("; ").find((c) => c.startsWith(`${IDIOMA_COOKIE}=`));
-  return match ? match.slice(IDIOMA_COOKIE.length + 1) : null;
 }
 
 /** La cookie no emite eventos: la suscripcion es un no-op (el cambio recarga la pagina). */
@@ -71,7 +66,7 @@ export function LanguageSwitcher({ idiomaActual }: { idiomaActual?: string | nul
   const router = useRouter();
   // En vistas publicas (sin prop) el idioma real vive en la cookie; el snapshot de
   // servidor es null para no romper la hidratacion.
-  const cookieIdioma = useSyncExternalStore(suscribirCookieIdioma, leerCookieIdioma, () => null);
+  const cookieIdioma = useSyncExternalStore(suscribirCookieIdioma, leerIdiomaCookie, () => null);
   const [optimista, setOptimista] = useState<Idioma | null>(null);
   const actual = optimista ?? idiomaODefecto(cookieIdioma ?? idiomaActual);
 

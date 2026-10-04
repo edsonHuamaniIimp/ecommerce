@@ -23,8 +23,8 @@ documentos y sirve el detalle sin llamar a nadie.
 ## 2. Flujo a probar (happy path)
 
 1. Login y crear/abrir una **solicitud** en `/dashboard/solicitudes`.
-2. Revisar **Logística** → **Comunicación** (aprobar).
-   - Al aprobar Comunicación se crea el expediente (mock) y el paso **"Legal (SGC)"** se activa.
+2. Revisar el nivel **Asociado** (aprobar).
+   - Al aprobar Asociado se crea el expediente (mock) y el paso **"Legal (SGC)"** se activa.
 3. En el modal/detalle, sección **"Revisión Legal (SGC)"**:
    - **Enviar contrato (v1) al SGC** (usa el documento del **admin**).
    - **Enviar anexos al SGC** (usa los documentos del **cliente**).

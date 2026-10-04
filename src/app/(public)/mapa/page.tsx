@@ -24,6 +24,8 @@ function MapaDinamicoPageContent() {
   const openReserva = searchParams.get("openReserva") === "1";
   const codigoParam = searchParams.get("codigo");
   const parentParam = searchParams.get("parent");
+  /** RF-08: bloque del stand a preseleccionar (resuelve el pabellon si no viene `codigo`). */
+  const bloqueParam = searchParams.get("bloque");
 
   // Seed desde el cache de sesion: al volver del pabellon al macro no se ve skeleton.
   const [cacheInicial] = useState(() => {
@@ -85,11 +87,18 @@ function MapaDinamicoPageContent() {
       planoVisitaCache.eventoMarcar({ eventoId: eid, tipoEvento: te ?? 0, codigoEvento: ce ?? 0 });
 
       try {
+        let codigoEfectivo = codigoParam;
+        if (!codigoEfectivo && bloqueParam) {
+          try {
+            const ubicacion = await planosService.ubicacion(bloqueParam);
+            codigoEfectivo = ubicacion.plano.codigo;
+          } catch { /* el bloque no tiene plano: carga el plano principal del evento */ }
+        }
         const data = await planosService.publico({
-          ...(codigoParam ? { codigo: codigoParam } : { tipoEvento: te, codigoEvento: ce }),
+          ...(codigoEfectivo ? { codigo: codigoEfectivo } : { tipoEvento: te, codigoEvento: ce }),
           eventoId: eid,
         });
-        planoVisitaCache.payloadMarcar(codigoParam ?? `${te}-${ce}`, data);
+        planoVisitaCache.payloadMarcar(codigoEfectivo ?? `${te}-${ce}`, data);
         setPayload(data);
         setPlanoId(data?.codigo ?? null);
       } catch {
@@ -101,7 +110,7 @@ function MapaDinamicoPageContent() {
       }
       setLoading(false);
     })();
-  }, [openReserva, codigoParam, cacheInicial]);
+  }, [openReserva, codigoParam, bloqueParam, cacheInicial]);
 
   if (loading || !eventoId) return <MapaSkeleton />;
 
@@ -151,7 +160,7 @@ function MapaDinamicoPageContent() {
             nombrePlano={payload.nombre}
           />
         ) : (
-          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} parentCodigo={parentParam} />
+          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} parentCodigo={parentParam} bloqueInicial={bloqueParam} />
         )}
       </div>
     </main>

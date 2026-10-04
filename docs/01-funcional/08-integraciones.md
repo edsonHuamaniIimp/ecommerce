@@ -11,7 +11,7 @@ consume el estado del workflow jurídico.
 
 - Puertos: `ISgcClient`, `ISgcRepository`, `ISgcWebhookRepository`.
 - Servicios: `SgcIntegracionApplicationService`, `SgcWebhookApplicationService`.
-- **Disparo**: al aprobar **Comunicación** (primera vez) se crea el expediente (`solicitudes-service.ts:43-45`; `SGC_TRIGGER_REVISION_AREA = COMUNICACION`).
+- **Disparo**: al aprobar **Asociado** (nivel local; RF-14/15) se crea el expediente (`solicitudes-service.ts:113-115`; `SGC_TRIGGER_REVISION_AREA = ASOCIADO`).
 - **Idempotencia**: `Idempotency-Key` determinista `stands/reserva/{solicitudId}`; inbox `SgcWebhookEvento.eventId @unique`.
 - **Firma webhook**: `x-sgc-signature` = `t=<unix>,v1=<HMAC_SHA256(secret, timestamp.cuerpo_crudo)>`, tolerancia 300 s, comparación en tiempo constante.
 - **Eventos**: `workflow.started` (no-op), `workflow.advanced` (stage), `workflow.returned` (observed), `workflow.approved` (active/finalized), `workflow.rejected` (rejected), `contract.closed` (finalized).

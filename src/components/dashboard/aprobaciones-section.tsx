@@ -26,8 +26,7 @@ export function AprobacionesSection({ reservas }: AprobacionesSectionProps) {
           </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Reservas pendientes de revision por {REVISION_AREA_LABELS[REVISION_AREAS.LOGISTICA]} y{" "}
-          {REVISION_AREA_LABELS[REVISION_AREAS.COMUNICACION]}.
+          Reservas pendientes de revision por {REVISION_AREA_LABELS[REVISION_AREAS.ASOCIADO]}.
         </p>
       </CardHeader>
       <CardContent className="pt-4">

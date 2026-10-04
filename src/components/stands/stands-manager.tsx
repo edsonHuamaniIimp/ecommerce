@@ -433,7 +433,8 @@ export function StandsManager({ eventoId }: { eventoId: string }) {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle><span>Imágenes por tipo de stand</span></DialogTitle></DialogHeader>
           <p className="text-xs text-muted-foreground">
-            La imagen de un tipo se usa como referencia en <strong>todos los stands de ese tipo</strong> en el mapa.
+            La imagen de un tipo se usa como referencia en <strong>todos los stands de ese tipo</strong> del
+            evento activo. Si un tipo no tiene imagen en este evento, se usa la <strong>global</strong> de respaldo.
           </p>
           {tiposLoading ? (
             <p className="py-6 text-center text-xs text-muted-foreground">Cargando...</p>

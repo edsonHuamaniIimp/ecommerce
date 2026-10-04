@@ -12,6 +12,8 @@ interface PerfilDTO {
   nombreEmpresa?: string | null;
   /** Logo propio del usuario (URL); prioridad sobre el de su empresa en el mapa. */
   logoUrl?: string | null;
+  /** Firma digital del usuario (imagen); se usa para firmar contratos desde el portal. */
+  firmaUrl?: string | null;
 }
 
 export type { PerfilDTO };

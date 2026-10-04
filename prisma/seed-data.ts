@@ -3,16 +3,18 @@
  * ejecutarse dentro de la imagen ECS standalone (`Dockerfile.ecs`) que no copia `src/`.
  */
 export const ROLES_SEED: { nombre: string; descripcion: string; permisos: string[] }[] = [
-  { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "empresas:view", "empresas:manage", "dashboard:view", "eventos:datos", "stands:vinculacion", "stands:manage", "stands:plano", "roles:manage", "events:manage", "events:create", "events:edit", "events:toggle", "read:reservas", "mis-reservas:view", "write:reservas", "approve:all", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion", "solicitudes:review:legal", "solicitudes:review:logistica", "solicitudes:notify", "solicitudes:upload", "auspicios:view", "laboratorio:view", "laboratorio:manage", "facturacion:view", "pagos:view", "pagos:manage"] },
-  { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:logistica"] },
+  { nombre: "admin", descripcion: "Administrador del sistema", permisos: ["admin:full", "empresas:view", "empresas:manage", "dashboard:view", "eventos:datos", "stands:vinculacion", "stands:manage", "stands:plano", "roles:manage", "events:manage", "events:create", "events:edit", "events:toggle", "read:reservas", "mis-reservas:view", "write:reservas", "approve:all", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado", "solicitudes:review:legal", "solicitudes:notify", "solicitudes:upload", "auspicios:view", "laboratorio:view", "laboratorio:manage", "facturacion:view", "pagos:view", "pagos:manage"] },
+  { nombre: "asociado", descripcion: "Area de Asociados (revision previa a Legal)", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"] },
+  { nombre: "logistica", descripcion: "Area de Logistica", permisos: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"] },
   { nombre: "legal", descripcion: "Area Legal", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"] },
-  { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion"] },
+  { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion"] },
   { nombre: "cliente", descripcion: "Cliente expositor", permisos: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"] },
 ];
 
 export const USUARIOS_SEED: { email: string; role: string; password: string; nombre: string; apellidos: string }[] = [
   { email: "admin@iimp.org.pe", role: "admin", password: "admin123", nombre: "Admin", apellidos: "IIMP" },
   { email: "test.admin@iimp.org.pe", role: "admin", password: "test123", nombre: "Admin", apellidos: "Test" },
+  { email: "asociado@iimp.org.pe", role: "asociado", password: "asociado123", nombre: "Ana", apellidos: "Asociados" },
   { email: "logistica@iimp.org.pe", role: "logistica", password: "logistica123", nombre: "Carlos", apellidos: "Logistica" },
   { email: "test.logistica@iimp.org.pe", role: "logistica", password: "test123", nombre: "Carlos", apellidos: "Test Logistica" },
   { email: "legal@iimp.org.pe", role: "legal", password: "legal123", nombre: "Maria", apellidos: "Legal" },

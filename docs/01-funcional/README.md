@@ -36,9 +36,10 @@ Roles definidos en `src/lib/shared/constants.ts:195-201`:
 | Rol | Descripción | Permisos principales |
 |---|---|---|
 | `admin` | Acceso total (`admin:full`, bypass en `hasPermission`) | todo |
-| `logistica` | Revisa solicitudes (área Logística) y gestiona stands | `dashboard:view`, `stands:manage`, `stands:plano`, `solicitudes:review:logistica`, `auspicios:view` |
+| `asociado` | Revisa solicitudes en el **nivel Asociado** (previo a Legal; unifica Logística + Comunicación) | `dashboard:view`, `stands:plano`, `solicitudes:review:asociado`, `auspicios:view` |
+| `logistica` | Gestiona stands (ya no revisa solicitudes) | `dashboard:view`, `stands:manage`, `stands:plano`, `auspicios:view` |
 | `legal` | Revisa solicitudes (área Legal) | `dashboard:view`, `stands:plano`, `solicitudes:review:legal`, `auspicios:view` |
-| `comunicacion` | Revisa solicitudes (área Comunicación, última local) | `dashboard:view`, `stands:plano`, `solicitudes:review:comunicacion`, `auspicios:view` |
+| `comunicacion` | Rol legacy (ya no revisa solicitudes) | `dashboard:view`, `stands:plano`, `auspicios:view` |
 | `cliente` | Empresa exhibidora: reserva, consulta sus solicitudes y configura su plan de pagos | `eventos:datos`, `solicitudes:view`, `stands:plano`, `read:reservas`, `write:reservas`, `pagos:view`, `pagos:manage` |
 
 Matriz completa en `ROLES_PERMISSIONS` (`src/lib/shared/constants.ts:205-235`) y catálogo de

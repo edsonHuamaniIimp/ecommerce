@@ -11,7 +11,7 @@
 ```mermaid
 flowchart LR
   Cliente["Cliente / Expositor"] --> App["ContratosStands (Next.js)"]
-  Areas["Áreas IIMP (Logística, Comunicación)"] --> App
+  Areas["Revisores IIMP (nivel Asociado)"] --> App
 
   App -->|"API Bearer + Webhooks HMAC"| SGC["SGC — Sistema de Gestión de Contratos"]
   App -->|"tipos de evento · eventos · auspicios"| KB["KBServicios (IIMP)"]
@@ -61,9 +61,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  Sol["Solicitud creada"] --> Log["Logística (local)"]
-  Log --> Com["Comunicación (local)"]
-  Com -->|aprueba| SGC["SGC: internal-review Legal → approval Gerencia"]
+  Sol["Solicitud creada"] --> Log["Asociado (local; unifica Logística + Comunicación)"]
+  Log -->|aprueba| SGC["SGC: internal-review Legal → approval Gerencia"]
   SGC -->|"workflow.approved (active)"| Vig["Contrato VIGENTE"]
   Vig --> OP["Generar orden de pago"]
   SGC -->|"workflow.returned"| Sub["Subsanar (misma pieza, nuevo versionId)"]

@@ -10,7 +10,7 @@ orden de lectura recomendado.
 
 | Carpeta | Contexto | Documentos |
 |---|---|---|
-| [`00-inicio/`](./00-inicio) | Negocio y alcance | `resumen-ejecutivo.md`, `requerimientos.md`, `flujos.md`, `requerimientos-portal-empresas.md`, `plan-idiomas.md` |
+| [`00-inicio/`](./00-inicio) | Negocio y alcance | `resumen-ejecutivo.md`, `requerimientos.md`, `flujos.md`, `requerimientos-portal-empresas.md`, `plan-idiomas.md`, `spike-recorte-plano.md`, `plan-contrato-cuotas.md` |
 | [`01-funcional/`](./01-funcional) | Funcionalidad implementada | `README.md` + un documento por módulo |
 | [`02-despliegue/`](./02-despliegue) | Despliegue e infraestructura AWS | `despliegue.md`, `arquitectura-aws.md`, `aws-terraform.md`, `REGLAS-DESPLIEGUE.md`, `arquitectura-preview.html` |
 | [`03-arquitectura/`](./03-arquitectura) | Arquitectura y estándares | `vision-general.md`, `arquitectura.md`, `stack-tecnologico.md`, `modelo-datos.md`, `convenciones-codigo.md`, `DESIGN.md` |
@@ -29,6 +29,8 @@ orden de lectura recomendado.
 | [flujos.md](./00-inicio/flujos.md) | Flujos de negocio y procesos técnicos |
 | [requerimientos-portal-empresas.md](./00-inicio/requerimientos-portal-empresas.md) | Requerimientos 2026 (portal único, empresas, contrato, revisión y comprobante): análisis de brecha, decisiones pendientes y fases |
 | [plan-idiomas.md](./00-inicio/plan-idiomas.md) | Plan ES/EN: Google Translate en el portal, plantillas de correo/documentos por idioma y estado de idioma |
+| [spike-recorte-plano.md](./00-inicio/spike-recorte-plano.md) | Spike RF-08: identificación stand→plano, render 2D del recorte (preview + imagen de contrato) y link al mapa con stand preseleccionado |
+| [plan-contrato-cuotas.md](./00-inicio/plan-contrato-cuotas.md) | Plan RF-10/11/12: decisiones, motor de contrato (plantilla etiquetada, IGV, modalidades, recortes por pabellón) y pendientes (wizard, firma, cuotas automáticas) |
 
 ### 01 — Funcional
 | Documento | Contenido |

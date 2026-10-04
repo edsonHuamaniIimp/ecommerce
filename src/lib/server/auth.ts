@@ -7,7 +7,17 @@ import type { Rol } from "../shared/constants";
 import type { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret-cambiar-en-produccion");
+/** Clave de firma JWT: obligatoria en produccion (fail-fast); en local/test usa fallback. */
+function resolverJwtSecret(): Uint8Array {
+  const valor = process.env.JWT_SECRET;
+  if (valor && valor.length >= 16) return new TextEncoder().encode(valor);
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET es obligatorio (minimo 16 caracteres) en produccion");
+  }
+  return new TextEncoder().encode("dev-secret-cambiar-en-produccion");
+}
+
+const SECRET = resolverJwtSecret();
 const ISSUER = "contratos-stands";
 const AUDIENCE = "contratos-stands-api";
 

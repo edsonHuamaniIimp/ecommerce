@@ -19,6 +19,6 @@ export const reservaController = {
     if (!result.ok) {
       return error(API_ERROR_CODES.CONFLICT, "Algunos stands ya estan reservados", 409);
     }
-    return success({ ok: true, message: result.message });
+    return success({ ok: true, message: result.message, solicitudId: result.solicitudId ?? null });
   },
 };

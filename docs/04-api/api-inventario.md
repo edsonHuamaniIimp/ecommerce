@@ -64,7 +64,7 @@
 | `/api/solicitudes/listar` | GET | Lista paginada con filtros `eventoId`, `page`, `search`, `userId` |
 | `/api/solicitudes/detalle` | GET | Detalle de solicitud por `id` |
 | `/api/solicitudes/historial` | GET | Historial de revisiones y cambios de estado |
-| `/api/solicitudes/revisar` | POST | Registra revisión por área (aprobado/rechazado + comentario) |
+| `/api/solicitudes/revisar` | POST | Registra revisión por área del pipeline local: `asociado` o `legal` (RF-14/15) (aprobado/rechazado + comentario) |
 | `/api/solicitudes/notificar` | POST | Envía correo con resultado de revisiones (requiere `solicitudes:notify`) |
 | `/api/solicitudes/modificar` | POST | Reabre solicitud finalizada reseteando revisiones a pendiente |
 | `/api/solicitudes/reevaluar` | POST | Crea solicitud de re-evaluación |
@@ -72,6 +72,11 @@
 | `/api/solicitudes/baja` | POST | Da de baja la solicitud |
 | `/api/solicitudes/orden-pago` | POST | Marca la solicitud con orden de pago generada |
 | `/api/solicitudes/upload-doc` | POST | Asocia documento subido a la solicitud (contrato, firmado o anexo con `requisito` RF-13) |
+| `/api/solicitudes/recorte-plano` | POST | Guarda la URL de la imagen (PNG) del recorte del pabellón de la solicitud (RF-08, para el contrato) |
+| `/api/contratos/borrador` | POST | **Borrador del contrato** (paso Contrato del wizard): genera DOCX/PDF con los `standIds` seleccionados y las cuotas configuradas **sin crear la solicitud** (montos calculados en el servidor) |
+| `/api/contratos/firmar-borrador` | POST | **Firma digital del borrador** (RF-12): estampa la firma del perfil sobre el borrador; 409 si el perfil no tiene firma. Tampoco crea la solicitud |
+| `/api/contratos/generar` | POST | Genera el **contrato definitivo** de la solicitud (DOCX/PDF) desde la plantilla etiquetada del idioma (`idioma` opcional `es`/`en`; si falta se resuelve el del cliente) con empresa, stands, IGV 18% y el plan de cuotas (**1–3**, `{ porcentaje, fechaVencimiento }`; fechas no pasadas y ascendentes); las imágenes del Anexo 1 (recortes por pabellón con versión/fecha) se generan en el servidor y el contrato se adjunta de forma idempotente (RF-10/11). Se llama al **confirmar la reserva** (paso 4) |
+| `/api/contratos/firmar` | POST | **Firma digital (RF-12)**: estampa la firma del perfil del usuario (`user_role.firma_url`) en el contrato generado y devuelve el contrato firmado (DOCX/PDF); equivale a subir el contrato firmado. 409 si el perfil no tiene firma |
 | `/api/solicitudes/eliminar-doc` | POST | Elimina documento de la solicitud |
 
 ### 3.3 Eventos — `src/app/api/eventos/[...slug]/route.ts`

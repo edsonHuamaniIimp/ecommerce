@@ -72,9 +72,8 @@ export function SolicitudReview({
 }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [reviewState, setReviewState] = useState<Record<string, { accion: string; comentario: string }>>({
-    [REVISION_AREAS.COMUNICACION]: { accion: row.revisionComunicacion?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionComunicacion?.comentario ?? "" },
+    [REVISION_AREAS.ASOCIADO]: { accion: row.revisionAsociado?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionAsociado?.comentario ?? "" },
     [REVISION_AREAS.LEGAL]: { accion: row.revisionLegal?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLegal?.comentario ?? "" },
-    [REVISION_AREAS.LOGISTICA]: { accion: row.revisionLogistica?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLogistica?.comentario ?? "" },
   });
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -208,9 +207,8 @@ export function SolicitudReview({
       } else {
         updated.revisiones = [...updated.revisiones, mappedRev];
       }
-      updated.revisionComunicacion = updated.revisiones.find((r) => r.area === REVISION_AREAS.COMUNICACION) ?? null;
+      updated.revisionAsociado = updated.revisiones.find((r) => r.area === REVISION_AREAS.ASOCIADO) ?? null;
       updated.revisionLegal = updated.revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null;
-      updated.revisionLogistica = updated.revisiones.find((r) => r.area === REVISION_AREAS.LOGISTICA) ?? null;
       onSaved(updated);
       setEditing(false);
     } catch (e) {
@@ -228,7 +226,7 @@ export function SolicitudReview({
     setConfirmReject({ area: currentArea, accion: RESULTADOS_APROBACION.RECHAZADO });
   };
 
-  const currentArea = stepAreas[currentStep] ?? areas[0] ?? REVISION_AREAS.LOGISTICA;
+  const currentArea = stepAreas[currentStep] ?? areas[0] ?? REVISION_AREAS.ASOCIADO;
   const currentRev = getRevision(row, currentArea);
   const canReview = canReviewArea(userPermissions, currentArea);
   const todasAprobadas = areas.every((area) => {

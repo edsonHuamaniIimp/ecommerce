@@ -3,12 +3,24 @@ import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, uploadDocumentoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
+import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+
+/** True si el usuario puede ver/operar solicitudes de terceros (staff/admin). */
+function puedeVerTodas(session: { permissions: string[] }): boolean {
+  return (
+    session.permissions.includes(PERMISSIONS.SOLICITUDES_GESTION) ||
+    session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) ||
+    session.permissions.includes(PERMISSIONS.ADMIN_FULL)
+  );
+}
 
 export const solicitudesController = {
   async listar(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
     const url = new URL(request.url);
     const parsed = solicitudesListarSchema.parse({
       eventoId: url.searchParams.get("eventoId") ?? "",
@@ -16,7 +28,8 @@ export const solicitudesController = {
       per_page: url.searchParams.get("per_page") ?? "10",
       search: url.searchParams.get("search") ?? undefined,
     });
-    const userId = url.searchParams.get("userId") ?? undefined;
+    /* Scoping de dueno: el cliente solo ve sus solicitudes; el staff puede filtrar. */
+    const userId = puedeVerTodas(session) ? (url.searchParams.get("userId") ?? undefined) : session.sub;
     const result = await services.solicitudes.listar({
       eventoId: parsed.eventoId,
       page: parsed.page,
@@ -28,10 +41,16 @@ export const solicitudesController = {
   },
 
   async detalle(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
     const url = new URL(request.url);
     const { id } = solicitudesDetalleSchema.parse({ id: url.searchParams.get("id") ?? "" });
     const row = await services.solicitudes.detalle(id);
     if (!row) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
+    if (!puedeVerTodas(session) && row.userId && row.userId !== session.sub) {
+      return error(API_ERROR_CODES.FORBIDDEN, "No puedes ver solicitudes de otro usuario", 403);
+    }
     return success(row);
   },
 
@@ -39,6 +58,14 @@ export const solicitudesController = {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     const body = solicitudesRevisarSchema.parse(await request.json());
+
+    /* Permiso por area (el admin pasa por admin:full) — validacion en el borde HTTP. */
+    const permisoArea = REVISION_AREA_PERMISSIONS[body.area as keyof typeof REVISION_AREA_PERMISSIONS];
+    if (!permisoArea) return error(API_ERROR_CODES.VALIDATION, "Area desconocida", 400);
+    if (!session.permissions.includes(permisoArea) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para revisar esta area", 403);
+    }
+
     return success(await services.solicitudes.revisar({ ...body, reviewerEmail: session.email }));
   },
 
@@ -85,6 +112,13 @@ export const solicitudesController = {
     const raw = await request.json() as { solicitudId: string; motivo?: string; documentos?: string[] };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
+    /* Solo el titular (o admin) puede pedir la re-evaluacion de su solicitud. */
+    const detalle = await services.solicitudes.detalle(raw.solicitudId);
+    if (!detalle) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
+    if (detalle.userId !== session.sub && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "No puedes re-evaluar solicitudes de otro usuario", 403);
+    }
+
     if (await services.solicitudes.repo.tieneReevaluacionPendiente(raw.solicitudId)) {
       return error(API_ERROR_CODES.CONFLICT, "Ya existe una solicitud de re-evaluacion pendiente", 409);
     }
@@ -126,6 +160,13 @@ export const solicitudesController = {
   async ordenPago(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    if (
+      !session.permissions.includes(PERMISSIONS.FACTURACION_VIEW) &&
+      !session.permissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) &&
+      !session.permissions.includes(PERMISSIONS.ADMIN_FULL)
+    ) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para generar la orden de pago", 403);
+    }
     const raw = await request.json() as { solicitudId: string };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
     await services.solicitudes.repo.marcarOrdenPago(raw.solicitudId);
@@ -133,8 +174,19 @@ export const solicitudesController = {
   },
 
   async historial(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
     const gessStandId = new URL(request.url).searchParams.get("id");
     if (!gessStandId) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
+
+    /* Scoping de dueno: el cliente solo ve el historial de sus solicitudes. */
+    if (!puedeVerTodas(session)) {
+      const solicitud = await services.solicitudes.detalle(gessStandId);
+      if (solicitud && solicitud.userId && solicitud.userId !== session.sub) {
+        return error(API_ERROR_CODES.FORBIDDEN, "No puedes ver el historial de otro usuario", 403);
+      }
+    }
 
     const { revisiones, historial } = await services.solicitudes.repo.obtenerHistorial(gessStandId);
 
@@ -193,6 +245,23 @@ export const solicitudesController = {
       requisito: raw.requisito ?? null,
     });
     return success(doc);
+  },
+
+  /** RF-08: guarda la URL de la imagen del recorte del pabellon (generada por el cliente). */
+  async guardarRecortePlano(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const parsed = solicitudesRecortePlanoSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    await services.solicitudes.guardarRecortePlano({
+      solicitudId: parsed.data.solicitudId,
+      url: parsed.data.url,
+      userSub: session.sub,
+      userPermissions: session.permissions,
+    });
+    return success({ ok: true });
   },
 
   async eliminarDocumento(request: Request): Promise<NextResponse> {

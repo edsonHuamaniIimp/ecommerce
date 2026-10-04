@@ -40,7 +40,7 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 - **Plano interactivo** de stands (2D grid e isométrico 3D; coordenadas X/Y desde servicio externo).
 - **Reserva** de uno o varios stands (selección múltiple).
 - Captura de **datos de empresa** y **datos de facturación** (factura/boleta, cuotas).
-- **Flujo de aprobaciones por áreas** (Comunicación → Legal → Logística) con historial.
+- **Flujo de revisión por áreas** (**Asociado → Legal (SGC)**, RF-14/15) con historial.
 - **Documentos de solicitud** (single y multi-stand), subida por admin y cliente.
 - **Re-evaluaciones** de solicitudes rechazadas.
 - **Estados del stand** (disponible / en evaluación / reservado) y del proceso (pendiente → en proceso → aprobado/rechazado → pendiente de pago).

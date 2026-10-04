@@ -14,4 +14,6 @@ export interface ReservaResponseDTO {
   error?: string;
   conflicted?: string[];
   message?: string;
+  /** Solicitud creada por la reserva (para generar el contrato). */
+  solicitudId?: string | null;
 }

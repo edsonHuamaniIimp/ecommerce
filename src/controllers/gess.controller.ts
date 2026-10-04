@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { updateGessStandSchema } from "@/validators/gess.validator";
 import { guardarTipoStandImagenSchema } from "@/validators/tipos-stand.validator";
+
+/** Guarda de escritura de stands: sesion + `stands:manage` (el admin pasa por `admin:full`). */
+async function autorizarEscrituraStands(): Promise<NextResponse | null> {
+  const session = await getSession();
+  if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+  if (!session.permissions.includes(PERMISSIONS.STANDS_MANAGE) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
+    return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para gestionar stands", 403);
+  }
+  return null;
+}
 
 export const gessController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -33,17 +43,19 @@ export const gessController = {
   },
 
   async actualizar(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarEscrituraStands();
+    if (noAutorizado) return noAutorizado;
     const raw = await request.json();
     const body = updateGessStandSchema.parse(raw);
     return success(await services.gess.actualizarStand(body.id, body));
   },
 
-  /** Catalogo de imagenes referenciales por tipo de stand (RF-08, admin). */
+  /** Catalogo de imagenes referenciales por tipo de stand del evento (RF-08, admin). */
   async tiposImagenListar(): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     services.tiposStandImagen.autorizarGestion(session.permissions);
-    return success(await services.tiposStandImagen.listar());
+    return success(await services.tiposStandImagen.listar(session.eventoId ?? null));
   },
 
   /** Sube/reemplaza la imagen referencial de un tipo de stand (aplica a todos sus stands). */
@@ -55,7 +67,7 @@ export const gessController = {
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
-    await services.tiposStandImagen.guardar(parsed.data.tipo, parsed.data.imagenUrl);
+    await services.tiposStandImagen.guardar(parsed.data.tipo, parsed.data.imagenUrl, session.eventoId ?? null);
     return success({ ok: true });
   },
 
@@ -66,11 +78,13 @@ export const gessController = {
     services.tiposStandImagen.autorizarGestion(session.permissions);
     const tipo = new URL(request.url).searchParams.get("tipo");
     if (!tipo) return error(API_ERROR_CODES.VALIDATION, "tipo requerido", 400);
-    await services.tiposStandImagen.eliminar(tipo);
+    await services.tiposStandImagen.eliminar(tipo, session.eventoId ?? null);
     return success({ ok: true });
   },
 
   async sync(request: Request): Promise<NextResponse> {
+    /* Publico por diseno: el mapa sincroniza stands del plano en la primera carga.
+       Solo crea los faltantes; no resetea estados (eso es `mockup`, que si esta protegido). */
     const body = await request.json() as {
       tipoEvento?: number; codigoEvento?: number; eventoId?: string;
       seleccionadas?: Record<string, unknown>[];
@@ -82,6 +96,8 @@ export const gessController = {
   },
 
   async mockup(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarEscrituraStands();
+    if (noAutorizado) return noAutorizado;
     const body = await request.json() as { tipoEvento?: number; codigoEvento?: number; eventoId?: string };
     if (!body.eventoId) {
       return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);

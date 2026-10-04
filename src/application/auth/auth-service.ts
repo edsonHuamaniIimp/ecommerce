@@ -326,7 +326,7 @@ export class AuthApplicationService {
     const session = await getSession();
     if (!session) return null;
     const u = await this.repo.findPerfilByEmail(session.email);
-    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, logoUrl: null, idioma: null };
+    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, logoUrl: null, firmaUrl: null, idioma: null };
   }
 
   /** Guarda el idioma preferido del usuario (selector ES/EN del dashboard). */

@@ -16,6 +16,7 @@ export const { GET, POST } = createRouter({
     baja: (req) => solicitudesController.darDeBaja(req),
     "orden-pago": (req) => solicitudesController.ordenPago(req),
     "upload-doc": (req) => solicitudesController.uploadDocumento(req),
+    "recorte-plano": (req) => solicitudesController.guardarRecortePlano(req),
     "eliminar-doc": (req) => solicitudesController.eliminarDocumento(req),
   },
 });

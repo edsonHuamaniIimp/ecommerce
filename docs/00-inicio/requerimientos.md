@@ -448,7 +448,7 @@ Lineamientos de despliegue:
 | Portal público + presala (selección de evento/vertical) | Completo | Home y `/presala` listan versiones; theming por vertical |
 | Plano interactivo (`/plano`, `/mapa`) | Completo | Isométrico 3D y dinámico simple/macro; `/plano-grid` es maqueta |
 | Reserva (multi-select, 3 pasos, borrador IndexedDB) | Completo | 1 stand exige documento; N stands sin documento |
-| Solicitudes de alquiler + pipeline de revisión | Completo | Local Logística → Comunicación; Legal delegada al SGC |
+| Solicitudes de alquiler + pipeline de revisión | Completo | Local **Asociado** (unifica Logística + Comunicación; RF-14/15); Legal delegada al SGC |
 | Re-evaluación del cliente | Completo | Aprobar resetea revisiones; rechazar libera stands |
 | Alertas (campana) | Completo | Polling 30 s; por rol en cada turno |
 | Auspicios | Completo (proxy) | Sin persistencia local; reenvía a KBServicios |
@@ -470,13 +470,12 @@ Lineamientos de despliegue:
 
 ### 15.2 Áreas de aprobación
 
-La revisión local es **Logística → Comunicación**. **Legal ya no es local**: se delega al
-`internal-review` del SGC (`constants.ts:346-376,684-688`).
+La revisión local es de **un solo nivel: Asociado** (unifica Logística + Comunicación;
+RF-14/15). **Legal ya no es local**: se delega al `internal-review` del SGC.
 
 | Área | Rol | Permisos |
 |---|---|---|
-| Logística | `logistica` | `solicitudes:view`, `solicitudes:review:logistica` |
-| Comunicación | `comunicacion` | `solicitudes:view`, `solicitudes:review:comunicacion` |
+| Asociado | `asociado` (y admin) | `solicitudes:view`, `solicitudes:review:asociado` |
 | Legal (SGC) | externo (SGC) | paso visual; sin permiso local |
 | Admin | `admin` | `admin:full` (incluye `solicitudes:notify`, `solicitudes:upload`) |
 
@@ -487,9 +486,9 @@ La revisión local es **Logística → Comunicación**. **Legal ya no es local**
 - **(PC)** Endpoint real de planogess en producción.
 - **SGC real**: implementar adaptador HTTP (hoy mock permanente) y materializar envío de anexos/contrato.
 - Emisión de comprobantes vía SAP.
-- Notificación automática al cliente al aprobar todas las áreas.
-- Permisos por área en backend (`solicitudes:review:*`) y scoping de dueño en lecturas.
-- Autenticación en `/api/gess`, `/api/planogess`, `/api/upload`, RENIEC/SUNAT.
-- Endurecer auth (hash de contraseñas, `JWT_SECRET` obligatorio, TLS en clientes externos).
+- ~~Notificación automática al cliente al aprobar todas las áreas.~~ **Hecho**: al aprobar el SGC (Vigente) se envía `revision-resultado` al cliente en su idioma (webhook → `SgcWebhookApplicationService`).
+- ~~Permisos por área en backend (`solicitudes:review:*`) y scoping de dueño en lecturas.~~ **Hecho**: `revisar` valida `solicitudes:review:asociado|legal`; `listar/detalle/historial/reevaluar` con scoping de dueño y `orden-pago` con permiso de Facturación.
+- Autenticación en `/api/gess`, `/api/planogess`, `/api/upload`, RENIEC/SUNAT. **Parcial**: `/api/gess/actualizar` y `/api/gess/mockup` ya exigen sesión + `stands:manage` (el `sync` queda público por diseño del mapa: solo crea stands faltantes). Pendientes `/api/upload`, RENIEC/SUNAT, kbservicios y `errors/log`.
+- Endurecer auth: hash de contraseñas (ya: scrypt), ~~`JWT_SECRET` obligatorio~~ **Hecho** (fail-fast en producción), TLS en clientes externos.
 - Testing automatizado (unit + e2e).
 

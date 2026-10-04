@@ -41,9 +41,8 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
     updatedAt: new Date("2026-09-15T00:00:00.000Z"),
     revisiones: [],
     reevaluaciones: [],
-    revisionComunicacion: null,
+    revisionAsociado: null,
     revisionLegal: null,
-    revisionLogistica: null,
     tieneFacturacion: false,
     tipoFacturacion: null,
     facturacionId: null,
@@ -139,6 +138,9 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     crearAlertaRevision: vi.fn(),
     crearAlertaRol: vi.fn(),
     findNombreUsuario: vi.fn().mockResolvedValue(null),
+    guardarRecortePlano: vi.fn(),
+    guardarPlanCuotas: vi.fn(),
+    upsertContratoSistema: vi.fn(),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {

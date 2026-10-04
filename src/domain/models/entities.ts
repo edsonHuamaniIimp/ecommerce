@@ -159,6 +159,8 @@ export interface SolicitudRow {
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
+  /** Stands de la solicitud con su bloque y pabellon de plano (para ubicacion agrupada). */
+  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
@@ -181,6 +183,10 @@ export interface SolicitudRow {
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;
+  /** RF-08: URL de la imagen del recorte del pabellon (para el contrato). */
+  recortePlanoUrl?: string | null;
+  /** Plan de cuotas configurado al reservar (snapshot para regenerar el contrato). */
+  planCuotas?: PlanCuotasSolicitud | null;
   documentos: unknown;
   imagenes: unknown;
   docsAdjuntosCount: number;
@@ -191,9 +197,8 @@ export interface SolicitudRow {
   updatedAt: Date;
   revisiones: RevisionEntity[];
   reevaluaciones: ReevaluacionEntity[];
-  revisionComunicacion: RevisionEntity | null;
+  revisionAsociado: RevisionEntity | null;
   revisionLegal: RevisionEntity | null;
-  revisionLogistica: RevisionEntity | null;
   tieneFacturacion: boolean;
   tipoFacturacion: string | null;
   facturacionId: string | null;
@@ -209,4 +214,20 @@ export interface SolicitudRow {
   sgcDocumentosEnviados: boolean;
   /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */
   sgcEnabled: boolean;
+}
+
+/** Cuota del plan configurado por el cliente (snapshot persistido en la solicitud). */
+export interface PlanCuotasItem {
+  numero: number;
+  porcentaje: number;
+  monto: number;
+  /** Fecha de vencimiento ISO (yyyy-mm-dd) o null. */
+  fechaVencimiento: string | null;
+}
+
+/** Plan de cuotas configurado al reservar: fuente de verdad para el contrato y Facturacion. */
+export interface PlanCuotasSolicitud {
+  /** `completo` | `cuotas` | `personalizado` (ver MODOS_PAGO). */
+  modalidad: string;
+  cuotas: PlanCuotasItem[];
 }

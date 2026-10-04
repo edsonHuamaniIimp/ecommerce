@@ -10,6 +10,7 @@ export interface CrearEmpresaRequestDTO {
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  partidaElectronica?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }

@@ -62,6 +62,7 @@ ENV HOSTNAME=0.0.0.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl openssl \
+    libreoffice-writer fonts-liberation \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
@@ -72,6 +73,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+# Plantillas del contrato (DOCX etiquetado) para el generador (RF-11).
+COPY --from=builder --chown=nextjs:nodejs /app/plantillas ./plantillas
 
 # Deps de PRODUCCION (cubre los externals que el standalone no traza: @prisma/adapter-pg, jose, zod, dotenv...).
 COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules

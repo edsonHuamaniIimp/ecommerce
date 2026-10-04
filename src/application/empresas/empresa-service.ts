@@ -118,6 +118,7 @@ export class EmpresaApplicationService {
       emailFacturacion: limpiar(input.emailFacturacion),
       representanteLegalNombre: limpiar(input.representanteLegalNombre),
       representanteLegalDni: limpiar(input.representanteLegalDni),
+      partidaElectronica: limpiar(input.partidaElectronica),
       tipoComprobante,
       sitioWeb: limpiar(input.sitioWeb),
       creadoPor: limpiar(creadoPor),
@@ -166,7 +167,7 @@ export class EmpresaApplicationService {
       cambios.tipoComprobante = validarTipoComprobante(input.tipoComprobante);
     }
 
-    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "sitioWeb"] as const) {
+    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "partidaElectronica", "sitioWeb"] as const) {
       if (input[campo] !== undefined) cambios[campo] = limpiar(input[campo]);
     }
 

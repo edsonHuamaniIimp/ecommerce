@@ -18,6 +18,8 @@ export interface EmpresaEntity {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  /** Partida electronica de poderes del representante (si aplica). */
+  partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;
   sitioWeb: string | null;
   estado: EstadoEmpresa;
@@ -41,6 +43,7 @@ export interface EmpresaInput {
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  partidaElectronica?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }
@@ -57,6 +60,8 @@ export interface CrearEmpresaData {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  /** Partida electronica de poderes del representante (si aplica). */
+  partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;
   sitioWeb: string | null;
   creadoPor: string | null;

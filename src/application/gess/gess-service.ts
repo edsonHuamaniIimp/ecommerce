@@ -27,10 +27,19 @@ export class GessApplicationService {
     private readonly tiposImagenRepo: ITipoStandImagenRepository,
   ) {}
 
-  /** Mapa clave canonica del tipo → imagen referencial (RF-08). */
-  private async imagenesPorTipo(): Promise<Map<string, string>> {
+  /** Mapa clave canonica del tipo → imagen referencial del evento (pisa la global). */
+  private async imagenesPorTipo(eventoId: string): Promise<Map<string, string>> {
     const filas = await this.tiposImagenRepo.listar();
-    return new Map(filas.map((f) => [claveTipoStand(f.tipo) ?? f.tipo, f.imagenUrl]));
+    const mapa = new Map<string, string>();
+    for (const fila of filas) {
+      const clave = claveTipoStand(fila.tipo) ?? fila.tipo;
+      if (fila.eventoId === eventoId) mapa.set(clave, fila.imagenUrl);
+    }
+    for (const fila of filas) {
+      const clave = claveTipoStand(fila.tipo) ?? fila.tipo;
+      if (!fila.eventoId && !mapa.has(clave)) mapa.set(clave, fila.imagenUrl);
+    }
+    return mapa;
   }
 
   /** Agrega `tipoImagen` (imagen referencial del tipo) a un stand. */
@@ -59,8 +68,8 @@ export class GessApplicationService {
       }
     }
 
-    /* RF-08: imagen referencial por tipo (una imagen por tipo, para todos sus stands). */
-    const porTipo = await this.imagenesPorTipo();
+    /* RF-08: imagen referencial por tipo del evento (fallback global). */
+    const porTipo = await this.imagenesPorTipo(eventoId);
     result.data = result.data.map((d) => this.conTipoImagen(d, porTipo));
     return result;
   }
@@ -68,7 +77,7 @@ export class GessApplicationService {
   async findByBloque(bloqueId: string) {
     const row = await this.repo.findByBloque(bloqueId);
     if (!row) return row;
-    const porTipo = await this.imagenesPorTipo();
+    const porTipo = await this.imagenesPorTipo(row.eventoId);
     return this.conTipoImagen(row, porTipo);
   }
 

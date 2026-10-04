@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { alertasService } from "@/application/alertas/alertas-service";
+import { services } from "@/lib/server/services";
 
 export const alertasController = {
   async listar(request: Request): Promise<NextResponse> {
@@ -12,7 +12,7 @@ export const alertasController = {
     const url = new URL(request.url);
     const soloNoLeidas = url.searchParams.get("no_leidas") === "1";
 
-    const data = await alertasService.listar(session, soloNoLeidas);
+    const data = await services.alertas.listar(session, soloNoLeidas);
     return success(data);
   },
 
@@ -21,7 +21,7 @@ export const alertasController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
     const raw = await request.json() as { id: string };
-    await alertasService.marcarLeida(session, raw.id);
+    await services.alertas.marcarLeida(session, raw.id);
     return success({ ok: true });
   },
 
@@ -29,7 +29,7 @@ export const alertasController = {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
-    await alertasService.marcarTodasLeidas(session);
+    await services.alertas.marcarTodasLeidas(session);
     return success({ ok: true });
   },
 };

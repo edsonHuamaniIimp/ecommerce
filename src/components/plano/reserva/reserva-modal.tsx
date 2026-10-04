@@ -1,16 +1,18 @@
 "use client";
 
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
-import { ChevronRight, ChevronLeft, Building2, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, Building2, X, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { RESERVA_STEPS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { StepIndicator } from "./step-indicator";
 import { StepDatos } from "./step-datos";
-import { StepDocumentos } from "./step-documentos";
+import { StepContrato } from "./step-contrato";
 import { StepConfirmacion } from "./step-confirmacion";
+import { StepPagos } from "./step-pagos";
 import { ReservaAuthForm } from "./reserva-auth-form";
 import type { FormDatos } from "./interfaces";
+import type { CuotaConfig } from "./use-reserva-form";
 
 interface Props {
   open: boolean;
@@ -31,26 +33,36 @@ interface Props {
   selectedCount: number;
   singleStand: boolean;
   selectedLabels: string;
-  selectedItems: { id: string; typeLabel: string; medidas: string | null; reserved: boolean }[];
+  selectedItems: { id: string; typeLabel: string; medidas: string | null; reserved: boolean; precio?: number }[];
   existingDocs: string[];
   onAddDoc: (file: File) => Promise<void>;
   onRemoveDoc: (idx: number) => void;
   onSubmit: () => Promise<boolean>;
   confirmado: boolean;
   onConfirmadoChange: (v: boolean) => void;
+  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..3). */
+  cuotasPago: CuotaConfig[];
+  onCuotasPagoChange: (cuotas: CuotaConfig[]) => void;
+  contrato: { solicitudId: string; docxUrl: string; pdfUrl: string | null } | null;
+  generandoContrato: boolean;
+  onGenerarContrato: () => Promise<boolean>;
+  contratoFirmadoUrl: string | null;
+  subiendoFirmado: boolean;
+  onSubirFirmado: (file: File) => void;
+  /** Firma digital del perfil (RF-12). */
+  firmaPerfilUrl: string | null;
+  firmandoDigital: boolean;
+  onFirmarDigital: () => void;
 }
 
-const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.DOCUMENTOS, RESERVA_STEPS.CONFIRMACION] as const;
+const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.CUOTAS, RESERVA_STEPS.CONTRATO, RESERVA_STEPS.CONFIRMACION] as const;
 
 /** Titulo y subtitulo del encabezado segun el paso actual. */
-function encabezado(step: ReservaStep, singleStand: boolean): string {
+function encabezado(step: ReservaStep): string {
   if (step === RESERVA_STEPS.DATOS) return "Completa los datos comerciales y de facturacion para formalizar tu solicitud.";
-  if (step === RESERVA_STEPS.DOCUMENTOS) {
-    return singleStand
-      ? "Adjunta el contrato firmado y los documentos requeridos para continuar."
-      : "Gestion documental y flujo de validacion para reserva corporativa multiple.";
-  }
-  return "Confirma tu solicitud y envíala a revision tecnica y comercial.";
+  if (step === RESERVA_STEPS.CUOTAS) return "Configura tus cuotas de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
+  if (step === RESERVA_STEPS.CONTRATO) return "Descarga el contrato generado, firmalo y adjunta tus anexos (Vigencia de Poderes y DNI).";
+  return "Revisa el resumen y envia tu solicitud al proceso de revision.";
 }
 
 export function ReservaModal(props: Props) {
@@ -58,8 +70,11 @@ export function ReservaModal(props: Props) {
     open, onOpenChange, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
     formDatos, onDatosChange, formDocs, uploading, submitting, submitError,
     selectedCount, singleStand, selectedLabels, selectedItems,
-    existingDocs, onAddDoc, onRemoveDoc, onSubmit,
+    onAddDoc, onRemoveDoc, onSubmit,
     confirmado, onConfirmadoChange,
+    cuotasPago, onCuotasPagoChange, contrato, generandoContrato, onGenerarContrato,
+    contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
+    firmaPerfilUrl, firmandoDigital, onFirmarDigital,
   } = props;
 
   const isLast = step === RESERVA_STEPS.CONFIRMACION;
@@ -97,7 +112,7 @@ export function ReservaModal(props: Props) {
 
           <h2 className="text-base font-bold tracking-tight text-primary">Proceso de Reserva de Stands</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {autenticado ? encabezado(step, singleStand) : "Identificate para continuar con tu reserva."}
+            {autenticado ? encabezado(step) : "Identificate para continuar con tu reserva."}
           </p>
 
           {autenticado && (
@@ -123,16 +138,37 @@ export function ReservaModal(props: Props) {
               {step === RESERVA_STEPS.DATOS && (
                 <StepDatos datos={formDatos} onChange={onDatosChange} selectedLabels={selectedLabels} />
               )}
-              {step === RESERVA_STEPS.DOCUMENTOS && (
-                <StepDocumentos
-                  singleStand={singleStand}
-                  reservaStands={selectedItems.map((s) => ({ id: s.id, medidas: s.medidas }))}
-                  existingDocs={existingDocs} formDocs={formDocs}
-                  uploading={uploading} onAddDoc={onAddDoc} onRemoveDoc={onRemoveDoc}
+              {step === RESERVA_STEPS.CUOTAS && (
+                <StepPagos
+                  precios={selectedItems.map((s) => s.precio ?? 0)}
+                  cuotas={cuotasPago}
+                  onCuotasChange={onCuotasPagoChange}
+                  contrato={contrato}
+                />
+              )}
+              {step === RESERVA_STEPS.CONTRATO && (
+                <StepContrato
+                  contrato={contrato}
+                  contratoFirmadoUrl={contratoFirmadoUrl}
+                  subiendoFirmado={subiendoFirmado}
+                  onSubirFirmado={onSubirFirmado}
+                  firmaPerfilUrl={firmaPerfilUrl}
+                  firmandoDigital={firmandoDigital}
+                  onFirmarDigital={onFirmarDigital}
+                  formDocs={formDocs}
+                  uploading={uploading}
+                  onAddDoc={onAddDoc}
+                  onRemoveDoc={onRemoveDoc}
                 />
               )}
               {step === RESERVA_STEPS.CONFIRMACION && (
-                <StepConfirmacion datos={formDatos} selectedLabels={selectedLabels} docsCount={formDocs.length} confirmado={confirmado} onConfirmadoChange={onConfirmadoChange} />
+                <StepConfirmacion
+                  datos={formDatos}
+                  selectedLabels={selectedLabels}
+                  docsCount={formDocs.length + (contratoFirmadoUrl ? 1 : 0)}
+                  confirmado={confirmado}
+                  onConfirmadoChange={onConfirmadoChange}
+                />
               )}
             </>
           )}
@@ -177,16 +213,32 @@ export function ReservaModal(props: Props) {
               {!isLast && (
                 <Button
                   size="sm"
-                  disabled={!stepDone(step)}
+                  disabled={!stepDone(step) || (step === RESERVA_STEPS.CUOTAS && generandoContrato)}
                   className="gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                   onClick={() => {
                     const idx = STEPS.indexOf(step);
                     const next = idx < STEPS.length - 1 ? STEPS[idx + 1] : undefined;
-                    if (next !== undefined) onGoStep(next);
+                    if (next === undefined) return;
+                    if (step === RESERVA_STEPS.CUOTAS) {
+                      void (async () => {
+                        if (await onGenerarContrato()) onGoStep(next);
+                      })();
+                      return;
+                    }
+                    onGoStep(next);
                   }}
                 >
-                  <span>Continuar</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  {step === RESERVA_STEPS.CUOTAS && generandoContrato ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Generando contrato...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{step === RESERVA_STEPS.CUOTAS ? "Generar contrato y continuar" : "Continuar"}</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
                 </Button>
               )}
               {isLast && (

@@ -8,8 +8,9 @@ import type { ReservaStep } from "@/lib/shared/constants";
 
 const STEPS = [
   { key: RESERVA_STEPS.DATOS, label: "Tus datos", sub: "RUC y contacto" },
-  { key: RESERVA_STEPS.DOCUMENTOS, label: "Documentos", sub: "Poderes y anexos" },
-  { key: RESERVA_STEPS.CONFIRMACION, label: "Confirmar", sub: "Resumen y firma" },
+  { key: RESERVA_STEPS.CUOTAS, label: "Cuotas", sub: "Configuracion de pago" },
+  { key: RESERVA_STEPS.CONTRATO, label: "Contrato", sub: "Firma y anexos" },
+  { key: RESERVA_STEPS.CONFIRMACION, label: "Confirmar", sub: "Resumen y envio" },
 ] as const;
 
 interface Props {

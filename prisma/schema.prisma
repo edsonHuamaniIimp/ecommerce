@@ -133,6 +133,8 @@ model UserRole {
   nombreEmpresa     String?   @map("nombre_empresa") @db.VarChar(200)
   /// Logo propio del usuario (URL en /uploads/*); tiene prioridad sobre el de la empresa en el mapa.
   logoUrl           String?   @map("logo_url") @db.VarChar(500)
+  /// Firma digital del usuario (imagen PNG/JPG en /uploads/*) para firmar contratos desde el portal.
+  firmaUrl          String?   @map("firma_url") @db.VarChar(500)
   /** Ultimo evento seleccionado: se reusa al iniciar sesion para no pedirlo de nuevo. */
   eventoId          String?   @map("evento_id") @db.VarChar(50)
   resetToken        String?   @map("reset_token") @db.VarChar(200)
@@ -254,6 +256,8 @@ model Empresa {
   representanteLegalNombre String? @map("representante_legal_nombre") @db.VarChar(200)
   /// DNI/pasaporte del representante legal.
   representanteLegalDni String? @map("representante_legal_dni") @db.VarChar(15)
+  /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
+  partidaElectronica String? @map("partida_electronica") @db.VarChar(50)
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).
   tipoComprobante String @default("factura") @map("tipo_comprobante") @db.VarChar(20)
   /// Sitio web (opcional).
@@ -360,13 +364,16 @@ model GessStand {
 /// stands de ese tipo (se administra en la bandeja de Stands y se muestra en el mapa).
 model TipoStandImagen {
   id        String   @id @default(uuid())
-  /// Clave canonica del tipo de stand (ver TIPOS_STAND_CATALOGO); unica.
-  tipo      String   @unique @db.VarChar(50)
+  /// Clave canonica del tipo de stand (ver TIPOS_STAND_CATALOGO).
+  tipo      String   @db.VarChar(50)
+  /// Evento al que aplica la imagen (null = imagen global de respaldo).
+  eventoId  String?  @map("evento_id") @db.VarChar(100)
   /// URL de la imagen referencial (en /uploads/*).
   imagenUrl String   @map("imagen_url") @db.VarChar(500)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([eventoId, tipo])
   @@map("tipo_stand_imagen")
 }
 
@@ -380,6 +387,10 @@ model Solicitud {
   userId      String?   @map("user_id") @db.VarChar(100)
   email       String?   @db.VarChar(200)
   documentos  Json?     @default("[]")
+  /// RF-08: URL de la imagen (PNG) del recorte del pabellon con el stand destacado; se adjunta al contrato.
+  recortePlanoUrl String? @map("recorte_plano_url") @db.VarChar(500)
+  /// RF-10/11: snapshot del plan de cuotas configurado al reservar { modalidad, cuotas[] }.
+  planCuotas Json? @map("plan_cuotas")
   flgActivo   Boolean   @default(true) @map("flg_activo")
   estado      String?   @db.VarChar(20)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -636,6 +647,10 @@ model Alerta {
   tipo         String   @db.VarChar(30)
   titulo       String   @db.VarChar(200)
   mensaje      String   @db.VarChar(1000)
+  /// Clave de plantilla (`ALERTA_CLAVES`) para renderizar titulo/mensaje en el idioma del destinatario.
+  clave        String?  @db.VarChar(60)
+  /// Datos de interpolacion de la plantilla de alerta.
+  datos        Json?
   leida        Boolean  @default(false)
   url          String?  @db.VarChar(500)
   solicitudId  String?  @map("solicitud_id")

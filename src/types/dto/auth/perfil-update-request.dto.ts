@@ -7,4 +7,6 @@ export interface PerfilUpdateRequestDTO {
   nombreEmpresa?: string | null;
   /** Logo propio del usuario (URL en /uploads/*). */
   logoUrl?: string | null;
+  /** Firma digital del usuario (imagen PNG/JPG en /uploads/*). */
+  firmaUrl?: string | null;
 }

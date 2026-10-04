@@ -72,6 +72,11 @@ export const solicitudesService = {
     return internalApi.post<{ ok: boolean }>(`/api/solicitudes/eliminar-doc`, { docId });
   },
 
+  /** RF-08: guarda la URL de la imagen del recorte del pabellon (para el contrato). */
+  guardarRecortePlano(body: { solicitudId: string; url: string }) {
+    return internalApi.post<{ ok: boolean }>(`/api/solicitudes/recorte-plano`, body);
+  },
+
   historial(gessStandId: string) {
     return internalApi.get<Record<string, unknown>[]>(`/api/solicitudes/historial?id=${gessStandId}`);
   },

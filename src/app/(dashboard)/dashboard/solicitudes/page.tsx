@@ -11,7 +11,7 @@ export default function SolicitudesPage() {
   return (
     <PaginaDashboard
       titulo="Solicitudes de alquiler"
-      descripcion="Revision de solicitudes de alquiler por area (Comunicacion, Legal, Logistica)."
+      descripcion="Revision de solicitudes de alquiler (Asociado y Legal)."
       cargando={cargando}
       tieneEvento={Boolean(eventoId)}
     >

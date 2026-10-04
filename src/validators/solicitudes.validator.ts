@@ -35,3 +35,9 @@ export const uploadDocumentoSchema = z.object({
   tipo: z.string().max(30).optional(),
   requisito: z.string().max(30).optional().nullable(),
 });
+
+/** RF-08: imagen del recorte del pabellon (se guarda tras subirla a /api/upload). */
+export const solicitudesRecortePlanoSchema = z.object({
+  solicitudId: z.string().uuid(),
+  url: z.string().min(1, "url requerida").max(500),
+});

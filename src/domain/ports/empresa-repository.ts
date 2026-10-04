@@ -17,6 +17,7 @@ export interface ActualizarEmpresaData {
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  partidaElectronica?: string | null;
   tipoComprobante?: string;
   sitioWeb?: string | null;
   estado?: string;

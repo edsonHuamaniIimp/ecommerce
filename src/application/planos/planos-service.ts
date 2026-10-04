@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { IPlanoRepository } from "@/domain/ports/plano-repository";
+import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, SeccionOcupacion, PlanoSeccionEntity, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, TIPOLOGIAS_STAND, TIPOS_PLANO } from "@/lib/shared/constants";
@@ -16,6 +16,13 @@ export class PlanoApplicationService {
   /** Tipos de bloque existentes en otros planos, para reutilizarlos como sugerencia. */
   async tiposSugeridos(): Promise<PlanoTipoSugerido[]> {
     return this.repo.listarTiposSugeridos();
+  }
+
+  /** RF-08: ubicacion de un bloque de stand (plano/pabellon + macro) para el recorte. */
+  async ubicacionDeBloque(bloqueId: string): Promise<UbicacionBloque | null> {
+    const id = bloqueId?.trim();
+    if (!id) throw new DomainError("bloqueId requerido", API_ERROR_CODES.VALIDATION, 400);
+    return this.repo.ubicacionDeBloque(id);
   }
 
   async detalle(id: string): Promise<PlanoEntity> {

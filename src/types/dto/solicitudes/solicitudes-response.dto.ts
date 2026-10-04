@@ -27,6 +27,8 @@ export interface SolicitudDTO {
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
+  /** Stands de la solicitud con su bloque y pabellon de plano (ubicacion agrupada). */
+  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
@@ -49,6 +51,8 @@ export interface SolicitudDTO {
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;
+  /** RF-08: URL de la imagen del recorte del pabellon (se adjunta al contrato). */
+  recortePlanoUrl?: string | null;
   documentos: string[];
   imagenes: string[];
   updatedAt: string;
@@ -59,9 +63,8 @@ export interface SolicitudDTO {
   docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: string }>;
   revisiones: RevisionDTO[];
   reevaluaciones: ReevaluacionDTO[];
-  revisionComunicacion: RevisionDTO | null;
+  revisionAsociado: RevisionDTO | null;
   revisionLegal: RevisionDTO | null;
-  revisionLogistica: RevisionDTO | null;
   tieneFacturacion: boolean;
   tipoFacturacion: string | null;
   facturacionId: string | null;

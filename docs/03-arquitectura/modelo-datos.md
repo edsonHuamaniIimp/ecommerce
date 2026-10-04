@@ -450,6 +450,7 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 | emailFacturacion | string(200) | Sí | Correo para facturación/comprobantes. |
 | representanteLegalNombre | string(200) | Sí | Representante legal (firma el contrato). |
 | representanteLegalDni | string(15) | Sí | DNI/pasaporte del representante legal. |
+| partidaElectronica | string(50) | Sí | Partida electrónica de inscripción de poderes del representante (si aplica). Se imprime en el contrato. |
 | tipoComprobante | string(20) | No | `factura` \| `boleta` (preferido por la empresa). |
 | sitioWeb | string(200) | Sí | Sitio web (opcional). |
 | estado | string(20) | No | `activa` \| `inactiva` (baja lógica). |

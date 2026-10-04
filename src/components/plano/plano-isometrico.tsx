@@ -12,6 +12,9 @@ import type { PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { idiomaODefecto } from "@/lib/shared/utils/idioma";
+import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
+import { textosReserva } from "@/lib/shared/textos/reserva";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
@@ -61,6 +64,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const [legendOpen, setLegendOpen] = useState(false);
   const [standDocs, setStandDocs] = useState<string[]>([]);
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
+  /* Textos del flujo que viven en portales (toast/modal); Google Translate no los cubre. */
+  const textos = textosReserva(idiomaODefecto(leerIdiomaCookie()));
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   const blockLabel = (type: PlanoItem["type"]) => plano.blockLabel[type] ?? { label: "?", nombre: "?" };
@@ -152,6 +157,16 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
+    cuotasConfig, setCuotasConfig,
+    contrato,
+    generandoContrato,
+    generarContratoYReservar,
+    contratoFirmadoUrl,
+    subiendoFirmado,
+    subirContratoFirmado,
+    firmaPerfilUrl,
+    firmandoDigital,
+    firmarDigitalmente,
   } = useReservaForm(selectedIds, linkedMap);
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
@@ -465,6 +480,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             typeLabel: blockLabel(sel.type).label,
             medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
+            precio: (info as { precio?: number } | undefined)?.precio ?? 0,
           };
         })}
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
@@ -472,6 +488,17 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         onRemoveDoc={removeDoc}
         confirmado={confirmado}
         onConfirmadoChange={setConfirmado}
+        cuotasPago={cuotasConfig}
+        onCuotasPagoChange={setCuotasConfig}
+        contrato={contrato}
+        generandoContrato={generandoContrato}
+        onGenerarContrato={generarContratoYReservar}
+        contratoFirmadoUrl={contratoFirmadoUrl}
+        subiendoFirmado={subiendoFirmado}
+        onSubirFirmado={(file) => { void subirContratoFirmado(file); }}
+        firmaPerfilUrl={firmaPerfilUrl}
+        firmandoDigital={firmandoDigital}
+        onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {
@@ -479,8 +506,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             if (esMultiple) {
               setPostSubmitOpen(true);
             } else {
-              toast.success("Reserva enviada correctamente", {
-                description: "Recibiras un correo de confirmacion. El stand pasa a estado En evaluacion.",
+              toast.success(textos.toastTitulo, {
+                description: textos.toastDescripcion,
               });
             }
             setLinkedMap(prev => {
@@ -526,22 +553,22 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
       <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
         <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-xl">
           <DialogHeader>
-            <DialogTitle><span>Solicitud multiple enviada</span></DialogTitle>
+            <DialogTitle><span>{textos.modalTitulo}</span></DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-center">
               <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-emerald-800">Tu solicitud ha sido registrada con exito</p>
-              <p className="text-xs text-emerald-600 mt-1">Sigue estos pasos para completar el proceso:</p>
+              <p className="text-sm font-semibold text-emerald-800">{textos.modalOk}</p>
+              <p className="text-xs text-emerald-600 mt-1">{textos.modalPasos}</p>
             </div>
 
             <div className="space-y-0">
               {[
-                { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: "Solicitud creada", desc: "El administrador del IIMP ha sido notificado y revisara tu solicitud multiple." },
-                { icon: Upload, color: "bg-blue-100 text-blue-600", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial. Recibiras un correo cuando este listo para que puedas continuar." },
-                { icon: FileText, color: "bg-amber-100 text-amber-600", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard y adjunta los documentos requeridos para tu solicitud." },
-                { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: "Revision por areas", desc: "Tres areas (Comunicacion, Legal y Logistica) revisaran tu documentacion y emitiran su veredicto." },
-                { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion." },
+                { icon: ScrollText, color: "bg-emerald-100 text-emerald-600", title: textos.pasos[0].title, desc: textos.pasos[0].desc },
+                { icon: Upload, color: "bg-blue-100 text-blue-600", title: textos.pasos[1].title, desc: textos.pasos[1].desc },
+                { icon: FileText, color: "bg-amber-100 text-amber-600", title: textos.pasos[2].title, desc: textos.pasos[2].desc },
+                { icon: ClipboardCheck, color: "bg-purple-100 text-purple-600", title: textos.pasos[3].title, desc: textos.pasos[3].desc },
+                { icon: Bell, color: "bg-emerald-100 text-emerald-600", title: textos.pasos[4].title, desc: textos.pasos[4].desc },
               ].map((s, i) => (
                 <div key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
@@ -560,12 +587,14 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
               <p className="text-[11px] text-slate-500">
-                Monitorea el estado en <span className="font-mono text-emerald-600 font-medium">Mis solicitudes</span> desde el menu lateral del dashboard.
+                {textos.monitoreo.antes}
+                <span className="font-mono text-emerald-600 font-medium">{textos.monitoreo.resaltado}</span>
+                {textos.monitoreo.despues}
               </p>
             </div>
 
             <Button className="w-full rounded-full" onClick={() => setPostSubmitOpen(false)}>
-              Entendido
+              {textos.modalBoton}
             </Button>
           </div>
         </DialogContent>

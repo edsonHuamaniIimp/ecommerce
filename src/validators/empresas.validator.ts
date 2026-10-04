@@ -20,6 +20,7 @@ export const crearEmpresaSchema = z.object({
   emailFacturacion: emailOpcional,
   representanteLegalNombre: z.string().trim().max(200).optional().nullable(),
   representanteLegalDni: z.string().trim().max(15).optional().nullable(),
+  partidaElectronica: z.string().trim().max(50).optional().nullable(),
   tipoComprobante: z.enum([TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA]).optional().nullable(),
   sitioWeb: z.string().trim().max(200).optional().nullable(),
 });

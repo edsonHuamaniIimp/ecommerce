@@ -28,7 +28,7 @@ const MODAL_INFO_PLANTILLA: ModalInfoConfig = {
   titulo: "Protocolo de reserva",
   subtitulo: "Antes de reservar tu stand, ten en cuenta lo siguiente:",
   items: [
-    { titulo: "Revision por areas", descripcion: "Logistica y Comunicacion revisan tu documentacion antes de aprobar la solicitud." },
+    { titulo: "Revision por areas", descripcion: "El Asociado revisa tu documentacion antes de la revision Legal." },
     { titulo: "Contrato por SGC", descripcion: "La revision legal del contrato se gestiona a traves del Sistema de Gestion de Contratos." },
     { titulo: "Documentos", descripcion: "Adjunta los documentos del contrato desde Mis solicitudes para continuar con el flujo." },
   ],

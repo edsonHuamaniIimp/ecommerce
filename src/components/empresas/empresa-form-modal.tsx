@@ -27,6 +27,7 @@ interface FormState {
   emailFacturacion: string;
   representanteLegalNombre: string;
   representanteLegalDni: string;
+  partidaElectronica: string;
   tipoComprobante: string;
   sitioWeb: string;
 }
@@ -43,6 +44,7 @@ function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
     emailFacturacion: empresa?.emailFacturacion ?? "",
     representanteLegalNombre: empresa?.representanteLegalNombre ?? "",
     representanteLegalDni: empresa?.representanteLegalDni ?? "",
+    partidaElectronica: empresa?.partidaElectronica ?? "",
     tipoComprobante: empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
     sitioWeb: empresa?.sitioWeb ?? "",
   };
@@ -132,6 +134,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         emailFacturacion: form.emailFacturacion.trim() || null,
         representanteLegalNombre: form.representanteLegalNombre.trim() || null,
         representanteLegalDni: form.representanteLegalDni.trim() || null,
+        partidaElectronica: form.partidaElectronica.trim() || null,
         tipoComprobante: form.tipoComprobante,
         sitioWeb: form.sitioWeb.trim() || null,
       };
@@ -183,6 +186,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Representante legal" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" />
             <CampoForm label="DNI del representante" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", v)} placeholder="45871233" mono />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CampoForm label="Partida electronica (opcional)" valor={form.partidaElectronica} onChange={(v) => setCampo("partidaElectronica", v)} placeholder="11014857" mono />
           </div>
           <div>
             <Label className="text-xs">Logo de la empresa</Label>

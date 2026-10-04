@@ -2,6 +2,7 @@ import 'client-only';
 
 import { internalApi } from "./internal-api";
 import type { PlanoDTO, PlanoListItemDTO, PlanoTipoSugeridoDTO, PlanoExportDTO, PlanoTsExportDTO, SeccionOcupacionDTO, PlanoSeccionDTO, PlanoPublicoPayloadDTO } from "@/types/dto/planos/planos-response.dto";
+import type { UbicacionBloqueDTO } from "@/types/dto/planos/ubicacion-bloque.dto";
 import type { TipoPlano } from "@/lib/shared/constants";
 
 export const planosService = {
@@ -10,6 +11,10 @@ export const planosService = {
   },
   tiposSugeridos() {
     return internalApi.get<PlanoTipoSugeridoDTO[]>("/api/planos/tipos-sugeridos");
+  },
+  /** RF-08: en que plano/pabellon esta un bloque de stand (para el recorte). */
+  ubicacion(bloqueId: string) {
+    return internalApi.get<UbicacionBloqueDTO>(`/api/planos/ubicacion?bloqueId=${encodeURIComponent(bloqueId)}`);
   },
   publico(params: { codigo?: string; eventoId?: string; tipoEvento?: number; codigoEvento?: number }) {
     const qs = new URLSearchParams();

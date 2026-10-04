@@ -543,7 +543,7 @@ src/components/
 │   │   └── Funciones helper (esMultiStand, estaPendiente, puedeRevisar, etc.)
 │   ├── mis-solicitudes-manager.tsx # Cliente: mis solicitudes + detalle
 │   ├── solicitud-review.tsx       # Modal de revision por areas (steps)
-│   │   ├── Steps: Comunicacion → Legal → Logistica
+│   │   ├── Steps: Asociado → Legal (SGC)
 │   │   ├── Documentos del cliente consolidados (3 fuentes)
 │   │   └── Aprobar/Rechazar con justificacion obligatoria
 │   ├── revision-step-indicator.tsx # Indicador visual de steps

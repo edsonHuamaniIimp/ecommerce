@@ -1,13 +1,24 @@
 import { prisma } from "@/lib/server/db";
 import { ROLES, ADMIN_USER_ID } from "@/lib/shared/constants";
 import type { Rol } from "@/lib/shared/constants";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { localizarAlerta } from "@/lib/shared/alert-templates";
 
 interface JwtPayload {
   sub: string;
+  email?: string | null;
   roles: Rol[];
 }
 
+/**
+ * Campana de notificaciones. El titulo/mensaje de cada alerta se renderiza en el
+ * idioma del destinatario (perfil -> cookie -> español) a partir de la plantilla
+ * `clave` + `datos`; las filas legacy sin clave usan el texto guardado.
+ */
 export class AlertasApplicationService {
+  constructor(private readonly auth: IAuthRepository) {}
+
   private buildConditions(sub: string, roles: Rol[]) {
     const conditions: Record<string, unknown>[] = [{ userId: sub }];
     if (roles.includes(ROLES.ADMIN)) {
@@ -21,12 +32,16 @@ export class AlertasApplicationService {
     const where: Record<string, unknown> = { OR: conditions };
     if (soloNoLeidas) where.leida = false;
 
-    const [alertas, noLeidas] = await Promise.all([
+    const [alertas, noLeidas, idioma] = await Promise.all([
       prisma.alerta.findMany({ where: where as never, orderBy: { createdAt: "desc" }, take: 20 }),
       prisma.alerta.count({ where: { ...where, leida: false } as never }),
+      resolverIdiomaDestinatario(this.auth, session.email ?? null),
     ]);
 
-    return { alertas, noLeidas };
+    return {
+      alertas: alertas.map((alerta) => ({ ...alerta, ...localizarAlerta(alerta, idioma) })),
+      noLeidas,
+    };
   }
 
   async marcarLeida(session: JwtPayload, id: string) {
@@ -45,5 +60,3 @@ export class AlertasApplicationService {
     });
   }
 }
-
-export const alertasService = new AlertasApplicationService();

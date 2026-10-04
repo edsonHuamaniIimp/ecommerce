@@ -50,6 +50,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       emailFacturacion: data.emailFacturacion ?? null,
       representanteLegalNombre: data.representanteLegalNombre ?? null,
       representanteLegalDni: data.representanteLegalDni ?? null,
+      partidaElectronica: data.partidaElectronica ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
       estado: data.estado ?? ESTADOS_EMPRESA.ACTIVA,

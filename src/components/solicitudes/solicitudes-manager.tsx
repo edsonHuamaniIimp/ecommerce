@@ -130,9 +130,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       // Habilitar la revision si: gestiona la bandeja, es admin, o es revisor/notificador
       // de un area (asi no depende de que el permiso nuevo este cargado en el rol de la BD).
       const esRevisor =
-        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_COMUNICACION) ||
-        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL) ||
-        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_LOGISTICA);
+        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
+        perms.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL);
       setHasViewPerm(
         perms.includes(PERMISSIONS.SOLICITUDES_GESTION) ||
         perms.includes(PERMISSIONS.ADMIN_FULL) ||

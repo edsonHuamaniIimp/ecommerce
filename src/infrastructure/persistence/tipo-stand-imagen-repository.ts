@@ -9,16 +9,16 @@ export class TipoStandImagenPrismaRepository implements ITipoStandImagenReposito
     return prisma.tipoStandImagen.findMany({ orderBy: { tipo: "asc" } });
   }
 
-  async upsert(tipo: string, imagenUrl: string): Promise<TipoStandImagenEntity> {
-    return prisma.tipoStandImagen.upsert({
-      where: { tipo },
-      create: { tipo, imagenUrl },
-      update: { imagenUrl },
-    });
+  async upsert(tipo: string, imagenUrl: string, eventoId: string | null): Promise<TipoStandImagenEntity> {
+    const existente = await prisma.tipoStandImagen.findFirst({ where: { tipo, eventoId } });
+    if (existente) {
+      return prisma.tipoStandImagen.update({ where: { id: existente.id }, data: { imagenUrl } });
+    }
+    return prisma.tipoStandImagen.create({ data: { tipo, imagenUrl, eventoId } });
   }
 
-  async eliminar(tipo: string): Promise<void> {
-    await prisma.tipoStandImagen.deleteMany({ where: { tipo } });
+  async eliminar(tipo: string, eventoId: string | null): Promise<void> {
+    await prisma.tipoStandImagen.deleteMany({ where: { tipo, eventoId } });
   }
 }
 

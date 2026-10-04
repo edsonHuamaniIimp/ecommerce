@@ -1,9 +1,13 @@
 import type { ISgcRepository, ActualizarSgcExpedienteData } from "@/domain/ports/sgc-repository";
 import type { ISgcWebhookRepository } from "@/domain/ports/sgc-webhook-repository";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { SgcWebhookPayload } from "@/domain/models/sgc";
 import { SGC_EVENT_TYPES, SGC_FINALIZATION, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
 import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
+import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { enviarEmailPlantilla } from "@/lib/server/email";
 
 const MAX_ERROR_LENGTH = 500;
 
@@ -22,6 +26,9 @@ export class SgcWebhookApplicationService {
     private readonly repo: ISgcWebhookRepository,
     private readonly sgcRepo: ISgcRepository,
     private readonly config: SgcIntegracionConfig,
+    /* Opcionales: notifican al cliente cuando el SGC aprueba (best-effort). */
+    private readonly solicitudes?: ISolicitudesRepository,
+    private readonly auth?: IAuthRepository,
   ) {}
 
   async procesar(payload: SgcWebhookPayload): Promise<SgcWebhookResultado> {
@@ -86,6 +93,40 @@ export class SgcWebhookApplicationService {
         break;
     }
 
+    /* Notificacion automatica al cliente: la primera vez que el SGC aprueba (Vigente). */
+    const aprobadoAhora =
+      cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE &&
+      expediente.lifecycleStatus !== SGC_LIFECYCLE_STATUSES.ACTIVE &&
+      expediente.lifecycleStatus !== SGC_LIFECYCLE_STATUSES.FINALIZED;
+
     await this.sgcRepo.actualizarExpediente(expediente.id, cambios);
+    if (aprobadoAhora) await this.notificarAprobacion(expediente.solicitudId);
+  }
+
+  /** Correo "resultado de revision" al cliente cuando Legal (SGC) aprueba. Best-effort. */
+  private async notificarAprobacion(solicitudId: string): Promise<void> {
+    if (!this.solicitudes || !this.auth) return;
+    try {
+      const detalle = await this.solicitudes.detalle(solicitudId);
+      if (!detalle?.email) return;
+      const idioma = await resolverIdiomaDestinatario(this.auth, detalle.email);
+      const nombre = detalle.userId ? (await this.solicitudes.findNombreUsuario(detalle.userId)) ?? "Estimad@" : "Estimad@";
+      await enviarEmailPlantilla({
+        to: detalle.email,
+        plantilla: "revision-resultado",
+        idioma,
+        datos: {
+          standCode: detalle.standCode,
+          empresa: detalle.empresa ?? "-",
+          nombre,
+          email: detalle.email,
+          gessStandId: detalle.id,
+          modo: "automatico",
+          revisiones: detalle.revisiones.map((r) => ({ area: r.area, estado: r.estado, comentario: r.comentario })),
+        },
+      });
+    } catch {
+      /* best-effort: un fallo de correo no revierte la aprobacion del SGC */
+    }
   }
 }

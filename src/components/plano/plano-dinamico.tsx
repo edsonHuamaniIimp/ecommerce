@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet, SheetContent, SheetHeader, SheetTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight } from "lucide-react";
@@ -14,6 +14,9 @@ import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
 import { stringUtils } from "@/lib/shared/utils/string";
+import { idiomaODefecto } from "@/lib/shared/utils/idioma";
+import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
+import { textosReserva } from "@/lib/shared/textos/reserva";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } from "@/lib/client/stores/plano-carrito-store";
 import { useReservaForm } from "./reserva/use-reserva-form";
@@ -37,6 +40,8 @@ interface GessLinked {
   tipoStand: string | null;
   empresa: string | null;
   empresaLogo: string | null;
+  /** Precio neto (USD) resuelto del stand, para el paso de cuotas. */
+  precio: number;
   /** Imagen referencial del tipo de stand (RF-08); aplica a todos los stands del tipo. */
   tipoImagen: string | null;
   estado: string | null;
@@ -63,7 +68,7 @@ function getIdApi(row: Record<string, unknown>): string {
   return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
 }
 
-export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null }) {
+export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null, bloqueInicial = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null; bloqueInicial?: string | null }) {
   const router = useRouter();
   const [plano, setPlano] = useState<PlanoDefinition | null>(null);
   const [planoLoading, setPlanoLoading] = useState(true);
@@ -124,6 +129,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const [legendOpen, setLegendOpen] = useState(false);
   const [standDocs, setStandDocs] = useState<string[]>([]);
   const [postSubmitOpen, setPostSubmitOpen] = useState(false);
+  /* Textos del flujo que viven en portales (toast/modal); Google Translate no los cubre. */
+  const textos = textosReserva(idiomaODefecto(leerIdiomaCookie()));
   const [panelMovil, setPanelMovil] = useState(false);
   /** Tooltip del hover sobre un stand reservado: posicion del cursor + razon social (RF-09). */
   const [hoverStand, setHoverStand] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -172,19 +179,19 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           const estado = estadoDb ?? estadoApi;
           const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
           /* Precio mostrado como `medidas` (compatibilidad del plano): catalogo por tipo + fallback de la fila. */
-          const medidas = precioTexto(
-            resolverPrecioStand({
-              medidas: (r.medidas ?? null) as string | null,
-              tipoStand,
-              rawData: r.rawData,
-            }),
-          );
+          const precio = resolverPrecioStand({
+            medidas: (r.medidas ?? null) as string | null,
+            tipoStand,
+            rawData: r.rawData,
+          });
+          const medidas = precioTexto(precio);
 
           map.set(String(bloqueId), {
             standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
             tipoStand,
             empresa,
             empresaLogo: (r.empresaLogo ?? null) as string | null,
+            precio,
             tipoImagen: (r.tipoImagen ?? null) as string | null,
             estado,
             medidas,
@@ -231,6 +238,24 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     sincronizarPlano(planoId, validos);
   }, [dataReady, planoId, linkedMap, carritoInfoDe]);
 
+  /*
+   * RF-08: preseleccion desde `/mapa?bloque=...` (link de la bandeja). Abre el detalle
+   * del stand y, si esta disponible, lo selecciona. Una sola vez por montaje.
+   */
+  const bloqueInicialRef = useRef(false);
+  useEffect(() => {
+    if (!bloqueInicial || !dataReady || bloqueInicialRef.current) return;
+    const info = linkedMap.get(bloqueInicial);
+    if (!info) return;
+    bloqueInicialRef.current = true;
+    const seleccionar = !info.reserved;
+    queueMicrotask(() => {
+      if (seleccionar) seleccionarSolo(planoId, carritoInfoDe(bloqueInicial));
+      setImgFiltro("todas");
+      setDetailModal(info);
+    });
+  }, [bloqueInicial, dataReady, linkedMap, planoId, seleccionarSolo, carritoInfoDe]);
+
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -249,6 +274,16 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
+    cuotasConfig, setCuotasConfig,
+    contrato,
+    generandoContrato,
+    generarContratoYReservar,
+    contratoFirmadoUrl,
+    subiendoFirmado,
+    subirContratoFirmado,
+    firmaPerfilUrl,
+    firmandoDigital,
+    firmarDigitalmente,
   } = useReservaForm(idsGlobales, linkedMap);
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
@@ -818,6 +853,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             typeLabel: c.pabellonCodigo !== planoId ? `${c.tipoLabel ?? "?"} (${c.pabellonCodigo})` : (c.tipoLabel ?? "?"),
             medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
+            precio: info?.precio ?? 0,
           };
         })}
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
@@ -825,6 +861,17 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         onRemoveDoc={removeDoc}
         confirmado={confirmado}
         onConfirmadoChange={setConfirmado}
+        cuotasPago={cuotasConfig}
+        onCuotasPagoChange={setCuotasConfig}
+        contrato={contrato}
+        generandoContrato={generandoContrato}
+        onGenerarContrato={generarContratoYReservar}
+        contratoFirmadoUrl={contratoFirmadoUrl}
+        subiendoFirmado={subiendoFirmado}
+        onSubirFirmado={(file) => { void subirContratoFirmado(file); }}
+        firmaPerfilUrl={firmaPerfilUrl}
+        firmandoDigital={firmandoDigital}
+        onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {
@@ -833,8 +880,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
             if (esMultiple) {
               setPostSubmitOpen(true);
             } else {
-              toast.success("Reserva enviada correctamente", {
-                description: "Recibiras un correo de confirmacion. El stand pasa a estado En evaluacion.",
+              toast.success(textos.toastTitulo, {
+                description: textos.toastDescripcion,
               });
             }
             setLinkedMap(prev => {
@@ -960,22 +1007,22 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
       <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
         <DialogContent className="rounded-xl border-border sm:max-w-md">
           <DialogHeader>
-            <DialogTitle><span>Solicitud multiple enviada</span></DialogTitle>
+            <DialogTitle><span>{textos.modalTitulo}</span></DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
               <Check className="mx-auto mb-2 h-8 w-8 text-success" />
-              <p className="text-sm font-bold text-foreground">Tu solicitud ha sido registrada con exito</p>
-              <p className="mt-1 text-xs text-muted-foreground">Sigue estos pasos para completar el proceso:</p>
+              <p className="text-sm font-bold text-foreground">{textos.modalOk}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{textos.modalPasos}</p>
             </div>
 
             <div className="space-y-0">
               {[
-                { icon: ScrollText, color: "bg-success/10 text-success", title: "Solicitud creada", desc: "El administrador del IIMP ha sido notificado y revisara tu solicitud multiple." },
-                { icon: Upload, color: "bg-gold/15 text-gold", title: "El admin sube el contrato", desc: "El administrador adjuntara el contrato oficial. Recibiras un correo cuando este listo para que puedas continuar." },
-                { icon: FileText, color: "bg-info/10 text-info", title: "Adjunta tus documentos", desc: "Ingresa a Mis solicitudes en el dashboard y adjunta los documentos requeridos para tu solicitud." },
-                { icon: ClipboardCheck, color: "bg-primary/10 text-primary", title: "Revision por areas", desc: "Tres areas (Comunicacion, Legal y Logistica) revisaran tu documentacion y emitiran su veredicto." },
-                { icon: Bell, color: "bg-secondary text-muted-foreground", title: "Resultado final", desc: "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion." },
+                { icon: ScrollText, color: "bg-success/10 text-success", title: textos.pasos[0].title, desc: textos.pasos[0].desc },
+                { icon: Upload, color: "bg-gold/15 text-gold", title: textos.pasos[1].title, desc: textos.pasos[1].desc },
+                { icon: FileText, color: "bg-info/10 text-info", title: textos.pasos[2].title, desc: textos.pasos[2].desc },
+                { icon: ClipboardCheck, color: "bg-primary/10 text-primary", title: textos.pasos[3].title, desc: textos.pasos[3].desc },
+                { icon: Bell, color: "bg-secondary text-muted-foreground", title: textos.pasos[4].title, desc: textos.pasos[4].desc },
               ].map((s, i) => (
                 <div key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
@@ -994,12 +1041,14 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
 
             <div className="rounded-lg border border-border bg-secondary p-3 text-center">
               <p className="text-[11px] text-muted-foreground">
-                Monitorea el estado en <span className="font-medium text-primary">Mis solicitudes</span> desde el menu lateral del dashboard.
+                {textos.monitoreo.antes}
+                <span className="font-medium text-primary">{textos.monitoreo.resaltado}</span>
+                {textos.monitoreo.despues}
               </p>
             </div>
 
             <Button className="w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90" onClick={() => setPostSubmitOpen(false)}>
-              <span>Entendido</span>
+              <span>{textos.modalBoton}</span>
             </Button>
           </div>
         </DialogContent>

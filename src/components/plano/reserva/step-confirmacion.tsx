@@ -133,7 +133,7 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado,
               </div>
               <div>
                 <p className="font-semibold text-foreground">2. Proceso de revision</p>
-                <p className="mt-0.5 text-xs">Toda solicitud de alquiler esta sujeta a un proceso de revision por parte de las areas de Comunicacion, Legal y Logistica del IIMP. La aprobacion final queda a criterio del IIMP, el cual se reserva el derecho de rechazar una solicitud sin expresion de causa.</p>
+                <p className="mt-0.5 text-xs">Toda solicitud de alquiler esta sujeta a un proceso de revision por parte del Asociado y del area Legal del IIMP. La aprobacion final queda a criterio del IIMP, el cual se reserva el derecho de rechazar una solicitud sin expresion de causa.</p>
               </div>
               <div>
                 <p className="font-semibold text-foreground">3. Documentacion requerida</p>

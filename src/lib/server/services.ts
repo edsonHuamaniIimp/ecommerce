@@ -36,6 +36,9 @@ import { facturacionRepo } from "@/infrastructure/persistence/facturacion-reposi
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
+import { ContratoApplicationService } from "@/application/contratos/contrato-service";
+import { AlertasApplicationService } from "@/application/alertas/alertas-service";
+import { getStorage } from "@/lib/server/storage";
 
 const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
@@ -56,7 +59,7 @@ const sgcClient: ISgcClient =
     : new SgcClientMock();
 const documentoOrigen = new DocumentoOrigen();
 const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgcRepo, sgcClient, documentoOrigen, sgcConfig);
-const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig);
+const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo);
 const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
 
@@ -78,6 +81,8 @@ export const services = {
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
+  contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
+  alertas: new AlertasApplicationService(authRepo),
   gessRepo,
   roleRepo,
 };

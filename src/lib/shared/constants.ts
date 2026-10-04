@@ -35,6 +35,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/stands/exhibidora",
   "/api/stands/contrato",
   "/api/planos/publico",
+  "/api/planos/ubicacion",
   "/api/integracion/sgc/webhook",
   "/api/cron/sgc-reconciliar",
 ] as const;
@@ -363,6 +364,7 @@ export type AreaAprobacion = (typeof AREAS_APROBACION)[keyof typeof AREAS_APROBA
    ================================================================ */
 export const ROLES = {
   ADMIN: "admin",
+  ASOCIADO: "asociado",
   LOGISTICA: "logistica",
   LEGAL: "legal",
   COMUNICACION: "comunicacion",
@@ -392,9 +394,8 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "approve:all",
     "solicitudes:view",
     "solicitudes:gestion",
-    "solicitudes:review:comunicacion",
+    "solicitudes:review:asociado",
     "solicitudes:review:legal",
-    "solicitudes:review:logistica",
     "solicitudes:notify",
     "solicitudes:upload",
     "auspicios:view",
@@ -404,9 +405,10 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "pagos:view",
     "pagos:manage",
   ],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:logistica"],
+  [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"],
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
-  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:comunicacion"],
+  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion"],
   [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
 };
 
@@ -432,9 +434,8 @@ export const ALL_PERMISSIONS = [
   // Solicitudes de alquiler
   { key: "solicitudes:view", label: "Ver solicitudes", descripcion: "Acceder a Mis solicitudes (propias) y a la API de solicitudes", section: "solicitudes" },
   { key: "solicitudes:gestion", label: "Bandeja de Solicitudes", descripcion: "Ver la bandeja administrativa de solicitudes de alquiler", section: "solicitudes" },
-  { key: "solicitudes:review:comunicacion", label: "Revisar Comunicacion", descripcion: "Aprobar/rechazar desde area de Comunicacion", section: "solicitudes" },
+  { key: "solicitudes:review:asociado", label: "Revisar Asociado", descripcion: "Aprobar/rechazar como Asociado (unifica Logistica + Comunicacion; previo a Legal)", section: "solicitudes" },
   { key: "solicitudes:review:legal", label: "Revisar Legal", descripcion: "Aprobar/rechazar desde area Legal", section: "solicitudes" },
-  { key: "solicitudes:review:logistica", label: "Revisar Logistica", descripcion: "Aprobar/rechazar desde area de Logistica", section: "solicitudes" },
   { key: "solicitudes:notify", label: "Notificar solicitudes", descripcion: "Enviar notificacion al cliente cuando todas las areas revisaron", section: "solicitudes" },
   { key: "solicitudes:upload", label: "Subir documentos", descripcion: "Subir documentos a solicitudes de alquiler", section: "solicitudes" },
   // Reservas (legacy)
@@ -477,9 +478,8 @@ export const PERMISSIONS = {
   PAGOS_MANAGE: "pagos:manage",
   SOLICITUDES_VIEW: "solicitudes:view",
   SOLICITUDES_GESTION: "solicitudes:gestion",
-  SOLICITUDES_REVIEW_COMUNICACION: "solicitudes:review:comunicacion",
+  SOLICITUDES_REVIEW_ASOCIADO: "solicitudes:review:asociado",
   SOLICITUDES_REVIEW_LEGAL: "solicitudes:review:legal",
-  SOLICITUDES_REVIEW_LOGISTICA: "solicitudes:review:logistica",
   SOLICITUDES_NOTIFY: "solicitudes:notify",
   SOLICITUDES_UPLOAD: "solicitudes:upload",
   READ_RESERVAS: "read:reservas",
@@ -530,20 +530,19 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
    Flujo de revisión (Solicitudes de alquiler)
    ================================================================ */
 export const REVISION_AREAS = {
-  COMUNICACION: "comunicacion",
+  ASOCIADO: "asociado",
   LEGAL: "legal",
-  LOGISTICA: "logistica",
 } as const;
 
 export type RevisionArea = (typeof REVISION_AREAS)[keyof typeof REVISION_AREAS];
 
 /**
- * Orden de las revisiones LOCALES. La revisión **Legal** ya no es local: se delega
- * al SGC (su `internal-review`). Por eso el pipeline local termina en Comunicación.
+ * Orden de las revisiones LOCALES. "Asociado" unifica Logistica + Comunicacion
+ * (RF-14/15). La revision **Legal** ya no es local: se delega al SGC (su
+ * `internal-review`), por eso el pipeline local tiene un solo nivel.
  */
 export const REVISION_AREA_ORDER: RevisionArea[] = [
-  REVISION_AREAS.LOGISTICA,
-  REVISION_AREAS.COMUNICACION,
+  REVISION_AREAS.ASOCIADO,
 ];
 
 /** Etiqueta del paso (visual, no local) que representa la revisión Legal del SGC. */
@@ -555,24 +554,27 @@ export const REVISION_AREA_SGC_LABEL = "Legal (SGC)";
 export const REVISION_AREA_SGC_STEP = "__sgc__";
 
 export const REVISION_AREA_LABELS: Record<RevisionArea, string> = {
-  [REVISION_AREAS.COMUNICACION]: "Comunicacion",
+  [REVISION_AREAS.ASOCIADO]: "Asociado",
   [REVISION_AREAS.LEGAL]: "Legal",
-  [REVISION_AREAS.LOGISTICA]: "Logistica",
 };
 
 export const REVISION_AREA_PERMISSIONS: Record<RevisionArea, string> = {
-  [REVISION_AREAS.COMUNICACION]: "solicitudes:review:comunicacion",
+  [REVISION_AREAS.ASOCIADO]: "solicitudes:review:asociado",
   [REVISION_AREAS.LEGAL]: "solicitudes:review:legal",
-  [REVISION_AREAS.LOGISTICA]: "solicitudes:review:logistica",
 };
 
 /** Rol que debe ser notificado cuando un area completa su revision.
     Si es null, significa que es la ultima area y se notifica al admin. */
 export const REVISION_AREA_NEXT_ROLE: Record<RevisionArea, string | null> = {
-  [REVISION_AREAS.LOGISTICA]: ROLES.COMUNICACION,
-  [REVISION_AREAS.COMUNICACION]: null, // ultima area LOCAL → notificar admin + delegar al SGC
+  [REVISION_AREAS.ASOCIADO]: null, // unico nivel LOCAL → notificar admin + delegar al SGC
   [REVISION_AREAS.LEGAL]: null, // delegada al SGC (no local)
 } as const;
+
+/**
+ * Rol que atiende el nivel local "Asociado" (unifica Logistica + Comunicacion;
+ * RF-14/15). Se usa para alertar a los revisores al crear la solicitud.
+ */
+export const ROLES_REVISION_ASOCIADO: string[] = [ROLES.ASOCIADO];
 
 /* ================================================================
    Facturacion
@@ -605,9 +607,8 @@ export const ESTADOS_CUOTA = {
 } as const;
 
 export const REVISION_STEPS = {
-  COMUNICACION: 0,
+  ASOCIADO: 0,
   LEGAL: 1,
-  LOGISTICA: 2,
 } as const;
 
 export type RevisionStep = (typeof REVISION_STEPS)[keyof typeof REVISION_STEPS];
@@ -778,6 +779,35 @@ export const PRECIOS_STAND_POR_TIPO: Record<string, number> = {
 };
 /** Precio por defecto cuando el tipo de stand no esta en el catalogo. */
 export const PRECIO_STAND_DEFAULT = 2000;
+
+/**
+ * Modalidades de pago del contrato (Anexo 2): pago completo (100% a 30 dias) o
+ * en cuotas (50% a 30 dias + 50% a los 45 dias del primero). Mismos valores que
+ * `facturacion.modo_pago`.
+ */
+export const MODOS_PAGO = {
+  COMPLETO: "completo",
+  CUOTAS: "cuotas",
+  /** Plan configurado libremente por el cliente (Modalidad 3 del contrato). */
+  PERSONALIZADO: "personalizado",
+} as const;
+
+export type ModoPago = (typeof MODOS_PAGO)[keyof typeof MODOS_PAGO];
+
+/** Porcentaje de IGV aplicado a las facturas (18%). */
+export const IGV_PORCENTAJE = 0.18;
+
+/** Maximo de cuotas que el cliente puede configurar al reservar. */
+export const MAX_CUOTAS_PAGO = 3;
+
+/** Tolerancia al validar que los porcentajes de las cuotas suman 100%. */
+export const CUOTAS_SUMA_TOLERANCIA = 0.01;
+
+/** Paso permitido del porcentaje de una cuota (hasta 2 decimales). */
+export const CUOTAS_PORCENTAJE_PASO = 0.01;
+
+/** Monto minimo (USD) que debe tener cada cuota; si el redondeo da 0 se rechaza. */
+export const CUOTA_MONTO_MINIMO = 0.01;
 
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
@@ -955,8 +985,9 @@ export type VistaBandeja = (typeof VISTAS_BANDEJA)[keyof typeof VISTAS_BANDEJA];
    ================================================================ */
 export const RESERVA_STEPS = {
   DATOS: 0,
-  DOCUMENTOS: 1,
-  CONFIRMACION: 2,
+  CUOTAS: 1,
+  CONTRATO: 2,
+  CONFIRMACION: 3,
 } as const;
 
 export type ReservaStep = (typeof RESERVA_STEPS)[keyof typeof RESERVA_STEPS];
@@ -1313,11 +1344,12 @@ export const SGC_WEBHOOK_SIGNATURE_HEADER = "x-sgc-signature";
 export const SGC_WEBHOOK_DELIVERY_HEADER = "x-sgc-delivery";
 export const CRON_SECRET_HEADER = "x-cron-secret";
 /**
- * Área local que dispara la delegación al SGC. Las revisiones locales se agotan en
- * Comunicación; la revisión **Legal** pasa a ser el `internal-review` del SGC.
- * Cambiar a `REVISION_AREAS.LEGAL` revierte al disparo por revisión Legal.
+ * Área local que dispara la delegación al SGC. La revision local tiene un solo
+ * nivel ("Asociado", RF-14/15); la revisión **Legal** pasa a ser el
+ * `internal-review` del SGC. Cambiar a `REVISION_AREAS.LEGAL` revierte al
+ * disparo por revisión Legal.
  */
-export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.COMUNICACION;
+export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.ASOCIADO;
 export const SGC_PROCESS_ORIGIN = "ContratosStands";
 export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
 /**

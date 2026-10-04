@@ -1,5 +1,12 @@
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "../models/plano-entities";
 
+/** Ubicacion de un bloque: plano (pabellon), bloque y macro que lo contiene (si aplica). */
+export interface UbicacionBloque {
+  plano: { id: string; codigo: string; nombre: string; tipo: string };
+  bloque: PlanoBloqueEntity;
+  macro: { id: string; codigo: string; nombre: string } | null;
+}
+
 export interface IPlanoRepository {
   listar(): Promise<PlanoListItem[]>;
   listarTiposSugeridos(): Promise<PlanoTipoSugerido[]>;
@@ -27,6 +34,9 @@ export interface IPlanoRepository {
   guardarTipos(id: string, tipos: Array<Omit<PlanoTipoBloqueEntity, "id" | "planoId">>): Promise<PlanoEntity>;
 
   macrosQueContienen(planoHijoId: string): Promise<Array<{ id: string; codigo: string; nombre: string }>>;
+
+  /** Resuelve en que plano (pabellon) y macro esta un bloque de stand (RF-08). */
+  ubicacionDeBloque(bloqueId: string): Promise<UbicacionBloque | null>;
 
   findMacroConPlanoHijo(planoHijoId: string, exceptPlanoId: string): Promise<{ id: string; codigo: string; nombre: string } | null>;
 

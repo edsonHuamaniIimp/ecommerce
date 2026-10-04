@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
-import type { IPlanoRepository } from "@/domain/ports/plano-repository";
+import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
 import { normalizarCodigoTipo, planSincronizacionCatalogo } from "@/lib/shared/utils/catalogo-tipos";
@@ -507,6 +507,40 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       select: { plano: { select: { id: true, codigo: true, nombre: true } } },
     });
     return seccion ? seccion.plano : null;
+  }
+
+  /**
+   * RF-08: resuelve en que plano (pabellon) esta un bloque de stand y su macro.
+   * Prefiere el pabellon (plano no macro) sobre cualquier macro que contenga el bloque.
+   */
+  async ubicacionDeBloque(bloqueId: string): Promise<UbicacionBloque | null> {
+    const bloques = await prisma.planoBloque.findMany({
+      where: { bloqueId, flgActivo: true, plano: { flgActivo: true } },
+      include: { plano: { select: { id: true, codigo: true, nombre: true, tipo: true } } },
+    });
+    if (bloques.length === 0) return null;
+
+    const elegido = bloques.find((b) => b.plano.tipo !== TIPOS_PLANO.MACRO) ?? bloques[0];
+    if (!elegido) return null;
+    const macro = await this.findMacroConPlanoHijo(elegido.planoId, elegido.planoId);
+
+    return {
+      plano: elegido.plano,
+      bloque: {
+        id: elegido.id,
+        planoId: elegido.planoId,
+        tipoId: elegido.tipoId,
+        bloqueId: elegido.bloqueId,
+        tipoCodigo: elegido.tipoCodigo,
+        tipologia: elegido.tipologia,
+        x: elegido.x,
+        z: elegido.z,
+        rotY: elegido.rotY,
+        orden: elegido.orden,
+        flgActivo: elegido.flgActivo,
+      },
+      macro,
+    };
   }
 
   async agregarSeccionDefault(macroId: string, planoHijoId: string): Promise<PlanoEntity> {

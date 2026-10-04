@@ -120,9 +120,8 @@ class InMemorySolicitudesRepository {
       updatedAt: new Date("2026-09-15T00:00:00.000Z"),
       revisiones: [...this.revisiones.values()],
       reevaluaciones: [],
-      revisionComunicacion: this.revisiones.get(REVISION_AREAS.COMUNICACION) ?? null,
+      revisionAsociado: this.revisiones.get(REVISION_AREAS.ASOCIADO) ?? null,
       revisionLegal: this.revisiones.get(REVISION_AREAS.LEGAL) ?? null,
-      revisionLogistica: this.revisiones.get(REVISION_AREAS.LOGISTICA) ?? null,
       tieneFacturacion: false,
       tipoFacturacion: null,
       facturacionId: null,
@@ -355,7 +354,7 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
   it("deberia ir de la creacion de la solicitud a la descarga del contrato firmado", async () => {
     const { sgcRepo, sgc, webhook, solicitudes, reserva } = setup();
 
-    /* 1. Cliente crea la solicitud (ReservaApplicationService) -> 3 revisiones pendientes */
+    /* 1. Cliente crea la solicitud (ReservaApplicationService) -> 1 revision pendiente */
     const creada = await reserva.crear({
       standIds: ["gess-1"],
       datos: { razonSocial: EMPRESA, tipoDocumento: "RUC", numeroDocumento: "20123456789", email: "contacto@expositor.pe" },
@@ -364,17 +363,15 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
     });
     expect(creada.ok).toBe(true);
     const inicial = await solicitudes.detalle(SOLICITUD_ID);
-    // Legal ya no es local: solo se crean revisiones de Logistica y Comunicacion.
-    expect(inicial?.revisiones).toHaveLength(2);
+    // Legal ya no es local: el pipeline local tiene un solo nivel (Asociado, RF-14/15).
+    expect(inicial?.revisiones).toHaveLength(1);
     expect(inicial?.revisiones.every((r) => r.estado === RESULTADOS_APROBACION.PENDIENTE)).toBe(true);
 
-    /* 2. Revisión Logística (local) */
-    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.LOGISTICA, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "logistica@iimp.org.pe" });
     expect(await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID)).toBeNull();
 
-    /* 3. Revisión Comunicación (local, última) -> se DELEGA al SGC */
+    /* 2. Revision del Asociado (unico nivel local) -> se DELEGA al SGC */
     const crearSpy = vi.spyOn(SgcClientMock.prototype, "crearExpediente");
-    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.COMUNICACION, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "comunicacion@iimp.org.pe" });
+    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "asociado@iimp.org.pe" });
 
     const expediente = await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID);
     expect(crearSpy).toHaveBeenCalledTimes(1);
@@ -433,8 +430,7 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
   it("deberia marcar Observado y permitir subsanar cuando el SGC devuelve el tramite", async () => {
     const { sgcRepo, sgc, webhook, solicitudes, reserva } = setup();
     await reserva.crear({ standIds: ["gess-1"], userEmail: "contacto@expositor.pe", userSub: "user-1" });
-    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.LOGISTICA, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "logistica@iimp.org.pe" });
-    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.COMUNICACION, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "comunicacion@iimp.org.pe" });
+    await solicitudes.revisar({ solicitudId: SOLICITUD_ID, area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO, reviewerEmail: "asociado@iimp.org.pe" });
     const contractId = (await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID))?.contractId ?? "";
 
     await webhook.procesar(webhookPayload("evt-ret", SGC_EVENT_TYPES.WORKFLOW_RETURNED, contractId, { reason: "Falta firma", round: 1 }));

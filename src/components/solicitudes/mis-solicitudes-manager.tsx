@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
@@ -19,6 +19,7 @@ import { useSesion } from "@/hooks/use-sesion";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
+import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
@@ -204,6 +205,10 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
   const [clienteUploadModo, setClienteUploadModo] = useState<"contrato" | "anexos">("anexos");
+  /** RF-08: preview del recorte del pabellon con el stand destacado. */
+  const [recorteBloque, setRecorteBloque] = useState<{ solicitudId: string; bloqueIds: string[]; etiqueta: string } | null>(null);
+  const [guardandoRecorte, setGuardandoRecorte] = useState(false);
+  const recorteRef = useRef<RecortePlanoHandle | null>(null);
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
   const { session: sesion } = useSesion();
@@ -235,6 +240,27 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
     const data = await solicitudesService.detalle(id);
     setDetailRow(data);
     setDetailOpen(true);
+  };
+
+  /** RF-08 (F2): genera el PNG del recorte y lo guarda en la solicitud para el contrato. */
+  const guardarRecortePng = async () => {
+    if (!recorteBloque) return;
+    const blob = await recorteRef.current?.exportarPng();
+    if (!blob) {
+      toast.error("No se pudo generar la imagen del recorte");
+      return;
+    }
+    setGuardandoRecorte(true);
+    try {
+      const archivo = new File([blob], `recorte-${recorteBloque.etiqueta || "stands"}.png`, { type: "image/png" });
+      const url = await solicitudesService.subirArchivo(archivo);
+      await solicitudesService.guardarRecortePlano({ solicitudId: recorteBloque.solicitudId, url });
+      toast.success("Imagen guardada");
+      await openDetail(recorteBloque.solicitudId);
+    } catch {
+      toast.error("No se pudo guardar la imagen del recorte");
+    }
+    setGuardandoRecorte(false);
   };
 
   const openClienteUpload = async (row: SolicitudRow, modo: "contrato" | "anexos") => {
@@ -609,6 +635,76 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     ))}
                   </div>
                 )}
+                {(detailRow.standsDetalle?.length ?? 0) > 1 ? (
+                  (() => {
+                    const grupos = new Map<string, { planoId: string; planoNombre: string; stands: string[]; bloqueIds: string[] }>();
+                    const sinUbicacion: string[] = [];
+                    for (const s of detailRow.standsDetalle ?? []) {
+                      if (!s.bloqueId || !s.planoId) { sinUbicacion.push(s.standCode); continue; }
+                      const grupo = grupos.get(s.planoId) ?? {
+                        planoId: s.planoId,
+                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "Pabellón",
+                        stands: [],
+                        bloqueIds: [],
+                      };
+                      grupo.stands.push(s.standCode);
+                      grupo.bloqueIds.push(s.bloqueId);
+                      grupos.set(s.planoId, grupo);
+                    }
+                    return (
+                      <div className="mt-3 space-y-2">
+                        {[...grupos.values()].map((g) => (
+                          <div key={g.planoId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                            <div className="flex min-w-32 flex-col">
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.planoNombre}</span>
+                              <span className="font-mono text-[10px] font-bold text-primary">{g.stands.join(", ")}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-full text-xs"
+                                onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: g.bloqueIds, etiqueta: g.stands.join("-") })}
+                              >
+                                <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                                <span>Ver ubicación</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
+                                <Link href={`/mapa?bloque=${encodeURIComponent(g.bloqueIds[0]!)}`}>
+                                  <MapIcon className="mr-1.5 h-3.5 w-3.5" />
+                                  <span>Ver en el mapa</span>
+                                </Link>
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {sinUbicacion.length > 0 && (
+                          <p className="text-[11px] text-muted-foreground">
+                            <span>Sin ubicación en el plano: {sinUbicacion.join(", ")}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : detailRow.bloqueId ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-full text-xs"
+                      onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: [detailRow.bloqueId!], etiqueta: detailRow.standCode || detailRow.bloqueId! })}
+                    >
+                      <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                      <span>Ver ubicación en el plano</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
+                      <Link href={`/mapa?bloque=${encodeURIComponent(detailRow.bloqueId)}`}>
+                        <MapIcon className="mr-1.5 h-3.5 w-3.5" />
+                        <span>Ver en el mapa</span>
+                      </Link>
+                    </Button>
+                  </div>
+                ) : null}
               </ModalSection>
 
               {/* Empresa montajista (con la reserva pagada/oficializada) */}
@@ -1089,6 +1185,41 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               <span className="text-lg">›</span>
             </button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* RF-08: recorte del pabellon con el stand destacado */}
+      {recorteBloque && (
+        <Dialog open onOpenChange={() => setRecorteBloque(null)}>
+          <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>
+                <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-muted-foreground">
+              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
+            </p>
+            <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
+            <DialogFooter>
+              <div className="flex w-full flex-wrap items-center justify-between gap-2">
+                {detailRow?.id === recorteBloque.solicitudId && detailRow?.recortePlanoUrl ? (
+                  <a href={detailRow.recortePlanoUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">
+                    <span>Ver imagen guardada</span>
+                  </a>
+                ) : <span />}
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="rounded-full text-xs" onClick={() => setRecorteBloque(null)}>
+                    <span>Cerrar</span>
+                  </Button>
+                  <Button size="sm" className="rounded-full text-xs" disabled={guardandoRecorte} onClick={() => { void guardarRecortePng(); }}>
+                    {guardandoRecorte ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImageDown className="mr-1.5 h-3.5 w-3.5" />}
+                    <span>Guardar imagen</span>
+                  </Button>
+                </div>
+              </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

@@ -83,7 +83,7 @@ curl -fsS -X POST https://ecommerce.sistemasiimp.org.pe/api/cron/sgc-reconciliar
 ```
 
 Smoke test funcional:
-1. En `/dashboard/solicitudes`, aprobar **Logística** y **Comunicación** de una solicitud de prueba.
+1. En `/dashboard/solicitudes`, aprobar **Asociado** de una solicitud de prueba.
 2. Verificar que se crea el expediente (panel "Revisión Legal (SGC)" → `ID SGC`).
 3. Enviar contrato (doc del admin) y anexos (docs del cliente).
 4. Esperar webhooks (o verificar con `POST /api/cron/sgc-reconciliar`).

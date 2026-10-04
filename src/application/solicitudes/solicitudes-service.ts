@@ -1,10 +1,11 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, REVISION_AREA_LABELS, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, ANEXOS_REQUERIDOS, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, APP_URL, ANEXOS_REQUERIDOS, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import type { JwtPayload } from "@/lib/server/auth";
 import type { ModoNotificacion } from "@/lib/shared/constants";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
@@ -113,19 +114,15 @@ export class SolicitudesApplicationService {
     if (data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
     }
-
-    const areaLabel = REVISION_AREA_LABELS[data.area as keyof typeof REVISION_AREA_LABELS];
     const nextRole = REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
     if (nextRole) {
       const detalle = await this.repo.detalle(data.solicitudId);
       if (detalle) {
-        const nextLabel = REVISION_AREA_LABELS[nextRole as keyof typeof REVISION_AREA_LABELS] ?? nextRole;
         await this.repo.crearAlertaRevision({
           rol: nextRole,
           solicitudId: data.solicitudId,
-          titulo: `Turno de revision — ${nextLabel}`,
-          mensaje: `El area de ${areaLabel} ya completo su revision de los stands ${detalle.standCode}. Ahora es tu turno de revisar.`,
-          standCodes: detalle.standCode,
+          clave: ALERTA_CLAVES.TURNO_REVISION,
+          datos: { area: data.area, stands: detalle.standCode },
         }).catch(() => {});
       }
     } else {
@@ -134,9 +131,8 @@ export class SolicitudesApplicationService {
         await this.repo.crearAlertaRevision({
           rol: ROLES.ADMIN,
           solicitudId: data.solicitudId,
-          titulo: "Revision completada — todas las areas",
-          mensaje: `Todas las areas han finalizado la revision de los stands ${detalle.standCode}.`,
-          standCodes: detalle.standCode,
+          clave: ALERTA_CLAVES.REVISION_COMPLETADA,
+          datos: { stands: detalle.standCode },
         }).catch(() => {});
       }
     }
@@ -239,8 +235,8 @@ export class SolicitudesApplicationService {
           await this.repo.crearAlertaRol({
             rol: ROLES.ADMIN,
             tipo: ALERTA_TIPOS.CONTRATO_FIRMADO,
-            titulo: "Contrato firmado subido",
-            mensaje: `El cliente subio el contrato firmado de la solicitud ${detalle.standCode}. Revisa los documentos para continuar con el flujo.`,
+            clave: ALERTA_CLAVES.CONTRATO_FIRMADO_SUBIDO,
+            datos: { stands: detalle.standCode },
             url: `${APP_URL}/dashboard/solicitudes?id=${params.solicitudId}`,
           });
         }
@@ -248,6 +244,27 @@ export class SolicitudesApplicationService {
     }
 
     return doc;
+  }
+
+  /**
+   * RF-08: guarda la URL de la imagen (PNG) del recorte del pabellon de una solicitud.
+   * Solo el titular de la solicitud o un admin pueden guardarla.
+   */
+  async guardarRecortePlano(params: {
+    solicitudId: string;
+    url: string;
+    userSub: string;
+    userPermissions: string[];
+  }): Promise<void> {
+    const detalle = await this.repo.detalle(params.solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const isAdmin =
+      params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+    if (!isAdmin && detalle.userId !== params.userSub) {
+      throw new DomainError("No puedes guardar la imagen de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    await this.repo.guardarRecortePlano(params.solicitudId, params.url);
   }
 
   async eliminarDocumento(params: {

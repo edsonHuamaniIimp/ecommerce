@@ -65,7 +65,7 @@ El borrador se guarda en IndexedDB por conjunto de IDs y se borra tras el envío
 
 ### 3.5 Registro
 - `POST /api/reservas/crear` con `{ standIds[], documentos?, datos? }` (`reserva.validator.ts:3-12`).
-- Backend (`reserva-service.ts:15-113`): valida que los stands estén `disponible`; los pasa a `en_evaluacion`; crea `Solicitud` + `Revision` iniciales; genera alertas (a Logística y, si multi-stand, al cliente y al admin) y envía correos.
+- Backend (`reserva-service.ts:15-113`): valida que los stands estén `disponible`; los pasa a `en_evaluacion`; crea `Solicitud` + `Revision` inicial (nivel local **Asociado**); genera alertas (a los revisores del Asociado —roles logística/comunicación— y, si multi-stand, al cliente y al admin) y envía correos.
 - Post-envío: 1 stand muestra toast; N stands muestra modal con el flujo de 5 pasos.
 
 ### 3.6 Modal informativo del plano (una vez por sesión)

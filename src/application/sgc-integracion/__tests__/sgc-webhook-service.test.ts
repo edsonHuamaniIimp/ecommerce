@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { SgcWebhookApplicationService } from "../sgc-webhook-service";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/server/email", () => ({ enviarEmailPlantilla: vi.fn().mockResolvedValue(true) }));
 import type { SgcIntegracionConfig } from "../sgc-integracion-service";
 import type { ISgcWebhookRepository } from "@/domain/ports/sgc-webhook-repository";
 import type { ISgcRepository } from "@/domain/ports/sgc-repository";
@@ -110,8 +116,10 @@ function build(
   repo: ISgcWebhookRepository,
   sgcRepo: ISgcRepository,
   config: SgcIntegracionConfig = CONFIG,
+  solicitudes?: ISolicitudesRepository,
+  auth?: IAuthRepository,
 ) {
-  return new SgcWebhookApplicationService(repo, sgcRepo, config);
+  return new SgcWebhookApplicationService(repo, sgcRepo, config, solicitudes, auth);
 }
 describe("SgcWebhookApplicationService.procesar", () => {
   it("deberia registrar el evento y actualizar la etapa del expediente", async () => {
@@ -160,6 +168,31 @@ describe("SgcWebhookApplicationService.procesar", () => {
       expect.objectContaining({
         lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
       }),
+    );
+  });
+  it("deberia notificar al cliente en su idioma cuando el SGC aprueba (activo)", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({
+        id: "sol-1",
+        standCode: "BLOQUE-01",
+        empresa: "Minera Cordillera S.A.C.",
+        email: "cliente@minera.pe",
+        userId: "user-1",
+        revisiones: [{ area: "asociado", estado: "aprobado", comentario: null }],
+      }),
+      findNombreUsuario: vi.fn().mockResolvedValue("Jorge Quispe"),
+    } as unknown as ISolicitudesRepository;
+    const auth = { findPerfilByEmail: vi.fn().mockResolvedValue({ idioma: "en" }) } as unknown as IAuthRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes, auth);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(vi.mocked(enviarEmailPlantilla)).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "cliente@minera.pe", plantilla: "revision-resultado", idioma: "en" }),
     );
   });
   it("deberia ignorar un evento sin eventId", async () => {

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Search, X, Loader2, Image as ImageIcon, Upload } from "lucide-react";
+import { Building2, Search, X, Loader2, Image as ImageIcon, Upload, PenLine } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
@@ -27,6 +27,9 @@ function PerfilPageContent() {
   const [logoUrl, setLogoUrl] = useState("");
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
+  const [firmaUrl, setFirmaUrl] = useState("");
+  const [subiendoFirma, setSubiendoFirma] = useState(false);
+  const firmaRef = useRef<HTMLInputElement>(null);
   const [tipoUsuarioId, setTipoUsuarioId] = useState<number | null>(null);
   const [, setTiposUsuario] = useState<MaestraItemDTO[]>([]);
   const [resetPassword, setResetPassword] = useState("");
@@ -54,6 +57,7 @@ function PerfilPageContent() {
       setApellidos(perfilData.apellidos ?? "");
       setTelefono(perfilData.telefono ?? "");
       setLogoUrl(perfilData.logoUrl ?? "");
+      setFirmaUrl(perfilData.firmaUrl ?? "");
       setTipoUsuarioId(perfilData.tipoUsuarioId ?? null);
       setIdEmpresa(perfilData.idEmpresa ?? null);
       setNombreEmpresa(perfilData.nombreEmpresa ?? null);
@@ -65,7 +69,7 @@ function PerfilPageContent() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await perfilService.update({ nombre, apellidos, telefono, tipoUsuarioId, idEmpresa, nombreEmpresa, logoUrl: logoUrl || null });
+      await perfilService.update({ nombre, apellidos, telefono, tipoUsuarioId, idEmpresa, nombreEmpresa, logoUrl: logoUrl || null, firmaUrl: firmaUrl || null });
       toast.success("Perfil actualizado");
     } catch { toast.error("Error al guardar"); }
     setSaving(false);
@@ -79,10 +83,48 @@ function PerfilPageContent() {
     try {
       const url = await uploadService.subir(file);
       setLogoUrl(url);
+      await perfilService.update({ logoUrl: url });
+      toast.success("Logo actualizado");
     } catch {
       toast.error("No se pudo subir el logo");
     }
     setSubiendoLogo(false);
+  };
+
+  const quitarLogo = async () => {
+    setLogoUrl("");
+    try {
+      await perfilService.update({ logoUrl: null });
+      toast.success("Logo eliminado");
+    } catch {
+      toast.error("No se pudo quitar el logo");
+    }
+  };
+
+  const onFirmaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setSubiendoFirma(true);
+    try {
+      const url = await uploadService.subir(file);
+      setFirmaUrl(url);
+      await perfilService.update({ firmaUrl: url });
+      toast.success("Firma actualizada");
+    } catch {
+      toast.error("No se pudo subir la firma");
+    }
+    setSubiendoFirma(false);
+  };
+
+  const quitarFirma = async () => {
+    setFirmaUrl("");
+    try {
+      await perfilService.update({ firmaUrl: null });
+      toast.success("Firma eliminada");
+    } catch {
+      toast.error("No se pudo quitar la firma");
+    }
   };
 
   const handleSearchEmpresa = async () => {
@@ -199,12 +241,39 @@ function PerfilPageContent() {
                     {logoUrl ? "Cambiar logo" : "Subir logo"}
                   </Button>
                   {logoUrl && (
-                    <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => setLogoUrl("")}>
+                    <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => void quitarLogo()}>
                       Quitar
                     </Button>
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">Tiene prioridad sobre el logo de tu empresa en los stands reservados del mapa.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label><span>Firma digital (para contratos)</span></Label>
+                <div className="flex items-center gap-3">
+                  {firmaUrl ? (
+                    <img src={firmaUrl} alt="Firma digital" className="h-12 w-24 rounded-lg border bg-white object-contain p-1" />
+                  ) : (
+                    <span className="flex h-12 w-24 items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                      <PenLine className="h-4 w-4" />
+                    </span>
+                  )}
+                  <input ref={firmaRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => { void onFirmaFile(e); }} />
+                  <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoFirma} onClick={() => firmaRef.current?.click()}>
+                    {subiendoFirma ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                    {firmaUrl ? "Cambiar firma" : "Subir firma"}
+                  </Button>
+                  {firmaUrl && (
+                    <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => void quitarFirma()}>
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Sube una imagen PNG/JPG de tu firma (fondo claro). Se usará para <strong>firmar digitalmente</strong> tus
+                  contratos desde el paso de firma, sin descargar ni subir el documento firmado.
+                </p>
               </div>
             </CardContent>
           </Card>

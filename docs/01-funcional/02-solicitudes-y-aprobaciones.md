@@ -16,8 +16,7 @@ del cliente, notificación y orden de pago. La unidad de datos es `Solicitud`, c
 | Permiso | Constante | Quién |
 |---|---|---|
 | `solicitudes:view` | `SOLICITUDES_VIEW` | todos los roles |
-| `solicitudes:review:logistica` | `SOLICITUDES_REVIEW_LOGISTICA` | admin, logistica |
-| `solicitudes:review:comunicacion` | `SOLICITUDES_REVIEW_COMUNICACION` | admin, comunicacion |
+| `solicitudes:review:asociado` | `SOLICITUDES_REVIEW_ASOCIADO` | admin, asociado (nivel "Asociado", previo a Legal; RF-14/15) |
 | `solicitudes:review:legal` | `SOLICITUDES_REVIEW_LEGAL` | admin, legal (legacy) |
 | `solicitudes:notify` | `SOLICITUDES_NOTIFY` | admin |
 | `solicitudes:upload` | `SOLICITUDES_UPLOAD` | admin |
@@ -34,18 +33,17 @@ del cliente, notificación y orden de pago. La unidad de datos es `Solicitud`, c
 
 ## 4. Flujo de revisión
 
-Orden local vigente: **Logística → Comunicación**. La revisión **Legal ya no es local**:
-se delega al SGC como su `internal-review` (`constants.ts:346-376,684-688`).
+Pipeline local: **Asociado → Legal (SGC)**. "Asociado" **unifica Logística + Comunicación**
+(RF-14/15). La revisión **Legal no es local**: se delega al SGC como su `internal-review`.
 
-1. **Creación** (desde el plano): se crean revisiones `pendiente` por área local y se alerta a Logística (`reserva-service.ts:57-68`).
-2. **Logística** responde (`POST /api/solicitudes/revisar` con `{solicitudId, area, estado, comentario?}`). Al finalizar, se alerta al siguiente rol (Comunicación).
-3. **Comunicación** (última área local):
-   - Aprueba → se **crea el expediente en el SGC** (`solicitudes-service.ts:43-45`) y se alerta al admin ("Revisión completada").
+1. **Creación** (desde el plano): se crea la revisión `pendiente` del nivel local (Asociado) y se alerta a los revisores (`reserva-service.ts:84-95`).
+2. **Asociado** responde (`POST /api/solicitudes/revisar` con `{solicitudId, area, estado, comentario?}`):
+   - Aprueba → se **crea el expediente en el SGC** (`solicitudes-service.ts:113-115`) y se alerta al admin ("Revisión completada").
    - Rechaza → se alerta al admin; no se crea expediente SGC.
-4. **Legal (SGC)**: se ejecuta en el sistema externo; el webhook actualiza la correlación local (ver [08-integraciones.md](./08-integraciones.md)).
-5. **Estado de la solicitud** se calcula según las revisiones (ver §5).
-6. **Orden de pago**: con todo aprobado, "Generar orden de pago" pasa la solicitud a `pendiente_pago` y crea `Facturacion` (`solicitudes-repository.ts:378-400`).
-7. **Pago**: al confirmarse todas las cuotas, la solicitud pasa a `pagado` (ver [04-facturacion.md](./04-facturacion.md)).
+3. **Legal (SGC)**: se ejecuta en el sistema externo; el webhook actualiza la correlación local (ver [08-integraciones.md](./08-integraciones.md)).
+4. **Estado de la solicitud** se calcula según las revisiones (ver §5).
+5. **Orden de pago**: con todo aprobado, "Generar orden de pago" pasa la solicitud a `pendiente_pago` y crea `Facturacion` (`solicitudes-repository.ts:378-400`).
+6. **Pago**: al confirmarse todas las cuotas, la solicitud pasa a `pagado` (ver [04-facturacion.md](./04-facturacion.md)).
 
 Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`solicitud-review.tsx:153-161`). El stepper muestra un paso extra **"Legal (SGC)"** no clickeable.
 

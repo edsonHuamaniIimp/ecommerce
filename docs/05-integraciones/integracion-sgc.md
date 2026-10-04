@@ -11,7 +11,7 @@
 > puertos, adaptador mock, config de env, wiring y tests.
 > Fase 1: modelos Prisma `SgcExpediente`/`SgcDocumento`, repositorio, mapper
 > (`src/lib/shared/mappers/sgc.ts`), servicio `SgcIntegracionApplicationService` y disparo
-> al aprobar **ComunicaciÃ³n** (`SolicitudApplicationService.revisar`; la revisiÃ³n Legal se
+> al aprobar **Asociado** (nivel local; RF-14/15) (`SolicitudApplicationService.revisar`; la revisiÃ³n Legal se
 > delega al SGC). Best-effort: un fallo del SGC se registra (`estadoEnvio=error`) y nunca
 > bloquea la aprobaciÃ³n. Dormido hasta `SGC_ENABLED=1`.
 > Fase 2: subida en 3 fases (`reservar â†’ transferir â†’ confirmar`) con checksum SHA-256,
@@ -97,41 +97,38 @@ que este repo no implementa. Pendiente corregir esa lÃ­nea del doc del SM.
 
 | Paso SGC | Disparador en ContratosStands | Entidad local |
 |---|---|---|
-| `POST /contracts` | **RevisiÃ³n ComunicaciÃ³n aprobada** â€” Ãºltima Ã¡rea local; Legal se delega (ver Â§3.1) | `Solicitud` |
+| `POST /contracts` | **Aprobacion de Asociado** - unico nivel local; Legal se delega (ver 3.1) | `Solicitud` |
 | Reservar/subir/confirmar documento | **Contrato v1** = documento del **admin** (`SolicitudDocumento.userId === null`); **anexos** = documentos del **cliente** (`userId` no nulo) | `SolicitudDocumento` |
 | `GET /contracts/{contractId}` | Usuario abre el sidebar del stand | `Solicitud` + correlaciÃ³n `SgcExpediente` |
 | `workflow.returned` | El SGC devuelve â†’ estado observado | `SgcWebhookEvento` â†’ `SgcExpediente` |
 | `workflow.approved` + finalization `active` | Descargar contrato firmado | `SgcDocumento` |
 | `contract.closed` | Cierre formal | `SgcExpediente` |
 
-### 3.1 Punto de disparo (RESUELTO): revisiÃ³n ComunicaciÃ³n â†’ SGC
+### 3.1 Punto de disparo (RESUELTO): aprobacion de Asociado -> SGC
 
-El pipeline local de solicitudes es `logistica â†’ comunicacion` (`REVISION_AREA_ORDER`
-ya **no incluye Legal**). **La revisiÃ³n Legal deja de existir en local y se delega al SGC**
-(es precisamente su `internal-review` "RevisiÃ³n legal interna"), por lo que **ComunicaciÃ³n
-es la Ãºltima Ã¡rea local** y al aprobarla el trÃ¡mite pasa al SGC.
+El pipeline local de solicitudes tiene un **unico nivel: Asociado** (`REVISION_AREA_ORDER` = `[asociado]`; unifica Logistica + Comunicacion, RF-14/15). **La revision Legal no es local y se delega al SGC** (es precisamente su `internal-review` "Revision legal interna"), por lo que **Asociado es la unica area local** y al aprobarla el tramite pasa al SGC.
 
 Ese es el punto de integraciÃ³n. **Equivale al `workflow.started` del SGC** ("se enviÃ³ el
-trÃ¡mite"): tras la aprobaciÃ³n de **ComunicaciÃ³n**, ContratosStands crea el expediente en el
+trÃ¡mite"): tras la aprobacion de **Asociado**, ContratosStands crea el expediente en el
 SGC y empuja el contrato v1; el SGC corre entonces **sus propias etapas**
 (`internal-review` â†’ `approval`), que incluyen la revisiÃ³n legal y la aprobaciÃ³n de Gerencia.
 
 > El disparo vive en la constante `SGC_TRIGGER_REVISION_AREA`
-> (`constants.ts`) = `REVISION_AREAS.COMUNICACION`. Cambiarla a `REVISION_AREAS.LEGAL`
+> (`constants.ts`) = `REVISION_AREAS.ASOCIADO`. Cambiarla a `REVISION_AREAS.LEGAL`
 > revierte al disparo por revisiÃ³n Legal si el negocio lo pidiera.
 
 **Compatibilidad lÃ³gico + visual (`src/lib/shared/utils/revision-areas.ts`).**
 Las Ã¡reas locales se resuelven con `areasRevisionLocal(revisiones)`:
-- Solicitudes **nuevas**: `[logistica, comunicacion]` â†’ Legal la cubre el SGC
+- Solicitudes **nuevas**: `[asociado]` â†’ Legal la cubre el SGC
   (`legalDelegadaAlSgc = true`); el UI muestra el paso **"Legal (SGC)"**.
-- Solicitudes **legacy** (con revisiÃ³n Legal persistida): `[logistica, comunicacion, legal]`
+- Solicitudes **legacy**: las revisiones viejas `logistica/comunicacion` se ignoran (no migran, RF-14/15); si tienen `legal` persistida: `[asociado, legal]`
   â†’ se sigue exigiendo/visualizando Legal local; **no** se muestra el paso SGC.
 El mismo criterio se aplica al cÃ¡lculo de estado (`computeEstadoSolicitud`), al gating de
 `notificar`/`modificar` y a los steps de `solicitud-review`, `solicitudes-manager` y
 `mis-solicitudes-manager`. El rol `legal` y su permiso se conservan por compatibilidad.
 
 CondiciÃ³n exacta del disparo (todas deben cumplirse):
-- `data.area === SGC_TRIGGER_REVISION_AREA` (= `comunicacion`)
+- `data.area === SGC_TRIGGER_REVISION_AREA` (= `asociado`)
 - `data.estado === RESULTADOS_APROBACION.APROBADO`
 - `revision.fuePrimeraRevision === true` (evita re-disparar al editar el comentario)
 - La solicitud no tiene ya un `SgcExpediente` con `estadoEnvio = "creado"` (idempotente)
@@ -144,7 +141,7 @@ request crÃ­tico** (best-effort + registro en `SgcExpediente.estadoEnvio = err
 para que un fallo del SGC **nunca** bloquee la aprobaciÃ³n Legal.
 
 > Nota: el resto de etapas del SGC (revisiÃ³n jurÃ­dica, gerencia, firma) son **internas del
-> SGC** y no deben mapearse a las Ã¡reas locales (`logistica/comunicacion/legal`). La
+> SGC** y no deben mapearse a las Ã¡reas locales (`asociado/legal`). La
 > re-evaluaciÃ³n local (`atenderReevaluacionAprobacion`) NO vuelve a crear expediente: genera
 > una versiÃ³n corregida sobre el mismo `documentId` (Â§9, subsanaciÃ³n).
 
@@ -431,7 +428,7 @@ Cada fase sigue `code-production-process` + `test-driven-development` y cierra c
 
 ## 13. Decisiones abiertas (bloqueos)
 
-1. ~~**Punto de disparo**~~ â€” **RESUELTO**: aprobaciÃ³n de la revisiÃ³n **ComunicaciÃ³n** (Ãºltima Ã¡rea local); la revisiÃ³n **Legal** se delega al SGC (Â§3.1).
+1. ~~**Punto de disparo**~~ â€” **RESUELTO**: aprobacion de **Asociado** (nivel local, RF-14/15); la revisiÃ³n **Legal** se delega al SGC (Â§3.1).
 2. **`areaCode` / `contractTypeCode`** reales para "separaciÃ³n de stands" (los define el SGC).
 3. **Datos para el expediente**: `counterpartyLegalName` se toma hoy de `GessStand.empresa`
    (fallback `standCode`). **Pendiente**: `counterpartyTaxIdentifier` va vacÃ­o â€” hay que
@@ -468,8 +465,8 @@ sequenceDiagram
     participant SGC as SGC (/api/integrations/v1)
     participant WH as /api/integracion/sgc/webhook
 
-    Area->>UI: Aprueba revisiÃ³n (logÃ­stica â†’ comunicaciÃ³n; Legal se delega al SGC)
-    UI->>API: POST /api/solicitudes/revisar (area=comunicacion, aprobado)
+    Area->>UI: Aprueba revision (Asociado; Legal se delega al SGC)
+    UI->>API: POST /api/solicitudes/revisar (area=asociado, aprobado)
     API->>Svc: crearExpedienteDesdeSolicitud(solicitudId)
     Svc->>DB: busca correlaciÃ³n (idempotencia)
     Svc->>SGC: POST /contracts (Idempotency-Key: stands/reserva/{id})
@@ -507,7 +504,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Solicitud creada: revisiones locales logÃ­stica/comunicaciÃ³n] --> B{LogÃ­stica y ComunicaciÃ³n aprueban?}
+    A[Solicitud creada: revision local Asociado] --> B{Asociado aprueba?}
     B -- No --> B1[Rechazo / re-evaluaciÃ³n local - sin SGC]
     B -- SÃ­ --> C[Delegar al SGC: crear expediente + contrato v1]
     C --> D[Carga 3 fases: reservar â†’ PUT â†’ confirmar]

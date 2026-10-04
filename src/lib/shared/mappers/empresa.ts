@@ -15,6 +15,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     emailFacturacion: entity.emailFacturacion,
     representanteLegalNombre: entity.representanteLegalNombre,
     representanteLegalDni: entity.representanteLegalDni,
+    partidaElectronica: entity.partidaElectronica,
     tipoComprobante: entity.tipoComprobante,
     sitioWeb: entity.sitioWeb,
     estado: entity.estado,

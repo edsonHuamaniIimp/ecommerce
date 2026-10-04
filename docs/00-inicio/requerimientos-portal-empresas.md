@@ -115,7 +115,7 @@
   referencial por tipo de stand" ni "recorte del plano con su ubicación" (thumbnail), ni
   tooltip **hover** con razón social sobre stands reservados.
 - **Brecha:**
-  1. catálogo de **imagen referencial por tipo de stand** (¿por evento o global?);
+  1. catálogo de **imagen referencial por tipo de stand** **por evento** (con respaldo global);
   2. **recorte/miniatura del plano** por stand (el plano es un render 3D con `x/z` por
      bloque; se puede generar un snapshot programático o subirlo el admin);
   3. **hover** con razón social (variante táctil en móvil); evaluar visibilidad según sesión.
@@ -190,28 +190,38 @@
 
 ### 3.2 Pendientes (próxima iteración)
 
-1. **Campos contractuales (RF-07):** confirmar la lista de campos que se resaltan como "usados
-   en el contrato" (propuesta: razón social, RUC, dirección fiscal, representante legal —
-   nombre y DNI, correo y teléfono) y si basta con alerta visual o requiere **check de
-   confirmación por campo**.
-2. **Bloques con reserva en curso:** precisar dónde se mostrarán los "bloques con el nombre de
-   la empresa que tiene una reserva en curso" (¿tarjeta del stand en el portal?, ¿resumen en
-   el portal?) y qué datos exactos.
-3. **Credenciales (RF-05):** definido **usuario + contraseña temporal** (cambio obligatorio;
-   reenvío desde el backoffice). Pendiente: ¿el **reset de contraseña olvidada** es autoservicio
-   por correo (flujo existente `/auth/recuperar`) o lo gestiona el backoffice? ¿Se mantiene
-   `/auth/solicitar-cuenta` como canal alterno?
-4. **Firma digital (RF-12):** definir el **proveedor** de firma y el alcance de la firma
-   "universal" que se sube desde el sistema.
+1. ~~**Campos contractuales (RF-07):**~~ **RESUELTO**: basta la **alerta visual** (campos
+   resaltados) + la **confirmación en el primer login** (`/auth/validar-datos`); no se requiere
+   check por campo. Campos marcados: razón social, RUC, dirección fiscal, representante legal
+   (nombre y DNI), correo y teléfono.
+2. ~~**Bloques con reserva en curso:**~~ **RESUELTO**: el nombre de la empresa se muestra en el
+   **detalle del stand al hacer clic/tap** (campo "Empresa", también en el portal) y en el
+   **hover** del mapa; el vínculo empresa↔bloque se crea al completar la reserva.
+3. ~~**Credenciales (RF-05):**~~ **RESUELTO**: el reset es **autoservicio por correo** (flujo
+   existente `/auth/recuperar` + `/auth/recuperar/[token]`, endpoints `reset-password` y
+   `reset-password/confirm`, correo en el idioma del usuario). El backoffice puede **reenviar
+   credenciales** (regenera la contraseña temporal) desde la bandeja de empresas.
+4. ~~**Firma digital (RF-12):**~~ **RESUELTO (local)**: el usuario sube su **firma (PNG/JPG)**
+   en *Perfil* y desde el paso de firma puede **Firmar digitalmente**: el servidor estampa la
+   imagen en el contrato (Anexo 3 y bloque de firmas) y equivale a subir el contrato firmado
+   (`POST /api/contratos/firmar`). Alternativa: descargar/firmar/subir. Proveedor de firma
+   externo (certificado): mejora futura, no bloquea el flujo.
 5. **SGC (RF-17):** confirmar con el equipo del SGC el campo donde recibirán la razón social
    (expediente/contrato) para su filtro y búsqueda.
-6. **Facturación (RF-19):** ¿la notificación es por correo? ¿el comprobante es visible para
-   todos los usuarios de la empresa? ¿hay restricciones de pago por tipo de stand o recargos?
-7. **Carga masiva (RF-04):** confirmar plantilla descargable y campos obligatorios; ¿las
-   empresas ya existentes se migran o se dan de alta manualmente?
-8. **Multi-evento:** ¿empresas y modalidades de pago se reutilizan entre eventos?
-9. **Diseños UX:** en curso en Stitch (backoffice de empresas, primer login, condiciones de
-   pago, contrato/firma, comprobante en el portal, visuales del stand y token de Montaje).
+6. ~~**Facturación (RF-19):**~~ **RESUELTO**: al adjuntar el comprobante, Facturación **notifica
+   por correo** al cliente (es/en, según su idioma) y el comprobante queda **visible/descargable
+   en "Mis pagos"** de la cuenta de la empresa (RF-05: una cuenta por empresa). Restricciones o
+   recargos por tipo de stand: no aplica por ahora.
+7. ~~**Carga masiva (RF-04):**~~ **RESUELTO (negocio)**: el alta de empresas y usuarios es
+   **manual desde la vista de backoffice creada** (la carga masiva Excel/CSV existe como
+   herramienta opcional); las empresas existentes se dan de alta manualmente (sin migración).
+8. ~~**Multi-evento:**~~ **RESUELTO (negocio)**: las **empresas son transversales** (globales,
+   RUC único) y **el vínculo empresa↔bloque se crea al completar la reserva** (el stand queda
+   "En evaluacion" con la empresa que reservó, por evento). No se requiere una lista explícita
+   empresa↔evento; la habilitación por evento la maneja el administrador vía las reservas.
+9. **Diseños UX:** los flujos implementados ya están (primer login, condiciones de pago,
+   contrato/firma, comprobante, visuales del stand); pendientes solo los de **token de Montaje**
+   (bloqueado por RF-02).
 
 ---
 
@@ -261,11 +271,13 @@
 | Requerimiento | Estado | Detalle |
 |---|---|---|
 | RF-04→RF-07 (Fase 1) | ✅ Hecho (commit `308b718`) | Backoffice de empresas (bandeja + alta/edición + carga masiva Excel/CSV), cuentas con credenciales por correo, primer login (cambio de contraseña + validación de datos), permisos `empresas:view`/`empresas:manage`. |
-| RF-01 idiomas (F1–F2) | ✅ Hecho (commit `ce0322f`) | Selector ES/EN + Google Translate + `user_role.idioma`; plantillas de correo es/en (10 puntos de envío). F3 (documentos) y F4 (selector público, QA) pendientes — ver `plan-idiomas.md`. |
+| RF-01 idiomas (F1–F3) | ✅ Hecho (local) | Selector ES/EN + Google Translate + `user_role.idioma`; plantillas de correo es/en (10 puntos de envío) y **contrato en el idioma del cliente** (plantilla DOCX es/en, F3). F4 (QA visual y correos reales) pendiente — ver `plan-idiomas.md`. |
 | RF-18/RF-19 comprobante | ✅ Hecho (local) | Comprobante fiscal (boleta/factura) por cuota pagada: `POST /api/facturacion/adjuntar-comprobante` (permiso `facturacion:view`), visible/descargable en *Mis pagos* y correo al cliente (es/en). Migración `0021_add_facturacion_cuota_comprobante_fiscal`. |
 | RF-03 retirar `/landing` | ✅ Hecho (commit `308b718`) | Ruta retirada; componentes se conservan en el repo. |
-| RF-10 condiciones de pago | ⏳ Pendiente | Configurador de modalidades en backoffice + elección del cliente al iniciar la reserva. |
-| Fase 2 contrato (RF-11→RF-17) | ⏳ Pendiente | Bloqueado por insumos: plantilla DOCX real, proveedor de firma digital y rol Asociado. |
+| RF-10 condiciones de pago | ✅ Hecho (local) | El cliente configura sus cuotas (1–3) con **% y fechas editables** al iniciar la reserva (wizard, paso Cuotas); montos calculados en el servidor y plan persistido (`solicitud.plan_cuotas`), que es la fuente para Facturación. La modalidad (100% / 50-50 / personalizada) se refleja en el contrato (Anexo 2). |
+| Fase 2 contrato (RF-11→RF-17) | 🔶 Parcial | **RF-10 (cuotas) ✅ + RF-11 (generación) ✅ motor**: wizard 4 pasos (`Datos → Cuotas → Contrato → Confirmación`) con cuotas 1–3 de **% y fechas editables** (suman 100%, fechas no pasadas/ascendentes; montos en servidor), plantilla real etiquetada + `POST /api/contratos/generar` (DOCX + PDF con LibreOffice en el contenedor; IGV 18% siempre), recortes por pabellón generados en el servidor. **Pendiente**: firma digital (proveedor). Detalle: `plan-contrato-cuotas.md`. |
+| RF-14/RF-15 revisión Asociado→Legal | ✅ Hecho (local) | Pipeline local de **un solo nivel**: "**Asociado**" unifica Logística + Comunicación (RF-14/15) con **rol dedicado `asociado`** y permiso `solicitudes:review:asociado` (migración `0033`: crea el rol y quita la revisión a logística/comunicación; admin por `admin:full`). El stepper muestra **Asociado → Legal (SGC)**; al aprobar Asociado se delega el expediente al SGC. Solicitudes con revisiones legacy no migran (se deshabilitan lógicamente). |
+| RF-12 firma | ✅ Hecho (local) | Firma manual (subir contrato firmado) + **firma digital**: el usuario carga su firma (PNG/JPG) en *Perfil* y en el paso de firma "Firmar digitalmente" la estampa en el contrato (Anexo 3 + bloque de firmas) y equivale a subirlo firmado (`POST /api/contratos/firmar`; 409 si no tiene firma). Migración `0032` (`user_role.firma_url`). |
 | RF-09 hover razón social | ✅ Hecho (local) | En `/mapa`, al pasar el cursor por un stand reservado se muestra la razón social de la **empresa del cliente** que reservó (solicitud → `user_role` → `empresa`). El backend completa `empresa` en `/api/gess/listar`; tooltip sobre el bloque 3D. |
-| RF-08 visuales del stand | 🔶 Parcial | **Imagen referencial por tipo** ✅: se sube una vez por tipo en `/dashboard/stands` (*Imágenes por tipo*, permisos `stands:manage`) y **aplica a todos los stands de ese tipo**; se muestra en el detalle del stand en `/mapa`. **Logo de empresa/usuario** ✅ pintado en stands reservados. Pendiente: **recorte del plano** con la ubicación del stand. |
+| RF-08 visuales del stand | ✅ Hecho (local) | **Imagen referencial por tipo** (por evento, con respaldo global; aplica a todos sus stands) + **logo** de empresa/usuario pintado en stands reservados + **recorte del pabellón** con el stand destacado: preview en Mis solicitudes, imagen PNG guardada en la solicitud (`recorte_plano_url`) para el contrato, y link a `/mapa?bloque=…` con preselección. Detalle: `spike-recorte-plano.md`. |
 | RF-13 adjuntos bloqueantes | ✅ Hecho (local) | Anexos con etiqueta de requisito (Ficha RUC / Vigencia de Poderes / DNI) en el modal del cliente; **Vigencia de Poderes + DNI bloquean** el envío al SGC para revisión Legal en el panel del expediente. Migración `0024_add_solicitud_documento_requisito`. |

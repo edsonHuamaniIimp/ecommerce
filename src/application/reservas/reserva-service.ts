@@ -1,9 +1,10 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 
 const BLOQUEADOS: string[] = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, ESTADOS_STAND_LEGACY.RESERVADO, ESTADOS_STAND_LEGACY.EN_EVALUACION];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
@@ -23,7 +24,7 @@ export class ReservaApplicationService {
     userSub?: string;
     /** Evento de la sesion: los stands deben pertenecer a el. */
     eventoId?: string;
-  }): Promise<{ ok: boolean; message: string; conflicted?: string[] }> {
+  }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
     const contactEmail = request.userEmail || request.datos?.email;
@@ -85,14 +86,15 @@ export class ReservaApplicationService {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
         }
 
-        // Notify first reviewers (logistica)
-        this.solicitudesRepo.crearAlertaRevision({
-          rol: ROLES.LOGISTICA,
-          solicitudId,
-          titulo: "Nueva solicitud para revision",
-          mensaje: `Se ha creado una nueva solicitud de los stands ${standCodes.join(", ")}. Eres el primer revisor.`,
-          standCodes: standCodes.join(", "),
-        }).catch(() => {});
+        // Alerta a los revisores del nivel local "Asociado" (unifica Logistica + Comunicacion).
+        for (const rol of ROLES_REVISION_ASOCIADO) {
+          this.solicitudesRepo.crearAlertaRevision({
+            rol,
+            solicitudId,
+            clave: ALERTA_CLAVES.NUEVA_SOLICITUD_REVISION,
+            datos: { stands: standCodes.join(", ") },
+          }).catch(() => {});
+        }
 
         const esMultiple = createdStandIds.length > 1;
         if (esMultiple && request.userSub) {
@@ -100,15 +102,15 @@ export class ReservaApplicationService {
             await this.solicitudesRepo.crearAlertaReserva({
               userId: request.userSub,
               tipo: "reserva_multiple",
-              titulo: "Solicitud multiple enviada",
-              mensaje: `Se ha creado una solicitud multiple con ${createdStandIds.length} stands (${standCodes.join(", ")}). Adjunta los documentos requeridos para continuar.`,
+              clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_CLIENTE,
+              datos: { total: createdStandIds.length, stands: standCodes.join(", ") },
               url: `${APP_URL}/dashboard/mis-solicitudes?id=${solicitudId}`,
             });
             await this.solicitudesRepo.crearAlertaReserva({
               userId: ADMIN_USER_ID,
               tipo: "reserva_multiple",
-              titulo: "Nueva solicitud multiple",
-              mensaje: `Se ha recibido una solicitud multiple de ${createdStandIds.length} stands (${standCodes.join(", ")}).`,
+              clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_ADMIN,
+              datos: { total: createdStandIds.length, stands: standCodes.join(", ") },
               url: `${APP_URL}/dashboard/solicitudes?id=${solicitudId}`,
             });
           } catch { /* ok */ }
@@ -150,6 +152,6 @@ export class ReservaApplicationService {
       }
     }
 
-    return { ok: true, message: `${standCodes.length} stand(s) reservados` };
+    return { ok: true, message: `${standCodes.length} stand(s) reservados`, solicitudId };
   }
 }

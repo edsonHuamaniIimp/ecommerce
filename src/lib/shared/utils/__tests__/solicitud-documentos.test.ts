@@ -28,7 +28,7 @@ const base = {
   sgcDocumentosEnviados: false,
   sgcSubsanacionModo: null as string | null,
   docsAdjuntos: [] as Array<{ categoria?: string | null; userId?: string | null; createdAt?: string | Date | null }>,
-  revisiones: [{ area: REVISION_AREAS.LOGISTICA }, { area: REVISION_AREAS.COMUNICACION }],
+  revisiones: [{ area: REVISION_AREAS.ASOCIADO }],
 };
 
 const devuelto = {
