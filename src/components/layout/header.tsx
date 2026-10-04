@@ -38,15 +38,14 @@ export function Header() {
       try {
         const json = await authService.getSession();
         if (json.authenticated) {
+          // El evento elegido en presala manda sobre el de la sesion (es el que usa /mapa).
           let eventoNombre = json.eventoNombre ?? null;
-          if (!eventoNombre) {
-            const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
-            if (raw) {
-              try {
-                const pub = JSON.parse(raw) as { nombre: string };
-                eventoNombre = pub.nombre;
-              } catch { /* ignore */ }
-            }
+          const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
+          if (raw) {
+            try {
+              const pub = JSON.parse(raw) as { nombre?: string };
+              if (pub.nombre) eventoNombre = pub.nombre;
+            } catch { /* ignore */ }
           }
           setSession({ ...json, eventoNombre });
           return;

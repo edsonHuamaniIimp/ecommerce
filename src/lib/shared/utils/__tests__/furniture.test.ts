@@ -7,6 +7,13 @@ describe("furnitureUtils.refIdSugerido", () => {
     expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.KIOSKO)).toBe("KIOSKO-01");
     expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.PLAZA)).toBe("PLAZA-01");
     expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.PERSONA)).toBe("PERSONA-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.CAMION)).toBe("CAMION-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.PERGOLA)).toBe("PERGOLA-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.POSTE_LUZ)).toBe("POSTE-LUZ-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.FOOD_TRUCK)).toBe("FOOD-TRUCK-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.PANTALLA_LED)).toBe("PANTALLA-LED-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.BANOS)).toBe("BANOS-PORTATILES-01");
+    expect(furnitureUtils.refIdSugerido(TIPOS_FURNITURE.BUS)).toBe("BUS-01");
   });
 
   it("evita colisiones con los refId existentes", () => {
@@ -40,6 +47,14 @@ describe("furnitureUtils.huella", () => {
   it("devuelve la huella fija de los componentes", () => {
     expect(furnitureUtils.huella(TIPOS_FURNITURE.MESA)).toEqual({ w: 0.8, d: 0.8 });
     expect(furnitureUtils.huella(TIPOS_FURNITURE.KIOSKO)).toEqual({ w: 1.8, d: 1.2 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.PERGOLA)).toEqual({ w: 4, d: 3 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.CAMION)).toEqual({ w: 5.6, d: 3 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.PERFORADORA)).toEqual({ w: 4.0, d: 2.6 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.BARANDA)).toEqual({ w: 2, d: 0.3 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.FOOD_TRUCK)).toEqual({ w: 4.2, d: 2.4 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.PANTALLA_LED)).toEqual({ w: 2.6, d: 0.9 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.CARPA)).toEqual({ w: 6.2, d: 4.2 });
+    expect(furnitureUtils.huella(TIPOS_FURNITURE.BUS)).toEqual({ w: 8, d: 2.8 });
   });
 
   it("resuelve la huella del Piso desde su config", () => {
