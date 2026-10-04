@@ -2,4 +2,4 @@
 -- ({ modalidad, cuotas[] }). Es la fuente de verdad para regenerar el contrato.
 
 -- AlterTable
-ALTER TABLE "solicitud" ADD COLUMN "plan_cuotas" JSON;
+ALTER TABLE "solicitud" ADD COLUMN "plan_cuotas" JSONB;

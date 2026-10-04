@@ -4,4 +4,4 @@
 
 -- AlterTable
 ALTER TABLE "alerta" ADD COLUMN "clave" VARCHAR(60);
-ALTER TABLE "alerta" ADD COLUMN "datos" JSON;
+ALTER TABLE "alerta" ADD COLUMN "datos" JSONB;
