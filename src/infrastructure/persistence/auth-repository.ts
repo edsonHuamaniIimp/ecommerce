@@ -32,10 +32,12 @@ export class AuthPrismaRepository implements IAuthRepository {
         nombre: data.nombre,
         apellidos: data.apellidos,
         telefono: data.telefono,
-        nombreEmpresa: data.nombreEmpresa,
-        empresaId: data.empresaId ?? null,
-        debeCambiarPassword: data.debeCambiarPassword ?? false,
-        ...(data.idioma ? { idioma: data.idioma } : {}),
+      nombreEmpresa: data.nombreEmpresa,
+      empresaId: data.empresaId ?? null,
+      idEmpresa: data.idEmpresa ?? null,
+      sieCode: data.sieCode ?? null,
+      debeCambiarPassword: data.debeCambiarPassword ?? false,
+      ...(data.idioma ? { idioma: data.idioma } : {}),
       },
     });
   }

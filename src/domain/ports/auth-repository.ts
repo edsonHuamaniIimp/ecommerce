@@ -19,8 +19,12 @@ export interface NuevoUsuarioAuth {
   telefono: string | null;
   nombreEmpresa: string;
   roleId: string;
-  /** Empresa del Portal del Cliente vinculada (alta por backoffice). */
+  /** Empresa del Portal del Cliente vinculada (FK local, opcional). */
   empresaId?: string | null;
+  /** Empresa de la API de entidades (codigo SIE, ej. E0000003804) y su razon social. */
+  idEmpresa?: string | null;
+  /** Identificador de la persona en servicio-persona (sie_code). */
+  sieCode?: string | null;
   /** Credencial temporal: exigir cambio de contrasena en el primer ingreso. */
   debeCambiarPassword?: boolean;
   /** Idioma preferido al crear la cuenta (es | en); default espanol. */

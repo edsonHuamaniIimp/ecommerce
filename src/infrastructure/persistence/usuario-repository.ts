@@ -1,0 +1,77 @@
+import { prisma } from "@/lib/server/db";
+import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow } from "@/domain/ports/usuario-repository";
+
+/** Include comun para mapear la fila con rol y empresa local. */
+const includeUsuario = {
+  role: { select: { nombre: true } },
+  empresa: { select: { razonSocial: true } },
+} as const;
+
+type FilaUsuario = {
+  id: string;
+  email: string;
+  nombre: string | null;
+  apellidos: string | null;
+  telefono: string | null;
+  empresaId: string | null;
+  idEmpresa: string | null;
+  nombreEmpresa: string | null;
+  sieCode: string | null;
+  debeCambiarPassword: boolean;
+  role: { nombre: string };
+  empresa: { razonSocial: string } | null;
+};
+
+function aFila(r: FilaUsuario): UsuarioPortalRow {
+  return {
+    id: r.id,
+    email: r.email,
+    nombre: r.nombre,
+    apellidos: r.apellidos,
+    telefono: r.telefono,
+    rol: r.role.nombre,
+    empresaId: r.empresaId,
+    idEmpresa: r.idEmpresa,
+    /* Prioriza la empresa local (FK) y cae al nombre guardado al vincular por la API. */
+    empresa: r.empresa?.razonSocial ?? r.nombreEmpresa ?? null,
+    sieCode: r.sieCode,
+    debeCambiarPassword: r.debeCambiarPassword,
+  };
+}
+
+export class UsuarioPrismaRepository implements IUsuarioRepository {
+  async listarUsuariosPortal(): Promise<UsuarioPortalRow[]> {
+    const rows = await prisma.userRole.findMany({
+      /* Usuarios del portal: tienen empresa local (FK) o empresa vinculada por la API (codigo SIE). */
+      where: { OR: [{ empresaId: { not: null } }, { idEmpresa: { not: null } }] },
+      include: includeUsuario,
+      orderBy: [{ email: "asc" }],
+    });
+    return rows.map(aFila);
+  }
+
+  async findUsuarioPortalById(id: string): Promise<UsuarioPortalRow | null> {
+    const row = await prisma.userRole.findUnique({ where: { id }, include: includeUsuario });
+    return row ? aFila(row) : null;
+  }
+
+  async actualizarUsuarioPortal(id: string, data: ActualizarUsuarioPortalData): Promise<UsuarioPortalRow> {
+    const row = await prisma.userRole.update({
+      where: { id },
+      data: {
+        ...(data.empresaId !== undefined ? { empresaId: data.empresaId } : {}),
+        ...(data.idEmpresa !== undefined ? { idEmpresa: data.idEmpresa } : {}),
+        ...(data.nombreEmpresa !== undefined ? { nombreEmpresa: data.nombreEmpresa } : {}),
+        ...(data.nombre !== undefined ? { nombre: data.nombre } : {}),
+        ...(data.apellidos !== undefined ? { apellidos: data.apellidos } : {}),
+        ...(data.telefono !== undefined ? { telefono: data.telefono } : {}),
+      },
+      include: includeUsuario,
+    });
+    return aFila(row);
+  }
+
+  async actualizarPasswordUsuarioPortal(id: string, passwordHash: string, debeCambiarPassword: boolean): Promise<void> {
+    await prisma.userRole.update({ where: { id }, data: { password: passwordHash, debeCambiarPassword } });
+  }
+}

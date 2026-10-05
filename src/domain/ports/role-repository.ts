@@ -2,6 +2,7 @@ import type { RoleEntity, UserRoleEntity } from "../models/entities";
 
 export interface IRoleRepository {
   findAll(): Promise<RoleEntity[]>;
+  findById(id: string): Promise<RoleEntity | null>;
   findByNombre(nombre: string): Promise<RoleEntity | null>;
   create(nombre: string, descripcion: string | null, permisos: string[]): Promise<RoleEntity>;
   addUser(email: string, roleId: string): Promise<UserRoleEntity>;

@@ -403,6 +403,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "stands:manage",
     "stands:plano",
     "roles:manage",
+    "usuarios:manage",
     "events:manage",
     "events:create",
     "events:edit",
@@ -470,6 +471,7 @@ export const ALL_PERMISSIONS = [
   { key: "empresas:manage", label: "Gestionar empresas", descripcion: "Registrar y editar empresas (alta individual y masiva)", section: "empresas" },
   // Roles y Eventos
   { key: "roles:manage", label: "Roles y Permisos", descripcion: "Administrar roles, usuarios y permisos del sistema", section: "admin" },
+  { key: "usuarios:manage", label: "Usuarios", descripcion: "Crear cuentas del Portal del Cliente (persona en servicio-persona) y asignar empresa y rol", section: "admin" },
   { key: "events:manage", label: "Gestion de Eventos", descripcion: "Administrar eventos y sus versiones", section: "admin" },
   { key: "events:create", label: "Crear eventos", descripcion: "Crear nuevas versiones de eventos", section: "eventos" },
   { key: "events:edit", label: "Editar eventos", descripcion: "Modificar fechas e informacion de eventos", section: "eventos" },
@@ -509,6 +511,7 @@ export const PERMISSIONS = {
   APPROVE_LEGAL: "approve:legal",
   APPROVE_COMUNICACION: "approve:comunicacion",
   ROLES_MANAGE: "roles:manage",
+  USUARIOS_MANAGE: "usuarios:manage",
   EVENTS_MANAGE: "events:manage",
   EVENTS_CREATE: "events:create",
   EVENTS_EDIT: "events:edit",
@@ -877,6 +880,21 @@ export const REGEX_RUC = /^\d{11}$/;
 /** Correo electronico simple (validacion de formularios). */
 export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Tipos de documento de persona en servicio-persona (`id_tipo_documento`). */
+export const TIPOS_DOCUMENTO_PERSONA = {
+  DNI: "1",
+  CARNE_EXTRANJERIA: "4",
+  PASAPORTE: "7",
+} as const;
+
+export type TipoDocumentoPersona = (typeof TIPOS_DOCUMENTO_PERSONA)[keyof typeof TIPOS_DOCUMENTO_PERSONA];
+
+export const TIPOS_DOCUMENTO_PERSONA_LABELS: Record<string, string> = {
+  [TIPOS_DOCUMENTO_PERSONA.DNI]: "DNI",
+  [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: "Carne de extranjeria",
+  [TIPOS_DOCUMENTO_PERSONA.PASAPORTE]: "Pasaporte",
+};
+
 /* ================================================================
    Carga masiva de empresas (Excel / CSV)
    ================================================================ */
@@ -1040,6 +1058,7 @@ export const API_ERROR_CODES = {
   CONFLICT: "CONFLICT",
   INTERNAL: "INTERNAL",
   BAD_GATEWAY: "BAD_GATEWAY",
+  TOO_MANY_REQUESTS: "TOO_MANY_REQUESTS",
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
 } as const;
 

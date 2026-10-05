@@ -8,6 +8,7 @@ import { SolicitudesPrismaRepository } from "@/infrastructure/persistence/solici
 import { PlanoPrismaRepository } from "@/infrastructure/persistence/plano-repository";
 import { KbServiciosClient } from "@/infrastructure/external/kbservicios-client";
 import { ListstandClient } from "@/infrastructure/external/liststand-client";
+import { PersonaApiClient } from "@/infrastructure/external/persona-client";
 import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import { SgcClient } from "@/infrastructure/external/sgc-client";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
@@ -32,6 +33,8 @@ import { SolicitudesApplicationService } from "@/application/solicitudes/solicit
 import { PlanoApplicationService } from "@/application/planos/planos-service";
 import { EmpresaPrismaRepository } from "@/infrastructure/persistence/empresa-repository";
 import { EmpresaApplicationService } from "@/application/empresas/empresa-service";
+import { UsuarioPrismaRepository } from "@/infrastructure/persistence/usuario-repository";
+import { UsuariosApplicationService } from "@/application/usuarios/usuarios-service";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
@@ -48,8 +51,10 @@ const solicitudCuentaRepo = new SolicitudCuentaPrismaRepository();
 const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
 const empresaRepo = new EmpresaPrismaRepository();
+const usuarioRepo = new UsuarioPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
+const personaClient = new PersonaApiClient();
 const sgcConfig = getSgcConfig();
 const sgcRepo = new SgcPrismaRepository();
 const sgcWebhookRepo = new SgcWebhookPrismaRepository();
@@ -83,6 +88,7 @@ export const services = {
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
   contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
   alertas: new AlertasApplicationService(authRepo),
+  usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
   gessRepo,
   roleRepo,
 };

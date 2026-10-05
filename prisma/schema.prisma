@@ -145,6 +145,8 @@ model UserRole {
   debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
   /// Idioma preferido del usuario: es | en (ver IDIOMAS). Default espanol.
   idioma            String    @default("es") @db.VarChar(5)
+  /// Identificador de la persona en servicio-persona (sie_code, ej. P0000012345). La persona vive en la fuente.
+  sieCode           String?   @map("sie_code") @db.VarChar(20)
 
   role     Role   @relation(fields: [roleId], references: [id])
   empresa  Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
@@ -153,6 +155,7 @@ model UserRole {
   @@index([userId])
   @@index([email])
   @@index([empresaId])
+  @@index([sieCode])
   @@map("user_role")
 }
 

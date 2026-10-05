@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -23,6 +23,7 @@ const navItems = [
   { href: "/dashboard/mis-pagos", label: "Mis pagos", icon: Wallet, permission: PERMISSIONS.PAGOS_VIEW },
   { href: "/dashboard/facturacion", label: "Facturacion", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW },
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
+  { href: "/dashboard/usuarios", label: "Usuarios", icon: Users, permission: PERMISSIONS.USUARIOS_MANAGE },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
   { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW },
   { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
