@@ -175,6 +175,12 @@ variable "personas_api_clave" {
   sensitive   = true
 }
 
+variable "email_from" {
+  description = "Remitente de los correos transaccionales (debe ser del dominio verificado en Resend). Vacio = usa ADMIN_EMAIL"
+  type        = string
+  default     = ""
+}
+
 variable "kbservicios_url" {
   description = "URL de KBServicios (eventos y tipos)"
   type        = string

@@ -190,6 +190,7 @@ module "ecs" {
   planogess_api_url      = var.planogess_api_url
   liststand_api_url      = var.liststand_api_url
   personas_api_url       = var.personas_api_url
+  email_from             = var.email_from
   kbservicios_url        = var.kbservicios_url
   auspicios_api_url      = var.auspicios_api_url
   admin_email            = var.admin_email

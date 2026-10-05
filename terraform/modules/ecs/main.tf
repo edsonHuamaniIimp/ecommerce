@@ -82,6 +82,12 @@ variable "personas_api_url" {
   default     = ""
 }
 
+variable "email_from" {
+  description = "Remitente de los correos transaccionales (dominio verificado en Resend) (R2) - vacio = usa ADMIN_EMAIL"
+  type        = string
+  default     = ""
+}
+
 variable "kbservicios_url" {
   description = "URL de KBServicios (R2) — vacio = no inyectar"
   type        = string
@@ -370,6 +376,7 @@ locals {
     var.planogess_api_url != "" ? [{ name = "PLANOGESS_API_URL", value = var.planogess_api_url }] : [],
     var.liststand_api_url != "" ? [{ name = "LISTSTAND_API_URL", value = var.liststand_api_url }] : [],
     var.personas_api_url != "" ? [{ name = "PERSONAS_API_URL", value = var.personas_api_url }] : [],
+    var.email_from != "" ? [{ name = "EMAIL_FROM", value = var.email_from }] : [],
     var.kbservicios_url != "" ? [{ name = "KBSERVICIOS_URL", value = var.kbservicios_url }] : [],
     var.auspicios_api_url != "" ? [{ name = "AUSPICIOS_API_URL", value = var.auspicios_api_url }] : [],
     var.admin_email != "" ? [{ name = "ADMIN_EMAIL", value = var.admin_email }] : [],

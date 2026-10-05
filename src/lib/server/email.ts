@@ -6,7 +6,15 @@ import type { DatosPlantilla, PlantillaEmailKind } from "@/lib/server/mail-templ
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 const API_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
+
+/**
+ * Remitente de los correos transaccionales (runtime):
+ * EMAIL_FROM (ej. "no-reply@iimp.org.pe") > ADMIN_EMAIL > fallback historico.
+ * La direccion debe pertenecer al dominio verificado en Resend.
+ */
+function getRemitente(): string {
+  return process.env.EMAIL_FROM ?? process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
+}
 
 interface EmailParams {
   to: string;
@@ -32,7 +40,7 @@ export async function sendEmail({ to, subject, html }: EmailParams): Promise<boo
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: `Contratos Stands IIMP <${FROM}>`,
+        from: `Contratos Stands IIMP <${getRemitente()}>`,
         to,
         subject,
         html,
