@@ -21,4 +21,17 @@ export const stringUtils = {
       return nombre;
     }
   },
+
+  /**
+   * Clave de comparacion: minusculas, sin diacriticos ni separadores.
+   * Permite emparejar nombres equivalentes escritos distinto ("PABELLÓN 1" ↔ "PABELLON1").
+   */
+  claveComparacion(texto: string | null | undefined): string {
+    if (!texto) return "";
+    return texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  },
 };

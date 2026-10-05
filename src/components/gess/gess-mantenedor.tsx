@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Search } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Popover, PopoverContent, PopoverTrigger, Label } from "@nrivera-iimp/ui-kit-iimp";
+import { Search, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, BADGE_STYLES, UI_SENTINEL } from "@/lib/shared/constants";
+import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
+import { stringUtils } from "@/lib/shared/utils/string";
 import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
 
 type ApiRow = Record<string, unknown>;
@@ -39,6 +40,76 @@ function formatValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
   if (typeof val === "object") return JSON.stringify(val);
   return String(val);
+}
+
+interface StandOpcion {
+  id: string;
+  label: string;
+  /** Texto plano por el que filtra el buscador (pabellon, numero, tipo, precio). */
+  busqueda: string;
+}
+
+/**
+ * Selector de stand de la BD con filtro propio: buscador controlado (Input del kit),
+ * coincidencia sin acentos y tope de resultados visibles hasta que se escribe.
+ * Se compone con Popover/Button/Input del UI Kit para no romper el estilo.
+ */
+function StandPicker({ opciones, seleccionadoLabel, onSelect }: {
+  opciones: StandOpcion[];
+  seleccionadoLabel: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filtro, setFiltro] = useState("");
+  const VISIBLES_MAX = 60;
+
+  const filtradas = useMemo(() => {
+    const clave = stringUtils.claveComparacion(filtro);
+    if (!clave) return opciones;
+    return opciones.filter((o) => stringUtils.claveComparacion(o.busqueda).includes(clave));
+  }, [opciones, filtro]);
+
+  const visibles = filtradas.slice(0, VISIBLES_MAX);
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFiltro(""); }}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" role="combobox" aria-expanded={open} className="w-[260px] justify-between font-normal">
+          <span className="truncate text-xs">{seleccionadoLabel ?? "Buscar stand..."}</span>
+          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[360px] p-0" align="start">
+        <div className="border-b p-2">
+          <Input
+            autoFocus
+            placeholder="Filtrar por pabellon, numero, tipo o precio..."
+            value={filtro}
+            onChange={(e) => { setFiltro(e.target.value); }}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="max-h-[260px] overflow-y-auto p-1">
+          <Button variant="ghost" size="sm" className="h-7 w-full justify-start px-2 text-xs" onClick={() => { onSelect(null); setOpen(false); }}>
+            <span>— Sin vincular —</span>
+          </Button>
+          {visibles.map((o) => (
+            <Button key={o.id} variant="ghost" size="sm" className="h-7 w-full justify-start px-2 text-xs font-normal" onClick={() => { onSelect(o.id); setOpen(false); }}>
+              <span className="truncate">{o.label}</span>
+            </Button>
+          ))}
+          {filtradas.length === 0 && (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground"><span>Sin resultados</span></p>
+          )}
+          {filtradas.length > VISIBLES_MAX && (
+            <p className="px-2 py-2 text-center text-[10px] text-muted-foreground">
+              <span>{filtradas.length - VISIBLES_MAX} resultados mas — escribe para acotar</span>
+            </p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: planoId }: Props) {
@@ -92,7 +163,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
+  const [pabellonesSel, setPabellonesSel] = useState<Set<string>>(new Set());
 
   const pabellones = useMemo(() => {
     const vistos = new Map<string, string>();
@@ -101,6 +172,45 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     }
     return [...vistos].map(([codigo, nombre]) => ({ codigo, nombre }));
   }, [bloquesEvento]);
+
+  const togglePabellon = (codigo: string) => {
+    setPabellonesSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(codigo)) next.delete(codigo); else next.add(codigo);
+      return next;
+    });
+    setPage(1);
+  };
+
+  const limpiarPabellones = () => {
+    setPabellonesSel(new Set());
+    setPage(1);
+  };
+
+  /** Claves normalizadas de los pabellones seleccionados (para emparejar con el nombre del API). */
+  const clavesPabellonSel = useMemo(
+    () => pabellones.filter((p) => pabellonesSel.has(p.codigo)).map((p) => stringUtils.claveComparacion(p.nombre)),
+    [pabellones, pabellonesSel],
+  );
+
+  /** plano(codigo) por bloque, para filtrar los bloques por los pabellones seleccionados. */
+  const planoDeBloque = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of bloquesEvento) m.set(b.bloqueId, b.plano);
+    return m;
+  }, [bloquesEvento]);
+
+  /**
+   * Candidatos para vincular un bloque: sin vinculo previo o ya vinculados al bloque.
+   * Si hay pabellones filtrados, se acotan a los stands de esos pabellones (la API los agrupa asi);
+   * el combobox sigue permitiendo buscar por numero/tipo/precio.
+   */
+  const opcionesParaBloque = (bloqueId: string): GessStandRow[] => {
+    const base = dbRows.filter((row) => !row.bloqueId || row.bloqueId === bloqueId);
+    if (clavesPabellonSel.length === 0) return base;
+    const delFiltro = base.filter((row) => clavesPabellonSel.includes(stringUtils.claveComparacion(row.pabellon)));
+    return delFiltro.length > 0 ? delFiltro : base;
+  };
 
   const importadosApiIds = useMemo(() => new Set(dbRows.map((r) => r.standApiId)), [dbRows]);
 
@@ -208,9 +318,12 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   const vinculados = dbRows.filter((r) => r.bloqueId).length;
 
   const bloquesDelPabellon = useMemo(() => {
-    if (pabellon === UI_SENTINEL.TODOS) return BLOQUE_IDS;
-    return bloquesEvento.filter((b) => b.plano === pabellon).map((b) => b.bloqueId);
-  }, [pabellon, BLOQUE_IDS, bloquesEvento]);
+    if (pabellonesSel.size === 0) return BLOQUE_IDS;
+    return BLOQUE_IDS.filter((bid) => {
+      const plano = planoDeBloque.get(bid);
+      return plano ? pabellonesSel.has(plano) : false;
+    });
+  }, [pabellonesSel, BLOQUE_IDS, planoDeBloque]);
 
   const filteredBloques = useMemo(() => {
     if (!search.trim()) return bloquesDelPabellon;
@@ -332,17 +445,35 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {pabellones.length > 0 && (
-                  <Select value={pabellon} onValueChange={(v) => { setPabellon(v); setPage(1); }}>
-                    <SelectTrigger className="h-8 w-[200px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los pabellones</span></SelectItem>
-                      {pabellones.map((p) => (
-                        <SelectItem key={p.codigo} value={p.codigo}><span>{p.nombre}</span></SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                        <span>{pabellonesSel.size === 0 ? "Todos los pabellones" : `Pabellones (${pabellonesSel.size})`}</span>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-[220px] p-2">
+                      {pabellonesSel.size > 0 && (
+                        <Button variant="ghost" size="sm" className="mb-1 h-7 w-full justify-start text-xs" onClick={limpiarPabellones}>
+                          <span>Limpiar seleccion</span>
+                        </Button>
+                      )}
+                      <div className="space-y-0.5">
+                        {pabellones.map((p) => (
+                          <div key={p.codigo} className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted">
+                            <Checkbox
+                              id={`filtro-pab-${p.codigo}`}
+                              checked={pabellonesSel.has(p.codigo)}
+                              onCheckedChange={() => { togglePabellon(p.codigo); }}
+                            />
+                            <Label htmlFor={`filtro-pab-${p.codigo}`} className="cursor-pointer text-xs font-normal">
+                              <span>{p.nombre}</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
                 <div className="relative max-w-xs">
                   <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -376,20 +507,14 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                             <TableCell className="font-mono text-xs font-bold">{bid}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{bloqueLabel(bid)}</TableCell>
                             <TableCell>
-                              <Combobox
-                                items={[
-                                  { value: UI_SENTINEL.SIN_VINCULAR, label: "— Sin vincular —" },
-                                  ...dbRows
-                                    .filter((row) => !row.bloqueId || row.bloqueId === bid)
-                                    .map((row) => ({
-                                      value: row.id,
-                                      label: `${row.standCode} · ${row.tipoStand ?? "—"} · ${row.medidas ?? "—"}`,
-                                    })),
-                                ]}
-                                placeholder={linked ? `${linked.standCode} · ${linked.tipoStand ?? "—"} · ${linked.medidas ?? "—"}` : "Buscar stand..."}
-                                emptyMessage="Sin resultados"
-                                onSelect={(value) => handleVincular(bid, value === UI_SENTINEL.SIN_VINCULAR ? null : value)}
-                                className="w-[260px]"
+                              <StandPicker
+                                opciones={opcionesParaBloque(bid).map((row) => ({
+                                  id: row.id,
+                                  label: `${row.pabellon ? `${row.pabellon} · ` : ""}${row.standCode} · ${row.tipoStand ?? "—"} · ${row.medidas ?? "—"}`,
+                                  busqueda: `${row.pabellon ?? ""} ${row.standCode} ${row.tipoStand ?? ""} ${row.medidas ?? ""} ${row.id}`,
+                                }))}
+                                seleccionadoLabel={linked ? `${linked.standCode} · ${linked.tipoStand ?? "—"} · ${linked.medidas ?? "—"}` : null}
+                                onSelect={(value) => handleVincular(bid, value)}
                               />
                             </TableCell>
                             <TableCell className="max-w-[160px] truncate text-xs text-muted-foreground">{linked?.empresa ?? "—"}</TableCell>
