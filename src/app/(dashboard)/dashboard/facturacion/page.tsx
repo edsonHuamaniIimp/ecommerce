@@ -40,6 +40,8 @@ interface FacturacionItem {
   /** El plan de pago lo definio el cliente en el contrato: no editable por Facturacion. */
   planCliente: boolean;
   standCode: string;
+  /** Correo del usuario cliente que registro la reserva. */
+  correoSolicitante: string | null;
   solicitudEstado: string;
   createdAt: string;
   cuotas: CuotaItem[];
@@ -215,6 +217,7 @@ export default function FacturacionPage() {
                     <TableHead className="text-xs">Estado</TableHead>
                     <TableHead className="text-xs">Monto</TableHead>
                     <TableHead className="text-xs hidden sm:table-cell">Tipo</TableHead>
+                    <TableHead className="text-xs hidden lg:table-cell">Usuario cliente</TableHead>
                     <TableHead className="text-xs hidden md:table-cell">Fecha</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
@@ -230,6 +233,7 @@ export default function FacturacionPage() {
                       </TableCell>
                       <TableCell className="text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
                       <TableCell className="text-xs hidden sm:table-cell">{row.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</TableCell>
+                      <TableCell className="hidden max-w-[200px] truncate text-xs lg:table-cell" title={row.correoSolicitante ?? undefined}>{row.correoSolicitante ?? "—"}</TableCell>
                       <TableCell className="text-xs text-slate-400 hidden md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex gap-0.5">

@@ -186,8 +186,9 @@ export class AuthApplicationService {
               eventoPadreId: evento.eventoPadreId,
               tipoEvento: evento.tipoEvento,
               codigoEvento: evento.codigoEvento,
-              eventoNombre: `${evento.eventoPadre.nombre} ${evento.anio}`,
-              eventoPadreNombre: evento.eventoPadre.nombre,
+              /* Prioriza el nombre elegido en presala (persistido); cae al nombre de la BD. */
+              eventoNombre: principal.eventoNombre ?? `${evento.eventoPadre.nombre} ${evento.anio}`,
+              eventoPadreNombre: principal.eventoPadreNombre ?? evento.eventoPadre.nombre,
             }
           : {}),
       },
@@ -244,8 +245,8 @@ export class AuthApplicationService {
               eventoPadreId: evento.eventoPadreId,
               tipoEvento: evento.tipoEvento,
               codigoEvento: evento.codigoEvento,
-              eventoNombre: `${evento.eventoPadre.nombre} ${evento.anio}`,
-              eventoPadreNombre: evento.eventoPadre.nombre,
+              eventoNombre: principal.eventoNombre ?? `${evento.eventoPadre.nombre} ${evento.anio}`,
+              eventoPadreNombre: principal.eventoPadreNombre ?? evento.eventoPadre.nombre,
             }
           : {}),
       },
@@ -297,9 +298,9 @@ export class AuthApplicationService {
 
     if (!eventoId) throw new Error("NOT_FOUND:Evento no encontrado");
 
-    /* Persiste el evento elegido para reusarlo en el proximo login (best-effort). */
+    /* Persiste el evento elegido (y su nombre visible) para reusarlo en el proximo login (best-effort). */
     await this.repo
-      .setEventoSeleccionado(payload.email as string, eventoId)
+      .setEventoSeleccionado(payload.email as string, eventoId, dto.eventoNombre ?? null, dto.eventoPadreNombre ?? null)
       .catch(() => undefined);
 
     // jose interpreta un numero como marca de tiempo absoluta: se reusa la exp

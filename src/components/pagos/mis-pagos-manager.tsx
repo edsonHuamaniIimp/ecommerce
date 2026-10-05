@@ -4,9 +4,9 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter,
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
-  TableHead, TableHeader, TableRow,
+  TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, LayoutGrid, Paperclip, Pencil, Plus, Receipt, Rows3, Trash2, Wallet } from "lucide-react";
+import { CreditCard, Eye, FileDown, FileText, LayoutGrid, Paperclip, Pencil, Plus, Receipt, Rows3, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -226,6 +226,40 @@ export function MisPagosManager() {
                     <Receipt className="h-3.5 w-3.5" />
                     <span>Comprobante</span>
                   </a>
+                )}
+                {!cuota.comprobanteFiscal && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><span>Solicitar factura (integracion de facturacion pendiente)</span></TooltipContent>
+                  </Tooltip>
+                )}
+                {(cuota.comprobanteFiscal || cuota.estado === ESTADOS_CUOTA.PAGADO) && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {cuota.comprobanteFiscal ? (
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                          <a href={cuota.comprobanteFiscal.url} target="_blank" rel="noreferrer">
+                            <FileDown className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
+                          <FileDown className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <span>
+                        {cuota.comprobanteFiscal
+                          ? `Descargar factura (${cuota.comprobanteFiscal.tipo} ${cuota.comprobanteFiscal.numero})`
+                          : "Factura aun no emitida"}
+                      </span>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
                   <span className="text-[10px] text-muted-foreground">Pendiente de confirmacion</span>
