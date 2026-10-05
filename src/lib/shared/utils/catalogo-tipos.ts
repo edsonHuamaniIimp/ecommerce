@@ -7,6 +7,8 @@ export interface TipoCatalogoEntrante {
   h: number;
   color: string;
   ambito: string;
+  /** Forma visual del bloque (opcional; default "bloque"). */
+  forma?: string | null;
   flgActivo: boolean;
 }
 
@@ -34,6 +36,7 @@ function mismaData(a: TipoCatalogoExistente, b: TipoCatalogoEntrante): boolean {
     a.h === b.h &&
     a.color === b.color &&
     a.ambito === b.ambito &&
+    (a.forma ?? "bloque") === (b.forma ?? "bloque") &&
     a.flgActivo === b.flgActivo
   );
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AMBITOS_TIPO_BLOQUE, TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, FORMAS_BLOQUE, TIPOS_PLANO } from "@/lib/shared/constants";
 
 export const planoCrearSchema = z.object({
   codigo: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, "Solo minusculas, numeros y guiones"),
@@ -25,6 +25,7 @@ export const tipoBloqueSchema = z.object({
   h: z.number().positive(),
   color: z.string().min(1).max(10),
   ambito: z.enum([AMBITOS_TIPO_BLOQUE.INTERNO, AMBITOS_TIPO_BLOQUE.EXTERNO]).default(AMBITOS_TIPO_BLOQUE.INTERNO),
+  forma: z.enum([FORMAS_BLOQUE.BLOQUE, FORMAS_BLOQUE.TRACTOR_ORUGAS, FORMAS_BLOQUE.CARGADOR_FRONTAL, FORMAS_BLOQUE.MOTONIVELADORA]).default(FORMAS_BLOQUE.BLOQUE),
   flgActivo: z.boolean().default(true),
 });
 

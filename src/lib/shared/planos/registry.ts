@@ -7,6 +7,8 @@ export interface PlanoItem {
   id: string;
   dim: { w: number; d: number; h: number; color: string };
   type: string;
+  /** Forma visual del bloque (bloque normal si es undefined). */
+  forma?: string;
   x: number;
   z: number;
   rotY?: number;
@@ -86,7 +88,7 @@ function computeBoundsDefault(items: PlanoItem[]): PlanoBounds {
 interface PlanoPublicoResponse {
   codigo: string;
   nombre: string;
-  tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; flgActivo?: boolean }>;
+  tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; forma?: string; flgActivo?: boolean }>;
   bloques: Array<{ bloqueId: string; tipoCodigo: string; x: number; z: number; rotY: number; flgActivo?: boolean }>;
   furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown; flgActivo?: boolean }>;
 }
@@ -103,15 +105,18 @@ export async function loadPlanoDefinition(codigo: string): Promise<PlanoDefiniti
       const data = json.data;
       const dimMap: Record<string, { w: number; d: number; h: number; color: string }> = {};
       const labelMap: Record<string, { label: string; nombre: string }> = {};
+      const formaMap: Record<string, string> = {};
       for (const t of data.tipos) {
         if (t.flgActivo === false) continue;
         dimMap[t.codigo] = { w: t.w, d: t.d, h: t.h, color: t.color };
         labelMap[t.codigo] = { label: t.label, nombre: t.nombre };
+        if (t.forma) formaMap[t.codigo] = t.forma;
       }
       const items: PlanoItem[] = data.bloques.filter((b) => b.flgActivo !== false).map((b) => ({
         id: b.bloqueId,
         dim: dimMap[b.tipoCodigo] ?? { w: 2, d: 2, h: 2.4, color: "#94a3b8" },
         type: b.tipoCodigo,
+        forma: formaMap[b.tipoCodigo],
         x: b.x,
         z: b.z,
         rotY: b.rotY ?? 0,

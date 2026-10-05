@@ -196,12 +196,12 @@ export class PlanoApplicationService {
     const furnitureActiva = plano.furniture.filter((f) => f.flgActivo !== false);
     const constName = tsCodegenUtils.toConstName(plano.codigo);
     const unionTypes = tsCodegenUtils.toUnionType(tiposActivos.map((t) => t.codigo));
-    const tiposConCodigo = (t: { codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string }) =>
-      `  ${t.codigo}: { w: ${t.w}, d: ${t.d}, h: ${t.h}, color: "${t.color}" },`;
+    const tiposConCodigo = (t: { codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; forma?: string }) =>
+      `  ${t.codigo}: { w: ${t.w}, d: ${t.d}, h: ${t.h}, color: "${t.color}"${t.forma && t.forma !== "bloque" ? `, forma: "${t.forma}"` : ""} },`;
     const labelsConCodigo = (t: { codigo: string; label: string; nombre: string }) =>
       `  ${t.codigo}: { label: "${t.label}", nombre: "${t.nombre}" },`;
 
-    const tipos = `export interface Dim { w: number; d: number; h: number; color: string; }
+    const tipos = `export interface Dim { w: number; d: number; h: number; color: string; forma?: string; }
 
 export const DIMENSIONES: Record<string, Dim> = {
 ${tiposActivos.map(tiposConCodigo).join("\n")}

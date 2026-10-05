@@ -265,6 +265,25 @@ export const AMBITO_TIPO_BLOQUE_LABELS: Record<string, { label: string; nombre: 
 };
 
 /* ================================================================
+   Forma visual del tipo de bloque (misma entidad en BD; cambia el render)
+   ================================================================ */
+export const FORMAS_BLOQUE = {
+  BLOQUE: "bloque",
+  TRACTOR_ORUGAS: "tractor-orugas",
+  CARGADOR_FRONTAL: "cargador-frontal",
+  MOTONIVELADORA: "motoniveladora",
+} as const;
+
+export type FormaBloque = (typeof FORMAS_BLOQUE)[keyof typeof FORMAS_BLOQUE];
+
+export const FORMA_BLOQUE_LABELS: Record<string, string> = {
+  [FORMAS_BLOQUE.BLOQUE]: "Bloque 3D",
+  [FORMAS_BLOQUE.TRACTOR_ORUGAS]: "Tractor de orugas",
+  [FORMAS_BLOQUE.CARGADOR_FRONTAL]: "Cargador frontal",
+  [FORMAS_BLOQUE.MOTONIVELADORA]: "Motoniveladora",
+};
+
+/* ================================================================
    Catalogo global de tipos de bloque
    false = lectura por mapa (comportamiento actual)
    true  = lectura/escritura desde tipo_bloque_global

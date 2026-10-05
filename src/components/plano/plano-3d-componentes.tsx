@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
-import { PERSONA_COLORES_CABEZA, TIPOS_FURNITURE } from "@/lib/shared/constants";
+import { FORMAS_BLOQUE, PERSONA_COLORES_CABEZA, TIPOS_FURNITURE } from "@/lib/shared/constants";
 import { furnitureUtils } from "@/lib/shared/utils/furniture";
 import type { PlanoBounds, PlanoItem } from "@/lib/shared/planos/registry";
 
@@ -109,6 +109,29 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, onSelec
   onHover?: (info: { x: number; y: number; text: string } | null) => void;
 }) {
   const { w, d, h, color } = item.dim;
+  const formaMaquina = item.forma && item.forma !== FORMAS_BLOQUE.BLOQUE ? item.forma : null;
+  if (formaMaquina) {
+    return (
+      <group
+        onClick={(e) => { e.stopPropagation(); onSelect(item.id); }}
+        onPointerOver={(e) => {
+          document.body.style.cursor = "pointer";
+          if (hoverText && onHover) onHover({ x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, text: hoverText });
+        }}
+        onPointerMove={(e) => {
+          if (hoverText && onHover) onHover({ x: e.nativeEvent.clientX, y: e.nativeEvent.clientY, text: hoverText });
+        }}
+        onPointerOut={() => { document.body.style.cursor = "auto"; onHover?.(null); }}
+      >
+        <MaquinariaBloque forma={formaMaquina} x={item.x} z={item.z} rotY={item.rotY ?? 0} footprint={{ w, d }} />
+        {/* Huella de seleccion/picking de la unidad */}
+        <mesh position={[item.x, h / 2, item.z]} rotation={[0, item.rotY ?? 0, 0]}>
+          <boxGeometry args={[w, h + 0.1, d]} />
+          <meshBasicMaterial color="#f59e0b" transparent opacity={selected ? 0.14 : 0} depthWrite={false} />
+        </mesh>
+      </group>
+    );
+  }
   return (
     <mesh
       position={[item.x, h / 2, item.z]}
@@ -1192,6 +1215,661 @@ export function Bus({ x, z, rotY = 0 }: { x: number; z: number; rotY?: number })
           <meshStandardMaterial color="#cbd5e1" roughness={.6} />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+/* ---------- Maquinaria (tipo de bloque con forma) ---------- */
+
+/** Tractor de orugas D6/D8: cadena con zapatas, capo con rejilla, cabina vidriada, cuchilla curva y ripper. */
+export function TractorOrugas({ x, z, rotY = 0 }: { x: number; z: number; rotY?: number }) {
+  const lados = [-0.95, 0.95];
+  return (
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+      {lados.map((pz) => (
+        <group key={pz}>
+          {/* Ruedas guia y motriz */}
+          <mesh position={[1.35, 0.4, pz]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.36, 0.36, 0.72, 18]} />
+            <meshStandardMaterial color="#111827" roughness={.95} />
+          </mesh>
+          <mesh position={[-1.35, 0.4, pz]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.36, 0.36, 0.72, 18]} />
+            <meshStandardMaterial color="#111827" roughness={.95} />
+          </mesh>
+          {/* Banda: tramos y envolventes */}
+          <mesh position={[0, 0.05, pz]}>
+            <boxGeometry args={[2.85, 0.11, 0.76]} />
+            <meshStandardMaterial color="#1f2937" roughness={.9} />
+          </mesh>
+          <mesh position={[0, 0.75, pz]}>
+            <boxGeometry args={[2.65, 0.11, 0.76]} />
+            <meshStandardMaterial color="#1f2937" roughness={.9} />
+          </mesh>
+          {[-75, -45, -15, 15, 45, 75].map((g) => {
+            const rad = (g * Math.PI) / 180;
+            return (
+              <mesh key={`w1-${g}`} position={[1.35 + 0.4 * Math.cos(rad), 0.4 + 0.4 * Math.sin(rad), pz]} rotation={[0, 0, rad]}>
+                <boxGeometry args={[0.44, 0.11, 0.76]} />
+                <meshStandardMaterial color="#1f2937" roughness={.9} />
+              </mesh>
+            );
+          })}
+          {[105, 135, 165, 195, 225, 255].map((g) => {
+            const rad = (g * Math.PI) / 180;
+            return (
+              <mesh key={`w2-${g}`} position={[-1.35 + 0.4 * Math.cos(rad), 0.4 + 0.4 * Math.sin(rad), pz]} rotation={[0, 0, rad]}>
+                <boxGeometry args={[0.44, 0.11, 0.76]} />
+                <meshStandardMaterial color="#1f2937" roughness={.9} />
+              </mesh>
+            );
+          })}
+          {/* Zapatas (grousers) */}
+          {[-1.1, -0.73, -0.36, 0, 0.36, 0.73, 1.1].map((px) => (
+            <mesh key={`b${px}`} position={[px, -0.01, pz]}>
+              <boxGeometry args={[0.2, 0.07, 0.8]} />
+              <meshStandardMaterial color="#374151" roughness={.8} />
+            </mesh>
+          ))}
+          {[-0.9, -0.45, 0, 0.45, 0.9].map((px) => (
+            <mesh key={`t${px}`} position={[px, 0.82, pz]}>
+              <boxGeometry args={[0.2, 0.05, 0.72]} />
+              <meshStandardMaterial color="#374151" roughness={.8} />
+            </mesh>
+          ))}
+          {/* Bastidor lateral */}
+          <mesh position={[0, 0.4, pz]}>
+            <boxGeometry args={[2.5, 0.42, 0.62]} />
+            <meshStandardMaterial color="#4b5563" roughness={.7} />
+          </mesh>
+          <mesh position={[0.75, 0.4, pz]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.24, 0.24, 0.66, 14]} />
+            <meshStandardMaterial color="#6b7280" roughness={.5} metalness={.4} />
+          </mesh>
+          {/* Guardafango */}
+          <mesh position={[0, 0.94, pz]} castShadow>
+            <boxGeometry args={[3.0, 0.07, 0.92]} />
+            <meshStandardMaterial color="#eab308" roughness={.5} />
+          </mesh>
+        </group>
+      ))}
+      {/* Plataforma y capo */}
+      <mesh position={[0, 1.0, 0]} castShadow>
+        <boxGeometry args={[2.85, 0.22, 1.8]} />
+        <meshStandardMaterial color="#334155" roughness={.7} />
+      </mesh>
+      <mesh position={[0.95, 1.36, 0]} castShadow>
+        <boxGeometry args={[1.5, 0.62, 1.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      <mesh position={[1.72, 1.32, 0]} rotation={[0, 0, -0.16]} castShadow>
+        <boxGeometry args={[0.95, 0.52, 1.6]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      {/* Rejilla frontal con barras */}
+      <mesh position={[2.18, 1.28, 0]}>
+        <boxGeometry args={[0.08, 0.55, 1.5]} />
+        <meshStandardMaterial color="#1f2937" roughness={.7} />
+      </mesh>
+      {[-0.5, -0.25, 0, 0.25, 0.5].map((pz) => (
+        <mesh key={pz} position={[2.23, 1.28, pz]}>
+          <boxGeometry args={[0.02, 0.48, 0.12]} />
+          <meshStandardMaterial color="#6b7280" roughness={.5} metalness={.4} />
+        </mesh>
+      ))}
+      {/* Paneles laterales del motor */}
+      {[-0.87, 0.87].map((pz) => (
+        <mesh key={pz} position={[0.95, 1.3, pz]}>
+          <boxGeometry args={[1.4, 0.5, 0.05]} />
+          <meshStandardMaterial color="#d97706" roughness={.5} />
+        </mesh>
+      ))}
+      {/* Filtro de aire y escape con escudo termico */}
+      <mesh position={[0.75, 1.82, 0.52]} castShadow>
+        <cylinderGeometry args={[0.09, 0.09, 0.32, 12]} />
+        <meshStandardMaterial color="#1f2937" roughness={.6} />
+      </mesh>
+      <mesh position={[1.35, 1.95, 0.6]} castShadow>
+        <cylinderGeometry args={[0.06, 0.06, 0.8, 12]} />
+        <meshStandardMaterial color="#111827" roughness={.6} />
+      </mesh>
+      <mesh position={[1.35, 2.1, 0.6]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.28, 12]} />
+        <meshStandardMaterial color="#9ca3af" roughness={.4} metalness={.5} />
+      </mesh>
+      {/* Cabina con pilares y vidrios */}
+      <mesh position={[-0.35, 1.72, 0]} castShadow>
+        <boxGeometry args={[1.05, 0.95, 1.6]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      {([[0.18, 0.78], [0.18, -0.78], [-0.88, 0.78], [-0.88, -0.78]] as Array<[number, number]>).map(([px, pz], i) => (
+        <mesh key={i} position={[px, 1.75, pz]}>
+          <boxGeometry args={[0.09, 0.95, 0.09]} />
+          <meshStandardMaterial color="#d97706" roughness={.5} />
+        </mesh>
+      ))}
+      <mesh position={[0.16, 1.82, 0]}>
+        <boxGeometry args={[0.04, 0.7, 1.42]} />
+        <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.16} roughness={.2} />
+      </mesh>
+      <mesh position={[-0.9, 1.82, 0]}>
+        <boxGeometry args={[0.04, 0.7, 1.42]} />
+        <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.1} roughness={.2} />
+      </mesh>
+      {[-0.81, 0.81].map((pz) => (
+        <mesh key={pz} position={[-0.35, 1.82, pz]}>
+          <boxGeometry args={[0.88, 0.62, 0.04]} />
+          <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.12} roughness={.2} />
+        </mesh>
+      ))}
+      {/* Techo, baliza y luces de trabajo */}
+      <mesh position={[-0.35, 2.28, 0]} castShadow>
+        <boxGeometry args={[1.2, 0.1, 1.72]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      <mesh position={[-0.35, 2.4, 0]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.14, 10]} />
+        <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={.8} />
+      </mesh>
+      {[-0.5, 0.5].map((pz) => (
+        <mesh key={pz} position={[-0.9, 2.24, pz]}>
+          <boxGeometry args={[0.12, 0.1, 0.14]} />
+          <meshStandardMaterial color="#fde68a" emissive="#fbbf24" emissiveIntensity={.6} />
+        </mesh>
+      ))}
+      {/* Cuchilla curva con cantoneras, canto y brazos */}
+      <mesh position={[2.32, 0.62, 0]} rotation={[0, 0, 0.12]} castShadow>
+        <boxGeometry args={[0.16, 0.6, 2.7]} />
+        <meshStandardMaterial color="#f5c518" roughness={.5} />
+      </mesh>
+      <mesh position={[2.26, 1.06, 0]} rotation={[0, 0, 0.38]} castShadow>
+        <boxGeometry args={[0.16, 0.5, 2.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[2.08, 1.34, 0]} rotation={[0, 0, 0.66]} castShadow>
+        <boxGeometry args={[0.12, 0.34, 2.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[2.44, 0.34, 0]}>
+        <boxGeometry args={[0.22, 0.12, 2.7]} />
+        <meshStandardMaterial color="#374151" roughness={.6} metalness={.3} />
+      </mesh>
+      {[-1.34, 1.34].map((pz) => (
+        <mesh key={pz} position={[2.3, 0.92, pz]} rotation={[0, 0, 0.3]}>
+          <boxGeometry args={[0.55, 0.6, 0.08]} />
+          <meshStandardMaterial color="#d97706" roughness={.5} />
+        </mesh>
+      ))}
+      {[-0.72, 0.72].map((pz) => (
+        <mesh key={pz} position={[1.5, 0.78, pz]} castShadow>
+          <boxGeometry args={[1.6, 0.18, 0.2]} />
+          <meshStandardMaterial color="#4b5563" roughness={.7} />
+        </mesh>
+      ))}
+      {[-1.0, 1.0].map((pz) => (
+        <group key={pz}>
+          <mesh position={[1.55, 1.0, pz]} rotation={[0, 0, 0.5]}>
+            <cylinderGeometry args={[0.08, 0.08, 1.1, 12]} />
+            <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+          </mesh>
+          <mesh position={[1.9, 1.22, pz]} rotation={[0, 0, 0.5]}>
+            <cylinderGeometry args={[0.045, 0.045, 0.6, 10]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={.3} metalness={.6} />
+          </mesh>
+        </group>
+      ))}
+      {/* Ripper trasero: viga, vastagos y unas */}
+      <mesh position={[-1.7, 0.86, 0]} castShadow>
+        <boxGeometry args={[0.7, 0.2, 1.8]} />
+        <meshStandardMaterial color="#374151" roughness={.7} />
+      </mesh>
+      {[-0.6, 0, 0.6].map((pz) => (
+        <group key={pz}>
+          <mesh position={[-2.0, 0.6, pz]} rotation={[0, 0, 0.5]} castShadow>
+            <boxGeometry args={[0.16, 0.85, 0.16]} />
+            <meshStandardMaterial color="#4b5563" roughness={.7} />
+          </mesh>
+          <mesh position={[-2.26, 0.26, pz]} rotation={[0, 0, 0.5]}>
+            <boxGeometry args={[0.34, 0.12, 0.14]} />
+            <meshStandardMaterial color="#94a3b8" roughness={.4} metalness={.5} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Cargador frontal articulado: neumaticos con rines y tacos, boom anclado con cilindros y balde soldado con dientes. */
+export function CargadorFrontal({ x, z, rotY = 0 }: { x: number; z: number; rotY?: number }) {
+  const ruedas: Array<[number, number]> = [[1.85, -1.05], [1.85, 1.05], [-1.75, -1.05], [-1.75, 1.05]];
+  /* Geometria del conjunto frontal (anclajes reales) */
+  const P = { x: 0.75, y: 1.55 };            // pivote del boom en el chasis
+  const B = { x: 2.95, y: 1.42 };            // pivote del balde
+  const largoBoom = Math.hypot(B.x - P.x, B.y - P.y) + 0.3;
+  const angBoom = Math.atan2(B.y - P.y, B.x - P.x);
+  const boomCx = (P.x + B.x) / 2;
+  const boomCy = (P.y + B.y) / 2;
+  const cruce = { x: P.x + 0.62 * (B.x - P.x), y: P.y + 0.62 * (B.y - P.y) };
+  const lift = { ax: 1.0, ay: 1.0, bx: 1.75, by: 1.52 };
+  const angLift = Math.atan2(lift.by - lift.ay, lift.bx - lift.ax);
+  const tilt = { ax: 2.5, ay: 1.5, bx: 3.02, by: 1.86 };
+  const angTilt = Math.atan2(tilt.by - tilt.ay, tilt.bx - tilt.ax);
+  const avance = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+  const liftBarril = avance({ x: lift.ax, y: lift.ay }, { x: lift.bx, y: lift.by }, 0.35);
+  const liftVastago = avance({ x: lift.ax, y: lift.ay }, { x: lift.bx, y: lift.by }, 0.8);
+  const tiltBarril = avance({ x: tilt.ax, y: tilt.ay }, { x: tilt.bx, y: tilt.by }, 0.35);
+  const tiltVastago = avance({ x: tilt.ax, y: tilt.ay }, { x: tilt.bx, y: tilt.by }, 0.8);
+  /* Balde: puntos soldados (respaldo top->base, fondo base->labio) */
+  const respaldoTop = { x: 3.02, y: 1.88 };
+  const respaldoBase = { x: 3.2, y: 0.88 };
+  const labio = { x: 4.08, y: 0.58 };
+  const angRespaldo = Math.atan2(respaldoBase.y - respaldoTop.y, respaldoBase.x - respaldoTop.x);
+  const angFondo = Math.atan2(labio.y - respaldoBase.y, labio.x - respaldoBase.x);
+  const angLateral = Math.atan2(labio.y - respaldoTop.y, labio.x - respaldoTop.x);
+  const largoLateral = Math.hypot(labio.x - respaldoTop.x, labio.y - respaldoTop.y) + 0.25;
+  const centroLateral = { x: (respaldoTop.x + labio.x) / 2, y: (respaldoTop.y + labio.y) / 2 };
+  return (
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+      {ruedas.map(([px, pz], i) => (
+        <group key={i}>
+          <mesh position={[px, 0.9, pz]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.9, 0.9, 0.6, 20]} />
+            <meshStandardMaterial color="#111827" roughness={.95} />
+          </mesh>
+          <mesh position={[px, 0.9, pz]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.42, 0.42, 0.64, 16]} />
+            <meshStandardMaterial color="#94a3b8" roughness={.4} metalness={.5} />
+          </mesh>
+          <mesh position={[px, 0.9, pz]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.16, 0.16, 0.68, 12]} />
+            <meshStandardMaterial color="#374151" roughness={.5} metalness={.4} />
+          </mesh>
+          {[0, 60, 120, 180, 240, 300].map((g) => (
+            <mesh key={g} position={[px + 0.86 * Math.cos((g * Math.PI) / 180), 0.9 + 0.86 * Math.sin((g * Math.PI) / 180), pz]} rotation={[0, 0, (g * Math.PI) / 180]}>
+              <boxGeometry args={[0.26, 0.18, 0.62]} />
+              <meshStandardMaterial color="#1f2937" roughness={.9} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* Chasis delantero, articulacion y trasero */}
+      <mesh position={[1.65, 1.15, 0]} castShadow>
+        <boxGeometry args={[1.7, 0.5, 1.7]} />
+        <meshStandardMaterial color="#334155" roughness={.7} />
+      </mesh>
+      <mesh position={[0.35, 1.2, 0]} castShadow>
+        <cylinderGeometry args={[0.26, 0.26, 0.62, 16]} />
+        <meshStandardMaterial color="#1f2937" roughness={.6} />
+      </mesh>
+      <mesh position={[-1.6, 1.15, 0]} castShadow>
+        <boxGeometry args={[2.0, 0.5, 1.55]} />
+        <meshStandardMaterial color="#334155" roughness={.7} />
+      </mesh>
+      {/* Soporte del pivote del boom (placas + pasador) */}
+      {[-0.68, 0.68].map((pz) => (
+        <mesh key={pz} position={[P.x, P.y - 0.05, pz]} castShadow>
+          <boxGeometry args={[0.4, 0.6, 0.16]} />
+          <meshStandardMaterial color="#374151" roughness={.7} />
+        </mesh>
+      ))}
+      <mesh position={[P.x, P.y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.62, 12]} />
+        <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+      </mesh>
+      {/* Motor trasero con capo inclinado y rejilla */}
+      <mesh position={[-1.5, 2.0, 0]} castShadow>
+        <boxGeometry args={[2.0, 1.05, 2.15]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      <mesh position={[-2.5, 2.12, 0]} rotation={[0, 0, 0.16]} castShadow>
+        <boxGeometry args={[0.9, 0.62, 2.0]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      <mesh position={[-2.78, 1.9, 0]}>
+        <boxGeometry args={[0.07, 0.7, 1.9]} />
+        <meshStandardMaterial color="#1f2937" roughness={.7} />
+      </mesh>
+      {[-0.6, -0.2, 0.2, 0.6].map((pz) => (
+        <mesh key={pz} position={[-2.83, 1.9, pz]}>
+          <boxGeometry args={[0.02, 0.6, 0.12]} />
+          <meshStandardMaterial color="#6b7280" roughness={.5} metalness={.4} />
+        </mesh>
+      ))}
+      <mesh position={[-2.85, 1.25, 0]} castShadow>
+        <boxGeometry args={[0.5, 0.7, 2.2]} />
+        <meshStandardMaterial color="#374151" roughness={.8} />
+      </mesh>
+      {/* Capo delantero del motor */}
+      <mesh position={[0.55, 1.95, 0]} castShadow>
+        <boxGeometry args={[1.15, 0.8, 1.9]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      {/* Cabina vidriada con pilares, techo y baliza */}
+      <mesh position={[-0.75, 2.42, 0]} castShadow>
+        <boxGeometry args={[1.15, 1.1, 1.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      {([[-0.15, 0.83], [-0.15, -0.83], [-1.33, 0.83], [-1.33, -0.83]] as Array<[number, number]>).map(([px, pz], i) => (
+        <mesh key={i} position={[px, 2.45, pz]}>
+          <boxGeometry args={[0.09, 1.1, 0.09]} />
+          <meshStandardMaterial color="#d97706" roughness={.5} />
+        </mesh>
+      ))}
+      <mesh position={[-0.16, 2.55, 0]}>
+        <boxGeometry args={[0.04, 0.8, 1.5]} />
+        <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.16} roughness={.2} />
+      </mesh>
+      {[-0.86, 0.86].map((pz) => (
+        <mesh key={pz} position={[-0.75, 2.55, pz]}>
+          <boxGeometry args={[0.95, 0.7, 0.04]} />
+          <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.12} roughness={.2} />
+        </mesh>
+      ))}
+      <mesh position={[-0.75, 3.02, 0]} castShadow>
+        <boxGeometry args={[1.3, 0.1, 1.85]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      <mesh position={[-0.75, 3.14, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.14, 10]} />
+        <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={.8} />
+      </mesh>
+      {[-0.6, 0.6].map((pz) => (
+        <mesh key={pz} position={[-1.32, 2.98, pz]}>
+          <boxGeometry args={[0.12, 0.1, 0.16]} />
+          <meshStandardMaterial color="#fde68a" emissive="#fbbf24" emissiveIntensity={.6} />
+        </mesh>
+      ))}
+      <mesh position={[-1.1, 2.72, 0.7]} castShadow>
+        <cylinderGeometry args={[0.07, 0.07, 0.7, 12]} />
+        <meshStandardMaterial color="#111827" roughness={.6} />
+      </mesh>
+      <mesh position={[-1.1, 2.9, 0.7]}>
+        <cylinderGeometry args={[0.1, 0.1, 0.22, 12]} />
+        <meshStandardMaterial color="#9ca3af" roughness={.4} metalness={.5} />
+      </mesh>
+      {/* Boom doble anclado pivote chasis -> pivote balde */}
+      {[-0.68, 0.68].map((pz) => (
+        <mesh key={pz} position={[boomCx, boomCy, pz]} rotation={[0, 0, angBoom]} castShadow>
+          <boxGeometry args={[largoBoom, 0.4, 0.24]} />
+          <meshStandardMaterial color="#eab308" roughness={.5} />
+        </mesh>
+      ))}
+      <mesh position={[cruce.x, cruce.y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.15, 0.15, 1.5, 14]} />
+        <meshStandardMaterial color="#d97706" roughness={.5} />
+      </mesh>
+      {/* Mangueras a lo largo del boom */}
+      {[-0.45, 0.45].map((pz) => (
+        <mesh key={pz} position={[boomCx, boomCy + 0.26, pz]} rotation={[0, 0, angBoom]}>
+          <cylinderGeometry args={[0.035, 0.035, largoBoom * 0.92, 8]} />
+          <meshStandardMaterial color="#0f172a" roughness={.7} />
+        </mesh>
+      ))}
+      {/* Cilindros de elevacion (chasis -> boom) */}
+      {[-0.68, 0.68].map((pz) => (
+        <group key={pz}>
+          <mesh position={[liftBarril.x, liftBarril.y, pz]} rotation={[0, 0, angLift]}>
+            <cylinderGeometry args={[0.1, 0.1, 0.6, 12]} />
+            <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+          </mesh>
+          <mesh position={[liftVastago.x, liftVastago.y, pz]} rotation={[0, 0, angLift]}>
+            <cylinderGeometry args={[0.055, 0.055, 0.55, 10]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={.3} metalness={.6} />
+          </mesh>
+        </group>
+      ))}
+      {/* Cilindros de inclinacion (boom -> balde) */}
+      {[-0.68, 0.68].map((pz) => (
+        <group key={pz}>
+          <mesh position={[tiltBarril.x, tiltBarril.y, pz]} rotation={[0, 0, angTilt]}>
+            <cylinderGeometry args={[0.075, 0.075, 0.42, 12]} />
+            <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+          </mesh>
+          <mesh position={[tiltVastago.x, tiltVastago.y, pz]} rotation={[0, 0, angTilt]}>
+            <cylinderGeometry args={[0.04, 0.04, 0.4, 10]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={.3} metalness={.6} />
+          </mesh>
+        </group>
+      ))}
+      {/* Balde soldado: pasador, respaldo, fondo, laterales, canto, dientes y guarda */}
+      <mesh position={[B.x, B.y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 1.5, 12]} />
+        <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+      </mesh>
+      <mesh position={[(respaldoTop.x + respaldoBase.x) / 2, (respaldoTop.y + respaldoBase.y) / 2, 0]} rotation={[0, 0, angRespaldo]} castShadow>
+        <boxGeometry args={[Math.hypot(respaldoBase.x - respaldoTop.x, respaldoBase.y - respaldoTop.y) + 0.22, 0.14, 2.7]} />
+        <meshStandardMaterial color="#374151" roughness={.8} />
+      </mesh>
+      <mesh position={[(respaldoBase.x + labio.x) / 2, (respaldoBase.y + labio.y) / 2, 0]} rotation={[0, 0, angFondo]} castShadow>
+        <boxGeometry args={[Math.hypot(labio.x - respaldoBase.x, labio.y - respaldoBase.y) + 0.18, 0.13, 2.7]} />
+        <meshStandardMaterial color="#4b5563" roughness={.8} />
+      </mesh>
+      {[-1.36, 1.36].map((pz) => (
+        <mesh key={pz} position={[centroLateral.x, centroLateral.y, pz]} rotation={[0, 0, angLateral]} castShadow>
+          <boxGeometry args={[largoLateral, 0.62, 0.09]} />
+          <meshStandardMaterial color="#374151" roughness={.8} />
+        </mesh>
+      ))}
+      <mesh position={[labio.x + 0.03, labio.y - 0.03, 0]} rotation={[0, 0, angFondo]}>
+        <boxGeometry args={[0.24, 0.13, 2.7]} />
+        <meshStandardMaterial color="#1f2937" roughness={.6} metalness={.3} />
+      </mesh>
+      {[-1.0, -0.5, 0, 0.5, 1.0].map((pz) => (
+        <mesh key={pz} position={[labio.x + 0.22, labio.y - 0.1, pz]} rotation={[0, 0, angFondo]}>
+          <boxGeometry args={[0.4, 0.09, 0.16]} />
+          <meshStandardMaterial color="#94a3b8" roughness={.4} metalness={.5} />
+        </mesh>
+      ))}
+      <mesh position={[respaldoTop.x, respaldoTop.y, 0]} rotation={[0, 0, -0.12]} castShadow>
+        <boxGeometry args={[0.5, 0.1, 2.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[(tilt.bx + respaldoTop.x) / 2, (tilt.by + respaldoTop.y) / 2, 0]} rotation={[0, 0, 0.35]}>
+        <boxGeometry args={[0.42, 0.16, 0.95]} />
+        <meshStandardMaterial color="#4b5563" roughness={.7} />
+      </mesh>
+      {/* Espejos y escalera */}
+      {[-1.15, 1.15].map((pz) => (
+        <mesh key={pz} position={[-0.15, 2.6, pz]}>
+          <boxGeometry args={[0.14, 0.3, 0.06]} />
+          <meshStandardMaterial color="#0f172a" roughness={.4} />
+        </mesh>
+      ))}
+      <mesh position={[-1.55, 1.1, -0.82]}>
+        <boxGeometry args={[0.5, 0.09, 0.1]} />
+        <meshStandardMaterial color="#6b7280" roughness={.5} metalness={.4} />
+      </mesh>
+    </group>
+  );
+}
+/** Motoniveladora: bastidor largo, hoja central con corona y cilindros, escarificador, cabina sobre el motor y tandem trasero. */
+export function Motoniveladora({ x, z, rotY = 0 }: { x: number; z: number; rotY?: number }) {
+  const ruedas: Array<[number, number]> = [[3.6, -0.95], [3.6, 0.95], [-1.9, -1.0], [-1.9, 1.0], [-2.9, -1.0], [-2.9, 1.0]];
+  return (
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]}>
+      {ruedas.map(([px, pz], i) => {
+        const r = px > 0 ? 0.65 : 0.7;
+        return (
+          <group key={i}>
+            <mesh position={[px, r, pz]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+              <cylinderGeometry args={[r, r, 0.42, 16]} />
+              <meshStandardMaterial color="#111827" roughness={.95} />
+            </mesh>
+            <mesh position={[px, r, pz]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.3, 0.3, 0.46, 12]} />
+              <meshStandardMaterial color="#94a3b8" roughness={.4} metalness={.5} />
+            </mesh>
+            <mesh position={[px, r, pz]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.12, 0.12, 0.5, 10]} />
+              <meshStandardMaterial color="#374151" roughness={.5} metalness={.4} />
+            </mesh>
+          </group>
+        );
+      })}
+      {/* Bastidor principal y cuello delantero */}
+      <mesh position={[0.3, 1.2, 0]} castShadow>
+        <boxGeometry args={[6.6, 0.28, 0.55]} />
+        <meshStandardMaterial color="#334155" roughness={.7} />
+      </mesh>
+      <mesh position={[2.55, 1.32, 0]} rotation={[0, 0, 0.04]} castShadow>
+        <boxGeometry args={[2.6, 0.28, 0.5]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[3.6, 1.0, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.45, 1.9]} />
+        <meshStandardMaterial color="#f5c518" roughness={.5} />
+      </mesh>
+      {[-0.8, 0.8].map((pz) => (
+        <mesh key={pz} position={[3.98, 1.05, pz]}>
+          <boxGeometry args={[0.1, 0.18, 0.32]} />
+          <meshStandardMaterial color="#fde68a" emissive="#fbbf24" emissiveIntensity={.5} />
+        </mesh>
+      ))}
+      {/* Corona (circle drive), drawbar y hoja con cuchilla */}
+      <mesh position={[0.95, 1.0, 0]} castShadow>
+        <cylinderGeometry args={[0.38, 0.38, 0.22, 16]} />
+        <meshStandardMaterial color="#1f2937" roughness={.6} />
+      </mesh>
+      <mesh position={[0.95, 0.92, 0]} castShadow>
+        <boxGeometry args={[1.6, 0.16, 0.55]} />
+        <meshStandardMaterial color="#4b5563" roughness={.7} />
+      </mesh>
+      <mesh position={[1.15, 0.5, 0]} rotation={[0, 0, 0.14]} castShadow>
+        <boxGeometry args={[0.16, 0.5, 3.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[1.02, 0.85, 0]} rotation={[0, 0, 0.5]} castShadow>
+        <boxGeometry args={[0.16, 0.45, 3.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.5} />
+      </mesh>
+      <mesh position={[0.78, 1.06, 0]} rotation={[0, 0, 0.82]} castShadow>
+        <boxGeometry args={[0.12, 0.3, 3.7]} />
+        <meshStandardMaterial color="#d97706" roughness={.5} />
+      </mesh>
+      <mesh position={[1.32, 0.22, 0]}>
+        <boxGeometry args={[0.22, 0.12, 3.7]} />
+        <meshStandardMaterial color="#374151" roughness={.6} metalness={.3} />
+      </mesh>
+      {/* Cilindros de elevacion de la hoja */}
+      {[-1.8, 1.8].map((pz) => (
+        <group key={pz}>
+          <mesh position={[1.55, 1.05, pz]} rotation={[0, 0, 0.5]}>
+            <cylinderGeometry args={[0.08, 0.08, 1.1, 12]} />
+            <meshStandardMaterial color="#6b7280" roughness={.4} metalness={.5} />
+          </mesh>
+          <mesh position={[1.25, 0.85, pz]} rotation={[0, 0, 0.5]}>
+            <cylinderGeometry args={[0.045, 0.045, 0.6, 10]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={.3} metalness={.6} />
+          </mesh>
+        </group>
+      ))}
+      {/* Escarificador central */}
+      <mesh position={[1.95, 0.82, 0]} castShadow>
+        <boxGeometry args={[0.5, 0.12, 1.4]} />
+        <meshStandardMaterial color="#4b5563" roughness={.7} />
+      </mesh>
+      {[-0.5, 0, 0.5].map((pz) => (
+        <mesh key={pz} position={[2.0, 0.55, pz]} rotation={[0, 0, 0.4]}>
+          <boxGeometry args={[0.12, 0.5, 0.12]} />
+          <meshStandardMaterial color="#94a3b8" roughness={.4} metalness={.5} />
+        </mesh>
+      ))}
+      {/* Motor trasero con capo inclinado, rejilla y escape */}
+      <mesh position={[-2.0, 2.0, 0]} castShadow>
+        <boxGeometry args={[1.7, 1.0, 1.9]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      <mesh position={[-1.05, 1.95, 0]} rotation={[0, 0, 0.14]} castShadow>
+        <boxGeometry args={[0.75, 0.75, 1.8]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      <mesh position={[-2.9, 1.85, 0]}>
+        <boxGeometry args={[0.07, 0.75, 1.75]} />
+        <meshStandardMaterial color="#1f2937" roughness={.7} />
+      </mesh>
+      {[-0.55, -0.18, 0.18, 0.55].map((pz) => (
+        <mesh key={pz} position={[-2.95, 1.85, pz]}>
+          <boxGeometry args={[0.02, 0.62, 0.12]} />
+          <meshStandardMaterial color="#6b7280" roughness={.5} metalness={.4} />
+        </mesh>
+      ))}
+      <mesh position={[-1.5, 2.62, 0.55]} castShadow>
+        <cylinderGeometry args={[0.06, 0.06, 0.7, 12]} />
+        <meshStandardMaterial color="#111827" roughness={.6} />
+      </mesh>
+      <mesh position={[-1.5, 2.8, 0.55]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.22, 12]} />
+        <meshStandardMaterial color="#9ca3af" roughness={.4} metalness={.5} />
+      </mesh>
+      {/* Cabina vidriada con pilares, techo, baliza y luces */}
+      <mesh position={[-0.7, 2.35, 0]} castShadow>
+        <boxGeometry args={[1.15, 1.05, 1.7]} />
+        <meshStandardMaterial color="#eab308" roughness={.45} />
+      </mesh>
+      {([[-0.15, 0.83], [-0.15, -0.83], [-1.25, 0.83], [-1.25, -0.83]] as Array<[number, number]>).map(([px, pz], i) => (
+        <mesh key={i} position={[px, 2.4, pz]}>
+          <boxGeometry args={[0.09, 1.05, 0.09]} />
+          <meshStandardMaterial color="#d97706" roughness={.5} />
+        </mesh>
+      ))}
+      <mesh position={[-0.11, 2.48, 0]}>
+        <boxGeometry args={[0.04, 0.72, 1.5]} />
+        <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.16} roughness={.2} />
+      </mesh>
+      <mesh position={[-1.31, 2.48, 0]}>
+        <boxGeometry args={[0.04, 0.72, 1.5]} />
+        <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.1} roughness={.2} />
+      </mesh>
+      {[-0.86, 0.86].map((pz) => (
+        <mesh key={pz} position={[-0.7, 2.48, pz]}>
+          <boxGeometry args={[0.95, 0.66, 0.04]} />
+          <meshStandardMaterial color="#0f172a" emissive="#38bdf8" emissiveIntensity={.12} roughness={.2} />
+        </mesh>
+      ))}
+      <mesh position={[-0.7, 2.93, 0]} castShadow>
+        <boxGeometry args={[1.3, 0.1, 1.85]} />
+        <meshStandardMaterial color="#f5c518" roughness={.45} />
+      </mesh>
+      <mesh position={[-0.7, 3.05, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.14, 10]} />
+        <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={.8} />
+      </mesh>
+      {[-0.55, 0.55].map((pz) => (
+        <mesh key={pz} position={[-1.25, 2.89, pz]}>
+          <boxGeometry args={[0.12, 0.1, 0.16]} />
+          <meshStandardMaterial color="#fde68a" emissive="#fbbf24" emissiveIntensity={.6} />
+        </mesh>
+      ))}
+      {/* Espejos */}
+      {[-1.12, 1.12].map((pz) => (
+        <mesh key={pz} position={[-0.12, 2.55, pz]}>
+          <boxGeometry args={[0.14, 0.3, 0.06]} />
+          <meshStandardMaterial color="#0f172a" roughness={.4} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+/** Dimensiones reales (metros) que ocupa cada maquina, para escalarla a la huella del tipo. */
+const MAQUINA_EXTENT: Record<string, { w: number; d: number }> = {
+  [FORMAS_BLOQUE.TRACTOR_ORUGAS]: { w: 5.0, d: 2.8 },
+  [FORMAS_BLOQUE.CARGADOR_FRONTAL]: { w: 7.5, d: 2.8 },
+  [FORMAS_BLOQUE.MOTONIVELADORA]: { w: 7.3, d: 3.8 },
+};
+
+/** Renderiza la maquinaria segun la forma del tipo de bloque (null = bloque normal).
+ * Si se recibe la huella del tipo, la maquina se escala uniformemente para ocupar ~80% de W/D. */
+export function MaquinariaBloque({ forma, x, z, rotY = 0, footprint }: { forma?: string | null; x: number; z: number; rotY?: number; footprint?: { w: number; d: number } }) {
+  if (forma !== FORMAS_BLOQUE.TRACTOR_ORUGAS && forma !== FORMAS_BLOQUE.CARGADOR_FRONTAL && forma !== FORMAS_BLOQUE.MOTONIVELADORA) return null;
+  const extent = MAQUINA_EXTENT[forma]!;
+  const escala = footprint && footprint.w > 0 && footprint.d > 0
+    ? Math.max(0.1, Math.min((footprint.w * 0.8) / extent.w, (footprint.d * 0.8) / extent.d))
+    : 1;
+  return (
+    <group position={[x, 0, z]} rotation={[0, rotY, 0]} scale={escala}>
+      {forma === FORMAS_BLOQUE.TRACTOR_ORUGAS && <TractorOrugas x={0} z={0} rotY={0} />}
+      {forma === FORMAS_BLOQUE.CARGADOR_FRONTAL && <CargadorFrontal x={0} z={0} rotY={0} />}
+      {forma === FORMAS_BLOQUE.MOTONIVELADORA && <Motoniveladora x={0} z={0} rotY={0} />}
     </group>
   );
 }

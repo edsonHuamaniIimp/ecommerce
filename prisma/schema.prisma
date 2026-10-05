@@ -776,6 +776,7 @@ model PlanoTipoBloque {
   h        Float   @db.Real
   color    String  @db.VarChar(10)                     // "#FFD700"
   ambito   String  @default("interno") @db.VarChar(10) // "interno" | "externo"
+  forma    String  @default("bloque") @db.VarChar(20)  // "bloque" | "tractor-orugas" | "cargador-frontal"
   flgActivo Boolean @default(true) @map("flg_activo")
 
   plano    Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
@@ -795,6 +796,7 @@ model TipoBloqueGlobal {
   h         Float    @db.Real
   color     String   @db.VarChar(10)
   ambito    String   @default("interno") @db.VarChar(10)
+  forma     String   @default("bloque") @db.VarChar(20)
   flgActivo Boolean  @default(true) @map("flg_activo")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

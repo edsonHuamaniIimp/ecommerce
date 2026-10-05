@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
-import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, FORMAS_BLOQUE, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
 import { normalizarCodigoTipo, planSincronizacionCatalogo } from "@/lib/shared/utils/catalogo-tipos";
 import { seccionPuntosUtils } from "@/lib/shared/utils/seccion-puntos";
 
@@ -19,6 +19,7 @@ interface PlanoTipoRow {
   h: number;
   color: string;
   ambito: string;
+  forma: string;
   flgActivo: boolean;
 }
 
@@ -93,6 +94,7 @@ function mapTipo(r: PlanoTipoRow): PlanoTipoBloqueEntity {
     h: r.h,
     color: r.color,
     ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
+    forma: r.forma ?? FORMAS_BLOQUE.BLOQUE,
     flgActivo: r.flgActivo,
   };
 }
@@ -230,6 +232,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
         h: r.h,
         color: r.color,
         ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
+        forma: r.forma ?? FORMAS_BLOQUE.BLOQUE,
         planoCodigo: r.plano.codigo,
         planosCount: 1,
         bloquesCount: r._count.bloques,
@@ -262,6 +265,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
           h: r.h,
           color: r.color,
           ambito: r.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO,
+          forma: r.forma ?? FORMAS_BLOQUE.BLOQUE,
           planoCodigo: "catalogo-global",
           planosCount: planos.get(key) ?? 0,
           bloquesCount: bloques.get(key) ?? 0,
@@ -297,6 +301,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       h: g.h,
       color: g.color,
       ambito: g.ambito,
+      forma: g.forma ?? FORMAS_BLOQUE.BLOQUE,
       flgActivo: g.flgActivo,
     }));
   }
@@ -313,19 +318,19 @@ export class PlanoPrismaRepository implements IPlanoRepository {
     const existentes = await tx.tipoBloqueGlobal.findMany();
     const codigoAlmacenado = new Map(existentes.map((e) => [normalizarCodigoTipo(e.codigo), e.codigo]));
     const plan = planSincronizacionCatalogo(
-      existentes.map((e) => ({ codigo: e.codigo, label: e.label, nombre: e.nombre, w: e.w, d: e.d, h: e.h, color: e.color, ambito: e.ambito, flgActivo: e.flgActivo })),
-      tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo })),
+      existentes.map((e) => ({ codigo: e.codigo, label: e.label, nombre: e.nombre, w: e.w, d: e.d, h: e.h, color: e.color, ambito: e.ambito, forma: e.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: e.flgActivo })),
+      tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: t.flgActivo })),
       await this.usoGlobalTipos(tx),
     );
     for (const t of plan.altas) {
-      await tx.tipoBloqueGlobal.create({ data: { ...t, codigo: normalizarCodigoTipo(t.codigo) } });
+      await tx.tipoBloqueGlobal.create({ data: { ...t, codigo: normalizarCodigoTipo(t.codigo), forma: t.forma ?? FORMAS_BLOQUE.BLOQUE } });
     }
     for (const t of plan.cambios) {
       const original = codigoAlmacenado.get(normalizarCodigoTipo(t.codigo));
       if (!original) continue;
       await tx.tipoBloqueGlobal.update({
         where: { codigo: original },
-        data: { codigo: normalizarCodigoTipo(t.codigo), label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
+        data: { codigo: normalizarCodigoTipo(t.codigo), label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: t.flgActivo },
       });
     }
     if (plan.desactivar.length > 0) {
@@ -403,7 +408,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       const tipoIdMap = new Map<string, string>();
       for (const t of data.tipos) {
         const created = await tx.planoTipoBloque.create({
-          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
+          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: t.flgActivo },
         });
         tipoIdMap.set(t.codigo, created.id);
       }
@@ -446,7 +451,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       const tipoIdMap = new Map<string, string>();
       for (const t of tipos) {
         const created = await tx.planoTipoBloque.create({
-          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo },
+          data: { planoId: id, codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: t.flgActivo },
         });
         tipoIdMap.set(t.codigo, created.id);
       }
@@ -645,7 +650,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       descripcion: plano.descripcion,
       tipo: plano.tipo,
       imagenFondo: plano.imagenFondo,
-      tipos: plano.tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, flgActivo: t.flgActivo })),
+      tipos: plano.tipos.map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma, flgActivo: t.flgActivo })),
       bloques: plano.bloques.map((b) => ({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, x: b.x, z: b.z, rotY: b.rotY, orden: b.orden, flgActivo: b.flgActivo })),
       furniture: plano.furniture.map((f) => ({ refId: f.refId, tipo: f.tipo, x: f.x, z: f.z, rotY: f.rotY, ...(f.config ? { config: f.config } : {}), flgActivo: f.flgActivo })),
       secciones: plano.secciones.map((s) => ({
@@ -666,7 +671,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       : await this.crear({ codigo: data.codigo, nombre: data.nombre, descripcion: data.descripcion, tipo: data.tipo });
 
     await this.guardarLayout(plano.id, {
-      tipos: data.tipos.map((t) => ({ ...t, ambito: t.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO, flgActivo: t.flgActivo ?? true })),
+      tipos: data.tipos.map((t) => ({ ...t, ambito: t.ambito ?? AMBITOS_TIPO_BLOQUE.INTERNO, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: t.flgActivo ?? true })),
       bloques: data.bloques.map((b) => ({ ...b, tipologia: (b as { tipologia?: string | null }).tipologia ?? null, flgActivo: b.flgActivo ?? true })),
       furniture: data.furniture.map((f) => ({ ...f, config: f.config ?? null, flgActivo: f.flgActivo ?? true })),
     });

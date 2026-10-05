@@ -12,10 +12,10 @@ import type { PlanoDTO, PlanoListItemDTO, PlanoTipoDTO, PlanoBloqueDTO, PlanoFur
 import { codigoPlanoUtils } from "@/lib/shared/utils/codigo-plano";
 import { furnitureUtils } from "@/lib/shared/utils/furniture";
 import { planoEditorUtils, type PuntoAlineable } from "@/lib/shared/utils/plano-editor";
-import { FurnitureRenderer } from "@/components/plano/plano-3d-componentes";
+import { FurnitureRenderer, MaquinariaBloque } from "@/components/plano/plano-3d-componentes";
 import { useConfirm } from "@/hooks/use-confirm";
 import { MacroEditor } from "./macro-editor";
-import { AMBITO_TIPO_BLOQUE_LABELS, AMBITOS_TIPO_BLOQUE, EDITOR_PLANO, PERSONA_COLORES_CABEZA, TIPOLOGIAS_STAND, TIPOS_FURNITURE, TIPOS_PLANO, FURNITURE_LABELS, type PersonaFurnitureConfig, type PisoFurnitureConfig, type TipoPlano } from "@/lib/shared/constants";
+import { AMBITO_TIPO_BLOQUE_LABELS, AMBITOS_TIPO_BLOQUE, EDITOR_PLANO, FORMA_BLOQUE_LABELS, FORMAS_BLOQUE, PERSONA_COLORES_CABEZA, TIPOLOGIAS_STAND, TIPOS_FURNITURE, TIPOS_PLANO, FURNITURE_LABELS, type PersonaFurnitureConfig, type PisoFurnitureConfig, type TipoPlano } from "@/lib/shared/constants";
 
 /* TIPOS LOCALES DE EDICION */
 
@@ -40,7 +40,7 @@ type DragState =
 
 function EditorBloque({ bloque, dim, selected, multiSelected, inactive, onPointerDown }: {
   bloque: EditBloque;
-  dim: { w: number; d: number; h: number; color: string };
+  dim: { w: number; d: number; h: number; color: string; forma?: string };
   selected: boolean;
   multiSelected?: boolean;
   inactive?: boolean;
@@ -48,6 +48,17 @@ function EditorBloque({ bloque, dim, selected, multiSelected, inactive, onPointe
 }) {
   const resaltado = selected || multiSelected;
   const color = selected ? "#f59e0b" : multiSelected ? "#3b82f6" : dim.color;
+  if (dim.forma && dim.forma !== FORMAS_BLOQUE.BLOQUE) {
+    return (
+      <group position={[bloque.x, 0, bloque.z]} rotation={[0, bloque.rotY ?? 0, 0]} onPointerDown={onPointerDown}>
+        <MaquinariaBloque forma={dim.forma} x={0} z={0} rotY={0} footprint={{ w: dim.w, d: dim.d }} />
+        <mesh position={[0, (dim.h + (resaltado ? 0.6 : 0)) / 2, 0]}>
+          <boxGeometry args={[dim.w, dim.h + (resaltado ? 0.6 : 0), dim.d]} />
+          <meshStandardMaterial color={color} transparent opacity={resaltado ? 0.18 : 0} depthWrite={false} />
+        </mesh>
+      </group>
+    );
+  }
   return (
     <mesh
       position={[bloque.x, dim.h / 2, bloque.z]}
@@ -236,7 +247,7 @@ export function LaboratorioManager() {
     try {
       const plano = await planosService.detalle(id);
       setPlanoSel(plano);
-      setTipos(plano.tipos.map(({ codigo, label, nombre, w, d, h, color, ambito, flgActivo }) => ({ codigo, label, nombre, w, d, h, color, ambito, flgActivo })));
+      setTipos(plano.tipos.map(({ codigo, label, nombre, w, d, h, color, ambito, forma, flgActivo }) => ({ codigo, label, nombre, w, d, h, color, ambito, forma: forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo })));
       setBloques(plano.bloques.map(({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo }) => ({ bloqueId, tipoCodigo, tipologia, x, z, rotY, orden, flgActivo })));
       setFurniture(plano.furniture.map(({ refId, tipo, x, z, rotY, config, flgActivo }) => ({ refId, tipo, x, z, rotY, config, flgActivo })));
       setSelected(null);
@@ -619,6 +630,7 @@ export function LaboratorioManager() {
         h: s.h,
         color: s.color,
         ambito: s.ambito,
+        forma: s.forma ?? FORMAS_BLOQUE.BLOQUE,
         flgActivo: true,
       }));
     if (nuevos.length === 0) return 0;
@@ -1695,7 +1707,7 @@ function NuevoPlanoDialog({ open, onClose, onCreated, codigosExistentes, codigoI
 }
 
 function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: boolean; onClose: () => void; onAdd: (t: EditTipo) => void; tipos: EditTipo[]; tipoInicial?: EditTipo | null }) {
-  const [form, setForm] = useState<EditTipo>(() => tipoInicial ?? { codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32", ambito: AMBITOS_TIPO_BLOQUE.INTERNO, flgActivo: true });
+  const [form, setForm] = useState<EditTipo>(() => tipoInicial ?? { codigo: "", label: "", nombre: "", w: 2, d: 2, h: 2.4, color: "#32CD32", ambito: AMBITOS_TIPO_BLOQUE.INTERNO, forma: FORMAS_BLOQUE.BLOQUE, flgActivo: true });
   const [codigoEditado, setCodigoEditado] = useState(!!tipoInicial);
   const [codigoTocado, setCodigoTocado] = useState(false);
   const [nombreTocado, setNombreTocado] = useState(false);
@@ -1723,7 +1735,7 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
     const codigos = new Set(sugerencias.map((s) => s.codigo.trim().toUpperCase()));
     const locales: PlanoTipoSugeridoDTO[] = tipos
       .filter((t) => !codigos.has(t.codigo.trim().toUpperCase()))
-      .map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, planoCodigo: "", planosCount: 1, bloquesCount: 0 }));
+      .map((t) => ({ codigo: t.codigo, label: t.label, nombre: t.nombre, w: t.w, d: t.d, h: t.h, color: t.color, ambito: t.ambito, forma: t.forma ?? FORMAS_BLOQUE.BLOQUE, planoCodigo: "", planosCount: 1, bloquesCount: 0 }));
     return [...locales, ...sugerencias];
   }, [sugerencias, tipos]);
   const codigoLimpio = form.codigo.trim().toUpperCase();
@@ -1736,8 +1748,17 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
         ? "Ya existe un tipo con ese codigo en este mapa"
         : null;
   const nombreError = form.nombre.trim() ? null : "El nombre es requerido";
+  const labelLimpio = form.label.trim();
+  const labelError = !labelLimpio
+    ? "El label es requerido"
+    : labelLimpio.length > 20
+      ? "El label debe tener 20 caracteres como maximo"
+      : null;
+  const nombreLargoError = form.nombre.trim().length > 50 ? "El nombre debe tener 50 caracteres como maximo" : null;
   const mostrarCodigoError = (codigoTocado || intentoEnviar) && codigoError;
   const mostrarNombreError = (nombreTocado || intentoEnviar) && nombreError;
+  const mostrarLabelError = intentoEnviar && labelError;
+  const mostrarNombreLargoError = (nombreTocado || intentoEnviar) && nombreLargoError;
 
   const cambiarNombre = (valor: string) => {
     setForm((p) => {
@@ -1756,24 +1777,24 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
     // Si el codigo ya existe en este mapa, se genera una variante para no duplicar.
     const yaExiste = codigosActuales.some((c) => c.trim().toUpperCase() === s.codigo.trim().toUpperCase());
     const codigo = yaExiste ? codigoPlanoUtils.sugerirTipoCodigo(s.codigo, codigosActuales) : s.codigo;
-    setForm({ codigo, label: s.label, nombre: s.nombre, w: s.w, d: s.d, h: s.h, color: s.color, ambito: s.ambito, flgActivo: true });
+    setForm({ codigo, label: s.label, nombre: s.nombre, w: s.w, d: s.d, h: s.h, color: s.color, ambito: s.ambito, forma: s.forma ?? FORMAS_BLOQUE.BLOQUE, flgActivo: true });
     setCodigoEditado(true);
     setCodigoTocado(false);
     setIntentoEnviar(false);
   };
 
   const handleAdd = () => {
-    if (codigoError || nombreError) {
+    if (codigoError || labelError || nombreError || nombreLargoError) {
       setIntentoEnviar(true);
-      toast.error(codigoError ?? nombreError ?? "Revisa los campos");
+      toast.error(codigoError ?? labelError ?? nombreError ?? nombreLargoError ?? "Revisa los campos");
       return;
     }
-    onAdd({ ...form, codigo: codigoLimpio, label: form.label.trim() || codigoLimpio, nombre: form.nombre.trim() });
+    onAdd({ ...form, codigo: codigoLimpio, label: labelLimpio || codigoLimpio, nombre: form.nombre.trim() });
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle><span>{tipoInicial ? "Editar tipo de bloque" : "Nuevo tipo de bloque"}</span></DialogTitle></DialogHeader>
         <div className="space-y-3 text-xs">
           {!tipoInicial && (cargandoSugerencias ? (
@@ -1782,7 +1803,7 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
             <div className="space-y-1.5">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400"><span>Reutilizar de otros mapas</span></p>
               <p className="text-[9px] text-slate-400"><span>Click prellena la data del formulario (no vincula el tipo)</span></p>
-              <div className="max-h-40 space-y-1 overflow-y-auto">
+              <div className="max-h-40 space-y-1 overflow-x-hidden overflow-y-auto">
                 {sugerenciasVisibles.map((s) => {
                   const yaExiste = codigosActuales.some((c) => c.trim().toUpperCase() === s.codigo.trim().toUpperCase());
                   return (
@@ -1815,6 +1836,7 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
               <Input
                 className="text-xs font-mono"
                 placeholder="VIP"
+                maxLength={20}
                 value={form.codigo}
                 onChange={(e) => {
                   const valor = e.target.value.toUpperCase();
@@ -1831,13 +1853,19 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
             </div>
             <div>
               <Label><span>Label</span></Label>
-              <Input className="text-xs font-mono" placeholder="VIP" value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
+              <Input className="text-xs font-mono" placeholder="VIP" maxLength={20} value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} />
+              {mostrarLabelError ? (
+                <p className="text-[10px] text-red-500 mt-0.5"><span>{labelError}</span></p>
+              ) : (
+                <p className="text-[10px] text-slate-400 mt-0.5"><span>Maximo 20 caracteres</span></p>
+              )}
             </div>
           </div>
           <div>
             <Label><span>Nombre</span></Label>
-            <Input className="text-xs" placeholder="Stand VIP" value={form.nombre} onChange={(e) => { setNombreTocado(true); cambiarNombre(e.target.value); }} />
+            <Input className="text-xs" placeholder="Stand VIP" maxLength={50} value={form.nombre} onChange={(e) => { setNombreTocado(true); cambiarNombre(e.target.value); }} />
             {mostrarNombreError && <p className="text-[10px] text-red-500 mt-0.5"><span>{nombreError}</span></p>}
+            {!mostrarNombreError && mostrarNombreLargoError && <p className="text-[10px] text-red-500 mt-0.5"><span>{nombreLargoError}</span></p>}
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div><Label><span>W (ancho)</span></Label><Input className="text-xs" type="number" step={0.1} value={form.w} onChange={(e) => setForm((p) => ({ ...p, w: Number(e.target.value) }))} /></div>
@@ -1854,13 +1882,25 @@ function NuevoTipoDialog({ open, onClose, onAdd, tipos, tipoInicial }: { open: b
           <div>
             <Label><span>Ámbito</span></Label>
             <Select value={form.ambito} onValueChange={(v) => setForm((p) => ({ ...p, ambito: v }))}>
-              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full min-w-0 text-xs [&>span]:truncate"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.values(AMBITOS_TIPO_BLOQUE).map((a) => (
                   <SelectItem key={a} value={a}><span>{AMBITO_TIPO_BLOQUE_LABELS[a]?.nombre ?? a}</span></SelectItem>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label><span>Forma</span></Label>
+            <Select value={form.forma ?? FORMAS_BLOQUE.BLOQUE} onValueChange={(v) => setForm((p) => ({ ...p, forma: v }))}>
+              <SelectTrigger className="w-full min-w-0 text-xs [&>span]:truncate"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.values(FORMAS_BLOQUE).map((f) => (
+                  <SelectItem key={f} value={f}><span>{FORMA_BLOQUE_LABELS[f] ?? f}</span></SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-slate-400 mt-0.5"><span>La unidad sigue siendo un bloque (bloqueId/tipo); cambia solo el dibujo 3D.</span></p>
           </div>
           <Button className="w-full rounded-full" onClick={handleAdd}><span>{tipoInicial ? "Guardar cambios" : "Agregar tipo"}</span></Button>
         </div>
