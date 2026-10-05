@@ -6,6 +6,7 @@ import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-rep
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
 import { normalizarCodigoTipo, planSincronizacionCatalogo } from "@/lib/shared/utils/catalogo-tipos";
+import { seccionPuntosUtils } from "@/lib/shared/utils/seccion-puntos";
 
 interface PlanoTipoRow {
   id: string;
@@ -57,6 +58,7 @@ interface PlanoSeccionRow {
   w: number;
   h: number;
   rotacion: number;
+  puntos: unknown;
   color: string;
   planoHijoId: string | null;
   orden: number;
@@ -136,6 +138,7 @@ function mapSeccion(r: PlanoSeccionRow): PlanoSeccionEntity {
     w: r.w,
     h: r.h,
     rotacion: r.rotacion ?? 0,
+    puntos: seccionPuntosUtils.esPoligono(r.puntos) ? r.puntos : null,
     color: r.color,
     planoHijoId: r.planoHijoId ?? null,
     orden: r.orden,
@@ -473,6 +476,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
             w: s.w,
             h: s.h,
             rotacion: s.rotacion,
+            puntos: (s.puntos && s.puntos.length >= 3 ? s.puntos : null) as never,
             color: s.color,
             planoHijoId: s.planoHijoId,
             orden: s.orden,
@@ -647,6 +651,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       secciones: plano.secciones.map((s) => ({
         codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h,
         rotacion: s.rotacion, color: s.color,
+        ...(seccionPuntosUtils.esPoligono(s.puntos) ? { puntos: s.puntos } : {}),
         planoHijoId: s.planoHijoId,
         planoHijoCodigo: s.planoHijoId ? (codigoPorId.get(s.planoHijoId) ?? null) : null,
         orden: s.orden,

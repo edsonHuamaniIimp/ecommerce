@@ -41,6 +41,7 @@ Editor visual de mapas 3D de pabellones para eventos, con dos tipos:
 
 - Subida/cambio de fondo de pabellones: **imagen o PDF**. El PDF se renderiza a canvas con `pdfjs-dist` (pagina 1, sin el chrome del visor nativo) tanto en el editor como en `/mapa`. El worker se sirve desde `public/pdf.worker.min.mjs` (regenerar con `npm run pdf:worker` al actualizar la dependencia).
 - Secciones rectangulares en coordenadas normalizadas 0-1, con mover/redimensionar/rotar (snap 5°), zoom (Ctrl+rueda) y pan.
+- **Secciones libres (N puntos)**: botón "Seccion libre" en el panel del macro; se dibuja el contorno con clics (Enter o clic en el primer punto cierra, Escape cancela) y queda como polígono con vértices arrastrables, mover y rotar (la rotación se hornea en los puntos). Se guardan en `plano_seccion.puntos` (JSONB, opcional): las secciones rectangulares existentes siguen intactas y usan `x/y/w/h` + `rotacion` como antes; el visor público dibuja el polígono recortado y mantiene el clic para entrar al pabellón.
 - Edición de sección: código, nombre, color, rotación y asignación de **plano 3D hijo**.
 - Guardar secciones (`POST /api/planos/guardar-secciones`).
 - Regla: un plano `simple` pertenece a **un solo macro** a la vez.

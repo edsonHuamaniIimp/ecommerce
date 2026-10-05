@@ -43,6 +43,8 @@ export interface PlanoSeccionDTO {
   w: number;
   h: number;
   rotacion: number;
+  /** Seccion libre: N puntos normalizados [{x,y}]; null/ausente = rectangulo. */
+  puntos?: Array<{ x: number; y: number }> | null;
   color: string;
   planoHijoId: string | null;
   orden: number;
@@ -107,7 +109,7 @@ export interface PlanoExportDTO {
   tipos: Array<{ codigo: string; label: string; nombre: string; w: number; d: number; h: number; color: string; ambito?: string; flgActivo?: boolean }>;
   bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia?: string | null; x: number; z: number; rotY: number; orden: number; flgActivo?: boolean }>;
   furniture: Array<{ refId: string; tipo: string; x: number; z: number; rotY: number; config?: unknown; flgActivo?: boolean }>;
-  secciones?: Array<{ codigo: string; nombre: string; x: number; y: number; w: number; h: number; rotacion: number; color: string; planoHijoId: string | null; planoHijoCodigo?: string | null; orden: number }>;
+  secciones?: Array<{ codigo: string; nombre: string; x: number; y: number; w: number; h: number; rotacion: number; puntos?: Array<{ x: number; y: number }> | null; color: string; planoHijoId: string | null; planoHijoCodigo?: string | null; orden: number }>;
 }
 
 export interface PlanoTsExportDTO {
@@ -126,6 +128,8 @@ export interface PlanoPublicoSeccionDTO {
   w: number;
   h: number;
   rotacion?: number;
+  /** Seccion libre: N puntos normalizados [{x,y}]; null/ausente = rectangulo. */
+  puntos?: Array<{ x: number; y: number }> | null;
   color: string;
   planoHijoId: string | null;
   planoHijoCodigo?: string | null;

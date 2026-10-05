@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { Plus, Save, Trash2, Upload, ImageIcon, Move, Expand, RotateCw, ZoomIn, ZoomOut, Maximize, Loader2 } from "lucide-react";
+import { Plus, Save, Trash2, Upload, ImageIcon, Move, Expand, RotateCw, ZoomIn, ZoomOut, Maximize, Loader2, PenLine, Check } from "lucide-react";
 import { toast } from "sonner";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { seccionPuntosUtils, type PuntoSeccion } from "@/lib/shared/utils/seccion-puntos";
 import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
 import { PdfCanvas } from "@/components/plano/pdf-canvas";
 import { TIPOS_PLANO } from "@/lib/shared/constants";
@@ -19,6 +20,8 @@ interface EditSeccion {
   w: number;
   h: number;
   rotacion: number;
+  /** Seccion libre: N puntos normalizados; null/ausente = rectangulo. */
+  puntos?: PuntoSeccion[] | null;
   color: string;
   planoHijoId: string | null;
   orden: number;
@@ -26,10 +29,11 @@ interface EditSeccion {
 
 interface DragInfo {
   codigo: string;
-  mode: "move" | "resize" | "rotate";
+  mode: "move" | "resize" | "rotate" | "vertex";
   startNX: number;
   startNY: number;
   orig: EditSeccion;
+  index?: number;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -66,6 +70,9 @@ export function MacroEditor({ plano, planos, onChange }: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<DragInfo | null>(null);
+  /** Modo dibujo de seccion libre (poligono por clics). */
+  const [modoLibre, setModoLibre] = useState(false);
+  const [borrador, setBorrador] = useState<PuntoSeccion[]>([]);
 
   // Zoom anclado al punto bajo el cursor
   const aplicarZoom = useCallback((nuevoZoom: number, punto?: { x: number; y: number }) => {
@@ -136,9 +143,11 @@ export function MacroEditor({ plano, planos, onChange }: {
     el.addEventListener("pointercancel", onUp);
   };
 
-  // Seguridad: si el fondo no emite evento de carga en 8s, se muestra el error con boton de cambio.
+  // Seguridad: si la imagen no emite evento de carga en 8s, se muestra el error con boton de cambio.
+  // Los PDF no usan watchdog: PdfCanvas maneja su propio error y puede tardar mas de 8s en dev.
   useEffect(() => {
     if (!plano.imagenFondo || fondoListo || fondoError) return;
+    if (archivoUtils.esPdf(plano.imagenFondo)) return;
     const url = plano.imagenFondo;
     const timer = setTimeout(() => {
       setEstadoFondo((prev) => (prev.url === url && !prev.listo && !prev.error ? { url, listo: false, error: true } : prev));
@@ -149,7 +158,7 @@ export function MacroEditor({ plano, planos, onChange }: {
 
   useEffect(() => {
     (async () => {
-      setSecciones(plano.secciones.map((s) => ({ codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, rotacion: s.rotacion ?? 0, color: s.color, planoHijoId: s.planoHijoId, orden: s.orden })));
+      setSecciones(plano.secciones.map((s) => ({ codigo: s.codigo, nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, rotacion: s.rotacion ?? 0, puntos: seccionPuntosUtils.esPoligono(s.puntos) ? s.puntos : null, color: s.color, planoHijoId: s.planoHijoId, orden: s.orden })));
       setSelected(null);
       setDirty(false);
     })();
@@ -180,28 +189,43 @@ export function MacroEditor({ plano, planos, onChange }: {
     };
   };
 
-  const startDrag = (e: React.PointerEvent, codigo: string, mode: "move" | "resize" | "rotate") => {
+  const startDrag = (e: React.PointerEvent, codigo: string, mode: "move" | "resize" | "rotate" | "vertex", index?: number) => {
     e.stopPropagation();
     e.preventDefault();
     const s = secciones.find((x) => x.codigo === codigo);
     if (!s) return;
     setSelected(codigo);
     const { nx, ny } = normFromEvent(e);
-    dragRef.current = { codigo, mode, startNX: nx, startNY: ny, orig: { ...s } };
+    dragRef.current = { codigo, mode, startNX: nx, startNY: ny, orig: { ...s }, index };
 
     const onMove = (ev: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
       const { nx: cnx, ny: cny } = normFromEvent(ev);
+      const esPoligono = seccionPuntosUtils.esPoligono(drag.orig.puntos);
+
+      if (drag.mode === "vertex" && esPoligono && drag.index !== undefined) {
+        const puntos = (drag.orig.puntos as PuntoSeccion[]).map((p, i) => (i === drag.index ? { x: clamp(cnx, 0, 1), y: clamp(cny, 0, 1) } : p));
+        const bbox = seccionPuntosUtils.bbox(puntos);
+        setSecciones((prev) => prev.map((sec) => (sec.codigo === drag.codigo ? { ...sec, puntos, ...bbox } : sec)));
+        setDirty(true);
+        return;
+      }
 
       if (drag.mode === "rotate") {
-        // Angulo del puntero respecto al centro de la seccion (coords normalizadas)
         const cx = drag.orig.x + drag.orig.w / 2;
         const cy = drag.orig.y + drag.orig.h / 2;
         const angRad = Math.atan2(cny - cy, cnx - cx);
-        let deg = (angRad * 180) / Math.PI + 90; // +90 para que el handle superior sea 0
+        let deg = (angRad * 180) / Math.PI + 90;
         deg = ((deg % 360) + 360) % 360;
-        setSecciones((prev) => prev.map((sec) => (sec.codigo === drag.codigo ? { ...sec, rotacion: snapDeg(deg) } : sec)));
+        if (esPoligono) {
+          /* Seccion libre: la rotacion se hornea en los puntos (rotacion queda en 0). */
+          const puntos = seccionPuntosUtils.rotar(drag.orig.puntos as PuntoSeccion[], { x: cx, y: cy }, snapDeg(deg));
+          const bbox = seccionPuntosUtils.bbox(puntos);
+          setSecciones((prev) => prev.map((sec) => (sec.codigo === drag.codigo ? { ...sec, puntos, ...bbox, rotacion: 0 } : sec)));
+        } else {
+          setSecciones((prev) => prev.map((sec) => (sec.codigo === drag.codigo ? { ...sec, rotacion: snapDeg(deg) } : sec)));
+        }
         setDirty(true);
         return;
       }
@@ -211,6 +235,11 @@ export function MacroEditor({ plano, planos, onChange }: {
       setSecciones((prev) => prev.map((sec) => {
         if (sec.codigo !== drag.codigo) return sec;
         if (drag.mode === "move") {
+          if (esPoligono) {
+            const dxc = clamp(dx, -drag.orig.x, 1 - (drag.orig.x + drag.orig.w));
+            const dyc = clamp(dy, -drag.orig.y, 1 - (drag.orig.y + drag.orig.h));
+            return { ...sec, puntos: seccionPuntosUtils.mover(drag.orig.puntos as PuntoSeccion[], dxc, dyc), x: drag.orig.x + dxc, y: drag.orig.y + dyc };
+          }
           return {
             ...sec,
             x: clamp(drag.orig.x + dx, 0, 1 - sec.w),
@@ -271,6 +300,65 @@ export function MacroEditor({ plano, planos, onChange }: {
     setSecciones((prev) => prev.map((s) => (s.codigo === seccionSel.codigo ? { ...s, ...patch } : s)));
     setDirty(true);
   };
+
+  /** Cierra el contorno dibujado y crea la seccion libre (N puntos). */
+  const cerrarBorrador = () => {
+    if (borrador.length < 3) {
+      toast.error("Una seccion libre necesita al menos 3 puntos");
+      return;
+    }
+    const puntos = seccionPuntosUtils.limitar(borrador);
+    const bbox = seccionPuntosUtils.bbox(puntos);
+    let n = secciones.length + 1;
+    let codigo = `SEC-${n}`;
+    while (secciones.some((s) => s.codigo === codigo)) { n++; codigo = `SEC-${n}`; }
+    const colores = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+    const nueva: EditSeccion = {
+      codigo,
+      nombre: `Seccion libre ${n}`,
+      ...bbox,
+      rotacion: 0,
+      puntos,
+      color: colores[secciones.length % colores.length] ?? "#3b82f6",
+      planoHijoId: null,
+      orden: secciones.length,
+    };
+    setSecciones((prev) => [...prev, nueva]);
+    setSelected(codigo);
+    setBorrador([]);
+    setModoLibre(false);
+    setDirty(true);
+    toast.success(`Seccion libre ${codigo} creada — ajusta sus vertices o asigna un plano 3D`);
+  };
+
+  const cancelarBorrador = () => {
+    setBorrador([]);
+    setModoLibre(false);
+  };
+
+  /** Agrega un vertice al contorno; si cae sobre el primero, cierra el poligono. */
+  const agregarPuntoBorrador = (punto: PuntoSeccion) => {
+    const p = { x: clamp(punto.x, 0, 1), y: clamp(punto.y, 0, 1) };
+    if (borrador.length >= 3) {
+      const primero = borrador[0]!;
+      if (Math.hypot(p.x - primero.x, p.y - primero.y) < 0.015) {
+        cerrarBorrador();
+        return;
+      }
+    }
+    setBorrador((prev) => [...prev, p]);
+  };
+
+  useEffect(() => {
+    if (!modoLibre) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") { e.preventDefault(); cerrarBorrador(); }
+      if (e.key === "Escape") { e.preventDefault(); cancelarBorrador(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoLibre, borrador, secciones]);
 
   const handleSave = async () => {
     const codigos = secciones.map((s) => s.codigo.trim());
@@ -350,8 +438,17 @@ export function MacroEditor({ plano, planos, onChange }: {
           <div
             ref={containerRef}
             className={`relative select-none transition-opacity duration-200 ${fondoListo || fondoError ? "opacity-100" : "opacity-0"} ${fondoError ? "min-h-full rounded-lg bg-slate-100" : ""}`}
-            style={{ width: `${zoom * 100}%`, minWidth: "100%", cursor: zoom > 1 ? "grab" : "default", ...(estadoFondo.anchoAlto ? { aspectRatio: String(estadoFondo.anchoAlto) } : {}) }}
-            onPointerDown={(e) => { setSelected(null); startPan(e); }}
+            style={{ width: `${zoom * 100}%`, minWidth: "100%", cursor: modoLibre ? "crosshair" : zoom > 1 ? "grab" : "default", ...(estadoFondo.anchoAlto ? { aspectRatio: String(estadoFondo.anchoAlto) } : {}) }}
+            onPointerDown={(e) => {
+              if (modoLibre) {
+                e.preventDefault();
+                const { nx, ny } = normFromEvent(e);
+                agregarPuntoBorrador({ x: nx, y: ny });
+                return;
+              }
+              setSelected(null);
+              startPan(e);
+            }}
           >
             {archivoUtils.esPdf(plano.imagenFondo) ? (
               <PdfCanvas
@@ -374,51 +471,108 @@ export function MacroEditor({ plano, planos, onChange }: {
                 onError={() => marcarFondo(false, true)}
               />
             )}
-            {(fondoListo || fondoError) && secciones.map((s) => (
-              <div
-                key={s.codigo}
-                className={`absolute group cursor-move touch-none ${selected === s.codigo ? "z-20" : "z-10"}`}
-                style={{
-                  left: `${s.x * 100}%`,
-                  top: `${s.y * 100}%`,
-                  width: `${s.w * 100}%`,
-                  height: `${s.h * 100}%`,
-                  transform: `rotate(${s.rotacion}deg)`,
-                  transformOrigin: "center",
-                }}
-                onPointerDown={(e) => startDrag(e, s.codigo, "move")}
-              >
+            {(fondoListo || fondoError) && secciones.map((s) => {
+              const esPoligono = seccionPuntosUtils.esPoligono(s.puntos);
+              const pts = esPoligono ? (s.puntos as PuntoSeccion[]) : [];
+              const rel = pts.map((p) => `${((p.x - s.x) / s.w) * 100},${((p.y - s.y) / s.h) * 100}`).join(" ");
+              const cenX = esPoligono ? pts.reduce((a, p) => a + p.x, 0) / pts.length : s.x + s.w / 2;
+              const cenY = esPoligono ? pts.reduce((a, p) => a + p.y, 0) / pts.length : s.y + s.h / 2;
+              const activa = selected === s.codigo;
+              return (
                 <div
-                  className={`h-full w-full rounded border-2 flex items-center justify-center transition-shadow ${selected === s.codigo ? "shadow-lg ring-2 ring-white/70" : "hover:shadow-md"}`}
+                  key={s.codigo}
+                  className={`absolute group cursor-move touch-none ${activa ? "z-20" : "z-10"}`}
                   style={{
-                    backgroundColor: `${s.color}55`,
-                    borderColor: selected === s.codigo ? "#fff" : s.color,
+                    left: `${s.x * 100}%`,
+                    top: `${s.y * 100}%`,
+                    width: `${s.w * 100}%`,
+                    height: `${s.h * 100}%`,
+                    transform: esPoligono ? undefined : `rotate(${s.rotacion}deg)`,
+                    transformOrigin: "center",
                   }}
+                  onPointerDown={(e) => startDrag(e, s.codigo, "move")}
                 >
-                  <span
-                    className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full"
-                    style={{ backgroundColor: s.color, transform: `rotate(${-s.rotacion}deg)` }}
+                  {esPoligono ? (
+                    <svg className="h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      <polygon
+                        points={rel}
+                        fill={`${s.color}55`}
+                        stroke={activa ? "#fff" : s.color}
+                        strokeWidth={activa ? 3 : 2}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                  ) : (
+                    <div
+                      className={`h-full w-full rounded border-2 flex items-center justify-center transition-shadow ${activa ? "shadow-lg ring-2 ring-white/70" : "hover:shadow-md"}`}
+                      style={{
+                        backgroundColor: `${s.color}55`,
+                        borderColor: activa ? "#fff" : s.color,
+                      }}
+                    >
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full"
+                        style={{ backgroundColor: s.color, transform: `rotate(${-s.rotacion}deg)` }}
+                      >
+                        {s.nombre || s.codigo}
+                      </span>
+                    </div>
+                  )}
+                  {esPoligono && (
+                    <span
+                      className="absolute -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full pointer-events-none"
+                      style={{ left: `${((cenX - s.x) / s.w) * 100}%`, top: `${((cenY - s.y) / s.h) * 100}%`, backgroundColor: s.color }}
+                    >
+                      {s.nombre || s.codigo}
+                    </span>
+                  )}
+                  {/* Rotate handle (superior centro) */}
+                  <div
+                    className={`absolute -top-3 left-1/2 -translate-x-1/2 h-4 w-4 rounded-full border-2 border-white flex items-center justify-center cursor-grab active:cursor-grabbing touch-none ${activa ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                    style={{ backgroundColor: s.color }}
+                    onPointerDown={(e) => startDrag(e, s.codigo, "rotate")}
+                    title="Arrastra para rotar"
                   >
-                    {s.codigo}
-                  </span>
+                    <RotateCw className="h-2 w-2 text-white" />
+                  </div>
+                  {/* Resize handle (esquina inferior derecha): solo rectangulos */}
+                  {!esPoligono && (
+                    <div
+                      className={`absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 rounded-full border-2 border-white cursor-nwse-resize touch-none ${activa ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                      style={{ backgroundColor: s.color }}
+                      onPointerDown={(e) => startDrag(e, s.codigo, "resize")}
+                    />
+                  )}
+                  {/* Vertices: solo seccion libre seleccionada */}
+                  {esPoligono && activa && pts.map((p, i) => (
+                    <div
+                      key={i}
+                      className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white cursor-grab active:cursor-grabbing touch-none"
+                      style={{ left: `${((p.x - s.x) / s.w) * 100}%`, top: `${((p.y - s.y) / s.h) * 100}%`, backgroundColor: s.color }}
+                      onPointerDown={(e) => startDrag(e, s.codigo, "vertex", i)}
+                      title={`Vertice ${i + 1}`}
+                    />
+                  ))}
                 </div>
-                {/* Rotate handle (superior centro) */}
-                <div
-                  className={`absolute -top-3 left-1/2 -translate-x-1/2 h-4 w-4 rounded-full border-2 border-white flex items-center justify-center cursor-grab active:cursor-grabbing touch-none ${selected === s.codigo ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                  style={{ backgroundColor: s.color }}
-                  onPointerDown={(e) => startDrag(e, s.codigo, "rotate")}
-                  title="Arrastra para rotar"
-                >
-                  <RotateCw className="h-2 w-2 text-white" />
-                </div>
-                {/* Resize handle (esquina inferior derecha) */}
-                <div
-                  className={`absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 rounded-full border-2 border-white cursor-nwse-resize touch-none ${selected === s.codigo ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                  style={{ backgroundColor: s.color }}
-                  onPointerDown={(e) => startDrag(e, s.codigo, "resize")}
-                />
-              </div>
-            ))}
+              );
+            })}
+            {modoLibre && (
+              <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {borrador.length > 1 && (
+                  <polyline
+                    points={borrador.map((p) => `${p.x * 100},${p.y * 100}`).join(" ")}
+                    fill="none"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                )}
+                {borrador.map((p, i) => (
+                  <circle key={i} cx={p.x * 100} cy={p.y * 100} r={0.7} fill={i === 0 ? "#22c55e" : "#8b5cf6"} stroke="#fff" strokeWidth={0.25} />
+                ))}
+              </svg>
+            )}
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
@@ -456,12 +610,29 @@ export function MacroEditor({ plano, planos, onChange }: {
           <p className="text-xs font-semibold text-slate-700"><span>Mapa macro: </span><span>{plano.nombre}</span></p>
           <p className="text-[10px] text-slate-500"><span>{`${secciones.length} secciones (pabellones)`}</span></p>
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" onClick={addSeccion}>
+            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" onClick={addSeccion} disabled={modoLibre}>
               <Plus className="h-3 w-3 mr-1" /> <span>Seccion</span>
             </Button>
-            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" disabled={uploading} onClick={() => imgInputRef.current?.click()} title="Cambiar imagen o PDF de fondo">
+            <Button size="sm" variant="outline" className="rounded-full h-7 text-xs" disabled={uploading || modoLibre} onClick={() => imgInputRef.current?.click()} title="Cambiar imagen o PDF de fondo">
               <Upload className="h-3 w-3 mr-1" /> <span>{uploading ? "..." : "Fondo"}</span>
             </Button>
+            <Button size="sm" variant={modoLibre ? "default" : "outline"} className={`col-span-2 rounded-full h-7 text-xs ${modoLibre ? "bg-violet-600 hover:bg-violet-700" : ""}`}
+              onClick={() => { setModoLibre((v) => !v); setBorrador([]); setSelected(null); }}>
+              <PenLine className="h-3 w-3 mr-1" /> <span>{modoLibre ? "Dibujando seccion libre..." : "Seccion libre (N puntos)"}</span>
+            </Button>
+            {modoLibre && (
+              <div className="col-span-2 flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1 rounded-full h-7 text-xs" disabled={borrador.length < 3} onClick={cerrarBorrador}>
+                  <Check className="h-3 w-3 mr-1" /> <span>Cerrar ({borrador.length})</span>
+                </Button>
+                <Button size="sm" variant="ghost" className="flex-1 rounded-full h-7 text-xs" onClick={cancelarBorrador}>
+                  <span>Cancelar</span>
+                </Button>
+              </div>
+            )}
+            <p className="col-span-2 text-[10px] text-slate-400">
+              <span>{modoLibre ? "Clic para agregar vertices; Enter o clic en el primer punto cierra el contorno; Escape cancela." : "Rectangulo: usa Seccion. Contorno libre de N puntos: usa Seccion libre."}</span>
+            </p>
             <Button size="sm" className="col-span-2 rounded-full h-7 text-xs bg-violet-600 hover:bg-violet-700" disabled={!dirty || saving} onClick={handleSave}>
               <Save className="h-3 w-3 mr-1" /> <span>{saving ? "Guardando..." : dirty ? "Guardar *" : "Guardar"}</span>
             </Button>
@@ -513,14 +684,18 @@ export function MacroEditor({ plano, planos, onChange }: {
             </div>
             <div>
               <Label className="text-[10px]"><span>Rotacion (grados)</span></Label>
-              <div className="flex items-center gap-2">
-                <Input className="h-7 text-xs flex-1" type="number" step={5} min={0} max={360} value={Math.round(seccionSel.rotacion)}
-                  onChange={(e) => updateSeccion({ rotacion: clamp(Number(e.target.value), 0, 360) })} />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Resetear rotacion"
-                  onClick={() => updateSeccion({ rotacion: 0 })}>
-                  <RotateCw className="h-3 w-3" />
-                </Button>
-              </div>
+              {seccionPuntosUtils.esPoligono(seccionSel.puntos) ? (
+                <p className="text-[10px] text-slate-400"><span>Seccion libre: rotala con la manija del contorno (la forma se ajusta a los puntos).</span></p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input className="h-7 text-xs flex-1" type="number" step={5} min={0} max={360} value={Math.round(seccionSel.rotacion)}
+                    onChange={(e) => updateSeccion({ rotacion: clamp(Number(e.target.value), 0, 360) })} />
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Resetear rotacion"
+                    onClick={() => updateSeccion({ rotacion: 0 })}>
+                    <RotateCw className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
             <Button size="sm" variant="destructive" className="w-full rounded-full h-7 text-xs" onClick={deleteSeccion}>
               <Trash2 className="h-3 w-3 mr-1" /> <span>Eliminar seccion</span>

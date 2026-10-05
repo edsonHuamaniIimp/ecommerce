@@ -17,6 +17,8 @@ export interface SeccionPublica {
   w: number;
   h: number;
   rotacion?: number;
+  /** Seccion libre: N puntos normalizados [{x,y}]; null/ausente = rectangulo. */
+  puntos?: Array<{ x: number; y: number }> | null;
   color: string;
   planoHijoId: string | null;
   planoHijoCodigo?: string | null;
@@ -104,10 +106,12 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
     return () => el.removeEventListener("wheel", onWheel);
   }, [imagenFondo]);
 
-  // Seguridad: si la imagen/PDF no emite evento de carga en 8s, se muestra el error con reintento
-  // (evita quedar clavado en la precarga).
+  // Seguridad: si la imagen no emite evento de carga en 8s, se muestra el error con reintento
+  // (evita quedar clavado en la precarga). Los PDF no usan watchdog: pdfjs maneja su propio
+  // error (onError) y un PDF pesado puede tardar mas de 8s en descargar/parsear/renderizar.
   useEffect(() => {
     if (!imagenFondo || fondoListo || fondoError) return;
+    if (archivoUtils.esPdf(imagenFondo)) return;
     const timer = setTimeout(() => {
       setEstadoFondo((prev) => (prev.url === imagenFondo && !prev.listo && !prev.error ? { url: imagenFondo, listo: false, error: true } : prev));
       planoVisitaCache.fondoMarcar(imagenFondo, { listo: false, error: true });
@@ -246,19 +250,23 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
               const c = colorOcupacion(oc);
               const navegable = !!s.planoHijoCodigo;
               const enCarrito = s.planoHijoCodigo ? (conteo[s.planoHijoCodigo] ?? 0) : 0;
+              const pts = Array.isArray(s.puntos) && s.puntos.length >= 3 ? s.puntos : null;
+              const clip = pts
+                ? `polygon(${pts.map((p) => `${((p.x - s.x) / s.w) * 100}% ${((p.y - s.y) / s.h) * 100}%`).join(", ")})`
+                : undefined;
+              const rel = pts ? pts.map((p) => `${((p.x - s.x) / s.w) * 100},${((p.y - s.y) / s.h) * 100}`).join(" ") : "";
+              const cenX = pts ? pts.reduce((a, p) => a + p.x, 0) / pts.length : s.x + s.w / 2;
+              const cenY = pts ? pts.reduce((a, p) => a + p.y, 0) / pts.length : s.y + s.h / 2;
               return (
-                <button
+                <div
                   key={s.codigo}
-                  type="button"
-                  disabled={!navegable}
-                  onClick={() => irAPabellon(s)}
                   className={`absolute group touch-none ${navegable ? "cursor-pointer" : "cursor-not-allowed"}`}
                   style={{
                     left: `${s.x * 100}%`,
                     top: `${s.y * 100}%`,
                     width: `${s.w * 100}%`,
                     height: `${s.h * 100}%`,
-                    transform: `rotate(${s.rotacion ?? 0}deg)`,
+                    transform: pts ? undefined : `rotate(${s.rotacion ?? 0}deg)`,
                     transformOrigin: "center",
                   }}
                   title={navegable ? `${s.nombre} — Entrar al pabellon` : `${s.nombre} — Sin plano asignado`}
@@ -268,24 +276,47 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
                       <span>{enCarrito}</span>
                     </Badge>
                   )}
-                  <div
-                    className={`h-full w-full rounded border-2 flex flex-col items-center justify-center gap-0.5 transition-all ${navegable ? "group-hover:scale-[1.02] group-hover:shadow-xl group-hover:z-20" : "opacity-70"}`}
-                    style={{ backgroundColor: `${c.bg}66`, borderColor: c.border }}
+                  <button
+                    type="button"
+                    disabled={!navegable}
+                    onClick={() => irAPabellon(s)}
+                    className={`relative h-full w-full transition-all ${navegable ? "hover:brightness-110" : ""}`}
+                    style={clip ? { clipPath: clip } : undefined}
                   >
-                    <span
-                      className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full"
-                      style={{ backgroundColor: c.bg, transform: `rotate(${-(s.rotacion ?? 0)}deg)` }}
-                    >
-                      {s.codigo}
-                    </span>
-                    <span
-                      className="text-[9px] font-medium text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]"
-                      style={{ transform: `rotate(${-(s.rotacion ?? 0)}deg)` }}
-                    >
-                      {c.label}
-                    </span>
-                  </div>
-                </button>
+                    {pts ? (
+                      <span className="absolute inset-0" style={{ backgroundColor: `${c.bg}66` }} />
+                    ) : (
+                      <span
+                        className={`absolute inset-0 rounded border-2 flex flex-col items-center justify-center gap-0.5 transition-all ${navegable ? "group-hover:scale-[1.02] group-hover:shadow-xl group-hover:z-20" : "opacity-70"}`}
+                        style={{ backgroundColor: `${c.bg}66`, borderColor: c.border }}
+                      >
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full"
+                          style={{ backgroundColor: c.bg, transform: `rotate(${-(s.rotacion ?? 0)}deg)` }}
+                        >
+                          {s.nombre || s.codigo}
+                        </span>
+                        <span
+                          className="text-[9px] font-medium text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]"
+                          style={{ transform: `rotate(${-(s.rotacion ?? 0)}deg)` }}
+                        >
+                          {c.label}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                  {pts && (
+                    <>
+                      <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <polygon points={rel} fill="none" stroke={c.border} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                      </svg>
+                      <span className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5" style={{ left: `${((cenX - s.x) / s.w) * 100}%`, top: `${((cenY - s.y) / s.h) * 100}%` }}>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white truncate max-w-full" style={{ backgroundColor: c.bg }}>{s.nombre || s.codigo}</span>
+                        <span className="text-[9px] font-medium text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">{c.label}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>

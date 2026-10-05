@@ -76,6 +76,10 @@ export const planoSeccionesSchema = z.object({
     w: z.number().min(0.01).max(1),
     h: z.number().min(0.01).max(1),
     rotacion: z.number().min(-360).max(360).default(0),
+    puntos: z.array(z.object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+    })).min(3).max(80).nullish(),
     color: z.string().min(1).max(10),
     planoHijoId: z.string().nullish(),
     orden: z.number().int().default(0),

@@ -4,6 +4,7 @@ import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-rep
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, SeccionOcupacion, PlanoSeccionEntity, PlanoTipoSugerido } from "@/domain/models/plano-entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, TIPOLOGIAS_STAND, TIPOS_PLANO } from "@/lib/shared/constants";
+import { seccionPuntosUtils } from "@/lib/shared/utils/seccion-puntos";
 import { tsCodegenUtils } from "@/lib/shared/utils/ts-codegen";
 
 export class PlanoApplicationService {
@@ -130,7 +131,14 @@ export class PlanoApplicationService {
       }
     }
 
-    return this.repo.guardarSecciones(id, secciones);
+    /* Secciones libres: los puntos mandan; se derivan bbox y rotacion 0 (rotacion horneada). */
+    const normalizadas = secciones.map((s) => {
+      if (!seccionPuntosUtils.esPoligono(s.puntos)) return { ...s, puntos: null };
+      const puntos = seccionPuntosUtils.limitar(s.puntos);
+      return { ...s, puntos, ...seccionPuntosUtils.bbox(puntos), rotacion: 0 };
+    });
+
+    return this.repo.guardarSecciones(id, normalizadas);
   }
 
   async macrosQueContienen(planoId: string): Promise<Array<{ id: string; codigo: string; nombre: string }>> {

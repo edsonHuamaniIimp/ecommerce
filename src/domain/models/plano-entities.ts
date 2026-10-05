@@ -52,6 +52,8 @@ export interface PlanoSeccionEntity {
   w: number;
   h: number;
   rotacion: number;
+  /** Seccion libre: N puntos normalizados [{x,y}]; null/ausente = rectangulo. */
+  puntos?: Array<{ x: number; y: number }> | null;
   color: string;
   planoHijoId: string | null;
   orden: number;

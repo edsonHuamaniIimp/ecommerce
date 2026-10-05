@@ -753,6 +753,7 @@ model PlanoSeccion {
   w           Float   @db.Real
   h           Float   @db.Real
   rotacion    Float   @default(0) @db.Real @map("rotacion") // grados (0-360), rotacion del rect sobre la imagen
+  puntos      Json?                                    // seccion libre: N puntos normalizados [{x,y}]; null = rectangulo
   color       String  @db.VarChar(10) @default("#3b82f6")
   planoHijoId String? @map("plano_hijo_id")            // FK logica → plano 3D del pabellon
   orden       Int     @default(0)
