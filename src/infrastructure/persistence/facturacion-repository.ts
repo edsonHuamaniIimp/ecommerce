@@ -39,6 +39,8 @@ interface FacturacionRaw {
   }>;
   solicitud: {
     email: string | null;
+    /** Plan de cuotas definido por el cliente al reservar (null = no aplica). */
+    planCuotas: unknown | null;
     gessStand: { standCode: string } | null;
     stands: Array<{ gessStand: { standCode: string } | null }>;
   };
@@ -46,6 +48,7 @@ interface FacturacionRaw {
 
 const SOLICITUD_SELECT = {
   email: true,
+  planCuotas: true,
   gessStand: { select: { standCode: true } },
   stands: { include: { gessStand: { select: { standCode: true } } } },
 };
@@ -64,6 +67,7 @@ function toRow(r: FacturacionRaw): FacturacionRow {
     montoTotal: Number(r.montoTotal),
     moneda: r.moneda,
     modoPago: r.modoPago,
+    planCliente: r.solicitud.planCuotas !== null && r.solicitud.planCuotas !== undefined,
     standCode: r.solicitud.gessStand?.standCode ?? r.solicitud.stands[0]?.gessStand?.standCode ?? "—",
     correoSolicitante: r.solicitud.email,
     createdAt: r.createdAt.toISOString(),
@@ -221,12 +225,17 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     });
   }
 
-  async actualizar(id: string, data: { tipo?: string }, createdBy: string) {
-    const prev = await prisma.facturacion.findUnique({ where: { id }, select: { tipo: true } });
+  async actualizar(id: string, data: { tipo?: string; modoPago?: string }, createdBy: string) {
+    const prev = await prisma.facturacion.findUnique({ where: { id }, select: { tipo: true, modoPago: true } });
     await prisma.facturacion.update({ where: { id }, data });
     if (data.tipo && prev?.tipo !== data.tipo) {
       await prisma.facturacionHistorial.create({
         data: { facturacionId: id, accion: "actualizar", detalle: `Tipo de pago cambiado de "${prev?.tipo}" a "${data.tipo}"`, createdBy },
+      });
+    }
+    if (data.modoPago && prev?.modoPago !== data.modoPago) {
+      await prisma.facturacionHistorial.create({
+        data: { facturacionId: id, accion: "actualizar", detalle: `Modo de pago cambiado de "${prev?.modoPago}" a "${data.modoPago}"`, createdBy },
       });
     }
   }

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_STAND, IDIOMAS, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, APP_URL, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -449,19 +449,49 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async marcarOrdenPago(solicitudId: string): Promise<void> {
     await prisma.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
 
-    const sol = await prisma.solicitud.findUnique({ where: { id: solicitudId }, select: { gessStandId: true } });
+    const sol = await prisma.solicitud.findUnique({ where: { id: solicitudId }, select: { gessStandId: true, planCuotas: true } });
     const stands = sol?.gessStandId
       ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
       : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
     const montoTotal = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
 
     const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
-    if (existing) {
-      await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal } });
-    } else {
-      await prisma.facturacion.create({
-        data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: MONEDAS.US_DOLAR },
-      });
+    const facturacion = existing
+      ? await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal } })
+      : await prisma.facturacion.create({
+          data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: MONEDAS.US_DOLAR },
+        });
+
+    /*
+     * RF-10: el plan de pagos lo definio el cliente en el contrato (`solicitud.plan_cuotas`).
+     * Se copia a la facturacion como fuente de verdad: Facturacion solo confirma pagos.
+     * Las cuotas ya pagadas no se tocan; las pendientes se alinean al plan.
+     */
+    const plan = sol?.planCuotas as
+      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }> }
+      | null;
+    const cuotasPlan = plan?.cuotas ?? [];
+    if (cuotasPlan.length > 0) {
+      const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
+      await prisma.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
+      for (const cuota of cuotasPlan) {
+        const fecha = cuota.fechaVencimiento ? new Date(`${cuota.fechaVencimiento}T00:00:00`) : null;
+        const existente = await prisma.facturacionCuota.findFirst({
+          where: { facturacionId: facturacion.id, numero: cuota.numero },
+        });
+        if (existente) {
+          if (existente.estado === ESTADOS_CUOTA.PENDIENTE) {
+            await prisma.facturacionCuota.update({
+              where: { id: existente.id },
+              data: { monto: cuota.monto, fechaVencimiento: fecha },
+            });
+          }
+        } else {
+          await prisma.facturacionCuota.create({
+            data: { facturacionId: facturacion.id, numero: cuota.numero, monto: cuota.monto, fechaVencimiento: fecha },
+          });
+        }
+      }
     }
   }
 

@@ -8,6 +8,10 @@ export const eventosServiceClient = {
   listar() {
     return internalApi.get<Record<string, unknown>[]>("/api/eventos/listar");
   },
+  /** Version de evento por id (incluye tipoEvento/codigoEvento para las APIs externas). */
+  obtener(id: string) {
+    return internalApi.get<Record<string, unknown>>(`/api/eventos/listar?id=${encodeURIComponent(id)}`);
+  },
   modalInfo(tipoEvento: number, codigoEvento: number) {
     return internalApi.get<ModalInfoConfig | null>(`/api/eventos/modal-info?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`);
   },

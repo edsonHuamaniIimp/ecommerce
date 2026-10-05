@@ -16,13 +16,19 @@ export const gessService = {
     if (params?.estado) qs.set("estado", params.estado);
     return internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?${qs.toString()}`);
   },
-  /** Todos los registros (plano, vinculacion) */
+  /** Todos los registros (plano, vinculacion); recorre todas las paginas (per_page 1000). */
   async all(eventoId: string) {
-    const res = await internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?eventoId=${encodeURIComponent(eventoId)}&per_page=1000`);
-    return res.data;
+    const perPage = 1000;
+    const first = await internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?eventoId=${encodeURIComponent(eventoId)}&per_page=${perPage}`);
+    const data = [...first.data];
+    for (let page = 2; page <= first.pagination.total_pages; page++) {
+      const next = await internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?eventoId=${encodeURIComponent(eventoId)}&per_page=${perPage}&page=${page}`);
+      data.push(...next.data);
+    }
+    return data;
   },
   listAll(eventoId: string): Promise<GessStandDTO[]> {
-    return this.list(eventoId, { per_page: 1000 }).then((r) => r.data);
+    return this.all(eventoId);
   },
   findByBloque(bloqueId: string) {
     return internalApi.get<GessStandDTO | null>(`/api/gess/listar?bloqueId=${encodeURIComponent(bloqueId)}`);
@@ -32,9 +38,6 @@ export const gessService = {
   },
   sync(body: { eventoId: string; tipoEvento: number; codigoEvento: number; seleccionadas?: Record<string, unknown>[] }) {
     return internalApi.post<GessSyncResultDTO>("/api/gess/sync", body);
-  },
-  mockup(body: { eventoId: string; tipoEvento: number; codigoEvento: number }) {
-    return internalApi.post<GessSyncResultDTO & { planos?: string[] }>("/api/gess/mockup", body);
   },
   fetchFromApi(tipoEvento: number, codigoEvento: number) {
     return internalApi.post<Record<string, unknown>[]>("/api/planogess/fetch", { tipoEvento, codigoEvento });

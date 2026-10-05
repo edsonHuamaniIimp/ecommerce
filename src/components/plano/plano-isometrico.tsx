@@ -143,8 +143,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
     formDatos, setFormDatos,
-    formDocs,
-    uploading,
+    docsRequisitos,
+    subiendoRequisito,
     submitting,
     submitError,
     selectedCount,
@@ -152,8 +152,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     stepDone,
     canGoStep,
     handleOpenChange,
-    addDoc,
-    removeDoc,
+    addDocRequisito,
+    removeDocRequisito,
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
@@ -466,8 +466,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         canGoStep={canGoStep}
         formDatos={formDatos}
         onDatosChange={onDatosChange}
-        formDocs={formDocs}
-        uploading={uploading}
+        docsRequisitos={docsRequisitos}
+        subiendoRequisito={subiendoRequisito}
         submitting={submitting}
         submitError={submitError}
         selectedCount={selectedCount}
@@ -484,8 +484,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           };
         })}
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
-        onAddDoc={addDoc}
-        onRemoveDoc={removeDoc}
+        onAddRequisito={addDocRequisito}
+        onRemoveRequisito={removeDocRequisito}
         confirmado={confirmado}
         onConfirmadoChange={setConfirmado}
         cuotasPago={cuotasConfig}

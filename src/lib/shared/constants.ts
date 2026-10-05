@@ -1079,6 +1079,7 @@ export const VALIDACIONES = {
 /** Centinelas de UI: opciones que no representan un valor persistido. */
 export const UI_SENTINEL = {
   SIN_VINCULAR: "__none__",
+  TODOS: "__all__",
 } as const;
 
 /** Identificadores de los campos del formulario de registro de exhibidor. */

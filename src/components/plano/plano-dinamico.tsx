@@ -260,8 +260,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
     formDatos, setFormDatos,
-    formDocs,
-    uploading,
+    docsRequisitos,
+    subiendoRequisito,
     submitting,
     submitError,
     selectedCount,
@@ -269,8 +269,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     stepDone,
     canGoStep,
     handleOpenChange,
-    addDoc,
-    removeDoc,
+    addDocRequisito,
+    removeDocRequisito,
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
@@ -839,8 +839,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         canGoStep={canGoStep}
         formDatos={formDatos}
         onDatosChange={onDatosChange}
-        formDocs={formDocs}
-        uploading={uploading}
+        docsRequisitos={docsRequisitos}
+        subiendoRequisito={subiendoRequisito}
         submitting={submitting}
         submitError={submitError}
         selectedCount={selectedCount}
@@ -857,8 +857,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           };
         })}
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
-        onAddDoc={addDoc}
-        onRemoveDoc={removeDoc}
+        onAddRequisito={addDocRequisito}
+        onRemoveRequisito={removeDocRequisito}
         confirmado={confirmado}
         onConfirmadoChange={setConfirmado}
         cuotasPago={cuotasConfig}

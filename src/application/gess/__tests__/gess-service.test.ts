@@ -141,3 +141,90 @@ describe("GessApplicationService.listar (RF-09)", () => {
     expect(r.data[0]?.tipoImagen).toBeNull();
   });
 });
+
+describe("GessApplicationService.sync (API real liststand)", () => {
+  it("mapea precio, moneda, area, pabellon y estado del API", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findByStandApiId).mockResolvedValue(null);
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "04", pabellon: "PABELLÓN 1", tipo: "ESQUINERO 16MT2", area: "16.00", precio: "15000.00", estado: "LIBRE", moneda: "USD" },
+        { stand: "M-01", pabellon: "IPD EXTERIOR", tipo: "MAQUINARIA 100 MT2", area: "100.00", precio: "58200.00", estado: "RESERVADO", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    const r = await svc.sync("ev1", 2, 19);
+
+    expect(r).toEqual({ creados: 2, actualizados: 0, total: 2 });
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({
+      eventoId: "ev1",
+      standApiId: "04",
+      standCode: "04",
+      tipoStand: "ESQUINERO 16MT2",
+      medidas: "15000.00 USD",
+      estado: "disponible",
+      pabellon: "PABELLÓN 1",
+    }));
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({
+      standApiId: "M-01",
+      medidas: "58200.00 USD",
+      estado: "reservado",
+      pabellon: "IPD EXTERIOR",
+    }));
+  });
+
+  it("actualiza el stand existente sin duplicarlo", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findByStandApiId).mockResolvedValue(stand({ id: "g9", standApiId: "04", estado: "disponible" }));
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "04", pabellon: "PABELLÓN 1", tipo: "ESQUINERO 16MT2", area: "16.00", precio: "16000.00", estado: "LIBRE", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    const r = await svc.sync("ev1", 2, 19);
+
+    expect(r).toEqual({ creados: 0, actualizados: 1, total: 1 });
+    expect(repo.update).toHaveBeenCalledWith("g9", expect.objectContaining({ medidas: "16000.00 USD", estado: "disponible" }));
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it("en re-importacion no pisa estado local ni empresa si el API dice LIBRE sin empresa", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findByStandApiId).mockResolvedValue(
+      stand({ id: "g9", standApiId: "04", estado: "en_evaluacion", empresa: "Minera X S.A.C." }),
+    );
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "04", pabellon: "PABELLÓN 1", tipo: "ESQUINERO 16MT2", area: "16.00", precio: "16000.00", estado: "LIBRE", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    const r = await svc.sync("ev1", 2, 19);
+
+    expect(r).toEqual({ creados: 0, actualizados: 1, total: 1 });
+    const data = vi.mocked(repo.update).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(data).not.toHaveProperty("estado");
+    expect(data).not.toHaveProperty("empresa");
+    expect(data).toEqual(expect.objectContaining({ medidas: "16000.00 USD", pabellon: "PABELLÓN 1" }));
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it("aplica RESERVADO del API aunque el local siga en evaluacion", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findByStandApiId).mockResolvedValue(stand({ id: "g9", standApiId: "04", estado: "en_evaluacion" }));
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "04", pabellon: "PABELLÓN 1", tipo: "ESQUINERO 16MT2", area: "16.00", precio: "16000.00", estado: "RESERVADO", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    await svc.sync("ev1", 2, 19);
+
+    expect(repo.update).toHaveBeenCalledWith("g9", expect.objectContaining({ estado: "reservado" }));
+  });
+});

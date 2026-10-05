@@ -473,7 +473,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 border-border sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "anexos"); }}>
                               <Upload className="h-3.5 w-3.5" />
-                              <span>Adjuntar anexos</span>
+                              <span>Adjuntar documentos</span>
                             </Button>
                           )}
                           {enVentanaSubsanacionSgc(row) && (
@@ -562,7 +562,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 border-border text-xs"
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
                                 <Upload className="h-3.5 w-3.5" />
-                                <span>Adjuntar anexos</span>
+                                <span>Adjuntar documentos</span>
                               </Button>
                             )}
                             {enVentanaSubsanacionSgc(row) && (
@@ -810,7 +810,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         )}
                         {anexosCliente.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tus anexos ({anexosCliente.length})</p>
+                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tus documentos ({anexosCliente.length})</p>
                             <div className="space-y-0.5 rounded-md border border-success/30 bg-success/10 p-2">
                               {anexosCliente.map((doc, i) => (
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
@@ -891,9 +891,9 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold text-primary">Adjuntar anexos (Legal — SGC)</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          Antes de enviar el contrato y los anexos al SGC, adjunta los documentos requeridos:
+                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal — SGC)</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Antes de enviar el contrato y los documentos adjuntos al SGC, adjunta los documentos requeridos:
                           Ficha RUC, Vigencia de Poder y DNI o Pasaporte del Representante Legal.
                         </p>
                       </div>

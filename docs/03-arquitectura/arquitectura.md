@@ -199,7 +199,7 @@ src/domain/
     ├── auth-repository.ts        # IAuthRepository
     ├── role-repository.ts        # IRoleRepository
     ├── kbservicios-client.ts     # IKbServiciosClient (API externo KBServicios)
-    └── planogess-client.ts       # IPlanogessClient (API externo plano GESS)
+    └── liststand-client.ts       # ListstandClient (API real de stands IIMP)
 ```
 
 **`ISolicitudesRepository`** (el mas completo — 12 metodos):
@@ -242,7 +242,7 @@ src/application/
 │   └── gess-service.ts           # GessApplicationService
 │       ├── listar()              # Stands GESS paginados
 │       ├── actualizarStand()     # Actualiza datos de stand
-│       └── sync()                # Sincroniza desde API KBEventos
+│       └── sync()                # Sincroniza desde el API de stands IIMP
 │
 ├── reservas/
 │   └── reserva-service.ts        # ReservaApplicationService
@@ -276,7 +276,7 @@ src/infrastructure/
 │
 └── external/                     # Clientes HTTP para APIs externas
     ├── kbservicios-client.ts     # KbServiciosClient (API GeneXus)
-    └── planogess-client.ts       # PlanogessClient (API KBEventos)
+    └── liststand-client.ts       # ListstandClient (API real de stands IIMP)
 ```
 
 **Detalle de `solicitudes-repository.ts`:**

@@ -65,8 +65,10 @@
    default de fechas: primera a 30 dias y siguientes a 45) y se genera el **contrato BORRADOR**
    (`POST /api/contratos/borrador`, **sin crear la solicitud**). En **Contrato** descarga/firma
    (firma digital del perfil con `POST /api/contratos/firmar-borrador`, o firma subida) y adjunta
-   anexos. En **Confirmacion** (paso 4) recien se **crea la solicitud** (reserva), se regenera el
-   contrato definitivo (`/api/contratos/generar`) y se adjunta firmado + anexos.
+   los **3 documentos requeridos** (Ficha RUC, Vigencia de Poder, DNI o Pasaporte del representante
+   legal; cada uno etiquetado con su requisito RF-13). En **Confirmacion** (paso 4) recien se **crea
+   la solicitud** (reserva), se regenera el contrato definitivo (`/api/contratos/generar`) y se
+   adjunta firmado + los documentos con su requisito.
 2. **Recorte por pabellón múltiple** ✅ implementado: `<RecortePlano bloqueIds[]>` en el preview y
    **PNG por pabellón generada en el servidor** (`sharp` + `construirSvgRecorte`) al generar el contrato.
 3. **Firma** (RF-12) ✅ **firma subida + firma digital**: el usuario carga su firma (PNG/JPG)

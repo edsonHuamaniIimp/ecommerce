@@ -27,6 +27,7 @@ export class PagosApplicationService {
     await this.exigirPropiedad(facturacionId, ident);
     const fact = await this.repo.detalle(facturacionId);
     if (!fact) throw new DomainError("Facturacion no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    this.exigirPlanEditable(fact.planCliente);
     const suma = fact.cuotas.reduce((s, c) => s + c.monto, 0) + monto;
     if (suma > fact.montoTotal + EPS) {
       throw new DomainError(
@@ -40,6 +41,7 @@ export class PagosApplicationService {
 
   async actualizarCuota(cuotaId: string, data: CuotaUpdate, ident: ClienteIdent): Promise<void> {
     const { fact, cuota } = await this.cuotaPropia(cuotaId, ident);
+    this.exigirPlanEditable(fact.planCliente);
     this.exigirSinVoucher(cuota.comprobante);
     if (data.monto !== undefined) {
       const sumaOtras = fact.cuotas.reduce((s, c) => s + (c.id === cuotaId ? 0 : c.monto), 0);
@@ -56,7 +58,8 @@ export class PagosApplicationService {
   }
 
   async eliminarCuota(cuotaId: string, ident: ClienteIdent): Promise<void> {
-    const { cuota } = await this.cuotaPropia(cuotaId, ident);
+    const { fact, cuota } = await this.cuotaPropia(cuotaId, ident);
+    this.exigirPlanEditable(fact.planCliente);
     this.exigirSinVoucher(cuota.comprobante);
     await this.repo.eliminarCuota(cuotaId, this.autor(ident));
   }
@@ -90,6 +93,20 @@ export class PagosApplicationService {
     if (comprobante) {
       throw new DomainError(
         "La cuota ya tiene un voucher adjunto y esta pendiente de confirmacion",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+  }
+
+  /**
+   * El plan lo definio el cliente en el contrato (`solicitud.plan_cuotas`): la configuracion
+   * de cuotas no es editable desde "Mis pagos" (solo adjuntar vouchers de pago).
+   */
+  private exigirPlanEditable(planCliente: boolean): void {
+    if (planCliente) {
+      throw new DomainError(
+        "Las cuotas las definio el cliente en el contrato; no se pueden modificar. Aqui solo puedes adjuntar el voucher del pago.",
         API_ERROR_CODES.CONFLICT,
         409,
       );

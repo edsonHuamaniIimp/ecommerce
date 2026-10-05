@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink } from "lucide-react";
 import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
@@ -51,6 +51,19 @@ function getRevision(row: SolicitudRow, area: string): RevisionData | null {
   return row.revisiones.find((r) => r.area === area) ?? null;
 }
 
+/** Etiqueta del requisito de un documento (RF-13): Ficha RUC, Vigencia de Poder, DNI/Pasaporte. */
+function etiquetaRequisito(requisito?: string | null): string | null {
+  return ANEXOS_REQUERIDOS.find((a) => a.key === requisito)?.label ?? null;
+}
+
+/** Tipo de vista previa segun la extension del archivo. */
+function tipoPreview(url: string): "pdf" | "imagen" | "otro" {
+  const ext = url.split("?")[0]?.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "pdf";
+  if (["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) return "imagen";
+  return "otro";
+}
+
 function canReviewArea(permissions: string[], area: string): boolean {
   const perm = REVISION_AREA_PERMISSIONS[area as keyof typeof REVISION_AREA_PERMISSIONS];
   if (!perm) return false;
@@ -81,6 +94,8 @@ export function SolicitudReview({
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [aprobandoBypass, setAprobandoBypass] = useState(false);
+  /** Documento en vista previa (modal en la misma vista). */
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   const { confirm, confirmDialog } = useConfirm();
   const { session } = useSesion();
 
@@ -298,7 +313,7 @@ export function SolicitudReview({
 
         {/* Client documents */}
         {(() => {
-          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string; categoria?: string }> = [];
+          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null }> = [];
 
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
@@ -309,7 +324,7 @@ export function SolicitudReview({
           // Multi-stand: client's docsAdjuntos
           const clienteDocs = (row.docsAdjuntos ?? []).filter(d => d.userId === row.userId);
           for (const d of clienteDocs) {
-            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined });
+            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito });
           }
 
           // Re-evaluacion documents
@@ -329,33 +344,73 @@ export function SolicitudReview({
           return (
             <div className="border-t border-border pt-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Documentos del cliente</h4>
+                <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Documentos adjuntos</h4>
                 <span className="text-[11px] text-muted-foreground">{unique.length} archivo(s)</span>
               </div>
               <div className="space-y-1">
                 {unique.map((doc, i) => {
                   const esContrato = doc.url === contratoUrl || doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+                  const requisitoLabel = etiquetaRequisito(doc.requisito);
                   const etiqueta = esContrato
                     ? "Contrato"
                     : doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO
-                      ? "Anexo"
+                      ? "Documento adjunto"
                       : doc.origen === "reevaluacion"
                         ? "Re-evaluacion"
-                        : "Documento";
+                        : "Documento adjunto";
                   return (
-                    <a
+                    <div
                       key={i}
-                      href={doc.url}
-                      target="_blank"
                       className="group flex items-center gap-2 rounded-lg border border-border bg-secondary px-2.5 py-2 text-xs transition-colors hover:border-success/30 hover:bg-success/10"
                     >
                       <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
-                      <span className="flex-1 truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</p>
+                        {requisitoLabel && (
+                          <p className="truncate text-[10px] text-muted-foreground">{requisitoLabel}</p>
+                        )}
+                      </div>
                       <Badge className={`pointer-events-none shrink-0 text-[9px] ${esContrato ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
                         <span>{etiqueta}</span>
                       </Badge>
                       <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
-                    </a>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                          title="Vista previa"
+                          onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                          title="Descargar"
+                          asChild
+                        >
+                          <a href={doc.url} download={doc.nombre}>
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                          title="Abrir en otra pestaña"
+                          asChild
+                        >
+                          <a href={doc.url} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -428,12 +483,12 @@ export function SolicitudReview({
                 <SgcDocumentoUpload
                   solicitudId={row.id}
                   tipo={TIPOS_DOCUMENTO_SOLICITUD.ANEXO}
-                  titulo="Anexos requeridos"
+                  titulo="Documentos adjuntos"
                   hint={ANEXOS_REQUERIDOS.map((a) => a.label)}
                   archivos={anexosSolicitud}
-                  ctaVacio="Adjuntar los anexos requeridos"
-                  ctaConArchivos="Adjuntar más anexos"
-                  vacioTexto="Aún no adjuntaste los anexos requeridos."
+                  ctaVacio="Adjuntar los documentos requeridos"
+                  ctaConArchivos="Adjuntar más documentos"
+                  vacioTexto="Aún no adjuntaste los documentos requeridos."
                   onAttached={() => onSaved(row)}
                 />
               </>
@@ -706,6 +761,53 @@ export function SolicitudReview({
               <span>Si, rechazar</span>
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vista previa del documento (modal en la misma vista) */}
+      <Dialog open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-6 text-sm font-semibold"><span>{previewDoc?.nombre ?? ""}</span></DialogTitle>
+          </DialogHeader>
+          {previewDoc && (
+            <div className="space-y-3">
+              {tipoPreview(previewDoc.url) === "pdf" && (
+                <iframe
+                  src={previewDoc.url}
+                  title={previewDoc.nombre}
+                  className="h-[65vh] w-full rounded-lg border border-border bg-white"
+                />
+              )}
+              {tipoPreview(previewDoc.url) === "imagen" && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.nombre}
+                  className="mx-auto max-h-[65vh] rounded-lg border border-border object-contain"
+                />
+              )}
+              {tipoPreview(previewDoc.url) === "otro" && (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  <span>Vista previa no disponible para este formato (DOCX). Descárgalo o ábrelo en otra pestaña.</span>
+                </p>
+              )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" className="text-xs" asChild>
+                  <a href={previewDoc.url} download={previewDoc.nombre}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    <span>Descargar</span>
+                  </a>
+                </Button>
+                <Button size="sm" className="text-xs" asChild>
+                  <a href={previewDoc.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    <span>Abrir en otra pestaña</span>
+                  </a>
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

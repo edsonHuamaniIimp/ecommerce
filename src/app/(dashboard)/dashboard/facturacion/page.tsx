@@ -37,6 +37,8 @@ interface FacturacionItem {
   montoTotal: number;
   moneda: string;
   modoPago: string;
+  /** El plan de pago lo definio el cliente en el contrato: no editable por Facturacion. */
+  planCliente: boolean;
   standCode: string;
   solicitudEstado: string;
   createdAt: string;
@@ -349,7 +351,16 @@ export default function FacturacionPage() {
                 <div><span className="text-muted-foreground">Tipo:</span> <span>{payRow.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</span></div>
               </div>
 
-              {/* Modo de pago selector */}
+              {/* Plan definido por el cliente en el contrato: no editable. */}
+              {payRow.planCliente && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                  Las cuotas las definio el cliente en el contrato y no son editables. Aqui solo se confirman los pagos
+                  (voucher del cliente) y se adjunta el comprobante fiscal.
+                </div>
+              )}
+
+              {/* Modo de pago selector (solo si el plan no viene del contrato) */}
+              {!payRow.planCliente && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">Modo de pago</p>
                 <div className="flex gap-4">
@@ -373,9 +384,10 @@ export default function FacturacionPage() {
                   </label>
                 </div>
               </div>
+              )}
 
-              {/* Cuotas section — solo si modo cuotas */}
-              {modoPago !== "completo" && (
+              {/* Cuotas section — con cuotas configuradas */}
+              {(modoPago !== "completo" || payRow.cuotas.length > 0) && (
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-2">
                   Cuotas ({payRow.cuotas.length})
@@ -434,10 +446,13 @@ export default function FacturacionPage() {
                             <Check className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
-                          onClick={() => setDeleteCuotaId(c.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
+                        {!payRow.planCliente && (
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
+                            title="Eliminar cuota"
+                            onClick={() => setDeleteCuotaId(c.id)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -447,8 +462,8 @@ export default function FacturacionPage() {
             </div>
           )}
           </div>
-          {/* Footer — solo si modo cuotas */}
-          {payRow && modoPago !== "completo" && (
+          {/* Footer — agregar cuota solo si el plan no viene del contrato */}
+          {payRow && !payRow.planCliente && modoPago !== "completo" && (
             (() => {
               const sumaCuotas = payRow.cuotas.reduce((s, c) => s + c.monto, 0);
               const pendiente = payRow.montoTotal - sumaCuotas;

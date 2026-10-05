@@ -11,7 +11,7 @@ import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
 import { fechasCuotasValidas, porcentajesValidos, siguienteFechaCuota } from "@/lib/shared/utils/cuotas";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
-import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_REQUERIDOS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import type { FormDatos, GessLinkedInfo } from "./interfaces";
 
 /** Contrato generado en el paso de cuotas (se descarga y firma en el paso final). */
@@ -47,8 +47,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [reservaOpen, setReservaOpen] = useState(false);
   const [reservaStep, setReservaStep] = useState(0);
   const [formDatos, setFormDatos] = useState<FormDatos>(emptyDatos);
-  const [formDocs, setFormDocs] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  /** Documentos del cliente por requisito (ANEXOS_REQUERIDOS): clave -> URL. */
+  const [docsRequisitos, setDocsRequisitos] = useState<Record<string, string>>({});
+  const [subiendoRequisito, setSubiendoRequisito] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
@@ -70,19 +71,21 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
   const currentKey = standIdsKey(selectedIds);
+  /** Los 3 documentos requeridos (Ficha RUC, Vigencia de Poder, DNI/Pasaporte) estan adjuntos. */
+  const anexosCompletos = ANEXOS_REQUERIDOS.every((a) => Boolean(docsRequisitos[a.key]));
 
   const stepDone = useCallback((step: number): boolean => {
     if (step === 0) return isStepDatosCompleto(formDatos);
     if (step === 1) return cuotasConfigValidas(cuotasConfig);
-    if (step === 2) return Boolean(contrato) && (!singleStand || (formDocs.length > 0 && Boolean(contratoFirmadoUrl)));
-    if (step === 3) return Boolean(contrato) && confirmado && (!singleStand || Boolean(contratoFirmadoUrl));
+    if (step === 2) return Boolean(contrato) && anexosCompletos && Boolean(contratoFirmadoUrl);
+    if (step === 3) return Boolean(contrato) && confirmado && Boolean(contratoFirmadoUrl);
     return false;
-  }, [formDatos, formDocs, singleStand, cuotasConfig, contrato, confirmado, contratoFirmadoUrl]);
+  }, [formDatos, anexosCompletos, cuotasConfig, contrato, confirmado, contratoFirmadoUrl]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
     if (step === 1) return stepDone(0);
-    if (step === 2) return stepDone(0) && stepDone(1);
+    if (step === 2) return stepDone(0) && stepDone(1) && Boolean(contrato);
     if (step === 3) return stepDone(0) && stepDone(1) && stepDone(2);
     return false;
   }, [stepDone]);
@@ -95,13 +98,13 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       const draft = await reservaBorradorDB.cargar(selectedIds);
       if (draft) {
         setFormDatos({ ...emptyDatos(), ...draft.datos });
-        setFormDocs(draft.documentos);
+        setDocsRequisitos(draft.docsRequisitos ?? {});
         if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= 1) {
           setReservaStep(draft.step);
         }
       } else {
         setFormDatos(emptyDatos());
-        setFormDocs([]);
+        setDocsRequisitos({});
         setReservaStep(0);
       }
       setConfirmado(false);
@@ -113,17 +116,17 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   // Auto-save to IndexedDB on form changes
   useEffect(() => {
     if (!reservaOpen || selectedIds.length === 0) return;
-    const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || formDocs.length > 0;
+    const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || Object.keys(docsRequisitos).length > 0;
     if (!hasData && reservaStep === 0) return;
-    reservaBorradorDB.guardar([...selectedIds].sort(), formDatos, formDocs, reservaStep);
+    reservaBorradorDB.guardar([...selectedIds].sort(), formDatos, [], reservaStep, docsRequisitos);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formDatos, formDocs, reservaStep]);
+  }, [formDatos, docsRequisitos, reservaStep]);
 
   // Persist on close without submit
   const handleOpenChange = (open: boolean) => {
     if (!open && !submitting) {
-      if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || formDocs.length > 0) {
-        reservaBorradorDB.guardar(selectedIds, formDatos, formDocs, reservaStep);
+      if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || Object.keys(docsRequisitos).length > 0) {
+        reservaBorradorDB.guardar(selectedIds, formDatos, [], reservaStep, docsRequisitos);
       }
       setReservaStep(0);
     }
@@ -132,16 +135,25 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   const handleUpload = (file: File): Promise<string> => uploadService.subir(file);
 
-  const addDoc = async (file: File) => {
-    setUploading(true);
+  /** Sube el documento de un requisito (Ficha RUC / Vigencia de Poder / DNI o Pasaporte). */
+  const addDocRequisito = async (requisito: string, file: File) => {
+    setSubiendoRequisito(requisito);
     try {
       const url = await handleUpload(file);
-      setFormDocs((prev) => [...prev, url]);
-    } catch { /* ignore */ }
-    setUploading(false);
+      setDocsRequisitos((prev) => ({ ...prev, [requisito]: url }));
+    } catch {
+      setSubmitError("No se pudo subir el documento. Intenta de nuevo.");
+    }
+    setSubiendoRequisito(null);
   };
 
-  const removeDoc = (idx: number) => setFormDocs((prev) => prev.filter((_, i) => i !== idx));
+  const removeDocRequisito = (requisito: string) => {
+    setDocsRequisitos((prev) => {
+      const next = { ...prev };
+      delete next[requisito];
+      return next;
+    });
+  };
 
   /** Crea la reserva (bloquea los stands) y devuelve el id de la solicitud ("" si falla). */
   const crearReserva = useCallback(async (): Promise<string> => {
@@ -287,12 +299,13 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         firmadoUrl = firmado.pdfUrl ?? firmado.docxUrl;
       }
 
-      for (const url of formDocs) {
+      for (const [requisito, url] of Object.entries(docsRequisitos)) {
         await solicitudesService.uploadDocumento({
           solicitudId,
           url,
-          nombre: url.split("/").pop() ?? "anexo",
+          nombre: url.split("/").pop() ?? requisito,
           tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+          requisito,
         });
       }
       if (firmadoUrl) {
@@ -317,7 +330,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   const reset = () => {
     setFormDatos(emptyDatos());
-    setFormDocs([]);
+    setDocsRequisitos({});
     setReservaStep(0);
     setConfirmado(false);
     setCuotasConfig([{ porcentaje: 100, fecha: siguienteFechaCuota(null) }]);
@@ -331,8 +344,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
     formDatos, setFormDatos,
-    formDocs,
-    uploading,
+    docsRequisitos,
+    subiendoRequisito,
     submitting,
     submitError,
     selectedCount,
@@ -340,8 +353,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     stepDone,
     canGoStep,
     handleOpenChange,
-    addDoc,
-    removeDoc,
+    addDocRequisito,
+    removeDocRequisito,
     handleSubmit,
     reset,
     confirmado, setConfirmado,

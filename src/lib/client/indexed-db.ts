@@ -20,6 +20,8 @@ interface ReservaBorrador {
   standIds: string[];
   datos: FormDatosDB;
   documentos: string[];
+  /** Documentos del cliente por requisito (clave de ANEXOS_REQUERIDOS → URL). */
+  docsRequisitos?: Record<string, string>;
   step: number;
   updatedAt: number;
 }
@@ -44,13 +46,13 @@ function standIdsKey(standIds: string[]): string {
 }
 
 export const reservaBorradorDB = {
-  async guardar(standIds: string[], datos: ReservaBorrador["datos"], documentos: string[], step: number): Promise<void> {
+  async guardar(standIds: string[], datos: ReservaBorrador["datos"], documentos: string[], step: number, docsRequisitos?: Record<string, string>): Promise<void> {
     const db = await openDB();
     const id = standIdsKey(standIds);
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const record: ReservaBorrador = { id, standIds, datos, documentos, step, updatedAt: Date.now() };
+      const record: ReservaBorrador = { id, standIds, datos, documentos, docsRequisitos, step, updatedAt: Date.now() };
       store.put(record);
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(tx.error); };

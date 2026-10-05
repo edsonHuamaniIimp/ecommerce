@@ -29,7 +29,7 @@ export const planosService = {
   },
   /** Planos (macro + pabellones hijos, o simple) de un evento, con sus bloques. */
   planosDeEvento(tipoEvento: number, codigoEvento: number) {
-    return internalApi.get<Array<{ codigo: string; bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia: string | null }> }>>(
+    return internalApi.get<Array<{ codigo: string; nombre?: string; bloques: Array<{ bloqueId: string; tipoCodigo: string; tipologia: string | null }> }>>(
       `/api/planos/planos-evento?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`,
     );
   },

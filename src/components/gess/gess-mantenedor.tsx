@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Combobox, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { Search } from "lucide-react";
 import { Pagination } from "@/components/shared/pagination";
 import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
@@ -21,6 +21,7 @@ interface BloqueEvento {
   tipoCodigo: string;
   tipologia: string | null;
   plano: string;
+  planoNombre: string;
 }
 
 interface Props {
@@ -54,7 +55,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
         const items: BloqueEvento[] = [];
         for (const p of planes) {
           for (const b of p.bloques) {
-            items.push({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, plano: p.codigo });
+            items.push({ bloqueId: b.bloqueId, tipoCodigo: b.tipoCodigo, tipologia: b.tipologia, plano: p.codigo, planoNombre: p.nombre ?? getPlano(p.codigo)?.nombre ?? p.codigo });
           }
         }
         if (!cancelled) setBloquesEvento(items);
@@ -91,8 +92,23 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
+
+  const pabellones = useMemo(() => {
+    const vistos = new Map<string, string>();
+    for (const b of bloquesEvento) {
+      if (!vistos.has(b.plano)) vistos.set(b.plano, b.planoNombre);
+    }
+    return [...vistos].map(([codigo, nombre]) => ({ codigo, nombre }));
+  }, [bloquesEvento]);
 
   const importadosApiIds = useMemo(() => new Set(dbRows.map((r) => r.standApiId)), [dbRows]);
+
+  /** Indices del API aun no importados (los "Ya importado" no se pueden seleccionar). */
+  const selectableApiIdxs = useMemo(
+    () => apiRows.map((row, i) => ({ row, i })).filter(({ row }) => !importadosApiIds.has(getId(row))).map(({ i }) => i),
+    [apiRows, importadosApiIds],
+  );
 
   const bloqueMap = useMemo(() => {
     const m = new Map<string, GessStandRow>();
@@ -118,27 +134,15 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
       setApiSelected(new Set());
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error";
-      setApiError(msg.includes("404") ? "Este evento no tiene datos en KBEventos." : msg);
+      setApiError(msg.includes("404") ? "Este evento no existe en el API de stands del IIMP." : msg);
     } finally {
       setApiLoading(false);
     }
   }, [tipoEvento, codigoEvento]);
 
-  const handleMockup = async () => {
-    setApiLoading(true);
-    setApiError(null);
-    try {
-      const json = await gessService.mockup({ eventoId, tipoEvento, codigoEvento });
-      setApiError(`Datos demo generados: ${json.creados} nuevos, ${json.actualizados} actualizados de ${json.total} (planos: ${(json.planos ?? []).join(", ")})`);
-      await loadDb();
-    } catch (err) {
-      setApiError(err instanceof Error ? err.message : "Error al generar datos demo");
-    } finally {
-      setApiLoading(false);
-    }
-  };
-
   const toggleApiSelect = (idx: number) => {
+    const row = apiRows[idx];
+    if (!row || importadosApiIds.has(getId(row))) return;
     setApiSelected((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx); else next.add(idx);
@@ -147,10 +151,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   };
 
   const selectAllApi = () => {
-    if (apiSelected.size === apiRows.length) {
+    if (selectableApiIdxs.length > 0 && apiSelected.size === selectableApiIdxs.length) {
       setApiSelected(new Set());
     } else {
-      setApiSelected(new Set(apiRows.map((_, i) => i)));
+      setApiSelected(new Set(selectableApiIdxs));
     }
   };
 
@@ -203,17 +207,22 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
 
   const vinculados = dbRows.filter((r) => r.bloqueId).length;
 
+  const bloquesDelPabellon = useMemo(() => {
+    if (pabellon === UI_SENTINEL.TODOS) return BLOQUE_IDS;
+    return bloquesEvento.filter((b) => b.plano === pabellon).map((b) => b.bloqueId);
+  }, [pabellon, BLOQUE_IDS, bloquesEvento]);
+
   const filteredBloques = useMemo(() => {
-    if (!search.trim()) return BLOQUE_IDS;
+    if (!search.trim()) return bloquesDelPabellon;
     const term = search.toLowerCase();
-    return BLOQUE_IDS.filter((bid) => {
+    return bloquesDelPabellon.filter((bid) => {
       const linked = bloqueMap.get(bid);
       return bid.toLowerCase().includes(term)
         || (linked?.standCode?.toLowerCase().includes(term))
         || (linked?.empresa?.toLowerCase().includes(term))
         || (linked?.tipoStand?.toLowerCase().includes(term));
     });
-  }, [BLOQUE_IDS, bloqueMap, search]);
+  }, [bloquesDelPabellon, bloqueMap, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBloques.length / PER_PAGE));
   const paged = filteredBloques.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -236,20 +245,19 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                 <Button onClick={fetchApi} disabled={apiLoading}>
                   <span>{apiLoading ? "Cargando..." : "Cargar datos del API"}</span>
                 </Button>
-                <Button variant="outline" onClick={handleMockup} disabled={apiLoading}>
-                  <span>{apiLoading ? "Generando..." : "Generar datos demo"}</span>
-                </Button>
               </div>
               {apiRows.length > 0 && (
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={selectAllApi}>
-                    <span>{apiSelected.size === apiRows.length ? "Deseleccionar todo" : "Seleccionar todo"}</span>
+                  <Button variant="outline" size="sm" onClick={selectAllApi} disabled={selectableApiIdxs.length === 0}>
+                    <span>{selectableApiIdxs.length > 0 && apiSelected.size === selectableApiIdxs.length ? "Deseleccionar todo" : "Seleccionar todo"}</span>
                   </Button>
-                  <span className="text-xs text-muted-foreground">{apiSelected.size} de {apiRows.length} seleccionados</span>
+                  <span className="text-xs text-muted-foreground">
+                    {apiSelected.size} de {selectableApiIdxs.length} nuevos · {apiRows.length - selectableApiIdxs.length} ya importados
+                  </span>
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">El API solo trae datos de eventos con informacion. Para eventos sin datos (ej. PERUMIN), usa &quot;Generar datos demo&quot; — crea stands vinculados a los bloques de tus planos.</p>
+            <p className="text-xs text-muted-foreground">Carga los stands del evento desde el API del IIMP (login + liststand). El API solo devuelve eventos con informacion cargada.</p>
             {apiError && <p className="text-sm text-muted-foreground">{apiError}</p>}
 
             {apiRows.length > 0 && (
@@ -259,7 +267,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8">
-                          <Checkbox checked={apiSelected.size === apiRows.length && apiRows.length > 0} onCheckedChange={() => { selectAllApi(); }} />
+                          <Checkbox checked={selectableApiIdxs.length > 0 && apiSelected.size === selectableApiIdxs.length} disabled={selectableApiIdxs.length === 0} onCheckedChange={() => { selectAllApi(); }} />
                         </TableHead>
                         {apiCols.map((col) => (
                           <TableHead key={col} className="text-[10px]">{col}</TableHead>
@@ -275,7 +283,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                         return (
                           <TableRow key={rowId || i} className={`${selected ? "bg-primary/5" : ""} ${yaImportado ? "opacity-70" : ""}`}>
                             <TableCell>
-                              <Checkbox checked={selected} onCheckedChange={() => { toggleApiSelect(i); }} />
+                              <Checkbox checked={selected} disabled={yaImportado} onCheckedChange={() => { toggleApiSelect(i); }} />
                             </TableCell>
                             {apiCols.map((col) => (
                               <TableCell key={col} className="max-w-[200px] truncate text-xs">
@@ -297,7 +305,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                 </div>
                 <div className="flex justify-end">
                   <Button onClick={handleImport} disabled={apiSelected.size === 0 || importing}>
-                    <span>{importing ? "Importando..." : `Importar ${apiSelected.size} seleccionados a BD`}</span>
+                    <span>{importing ? "Importando..." : `Importar ${apiSelected.size} nuevos a BD`}</span>
                   </Button>
                 </div>
               </>
@@ -318,14 +326,29 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
             <CardTitle><span>Vincular bloques del plano isometrico con registros BD</span></CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                {BLOQUE_IDS.length} bloques 3D — {dbRows.length} registros en BD — {vinculados} vinculados
+                {filteredBloques.length} de {BLOQUE_IDS.length} bloques 3D — {dbRows.length} registros en BD — {vinculados} vinculados
               </p>
-              <div className="relative max-w-xs">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  className="pl-8 text-xs h-8" />
+              <div className="flex flex-wrap items-center gap-2">
+                {pabellones.length > 0 && (
+                  <Select value={pabellon} onValueChange={(v) => { setPabellon(v); setPage(1); }}>
+                    <SelectTrigger className="h-8 w-[200px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los pabellones</span></SelectItem>
+                      {pabellones.map((p) => (
+                        <SelectItem key={p.codigo} value={p.codigo}><span>{p.nombre}</span></SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="relative max-w-xs">
+                  <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Buscar..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                    className="pl-8 text-xs h-8" />
+                </div>
               </div>
             </div>
             {dbLoading ? (

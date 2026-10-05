@@ -67,7 +67,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           requisito: esContrato ? null : p.requisito,
         });
       }
-      toast.success(esContrato ? "Contrato firmado enviado correctamente" : "Anexos enviados correctamente");
+      toast.success(esContrato ? "Contrato firmado enviado correctamente" : "Documentos enviados correctamente");
       onSaved();
       onClose();
     } catch (e) {
@@ -90,7 +90,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
-        <h3 className="text-sm font-semibold text-foreground">{esContrato ? "Subir contrato firmado" : "Adjuntar documentos anexos"}</h3>
+        <h3 className="text-sm font-semibold text-foreground">{esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
@@ -129,7 +129,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
         {!esContrato && (
           <div>
-            <Label className="text-xs mb-1 block">Anexos requeridos</Label>
+            <Label className="text-xs mb-1 block">Documentos requeridos</Label>
             <div className="space-y-1">
               {ANEXOS_REQUERIDOS.map((a) => {
                 const existente = misDocs.find(d => d.requisito === a.key);
@@ -169,7 +169,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         )}
 
         <div>
-          <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Otros anexos (opcional)"}</Label>
+          <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Otros documentos (opcional)"}</Label>
           {otrosDocs.length > 0 && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
               {otrosDocs.map((doc) => (
@@ -205,7 +205,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           }} />
           <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => abrirSelector(null)}>
             <Upload className="mr-1 h-3 w-3" />
-            {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro anexo"}
+            {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
           </Button>
         </div>
 
@@ -221,7 +221,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </Button>
           <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
             disabled={sending || pendientes.length === 0} onClick={handleEnviar}>
-            {sending ? "Enviando..." : esContrato ? "Enviar contrato firmado" : "Enviar anexos"}
+            {sending ? "Enviando..." : esContrato ? "Enviar contrato firmado" : "Enviar documentos"}
           </Button>
         </div>
       </div>

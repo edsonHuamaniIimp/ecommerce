@@ -26,8 +26,9 @@ interface Props {
   canGoStep: (s: number) => boolean;
   formDatos: FormDatos;
   onDatosChange: (update: Partial<FormDatos>) => void;
-  formDocs: string[];
-  uploading: boolean;
+  /** Documentos del cliente por requisito (ANEXOS_REQUERIDOS): clave -> URL. */
+  docsRequisitos: Record<string, string>;
+  subiendoRequisito: string | null;
   submitting: boolean;
   submitError: string | null;
   selectedCount: number;
@@ -35,8 +36,8 @@ interface Props {
   selectedLabels: string;
   selectedItems: { id: string; typeLabel: string; medidas: string | null; reserved: boolean; precio?: number }[];
   existingDocs: string[];
-  onAddDoc: (file: File) => Promise<void>;
-  onRemoveDoc: (idx: number) => void;
+  onAddRequisito: (requisito: string, file: File) => Promise<void>;
+  onRemoveRequisito: (requisito: string) => void;
   onSubmit: () => Promise<boolean>;
   confirmado: boolean;
   onConfirmadoChange: (v: boolean) => void;
@@ -61,16 +62,16 @@ const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.CUOTAS, RESERVA_STEPS.CONTRATO
 function encabezado(step: ReservaStep): string {
   if (step === RESERVA_STEPS.DATOS) return "Completa los datos comerciales y de facturacion para formalizar tu solicitud.";
   if (step === RESERVA_STEPS.CUOTAS) return "Configura tus cuotas de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
-  if (step === RESERVA_STEPS.CONTRATO) return "Descarga el contrato generado, firmalo y adjunta tus anexos (Vigencia de Poderes y DNI).";
+  if (step === RESERVA_STEPS.CONTRATO) return "Descarga el contrato, firmalo (digital o manualmente) y adjunta los 3 documentos requeridos.";
   return "Revisa el resumen y envia tu solicitud al proceso de revision.";
 }
 
 export function ReservaModal(props: Props) {
   const {
     open, onOpenChange, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
-    formDatos, onDatosChange, formDocs, uploading, submitting, submitError,
+    formDatos, onDatosChange, docsRequisitos, subiendoRequisito, submitting, submitError,
     selectedCount, singleStand, selectedLabels, selectedItems,
-    onAddDoc, onRemoveDoc, onSubmit,
+    onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
     cuotasPago, onCuotasPagoChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
@@ -155,17 +156,19 @@ export function ReservaModal(props: Props) {
                   firmaPerfilUrl={firmaPerfilUrl}
                   firmandoDigital={firmandoDigital}
                   onFirmarDigital={onFirmarDigital}
-                  formDocs={formDocs}
-                  uploading={uploading}
-                  onAddDoc={onAddDoc}
-                  onRemoveDoc={onRemoveDoc}
+                  generandoContrato={generandoContrato}
+                  onGenerarContrato={onGenerarContrato}
+                  docsRequisitos={docsRequisitos}
+                  subiendoRequisito={subiendoRequisito}
+                  onAddRequisito={onAddRequisito}
+                  onRemoveRequisito={onRemoveRequisito}
                 />
               )}
               {step === RESERVA_STEPS.CONFIRMACION && (
                 <StepConfirmacion
                   datos={formDatos}
                   selectedLabels={selectedLabels}
-                  docsCount={formDocs.length + (contratoFirmadoUrl ? 1 : 0)}
+                  docsCount={Object.keys(docsRequisitos).length + (contratoFirmadoUrl ? 1 : 0)}
                   confirmado={confirmado}
                   onConfirmadoChange={onConfirmadoChange}
                 />

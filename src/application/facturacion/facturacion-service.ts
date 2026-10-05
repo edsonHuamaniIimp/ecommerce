@@ -31,7 +31,20 @@ export class FacturacionApplicationService {
     return this.repo.detalle(id);
   }
 
+  /** El plan de pago lo definio el cliente en el contrato: la configuracion no es editable. */
+  private async validarConfiguracionEditable(facturacionId: string): Promise<void> {
+    const fact = await this.repo.detalle(facturacionId);
+    if (fact?.planCliente) {
+      throw new DomainError(
+        "Las cuotas las definio el cliente en el contrato; no se pueden modificar. Aqui solo se confirman los pagos.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+  }
+
   async agregarCuota(facturacionId: string, monto: number, fechaVencimiento: string | null, createdBy: string): Promise<void> {
+    await this.validarConfiguracionEditable(facturacionId);
     return this.repo.agregarCuota(facturacionId, monto, fechaVencimiento, createdBy);
   }
 
@@ -73,7 +86,10 @@ export class FacturacionApplicationService {
     }
   }
 
-  async actualizar(id: string, data: { tipo?: string }, createdBy: string): Promise<void> {
+  async actualizar(id: string, data: { tipo?: string; modoPago?: string }, createdBy: string): Promise<void> {
+    if (data.modoPago !== undefined) {
+      await this.validarConfiguracionEditable(id);
+    }
     return this.repo.actualizar(id, data, createdBy);
   }
 
@@ -82,6 +98,14 @@ export class FacturacionApplicationService {
   }
 
   async eliminarCuota(cuotaId: string, createdBy: string): Promise<void> {
+    const fact = await this.repo.facturacionDeCuota(cuotaId);
+    if (fact?.planCliente) {
+      throw new DomainError(
+        "Las cuotas las definio el cliente en el contrato; no se pueden modificar. Aqui solo se confirman los pagos.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
     return this.repo.eliminarCuota(cuotaId, createdBy);
   }
 }

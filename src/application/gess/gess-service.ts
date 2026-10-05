@@ -100,21 +100,49 @@ export class GessApplicationService {
     for (const row of rows) {
       if (!row || typeof row !== "object") continue;
       const r = row as Record<string, unknown>;
-      const uid = String(r.uid ?? r.UID ?? r.codigo ?? r.stand ?? "");
+      const uid = String(r.stand ?? r.uid ?? r.UID ?? r.codigo ?? "");
       if (!uid) continue;
 
-      const tipo = String(r.type ?? r.tipo ?? r.tipo_stand ?? "");
-      const medidas = precioTextoDesdeTipo(tipo);
+      const tipo = String(r.tipo ?? r.type ?? r.tipo_stand ?? "");
+      /* Precio real del API (varia por pabellon): se guarda como "precio moneda" en `medidas`. */
+      const precio = r.precio !== undefined && r.precio !== null ? String(r.precio).trim() : "";
+      const moneda = String(r.moneda ?? "USD").trim() || "USD";
+      const medidas = precio ? `${precio} ${moneda}` : precioTextoDesdeTipo(tipo);
+
+      /* El API liststand entrega LIBRE/RESERVADO; el resto de fuentes ya viene normalizado. */
+      const estadoApi = String(r.estado ?? r.status ?? "").trim().toLowerCase();
+      const estado =
+        estadoApi === "libre"
+          ? ESTADOS_STAND.DISPONIBLE
+          : estadoApi === "reservado"
+            ? ESTADOS_STAND.RESERVADO
+            : estadoApi || null;
+
+      const pabellonApi = String(r.pabellon ?? "").trim();
+      const coordenadas = `${String(r.x ?? r.pos_x ?? "")},${String(r.y ?? r.pos_y ?? "")}`;
 
       const exists = await this.repo.findByStandApiId(eventoId, uid);
-      const data = {
+
+      /*
+       * Re-importacion: la BD deduplica por (eventoId, standApiId), asi que se actualiza
+       * el mismo registro. Se protegen los datos locales: si el stand ya esta en un estado
+       * gestionado por el portal (en_evaluacion/reservado) y el API aun lo reporta LIBRE,
+       * se conserva el estado local; y no se pisa la empresa si el API no la trae.
+       */
+      const estadoProtegido =
+        estado === ESTADOS_STAND.DISPONIBLE
+        && (exists?.estado === ESTADOS_STAND.EN_EVALUACION || exists?.estado === ESTADOS_STAND.RESERVADO);
+
+      const empresaApi = String(r.company ?? r.empresa ?? r.razon_social ?? "").trim();
+      const data: Record<string, unknown> = {
         eventoId, standApiId: uid, standCode: uid,
         tipoStand: tipo || null, medidas: medidas || null,
-        estado: String(r.status ?? r.estado ?? "") || null,
-        empresa: String(r.company ?? r.empresa ?? r.razon_social ?? "") || null,
-        pabellon: String(r.x ?? r.pos_x ?? "") + "," + String(r.y ?? r.pos_y ?? ""),
+        ...(estadoProtegido ? {} : { estado }),
+        pabellon: pabellonApi || (r.x !== undefined ? coordenadas : null),
         rawData: row,
       };
+      if (empresaApi) data.empresa = empresaApi;
+      else if (!exists) data.empresa = null;
 
       if (exists) {
         await this.repo.update(exists.id, data as never);

@@ -37,7 +37,7 @@ const ident = { userId: "u1", email: "a@b.com" };
 function rowConVoucher(): FacturacionRow {
   return {
     id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
-    montoTotal: 2000, moneda: "US$", modoPago: "cuotas", standCode: "44",
+    montoTotal: 2000, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
     correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
     cuotas: [{ id: "c1", numero: 1, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: "/uploads/v.pdf", comprobanteFiscal: null }],
   };
@@ -46,7 +46,7 @@ function rowConVoucher(): FacturacionRow {
 function rowConCuotas(total: number, montos: number[]): FacturacionRow {
   return {
     id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
-    montoTotal: total, moneda: "US$", modoPago: "cuotas", standCode: "44",
+    montoTotal: total, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
     correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
     cuotas: montos.map((m, i) => ({
       id: `c${i + 1}`, numero: i + 1, monto: m,
@@ -57,7 +57,7 @@ function rowConCuotas(total: number, montos: number[]): FacturacionRow {
 
 const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
-  montoTotal: 3000, moneda: "US$", modoPago: "cuotas", standCode: "44",
+  montoTotal: 3000, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
   correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
   cuotas: [],
 };
@@ -174,5 +174,39 @@ describe("PagosApplicationService", () => {
     const svc = new PagosApplicationService(repo);
     await svc.actualizarCuota("c1", { monto: 500 }, ident);
     expect(repo.actualizarCuota).toHaveBeenCalledWith("c1", { monto: 500 }, "a@b.com");
+  });
+
+  // ==================== PLAN DEL CLIENTE (contrato) ====================
+  it("no permite agregar cuota cuando el plan viene del contrato", async () => {
+    const repo = mockRepo();
+    repo.esPropietario = vi.fn().mockResolvedValue(true);
+    repo.detalle = vi.fn().mockResolvedValue({ ...rowConCuotas(2000, [1000]), planCliente: true });
+    const svc = new PagosApplicationService(repo);
+
+    await expect(svc.agregarCuota("f1", 500, null, ident)).rejects.toMatchObject({ status: 409 });
+    expect(repo.agregarCuota).not.toHaveBeenCalled();
+  });
+
+  it("no permite editar ni eliminar cuotas del plan del contrato", async () => {
+    const repo = mockRepo();
+    repo.esPropietarioDeCuota = vi.fn().mockResolvedValue(true);
+    repo.facturacionDeCuota = vi.fn().mockResolvedValue({ ...rowConCuotas(2000, [1000]), planCliente: true });
+    const svc = new PagosApplicationService(repo);
+
+    await expect(svc.actualizarCuota("c1", { monto: 500 }, ident)).rejects.toMatchObject({ status: 409 });
+    await expect(svc.eliminarCuota("c1", ident)).rejects.toMatchObject({ status: 409 });
+    expect(repo.actualizarCuota).not.toHaveBeenCalled();
+    expect(repo.eliminarCuota).not.toHaveBeenCalled();
+  });
+
+  it("si permite adjuntar el voucher de pago con plan del contrato", async () => {
+    const repo = mockRepo();
+    repo.esPropietarioDeCuota = vi.fn().mockResolvedValue(true);
+    repo.facturacionDeCuota = vi.fn().mockResolvedValue({ ...rowConCuotas(2000, [1000]), planCliente: true });
+    repo.adjuntarVoucher = vi.fn().mockResolvedValue(undefined);
+    const svc = new PagosApplicationService(repo);
+
+    await svc.adjuntarVoucher("c1", "/uploads/voucher.pdf", ident);
+    expect(repo.adjuntarVoucher).toHaveBeenCalledWith("c1", "/uploads/voucher.pdf", "a@b.com");
   });
 });

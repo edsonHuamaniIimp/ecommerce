@@ -126,7 +126,7 @@
 
 | Ruta | Métodos | Descripción |
 |---|---|---|
-| `/api/planogess/fetch` | POST | Obtiene stands desde el servicio GESS por `tipoEvento`/`codigoEvento` |
+| `/api/planogess/fetch` | POST | Lista los stands de un evento desde el **API real del IIMP** (`/auth/login` + `/stands/liststand`, cuenta técnica con acceso VTA); devuelve filas aplanadas (stand, pabellón, tipo, área, precio, estado) para el preview de Vinculación |
 
 ### 3.7 Maestra — `src/app/api/maestra/[...slug]/route.ts`
 

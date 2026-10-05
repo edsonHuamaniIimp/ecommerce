@@ -21,6 +21,8 @@ export interface PagoRowDTO {
   montoTotal: number;
   moneda: string;
   modoPago: string;
+  /** El plan de pago lo definio el cliente en el contrato: no editable. */
+  planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
   createdAt: string;

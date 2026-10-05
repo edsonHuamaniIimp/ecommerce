@@ -68,7 +68,7 @@ Autenticación por header `x-api-key` contra `INTEGRACION_API_KEY` (**bypass si 
 
 ## 4. Otras integraciones
 
-- **Planogess/GESS**: `PLANOGESS_API_URL` con `{TIPEVCOD, EVENCOD}`; base de la sincronización de stands.
+- **Stands (liststand)**: `LISTSTAND_API_URL` + `LISTSTAND_USUARIO`/`LISTSTAND_CLAVE` (login con token de 30 min); base de la sincronización de stands de Vinculación. Detalle: [integracion-liststand.md](../05-integraciones/integracion-liststand.md).
 - **Niubiz**: pagos (ver [04-facturacion.md](./04-facturacion.md)).
 - **Storage**: `POST /api/upload` guarda en `public/uploads/` (local) o S3 según `STORAGE_PROVIDER`.
 - **Operación**: `GET /api/health`, `POST /api/errors/log`.

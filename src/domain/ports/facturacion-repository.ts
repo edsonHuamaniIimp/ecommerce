@@ -15,6 +15,8 @@ export interface FacturacionRow {
   montoTotal: number;
   moneda: string;
   modoPago: string;
+  /** El plan de pago lo definio el cliente al reservar (`solicitud.plan_cuotas`): no editable. */
+  planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
   createdAt: string;
@@ -78,7 +80,7 @@ export interface IFacturacionRepository {
   pagarCuota(cuotaId: string, createdBy: string, comprobante: string | null): Promise<void>;
   /** Adjunta/reemplaza el comprobante fiscal (boleta/factura) de una cuota pagada. */
   adjuntarComprobanteFiscal(cuotaId: string, data: DatosComprobanteFiscal, createdBy: string): Promise<void>;
-  actualizar(id: string, data: { tipo?: string }, createdBy: string): Promise<void>;
+  actualizar(id: string, data: { tipo?: string; modoPago?: string }, createdBy: string): Promise<void>;
   eliminar(id: string, createdBy: string): Promise<void>;
   eliminarCuota(cuotaId: string, createdBy: string): Promise<void>;
   /** true si la facturacion pertenece al cliente indicado. */

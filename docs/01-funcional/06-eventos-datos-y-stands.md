@@ -63,12 +63,13 @@ bloques del plano 3D**.
 
 ### 5.2 Vinculación (importar + vincular)
 - Página `/dashboard/vinculacion`; componente `GessMantenedor`, flujo en 2 pasos:
-  1. **Importar desde API**: `POST /api/planogess/fetch` (o "Generar datos demo" con `POST /api/gess/mockup`), selección de filas y `POST /api/gess/sync`.
-  2. **Vincular a bloques 3D**: carga bloques del evento (`GET /api/planos/planos-evento`), y `PATCH /api/gess/actualizar {id, bloqueId}`. Al reasignar, primero desvincula el bloque previo (unicidad `[eventoId, bloqueId]`).
+  1. **Importar desde API**: `POST /api/planogess/fetch` (API real de stands del IIMP: login + `liststand`), selección de filas y `POST /api/gess/sync`. Los "Ya importado" no se pueden re-seleccionar. La página resuelve la versión del evento (`tipoEvento`/`codigoEvento`) desde la API de eventos y la muestra en el encabezado.
+  2. **Vincular a bloques 3D**: carga bloques del evento (`GET /api/planos/planos-evento`), **filtro por pabellón**, y `PATCH /api/gess/actualizar {id, bloqueId}`. Al reasignar, primero desvincula el bloque previo (unicidad `[eventoId, bloqueId]`).
 
 ### 5.3 Sincronización API→BD (`GessStand`)
-- `sync` extrae `uid`, `tipo`, `status/estado`, `company/empresa`, `pabellon = x,y`, conserva `rawData` y hace upsert por `[eventoId, standApiId]`.
-- Cliente externo `planogess-client.ts` hace POST con `{TIPEVCOD, EVENCOD}` y **desactiva la verificación TLS** al llamar.
+- `sync` extrae `stand` (nº único del evento), `tipo`, `precio`+`moneda` (se guarda como `medidas`), `estado` (`LIBRE`→`disponible`, `RESERVADO`→`reservado`), `pabellon`, conserva `rawData` y hace upsert por `[eventoId, standApiId]` (un re-import no duplica).
+- Re-importación: conserva el estado local (`en_evaluacion`/`reservado`) si el API dice `LIBRE`, aplica `RESERVADO` del API, no pisa la empresa con vacío y no toca `bloqueId`/documentos/imágenes. Detalle: [integracion-liststand.md](../05-integraciones/integracion-liststand.md).
+- Cliente externo `liststand-client.ts`: `POST /auth/login` (cuenta técnica, token 30 min cacheado) + `POST /stands/liststand` con `{TipEvCod, EvenCod}`; desactiva la verificación TLS al llamar. Credenciales: `LISTSTAND_USUARIO` / `LISTSTAND_CLAVE`.
 - Catálogo de tipos/precios **hardcodeado** (`gess-service.ts:6-36`): `Preferencial`, `Estandar A`, `Estandar B/Columna`, `Isla Grande`.
 
 ### 5.4 Endpoints
@@ -77,8 +78,8 @@ bloques del plano 3D**.
 |---|---|---|
 | `GET` | `/api/gess/listar?eventoId=` \| `?bloqueId=` | Stands del evento / por bloque |
 | `PATCH` | `/api/gess/actualizar` | Vincular, documentos, imágenes (+ categorías), estado |
-| `POST` | `/api/gess/sync` · `/api/gess/mockup` | Importar / demo |
-| `POST` | `/api/planogess/fetch` | Fetch crudo al API externo |
+| `POST` | `/api/gess/sync` | Importar stands seleccionados del API |
+| `POST` | `/api/planogess/fetch` | Lista stands del API real del IIMP (login + liststand) |
 | `GET` | `/api/maestra/listar?tabla=` | Catálogos (`stand_estado`, `stand_tipologia`, …) |
 | `GET` | `/api/planos/planos-evento?tipoEvento&codigoEvento` | Bloques del evento (macro + hijos) |
 

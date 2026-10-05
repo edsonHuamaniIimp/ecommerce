@@ -69,7 +69,7 @@ export const facturacionController = {
   async actualizar(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    const { id, ...data } = (await request.json()) as { id: string; tipo?: string };
+    const { id, ...data } = (await request.json()) as { id: string; tipo?: string; modoPago?: string };
     if (!id) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
     await service.actualizar(id, data, session.email);
     return success({ ok: true });

@@ -91,7 +91,7 @@ reserva** (revisión por áreas, contrato por SGC, documentos) y un **bloque de 
 | `GET` | `/api/gess/listar?eventoId=` \| `?bloqueId=` | Stands del evento / por bloque |
 | `POST` | `/api/gess/sync` · `/api/gess/mockup` | Importar stands desde API externa / generar demo |
 | `PATCH` | `/api/gess/actualizar` | Vincular bloque, documentos, imágenes, estado |
-| `POST` | `/api/planogess/fetch` | Fetch crudo al API externo de stands |
+| `POST` | `/api/planogess/fetch` | Lista stands del API real del IIMP (login + liststand) |
 | `POST` | `/api/reservas/crear` | Crear la solicitud |
 | `POST` | `/api/upload` | Subir archivos |
 | `GET` | `/api/maestra/listar?tabla=` | Catálogos (comprobantes, estados) |

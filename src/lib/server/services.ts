@@ -7,7 +7,7 @@ import { AuthPrismaRepository } from "@/infrastructure/persistence/auth-reposito
 import { SolicitudesPrismaRepository } from "@/infrastructure/persistence/solicitudes-repository";
 import { PlanoPrismaRepository } from "@/infrastructure/persistence/plano-repository";
 import { KbServiciosClient } from "@/infrastructure/external/kbservicios-client";
-import { PlanogessClient } from "@/infrastructure/external/planogess-client";
+import { ListstandClient } from "@/infrastructure/external/liststand-client";
 import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import { SgcClient } from "@/infrastructure/external/sgc-client";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
@@ -49,7 +49,7 @@ const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
 const empresaRepo = new EmpresaPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
-const planogessClient = new PlanogessClient();
+const planogessClient = new ListstandClient();
 const sgcConfig = getSgcConfig();
 const sgcRepo = new SgcPrismaRepository();
 const sgcWebhookRepo = new SgcWebhookPrismaRepository();

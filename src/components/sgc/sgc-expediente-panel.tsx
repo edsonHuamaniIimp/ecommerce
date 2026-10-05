@@ -133,9 +133,9 @@ export function SgcExpedientePanel({
         contratoOk = false;
       }
       if (contratoOk) {
-        toast.success(`Enviado al SGC (contrato + ${enviados} anexo(s))`);
+        toast.success(`Enviado al SGC (contrato + ${enviados} documento(s))`);
       } else {
-        toast.info(`${enviados} anexo(s) enviados. Falta adjuntar el contrato del administrador.`);
+        toast.info(`${enviados} documento(s) enviados. Falta adjuntar el contrato del administrador.`);
       }
       refetch();
       onSolicitudChanged?.();
@@ -218,8 +218,8 @@ export function SgcExpedientePanel({
 
       {data.steps.length > 0 && (
         <div className="space-y-2">
-          {data.steps.map((step) => (
-            <div key={step.code} className="flex items-start gap-2">
+          {data.steps.map((step, idx) => (
+            <div key={step.code || `${idx}-${step.name}`} className="flex items-start gap-2">
               <StepIcon status={step.status} />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium">{step.name}</p>
@@ -241,8 +241,8 @@ export function SgcExpedientePanel({
       {data.history.length > 0 && (
         <div className="space-y-2 border-t border-border pt-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Historial SGC</p>
-          {data.history.map((item) => (
-            <div key={item.id} className="text-xs">
+          {data.history.map((item, idx) => (
+            <div key={item.id || `${idx}-${item.occurredAt ?? ""}`} className="text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{item.title}</span>
                 <span className="shrink-0 text-[10px] text-muted-foreground">{dateUtils.formatDateTime(item.occurredAt)}</span>
@@ -386,14 +386,14 @@ export function SgcExpedientePanel({
           <p className="text-[11px] text-muted-foreground">
             {contratoEnviado
               ? "El contrato ya está en el SGC. Cuando el SGC lo apruebe, aquí podrás descargar el contrato firmado."
-              : "Antes de enviar: adjunta abajo el contrato del administrador y los anexos del cliente. Después envíalos juntos al SGC."}
+              : "Antes de enviar: adjunta abajo el contrato del administrador y los documentos adjuntos del cliente. Después envíalos juntos al SGC."}
           </p>
 
           {!contratoEnviado && !(tieneContratoAdmin && tieneAnexos) && (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-700">
               Falta adjuntar: {!tieneContratoAdmin ? "el contrato del administrador" : ""}
               {!tieneContratoAdmin && !tieneAnexos ? " y " : ""}
-              {!tieneAnexos ? "los anexos requeridos" : ""}.
+              {!tieneAnexos ? "los documentos adjuntos" : ""}.
             </p>
           )}
 
@@ -411,7 +411,7 @@ export function SgcExpedientePanel({
               className="w-full"
               disabled={!tieneContratoAdmin || !tieneAnexos || faltanBloqueantes || enviandoContrato}
               onClick={enviarContrato}
-              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Envía el contrato y los anexos juntos para la revisión del SGC"}
+              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Envía el contrato y los documentos adjuntos juntos para la revisión del SGC"}
             >
               {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
               Enviar al SGC para revisión
@@ -425,10 +425,10 @@ export function SgcExpedientePanel({
               className="w-full"
               disabled={enviandoContrato || faltanBloqueantes}
               onClick={enviarContrato}
-              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Vuelve a enviar los anexos que falten"}
+              title={faltanBloqueantes ? "Faltan documentos obligatorios (Vigencia de Poderes / DNI)" : "Vuelve a enviar los documentos que falten"}
             >
               {enviandoContrato ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-              Enviar anexos faltantes
+              Enviar documentos faltantes
             </Button>
           )}
         </div>

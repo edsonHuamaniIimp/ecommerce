@@ -148,7 +148,7 @@ Funciones públicas:
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. IMPORTAR DATOS                                               │
 │                                                                 │
-│  KBEventos API ──→ POST /api/planogess ──→ proxy ──→ datos     │
+│  API stands IIMP ──→ POST /api/planogess ──→ proxy ──→ datos     │
 │       ↓                                                         │
 │  Mantenedor: Paso 1 — seleccionar ──→ POST /api/gess/sync      │
 │       ↓                                                         │

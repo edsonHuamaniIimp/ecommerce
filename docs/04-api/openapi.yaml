@@ -22,7 +22,7 @@ tags:
   - name: Plano
     description: Plano interactivo y stands
   - name: Gess
-    description: Proxy y vínculo con API planogess (KBEventos)
+    description: Stands del evento (catálogo local) e integración con el API de stands del IIMP (liststand)
   - name: Reservas
     description: Registro y consulta de reservas
   - name: Aprobaciones
@@ -152,7 +152,12 @@ paths:
   /gess/sync:
     post:
       tags: [Gess]
-      summary: Sincroniza stands desde el API externo planogess (KBEventos)
+      summary: Sincroniza stands del API de stands del IIMP (liststand) hacia la BD local (upsert por eventoId+standApiId)
+      description: |
+        Actualiza `tipoStand`, `medidas`, `pabellon` y `rawData`. En re-importación conserva el
+        estado local (`en_evaluacion`/`reservado`) si el API reporta `LIBRE`, no pisa la empresa
+        con vacío y no toca `bloqueId`, documentos ni imágenes. Ver
+        `docs/05-integraciones/integracion-liststand.md`.
       requestBody:
         required: true
         content:
@@ -162,8 +167,12 @@ paths:
               required: [eventoId]
               properties:
                 eventoId: { type: string }
-                tipoEvento: { type: integer }
-                codigoEvento: { type: integer }
+                tipoEvento:
+                  type: integer
+                  description: TipEvCod del evento versión (API del IIMP)
+                codigoEvento:
+                  type: integer
+                  description: EvenCod del evento versión (API del IIMP)
                 seleccionadas:
                   type: array
                   items:
@@ -176,6 +185,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GessSyncResult"
+  /planogess/fetch:
+    post:
+      tags: [Gess]
+      summary: Lista los stands del evento desde el API del IIMP (liststand) para el preview de Vinculación
+      description: |
+        Login con cuenta técnica (acceso VTA) + `POST /stands/liststand`. Devuelve filas aplanadas
+        (`stand`, `pabellon`, `tipo`, `area`, `precio`, `estado`, `moneda`, `orden`). Solo lectura.
+        Ver `docs/05-integraciones/integracion-liststand.md`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tipoEvento, codigoEvento]
+              properties:
+                tipoEvento:
+                  type: integer
+                  description: TipEvCod del evento versión
+                codigoEvento:
+                  type: integer
+                  description: EvenCod del evento versión
+      responses:
+        "200":
+          description: Filas de stands del evento
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
   /reservas:
     post:
       tags: [Reservas]

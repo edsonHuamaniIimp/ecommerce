@@ -242,8 +242,8 @@ export function MisPagosManager() {
                     >
                       <Paperclip className="h-3.5 w-3.5" />
                     </Button>
-                    {/* Con voucher adjunto la cuota queda bloqueada (sin editar/eliminar). */}
-                    {!cuota.comprobante && (
+                    {/* Con voucher adjunto la cuota queda bloqueada. Con plan del contrato no es editable. */}
+                    {!cuota.comprobante && !row.planCliente && (
                       <>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => abrirEditar(cuota)} title="Editar cuota">
                           <Pencil className="h-3.5 w-3.5" />
@@ -261,7 +261,7 @@ export function MisPagosManager() {
         </div>
       )}
 
-      {puedeGestionar && row.estado !== ESTADOS_FACTURACION.PAGADO && (
+      {puedeGestionar && row.estado !== ESTADOS_FACTURACION.PAGADO && !row.planCliente && (
         restante > 0 ? (
           <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => abrirCrear(row)}>
             <Plus className="h-3.5 w-3.5" />
@@ -272,6 +272,15 @@ export function MisPagosManager() {
             <span>Plan completo: 100% del monto total distribuido en cuotas.</span>
           </p>
         )
+      )}
+
+      {row.planCliente && (
+        <p className="text-[11px] text-muted-foreground">
+          <span>
+            Las cuotas las definió el cliente en el contrato; no son editables. Aquí solo puedes adjuntar el
+            voucher de pago de cada cuota.
+          </span>
+        </p>
       )}
     </div>
     );

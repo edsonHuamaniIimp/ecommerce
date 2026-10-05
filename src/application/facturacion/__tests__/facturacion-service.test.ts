@@ -50,7 +50,7 @@ function mockRepo(): IFacturacionRepository {
 
 const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
-  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", standCode: "44", correoSolicitante: "test@test.com", createdAt: "2024-06-01T00:00:00Z",
+  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
     { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null },
     { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null },
@@ -324,6 +324,38 @@ describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
     it("rechaza sin permisos de facturacion", () => {
       const svc = crearSvc(mockRepo());
       expect(() => svc.autorizarGestion([PERMISSIONS.PAGOS_VIEW])).toThrow();
+    });
+  });
+
+  // ==================== PLAN DEL CLIENTE (contrato) ====================
+  describe("plan definido por el cliente (plan_cuotas) — no editable", () => {
+    it("rechaza agregar cuota cuando el plan viene del contrato", async () => {
+      const repo = mockRepo();
+      vi.mocked(repo.detalle).mockResolvedValue({ ...sampleRow, planCliente: true });
+      const svc = crearSvc(repo);
+
+      await expect(svc.agregarCuota("f1", 1000, "2099-01-01", "f@iimp.org.pe")).rejects.toMatchObject({ status: 409 });
+      expect(repo.agregarCuota).not.toHaveBeenCalled();
+    });
+
+    it("rechaza eliminar cuota cuando el plan viene del contrato", async () => {
+      const repo = mockRepo();
+      vi.mocked(repo.facturacionDeCuota).mockResolvedValue({ ...sampleRow, planCliente: true });
+      const svc = crearSvc(repo);
+
+      await expect(svc.eliminarCuota("c1", "f@iimp.org.pe")).rejects.toMatchObject({ status: 409 });
+      expect(repo.eliminarCuota).not.toHaveBeenCalled();
+    });
+
+    it("rechaza cambiar el modo de pago pero permite confirmar pagos", async () => {
+      const repo = mockRepo();
+      vi.mocked(repo.detalle).mockResolvedValue({ ...sampleRow, planCliente: true });
+      const svc = crearSvc(repo);
+
+      await expect(svc.actualizar("f1", { modoPago: "completo" }, "f@iimp.org.pe")).rejects.toMatchObject({ status: 409 });
+
+      await svc.pagarCuota("c2", "f@iimp.org.pe", "/uploads/voucher.pdf");
+      expect(repo.pagarCuota).toHaveBeenCalledWith("c2", "f@iimp.org.pe", "/uploads/voucher.pdf");
     });
   });
 });
