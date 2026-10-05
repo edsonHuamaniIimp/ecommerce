@@ -65,7 +65,13 @@ variable "uploads_backend" {
 }
 
 variable "planogess_api_url" {
-  description = "URL de KBEventos PlanoGESS (R2) — vacio = no inyectar"
+  description = "URL de KBEventos PlanoGESS (R2) - vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "liststand_api_url" {
+  description = "URL base del API de stands del IIMP (liststand; Vinculacion) (R2) - vacio = no inyectar"
   type        = string
   default     = ""
 }
@@ -333,6 +339,8 @@ locals {
     can(var.secret_arns["niubizz_password"]) ? [{ name = "NIUBIZZ_PASSWORD", valueFrom = var.secret_arns["niubizz_password"] }] : [],
     can(var.secret_arns["iimp_proxy_pass"]) ? [{ name = "IIMP_PROXY_PASS", valueFrom = var.secret_arns["iimp_proxy_pass"] }] : [],
     can(var.secret_arns["integracion_api_key"]) ? [{ name = "INTEGRACION_API_KEY", valueFrom = var.secret_arns["integracion_api_key"] }] : [],
+    can(var.secret_arns["liststand_usuario"]) ? [{ name = "LISTSTAND_USUARIO", valueFrom = var.secret_arns["liststand_usuario"] }] : [],
+    can(var.secret_arns["liststand_clave"]) ? [{ name = "LISTSTAND_CLAVE", valueFrom = var.secret_arns["liststand_clave"] }] : [],
   )
 
   env_list = concat(
@@ -352,6 +360,7 @@ locals {
       { name = "NEXT_PUBLIC_API_URL", value = var.public_api_url },
     ],
     var.planogess_api_url != "" ? [{ name = "PLANOGESS_API_URL", value = var.planogess_api_url }] : [],
+    var.liststand_api_url != "" ? [{ name = "LISTSTAND_API_URL", value = var.liststand_api_url }] : [],
     var.kbservicios_url != "" ? [{ name = "KBSERVICIOS_URL", value = var.kbservicios_url }] : [],
     var.auspicios_api_url != "" ? [{ name = "AUSPICIOS_API_URL", value = var.auspicios_api_url }] : [],
     var.admin_email != "" ? [{ name = "ADMIN_EMAIL", value = var.admin_email }] : [],

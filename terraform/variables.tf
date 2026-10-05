@@ -135,6 +135,26 @@ variable "planogess_api_url" {
   default     = ""
 }
 
+variable "liststand_api_url" {
+  description = "URL base del API de stands del IIMP (liststand; Vinculacion). Pruebas: .../servicio-eventos-pruebas/api | Prod: .../servicio-eventos/api"
+  type        = string
+  default     = ""
+}
+
+variable "liststand_usuario" {
+  description = "Usuario de la cuenta tecnica liststand (acceso VTA, secreto) — vacio = no crear secreto"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "liststand_clave" {
+  description = "Clave de la cuenta tecnica liststand (acceso VTA, secreto) — vacio = no crear secreto"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "kbservicios_url" {
   description = "URL de KBServicios (eventos y tipos)"
   type        = string

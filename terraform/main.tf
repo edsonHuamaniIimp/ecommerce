@@ -164,6 +164,8 @@ module "secrets" {
   niubizz_password    = var.niubizz_password
   iimp_proxy_pass     = var.iimp_proxy_pass
   integracion_api_key = var.integracion_api_key
+  liststand_usuario   = var.liststand_usuario
+  liststand_clave     = var.liststand_clave
 
   common_tags = local.common_tags
 }
@@ -172,35 +174,36 @@ module "secrets" {
 module "ecs" {
   source = "./modules/ecs"
 
-  environment         = var.environment
-  vpc_id              = module.network.vpc_id
-  public_subnet_ids   = module.network.public_subnet_ids
-  private_subnet_ids  = module.network.private_subnet_ids
-  enable_nat_gateway  = var.enable_nat_gateway
-  secret_arns         = module.secrets.secret_arns
-  bucket_arn          = module.storage.bucket_arn
-  s3_bucket           = module.storage.bucket_name
-  efs_file_system_id  = module.uploads.file_system_id
-  efs_access_point_id = module.uploads.access_point_id
-  uploads_backend     = var.uploads_backend
-  planogess_api_url   = var.planogess_api_url
-  kbservicios_url     = var.kbservicios_url
-  auspicios_api_url   = var.auspicios_api_url
-  admin_email         = var.admin_email
-  niubizz_merchant_id = var.niubizz_merchant_id
-  niubizz_url_api     = var.niubizz_url_api
-  niubizz_url_js      = var.niubizz_url_js
-  iimp_proxy_url      = var.iimp_proxy_url
-  iimp_proxy_ip       = var.iimp_proxy_ip
-  public_api_url      = var.public_api_url
-  app_domain          = var.app_domain
-  certificate_arn     = module.acm.certificate_arn
-  enable_https        = var.enable_https
-  sgc_enabled         = var.sgc_enabled
-  sgc_mode            = var.sgc_mode
-  sgc_area_code       = var.sgc_area_code
+  environment            = var.environment
+  vpc_id                 = module.network.vpc_id
+  public_subnet_ids      = module.network.public_subnet_ids
+  private_subnet_ids     = module.network.private_subnet_ids
+  enable_nat_gateway     = var.enable_nat_gateway
+  secret_arns            = module.secrets.secret_arns
+  bucket_arn             = module.storage.bucket_arn
+  s3_bucket              = module.storage.bucket_name
+  efs_file_system_id     = module.uploads.file_system_id
+  efs_access_point_id    = module.uploads.access_point_id
+  uploads_backend        = var.uploads_backend
+  planogess_api_url      = var.planogess_api_url
+  liststand_api_url      = var.liststand_api_url
+  kbservicios_url        = var.kbservicios_url
+  auspicios_api_url      = var.auspicios_api_url
+  admin_email            = var.admin_email
+  niubizz_merchant_id    = var.niubizz_merchant_id
+  niubizz_url_api        = var.niubizz_url_api
+  niubizz_url_js         = var.niubizz_url_js
+  iimp_proxy_url         = var.iimp_proxy_url
+  iimp_proxy_ip          = var.iimp_proxy_ip
+  public_api_url         = var.public_api_url
+  app_domain             = var.app_domain
+  certificate_arn        = module.acm.certificate_arn
+  enable_https           = var.enable_https
+  sgc_enabled            = var.sgc_enabled
+  sgc_mode               = var.sgc_mode
+  sgc_area_code          = var.sgc_area_code
   sgc_contract_type_code = var.sgc_contract_type_code
-  sgc_timeout_ms      = var.sgc_timeout_ms
+  sgc_timeout_ms         = var.sgc_timeout_ms
   # El redirect 80→443 solo si NO hay CloudFront delante (evita el loop de redirecciones)
   http_redirect_to_https         = var.enable_https && !var.enable_cloudfront
   restrict_alb_to_cloudfront     = var.restrict_alb_to_cloudfront

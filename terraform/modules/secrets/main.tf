@@ -77,6 +77,20 @@ variable "integracion_api_key" {
   sensitive   = true
 }
 
+variable "liststand_usuario" {
+  description = "Usuario de la cuenta tecnica del API de stands del IIMP (liststand, acceso VTA) (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "liststand_clave" {
+  description = "Clave de la cuenta tecnica del API de stands del IIMP (liststand, acceso VTA) (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 locals {
   tags = merge(var.common_tags, { component = "secrets" })
   name = "iimp-ctrst-${var.environment}"
@@ -205,6 +219,31 @@ resource "aws_secretsmanager_secret_version" "integracion_api_key" {
   secret_string = var.integracion_api_key
 }
 
+# ── API de stands del IIMP (liststand, Vinculacion) ─────────────────────────
+resource "aws_secretsmanager_secret" "liststand_usuario" {
+  count = var.liststand_usuario != "" ? 1 : 0
+  name  = "${local.name}-liststand-usuario"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "liststand_usuario" {
+  count         = var.liststand_usuario != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.liststand_usuario[0].id
+  secret_string = var.liststand_usuario
+}
+
+resource "aws_secretsmanager_secret" "liststand_clave" {
+  count = var.liststand_clave != "" ? 1 : 0
+  name  = "${local.name}-liststand-clave"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "liststand_clave" {
+  count         = var.liststand_clave != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.liststand_clave[0].id
+  secret_string = var.liststand_clave
+}
+
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
   value = merge(
@@ -219,6 +258,8 @@ output "secret_arns" {
     var.niubizz_password != "" ? { niubizz_password = aws_secretsmanager_secret.niubizz_password[0].arn } : {},
     var.iimp_proxy_pass != "" ? { iimp_proxy_pass = aws_secretsmanager_secret.iimp_proxy_pass[0].arn } : {},
     var.integracion_api_key != "" ? { integracion_api_key = aws_secretsmanager_secret.integracion_api_key[0].arn } : {},
+    var.liststand_usuario != "" ? { liststand_usuario = aws_secretsmanager_secret.liststand_usuario[0].arn } : {},
+    var.liststand_clave != "" ? { liststand_clave = aws_secretsmanager_secret.liststand_clave[0].arn } : {},
   )
 }
 
