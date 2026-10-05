@@ -12,6 +12,7 @@ import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { areaDesdeTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
@@ -38,6 +39,10 @@ import { Bloque3D, Floor, FurnitureRenderer } from "./plano-3d-componentes";
 interface GessLinked {
   standCode: string;
   tipoStand: string | null;
+  /** Pabellon del evento al que pertenece el stand (viene del vinculo/importacion). */
+  pabellon: string | null;
+  /** Area comercial del stand en m² (API liststand o inferida del tipo). */
+  area: string | null;
   empresa: string | null;
   empresaLogo: string | null;
   /** Precio neto (USD) resuelto del stand, para el paso de cuotas. */
@@ -172,12 +177,16 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           const standApiId = String(r.standApiId ?? r.stand_api_id ?? "");
           const apiRow = apiById.get(standApiId);
 
-          const tipoStand = (apiRow ? (apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand) : (r.tipoStand ?? r.tipo_stand ?? null)) as string | null;
-          // DB tiene prioridad sobre API para estado (refleja cambios locales como en_evaluacion)
-          const estadoDb = (r.estado ?? null) as string | null;
-          const estadoApi = apiRow ? (apiRow.status ?? apiRow.estado) as string | null : null;
-          const estado = estadoDb ?? estadoApi;
-          const empresa = (apiRow ? (apiRow.company ?? apiRow.empresa ?? apiRow.razon_social) : (r.empresa ?? null)) as string | null;
+const tipoStand = (apiRow ? (apiRow.type ?? apiRow.tipo ?? apiRow.tipo_stand) : (r.tipoStand ?? r.tipo_stand ?? null)) as string | null;
+// DB tiene prioridad sobre API para estado (refleja cambios locales como en_evaluacion)
+const estadoDb = (r.estado ?? null) as string | null;
+const estadoApi = apiRow ? (apiRow.status ?? apiRow.estado) as string | null : null;
+const estado = estadoDb ?? estadoApi;
+// La empresa vive en la BD (RF-09 completa reservas del portal); la API externa no la trae.
+const empresa = ((r.empresa ?? null) as string | null) || (apiRow ? ((apiRow.company ?? apiRow.empresa ?? apiRow.razon_social ?? null) as string | null) : null);
+const pabellon = (r.pabellon ?? null) as string | null;
+const areaApi = apiRow ? String(apiRow.area ?? "").trim() : "";
+const area = areaApi ? `${areaApi} m²` : areaDesdeTipoStand(tipoStand);
           /* Precio mostrado como `medidas` (compatibilidad del plano): catalogo por tipo + fallback de la fila. */
           const precio = resolverPrecioStand({
             medidas: (r.medidas ?? null) as string | null,
@@ -186,10 +195,12 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           });
           const medidas = precioTexto(precio);
 
-          map.set(String(bloqueId), {
-            standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
-            tipoStand,
-            empresa,
+map.set(String(bloqueId), {
+  standCode: String(apiRow ? getIdApi(apiRow) : (r.standCode ?? r.stand_code ?? "")),
+  tipoStand,
+  pabellon,
+  area,
+  empresa,
             empresaLogo: (r.empresaLogo ?? null) as string | null,
             precio,
             tipoImagen: (r.tipoImagen ?? null) as string | null,
@@ -669,9 +680,11 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
           {detailModal && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-lg border border-border bg-secondary p-3 text-xs">
-                <div><span className="text-muted-foreground">Codigo</span><p className="font-mono font-semibold text-primary">{detailModal.standCode}</p></div>
+                <div><span className="text-muted-foreground">Pabellón</span><p className="font-medium">{detailModal.pabellon ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Área</span><p className="font-medium">{detailModal.area ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Código</span><p className="font-mono font-semibold text-primary">{detailModal.standCode}</p></div>
                 <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Medidas</span><p className="font-medium">{detailModal.medidas ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Precio</span><p className="font-medium">{detailModal.medidas ?? "—"}</p></div>
                 <div>
                   <span className="text-muted-foreground">Estado</span>
                   <div className="mt-0.5">
@@ -681,7 +694,13 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
                 {detailModal.empresa && (
                   <div className="col-span-2">
                     <span className="text-muted-foreground">Empresa</span>
-                    <p className="font-medium">{detailModal.empresa}</p>
+                    <div className="flex items-center gap-2">
+                      {detailModal.empresaLogo && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={detailModal.empresaLogo} alt={`Logo de ${detailModal.empresa}`} className="h-5 w-5 rounded border border-border bg-white object-contain" />
+                      )}
+                      <p className="font-medium">{detailModal.empresa}</p>
+                    </div>
                   </div>
                 )}
               </div>

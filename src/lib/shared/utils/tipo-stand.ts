@@ -18,3 +18,10 @@ export function labelTipoStand(tipo: string | null | undefined): string | null {
   if (!clave) return null;
   return TIPOS_STAND_CATALOGO.find((t) => t.key === clave)?.label ?? clave;
 }
+
+/** Area declarada en el tipo de stand ("ESQUINERO 16MT2" -> "16 m2"); null si no se puede inferir. */
+export function areaDesdeTipoStand(tipo: string | null | undefined): string | null {
+  const match = /(\d+(?:[.,]\d+)?)\s*MT2/i.exec(String(tipo ?? ""));
+  const numero = match?.[1]?.replace(",", ".");
+  return numero ? `${numero} m²` : null;
+}
