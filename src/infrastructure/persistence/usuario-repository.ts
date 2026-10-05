@@ -34,6 +34,7 @@ function aFila(r: FilaUsuario): UsuarioPortalRow {
     idEmpresa: r.idEmpresa,
     /* Prioriza la empresa local (FK) y cae al nombre guardado al vincular por la API. */
     empresa: r.empresa?.razonSocial ?? r.nombreEmpresa ?? null,
+    esPortal: Boolean(r.empresaId || r.idEmpresa),
     sieCode: r.sieCode,
     debeCambiarPassword: r.debeCambiarPassword,
   };
@@ -41,9 +42,8 @@ function aFila(r: FilaUsuario): UsuarioPortalRow {
 
 export class UsuarioPrismaRepository implements IUsuarioRepository {
   async listarUsuariosPortal(): Promise<UsuarioPortalRow[]> {
+    /* Todos los usuarios: el front filtra por empresa (Portal / Sin empresa). */
     const rows = await prisma.userRole.findMany({
-      /* Usuarios del portal: tienen empresa local (FK) o empresa vinculada por la API (codigo SIE). */
-      where: { OR: [{ empresaId: { not: null } }, { idEmpresa: { not: null } }] },
       include: includeUsuario,
       orderBy: [{ email: "asc" }],
     });

@@ -73,6 +73,7 @@ function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repositor
     empresaId: null,
     idEmpresa: "E0000003804",
     empresa: "Gloria S.A.",
+    esPortal: true,
     sieCode: "P0000012345",
     debeCambiarPassword: true,
     ...overrides,

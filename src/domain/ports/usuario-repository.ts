@@ -10,6 +10,8 @@ export interface UsuarioPortalRow {
   /** Codigo SIE de la empresa en la API de entidades (ej. E0000003804). */
   idEmpresa: string | null;
   empresa: string | null;
+  /** true = tiene empresa vinculada (Portal del Cliente); false = usuario interno/sin empresa. */
+  esPortal: boolean;
   /** Identificador de la persona en servicio-persona (sie_code). */
   sieCode: string | null;
   debeCambiarPassword: boolean;

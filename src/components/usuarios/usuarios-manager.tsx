@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { usuariosService } from "@/lib/client/api/services/usuarios-service";
 import { rolesService } from "@/lib/client/api/services/roles-service";
 import { EmpresaPicker } from "@/components/shared/empresa-picker";
-import { BADGE_STYLES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS } from "@/lib/shared/constants";
+import { BADGE_STYLES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import type {
   EmpresaAccesoDTO,
@@ -47,6 +47,10 @@ interface RolOpcion {
   id: string;
   nombre: string;
 }
+
+/** Filtro de la bandeja por empresa (UI_SENTINEL.TODOS = sin filtrar). */
+const FILTRO_EMPRESA = { PORTAL: "portal", SIN_EMPRESA: "sin-empresa" } as const;
+type FiltroEmpresa = typeof UI_SENTINEL.TODOS | typeof FILTRO_EMPRESA.PORTAL | typeof FILTRO_EMPRESA.SIN_EMPRESA;
 
 /**
  * Fila parseada del textarea de alta masiva (una linea por usuario):
@@ -90,6 +94,7 @@ export function UsuariosManager() {
   const [roles, setRoles] = useState<RolOpcion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [filtroEmpresa, setFiltroEmpresa] = useState<FiltroEmpresa>(UI_SENTINEL.TODOS);
   const [modalIndividual, setModalIndividual] = useState(false);
   const [modalLote, setModalLote] = useState(false);
   const [modalBuscar, setModalBuscar] = useState(false);
@@ -156,12 +161,17 @@ export function UsuariosManager() {
 
   const filtrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
-    if (!termino) return usuarios ?? [];
-    return (usuarios ?? []).filter((u) =>
-      [u.email, u.empresa, u.rol, u.sieCode, u.idEmpresa]
-        .some((valor) => (valor ?? "").toLowerCase().includes(termino)),
-    );
-  }, [usuarios, busqueda]);
+    return (usuarios ?? []).filter((u) => {
+      const coincideEmpresa =
+        filtroEmpresa === UI_SENTINEL.TODOS
+        || (filtroEmpresa === FILTRO_EMPRESA.PORTAL && u.esPortal)
+        || (filtroEmpresa === FILTRO_EMPRESA.SIN_EMPRESA && !u.esPortal);
+      if (!coincideEmpresa) return false;
+      if (!termino) return true;
+      return [u.email, u.empresa, u.rol, u.sieCode, u.idEmpresa]
+        .some((valor) => (valor ?? "").toLowerCase().includes(termino));
+    });
+  }, [usuarios, busqueda, filtroEmpresa]);
 
   return (
     <div className="space-y-3">
@@ -170,6 +180,16 @@ export function UsuariosManager() {
           {usuarios === null ? "Cargando..." : `${filtrados.length} de ${usuarios.length} usuarios`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={filtroEmpresa} onValueChange={(v) => { setFiltroEmpresa(v as FiltroEmpresa); }}>
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UI_SENTINEL.TODOS}><span>Todos</span></SelectItem>
+              <SelectItem value={FILTRO_EMPRESA.PORTAL}><span>Con empresa (Portal)</span></SelectItem>
+              <SelectItem value={FILTRO_EMPRESA.SIN_EMPRESA}><span>Sin empresa</span></SelectItem>
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -195,8 +215,9 @@ export function UsuariosManager() {
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        La persona se registra en <strong>servicio-persona</strong> (fuente) y la empresa se elige de la API de entidades
-        (codigo SIE). Aqui solo se guarda el identificador de la persona, el correo del acceso, la empresa y el rol.
+        La persona vive en <strong>servicio-persona</strong> (fuente) y la empresa se elige de la API de entidades
+        (codigo SIE). Aqui se guarda el identificador de la persona, el correo, la empresa y el rol. Incluye usuarios
+        internos (sin empresa): usalos con el filtro y asignales empresa con el lapiz.
       </p>
 
       {error ? (
@@ -222,8 +243,14 @@ export function UsuariosManager() {
                   <TableCell className="text-xs font-medium">{u.email}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{u.sieCode ?? "—"}</TableCell>
                   <TableCell className="max-w-[240px] text-xs text-muted-foreground">
-                    <span className="block truncate">{u.empresa ?? "—"}</span>
-                    {u.idEmpresa && <span className="block font-mono text-[10px]">{u.idEmpresa}</span>}
+                    {u.esPortal ? (
+                      <>
+                        <span className="block truncate">{u.empresa ?? "—"}</span>
+                        {u.idEmpresa && <span className="block font-mono text-[10px]">{u.idEmpresa}</span>}
+                      </>
+                    ) : (
+                      <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}><span>Sin empresa</span></Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="pointer-events-none text-[10px]"><span>{u.rol}</span></Badge>
