@@ -1,4 +1,5 @@
-import { APP_URL, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { getAppUrl } from "@/lib/server/app-url";
 import { PIE_EN, envoltura, esc, fila } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
 
@@ -54,7 +55,7 @@ export const plantillasEn: PlantillasEmail = {
           </tr>
         </table>
         <div style="text-align:center;margin:20px 0">
-          <a href="${APP_URL}/auth/login" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Sign in to the portal</a>
+          <a href="${getAppUrl()}/auth/login" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Sign in to the portal</a>
         </div>
         <p style="font-size:13px;color:#475569">On your first sign-in you will be asked to <strong>change the password</strong> and validate your company data (legal name, RUC, address and legal representative), which will be used to generate the contract.</p>
         <p style="font-size:13px;color:#475569">If you do not recognize this account, please contact the IIMP Help Desk.</p>
@@ -79,7 +80,7 @@ export const plantillasEn: PlantillasEmail = {
         </table>
         ${datos.mensaje ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">${esc(datos.mensaje)}</p>` : ""}
         <div style="text-align:center;margin:20px 0 0 0">
-          <a href="${APP_URL}/dashboard/roles" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review request</a>
+          <a href="${getAppUrl()}/dashboard/roles" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review request</a>
         </div>
       `,
       PIE_EN,
@@ -87,7 +88,7 @@ export const plantillasEn: PlantillasEmail = {
   }),
 
   "invitacion-cuenta": ({ nombre, razonSocial, token }) => {
-    const url = `${APP_URL}/auth/recuperar/${token}`;
+    const url = `${getAppUrl()}/auth/recuperar/${token}`;
     return {
       subject: "Your exhibitor account is ready - IIMP",
       html: envoltura(
@@ -121,8 +122,8 @@ export const plantillasEn: PlantillasEmail = {
 
   "reserva-confirmacion": ({ standCodes, razonSocial, documento, esMultiple, solicitudId }) => {
     const linkUrl = solicitudId
-      ? `${APP_URL}/dashboard/mis-solicitudes?id=${encodeURIComponent(solicitudId)}`
-      : `${APP_URL}/dashboard/mis-solicitudes`;
+      ? `${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(solicitudId)}`
+      : `${getAppUrl()}/dashboard/mis-solicitudes`;
     const subject = esMultiple
       ? "Multiple request registered - IIMP Contratos Stands"
       : "Stand booking registered - IIMP Contratos Stands";
@@ -194,8 +195,8 @@ export const plantillasEn: PlantillasEmail = {
     const stands = standCodes.split(",").map((s) => s.trim()).filter(Boolean);
     const subject = `New booking request (${stands.length} ${stands.length === 1 ? "stand" : "stands"}) - ${razonSocial}`;
     const link = solicitudId
-      ? `${APP_URL}/dashboard/solicitudes?id=${encodeURIComponent(solicitudId)}`
-      : `${APP_URL}/dashboard/solicitudes`;
+      ? `${getAppUrl()}/dashboard/solicitudes?id=${encodeURIComponent(solicitudId)}`
+      : `${getAppUrl()}/dashboard/solicitudes`;
     const chips = stands
       .map(
         (s) =>
@@ -360,7 +361,7 @@ export const plantillasEn: PlantillasEmail = {
   </tr>
   <tr>
     <td style="padding:0 32px 20px 32px;text-align:center">
-      <a href="${APP_URL}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">View my request status</a>
+      <a href="${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">View my request status</a>
     </td>
   </tr>
   <tr>
@@ -394,7 +395,7 @@ export const plantillasEn: PlantillasEmail = {
           ${fila("Document", esc(`${label} ${numero}`))}
         </table>
         <div style="text-align:center;margin:20px 0">
-          <a href="${APP_URL}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my payments</a>
+          <a href="${getAppUrl()}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my payments</a>
         </div>
         <p style="font-size:13px;color:#475569">You can view and download it from the Client Portal.</p>
       `,

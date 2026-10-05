@@ -1,7 +1,8 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID, APP_URL } from "@/lib/shared/constants";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
@@ -104,14 +105,14 @@ export class ReservaApplicationService {
               tipo: "reserva_multiple",
               clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_CLIENTE,
               datos: { total: createdStandIds.length, stands: standCodes.join(", ") },
-              url: `${APP_URL}/dashboard/mis-solicitudes?id=${solicitudId}`,
+              url: `${getAppUrl()}/dashboard/mis-solicitudes?id=${solicitudId}`,
             });
             await this.solicitudesRepo.crearAlertaReserva({
               userId: ADMIN_USER_ID,
               tipo: "reserva_multiple",
               clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_ADMIN,
               datos: { total: createdStandIds.length, stands: standCodes.join(", ") },
-              url: `${APP_URL}/dashboard/solicitudes?id=${solicitudId}`,
+              url: `${getAppUrl()}/dashboard/solicitudes?id=${solicitudId}`,
             });
           } catch { /* ok */ }
         }

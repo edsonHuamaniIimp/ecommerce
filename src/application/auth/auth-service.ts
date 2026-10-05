@@ -6,7 +6,8 @@ import { generarCodigoNumerico, generarTokenAleatorio } from "@/lib/server/utils
 import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/password";
 import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, APP_URL } from "@/lib/shared/constants";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH } from "@/lib/shared/constants";
+import { getAppUrl } from "@/lib/server/app-url";
 import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
 import type { SessionResult } from "@/types/dto/auth/session-result.dto";
@@ -364,7 +365,7 @@ export class AuthApplicationService {
     const token = generarTokenAleatorio();
     await this.repo.setResetToken(user.id, token, new Date(Date.now() + RESET_PASSWORD_MINUTOS_VIGENCIA * MS_POR_MINUTO));
 
-    const resetUrl = `${APP_URL}/auth/recuperar/${token}`;
+    const resetUrl = `${getAppUrl()}/auth/recuperar/${token}`;
     await enviarEmailPlantilla({
       to: user.email,
       plantilla: "reset-password",
