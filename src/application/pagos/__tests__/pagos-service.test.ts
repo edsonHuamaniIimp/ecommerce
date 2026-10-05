@@ -22,6 +22,7 @@ function mockRepo(): IFacturacionRepository {
     adjuntarVoucher: vi.fn(),
     pagarCuota: vi.fn(),
     adjuntarComprobanteFiscal: vi.fn(),
+    guardarDocumentoIImp: vi.fn(),
     actualizar: vi.fn(),
     eliminar: vi.fn(),
     eliminarCuota: vi.fn(),
@@ -38,8 +39,8 @@ function rowConVoucher(): FacturacionRow {
   return {
     id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
     montoTotal: 2000, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
-    correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
-    cuotas: [{ id: "c1", numero: 1, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: "/uploads/v.pdf", comprobanteFiscal: null }],
+    correoSolicitante: "a@b.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
+    cuotas: [{ id: "c1", numero: 1, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: "/uploads/v.pdf", comprobanteFiscal: null, iimpDocumento: null }],
   };
 }
 
@@ -47,10 +48,10 @@ function rowConCuotas(total: number, montos: number[]): FacturacionRow {
   return {
     id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
     montoTotal: total, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
-    correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
+    correoSolicitante: "a@b.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
     cuotas: montos.map((m, i) => ({
       id: `c${i + 1}`, numero: i + 1, monto: m,
-      fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null,
+      fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null,
     })),
   };
 }
@@ -58,7 +59,7 @@ function rowConCuotas(total: number, montos: number[]): FacturacionRow {
 const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1", tipo: "manual", estado: "pendiente",
   montoTotal: 3000, moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44",
-  correoSolicitante: "a@b.com", createdAt: "2024-06-01T00:00:00Z",
+  correoSolicitante: "a@b.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [],
 };
 

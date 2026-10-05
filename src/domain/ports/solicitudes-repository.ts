@@ -1,4 +1,4 @@
-import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud } from "../models/entities";
+import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "../models/entities";
 import type { AlertaClave, AlertaDatos } from "@/lib/shared/alert-templates";
 
 export interface SolicitudesListParams {
@@ -28,7 +28,7 @@ export interface ISolicitudesRepository {
     reviewerEmail: string;
   }): Promise<RevisionEntity>;
   crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity>;
-  crearSolicitud(standIds: string[], userId?: string, email?: string): Promise<string>;
+    crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null): Promise<string>;
   crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string }): Promise<void>;
   crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity>;
   tieneReevaluacionPendiente(solicitudId: string): Promise<boolean>;
@@ -53,4 +53,23 @@ export interface ISolicitudesRepository {
    * `uploadedBy = "sistema"`), garantizando un unico contrato vigente por solicitud.
    */
   upsertContratoSistema(solicitudId: string, url: string, nombre: string): Promise<void>;
+  /** Reserva oficial en el IIMP: guarda contrato, cuenta corriente, cliente y la respuesta completa. */
+  guardarReservaIImp(solicitudId: string, data: {
+    contrato: string;
+    cuentaCorriente: string;
+    clienteCodigo: string | null;
+    reserva: unknown;
+    at: Date;
+  }): Promise<void>;
+  /** Datos para armar el payload de `POST /stands/reserva` del IIMP. */
+  datosReservaIImp(solicitudId: string): Promise<{
+    iimpContrato: string | null;
+    email: string | null;
+    tipoEvento: number | null;
+    codigoEvento: number | null;
+    stands: string[];
+    planCuotas: PlanCuotasSolicitud | null;
+    /** Datos comerciales/fiscales del paso 1 del wizard (solicitudes nuevas). */
+    datosFacturacion: DatosFacturacionSolicitud | null;
+  } | null>;
 }

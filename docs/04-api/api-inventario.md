@@ -208,6 +208,7 @@ Vista del cliente (`pagos:view`); cada acción valida propiedad de la facturaci�
 | `/api/pagos/actualizar-cuota` | POST | Edita monto/vencimiento (`cuotaId`) |
 | `/api/pagos/adjuntar-voucher` | POST | Adjunta/reemplaza el voucher (`cuotaId`, `comprobante`) sin cambiar estado |
 | `/api/pagos/eliminar-cuota` | POST | Elimina cuota y renumera las restantes |
+| `/api/pagos/solicitar-factura` | POST | Registra la reserva en el IIMP y emite la factura de la 1ra cuota (`cuotaId`); 409 si ya existe contrato IIMP |
 
 ### 3.15 Reservas — `src/app/api/reservas/[...slug]/route.ts`
 

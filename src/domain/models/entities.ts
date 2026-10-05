@@ -190,6 +190,12 @@ export interface SolicitudRow {
   recortePlanoUrl?: string | null;
   /** Plan de cuotas configurado al reservar (snapshot para regenerar el contrato). */
   planCuotas?: PlanCuotasSolicitud | null;
+  /** Reserva oficial en el IIMP: contrato, cuenta corriente, cliente y respuesta completa. */
+  iimpContrato?: string | null;
+  iimpCuentaCorriente?: string | null;
+  iimpClienteCodigo?: string | null;
+  iimpReserva?: unknown;
+  iimpReservaAt?: Date | null;
   documentos: unknown;
   imagenes: unknown;
   docsAdjuntosCount: number;
@@ -233,4 +239,21 @@ export interface PlanCuotasSolicitud {
   /** `completo` | `cuotas` | `personalizado` (ver MODOS_PAGO). */
   modalidad: string;
   cuotas: PlanCuotasItem[];
+}
+
+/**
+ * Snapshot de los datos comerciales/fiscales que el cliente llena en el paso 1
+ * del wizard de reserva; fuente del payload de `POST /stands/reserva` del IIMP.
+ */
+export interface DatosFacturacionSolicitud {
+  /** `factura` | `boleta` (TIPOS_COMPROBANTE). */
+  tipoComprobante: string | null;
+  /** `RUC` | `DNI` (TIPOS_DOCUMENTO). */
+  tipoDocumento: string;
+  numeroDocumento: string;
+  razonSocial: string;
+  direccion: string | null;
+  telefono: string | null;
+  contacto: string | null;
+  email: string;
 }

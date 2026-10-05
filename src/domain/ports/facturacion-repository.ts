@@ -19,6 +19,9 @@ export interface FacturacionRow {
   planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
+  /** Contrato y cuenta corriente del IIMP cuando la reserva ya se registro alli. */
+  iimpContrato: string | null;
+  iimpCuentaCorriente: string | null;
   createdAt: string;
   cuotas: Array<{
     id: string;
@@ -28,7 +31,20 @@ export interface FacturacionRow {
     estado: string;
     comprobante: string | null;
     comprobanteFiscal: ComprobanteFiscalRow | null;
+    /** Documento fiscal emitido por el IIMP para la cuota (1ra al reservar; resto en su fecha). */
+    iimpDocumento: IimpDocumentoRow | null;
   }>;
+}
+
+/** Comprobante fiscal emitido por el API de reserva del IIMP. */
+export interface IimpDocumentoRow {
+  tipoDocumento: string;
+  serie: string;
+  numero: number;
+  fechaEmision: string;
+  tipoCambio: string;
+  igv: string;
+  total: string;
 }
 
 export interface FacturacionListParams {
@@ -52,7 +68,6 @@ export interface ClienteIdent {
 export interface FacturacionClienteParams extends ClienteIdent {
   page: number;
   perPage: number;
-  eventoId?: string;
 }
 
 /** Datos editables de una cuota por el cliente/admin. */
@@ -80,6 +95,8 @@ export interface IFacturacionRepository {
   pagarCuota(cuotaId: string, createdBy: string, comprobante: string | null): Promise<void>;
   /** Adjunta/reemplaza el comprobante fiscal (boleta/factura) de una cuota pagada. */
   adjuntarComprobanteFiscal(cuotaId: string, data: DatosComprobanteFiscal, createdBy: string): Promise<void>;
+  /** Guarda el documento fiscal emitido por el IIMP en la cuota con ese numero. */
+  guardarDocumentoIImp(facturacionId: string, numero: number, documento: unknown, emitidaAt: Date): Promise<void>;
   actualizar(id: string, data: { tipo?: string; modoPago?: string }, createdBy: string): Promise<void>;
   eliminar(id: string, createdBy: string): Promise<void>;
   eliminarCuota(cuotaId: string, createdBy: string): Promise<void>;

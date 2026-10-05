@@ -64,7 +64,10 @@ Lógica en `src/components/plano/reserva/use-reserva-form.ts`.
 El borrador se guarda en IndexedDB por conjunto de IDs y se borra tras el envío (`use-reserva-form.ts:10-84`).
 
 ### 3.5 Registro
-- `POST /api/reservas/crear` con `{ standIds[], documentos?, datos? }` (`reserva.validator.ts:3-12`).
+- `POST /api/reservas/crear` con `{ standIds[], documentos?, datos? }` (`reserva.validator.ts:3-15`).
+  `datos` incluye el snapshot fiscal del paso 1 (comprobante, tipo/nro documento, razón social,
+  dirección, teléfono, contacto, correo); se guarda en `solicitud.datos_facturacion` y alimenta
+  la reserva/facturación del IIMP (ver [integracion-reserva-iimp.md](../05-integraciones/integracion-reserva-iimp.md)).
 - Backend (`reserva-service.ts:15-113`): valida que los stands estén `disponible`; los pasa a `en_evaluacion`; crea `Solicitud` + `Revision` inicial (nivel local **Asociado**); genera alertas (a los revisores del Asociado —roles logística/comunicación— y, si multi-stand, al cliente y al admin) y envía correos.
 - Post-envío: 1 stand muestra toast; N stands muestra modal con el flujo de 5 pasos.
 

@@ -120,7 +120,11 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findPerfilByEmail(email: string) {
     return prisma.userRole.findFirst({
       where: { email },
-      select: { email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true, idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true },
+      select: {
+        email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
+        idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
+        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true } },
+      },
     });
   }
 
@@ -130,7 +134,7 @@ export class AuthPrismaRepository implements IAuthRepository {
     return u?.empresaId ?? null;
   }
 
-  async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; logoUrl?: string | null; firmaUrl?: string | null }) {
+  async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }) {
     await prisma.userRole.updateMany({ where: { email }, data });
   }
 

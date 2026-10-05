@@ -1,12 +1,19 @@
+export interface DatosFacturacionRequestDTO {
+  razonSocial: string;
+  tipoDocumento: string;
+  numeroDocumento: string;
+  email: string;
+  /** Datos comerciales del paso 1 (snapshot fiscal de la solicitud). */
+  tipoComprobante?: string;
+  direccion?: string;
+  telefono?: string;
+  contacto?: string;
+}
+
 export interface ReservaRequestDTO {
   standIds: string[];
   documentos?: string[];
-  datos?: {
-    razonSocial: string;
-    tipoDocumento: string;
-    numeroDocumento: string;
-    email: string;
-  };
+  datos?: DatosFacturacionRequestDTO;
 }
 
 export interface ReservaResponseDTO {

@@ -158,7 +158,7 @@ function PerfilPageContent() {
     setSearchEmpresa(row.empresa);
     setEmpresasResults([]);
     try {
-      await perfilService.update({ idEmpresa: row.id_empresa, nombreEmpresa: row.empresa });
+      await perfilService.update({ idEmpresa: row.id_empresa, nombreEmpresa: row.empresa, ruc: row.documento || null });
       toast.success("Empresa vinculada");
     } catch { toast.error("Error al vincular empresa"); }
   };
@@ -169,7 +169,7 @@ function PerfilPageContent() {
     setSearchEmpresa("");
     setEmpresasResults([]);
     try {
-      await perfilService.update({ idEmpresa: null, nombreEmpresa: null });
+      await perfilService.update({ idEmpresa: null, nombreEmpresa: null, ruc: null });
       toast.success("Empresa desvinculada");
     } catch { toast.error("Error al desvincular"); }
   };

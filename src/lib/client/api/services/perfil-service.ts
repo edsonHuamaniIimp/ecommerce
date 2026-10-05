@@ -10,6 +10,17 @@ interface PerfilDTO {
   tipoUsuarioId?: number | null;
   idEmpresa?: string | null;
   nombreEmpresa?: string | null;
+  /** RUC de la empresa seleccionada; el servidor resuelve la empresa fiscal local (FK). */
+  ruc?: string | null;
+  /** Empresa fiscal local vinculada (viene del GET); null si no hay registro local con su RUC. */
+  empresa?: {
+    ruc: string;
+    razonSocial: string;
+    direccionFiscal: string | null;
+    telefono: string | null;
+    emailContacto: string | null;
+    representanteLegalNombre: string | null;
+  } | null;
   /** Logo propio del usuario (URL); prioridad sobre el de su empresa en el mapa. */
   logoUrl?: string | null;
   /** Firma digital del usuario (imagen); se usa para firmar contratos desde el portal. */

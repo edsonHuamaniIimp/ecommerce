@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, FileDown, FileText, LayoutGrid, Paperclip, Pencil, Plus, Receipt, Rows3, Trash2, Wallet } from "lucide-react";
+import { CreditCard, Eye, FileDown, FileText, LayoutGrid, Paperclip, Pencil, Plus, Rows3, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -65,6 +65,7 @@ export function MisPagosManager() {
   const inputVoucherRef = useRef<HTMLInputElement>(null);
   const [cuotaVoucher, setCuotaVoucher] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [solicitandoFacturaId, setSolicitandoFacturaId] = useState<string | null>(null);
 
   const puedeGestionar = Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
@@ -182,6 +183,25 @@ export function MisPagosManager() {
     }
   };
 
+  /** "Solicitar factura": registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
+  const solicitarFactura = async (cuotaId: string) => {
+    setSolicitandoFacturaId(cuotaId);
+    try {
+      const resultado = await pagosService.solicitarFactura(cuotaId);
+      const doc = resultado.documento;
+      toast.success(
+        doc
+          ? `Reserva registrada en el IIMP (contrato ${resultado.contrato}). Factura ${doc.serie}-${doc.numero} emitida.`
+          : `Reserva registrada en el IIMP (contrato ${resultado.contrato}).`,
+      );
+      await load(page, perPage);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo solicitar la factura");
+    } finally {
+      setSolicitandoFacturaId(null);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const renderCuotas = (row: PagoRowDTO) => {
@@ -215,50 +235,44 @@ export function MisPagosManager() {
                     <span>Voucher</span>
                   </a>
                 )}
-                {cuota.comprobanteFiscal && (
-                  <a
-                    href={cuota.comprobanteFiscal.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-primary hover:underline"
-                    title={`Comprobante fiscal: ${cuota.comprobanteFiscal.tipo} ${cuota.comprobanteFiscal.numero}`}
-                  >
-                    <Receipt className="h-3.5 w-3.5" />
-                    <span>Comprobante</span>
-                  </a>
-                )}
-                {!cuota.comprobanteFiscal && (
+                {cuota.comprobanteFiscal ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                        <a href={cuota.comprobanteFiscal.url} target="_blank" rel="noreferrer">
+                          <FileDown className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <span>Descargar factura ({cuota.comprobanteFiscal.tipo} {cuota.comprobanteFiscal.numero})</span>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : cuota.iimpDocumento ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
+                        <FileDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <span>Factura {cuota.iimpDocumento.serie}-{cuota.iimpDocumento.numero} emitida el {cuota.iimpDocumento.fechaEmision} (descarga desde el IIMP pendiente)</span>
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        disabled={solicitandoFacturaId === cuota.id}
+                        onClick={() => { void solicitarFactura(cuota.id); }}
+                      >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Solicitar factura (integracion de facturacion pendiente)</span></TooltipContent>
-                  </Tooltip>
-                )}
-                {(cuota.comprobanteFiscal || cuota.estado === ESTADOS_CUOTA.PAGADO) && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {cuota.comprobanteFiscal ? (
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
-                          <a href={cuota.comprobanteFiscal.url} target="_blank" rel="noreferrer">
-                            <FileDown className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
-                          <FileDown className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>
-                        {cuota.comprobanteFiscal
-                          ? `Descargar factura (${cuota.comprobanteFiscal.tipo} ${cuota.comprobanteFiscal.numero})`
-                          : "Factura aun no emitida"}
-                      </span>
-                    </TooltipContent>
+                    <TooltipContent side="top"><span>Solicitar factura</span></TooltipContent>
                   </Tooltip>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
@@ -422,6 +436,12 @@ export function MisPagosManager() {
                   <p className="text-[11px] text-muted-foreground">
                     {row.tipo === "manual" ? "Pago manual" : "Pasarela"} · {row.modoPago === "cuotas" ? "En cuotas" : "Pago completo"}
                   </p>
+                  {row.iimpContrato && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Contrato IIMP: <span className="font-mono">{row.iimpContrato}</span>
+                      {row.iimpCuentaCorriente ? <> · Cta. cte. <span className="font-mono">{row.iimpCuentaCorriente}</span></> : null}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3">

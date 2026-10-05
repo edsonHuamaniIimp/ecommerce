@@ -101,14 +101,15 @@ export function hayContratoAdminNuevoParaFirmar(s: SolicitudDocumentosGate): boo
 }
 
 /**
- * Ventana de **contrato de reserva multiple**: el admin ya subio el contrato
- * (existe al menos un documento que no es del cliente) y la solicitud sigue
- * pendiente. El cliente descarga el contrato y sube el suyo firmado.
+ * Ventana de **contrato de reserva**: el admin ya subio el contrato
+ * (documento con `userId` null) y la solicitud sigue pendiente. El cliente
+ * descarga el contrato y sube su version firmada + anexos (envio inicial del
+ * wizard o reemplazo antes de la revision Legal).
  */
-export function enVentanaContratoMultistand(s: SolicitudDocumentosGate): boolean {
+export function enVentanaContratoReserva(s: SolicitudDocumentosGate): boolean {
   // El contrato del admin se identifica por `userId === null` (no por comparar con el
   // dueño de la solicitud, que falla cuando el propio admin es el titular).
-  return s.standCodes.length > 1 && s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && s.docsAdminCount > 0;
+  return s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && s.docsAdminCount > 0;
 }
 
 /**
@@ -206,13 +207,13 @@ export function faltanAnexosBloqueantes(docs: DocumentoLike[] | null | undefined
 
 /**
  * Regla unica (server + cliente) para que un usuario **cliente** adjunte documentos:
- *  - contrato de reserva multiple (el admin ya subio el contrato), o
+ *  - contrato de reserva (el admin ya subio el contrato), o
  *  - ventana Legal (SGC) mientras no se enviaron documentos al SGC, o
  *  - preparando una re-evaluacion.
  */
 export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean {
   return (
-    enVentanaContratoMultistand(s) ||
+    enVentanaContratoReserva(s) ||
     enVentanaLegalSgc(s) ||
     enVentanaSubsanacionSgc(s) ||
     requiereDocsReevaluacion(s)

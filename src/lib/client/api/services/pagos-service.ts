@@ -11,6 +11,16 @@ export interface CuotaPagoDTO {
   estado: string;
   comprobante: string | null;
   comprobanteFiscal: ComprobanteFiscalDTO | null;
+  /** Documento fiscal emitido por el IIMP (1ra cuota al reservar; resto en su fecha). */
+  iimpDocumento: {
+    tipoDocumento: string;
+    serie: string;
+    numero: number;
+    fechaEmision: string;
+    tipoCambio: string;
+    igv: string;
+    total: string;
+  } | null;
 }
 
 export interface PagoRowDTO {
@@ -25,6 +35,9 @@ export interface PagoRowDTO {
   planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
+  /** Reserva oficial en el IIMP (null = aun no solicitada desde Mis pagos). */
+  iimpContrato: string | null;
+  iimpCuentaCorriente: string | null;
   createdAt: string;
   cuotas: CuotaPagoDTO[];
 }
@@ -32,6 +45,13 @@ export interface PagoRowDTO {
 export interface PagosListResult {
   data: PagoRowDTO[];
   total: number;
+}
+
+/** Resultado de "Solicitar factura": reserva registrada en el IIMP y documento de la 1ra cuota. */
+export interface ResultadoSolicitudFacturaDTO {
+  contrato: string;
+  cuentaCorriente: number;
+  documento: CuotaPagoDTO["iimpDocumento"];
 }
 
 /** Fachada cliente de la vista de pagos del exhibidor. */
@@ -57,5 +77,9 @@ export const pagosService = {
   },
   adjuntarVoucher(body: { cuotaId: string; comprobante: string }) {
     return internalApi.post<{ ok: boolean }>("/api/pagos/adjuntar-voucher", body);
+  },
+  /** "Solicitar factura": registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
+  solicitarFactura(cuotaId: string) {
+    return internalApi.post<ResultadoSolicitudFacturaDTO>("/api/pagos/solicitar-factura", { cuotaId });
   },
 };

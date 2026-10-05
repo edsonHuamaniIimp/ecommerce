@@ -20,7 +20,16 @@ export class ReservaApplicationService {
   async crear(request: {
     standIds: string[];
     documentos?: string[];
-    datos?: { razonSocial: string; tipoDocumento: string; numeroDocumento: string; email: string };
+    datos?: {
+      razonSocial: string;
+      tipoDocumento: string;
+      numeroDocumento: string;
+      email: string;
+      tipoComprobante?: string;
+      direccion?: string;
+      telefono?: string;
+      contacto?: string;
+    };
     userEmail?: string;
     userSub?: string;
     /** Evento de la sesion: los stands deben pertenecer a el. */
@@ -78,10 +87,24 @@ export class ReservaApplicationService {
     let solicitudId: string | undefined;
     if (this.solicitudesRepo) {
       try {
+        /* Snapshot fiscal del paso 1: fuente del payload de reserva del IIMP. */
+        const snapshot = request.datos
+          ? {
+              tipoComprobante: request.datos.tipoComprobante ?? null,
+              tipoDocumento: request.datos.tipoDocumento,
+              numeroDocumento: request.datos.numeroDocumento,
+              razonSocial: request.datos.razonSocial,
+              direccion: request.datos.direccion ?? null,
+              telefono: request.datos.telefono ?? null,
+              contacto: request.datos.contacto ?? null,
+              email: request.datos.email,
+            }
+          : null;
         solicitudId = await this.solicitudesRepo.crearSolicitud(
           createdStandIds,
           request.userSub,
           contactEmail ?? undefined,
+          snapshot,
         );
         for (const area of REVISION_AREA_ORDER) {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);

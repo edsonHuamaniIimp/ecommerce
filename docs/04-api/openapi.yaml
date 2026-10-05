@@ -677,6 +677,55 @@ paths:
           description: Cuota no encontrada
         "409":
           description: La cuota no esta pagada
+  /pagos/solicitar-factura:
+    post:
+      tags: [Facturacion]
+      summary: Registra la reserva en el IIMP y emite la factura/boleta de la 1ra cuota
+      description: >
+        Llama a `POST /stands/reserva` del IIMP (reserva stands + contrato + cuenta corriente +
+        comprobante de la 1ra cuota) con la empresa del usuario. Guarda contrato y documento.
+        No idempotente del lado del IIMP; si la solicitud ya tiene contrato registrado responde 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cuotaId]
+              properties:
+                cuotaId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Reserva registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contrato: { type: string, description: Numero de contrato IIMP (10 digitos) }
+                  cuentaCorriente: { type: integer, description: Numero de cuenta corriente en el IIMP }
+                  documento:
+                    type: object
+                    nullable: true
+                    description: Comprobante de la 1ra cuota; null si el IIMP no lo devolvio
+                    properties:
+                      tipoDocumento: { type: string, description: "01 Factura / 03 Boleta" }
+                      serie: { type: string }
+                      numero: { type: integer }
+                      fechaEmision: { type: string, description: AAAA-MM-DD }
+                      tipoCambio: { type: string }
+                      igv: { type: string }
+                      total: { type: string }
+        "400":
+          description: Validacion (empresa, RUC, direccion fiscal, evento, stands o cuotas)
+        "403":
+          description: Sin acceso a esta cuota
+        "404":
+          description: Cuota o solicitud no encontrada / evento inexistente en el IIMP
+        "409":
+          description: Reserva ya registrada o stands ya reservados en el IIMP
+        "502":
+          description: Error o sesion vencida del API del IIMP
   /sgc/detalle:
     get:
       tags: [SGC]

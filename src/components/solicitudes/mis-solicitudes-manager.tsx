@@ -23,7 +23,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { enVentanaContratoMultistand, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -100,7 +100,7 @@ function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado:
     key: "sgc",
     label: REVISION_AREA_SGC_LABEL,
     estado: RESULTADOS_APROBACION.PENDIENTE,
-    etiqueta: row.sgcEstadoEnvio ? "En revisión en el SGC" : "Delegado al SGC",
+    etiqueta: row.sgcEstadoEnvio ? "En revisiÃ³n en el SGC" : "Delegado al SGC",
     badge: BADGE_STYLES.INFO,
     comentario: null,
   };
@@ -159,7 +159,7 @@ function Dato({ label, valor }: { label: string; valor: string | null | undefine
   return (
     <div className="min-w-0">
       <p className="text-[9px] font-semibold tracking-wider text-muted-foreground uppercase">{label}</p>
-      <p className="truncate text-xs text-foreground">{valor && valor.trim() ? valor : "—"}</p>
+      <p className="truncate text-xs text-foreground">{valor && valor.trim() ? valor : "â€”"}</p>
     </div>
   );
 }
@@ -462,7 +462,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Pagar ahora</span>
                             </Button>
                           )}
-                          {enVentanaContratoMultistand(row) && (
+                          {enVentanaContratoReserva(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
@@ -510,7 +510,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Docs</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Fecha</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acción</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide">AcciÃ³n</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -522,9 +522,9 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             <span className="ml-1 font-normal text-muted-foreground">({row.standCodes.join(", ")})</span>
                           )}
                         </TableCell>
-                        <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "—"}</TableCell>
-                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
-                        <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "—"}</TableCell>
+                        <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "â€”"}</TableCell>
+                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "â€”"}</TableCell>
+                        <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "â€”"}</TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
@@ -551,7 +551,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Pagar ahora</span>
                               </Button>
                             )}
-                            {enVentanaContratoMultistand(row) && (
+                            {enVentanaContratoReserva(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
@@ -589,7 +589,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados — pagina {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados â€” pagina {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
               </div>
@@ -621,11 +621,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   </div>
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Bloque</span>
-                    <span className="font-mono text-xs text-foreground">{detailRow.bloqueId ?? "—"}</span>
+                    <span className="font-mono text-xs text-foreground">{detailRow.bloqueId ?? "â€”"}</span>
                   </div>
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>
-                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "—"}</span>
+                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "â€”"}</span>
                   </div>
                 </div>
                 {(detailRow.standCodes?.length ?? 0) > 1 && (
@@ -643,7 +643,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       if (!s.bloqueId || !s.planoId) { sinUbicacion.push(s.standCode); continue; }
                       const grupo = grupos.get(s.planoId) ?? {
                         planoId: s.planoId,
-                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "Pabellón",
+                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "PabellÃ³n",
                         stands: [],
                         bloqueIds: [],
                       };
@@ -667,7 +667,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: g.bloqueIds, etiqueta: g.stands.join("-") })}
                               >
                                 <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                                <span>Ver ubicación</span>
+                                <span>Ver ubicaciÃ³n</span>
                               </Button>
                               <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                                 <Link href={`/mapa?bloque=${encodeURIComponent(g.bloqueIds[0]!)}`}>
@@ -680,7 +680,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         ))}
                         {sinUbicacion.length > 0 && (
                           <p className="text-[11px] text-muted-foreground">
-                            <span>Sin ubicación en el plano: {sinUbicacion.join(", ")}</span>
+                            <span>Sin ubicaciÃ³n en el plano: {sinUbicacion.join(", ")}</span>
                           </p>
                         )}
                       </div>
@@ -695,7 +695,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: [detailRow.bloqueId!], etiqueta: detailRow.standCode || detailRow.bloqueId! })}
                     >
                       <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                      <span>Ver ubicación en el plano</span>
+                      <span>Ver ubicaciÃ³n en el plano</span>
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                       <Link href={`/mapa?bloque=${encodeURIComponent(detailRow.bloqueId)}`}>
@@ -775,7 +775,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
                                   <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -792,7 +792,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-gold" />
                                   <a href={doc.url} target="_blank" className="text-amber-800 hover:text-amber-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -816,7 +816,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
                                   <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -852,7 +852,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Contrato disponible: el cliente debe firmar y subirlo */}
-              {detailRow && enVentanaContratoMultistand(detailRow) && detailRow.flgActivo !== false && (
+              {detailRow && enVentanaContratoReserva(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/10 p-3">
                     <div className="flex items-start gap-3">
@@ -891,7 +891,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal — SGC)</p>
+                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal â€” SGC)</p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           Antes de enviar el contrato y los documentos adjuntos al SGC, adjunta los documentos requeridos:
                           Ficha RUC, Vigencia de Poder y DNI o Pasaporte del Representante Legal.
@@ -907,7 +907,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                 </ModalSection>
               )}
 
-              {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
+              {/* SubsanaciÃ³n SGC: el cliente descarga el contrato vigente y sube el firmado */}
               {detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
@@ -916,10 +916,10 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       <div>
                         <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {detailRow.sgcSubsanacionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
+                          {detailRow.sgcSubsanacionMotivo ?? "El SGC devolviÃ³ el trÃ¡mite y debes corregir el contrato."}
                         </p>
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
+                          Descarga la versiÃ³n vigente del contrato, fÃ­rmala y sÃºbela para que la administraciÃ³n lo reenvÃ­e al SGC.
                         </p>
                       </div>
                     </div>
@@ -945,7 +945,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                 </ModalSection>
               )}
 
-              {/* El admin declaró un contrato nuevo: el cliente espera a que lo adjunte */}
+              {/* El admin declarÃ³ un contrato nuevo: el cliente espera a que lo adjunte */}
               {detailRow && esperandoContratoCorregidoSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
@@ -953,8 +953,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                     <div>
                       <p className="text-xs font-semibold text-warning">Esperando contrato corregido</p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
-                        La administración del IIMP está preparando una nueva versión del contrato.
-                        Cuando esté disponible podrás descargarla, firmarla y subirla.
+                        La administraciÃ³n del IIMP estÃ¡ preparando una nueva versiÃ³n del contrato.
+                        Cuando estÃ© disponible podrÃ¡s descargarla, firmarla y subirla.
                       </p>
                       {detailRow.sgcSubsanacionMotivo && (
                         <p className="mt-1 text-[11px] italic text-muted-foreground">&quot;{detailRow.sgcSubsanacionMotivo}&quot;</p>
@@ -1057,7 +1057,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-warning/40 bg-warning/5 p-5 transition-colors hover:border-warning/60 hover:bg-warning/10">
                     <Upload className="h-6 w-6 text-warning" />
                     <span className="text-xs font-medium text-warning">Arrastra un archivo o haz click aqui</span>
-                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG — max 10 MB</span>
+                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG â€” max 10 MB</span>
                     <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -1174,7 +1174,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">‹</span>
+              <span className="text-lg">â€¹</span>
             </button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
@@ -1182,7 +1182,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">›</span>
+              <span className="text-lg">â€º</span>
             </button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>
@@ -1195,11 +1195,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>
-                <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
+                <span>{recorteBloque.bloqueIds.length > 1 ? `UbicaciÃ³n de los stands ${recorteBloque.etiqueta}` : `UbicaciÃ³n del stand ${recorteBloque.etiqueta}`}</span>
               </DialogTitle>
             </DialogHeader>
             <p className="text-xs text-muted-foreground">
-              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
+              Tu stand estÃ¡ resaltado en el pabellÃ³n para que ubiques su posiciÃ³n respecto de los demÃ¡s stands.
             </p>
             <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
             <DialogFooter>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
+import { services } from "@/lib/server/services";
 import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
@@ -24,9 +25,8 @@ export const pagosController = {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("per_page") ?? "10");
-    // Alineado con la bandeja: solo el evento activo del usuario.
-    const eventoId = session.eventoId ?? undefined;
-    return success(await service.listar(ident(session), { page, perPage, ...(eventoId ? { eventoId } : {}) }));
+    /* Sin filtro por evento activo: el cliente ve todos sus planes (el admin ve todos los eventos). */
+    return success(await service.listar(ident(session), { page, perPage }));
   },
 
   async detalle(request: Request): Promise<NextResponse> {
@@ -76,5 +76,14 @@ export const pagosController = {
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
     await service.eliminarCuota(cuotaId, ident(session));
     return success({ ok: true });
+  },
+
+  /** "Solicitar factura" del cliente: registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
+  async solicitarFactura(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const { cuotaId } = (await request.json()) as { cuotaId: string };
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+    return success(await services.solicitarFactura.solicitar(cuotaId, ident(session)));
   },
 };

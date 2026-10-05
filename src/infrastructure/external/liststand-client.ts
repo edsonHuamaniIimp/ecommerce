@@ -52,7 +52,7 @@ function config(): { apiUrl: string; usuario: string; clave: string } {
 }
 
 /** fetch con la excepcion TLS que exige secure2.iimp.org (certificado no confiable local). */
-async function fetchSecure(url: string, init: RequestInit): Promise<Response> {
+export async function fetchIimp(url: string, init: RequestInit): Promise<Response> {
   const previo = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   try {
@@ -73,7 +73,7 @@ async function mensajeError(res: Response): Promise<string> {
 
 async function login(): Promise<string> {
   const { apiUrl, usuario, clave } = config();
-  const res = await fetchSecure(`${apiUrl}/auth/login`, {
+  const res = await fetchIimp(`${apiUrl}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ usuario, clave }),
@@ -90,6 +90,16 @@ async function tokenVigente(): Promise<string> {
   return login();
 }
 
+/** Token vigente de la cuenta tecnica del IIMP (compartido con /stands/reserva y otras APIs VTA). */
+export async function obtenerTokenIimp(): Promise<string> {
+  return tokenVigente();
+}
+
+/** URL base del API de eventos del IIMP (misma configuracion que liststand). */
+export function getIimpApiUrl(): string {
+  return config().apiUrl;
+}
+
 /** Solo pruebas: limpia el cache de token en memoria del proceso. */
 export function resetListstandTokenCache(): void {
   tokenCache = null;
@@ -102,7 +112,7 @@ export class ListstandClient implements IPlanogessClient {
     const body = JSON.stringify({ TipEvCod: tipoEvento, EvenCod: codigoEvento, Estado: "TODOS" });
 
     const listar = async (token: string) =>
-      fetchSecure(`${apiUrl}/stands/liststand`, {
+      fetchIimp(`${apiUrl}/stands/liststand`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body,

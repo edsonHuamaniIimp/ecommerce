@@ -36,6 +36,8 @@ import { EmpresaApplicationService } from "@/application/empresas/empresa-servic
 import { UsuarioPrismaRepository } from "@/infrastructure/persistence/usuario-repository";
 import { UsuariosApplicationService } from "@/application/usuarios/usuarios-service";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
+import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client";
+import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
@@ -55,6 +57,7 @@ const usuarioRepo = new UsuarioPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
 const personaClient = new PersonaApiClient();
+const reservaIimpClient = new ReservaIimpClient();
 const sgcConfig = getSgcConfig();
 const sgcRepo = new SgcPrismaRepository();
 const sgcWebhookRepo = new SgcWebhookPrismaRepository();
@@ -73,7 +76,7 @@ export const services = {
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
-  auth: new AuthApplicationService(authRepo, roleRepo),
+  auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo),
   dashboard: new DashboardApplicationService(gessRepo),
   solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo),
   kbServicios: kbServiciosClient,
@@ -85,6 +88,7 @@ export const services = {
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
+  solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
   contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
   alertas: new AlertasApplicationService(authRepo),

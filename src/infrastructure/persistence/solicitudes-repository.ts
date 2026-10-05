@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
-import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud } from "@/domain/models/entities";
+import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
 import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
@@ -209,6 +209,11 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     estado,
     recortePlanoUrl: row.recortePlanoUrl ?? null,
     planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
+    iimpContrato: row.iimpContrato ?? null,
+    iimpCuentaCorriente: row.iimpCuentaCorriente ?? null,
+    iimpClienteCodigo: row.iimpClienteCodigo ?? null,
+    iimpReserva: (row.iimpReserva ?? null) as unknown,
+    iimpReservaAt: row.iimpReservaAt ?? null,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,
     documentos,
@@ -356,12 +361,13 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return result;
   }
 
-  async crearSolicitud(standIds: string[], userId?: string, email?: string): Promise<string> {
+  async crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null): Promise<string> {
     const created = await prisma.solicitud.create({
       data: {
         gessStandId: standIds.length === 1 ? standIds[0] : null,
         userId: userId ?? null,
         email: email ?? null,
+        datosFacturacion: (datosFacturacion ?? undefined) as never,
       },
     });
 
@@ -635,5 +641,47 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.solicitudDocumento.create({
       data: { solicitudId, url, nombre, uploadedBy: "sistema", userId: null, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO },
     });
+  }
+
+  async guardarReservaIImp(solicitudId: string, data: {
+    contrato: string;
+    cuentaCorriente: string;
+    clienteCodigo: string | null;
+    reserva: unknown;
+    at: Date;
+  }): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: {
+        iimpContrato: data.contrato,
+        iimpCuentaCorriente: data.cuentaCorriente,
+        iimpClienteCodigo: data.clienteCodigo,
+        iimpReserva: data.reserva as never,
+        iimpReservaAt: data.at,
+      },
+    });
+  }
+
+  async datosReservaIImp(solicitudId: string) {
+    const row = await prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      include: {
+        gessStand: { select: { eventoId: true, standApiId: true, standCode: true } },
+        stands: { include: { gessStand: { select: { eventoId: true, standApiId: true, standCode: true } } } },
+      },
+    });
+    if (!row) return null;
+    const gessStands = row.gessStand ? [row.gessStand] : row.stands.map((s) => s.gessStand).filter((s): s is NonNullable<typeof s> => s !== null);
+    const eventoId = gessStands[0]?.eventoId ?? null;
+    const evento = eventoId ? await prisma.evento.findUnique({ where: { id: eventoId }, select: { tipoEvento: true, codigoEvento: true } }) : null;
+    return {
+      iimpContrato: row.iimpContrato ?? null,
+      email: row.email ?? null,
+      tipoEvento: evento?.tipoEvento ?? null,
+      codigoEvento: evento?.codigoEvento ?? null,
+      stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),
+      planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
+      datosFacturacion: (row.datosFacturacion ?? null) as DatosFacturacionSolicitud | null,
+    };
   }
 }

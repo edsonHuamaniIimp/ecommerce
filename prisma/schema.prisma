@@ -397,6 +397,15 @@ model Solicitud {
   recortePlanoUrl String? @map("recorte_plano_url") @db.VarChar(500)
   /// RF-10/11: snapshot del plan de cuotas configurado al reservar { modalidad, cuotas[] }.
   planCuotas Json? @map("plan_cuotas")
+  /// Datos comerciales/fiscales capturados en el paso 1 del wizard (payload del IIMP).
+  datosFacturacion Json? @map("datos_facturacion")
+  /// Reserva oficial en el API del IIMP: contrato (10 digitos), cuenta corriente y cliente.
+  iimpContrato        String?   @map("iimp_contrato") @db.VarChar(20)
+  iimpCuentaCorriente String?   @map("iimp_cuenta_corriente") @db.VarChar(20)
+  iimpClienteCodigo   String?   @map("iimp_cliente_codigo") @db.VarChar(20)
+  /// Respuesta completa del API de reserva (auditoria y conciliacion).
+  iimpReserva         Json?     @map("iimp_reserva")
+  iimpReservaAt       DateTime? @map("iimp_reserva_at")
   flgActivo   Boolean   @default(true) @map("flg_activo")
   estado      String?   @db.VarChar(20)
   createdAt   DateTime  @default(now()) @map("created_at")
@@ -625,6 +634,9 @@ model FacturacionCuota {
   comprobanteFiscalAt     DateTime? @map("comprobante_fiscal_at")
   /// Usuario que adjunto el comprobante fiscal.
   comprobanteFiscalBy     String?   @map("comprobante_fiscal_by") @db.VarChar(100)
+  /// Documento fiscal emitido por el IIMP para esta cuota (serie, numero, fecha, IGV, total).
+  iimpDocumento Json? @map("iimp_documento")
+  iimpEmitidaAt DateTime? @map("iimp_emitida_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
   facturacion    Facturacion @relation(fields: [facturacionId], references: [id], onDelete: Cascade)

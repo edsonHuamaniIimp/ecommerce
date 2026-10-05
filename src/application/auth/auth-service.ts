@@ -1,5 +1,6 @@
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import { signToken } from "@/lib/server/auth";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { generarCodigoNumerico, generarTokenAleatorio } from "@/lib/server/utils/token";
@@ -35,6 +36,7 @@ export class AuthApplicationService {
   constructor(
     private readonly repo: IAuthRepository,
     private readonly roleRepo: IRoleRepository,
+    private readonly empresas: IEmpresaRepository,
   ) {}
 
   /**
@@ -327,8 +329,8 @@ export class AuthApplicationService {
     const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return null;
-    const u = await this.repo.findPerfilByEmail(session.email);
-    return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, logoUrl: null, firmaUrl: null, idioma: null };
+      const u = await this.repo.findPerfilByEmail(session.email);
+      return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, empresa: null, logoUrl: null, firmaUrl: null, idioma: null };
   }
 
   /** Guarda el idioma preferido del usuario (selector ES/EN del dashboard). */
@@ -355,7 +357,21 @@ export class AuthApplicationService {
     const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return false;
-    await this.repo.updatePerfil(session.email, dto);
+    /*
+     * El RUC de la empresa elegida (codigo SIE de entidades) resuelve la empresa
+     * fiscal local por RUC para dejar la FK `empresa_id`; sin registro local queda
+     * solo el vinculo legacy (codigo + nombre). Al desvincular se limpia la FK.
+     */
+    const { ruc, ...resto } = dto;
+    let empresaId: string | null | undefined;
+    if (ruc) {
+      const limpio = ruc.replace(/\D/g, "");
+      const empresa = limpio ? await this.empresas.findByRuc(limpio) : null;
+      empresaId = empresa?.id ?? null;
+    } else if (dto.idEmpresa === null) {
+      empresaId = null;
+    }
+    await this.repo.updatePerfil(session.email, { ...resto, ...(empresaId !== undefined ? { empresaId } : {}) });
     return true;
   }
 

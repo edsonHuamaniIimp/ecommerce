@@ -830,6 +830,15 @@ export const CUOTAS_PORCENTAJE_PASO = 0.01;
 /** Monto minimo (USD) que debe tener cada cuota; si el redondeo da 0 se rechaza. */
 export const CUOTA_MONTO_MINIMO = 0.01;
 
+/** Maximo de cuotas por reserva que acepta el API del IIMP. */
+export const MAX_CUOTAS_IIMP = 9;
+
+/** Maximo de stands por operacion de reserva que acepta el API del IIMP. */
+export const MAX_STANDS_IIMP = 50;
+
+/** Porcentaje total (entero) que deben sumar las cuotas enviadas al IIMP. */
+export const CUOTAS_PORCENTAJE_TOTAL = 100;
+
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
  * `key` = clave normalizada que se persiste en `tipo_stand_imagen`; `alias` agrupa
@@ -876,8 +885,14 @@ export const TIPO_COMPROBANTE_LABELS: Record<string, string> = {
 /** RUC peruano: 11 digitos. */
 export const REGEX_RUC = /^\d{11}$/;
 
+/** DNI peruano: 8 digitos (boleta a persona natural en el API del IIMP). */
+export const REGEX_DNI = /^\d{8}$/;
+
 /** Correo electronico simple (validacion de formularios). */
 export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Fecha ISO sin hora (AAAA-MM-DD) que exige el IIMP en el plan de cuotas. */
+export const REGEX_FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Tipos de documento de persona en servicio-persona (`id_tipo_documento`). */
 export const TIPOS_DOCUMENTO_PERSONA = {
@@ -893,6 +908,42 @@ export const TIPOS_DOCUMENTO_PERSONA_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: "Carne de extranjeria",
   [TIPOS_DOCUMENTO_PERSONA.PASAPORTE]: "Pasaporte",
 };
+
+/** Codigos del API de reserva del IIMP (doc API-RESERVA-STAND-INTEGRACION.md). */
+export const FACTURACION_IIMP = {
+  FACTURA: "01",
+  BOLETA: "03",
+} as const;
+
+export const TIPOS_DOCUMENTO_FACTURACION_IIMP = {
+  RUC: "6",
+  EXTRANJERA: "0",
+  DNI: "1",
+  CARNE_EXTRANJERIA: "4",
+  PASAPORTE: "7",
+} as const;
+
+/** Cargo con el que se registra el contacto de contrato ante el IIMP. */
+export const IIMP_CARGO_REPRESENTANTE = "Representante Legal";
+
+/** Acciones registradas en el historial de facturacion (facturacion_historial.accion). */
+export const ACCIONES_FACTURACION = {
+  AGREGAR_CUOTA: "agregar_cuota",
+  ACTUALIZAR_CUOTA: "actualizar_cuota",
+  ADJUNTAR_VOUCHER: "adjuntar_voucher",
+  PAGAR_CUOTA: "pagar_cuota",
+  ADJUNTAR_COMPROBANTE: "adjuntar_comprobante",
+  DOCUMENTO_IIMP: "documento_iimp",
+  ACTUALIZAR: "actualizar",
+  ELIMINAR: "eliminar",
+  ELIMINAR_CUOTA: "eliminar_cuota",
+} as const;
+
+/** Autores tecnicos que firman movimientos automaticos del sistema. */
+export const AUTORES_SISTEMA = {
+  SISTEMA: "sistema",
+  IIMP: "iimp",
+} as const;
 
 /* ================================================================
    Carga masiva de empresas (Excel / CSV)

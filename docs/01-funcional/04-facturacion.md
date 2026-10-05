@@ -60,8 +60,9 @@ No se crean desde la página: se crean al **generar la orden de pago** de una so
 - El tipo `niubizz` no se puede seleccionar en el modal de configuración de facturación (opción deshabilitada).
 
 ### 5.4 Pagos del exhibidor (cliente) — `/dashboard/mis-pagos`
-- `GET /api/pagos/listar?page=&per_page=` → facturaciones **del cliente** (solicitud con su `userId`/`email`) del
-  **evento activo** de la sesión y de **solicitudes vigentes** (`flgActivo`), igual que la bandeja; incluye cuotas.
+- `GET /api/pagos/listar?page=&per_page=` → facturaciones **del cliente** (solicitud con su `userId`/`email`) de
+  **solicitudes vigentes** (`flgActivo`); incluye cuotas. Sin filtro por evento activo: el cliente ve
+  todos sus planes de pago (el evento de la sesión podía ocultar planes pendientes de otros eventos).
 - `GET /api/pagos/detalle?id=` → detalle (valida propiedad; 404/403 si no aplica).
 - `POST /api/pagos/agregar-cuota` `{facturacionId, monto, fechaVencimiento?}` (requiere `pagos:manage`).
 - `POST /api/pagos/actualizar-cuota` `{cuotaId, monto?, fechaVencimiento?}` (requiere `pagos:manage`).
@@ -74,6 +75,14 @@ No se crean desde la página: se crean al **generar la orden de pago** de una so
   responde **409** y la UI oculta los botones de configuración); queda "pendiente de confirmacion"
   hasta que el admin registre el pago.
 - El cliente **no** registra pagos ni archiva/elimina facturaciones: eso queda en el flujo admin.
+- **Solicitar factura** (cliente): con la reserva pendiente de pago, un ícono por cuota llama a
+  `POST /api/pagos/solicitar-factura` `{cuotaId}`: registra la reserva en el IIMP (stands
+  `RESERVADO`, contrato + cuenta corriente) y emite la factura/boleta de la 1ra cuota, que queda
+  guardada y visible en la fila (contrato IIMP + cta. cte. en la cabecera). Los datos fiscales
+  salen del **snapshot del paso 1 del wizard** (`solicitud.datos_facturacion`); la empresa
+  vinculada es opcional (enriquece). Boleta a persona natural usa servicio-persona por DNI.
+  No requiere `pagos:manage`; valida propiedad de la cuota. Detalle:
+  [integracion-reserva-iimp.md](../05-integraciones/integracion-reserva-iimp.md).
 
 ## 6. Estados
 

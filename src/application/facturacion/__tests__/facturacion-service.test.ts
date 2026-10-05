@@ -39,6 +39,7 @@ function mockRepo(): IFacturacionRepository {
     adjuntarVoucher: vi.fn(),
     pagarCuota: vi.fn(),
     adjuntarComprobanteFiscal: vi.fn(),
+    guardarDocumentoIImp: vi.fn(),
     actualizar: vi.fn(),
     eliminar: vi.fn(),
     eliminarCuota: vi.fn(),
@@ -50,15 +51,15 @@ function mockRepo(): IFacturacionRepository {
 
 const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
-  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", createdAt: "2024-06-01T00:00:00Z",
+  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
-    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null },
-    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null },
-    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null },
+    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null },
+    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null },
+    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null },
   ],
 };
 
-describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
+describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â unit tests rigurosos", () => {
   // ==================== LISTAR ====================
   describe("listar", () => {
     it("retorna resultado vacio cuando no hay registros", async () => {
@@ -70,7 +71,7 @@ describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
       expect(r.total).toBe(0);
     });
 
-    it("respeta paginacion â€” pagina 2 con 5 items", async () => {
+    it("respeta paginacion ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pagina 2 con 5 items", async () => {
       const repo = mockRepo();
       vi.mocked(repo.listar).mockResolvedValue({ data: [], total: 12 });
       const svc = crearSvc(repo);
@@ -182,7 +183,7 @@ describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
 
   // ==================== ELIMINAR ====================
   describe("eliminar", () => {
-    it("baja logica â€” no borra fisicamente", async () => {
+    it("baja logica ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no borra fisicamente", async () => {
       const repo = mockRepo();
       const svc = crearSvc(repo);
       await svc.eliminar("f1", "admin@test.com");
@@ -208,7 +209,7 @@ describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
 
   // ==================== FLUJOS COMPLETOS ====================
   describe("flujos de negocio", () => {
-    it("flujo completo: crear â†’ agregar cuotas â†’ pagar", async () => {
+    it("flujo completo: crear ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ agregar cuotas ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ pagar", async () => {
       const repo = mockRepo();
       const svc = crearSvc(repo);
 
@@ -328,7 +329,7 @@ describe("FacturacionApplicationService â€” unit tests rigurosos", () => {
   });
 
   // ==================== PLAN DEL CLIENTE (contrato) ====================
-  describe("plan definido por el cliente (plan_cuotas) — no editable", () => {
+  describe("plan definido por el cliente (plan_cuotas) Ã¢â‚¬â€ no editable", () => {
     it("rechaza agregar cuota cuando el plan viene del contrato", async () => {
       const repo = mockRepo();
       vi.mocked(repo.detalle).mockResolvedValue({ ...sampleRow, planCliente: true });

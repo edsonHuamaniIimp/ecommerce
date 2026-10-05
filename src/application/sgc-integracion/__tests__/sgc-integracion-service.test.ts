@@ -141,6 +141,8 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     guardarRecortePlano: vi.fn(),
     guardarPlanCuotas: vi.fn(),
     upsertContratoSistema: vi.fn(),
+    guardarReservaIImp: vi.fn(),
+    datosReservaIImp: vi.fn(),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {

@@ -3,7 +3,7 @@ import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENV
 import {
   anexosBloqueantesFaltantes,
   anexosRequeridosFaltantes,
-  enVentanaContratoMultistand,
+  enVentanaContratoReserva,
   enVentanaLegalSgc,
   enVentanaSubsanacionSgc,
   esperandoContratoCorregidoSgc,
@@ -61,23 +61,23 @@ describe("enVentanaLegalSgc", () => {
   });
 });
 
-describe("enVentanaContratoMultistand", () => {
+describe("enVentanaContratoReserva", () => {
   const conContratoAdmin = { ...base, docsAdminCount: 1 };
 
-  it("permite subir cuando el admin ya subio el contrato en reserva multiple pendiente", () => {
-    expect(enVentanaContratoMultistand(conContratoAdmin)).toBe(true);
+  it("permite subir cuando el admin ya subio el contrato y la solicitud esta pendiente", () => {
+    expect(enVentanaContratoReserva(conContratoAdmin)).toBe(true);
   });
 
   it("bloquea si aun no hay documento del admin", () => {
-    expect(enVentanaContratoMultistand(base)).toBe(false);
+    expect(enVentanaContratoReserva(base)).toBe(false);
   });
 
-  it("no aplica a reserva simple", () => {
-    expect(enVentanaContratoMultistand({ ...conContratoAdmin, standCodes: ["A-1"] })).toBe(false);
+  it("aplica tambien a reserva de un solo stand (envio inicial del wizard)", () => {
+    expect(enVentanaContratoReserva({ ...conContratoAdmin, standCodes: ["A-1"] })).toBe(true);
   });
 
   it("no aplica si la solicitud no esta pendiente", () => {
-    expect(enVentanaContratoMultistand({ ...conContratoAdmin, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO })).toBe(false);
+    expect(enVentanaContratoReserva({ ...conContratoAdmin, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO })).toBe(false);
   });
 });
 
@@ -126,7 +126,7 @@ describe("subsanacion SGC segun el modo declarado por el admin", () => {
     expect(esperandoContratoCorregidoSgc(mismoContrato)).toBe(false);
   });
 
-  it("bloquea al cliente si el admin declaró 'nuevo contrato' y aun no lo subio", () => {
+  it("bloquea al cliente si el admin declarÃ³ 'nuevo contrato' y aun no lo subio", () => {
     expect(enVentanaSubsanacionSgc(nuevoContratoSinSubir)).toBe(false);
     expect(esperandoContratoCorregidoSgc(nuevoContratoSinSubir)).toBe(true);
     expect(puedeClienteSubirDocumentos(nuevoContratoSinSubir)).toBe(false);

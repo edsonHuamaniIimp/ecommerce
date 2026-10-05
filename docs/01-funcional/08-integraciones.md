@@ -69,6 +69,7 @@ Autenticación por header `x-api-key` contra `INTEGRACION_API_KEY` (**bypass si 
 ## 4. Otras integraciones
 
 - **Stands (liststand)**: `LISTSTAND_API_URL` + `LISTSTAND_USUARIO`/`LISTSTAND_CLAVE` (login con token de 30 min); base de la sincronización de stands de Vinculación. Detalle: [integracion-liststand.md](../05-integraciones/integracion-liststand.md).
+- **Reserva/facturación de stands (IIMP)**: `POST /stands/reserva` con la misma cuenta VTA de liststand; la dispara el cliente desde Mis pagos ("Solicitar factura"): reserva stands, crea contrato + cuenta corriente y emite la factura de la 1ra cuota. No es idempotente. Detalle: [integracion-reserva-iimp.md](../05-integraciones/integracion-reserva-iimp.md).
 - **Niubiz**: pagos (ver [04-facturacion.md](./04-facturacion.md)).
 - **Storage**: `POST /api/upload` guarda en `public/uploads/` (local) o S3 según `STORAGE_PROVIDER`.
 - **Operación**: `GET /api/health`, `POST /api/errors/log`.

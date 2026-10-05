@@ -12,7 +12,7 @@ const EPS = 0.001;
 export class PagosApplicationService {
   constructor(private readonly repo: IFacturacionRepository) {}
 
-  async listar(ident: ClienteIdent, params: { page: number; perPage: number; eventoId?: string }): Promise<FacturacionListResult> {
+  async listar(ident: ClienteIdent, params: { page: number; perPage: number }): Promise<FacturacionListResult> {
     return this.repo.listarPorCliente({ ...ident, ...params });
   }
 

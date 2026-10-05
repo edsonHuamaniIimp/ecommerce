@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { prisma } from "@/lib/server/db";
-import { ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
 import type {
   IFacturacionRepository,
   FacturacionRow,
@@ -33,14 +33,18 @@ interface FacturacionRaw {
     comprobanteFiscal: string | null;
     comprobanteFiscalTipo: string | null;
     comprobanteFiscalNumero: string | null;
-    comprobanteFiscalAt: Date | null;
-    comprobanteFiscalBy: string | null;
+  comprobanteFiscalAt: Date | null;
+  comprobanteFiscalBy: string | null;
+  iimpDocumento: unknown | null;
+  iimpEmitidaAt: Date | null;
     createdAt: Date;
   }>;
   solicitud: {
     email: string | null;
     /** Plan de cuotas definido por el cliente al reservar (null = no aplica). */
     planCuotas: unknown | null;
+    iimpContrato: string | null;
+    iimpCuentaCorriente: string | null;
     gessStand: { standCode: string } | null;
     stands: Array<{ gessStand: { standCode: string } | null }>;
   };
@@ -49,6 +53,8 @@ interface FacturacionRaw {
 const SOLICITUD_SELECT = {
   email: true,
   planCuotas: true,
+  iimpContrato: true,
+  iimpCuentaCorriente: true,
   gessStand: { select: { standCode: true } },
   stands: { include: { gessStand: { select: { standCode: true } } } },
 };
@@ -68,8 +74,10 @@ function toRow(r: FacturacionRaw): FacturacionRow {
     moneda: r.moneda,
     modoPago: r.modoPago,
     planCliente: r.solicitud.planCuotas !== null && r.solicitud.planCuotas !== undefined,
-    standCode: r.solicitud.gessStand?.standCode ?? r.solicitud.stands[0]?.gessStand?.standCode ?? "—",
+    standCode: r.solicitud.gessStand?.standCode ?? r.solicitud.stands[0]?.gessStand?.standCode ?? "â€”",
     correoSolicitante: r.solicitud.email,
+    iimpContrato: r.solicitud.iimpContrato ?? null,
+    iimpCuentaCorriente: r.solicitud.iimpCuentaCorriente ?? null,
     createdAt: r.createdAt.toISOString(),
     cuotas: r.cuotas.map((c) => ({
       id: c.id, numero: c.numero, monto: Number(c.monto),
@@ -84,6 +92,7 @@ function toRow(r: FacturacionRaw): FacturacionRow {
             by: c.comprobanteFiscalBy,
           }
         : null,
+      iimpDocumento: (c.iimpDocumento ?? null) as FacturacionRow["cuotas"][number]["iimpDocumento"],
     })),
   };
 }
@@ -112,18 +121,8 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
   }
 
   async listarPorCliente(params: FacturacionClienteParams): Promise<FacturacionListResult> {
-    // Solo solicitudes vigentes (no bajas logicas) y, si hay evento activo, de ese evento.
+    /* Todos los eventos: ocultar por evento activo dejaba al cliente sin ver planes pendientes de otros eventos. */
     const solicitudWhere: Record<string, unknown> = { flgActivo: true, OR: identOr(params) };
-    if (params.eventoId) {
-      solicitudWhere.AND = [
-        {
-          OR: [
-            { gessStand: { eventoId: params.eventoId } },
-            { stands: { some: { gessStand: { eventoId: params.eventoId } } } },
-          ],
-        },
-      ];
-    }
     const where: Record<string, unknown> = { flgActivo: true, solicitud: solicitudWhere };
     return this.paginar(where, params);
   }
@@ -154,7 +153,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
       data: { facturacionId, numero, monto, fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento) : null },
     });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId, accion: "agregar_cuota", detalle: `Cuota #${numero} agregada por ${monto.toFixed(2)}`, createdBy },
+      data: { facturacionId, accion: ACCIONES_FACTURACION.AGREGAR_CUOTA, detalle: `Cuota #${numero} agregada por ${monto.toFixed(2)}`, createdBy },
     });
   }
 
@@ -168,7 +167,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     }
     await prisma.facturacionCuota.update({ where: { id: cuotaId }, data: updateData });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId: prev.facturacionId, accion: "actualizar_cuota", detalle: `Cuota #${prev.numero} actualizada`, createdBy },
+      data: { facturacionId: prev.facturacionId, accion: ACCIONES_FACTURACION.ACTUALIZAR_CUOTA, detalle: `Cuota #${prev.numero} actualizada`, createdBy },
     });
   }
 
@@ -177,7 +176,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     if (!prev) return;
     await prisma.facturacionCuota.update({ where: { id: cuotaId }, data: { comprobante } });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId: prev.facturacionId, accion: "adjuntar_voucher", detalle: `Voucher adjuntado a la cuota #${prev.numero}`, createdBy },
+      data: { facturacionId: prev.facturacionId, accion: ACCIONES_FACTURACION.ADJUNTAR_VOUCHER, detalle: `Voucher adjuntado a la cuota #${prev.numero}`, createdBy },
     });
   }
 
@@ -187,7 +186,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
       data: { estado: ESTADOS_CUOTA.PAGADO, comprobante },
     });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId: cuota.facturacionId, accion: "pagar_cuota", detalle: `Cuota #${cuota.numero} marcada como pagada`, createdBy },
+      data: { facturacionId: cuota.facturacionId, accion: ACCIONES_FACTURACION.PAGAR_CUOTA, detalle: `Cuota #${cuota.numero} marcada como pagada`, createdBy },
     });
     const pendientes = await prisma.facturacionCuota.count({
       where: { facturacionId: cuota.facturacionId, estado: ESTADOS_CUOTA.PENDIENTE },
@@ -199,7 +198,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         await prisma.solicitud.update({ where: { id: facturacion.solicitudId }, data: { estado: ESTADOS_SOLICITUD.PAGADO } });
       }
       await prisma.facturacionHistorial.create({
-        data: { facturacionId: cuota.facturacionId, accion: "actualizar", detalle: `Facturacion marcada como pagada (todas las cuotas pagadas)`, createdBy },
+        data: { facturacionId: cuota.facturacionId, accion: ACCIONES_FACTURACION.ACTUALIZAR, detalle: `Facturacion marcada como pagada (todas las cuotas pagadas)`, createdBy },
       });
     }
   }
@@ -218,9 +217,27 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     await prisma.facturacionHistorial.create({
       data: {
         facturacionId: cuota.facturacionId,
-        accion: "adjuntar_comprobante",
+        accion: ACCIONES_FACTURACION.ADJUNTAR_COMPROBANTE,
         detalle: `Comprobante fiscal (${data.tipo} ${data.numero}) adjuntado a la cuota #${cuota.numero}`,
         createdBy,
+      },
+    });
+  }
+
+  /** Guarda el documento fiscal emitido por el IIMP en la cuota con ese numero. */
+  async guardarDocumentoIImp(facturacionId: string, numero: number, documento: unknown, emitidaAt: Date) {
+    const cuota = await prisma.facturacionCuota.findFirst({ where: { facturacionId, numero } });
+    if (!cuota) return;
+    await prisma.facturacionCuota.update({
+      where: { id: cuota.id },
+      data: { iimpDocumento: documento as never, iimpEmitidaAt: emitidaAt },
+    });
+    await prisma.facturacionHistorial.create({
+      data: {
+        facturacionId,
+        accion: ACCIONES_FACTURACION.DOCUMENTO_IIMP,
+        detalle: `Documento fiscal del IIMP guardado en la cuota #${numero}`,
+        createdBy: AUTORES_SISTEMA.IIMP,
       },
     });
   }
@@ -230,12 +247,12 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     await prisma.facturacion.update({ where: { id }, data });
     if (data.tipo && prev?.tipo !== data.tipo) {
       await prisma.facturacionHistorial.create({
-        data: { facturacionId: id, accion: "actualizar", detalle: `Tipo de pago cambiado de "${prev?.tipo}" a "${data.tipo}"`, createdBy },
+        data: { facturacionId: id, accion: ACCIONES_FACTURACION.ACTUALIZAR, detalle: `Tipo de pago cambiado de "${prev?.tipo}" a "${data.tipo}"`, createdBy },
       });
     }
     if (data.modoPago && prev?.modoPago !== data.modoPago) {
       await prisma.facturacionHistorial.create({
-        data: { facturacionId: id, accion: "actualizar", detalle: `Modo de pago cambiado de "${prev?.modoPago}" a "${data.modoPago}"`, createdBy },
+        data: { facturacionId: id, accion: ACCIONES_FACTURACION.ACTUALIZAR, detalle: `Modo de pago cambiado de "${prev?.modoPago}" a "${data.modoPago}"`, createdBy },
       });
     }
   }
@@ -243,7 +260,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
   async eliminar(id: string, createdBy: string) {
     await prisma.facturacion.update({ where: { id }, data: { flgActivo: false } });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId: id, accion: "eliminar", detalle: "Registro dado de baja", createdBy },
+      data: { facturacionId: id, accion: ACCIONES_FACTURACION.ELIMINAR, detalle: "Registro dado de baja", createdBy },
     });
   }
 
@@ -252,7 +269,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     if (!cuota) return;
     await prisma.facturacionCuota.delete({ where: { id: cuotaId } });
     await prisma.facturacionHistorial.create({
-      data: { facturacionId: cuota.facturacionId, accion: "eliminar_cuota", detalle: `Cuota #${cuota.numero} eliminada`, createdBy },
+      data: { facturacionId: cuota.facturacionId, accion: ACCIONES_FACTURACION.ELIMINAR_CUOTA, detalle: `Cuota #${cuota.numero} eliminada`, createdBy },
     });
     // Renumera secuencialmente (1..n) las cuotas restantes.
     const restantes = await prisma.facturacionCuota.findMany({

@@ -7,6 +7,7 @@ import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
 import { fechasCuotasValidas, porcentajesValidos, siguienteFechaCuota } from "@/lib/shared/utils/cuotas";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
@@ -41,6 +42,24 @@ function standIdsKey(ids: string[]): string {
 
 function emptyDatos(): FormDatos {
   return { razonSocial: "", tipoDocumento: "", numeroDocumento: "", direccion: "", telefono: "", contacto: "", email: "", tipoComprobante: "" };
+}
+
+/**
+ * Completa los datos comerciales con la empresa fiscal vinculada al usuario
+ * (perfil), sin pisar lo que el usuario ya escribio o el borrador guardado.
+ */
+function prefillEmpresa(prev: FormDatos, empresa: PerfilDTO["empresa"] | null | undefined): FormDatos {
+  if (!empresa) return prev;
+  return {
+    razonSocial: prev.razonSocial || empresa.razonSocial || "",
+    tipoDocumento: prev.tipoDocumento || (empresa.ruc ? TIPOS_DOCUMENTO.RUC : ""),
+    numeroDocumento: prev.numeroDocumento || empresa.ruc || "",
+    direccion: prev.direccion || empresa.direccionFiscal || "",
+    telefono: prev.telefono || empresa.telefono || "",
+    contacto: prev.contacto || empresa.representanteLegalNombre || "",
+    email: prev.email || empresa.emailContacto || "",
+    tipoComprobante: prev.tipoComprobante || (empresa.ruc ? TIPOS_COMPROBANTE.FACTURA : ""),
+  };
 }
 
 export function useReservaForm(selectedIds: string[], linkedMap: Map<string, GessLinkedInfo>) {
@@ -94,16 +113,19 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   useEffect(() => {
     if (!reservaOpen || selectedIds.length === 0) return;
     (async () => {
-      perfilService.get().then((perfil) => setFirmaPerfilUrl(perfil.firmaUrl ?? null)).catch(() => setFirmaPerfilUrl(null));
-      const draft = await reservaBorradorDB.cargar(selectedIds);
+      const [perfil, draft] = await Promise.all([
+        perfilService.get().catch(() => null),
+        reservaBorradorDB.cargar(selectedIds),
+      ]);
+      setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
+      const base = draft ? { ...emptyDatos(), ...draft.datos } : emptyDatos();
+      setFormDatos(prefillEmpresa(base, perfil?.empresa ?? null));
       if (draft) {
-        setFormDatos({ ...emptyDatos(), ...draft.datos });
         setDocsRequisitos(draft.docsRequisitos ?? {});
         if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= 1) {
           setReservaStep(draft.step);
         }
       } else {
-        setFormDatos(emptyDatos());
         setDocsRequisitos({});
         setReservaStep(0);
       }
@@ -171,6 +193,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         tipoDocumento: formDatos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA ? TIPOS_DOCUMENTO.RUC : (formDatos.tipoDocumento || TIPOS_DOCUMENTO.DNI),
         numeroDocumento: formDatos.numeroDocumento,
         email: formDatos.email,
+        /* Snapshot fiscal del paso 1 (payload de facturacion del IIMP). */
+        tipoComprobante: formDatos.tipoComprobante,
+        direccion: formDatos.direccion,
+        telefono: formDatos.telefono,
+        contacto: formDatos.contacto,
       },
     });
     if (!result.ok) {

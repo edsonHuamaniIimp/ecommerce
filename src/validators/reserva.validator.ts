@@ -8,6 +8,10 @@ export const reservaRequestSchema = z.object({
     tipoDocumento: z.string(),
     numeroDocumento: z.string(),
     email: z.string().email(),
+    tipoComprobante: z.string().max(20).optional(),
+    direccion: z.string().max(200).optional(),
+    telefono: z.string().max(20).optional(),
+    contacto: z.string().max(150).optional(),
   }).optional(),
 });
 
