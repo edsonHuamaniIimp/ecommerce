@@ -622,7 +622,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
       });
       const total = stands.length;
       const disponibles = stands.filter(
-        (s) => !s.estado || s.estado === ESTADOS_STAND.DISPONIBLE || (s.estado !== ESTADOS_STAND.EN_EVALUACION && s.estado !== ESTADOS_STAND.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.EN_EVALUACION),
+        (s) => !s.estado || s.estado === ESTADOS_STAND.DISPONIBLE || (s.estado !== ESTADOS_STAND.EN_EVALUACION && s.estado !== ESTADOS_STAND.RESERVADO && s.estado !== ESTADOS_STAND.PRE_RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.EN_EVALUACION),
       ).length;
       resultado.push({
         seccionCodigo: seccion.codigo,

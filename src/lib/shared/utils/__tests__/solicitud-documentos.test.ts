@@ -126,7 +126,7 @@ describe("subsanacion SGC segun el modo declarado por el admin", () => {
     expect(esperandoContratoCorregidoSgc(mismoContrato)).toBe(false);
   });
 
-  it("bloquea al cliente si el admin declarÃ³ 'nuevo contrato' y aun no lo subio", () => {
+  it("bloquea al cliente si el admin declaró 'nuevo contrato' y aun no lo subio", () => {
     expect(enVentanaSubsanacionSgc(nuevoContratoSinSubir)).toBe(false);
     expect(esperandoContratoCorregidoSgc(nuevoContratoSinSubir)).toBe(true);
     expect(puedeClienteSubirDocumentos(nuevoContratoSinSubir)).toBe(false);

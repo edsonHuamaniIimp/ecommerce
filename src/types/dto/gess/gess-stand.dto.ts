@@ -23,6 +23,15 @@ export interface GessStandDTO {
   imagenesCategorias: unknown;
   /** Categoria por url de documento: { "<url>": "<categoria>" }. */
   documentosCategorias: unknown;
+  /** Pre-reserva (bloqueo con empresa o titulo, sin solicitud): snapshot y autor. */
+  preReservaRazonSocial?: string | null;
+  preReservaTitulo?: string | null;
+  preReservaRuc?: string | null;
+  preReservaSie?: string | null;
+  preReservaLogoUrl?: string | null;
+  preReservaNota?: string | null;
+  preReservaPor?: string | null;
+  preReservaAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

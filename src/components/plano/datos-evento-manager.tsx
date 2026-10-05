@@ -94,14 +94,15 @@ export function DatosEventoManager({ eventoId }: { eventoId: string }) {
                       <TableCell>
                         {(() => {
                           const est = r.estado?.toLowerCase();
+                          const esReservado = est === ESTADOS_STAND.RESERVADO || est === ESTADOS_STAND.PRE_RESERVADO;
                           return (
                             <Badge className={`text-[10px] pointer-events-none ${
                               est === ESTADOS_STAND.DISPONIBLE ? BADGE_STYLES.SUCCESS
-                              : est === ESTADOS_STAND.RESERVADO ? BADGE_STYLES.DESTRUCTIVE
+                              : esReservado ? BADGE_STYLES.DESTRUCTIVE
                               : est === ESTADOS_STAND.EN_EVALUACION ? BADGE_STYLES.WARNING
                               : BADGE_STYLES.NEUTRAL
                             }`}>
-                              {est === ESTADOS_STAND.EN_EVALUACION ? "En evaluacion" : est === ESTADOS_STAND.DISPONIBLE ? "Disponible" : est === ESTADOS_STAND.RESERVADO ? "Reservado" : r.estado ?? "—"}
+                              {est === ESTADOS_STAND.EN_EVALUACION ? "En evaluacion" : est === ESTADOS_STAND.DISPONIBLE ? "Disponible" : esReservado ? "Reservado" : r.estado ?? ""}
                             </Badge>
                           );
                         })()}

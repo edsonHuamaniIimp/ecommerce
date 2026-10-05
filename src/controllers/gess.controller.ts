@@ -3,7 +3,7 @@ import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { updateGessStandSchema } from "@/validators/gess.validator";
+import { updateGessStandSchema, preReservaSchema, liberarPreReservaSchema, actualizarPreReservaSchema } from "@/validators/gess.validator";
 import { guardarTipoStandImagenSchema } from "@/validators/tipos-stand.validator";
 
 /** Guarda de escritura de stands: sesion + `stands:manage` (el admin pasa por `admin:full`). */
@@ -12,6 +12,19 @@ async function autorizarEscrituraStands(): Promise<NextResponse | null> {
   if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
   if (!session.permissions.includes(PERMISSIONS.STANDS_MANAGE) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
     return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para gestionar stands", 403);
+  }
+  return null;
+}
+
+/** Guarda de pre-reservas: `stands:pre_reservar` (o `stands:manage`/`admin:full`). */
+async function autorizarPreReservas(): Promise<NextResponse | null> {
+  const session = await getSession();
+  if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+  const permitido = session.permissions.includes(PERMISSIONS.STANDS_PRE_RESERVAR)
+    || session.permissions.includes(PERMISSIONS.STANDS_MANAGE)
+    || session.permissions.includes(PERMISSIONS.ADMIN_FULL);
+  if (!permitido) {
+    return error(API_ERROR_CODES.FORBIDDEN, "Sin permisos para gestionar pre-reservas", 403);
   }
   return null;
 }
@@ -106,5 +119,48 @@ export const gessController = {
       return error(API_ERROR_CODES.VALIDATION, "tipoEvento y codigoEvento son requeridos", 400);
     }
     return success(await services.gess.mockup(body.eventoId, body.tipoEvento, body.codigoEvento));
+  },
+
+  /** Pre-reserva en lote: bloquea stands disponibles a nombre de una empresa. */
+  async preReservar(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarPreReservas();
+    if (noAutorizado) return noAutorizado;
+    const session = await getSession();
+    const body = preReservaSchema.parse(await request.json());
+    return success(await services.gess.preReservar(
+      body.standIds,
+      {
+        razonSocial: body.razonSocial ?? null,
+        titulo: body.titulo ?? null,
+        ruc: body.ruc ?? null,
+        sie: body.sie ?? null,
+        logoUrl: body.logoUrl ?? null,
+      },
+      body.nota ?? null,
+      session?.email ?? "",
+    ));
+  },
+
+  /** Libera pre-reservas en lote (vuelven a disponible). */
+  async liberar(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarPreReservas();
+    if (noAutorizado) return noAutorizado;
+    const body = liberarPreReservaSchema.parse(await request.json());
+    return success(await services.gess.liberarPreReserva(body.standIds));
+  },
+
+  /** Edita empresa/logo/nota de una pre-reserva vigente. */
+  async actualizarPreReserva(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarPreReservas();
+    if (noAutorizado) return noAutorizado;
+    const body = actualizarPreReservaSchema.parse(await request.json());
+    return success(await services.gess.actualizarPreReserva(body.standId, {
+      razonSocial: body.razonSocial ?? null,
+      titulo: body.titulo ?? null,
+      ruc: body.ruc ?? null,
+      sie: body.sie ?? null,
+      logoUrl: body.logoUrl ?? null,
+      nota: body.nota ?? null,
+    }));
   },
 };

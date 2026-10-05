@@ -5,6 +5,8 @@ import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 const COLORS: Record<EstadoStand, string> = {
   [ESTADOS_STAND.RESERVADO]: "#16a34a",
+  /* Misma apariencia que reservado (bloqueo con empresa). */
+  [ESTADOS_STAND.PRE_RESERVADO]: "#16a34a",
   [ESTADOS_STAND.EN_EVALUACION]: "#cbd5e1",
   [ESTADOS_STAND.DISPONIBLE]: "#ffffff",
 };
@@ -30,7 +32,7 @@ export function PlanoStands({ stands, selectedIds, onToggle }: PlanoStandsProps)
           const selectable = st.estado === ESTADOS_STAND.DISPONIBLE;
           const fill = selected ? "var(--primary)" : COLORS[st.estado];
           const textFill =
-            selected || st.estado === ESTADOS_STAND.RESERVADO ? "#ffffff" : "#0f172a";
+            selected || st.estado === ESTADOS_STAND.RESERVADO || st.estado === ESTADOS_STAND.PRE_RESERVADO ? "#ffffff" : "#0f172a";
           return (
             <g
               key={st.id}

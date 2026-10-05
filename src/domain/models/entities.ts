@@ -85,6 +85,15 @@ export interface GessStandEntity {
   email: string | null;
   userId: string | null;
   rawData: unknown;
+  /** Pre-reserva (bloqueo con empresa o titulo, sin solicitud): snapshot y autor. */
+  preReservaRazonSocial?: string | null;
+  preReservaTitulo?: string | null;
+  preReservaRuc?: string | null;
+  preReservaSie?: string | null;
+  preReservaLogoUrl?: string | null;
+  preReservaNota?: string | null;
+  preReservaPor?: string | null;
+  preReservaAt?: Date | null;
 }
 
 export interface RoleEntity {

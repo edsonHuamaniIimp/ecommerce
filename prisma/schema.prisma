@@ -350,6 +350,17 @@ model GessStand {
   montajistaAsignadaEn DateTime? @map("montajista_asignada_en")
   montajistaAsignadaPor String?  @map("montajista_asignada_por") @db.VarChar(200)
 
+  /// Pre-reserva (bloqueo con empresa, sin solicitud ni contrato).
+  preReservaRazonSocial String?  @map("pre_reserva_razon_social") @db.VarChar(200)
+  /// Pre-reserva por titulo (texto libre) cuando no hay empresa.
+  preReservaTitulo      String?  @map("pre_reserva_titulo") @db.VarChar(200)
+  preReservaRuc         String?  @map("pre_reserva_ruc") @db.VarChar(11)
+  preReservaSie         String?  @map("pre_reserva_sie") @db.VarChar(20)
+  preReservaLogoUrl     String?  @map("pre_reserva_logo_url") @db.VarChar(500)
+  preReservaNota        String?  @map("pre_reserva_nota") @db.VarChar(300)
+  preReservaPor         String?  @map("pre_reserva_por") @db.VarChar(200)
+  preReservaAt          DateTime? @map("pre_reserva_at")
+
   evento      Evento      @relation(fields: [eventoId], references: [id])
   solicitudes Solicitud[]
   solicitudStands SolicitudStand[] @relation("SolicitudStandGess")

@@ -126,7 +126,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
-            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION,
+            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION || estado === ESTADOS_STAND.PRE_RESERVADO,
             dbId: String(r.id ?? ""),
           });
         }

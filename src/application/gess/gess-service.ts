@@ -2,7 +2,9 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-imagen-repository";
-import { ESTADOS_STAND } from "@/lib/shared/constants";
+import type { GessStandEntity } from "@/domain/models/entities";
+import { DomainError } from "@/lib/server/router";
+import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
 import { precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
 import { claveTipoStand } from "@/lib/shared/utils/tipo-stand";
 
@@ -71,6 +73,8 @@ export class GessApplicationService {
     /* RF-08: imagen referencial por tipo del evento (fallback global). */
     const porTipo = await this.imagenesPorTipo(eventoId);
     result.data = result.data.map((d) => this.conTipoImagen(d, porTipo));
+    /* Logo de pre-reserva: se pinta igual que el de una reserva en el plano. */
+    result.data = result.data.map((d) => (d.empresaLogo ? d : { ...d, empresaLogo: d.preReservaLogoUrl ?? null }));
     return result;
   }
 
@@ -78,7 +82,7 @@ export class GessApplicationService {
     const row = await this.repo.findByBloque(bloqueId);
     if (!row) return row;
     const porTipo = await this.imagenesPorTipo(row.eventoId);
-    return this.conTipoImagen(row, porTipo);
+    return { ...this.conTipoImagen(row, porTipo), empresaLogo: row.empresaLogo ?? row.preReservaLogoUrl ?? null };
   }
 
   async vincular(id: string, bloqueId: string | null) {
@@ -87,6 +91,115 @@ export class GessApplicationService {
 
   async actualizarStand(id: string, data: { documentos?: string[]; documentosCategorias?: Record<string, string>; imagenes?: string[]; imagenesCategorias?: Record<string, string>; estado?: string }) {
     return this.repo.update(id, data);
+  }
+
+  /**
+   * Pre-reserva en lote: bloquea stands **disponibles** a nombre de una empresa
+   * (buscador de entidades) **o** de un titulo libre — sin crear solicitud ni contrato.
+   * Todo o nada: si algun stand no esta disponible, no se modifica ninguno.
+   */
+  async preReservar(
+    standIds: string[],
+    datos: { razonSocial?: string | null; titulo?: string | null; ruc?: string | null; sie?: string | null; logoUrl?: string | null },
+    nota: string | null,
+    por: string,
+  ): Promise<{ preReservados: number }> {
+    const razonSocial = datos.razonSocial?.trim() || null;
+    const titulo = datos.titulo?.trim() || null;
+    if (!razonSocial && !titulo) {
+      throw new DomainError("Ingresa la empresa (razon social) o un titulo", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const encontrados = await this.validarStands(standIds, ESTADOS_STAND.DISPONIBLE, "pre-reservar");
+    const at = new Date();
+    for (const stand of encontrados) {
+      await this.repo.update(stand.id, {
+        estado: ESTADOS_STAND.PRE_RESERVADO,
+        /* Etiqueta visible en el plano (hover): empresa o titulo. */
+        empresa: razonSocial ?? titulo,
+        preReservaRazonSocial: razonSocial,
+        preReservaTitulo: titulo,
+        preReservaRuc: razonSocial ? (datos.ruc?.trim() || null) : null,
+        preReservaSie: razonSocial ? (datos.sie?.trim() || null) : null,
+        preReservaLogoUrl: datos.logoUrl?.trim() || null,
+        preReservaNota: nota?.trim() || null,
+        preReservaPor: por,
+        preReservaAt: at,
+      } as Partial<GessStandEntity>);
+    }
+    return { preReservados: encontrados.length };
+  }
+
+  /** Libera pre-reservas: solo stands `pre_reservado` vuelven a `disponible` (todo o nada). */
+  async liberarPreReserva(standIds: string[]): Promise<{ liberados: number }> {
+    const encontrados = await this.validarStands(standIds, ESTADOS_STAND.PRE_RESERVADO, "liberar");
+    for (const stand of encontrados) {
+      await this.repo.update(stand.id, {
+        estado: ESTADOS_STAND.DISPONIBLE,
+        empresa: null,
+        preReservaRazonSocial: null,
+        preReservaTitulo: null,
+        preReservaRuc: null,
+        preReservaSie: null,
+        preReservaLogoUrl: null,
+        preReservaNota: null,
+        preReservaPor: null,
+        preReservaAt: null,
+      } as Partial<GessStandEntity>);
+    }
+    return { liberados: encontrados.length };
+  }
+
+  /** Edita empresa/titulo, logo y nota de una pre-reserva vigente (sin cambiar autor ni fecha). */
+  async actualizarPreReserva(
+    standId: string,
+    datos: { razonSocial?: string | null; titulo?: string | null; ruc?: string | null; sie?: string | null; logoUrl?: string | null; nota: string | null },
+  ): Promise<{ actualizado: boolean }> {
+    const razonSocial = datos.razonSocial?.trim() || null;
+    const titulo = datos.titulo?.trim() || null;
+    if (!razonSocial && !titulo) {
+      throw new DomainError("Ingresa la empresa (razon social) o un titulo", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const stand = await this.repo.findById(standId);
+    if (!stand) throw new DomainError("Stand no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    if (stand.estado !== ESTADOS_STAND.PRE_RESERVADO) {
+      throw new DomainError(`No se puede editar: ${stand.standCode} no esta pre-reservado`, API_ERROR_CODES.CONFLICT, 409);
+    }
+    await this.repo.update(stand.id, {
+      empresa: razonSocial ?? titulo,
+      preReservaRazonSocial: razonSocial,
+      preReservaTitulo: titulo,
+      preReservaRuc: razonSocial ? (datos.ruc?.trim() || null) : null,
+      preReservaSie: razonSocial ? (datos.sie?.trim() || null) : null,
+      preReservaLogoUrl: datos.logoUrl?.trim() || null,
+      preReservaNota: datos.nota?.trim() || null,
+    } as Partial<GessStandEntity>);
+    return { actualizado: true };
+  }
+
+  /** Valida en lote que los stands existan y esten en el estado requerido (todo o nada). */
+  private async validarStands(standIds: string[], estadoRequerido: string, accion: string): Promise<GessStandEntity[]> {
+    const ids = [...new Set(standIds.filter(Boolean))];
+    if (ids.length === 0) {
+      throw new DomainError(`No hay stands para ${accion}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    const encontrados: GessStandEntity[] = [];
+    const conflictos: string[] = [];
+    for (const id of ids) {
+      const stand = await this.repo.findById(id);
+      if (!stand || stand.estado !== estadoRequerido) {
+        conflictos.push(stand?.standCode ?? id);
+        continue;
+      }
+      encontrados.push(stand);
+    }
+    if (conflictos.length > 0) {
+      throw new DomainError(
+        `No se puede ${accion}: ${conflictos.join(", ")} no estan en estado ${estadoRequerido}`,
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    return encontrados;
   }
 
   async sync(eventoId: string, tipoEvento: number, codigoEvento: number, seleccionadas?: Record<string, unknown>[]) {
@@ -131,7 +244,7 @@ export class GessApplicationService {
        */
       const estadoProtegido =
         estado === ESTADOS_STAND.DISPONIBLE
-        && (exists?.estado === ESTADOS_STAND.EN_EVALUACION || exists?.estado === ESTADOS_STAND.RESERVADO);
+        && (exists?.estado === ESTADOS_STAND.EN_EVALUACION || exists?.estado === ESTADOS_STAND.RESERVADO || exists?.estado === ESTADOS_STAND.PRE_RESERVADO);
 
       const empresaApi = String(r.company ?? r.empresa ?? r.razon_social ?? "").trim();
       const data: Record<string, unknown> = {
@@ -141,7 +254,10 @@ export class GessApplicationService {
         pabellon: pabellonApi || (r.x !== undefined ? coordenadas : null),
         rawData: row,
       };
-      if (empresaApi) data.empresa = empresaApi;
+      /* Pre-reserva vigente: manda la empresa local, el API no la pisa. */
+      if (exists?.estado === ESTADOS_STAND.PRE_RESERVADO) {
+        /* sin cambios de empresa */
+      } else if (empresaApi) data.empresa = empresaApi;
       else if (!exists) data.empresa = null;
 
       if (exists) {

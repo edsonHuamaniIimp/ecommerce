@@ -98,6 +98,9 @@
 | `/api/gess/tipos-imagen` | DELETE | Quita la imagen referencial de un tipo |
 | `/api/gess/sync` | POST | Sincroniza stands seleccionados desde GESS |
 | `/api/gess/mockup` | POST | Genera mockup/datos de stands para un evento |
+| `/api/gess/pre-reservar` | POST | Pre-reserva en lote (hasta 500): bloquea stands `disponible` con una empresa (SIE/RUC/razón social) **o** un título libre + nota; todo o nada (409) |
+| `/api/gess/liberar` | POST | Libera pre-reservas en lote: solo `pre_reservado` → `disponible` (limpia empresa/título/snapshot); todo o nada (409) |
+| `/api/gess/pre-reserva` | PATCH | Edita empresa/título/logo/nota de una pre-reserva vigente (`pre_reservado`; 404/409) |
 | `/api/gess/actualizar` | PATCH | Actualiza datos de un stand GESS |
 
 ### 3.5 Planos / Laboratorio — `src/app/api/planos/[...slug]/route.ts` y `planos/publico`

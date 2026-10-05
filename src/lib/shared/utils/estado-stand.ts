@@ -10,6 +10,8 @@ const BADGES: Record<string, EstadoStandBadge> = {
   [ESTADOS_STAND.DISPONIBLE]: { texto: "Disponible", clase: BADGE_STYLES.SUCCESS },
   [ESTADOS_STAND.EN_EVALUACION]: { texto: "En evaluacion", clase: BADGE_STYLES.WARNING },
   [ESTADOS_STAND.RESERVADO]: { texto: "Reservado", clase: BADGE_STYLES.NEUTRAL },
+  /* Mismo comportamiento visual que reservado; la vista de Pre-reservas los lista aparte. */
+  [ESTADOS_STAND.PRE_RESERVADO]: { texto: "Reservado", clase: BADGE_STYLES.NEUTRAL },
   [ESTADOS_STAND_LEGACY.AVAILABLE]: { texto: "Disponible", clase: BADGE_STYLES.SUCCESS },
   [ESTADOS_STAND_LEGACY.RESERVED]: { texto: "Reservado", clase: BADGE_STYLES.NEUTRAL },
   [ESTADOS_STAND_LEGACY.RESERVADO]: { texto: "Reservado", clase: BADGE_STYLES.NEUTRAL },
@@ -46,6 +48,7 @@ export function estadoComercialStand(
   }
   if (
     estadoStand === ESTADOS_STAND.RESERVADO ||
+    estadoStand === ESTADOS_STAND.PRE_RESERVADO ||
     estadoStand === ESTADOS_STAND_LEGACY.RESERVADO ||
     estadoStand === ESTADOS_STAND_LEGACY.RESERVED
   ) {

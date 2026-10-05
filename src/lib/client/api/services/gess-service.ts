@@ -58,4 +58,16 @@ export const gessService = {
   reservar(body: ReservaRequestDTO) {
     return internalApi.post<ReservaResponseDTO>("/api/reservas/crear", body);
   },
+  /** Pre-reserva en lote: bloquea stands disponibles con empresa o titulo libre. */
+  preReservar(body: { standIds: string[]; razonSocial?: string | null; titulo?: string | null; ruc?: string | null; sie?: string | null; logoUrl?: string | null; nota?: string | null }) {
+    return internalApi.post<{ preReservados: number }>("/api/gess/pre-reservar", body);
+  },
+  /** Libera pre-reservas en lote (vuelven a disponible). */
+  liberarPreReserva(standIds: string[]) {
+    return internalApi.post<{ liberados: number }>("/api/gess/liberar", { standIds });
+  },
+  /** Edita empresa/titulo/logo/nota de una pre-reserva vigente. */
+  actualizarPreReserva(body: { standId: string; razonSocial?: string | null; titulo?: string | null; ruc?: string | null; sie?: string | null; logoUrl?: string | null; nota?: string | null }) {
+    return internalApi.patch<{ actualizado: boolean }>("/api/gess/pre-reserva", body);
+  },
 };

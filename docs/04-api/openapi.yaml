@@ -185,6 +185,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GessSyncResult"
+  /gess/pre-reservar:
+    post:
+      tags: [Gess]
+      summary: Pre-reserva stands disponibles en lote (empresa o título; bloqueo sin solicitud ni contrato)
+      description: |
+        Todo o nada: si algún stand no está `disponible` responde 409 y no modifica ninguno.
+        El estado pasa a `pre_reservado` (se comporta como reservado en el plano) y se guarda
+        el snapshot de la empresa (razón social, RUC, SIE) **o** el título libre, además de nota
+        y autor. Al menos uno de `razonSocial`/`titulo` es obligatorio; lo registrado se muestra
+        en el hover del plano.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [standIds]
+              properties:
+                standIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items: { type: string }
+                razonSocial: { type: string, nullable: true, maxLength: 200 }
+                titulo: { type: string, nullable: true, maxLength: 200, description: Alternativa libre a la empresa; se muestra en el hover }
+                ruc: { type: string, nullable: true, maxLength: 20 }
+                sie: { type: string, nullable: true, maxLength: 20, description: Código SIE de entidades (ej. E0000003804) }
+                nota: { type: string, nullable: true, maxLength: 300 }
+      responses:
+        "200":
+          description: Pre-reservas aplicadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preReservados: { type: integer }
+        "400":
+          description: Datos inválidos (sin stands o sin razón social/título)
+        "403":
+          description: Sin permisos para gestionar pre-reservas
+        "409":
+          description: Algún stand no está disponible (no se modificó ninguno)
+  /gess/liberar:
+    post:
+      tags: [Gess]
+      summary: Libera pre-reservas en lote (vuelven a `disponible` y se limpia la empresa asignada)
+      description: Todo o nada: si algún stand no está `pre_reservado` responde 409 y no modifica ninguno.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [standIds]
+              properties:
+                standIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items: { type: string }
+      responses:
+        "200":
+          description: Pre-reservas liberadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  liberados: { type: integer }
+        "403":
+          description: Sin permisos para gestionar pre-reservas
+        "409":
+          description: Algún stand no está pre-reservado (no se modificó ninguno)
+  /gess/pre-reserva:
+    patch:
+      tags: [Gess]
+      summary: Edita empresa/título/logo/nota de una pre-reserva vigente (stand `pre_reservado`)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [standId]
+              properties:
+                standId: { type: string }
+                razonSocial: { type: string, nullable: true, maxLength: 200 }
+                titulo: { type: string, nullable: true, maxLength: 200, description: Alternativa libre a la empresa; null lo limpia }
+                ruc: { type: string, nullable: true, maxLength: 20 }
+                sie: { type: string, nullable: true, maxLength: 20 }
+                logoUrl: { type: string, nullable: true, maxLength: 500, description: "null limpia el logo" }
+                nota: { type: string, nullable: true, maxLength: 300, description: "null limpia la nota" }
+      responses:
+        "200":
+          description: Pre-reserva actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actualizado: { type: boolean }
+        "403":
+          description: Sin permisos para gestionar pre-reservas
+        "404":
+          description: Stand no encontrado
+        "409":
+          description: El stand no está pre-reservado
   /planogess/fetch:
     post:
       tags: [Gess]

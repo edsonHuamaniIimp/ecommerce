@@ -17,6 +17,7 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/dashboard/mis-pagos", permission: PERMISSIONS.PAGOS_VIEW },
   { path: "/api/pagos", permission: PERMISSIONS.PAGOS_VIEW },
   { path: "/dashboard/stands", permission: PERMISSIONS.STANDS_MANAGE },
+  { path: "/dashboard/pre-reservas", permission: PERMISSIONS.STANDS_PRE_RESERVAR },
   { path: "/dashboard/reservas", permission: PERMISSIONS.READ_RESERVAS },
   { path: "/dashboard/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
   { path: "/dashboard/facturacion", permission: PERMISSIONS.FACTURACION_VIEW },

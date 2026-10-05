@@ -6,6 +6,15 @@ import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-imagen-repository";
 import type { GessStandEntity } from "@/domain/models/entities";
 
+vi.mock("@/lib/server/router", () => ({
+  DomainError: class DomainError extends Error {
+    constructor(message: string, public readonly code: string, public readonly status = 400) {
+      super(message);
+      this.name = "DomainError";
+    }
+  },
+}));
+
 function stand(overrides: Partial<GessStandEntity> = {}): GessStandEntity {
   return {
     id: "g1", eventoId: "ev1", standApiId: "A-01", standCode: "A-01",
@@ -226,5 +235,168 @@ describe("GessApplicationService.sync (API real liststand)", () => {
     await svc.sync("ev1", 2, 19);
 
     expect(repo.update).toHaveBeenCalledWith("g9", expect.objectContaining({ estado: "reservado" }));
+  });
+
+  it("no pisa estado ni empresa de un stand pre_reservado en la re-importacion", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findByStandApiId).mockResolvedValue(stand({ id: "g10", standApiId: "05", estado: "pre_reservado", empresa: "GLORIA S.A." }));
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "05", pabellon: "PABELLON 1", tipo: "ESQUINERO", area: "16.00", precio: "16000.00", estado: "LIBRE", moneda: "USD", empresa: "OTRA S.A." },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    await svc.sync("ev1", 2, 19);
+
+    const data = vi.mocked(repo.update).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(data.estado).toBeUndefined();
+    expect(data.empresa).toBeUndefined();
+  });
+});
+
+describe("GessApplicationService pre-reservas", () => {
+  it("pre-reserva stands disponibles con snapshot de empresa (todo o nada)", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById)
+      .mockResolvedValueOnce(stand({ id: "g1", estado: "disponible" }))
+      .mockResolvedValueOnce(stand({ id: "g2", standCode: "B-02", estado: "disponible" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    const r = await svc.preReservar(["g1", "g2"], { razonSocial: "GLORIA S.A.", ruc: "20100190797", sie: "E0000003804", logoUrl: "/uploads/gloria.png" }, "acuerdo comercial", "admin@iimp.org.pe");
+
+    expect(r.preReservados).toBe(2);
+    expect(repo.update).toHaveBeenCalledWith("g1", expect.objectContaining({
+      estado: "pre_reservado",
+      empresa: "GLORIA S.A.",
+      preReservaRuc: "20100190797",
+      preReservaSie: "E0000003804",
+      preReservaLogoUrl: "/uploads/gloria.png",
+      preReservaNota: "acuerdo comercial",
+      preReservaPor: "admin@iimp.org.pe",
+    }));
+    expect(repo.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("rechaza el lote completo si algun stand no esta disponible y no actualiza ninguno", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById)
+      .mockResolvedValueOnce(stand({ id: "g1", estado: "disponible" }))
+      .mockResolvedValueOnce(stand({ id: "g2", standCode: "B-02", estado: "reservado" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.preReservar(["g1", "g2"], { razonSocial: "GLORIA S.A.", ruc: null, sie: null, logoUrl: null }, null, "admin"))
+      .rejects.toMatchObject({ status: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it("exige razon social", async () => {
+    const repo = mockRepo();
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+    await expect(svc.preReservar(["g1"], { razonSocial: "  ", ruc: null, sie: null, logoUrl: null }, null, "admin"))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("pre-reserva por titulo libre cuando no hay empresa", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "disponible" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    const r = await svc.preReservar(["g1"], { titulo: "Reservado para auspicios" }, null, "admin@iimp.org.pe");
+
+    expect(r.preReservados).toBe(1);
+    expect(repo.update).toHaveBeenCalledWith("g1", expect.objectContaining({
+      estado: "pre_reservado",
+      /* La etiqueta visible (hover del plano) es el titulo. */
+      empresa: "Reservado para auspicios",
+      preReservaRazonSocial: null,
+      preReservaTitulo: "Reservado para auspicios",
+      preReservaRuc: null,
+      preReservaSie: null,
+    }));
+  });
+
+  it("cambia de empresa a titulo al editar la pre-reserva", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "pre_reservado", empresa: "GLORIA S.A." }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await svc.actualizarPreReserva("g1", { razonSocial: null, titulo: "Bloqueo interno", ruc: null, sie: null, logoUrl: null, nota: null });
+
+    expect(repo.update).toHaveBeenCalledWith("g1", expect.objectContaining({
+      empresa: "Bloqueo interno",
+      preReservaRazonSocial: null,
+      preReservaTitulo: "Bloqueo interno",
+      preReservaRuc: null,
+      preReservaSie: null,
+    }));
+  });
+
+  it("no edita sin empresa ni titulo", async () => {
+    const repo = mockRepo();
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+    await expect(svc.actualizarPreReserva("g1", { razonSocial: " ", titulo: "", ruc: null, sie: null, logoUrl: null, nota: null }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(repo.findById).not.toHaveBeenCalled();
+  });
+
+  it("libera solo pre-reservas y limpia el snapshot", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "pre_reservado", empresa: "GLORIA S.A." }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    const r = await svc.liberarPreReserva(["g1"]);
+
+    expect(r.liberados).toBe(1);
+    expect(repo.update).toHaveBeenCalledWith("g1", expect.objectContaining({
+      estado: "disponible",
+      empresa: null,
+      preReservaRazonSocial: null,
+      preReservaRuc: null,
+      preReservaSie: null,
+      preReservaLogoUrl: null,
+      preReservaNota: null,
+      preReservaPor: null,
+      preReservaAt: null,
+    }));
+  });
+
+  it("no libera stands que no estan pre-reservados", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "reservado" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.liberarPreReserva(["g1"])).rejects.toMatchObject({ status: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it("edita empresa, logo y nota de una pre-reserva vigente", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "pre_reservado" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    const r = await svc.actualizarPreReserva("g1", {
+      razonSocial: "NUEVA EMPRESA S.A.", ruc: "20123456789", sie: "E0000009999", logoUrl: "/uploads/nuevo.png", nota: "nota editada",
+    });
+
+    expect(r.actualizado).toBe(true);
+    expect(repo.update).toHaveBeenCalledWith("g1", expect.objectContaining({
+      empresa: "NUEVA EMPRESA S.A.",
+      preReservaLogoUrl: "/uploads/nuevo.png",
+      preReservaNota: "nota editada",
+    }));
+  });
+
+  it("no edita una pre-reserva inexistente o no vigente", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(null);
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.actualizarPreReserva("g1", { razonSocial: "X", ruc: null, sie: null, logoUrl: null, nota: null }))
+      .rejects.toMatchObject({ status: 404 });
+
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g2", estado: "disponible" }));
+    await expect(svc.actualizarPreReserva("g2", { razonSocial: "X", ruc: null, sie: null, logoUrl: null, nota: null }))
+      .rejects.toMatchObject({ status: 409 });
   });
 });

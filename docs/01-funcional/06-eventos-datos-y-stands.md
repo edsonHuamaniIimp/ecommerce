@@ -79,14 +79,42 @@ bloques del plano 3D**.
 | `GET` | `/api/gess/listar?eventoId=` \| `?bloqueId=` | Stands del evento / por bloque |
 | `PATCH` | `/api/gess/actualizar` | Vincular, documentos, imágenes (+ categorías), estado |
 | `POST` | `/api/gess/sync` | Importar stands seleccionados del API |
+| `POST` | `/api/gess/pre-reservar` | Pre-reserva en lote (stands `disponible` → `pre_reservado` con empresa) |
+| `POST` | `/api/gess/liberar` | Libera pre-reservas en lote (`pre_reservado` → `disponible`) |
 | `POST` | `/api/planogess/fetch` | Lista stands del API real del IIMP (login + liststand) |
 | `GET` | `/api/maestra/listar?tabla=` | Catálogos (`stand_estado`, `stand_tipologia`, …) |
 | `GET` | `/api/planos/planos-evento?tipoEvento&codigoEvento` | Bloques del evento (macro + hijos) |
 
+### 5.5 Pre-reservas (`/dashboard/pre-reservas`)
+
+Bloqueo masivo de stands a nombre de una empresa, **sin crear solicitud ni contrato**
+(acuerdo comercial previo). Componente `PreReservasManager` (permiso dedicado
+`stands:pre_reservar`; visible también para `stands:manage` y admin):
+
+- Grilla del evento activo con búsqueda por stand/empresa y filtros por pabellón/tipo,
+  selección múltiple y "Seleccionar todo lo filtrado".
+- **Pre-reservar (N)**: modal con dos modos — **Empresa** (buscador de entidades: SIE + razón
+  social + RUC) o **Título** (texto libre, para bloqueos sin empresa) — más logo y nota
+  opcionales → `POST /api/gess/pre-reservar`. Todo o nada: si algún stand no está
+  `disponible` responde 409 y no cambia ninguno. Lo registrado (empresa o título) es lo que
+  se muestra en el hover del plano.
+- **Liberar (N)**: solo `pre_reservado` → `disponible` (limpia empresa/título y snapshot) →
+  `POST /api/gess/liberar`, con confirmación.
+- **Editar (lápiz por fila)**: cambia empresa/título, logo y nota de una pre-reserva vigente →
+  `PATCH /api/gess/pre-reserva` (404 si no existe, 409 si no está `pre_reservado`).
+  No altera el autor ni la fecha original de la pre-reserva.
+- Persistencia: `gess_stand.estado = "pre_reservado"` + snapshot `pre_reserva_razon_social`,
+  `pre_reserva_ruc`, `pre_reserva_sie`, `pre_reserva_nota`, `pre_reserva_por`, `pre_reserva_at`
+  (migración `0040_add_pre_reserva_stand`). También guarda `empresa` para el hover del plano.
+- En el **plano** (macro, dinámico, isométrico y SVG) se comporta **igual que `reservado`**:
+  mismo color/leyenda, no seleccionable y hover con la razón social; la ocupación del macro lo
+  cuenta como no disponible. La re-importación de liststand no pisa su estado ni su empresa.
+
 ## 6. Estados de stand
 
-`ESTADOS_STAND` (`disponible`, `en_evaluacion`, `reservado`) + etiquetas legacy de GESS/KB
-(`Reservado`, `En evaluacion`, `available`, `reserved`). IDs de maestra: 1/2/3.
+`ESTADOS_STAND` (`disponible`, `en_evaluacion`, `reservado`, `pre_reservado`) + etiquetas
+legacy de GESS/KB (`Reservado`, `En evaluacion`, `available`, `reserved`). IDs de maestra: 1/2/3.
+`pre_reservado` es un bloqueo con empresa sin solicitud; en UI se muestra como reservado.
 `TIPOLOGIAS_STAND`: `1` Complejo, `2` Simple, `3` Octanorm simple.
 
 ## 7. Limitaciones y observaciones

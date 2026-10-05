@@ -79,6 +79,8 @@ export const ESTADOS_STAND = {
   DISPONIBLE: "disponible",
   EN_EVALUACION: "en_evaluacion",
   RESERVADO: "reservado",
+  /** Bloqueo con empresa (sin solicitud ni contrato); en UI se comporta como reservado. */
+  PRE_RESERVADO: "pre_reservado",
 } as const;
 
 export type EstadoStand = (typeof ESTADOS_STAND)[keyof typeof ESTADOS_STAND];
@@ -400,6 +402,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "eventos:datos",
     "stands:vinculacion",
     "stands:manage",
+    "stands:pre_reservar",
     "stands:plano",
     "roles:manage",
     "usuarios:manage",
@@ -425,7 +428,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "pagos:manage",
   ],
   [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"],
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
   [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion"],
   [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
@@ -439,6 +442,7 @@ export const ALL_PERMISSIONS = [
   // Stands
   { key: "stands:vinculacion", label: "Vinculacion de Stands", descripcion: "Vincular stands de GESS como disponibles", section: "stands" },
   { key: "stands:manage", label: "Gestion de Stands", descripcion: "Administrar y editar stands del evento", section: "stands" },
+  { key: "stands:pre_reservar", label: "Pre-reservas", descripcion: "Pre-reservar y liberar stands en lote a nombre de una empresa (sin solicitud ni contrato)", section: "stands" },
   { key: "stands:plano", label: "Plano de Stands", descripcion: "Ver el plano interactivo de stands del evento", section: "stands" },
   // Auspicios
   { key: "auspicios:view", label: "Ver auspicios", descripcion: "Ver listado y registrar auspicios", section: "auspicios" },
@@ -489,6 +493,7 @@ export const PERMISSIONS = {
   EVENTOS_DATOS: "eventos:datos",
   STANDS_VINCULACION: "stands:vinculacion",
   STANDS_MANAGE: "stands:manage",
+  STANDS_PRE_RESERVAR: "stands:pre_reservar",
   STANDS_PLANO: "stands:plano",
   AUSPICIOS_VIEW: "auspicios:view",
   LABORATORIO_VIEW: "laboratorio:view",
@@ -838,6 +843,9 @@ export const MAX_STANDS_IIMP = 50;
 
 /** Porcentaje total (entero) que deben sumar las cuotas enviadas al IIMP. */
 export const CUOTAS_PORCENTAJE_TOTAL = 100;
+
+/** Maximo de stands por operacion de pre-reserva/liberacion en lote. */
+export const MAX_PRE_RESERVA_LOTE = 500;
 
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).

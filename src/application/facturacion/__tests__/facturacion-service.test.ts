@@ -59,7 +59,7 @@ const sampleRow: FacturacionRow = {
   ],
 };
 
-describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â unit tests rigurosos", () => {
+describe("FacturacionApplicationService — unit tests rigurosos", () => {
   // ==================== LISTAR ====================
   describe("listar", () => {
     it("retorna resultado vacio cuando no hay registros", async () => {
@@ -71,7 +71,7 @@ describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â u
       expect(r.total).toBe(0);
     });
 
-    it("respeta paginacion ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pagina 2 con 5 items", async () => {
+    it("respeta paginacion — pagina 2 con 5 items", async () => {
       const repo = mockRepo();
       vi.mocked(repo.listar).mockResolvedValue({ data: [], total: 12 });
       const svc = crearSvc(repo);
@@ -183,7 +183,7 @@ describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â u
 
   // ==================== ELIMINAR ====================
   describe("eliminar", () => {
-    it("baja logica ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no borra fisicamente", async () => {
+    it("baja logica — no borra fisicamente", async () => {
       const repo = mockRepo();
       const svc = crearSvc(repo);
       await svc.eliminar("f1", "admin@test.com");
@@ -209,7 +209,7 @@ describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â u
 
   // ==================== FLUJOS COMPLETOS ====================
   describe("flujos de negocio", () => {
-    it("flujo completo: crear ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ agregar cuotas ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ pagar", async () => {
+    it("flujo completo: crear → agregar cuotas → pagar", async () => {
       const repo = mockRepo();
       const svc = crearSvc(repo);
 
@@ -329,7 +329,7 @@ describe("FacturacionApplicationService ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â u
   });
 
   // ==================== PLAN DEL CLIENTE (contrato) ====================
-  describe("plan definido por el cliente (plan_cuotas) Ã¢â‚¬â€ no editable", () => {
+  describe("plan definido por el cliente (plan_cuotas) â€” no editable", () => {
     it("rechaza agregar cuota cuando el plan viene del contrato", async () => {
       const repo = mockRepo();
       vi.mocked(repo.detalle).mockResolvedValue({ ...sampleRow, planCliente: true });
