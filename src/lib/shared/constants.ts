@@ -16,7 +16,6 @@
 export const PUBLIC_ROUTES = [
   "/auth/login",
   "/presala",
-  "/mapa",
   "/",
   "/403",
 ] as const;

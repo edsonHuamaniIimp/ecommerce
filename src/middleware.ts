@@ -45,6 +45,7 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/exhibidoras" },
   { path: "/api/alertas" },
   { path: "/plano", permission: PERMISSIONS.STANDS_PLANO },
+  { path: "/mapa", permission: PERMISSIONS.STANDS_PLANO },
   { path: "/dashboard" },
 ];
 

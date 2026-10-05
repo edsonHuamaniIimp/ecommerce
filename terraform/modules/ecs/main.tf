@@ -76,6 +76,12 @@ variable "liststand_api_url" {
   default     = ""
 }
 
+variable "personas_api_url" {
+  description = "URL base de servicio-persona (personas del ecosistema IIMP) (R2) - vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
 variable "kbservicios_url" {
   description = "URL de KBServicios (R2) — vacio = no inyectar"
   type        = string
@@ -341,6 +347,8 @@ locals {
     can(var.secret_arns["integracion_api_key"]) ? [{ name = "INTEGRACION_API_KEY", valueFrom = var.secret_arns["integracion_api_key"] }] : [],
     can(var.secret_arns["liststand_usuario"]) ? [{ name = "LISTSTAND_USUARIO", valueFrom = var.secret_arns["liststand_usuario"] }] : [],
     can(var.secret_arns["liststand_clave"]) ? [{ name = "LISTSTAND_CLAVE", valueFrom = var.secret_arns["liststand_clave"] }] : [],
+    can(var.secret_arns["personas_api_usuario"]) ? [{ name = "PERSONAS_API_USUARIO", valueFrom = var.secret_arns["personas_api_usuario"] }] : [],
+    can(var.secret_arns["personas_api_clave"]) ? [{ name = "PERSONAS_API_CLAVE", valueFrom = var.secret_arns["personas_api_clave"] }] : [],
   )
 
   env_list = concat(
@@ -361,6 +369,7 @@ locals {
     ],
     var.planogess_api_url != "" ? [{ name = "PLANOGESS_API_URL", value = var.planogess_api_url }] : [],
     var.liststand_api_url != "" ? [{ name = "LISTSTAND_API_URL", value = var.liststand_api_url }] : [],
+    var.personas_api_url != "" ? [{ name = "PERSONAS_API_URL", value = var.personas_api_url }] : [],
     var.kbservicios_url != "" ? [{ name = "KBSERVICIOS_URL", value = var.kbservicios_url }] : [],
     var.auspicios_api_url != "" ? [{ name = "AUSPICIOS_API_URL", value = var.auspicios_api_url }] : [],
     var.admin_email != "" ? [{ name = "ADMIN_EMAIL", value = var.admin_email }] : [],

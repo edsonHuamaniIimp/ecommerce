@@ -155,6 +155,26 @@ variable "liststand_clave" {
   sensitive   = true
 }
 
+variable "personas_api_url" {
+  description = "URL base de servicio-persona (personas del ecosistema IIMP). Pruebas: .../servicio-persona/api"
+  type        = string
+  default     = ""
+}
+
+variable "personas_api_usuario" {
+  description = "Usuario de la cuenta tecnica de servicio-persona (rol ESCRITURA, secreto) — vacio = no crear secreto"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "personas_api_clave" {
+  description = "Clave de la cuenta tecnica de servicio-persona (secreto) — vacio = no crear secreto"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "kbservicios_url" {
   description = "URL de KBServicios (eventos y tipos)"
   type        = string

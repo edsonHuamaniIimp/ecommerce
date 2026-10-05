@@ -10,7 +10,6 @@ import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { LS_KEYS, TIPOS_PLANO } from "@/lib/shared/constants";
-import { authService } from "@/lib/client/api/services/auth-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { usePlanoCarrito } from "@/lib/client/stores/plano-carrito-store";
 import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
@@ -58,6 +57,11 @@ function MapaDinamicoPageContent() {
 
   useEffect(() => {
     (async () => {
+      /*
+       * El evento se elige SIEMPRE en la presala (queda en localStorage del navegador).
+       * No se usa el eventoId de la sesion: asi el mapa siempre pide seleccionar
+       * version de evento y no carga una silenciosa (login obligatorio via middleware).
+       */
       const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
       let eid: string | null = null;
       let te: number | undefined;
@@ -70,16 +74,10 @@ function MapaDinamicoPageContent() {
         } catch { /* ignore */ }
       }
 
-      const s = await authService.getSession();
-      if (!eid) {
-        eid = s.eventoId ?? null;
-      }
-      if (te === undefined) te = s.tipoEvento;
-      if (ce === undefined) ce = s.codigoEvento;
-
       if (!eid) {
         const returnTo = openReserva ? "/mapa?openReserva=1" : "/mapa";
-        routerRef.current.replace(`/presala?returnTo=${encodeURIComponent(returnTo)}`);
+        /* change=1: la presala debe mostrar el selector aunque la sesion ya tenga evento. */
+        routerRef.current.replace(`/presala?change=1&returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
       setEventoId(eid);
@@ -142,16 +140,21 @@ function MapaDinamicoPageContent() {
     <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">
       {modalInformativo}
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
-        {destinoVolver && (
-          <div>
+        <div className="flex items-center justify-between gap-2">
+          {destinoVolver ? (
             <Button variant="ghost" size="sm" className="h-7 text-xs -ml-2" asChild>
               <Link href={`/mapa?codigo=${encodeURIComponent(destinoVolver)}`}>
                 <ArrowLeft className="h-3.5 w-3.5 mr-1" />
                 <span>Volver al mapa general</span>
               </Link>
             </Button>
-          </div>
-        )}
+          ) : <span />}
+          <Button variant="ghost" size="sm" className="h-7 text-xs -mr-2" asChild>
+            <Link href="/presala?change=1&returnTo=/mapa">
+              <span>Cambiar de evento</span>
+            </Link>
+          </Button>
+        </div>
         {esMacro ? (
           <MacroMapaView
             imagenFondo={payload.imagenFondo}

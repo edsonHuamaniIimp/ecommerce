@@ -117,6 +117,8 @@ function PresalaPageContent() {
     setSelecting(eventoId);
     try {
       await authService.seleccionarEvento({ eventoId, tipoEvento, codigoEvento: codigoEventoNum, eventoNombre: nombre, eventoPadreNombre });
+      /* El mapa publico resuelve el evento por localStorage: se guarda tambien para sesiones logueadas. */
+      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId, nombre, tipoEvento, codigoEvento: codigoEventoNum }));
       // El JWT cambia de evento: recarga completa para que el layout del dashboard
       // (header, datos por evento) vuelva a leer la sesion nueva.
       window.location.assign(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");

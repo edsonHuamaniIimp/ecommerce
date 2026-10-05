@@ -152,20 +152,22 @@ module "uploads" {
 module "secrets" {
   source = "./modules/secrets"
 
-  environment         = var.environment
-  db_endpoint         = module.aurora.endpoint
-  db_username         = module.aurora.username
-  db_password         = module.aurora.password
-  db_name             = module.aurora.database_name
-  sunat_api_token     = var.sunat_api_token
-  resend_api_key      = var.resend_api_key
-  kbservicios_api_key = var.kbservicios_api_key
-  niubizz_user        = var.niubizz_user
-  niubizz_password    = var.niubizz_password
-  iimp_proxy_pass     = var.iimp_proxy_pass
-  integracion_api_key = var.integracion_api_key
-  liststand_usuario   = var.liststand_usuario
-  liststand_clave     = var.liststand_clave
+  environment          = var.environment
+  db_endpoint          = module.aurora.endpoint
+  db_username          = module.aurora.username
+  db_password          = module.aurora.password
+  db_name              = module.aurora.database_name
+  sunat_api_token      = var.sunat_api_token
+  resend_api_key       = var.resend_api_key
+  kbservicios_api_key  = var.kbservicios_api_key
+  niubizz_user         = var.niubizz_user
+  niubizz_password     = var.niubizz_password
+  iimp_proxy_pass      = var.iimp_proxy_pass
+  integracion_api_key  = var.integracion_api_key
+  liststand_usuario    = var.liststand_usuario
+  liststand_clave      = var.liststand_clave
+  personas_api_usuario = var.personas_api_usuario
+  personas_api_clave   = var.personas_api_clave
 
   common_tags = local.common_tags
 }
@@ -187,6 +189,7 @@ module "ecs" {
   uploads_backend        = var.uploads_backend
   planogess_api_url      = var.planogess_api_url
   liststand_api_url      = var.liststand_api_url
+  personas_api_url       = var.personas_api_url
   kbservicios_url        = var.kbservicios_url
   auspicios_api_url      = var.auspicios_api_url
   admin_email            = var.admin_email

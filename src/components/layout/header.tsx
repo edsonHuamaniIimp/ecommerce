@@ -10,7 +10,6 @@ import { LS_KEYS } from "@/lib/shared/constants";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 const links = [
-  { href: "/plano", label: "Isometrico" },
   { href: "/mapa", label: "Dinamico" },
   { href: "/dashboard", label: "Dashboard" },
 ] as const;

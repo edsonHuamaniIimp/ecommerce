@@ -91,6 +91,20 @@ variable "liststand_clave" {
   sensitive   = true
 }
 
+variable "personas_api_usuario" {
+  description = "Usuario de la cuenta tecnica de servicio-persona (rol ESCRITURA) (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "personas_api_clave" {
+  description = "Clave de la cuenta tecnica de servicio-persona (R2) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 locals {
   tags = merge(var.common_tags, { component = "secrets" })
   name = "iimp-ctrst-${var.environment}"
@@ -244,6 +258,31 @@ resource "aws_secretsmanager_secret_version" "liststand_clave" {
   secret_string = var.liststand_clave
 }
 
+# ── servicio-persona (personas del ecosistema IIMP) ─────────────────────────
+resource "aws_secretsmanager_secret" "personas_api_usuario" {
+  count = var.personas_api_usuario != "" ? 1 : 0
+  name  = "${local.name}-personas-api-usuario"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "personas_api_usuario" {
+  count         = var.personas_api_usuario != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.personas_api_usuario[0].id
+  secret_string = var.personas_api_usuario
+}
+
+resource "aws_secretsmanager_secret" "personas_api_clave" {
+  count = var.personas_api_clave != "" ? 1 : 0
+  name  = "${local.name}-personas-api-clave"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "personas_api_clave" {
+  count         = var.personas_api_clave != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.personas_api_clave[0].id
+  secret_string = var.personas_api_clave
+}
+
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
   value = merge(
@@ -260,6 +299,8 @@ output "secret_arns" {
     var.integracion_api_key != "" ? { integracion_api_key = aws_secretsmanager_secret.integracion_api_key[0].arn } : {},
     var.liststand_usuario != "" ? { liststand_usuario = aws_secretsmanager_secret.liststand_usuario[0].arn } : {},
     var.liststand_clave != "" ? { liststand_clave = aws_secretsmanager_secret.liststand_clave[0].arn } : {},
+    var.personas_api_usuario != "" ? { personas_api_usuario = aws_secretsmanager_secret.personas_api_usuario[0].arn } : {},
+    var.personas_api_clave != "" ? { personas_api_clave = aws_secretsmanager_secret.personas_api_clave[0].arn } : {},
   )
 }
 
