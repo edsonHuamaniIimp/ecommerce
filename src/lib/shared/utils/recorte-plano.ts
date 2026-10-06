@@ -17,6 +17,9 @@ export interface RecorteSvgOpciones {
 const OBJETIVO_FILL = "#f59e0b";
 const OBJETIVO_STROKE = "#92400e";
 const OBJETIVO_HALO = "#fbbf24";
+const OBJETIVO_LINEA = "#b45309";
+const OBJETIVO_TEXTO = "#92400e";
+const OBJETIVO_CONTORNO = "#ffffff";
 
 /** ViewBox del pabellon completo + margen porcentual. */
 export function viewBoxConMargen(bounds: PlanoBounds, margenPct = 0.06): { x: number; y: number; w: number; h: number } {
@@ -43,6 +46,7 @@ export function construirSvgRecorte(
   const refUnit = Math.max(vb.w, vb.h);
   const multiple = objetivos.length > 1;
 
+  /* Bloques uniformes; los objetivos se resaltan (ambar + halo) y ademas llevan flecha. */
   const bloques = items
     .map((it) => {
       const esObjetivo = objetivoIds.includes(it.id);
@@ -61,21 +65,13 @@ export function construirSvgRecorte(
     })
     .join("");
 
-  /* Etiquetas: "TU STAND" para uno; numero por bloque para varios. */
-  const etiquetas = objetivos
-    .map((it, i) => {
-      if (!multiple) {
-        return (
-          `<text x="${fmt(it.x)}" y="${fmt(it.z - it.dim.d / 2 - refUnit * 0.012)}" text-anchor="middle" font-size="${fmt(refUnit * 0.028)}" font-weight="700" fill="#7c2d12" stroke="#ffffff" stroke-width="${fmt(refUnit * 0.006)}" paint-order="stroke">TU STAND</text>` +
-          `<text x="${fmt(it.x)}" y="${fmt(it.z + refUnit * 0.012)}" text-anchor="middle" font-size="${fmt(refUnit * 0.024)}" font-weight="600" fill="#1f2937" stroke="#ffffff" stroke-width="${fmt(refUnit * 0.005)}" paint-order="stroke">${esc(it.id)}</text>`
-        );
-      }
-      const r = refUnit * 0.022;
-      return (
-        `<circle cx="${fmt(it.x)}" cy="${fmt(it.z)}" r="${fmt(r)}" fill="${OBJETIVO_STROKE}" stroke="#ffffff" stroke-width="${fmt(refUnit * 0.004)}"/>` +
-        `<text x="${fmt(it.x)}" y="${fmt(it.z + refUnit * 0.009)}" text-anchor="middle" font-size="${fmt(refUnit * 0.026)}" font-weight="700" fill="#ffffff">${i + 1}</text>`
-      );
-    })
+  /*
+   * Anotaciones de los stands objetivo: flecha (linea + punta, con contorno blanco
+   * para contraste en el contrato) que entra desde el lado con mas espacio libre y
+   * apunta al stand; etiqueta en la cola ("TU STAND" + codigo, o numero en multiple).
+   */
+  const anotaciones = objetivos
+    .map((it, i) => anotarObjetivo(it, items, vb, refUnit, i, multiple))
     .join("");
 
   const leyenda = opciones.sinLeyenda ? "" : construirLeyenda(items, vb, refUnit, opciones.etiquetas ?? {});
@@ -84,11 +80,144 @@ export function construirSvgRecorte(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.w)} ${fmt(vb.h)}" width="${fmt(vb.w * 32)}" height="${fmt(vb.h * 32)}">` +
     `<rect x="${fmt(vb.x)}" y="${fmt(vb.y)}" width="${fmt(vb.w)}" height="${fmt(vb.h)}" fill="#f8fafc"/>` +
     bloques +
-    etiquetas +
+    anotaciones +
     leyenda +
     `</svg>`;
 
   return { svg, encontrado };
+}
+
+type DireccionFlecha = "arriba" | "abajo" | "izq" | "der";
+
+/** Distancia libre en una direccion hasta el bloque mas cercano del carril (Infinity si libre). */
+function espacioLibre(it: PlanoItem, items: PlanoItem[], dir: DireccionFlecha, holgura = 0): number {
+  let menor = Infinity;
+  const vertical = dir === "arriba" || dir === "abajo";
+  for (const o of items) {
+    if (o.id === it.id) continue;
+    const mismoCarril = vertical
+      ? Math.abs(o.x - it.x) < (o.dim.w + it.dim.w) / 2 + holgura
+      : Math.abs(o.z - it.z) < (o.dim.d + it.dim.d) / 2 + holgura;
+    if (!mismoCarril) continue;
+    let d: number;
+    if (dir === "arriba" && o.z < it.z) d = (it.z - it.dim.d / 2) - (o.z + o.dim.d / 2);
+    else if (dir === "abajo" && o.z > it.z) d = (o.z - o.dim.d / 2) - (it.z + it.dim.d / 2);
+    else if (dir === "izq" && o.x < it.x) d = (it.x - it.dim.w / 2) - (o.x + o.dim.w / 2);
+    else if (dir === "der" && o.x > it.x) d = (o.x - o.dim.w / 2) - (it.x + it.dim.w / 2);
+    else continue;
+    if (d >= 0 && d < menor) menor = d;
+  }
+  return menor;
+}
+
+/** Espacio hasta el borde del encuadre en una direccion (para no salirse del viewBox). */
+function espacioHaciaBorde(it: PlanoItem, vb: { x: number; y: number; w: number; h: number }, dir: DireccionFlecha, margen: number): number {
+  if (dir === "arriba") return it.z - it.dim.d / 2 - (vb.y + margen);
+  if (dir === "abajo") return vb.y + vb.h - margen - (it.z + it.dim.d / 2);
+  if (dir === "izq") return it.x - it.dim.w / 2 - (vb.x + margen);
+  return vb.x + vb.w - margen - (it.x + it.dim.w / 2);
+}
+
+/** Huella de la etiqueta a lo largo de la flecha: ancho si es horizontal, alto si es vertical. */
+function huellaEtiqueta(dir: DireccionFlecha, refUnit: number): number {
+  return dir === "izq" || dir === "der" ? refUnit * 0.16 : refUnit * 0.06;
+}
+
+/** Direccion con mas espacio real (bloques + borde del encuadre); desempata arriba > abajo > izq > der. */
+function direccionLibre(it: PlanoItem, items: PlanoItem[], vb: { x: number; y: number; w: number; h: number }, margen: number, refUnit: number): DireccionFlecha {
+  const orden: DireccionFlecha[] = ["arriba", "abajo", "izq", "der"];
+  const holguraAncho = refUnit * 0.06;
+  let mejor: DireccionFlecha = "arriba";
+  let mejorEspacio = -Infinity;
+  for (const dir of orden) {
+    /* El espacio util descuenta la huella de la etiqueta (texto/circulo tras la cola). */
+    const espacio = Math.min(espacioLibre(it, items, dir, holguraAncho), espacioHaciaBorde(it, vb, dir, margen)) - huellaEtiqueta(dir, refUnit);
+    if (espacio > mejorEspacio) {
+      mejorEspacio = espacio;
+      mejor = dir;
+    }
+  }
+  return mejor;
+}
+
+/**
+ * Flecha + etiqueta del stand objetivo. La flecha entra desde el lado con mas espacio
+ * libre (sin cruzar otros bloques) y apunta a la orilla del stand; la etiqueta va en la
+ * cola: "TU STAND" + codigo (un stand) o circulo numerado (reserva multiple).
+ */
+function anotarObjetivo(
+  it: PlanoItem,
+  items: PlanoItem[],
+  vb: { x: number; y: number; w: number; h: number },
+  refUnit: number,
+  indice: number,
+  multiple: boolean,
+): string {
+  const margen = refUnit * 0.02;
+  const holguraAncho = refUnit * 0.06;
+  const dir = direccionLibre(it, items, vb, margen, refUnit);
+  const horizontal = dir === "izq" || dir === "der";
+  const signo = dir === "arriba" || dir === "izq" ? -1 : 1;
+  const gap = refUnit * 0.012;
+  const headL = refUnit * 0.030;
+  const headW = refUnit * 0.024;
+  const espacio = Math.min(espacioLibre(it, items, dir, holguraAncho), espacioHaciaBorde(it, vb, dir, margen));
+  /* Deja libre la huella de la etiqueta mas un margen de seguridad. */
+  const largo = Math.min(refUnit * 0.12, Math.max(refUnit * 0.03, espacio - huellaEtiqueta(dir, refUnit) - refUnit * 0.015));
+
+  const borde = horizontal ? it.x + (signo * it.dim.w) / 2 : it.z + (signo * it.dim.d) / 2;
+  const punta = borde + signo * gap;
+  const base = punta + signo * headL;
+  /* Sin clamp invertido: si el borde del encuadre aprieta, la cola se acorta pero nunca cruza la punta. */
+  const colaLibre = base + signo * largo;
+  const colaFinal = signo * (colaLibre - base) > 0 ? colaLibre : base + signo * refUnit * 0.02;
+  const baseFinal = base;
+
+  const eje = (valor: number) => (horizontal ? { x: valor, y: it.z } : { x: it.x, y: valor });
+  const inicio = eje(colaFinal);
+  const fin = eje(baseFinal);
+  const puntaPt = eje(punta);
+  const esquinaA = horizontal ? { x: baseFinal, y: it.z - headW / 2 } : { x: it.x - headW / 2, y: baseFinal };
+  const esquinaB = horizontal ? { x: baseFinal, y: it.z + headW / 2 } : { x: it.x + headW / 2, y: baseFinal };
+
+  const casing = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.012)}" stroke-linecap="round"/>`;
+  const linea = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_LINEA}" stroke-width="${fmt(refUnit * 0.005)}" stroke-linecap="round"/>`;
+  const puntaContorno = `<polygon points="${fmt(puntaPt.x)},${fmt(puntaPt.y)} ${fmt(esquinaA.x)},${fmt(esquinaA.y)} ${fmt(esquinaB.x)},${fmt(esquinaB.y)}" fill="${OBJETIVO_CONTORNO}"/>`;
+  const puntaSvg = `<polygon points="${fmt(puntaPt.x)},${fmt(puntaPt.y)} ${fmt(esquinaA.x)},${fmt(esquinaA.y)} ${fmt(esquinaB.x)},${fmt(esquinaB.y)}" fill="${OBJETIVO_LINEA}"/>`;
+  const flecha = casing + linea + puntaContorno + puntaSvg;
+
+  if (multiple) {
+    return (
+      flecha +
+      `<circle cx="${fmt(inicio.x)}" cy="${fmt(inicio.y)}" r="${fmt(refUnit * 0.019)}" fill="${OBJETIVO_LINEA}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.004)}"/>` +
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + refUnit * 0.0075)}" text-anchor="middle" font-size="${fmt(refUnit * 0.023)}" font-weight="700" fill="#ffffff">${indice + 1}</text>`
+    );
+  }
+
+  const estiloTitulo = `font-size="${fmt(refUnit * 0.028)}" font-weight="700" fill="${OBJETIVO_TEXTO}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.006)}" paint-order="stroke"`;
+  const estiloCodigo = `font-size="${fmt(refUnit * 0.024)}" font-weight="600" fill="#1f2937" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.005)}" paint-order="stroke"`;
+  const titulo = "TU STAND";
+  const codigo = esc(it.id);
+  const aire = refUnit * 0.018;
+  let etiqueta: string;
+  if (dir === "arriba") {
+    etiqueta =
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y - aire - refUnit * 0.020)}" text-anchor="middle" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y - aire)}" text-anchor="middle" ${estiloCodigo}>${codigo}</text>`;
+  } else if (dir === "abajo") {
+    etiqueta =
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + aire)}" text-anchor="middle" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + aire + refUnit * 0.026)}" text-anchor="middle" ${estiloCodigo}>${codigo}</text>`;
+  } else if (dir === "izq") {
+    etiqueta =
+      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y - refUnit * 0.002)}" text-anchor="end" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y + refUnit * 0.024)}" text-anchor="end" ${estiloCodigo}>${codigo}</text>`;
+  } else {
+    etiqueta =
+      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y - refUnit * 0.002)}" text-anchor="start" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y + refUnit * 0.024)}" text-anchor="start" ${estiloCodigo}>${codigo}</text>`;
+  }
+  return flecha + etiqueta;
 }
 
 function computeBounds(items: PlanoItem[]): PlanoBounds {

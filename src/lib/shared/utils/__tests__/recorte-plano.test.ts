@@ -22,12 +22,13 @@ describe("viewBoxConMargen", () => {
 });
 
 describe("construirSvgRecorte (RF-08)", () => {
-  it("destaca un stand con la leyenda TU STAND y su codigo", () => {
+  it("resalta un stand (relleno ambar) y ademas lo senala con flecha y su codigo", () => {
     const { svg, encontrado } = construirSvgRecorte(ITEMS, ["EXT-02"]);
     expect(encontrado).toBe(true);
     expect(svg).toContain("TU STAND");
     expect(svg).toContain("EXT-02");
-    expect(svg).toContain("#f59e0b"); // relleno objetivo
+    expect(svg).toContain("#f59e0b"); // relleno resaltado del objetivo
+    expect(svg).toContain("#b45309"); // flecha del objetivo
   });
 
   it("numera los stands cuando la reserva es multiple (1..n)", () => {
