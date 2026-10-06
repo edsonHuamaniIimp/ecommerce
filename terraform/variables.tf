@@ -610,6 +610,33 @@ variable "sgc_timeout_ms" {
   default     = 10000
 }
 
+variable "sgc_api_url" {
+  description = "Base del API del SGC (SGC_API_URL) — vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "cron_secret" {
+  description = "Secreto del cron de reconciliacion SGC (header x-cron-secret) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "sgc_api_key" {
+  description = "Bearer del API del SGC (rol contract-manager) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "sgc_webhook_secret" {
+  description = "Secreto HMAC de webhooks del SGC — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ── Estado remoto (R5 — bootstrap) ──────────────────────────────────────────
 variable "state_bucket_name" {
   description = "Bucket S3 del estado remoto (R5)"

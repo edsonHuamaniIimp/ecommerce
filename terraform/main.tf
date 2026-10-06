@@ -168,6 +168,9 @@ module "secrets" {
   liststand_clave      = var.liststand_clave
   personas_api_usuario = var.personas_api_usuario
   personas_api_clave   = var.personas_api_clave
+  cron_secret          = var.cron_secret
+  sgc_api_key          = var.sgc_api_key
+  sgc_webhook_secret   = var.sgc_webhook_secret
 
   common_tags = local.common_tags
 }
@@ -208,6 +211,7 @@ module "ecs" {
   sgc_area_code          = var.sgc_area_code
   sgc_contract_type_code = var.sgc_contract_type_code
   sgc_timeout_ms         = var.sgc_timeout_ms
+  sgc_api_url            = var.sgc_api_url
   # El redirect 80→443 solo si NO hay CloudFront delante (evita el loop de redirecciones)
   http_redirect_to_https         = var.enable_https && !var.enable_cloudfront
   restrict_alb_to_cloudfront     = var.restrict_alb_to_cloudfront

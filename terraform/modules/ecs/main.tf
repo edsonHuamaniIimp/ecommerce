@@ -216,6 +216,12 @@ variable "sgc_timeout_ms" {
   default     = 10000
 }
 
+variable "sgc_api_url" {
+  description = "SGC_API_URL (base del API del SGC) - vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
 variable "container_port" {
   description = "Puerto del contenedor Next.js standalone (R2)"
   type        = number
@@ -355,6 +361,9 @@ locals {
     can(var.secret_arns["liststand_clave"]) ? [{ name = "LISTSTAND_CLAVE", valueFrom = var.secret_arns["liststand_clave"] }] : [],
     can(var.secret_arns["personas_api_usuario"]) ? [{ name = "PERSONAS_API_USUARIO", valueFrom = var.secret_arns["personas_api_usuario"] }] : [],
     can(var.secret_arns["personas_api_clave"]) ? [{ name = "PERSONAS_API_CLAVE", valueFrom = var.secret_arns["personas_api_clave"] }] : [],
+    can(var.secret_arns["cron_secret"]) ? [{ name = "CRON_SECRET", valueFrom = var.secret_arns["cron_secret"] }] : [],
+    can(var.secret_arns["sgc_api_key"]) ? [{ name = "SGC_API_KEY", valueFrom = var.secret_arns["sgc_api_key"] }] : [],
+    can(var.secret_arns["sgc_webhook_secret"]) ? [{ name = "SGC_WEBHOOK_SECRET", valueFrom = var.secret_arns["sgc_webhook_secret"] }] : [],
   )
 
   env_list = concat(
@@ -367,6 +376,8 @@ locals {
       { name = "S3_REGION", value = data.aws_region.current.name },
       { name = "S3_ENDPOINT", value = "" },
       { name = "NEXT_TELEMETRY_DISABLED", value = "1" },
+      { name = "HOME", value = "/tmp" },
+      { name = "XDG_CACHE_HOME", value = "/tmp/.cache" },
       { name = "RUN_MIGRATIONS", value = "true" },
       { name = "RUN_SEED", value = var.run_seed ? "true" : "false" },
       { name = "NEXT_PUBLIC_APP_URL", value = local.app_url },
@@ -390,6 +401,7 @@ locals {
     [{ name = "SGC_TIMEOUT_MS", value = tostring(var.sgc_timeout_ms) }],
     var.sgc_area_code != "" ? [{ name = "SGC_AREA_CODE", value = var.sgc_area_code }] : [],
     var.sgc_contract_type_code != "" ? [{ name = "SGC_CONTRACT_TYPE_CODE", value = var.sgc_contract_type_code }] : [],
+    var.sgc_api_url != "" ? [{ name = "SGC_API_URL", value = var.sgc_api_url }] : [],
   )
 }
 
@@ -572,6 +584,7 @@ resource "aws_lb" "main" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = var.public_subnet_ids
+  idle_timeout       = 120
 
   tags = local.tags
 }

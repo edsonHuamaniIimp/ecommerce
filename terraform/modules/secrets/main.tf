@@ -77,6 +77,27 @@ variable "integracion_api_key" {
   sensitive   = true
 }
 
+variable "cron_secret" {
+  description = "Secreto del cron de reconciliacion SGC (header x-cron-secret) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "sgc_api_key" {
+  description = "Bearer del API del SGC (rol contract-manager) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "sgc_webhook_secret" {
+  description = "Secreto HMAC de webhooks del SGC — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "liststand_usuario" {
   description = "Usuario de la cuenta tecnica del API de stands del IIMP (liststand, acceso VTA) (R2) — vacio = no crear"
   type        = string
@@ -283,6 +304,43 @@ resource "aws_secretsmanager_secret_version" "personas_api_clave" {
   secret_string = var.personas_api_clave
 }
 
+# -- SGC / cron de reconciliacion --------------------------------------------
+resource "aws_secretsmanager_secret" "cron_secret" {
+  count = var.cron_secret != "" ? 1 : 0
+  name  = "${local.name}-cron-secret"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "cron_secret" {
+  count         = var.cron_secret != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.cron_secret[0].id
+  secret_string = var.cron_secret
+}
+
+resource "aws_secretsmanager_secret" "sgc_api_key" {
+  count = var.sgc_api_key != "" ? 1 : 0
+  name  = "${local.name}-sgc-api-key"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "sgc_api_key" {
+  count         = var.sgc_api_key != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.sgc_api_key[0].id
+  secret_string = var.sgc_api_key
+}
+
+resource "aws_secretsmanager_secret" "sgc_webhook_secret" {
+  count = var.sgc_webhook_secret != "" ? 1 : 0
+  name  = "${local.name}-sgc-webhook-secret"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "sgc_webhook_secret" {
+  count         = var.sgc_webhook_secret != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.sgc_webhook_secret[0].id
+  secret_string = var.sgc_webhook_secret
+}
+
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
   value = merge(
@@ -301,6 +359,9 @@ output "secret_arns" {
     var.liststand_clave != "" ? { liststand_clave = aws_secretsmanager_secret.liststand_clave[0].arn } : {},
     var.personas_api_usuario != "" ? { personas_api_usuario = aws_secretsmanager_secret.personas_api_usuario[0].arn } : {},
     var.personas_api_clave != "" ? { personas_api_clave = aws_secretsmanager_secret.personas_api_clave[0].arn } : {},
+    var.cron_secret != "" ? { cron_secret = aws_secretsmanager_secret.cron_secret[0].arn } : {},
+    var.sgc_api_key != "" ? { sgc_api_key = aws_secretsmanager_secret.sgc_api_key[0].arn } : {},
+    var.sgc_webhook_secret != "" ? { sgc_webhook_secret = aws_secretsmanager_secret.sgc_webhook_secret[0].arn } : {},
   )
 }
 

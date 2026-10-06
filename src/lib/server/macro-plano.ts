@@ -11,10 +11,15 @@ import type { PlanoEntity } from "@/domain/models/plano-entities";
  * resalta las secciones de los pabellones del contrato y devuelve un JPEG liviano.
  *
  * El render del PDF es pesado (~20 s la primera vez), por eso el fondo se cachea en
- * memoria por macro+updatedAt y las composiciones se serializan (una a la vez).
+ * memoria y en disco (EFS en produccion: sobrevive reinicios y deploys) por
+ * macro+updatedAt; las composiciones se serializan (una a la vez) y el render del
+ * fondo tiene timeout: si excede, el contrato se genera sin la imagen (nunca 504).
  */
 const ANCHO_SALIDA = 2200;
 const MAX_FONDOS_CACHE = 3;
+const TIMEOUT_FONDO_MS = 35_000;
+/* En produccion public/uploads es el EFS: la cache persiste entre tasks y deploys. */
+const CACHE_DIR = path.join(process.cwd(), "public", "uploads", ".cache-macro");
 
 const fondosCache = new Map<string, { usado: number; base: Buffer }>();
 
@@ -53,7 +58,7 @@ async function leerArchivo(url: string): Promise<Buffer> {
   return fs.readFileSync(path.join(process.cwd(), "public", url.replace(/^\//, "")));
 }
 
-async function pdfAPng(pdf: Buffer, escala: number): Promise<Buffer> {
+async function pdfAPng(pdf: Buffer): Promise<Buffer> {
   /*
    * Carga diferida: si el binario nativo no esta disponible, el error se captura
    * arriba y la imagen del macro se omite — ninguna otra ruta se ve afectada.
@@ -62,11 +67,58 @@ async function pdfAPng(pdf: Buffer, escala: number): Promise<Buffer> {
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await getDocument({ data: new Uint8Array(pdf), disableWorker: true } as never).promise;
   const page = await doc.getPage(1);
+  /* Render directo al ancho de salida: evita ~2.4x de pixeles frente a escala fija. */
+  const anchoPagina = page.getViewport({ scale: 1 }).width;
+  const escala = Math.min(1, ANCHO_SALIDA / anchoPagina);
   const viewport = page.getViewport({ scale: escala });
   const canvas = createCanvas(viewport.width, viewport.height);
   const ctx = canvas.getContext("2d");
   await page.render({ canvasContext: ctx as never, viewport, canvas } as never).promise;
   return canvas.toBuffer("image/png");
+}
+
+function rutaCache(key: string): string {
+  return path.join(CACHE_DIR, `${key.replace(/[^A-Za-z0-9._-]/g, "_")}.png`);
+}
+
+function guardarEnMemoria(key: string, base: Buffer): void {
+  fondosCache.set(key, { usado: Date.now(), base });
+  if (fondosCache.size > MAX_FONDOS_CACHE) {
+    const masViejo = [...fondosCache.entries()].sort((a, b) => a[1].usado - b[1].usado)[0];
+    if (masViejo) fondosCache.delete(masViejo[0]);
+  }
+}
+
+function leerDeDisco(ruta: string): Buffer | null {
+  try {
+    return fs.readFileSync(ruta);
+  } catch {
+    return null;
+  }
+}
+
+function guardarEnDisco(ruta: string, base: Buffer): void {
+  try {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    fs.writeFileSync(ruta, base);
+  } catch {
+    /* sin disco persistente: solo cache en memoria */
+  }
+}
+
+function conTimeout<T>(promesa: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promesa
+      .then((valor) => {
+        clearTimeout(timer);
+        resolve(valor);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(null);
+      });
+  });
 }
 
 async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
@@ -77,14 +129,17 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
     cacheado.usado = Date.now();
     return cacheado.base;
   }
-  const crudo = await leerArchivo(macro.imagenFondo);
-  const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo, 0.5) : crudo;
-  const base = await sharp(png).resize({ width: ANCHO_SALIDA, withoutEnlargement: true }).png().toBuffer();
-  fondosCache.set(key, { usado: Date.now(), base });
-  if (fondosCache.size > MAX_FONDOS_CACHE) {
-    const masViejo = [...fondosCache.entries()].sort((a, b) => a[1].usado - b[1].usado)[0];
-    if (masViejo) fondosCache.delete(masViejo[0]);
+  const ruta = rutaCache(key);
+  const enDisco = leerDeDisco(ruta);
+  if (enDisco) {
+    guardarEnMemoria(key, enDisco);
+    return enDisco;
   }
+  const crudo = await leerArchivo(macro.imagenFondo);
+  const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo) : crudo;
+  const base = await sharp(png).resize({ width: ANCHO_SALIDA, withoutEnlargement: true }).png().toBuffer();
+  guardarEnMemoria(key, base);
+  guardarEnDisco(ruta, base);
   return base;
 }
 
@@ -94,7 +149,7 @@ export async function renderizarMacroConSecciones(macro: PlanoEntity, planosHijo
   if (secciones.length === 0) return null;
   await adquirirTurno();
   try {
-    const base = await fondoDelMacro(macro);
+    const base = await conTimeout(fondoDelMacro(macro), TIMEOUT_FONDO_MS);
     if (!base) return null;
     const meta = await sharp(base).metadata();
     const ancho = meta.width ?? 0;
@@ -110,6 +165,16 @@ export async function renderizarMacroConSecciones(macro: PlanoEntity, planosHijo
     return await sharp(base).composite([{ input: svg, top: 0, left: 0 }]).jpeg({ quality: 86 }).toBuffer();
   } catch {
     return null;
+  } finally {
+    liberarTurno();
+  }
+}
+
+/** Precalienta (y persiste en EFS) el fondo del macro sin componer secciones; para usar tras un deploy. */
+export async function precalentarMacro(macro: PlanoEntity): Promise<boolean> {
+  await adquirirTurno();
+  try {
+    return (await conTimeout(fondoDelMacro(macro), TIMEOUT_FONDO_MS)) !== null;
   } finally {
     liberarTurno();
   }
