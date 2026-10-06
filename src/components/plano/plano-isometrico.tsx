@@ -157,6 +157,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
+    aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
     contrato,
     generandoContrato,
@@ -486,8 +487,10 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
         onAddRequisito={addDocRequisito}
         onRemoveRequisito={removeDocRequisito}
-        confirmado={confirmado}
-        onConfirmadoChange={setConfirmado}
+            confirmado={confirmado}
+            onConfirmadoChange={setConfirmado}
+            aceptaRepresentante={aceptaRepresentante}
+            onAceptaRepresentanteChange={setAceptaRepresentante}
         cuotasPago={cuotasConfig}
         onCuotasPagoChange={setCuotasConfig}
         contrato={contrato}

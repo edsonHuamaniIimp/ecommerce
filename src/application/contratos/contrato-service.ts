@@ -24,6 +24,7 @@ import { calcularImportes } from "@/lib/shared/utils/importes";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { fechasCuotasValidas, planCuotasConFechas, porcentajesValidos } from "@/lib/shared/utils/cuotas";
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
+import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
 
 /** Limite de espera de la conversion DOCX -> PDF (LibreOffice/Word headless). */
@@ -292,10 +293,10 @@ export class ContratoApplicationService {
     refs: Array<{ bloqueId: string; tipoStand: string | null; pabellon: string | null }>,
   ): Promise<{
     modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }>;
-    gruposPabellon: Map<string, { nombre: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
+    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
   }> {
     const modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }> = [];
-    const gruposPabellon = new Map<string, { nombre: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>();
+    const gruposPabellon = new Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>();
     const planosPorCodigo = new Map<string, Awaited<ReturnType<IPlanoRepository["detallePorCodigo"]>>>();
     for (const ref of refs) {
       const ubicacion = await this.planos.ubicacionDeBloque(ref.bloqueId);
@@ -317,6 +318,7 @@ export class ContratoApplicationService {
         if (plano) {
           const grupo = gruposPabellon.get(codigo) ?? {
             nombre: ubicacion.plano.nombre,
+            planoId: plano.id,
             objetivos: [],
             items: construirItemsPlano(plano),
             etiquetas: Object.fromEntries(plano.tipos.map((t) => [t.codigo, t.label])),
@@ -344,7 +346,7 @@ export class ContratoApplicationService {
     empresaFallback: string | null;
     emailFallback: string | null;
     modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }>;
-    gruposPabellon: Map<string, { nombre: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
+    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
     importes: ReturnType<typeof calcularImportes>;
     plan: ReturnType<typeof planCuotasConFechas>;
     porcentajes: number[];
@@ -379,6 +381,34 @@ export class ContratoApplicationService {
         });
       } catch { /* imagen omitida: el contrato sigue siendo valido */ }
     }
+
+    /*
+     * Ubicacion general: el mapa macro del evento con la(s) seccion(es) de los
+     * pabellones del contrato resaltadas (imagen previa a los recortes).
+     */
+    try {
+      const hijosPorMacro = new Map<string, { macroId: string; planosHijoIds: string[] }>();
+      for (const grupo of gruposPabellon.values()) {
+        const macros = await this.planos.macrosQueContienen(grupo.planoId);
+        const macro = macros[0];
+        if (!macro) continue;
+        const acc = hijosPorMacro.get(macro.id) ?? { macroId: macro.id, planosHijoIds: [] };
+        acc.planosHijoIds.push(grupo.planoId);
+        hijosPorMacro.set(macro.id, acc);
+      }
+      for (const { macroId, planosHijoIds } of hijosPorMacro.values()) {
+        const macro = await this.planos.detalle(macroId);
+        if (!macro) continue;
+        const jpg = await renderizarMacroConSecciones(macro, planosHijoIds);
+        if (!jpg) continue;
+        planosData.unshift({
+          imagen_plano: jpg.toString("base64"),
+          pabellon: "Ubicacion general - Mapa de pabellones",
+          version: "1",
+          fecha: fechaFirma,
+        });
+      }
+    } catch { /* imagen de ubicacion omitida: el contrato sigue siendo valido */ }
 
     const monto = (valor: number) => numberUtils.numero(valor, { decimales: 2 });
 

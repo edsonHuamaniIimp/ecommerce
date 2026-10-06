@@ -12,6 +12,9 @@ interface Props {
   docsCount: number;
   confirmado: boolean;
   onConfirmadoChange: (v: boolean) => void;
+  /** Declaracion del solicitante como representante legal de la empresa. */
+  aceptaRepresentante: boolean;
+  onAceptaRepresentanteChange: (v: boolean) => void;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -38,7 +41,7 @@ function CardResumen({ titulo, icono, badge, children }: { titulo: string; icono
   );
 }
 
-export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado, onConfirmadoChange }: Props) {
+export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
   const [termsOpen, setTermsOpen] = useState(false);
   const esFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
   const comprobante = esFactura ? "Factura" : datos.tipoComprobante === TIPOS_COMPROBANTE.BOLETA ? "Boleta" : "-";
@@ -83,6 +86,26 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado,
           <Row label="Adjuntos" value={`${docsCount} archivo(s)`} />
         </CardResumen>
       )}
+
+      {/* Declaracion de representante legal: resaltada en rojo (obligatoria para enviar). */}
+      <div className="flex items-start gap-3 rounded-lg border-2 border-destructive/50 bg-destructive/5 px-3 py-3 shadow-sm">
+        <Checkbox
+          id="acepta-representante"
+          checked={aceptaRepresentante}
+          onCheckedChange={(v) => onAceptaRepresentanteChange(v === true)}
+          className="mt-0.5 h-5 w-5 border-destructive data-[state=checked]:bg-destructive data-[state=checked]:text-destructive-foreground"
+        />
+        <Label htmlFor="acepta-representante" className="block cursor-pointer text-xs leading-relaxed font-normal">
+          <span className="mb-1 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-destructive uppercase">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Declaracion de representante legal</span>
+          </span>
+          <span className="text-foreground">
+            Acepto ser el <strong className="font-semibold text-destructive">representante legal de la empresa</strong> y
+            asumir dicha calidad para esta solicitud de reserva.
+          </span>
+        </Label>
+      </div>
 
       <div className="flex items-start gap-3 rounded-lg border border-border bg-card px-3 py-3">
         <Checkbox

@@ -112,6 +112,9 @@ function build(overrides: { detalle?: Partial<SolicitudRow> } = {}) {
       bloque: { bloqueId: "EXT-DER-03", tipoCodigo: "S", x: 18.5, z: -9.25, rotY: 0 },
       macro: null,
     }),
+    /* Sin macros: la imagen de ubicacion general se omite en los tests. */
+    macrosQueContienen: vi.fn().mockResolvedValue([]),
+    detalle: vi.fn().mockResolvedValue(null),
     detallePorCodigo: vi.fn().mockResolvedValue({
       tipos: [{ codigo: "S", w: 3, d: 3, h: 2.4, color: "#FFD700", flgActivo: true }],
       bloques: [{ bloqueId: "EXT-DER-03", tipoCodigo: "S", x: 18.5, z: -9.25, rotY: 0, flgActivo: true }],

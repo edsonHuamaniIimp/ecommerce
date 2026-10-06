@@ -41,6 +41,9 @@ interface Props {
   onSubmit: () => Promise<boolean>;
   confirmado: boolean;
   onConfirmadoChange: (v: boolean) => void;
+  /** Declaracion del solicitante como representante legal de la empresa. */
+  aceptaRepresentante: boolean;
+  onAceptaRepresentanteChange: (v: boolean) => void;
   /** Cuotas configuradas por el cliente: porcentaje + fecha (1..3). */
   cuotasPago: CuotaConfig[];
   onCuotasPagoChange: (cuotas: CuotaConfig[]) => void;
@@ -73,6 +76,7 @@ export function ReservaModal(props: Props) {
     selectedCount, singleStand, selectedLabels, selectedItems,
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
+    aceptaRepresentante, onAceptaRepresentanteChange,
     cuotasPago, onCuotasPagoChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
     firmaPerfilUrl, firmandoDigital, onFirmarDigital,
@@ -169,8 +173,10 @@ export function ReservaModal(props: Props) {
                   datos={formDatos}
                   selectedLabels={selectedLabels}
                   docsCount={Object.keys(docsRequisitos).length + (contratoFirmadoUrl ? 1 : 0)}
-                  confirmado={confirmado}
-                  onConfirmadoChange={onConfirmadoChange}
+              confirmado={confirmado}
+              onConfirmadoChange={onConfirmadoChange}
+              aceptaRepresentante={aceptaRepresentante}
+              onAceptaRepresentanteChange={onAceptaRepresentanteChange}
                 />
               )}
             </>

@@ -72,6 +72,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
+  const [aceptaRepresentante, setAceptaRepresentante] = useState(false);
 
   /* Paso 3: cuotas + contrato. */
   /** Cuotas configuradas por el cliente: porcentaje + fecha de pago (1..3). */
@@ -97,9 +98,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     if (step === 0) return isStepDatosCompleto(formDatos);
     if (step === 1) return cuotasConfigValidas(cuotasConfig);
     if (step === 2) return Boolean(contrato) && anexosCompletos && Boolean(contratoFirmadoUrl);
-    if (step === 3) return Boolean(contrato) && confirmado && Boolean(contratoFirmadoUrl);
+    if (step === 3) return Boolean(contrato) && confirmado && aceptaRepresentante && Boolean(contratoFirmadoUrl);
     return false;
-  }, [formDatos, anexosCompletos, cuotasConfig, contrato, confirmado, contratoFirmadoUrl]);
+  }, [formDatos, anexosCompletos, cuotasConfig, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -130,6 +131,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         setReservaStep(0);
       }
       setConfirmado(false);
+      setAceptaRepresentante(false);
       setContrato(null);
       setContratoFirmadoUrl(null);
     })();
@@ -360,6 +362,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setDocsRequisitos({});
     setReservaStep(0);
     setConfirmado(false);
+    setAceptaRepresentante(false);
     setCuotasConfig([{ porcentaje: 100, fecha: siguienteFechaCuota(null) }]);
     setContrato(null);
     setContratoFirmadoUrl(null);
@@ -385,6 +388,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     handleSubmit,
     reset,
     confirmado, setConfirmado,
+    aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
     contrato,
     generandoContrato,

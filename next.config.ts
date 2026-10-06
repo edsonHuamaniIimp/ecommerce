@@ -38,6 +38,12 @@ const nextConfig: NextConfig = {
   // Empaquetado standalone para ECS Fargate (frontend + API en un solo contenedor).
   // Es aditivo: genera .next/standalone sin afectar el flujo actual (next start / EC2).
   output: "standalone",
+  /*
+   * Modulos con binarios nativos / carga dinamica: se resuelven en runtime desde
+   * node_modules (no los empaqueta Turbopack). `@napi-rs/canvas` rasteriza el PDF
+   * del macro en el servidor (contrato) y pdfjs-dist lo interpreta.
+   */
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
   turbopack: {
     root: path.resolve(projectRoot),
   },

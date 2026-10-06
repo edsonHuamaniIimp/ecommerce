@@ -285,6 +285,7 @@ map.set(String(bloqueId), {
     handleSubmit,
     reset: resetForm,
     confirmado, setConfirmado,
+    aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
     contrato,
     generandoContrato,
@@ -878,8 +879,10 @@ map.set(String(bloqueId), {
         existingDocs={standDocs.length > 0 ? standDocs : (gessInfoForSelected?.documentos ?? [])}
         onAddRequisito={addDocRequisito}
         onRemoveRequisito={removeDocRequisito}
-        confirmado={confirmado}
-        onConfirmadoChange={setConfirmado}
+          confirmado={confirmado}
+          onConfirmadoChange={setConfirmado}
+          aceptaRepresentante={aceptaRepresentante}
+          onAceptaRepresentanteChange={setAceptaRepresentante}
         cuotasPago={cuotasConfig}
         onCuotasPagoChange={setCuotasConfig}
         contrato={contrato}
