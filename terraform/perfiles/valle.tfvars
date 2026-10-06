@@ -14,7 +14,7 @@ desired_max_capacity = 4
 desired_count_prod   = 1
 desired_count_qa     = 1
 task_cpu             = "512"
-task_memory          = "1024"
+task_memory          = "2048"
 
 # Sin pre-warm programado
 scheduled_scalings = []
