@@ -26,6 +26,36 @@ import { fechasCuotasValidas, planCuotasConFechas, porcentajesValidos } from "@/
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
 
+/** Limite de espera de la conversion DOCX -> PDF (LibreOffice/Word headless). */
+const CONVERSION_PDF_TIMEOUT_MS = 90_000;
+
+/**
+ * Cola de conversion PDF: limita los procesos concurrentes (LibreOffice/Word pesan
+ * ~200 MB y la tarea ECS es pequena). Evita que una rafaga de envios tumbe el contenedor;
+ * las conversiones extra esperan turno (~1-3 s c/u).
+ */
+const MAX_CONVERSIONES_PDF = 2;
+let conversionesPdfActivas = 0;
+const esperaTurnoPdf: Array<() => void> = [];
+
+function adquirirTurnoConversion(): Promise<void> {
+  if (conversionesPdfActivas < MAX_CONVERSIONES_PDF) {
+    conversionesPdfActivas++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    esperaTurnoPdf.push(() => {
+      conversionesPdfActivas++;
+      resolve();
+    });
+  });
+}
+
+function liberarTurnoConversion(): void {
+  conversionesPdfActivas = Math.max(0, conversionesPdfActivas - 1);
+  esperaTurnoPdf.shift()?.();
+}
+
 /** Plantillas DOCX etiquetadas por idioma (F3: contrato en el idioma del cliente). */
 export const PLANTILLAS_CONTRATO: Record<Idioma, string[]> = {
   [IDIOMAS.ES]: ["plantillas", "contrato-perumin38-tags.docx"],
@@ -458,33 +488,99 @@ export class ContratoApplicationService {
     return Buffer.from(await res.arrayBuffer());
   }
 
-  /** Convierte DOCX a PDF con LibreOffice headless; null si no esta disponible. */
-  private convertirPdf(docx: Buffer): Promise<Buffer | null> {
-    return new Promise((resolve) => {
+  /** Convierte DOCX a PDF: LibreOffice (soffice) o, en Windows, Microsoft Word; null si no hay conversor. */
+  private async convertirPdf(docx: Buffer): Promise<Buffer | null> {
+    await adquirirTurnoConversion();
+    try {
       const inPath = path.join(os.tmpdir(), `contrato-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.docx`);
       try {
         fs.writeFileSync(inPath, docx);
-        const proc = spawn("soffice", ["--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath], { stdio: "ignore" });
-        proc.on("error", () => { fs.rmSync(inPath, { force: true }); resolve(null); });
-        proc.on("close", (code) => {
-          const outPath = inPath.replace(/\.docx$/, ".pdf");
-          try {
-            if (code === 0 && fs.existsSync(outPath)) {
-              const buf = fs.readFileSync(outPath);
-              fs.rmSync(outPath, { force: true });
-              resolve(buf);
-            } else {
-              resolve(null);
-            }
-          } finally {
-            fs.rmSync(inPath, { force: true });
-          }
-        });
-      } catch {
+        const porSoffice = await this.convertirConSoffice(inPath);
+        if (porSoffice) return porSoffice;
+        if (process.platform === "win32") {
+          const porWord = await this.convertirConWord(inPath);
+          if (porWord) return porWord;
+        }
+        console.warn("[contratos] PDF no generado: instala LibreOffice (o MS Word en Windows) o define SOFFICE_PATH.");
+        return null;
+      } finally {
         fs.rmSync(inPath, { force: true });
-        resolve(null);
       }
+    } finally {
+      liberarTurnoConversion();
+    }
+  }
+
+  /** LibreOffice headless (`soffice --convert-to pdf`). */
+  private convertirConSoffice(inPath: string): Promise<Buffer | null> {
+    return new Promise((resolve) => {
+      const outPath = inPath.replace(/\.docx$/, ".pdf");
+      const proc = spawn(this.resolverSoffice(), ["--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath], { stdio: "ignore" });
+      proc.on("error", () => resolve(null));
+      proc.on("close", (code) => {
+        if (code === 0 && fs.existsSync(outPath)) {
+          const buf = fs.readFileSync(outPath);
+          fs.rmSync(outPath, { force: true });
+          resolve(buf);
+        } else {
+          resolve(null);
+        }
+      });
     });
+  }
+
+  /** Fallback en Windows: convierte con Microsoft Word (COM, preserva el formato del DOCX). */
+  private convertirConWord(inPath: string): Promise<Buffer | null> {
+    return new Promise((resolve) => {
+      const outPath = `${inPath}.pdf`;
+      const scriptPath = path.join(os.tmpdir(), `word-pdf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ps1`);
+      const script = [
+        "param([string]$inPath, [string]$outPath)",
+        "$ErrorActionPreference = 'Stop'",
+        "$word = New-Object -ComObject Word.Application",
+        "$word.Visible = $false",
+        "$word.DisplayAlerts = 0",
+        "try {",
+        "  $doc = $word.Documents.Open($inPath, $false, $true)",
+        "  $doc.SaveAs2($outPath, 17)",
+        "  $doc.Close($false)",
+        "} finally { $word.Quit() }",
+      ].join("\n");
+      fs.writeFileSync(scriptPath, script, "utf8");
+      const terminar = (buf: Buffer | null) => {
+        fs.rmSync(scriptPath, { force: true });
+        fs.rmSync(outPath, { force: true });
+        resolve(buf);
+      };
+      const proc = spawn(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-inPath", inPath, "-outPath", outPath],
+        { stdio: "ignore", windowsHide: true },
+      );
+      const timeout = setTimeout(() => { proc.kill(); terminar(null); }, CONVERSION_PDF_TIMEOUT_MS);
+      proc.on("error", () => { clearTimeout(timeout); terminar(null); });
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        const buf = code === 0 && fs.existsSync(outPath) ? fs.readFileSync(outPath) : null;
+        terminar(buf);
+      });
+    });
+  }
+
+  /** Ubica el binario de LibreOffice (PATH, SOFFICE_PATH o rutas tipicas por SO). */
+  private resolverSoffice(): string {
+    const candidatos = [
+      process.env.SOFFICE_PATH,
+      "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+      "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
+      "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+      "/usr/bin/soffice",
+      "/usr/local/bin/soffice",
+    ].filter((c): c is string => Boolean(c));
+    for (const candidato of candidatos) {
+      if (fs.existsSync(candidato)) return candidato;
+    }
+    return "soffice";
   }
 }
 

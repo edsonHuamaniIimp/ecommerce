@@ -11,6 +11,13 @@ import type { SolicitudRow, RevisionEntity, ReevaluacionEntity } from "@/domain/
 import type { EmpresaEntity } from "@/domain/models/empresa";
 import { PERMISSIONS, MODOS_PAGO, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 
+/*
+ * Los tests asumen "sin conversor PDF" (solo DOCX). En Windows el fallback con MS Word
+ * haria la conversion real (lenta y dependiente de la maquina): se fija platform linux
+ * para que la deteccion de LibreOffice/Word no aplique.
+ */
+Object.defineProperty(process, "platform", { value: "linux", configurable: true });
+
 vi.mock("server-only", () => ({}));
 vi.mock("@/application/idioma/resolver-idioma", () => ({
   resolverIdiomaDestinatario: vi.fn().mockResolvedValue("es"),
