@@ -164,7 +164,7 @@ function MapaDinamicoPageContent() {
               </Link>
             </Button>
           ) : <span />}
-          <Button variant="ghost" size="sm" className="h-7 text-xs -mr-2" asChild>
+          <Button variant="ghost" size="sm" className="h-7 text-xs -mr-2 shrink-0" asChild>
             <Link href="/presala?change=1&returnTo=/mapa">
               <span>Cambiar de evento</span>
             </Link>
@@ -178,7 +178,7 @@ function MapaDinamicoPageContent() {
             nombrePlano={payload.nombre}
           />
         ) : (
-          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} parentCodigo={parentParam} bloqueInicial={bloqueParam} />
+          <PlanoDinamico eventoId={eventoId} tipoEvento={eventoParams?.tipoEvento ?? 0} codigoEvento={eventoParams?.codigoEvento ?? 0} planoId={planoId} openReserva={openReserva} parentCodigo={parentParam} bloqueInicial={bloqueParam} nombrePlano={payload.nombre} />
         )}
       </div>
     </main>

@@ -73,7 +73,7 @@ function getIdApi(row: Record<string, unknown>): string {
   return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
 }
 
-export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null, bloqueInicial = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null; bloqueInicial?: string | null }) {
+export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null, bloqueInicial = null, nombrePlano = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null; bloqueInicial?: string | null; nombrePlano?: string | null }) {
   const router = useRouter();
   const [plano, setPlano] = useState<PlanoDefinition | null>(null);
   const [planoLoading, setPlanoLoading] = useState(true);
@@ -531,9 +531,9 @@ map.set(String(bloqueId), {
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
-            <h1 className="flex items-center gap-2 text-base font-bold text-primary">
+            <h1 className="flex items-center gap-2 text-lg font-bold text-primary">
               <Layers className="h-4 w-4 text-primary" />
-              <span>Plano de stands</span>
+              <span>{nombrePlano ?? "Plano de stands"}</span>
             </h1>
             {totalCarritoCount > 0 && (
               <Badge className="pointer-events-none border-transparent bg-primary/10 text-primary">
