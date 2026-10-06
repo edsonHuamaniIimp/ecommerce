@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { Check, ChevronDown } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -63,7 +62,6 @@ function BanderaReinoUnido() {
  * `iimp_idioma` y `googtrans` y recarga para que Google Translate aplique el idioma.
  */
 export function LanguageSwitcher({ idiomaActual }: { idiomaActual?: string | null }) {
-  const router = useRouter();
   // En vistas publicas (sin prop) el idioma real vive en la cookie; el snapshot de
   // servidor es null para no romper la hidratacion.
   const cookieIdioma = useSyncExternalStore(suscribirCookieIdioma, leerIdiomaCookie, () => null);
@@ -79,7 +77,8 @@ export function LanguageSwitcher({ idiomaActual }: { idiomaActual?: string | nul
       /* Sin sesion (sitio publico): la preferencia queda solo en cookies. */
     }
     escribirCookiesIdioma(idioma);
-    router.refresh();
+    /* Recarga completa (sin re-render intermedio): Google Translate aplica el
+       idioma desde cero y se evita el conflicto con portales de Radix abiertos. */
     window.location.reload();
   };
 

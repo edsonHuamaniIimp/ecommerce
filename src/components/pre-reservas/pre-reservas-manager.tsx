@@ -291,23 +291,23 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           <Select value={pabellon} onValueChange={setPabellon}>
             <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Pabellon" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={UI_SENTINEL.TODOS}>Todos los pabellones</SelectItem>
-              {pabellones.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los pabellones</span></SelectItem>
+              {pabellones.map((p) => <SelectItem key={p} value={p}><span>{p}</span></SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={tipo} onValueChange={setTipo}>
             <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Tipo" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={UI_SENTINEL.TODOS}>Todos los tipos</SelectItem>
-              {tipos.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los tipos</span></SelectItem>
+              {tipos.map((t) => <SelectItem key={t} value={t}><span>{t}</span></SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
             <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={UI_SENTINEL.TODOS}>Todos los estados</SelectItem>
-              <SelectItem value={ESTADOS_STAND.DISPONIBLE}>Disponibles</SelectItem>
-              <SelectItem value={ESTADOS_STAND.PRE_RESERVADO}>Pre-reservados</SelectItem>
+              <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los estados</span></SelectItem>
+              <SelectItem value={ESTADOS_STAND.DISPONIBLE}><span>Disponibles</span></SelectItem>
+              <SelectItem value={ESTADOS_STAND.PRE_RESERVADO}><span>Pre-reservados</span></SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={toggleTodosFiltrados} disabled={seleccionables.length === 0}>
@@ -404,8 +404,8 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           <div className="space-y-4">
             <Tabs value={modo} onValueChange={(v) => setModo(v as "empresa" | "titulo")}>
               <TabsList className="w-full">
-                <TabsTrigger value="empresa" className="flex-1">Empresa</TabsTrigger>
-                <TabsTrigger value="titulo" className="flex-1">Titulo</TabsTrigger>
+                <TabsTrigger value="empresa" className="flex-1"><span>Empresa</span></TabsTrigger>
+                <TabsTrigger value="titulo" className="flex-1"><span>Titulo</span></TabsTrigger>
               </TabsList>
             </Tabs>
             {modo === "empresa" ? (

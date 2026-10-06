@@ -39,7 +39,9 @@ function LoginPageContent() {
       }
       await sincronizarEventoPublicoEnSesion();
       const returnTo = params.get("returnTo") ?? "/presala";
-      router.push(returnTo);
+      /* Navegacion completa: el layout del dashboard debe leer la sesion nueva
+         (el router cliente reusaba el render previo al logout). */
+      window.location.assign(returnTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesion");
     } finally {

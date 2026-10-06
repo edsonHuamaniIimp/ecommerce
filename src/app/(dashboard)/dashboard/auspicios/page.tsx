@@ -318,11 +318,11 @@ export default function AuspiciosPage() {
             <TabsList className="mb-6">
               <TabsTrigger value="listar" className="text-xs gap-1.5">
                 <List className="h-3.5 w-3.5" />
-                Auspicios disponibles
+                <span>Auspicios disponibles</span>
               </TabsTrigger>
               <TabsTrigger value="registrar" className="text-xs gap-1.5">
                 <PlusCircle className="h-3.5 w-3.5" />
-                Registrar auspicio
+                <span>Registrar auspicio</span>
               </TabsTrigger>
             </TabsList>
 
@@ -386,8 +386,8 @@ export default function AuspiciosPage() {
                       >
                         <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="6">RUC</SelectItem>
-                          <SelectItem value="1">DNI</SelectItem>
+                          <SelectItem value="6"><span>RUC</span></SelectItem>
+                          <SelectItem value="1"><span>DNI</span></SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -442,7 +442,7 @@ export default function AuspiciosPage() {
                               {auspicios.filter(a => !tarifas.some((tt, ii) => ii !== i && tt.codAuspicio === a.codigo))
                                 .map(a => (
                                   <SelectItem key={a.codigo} value={String(a.codigo)}>
-                                    {a.nombre} ({a.moneda})
+                                    <span>{a.nombre} ({a.moneda})</span>
                                   </SelectItem>
                                 ))}
                             </SelectContent>
@@ -474,8 +474,8 @@ export default function AuspiciosPage() {
                         <Select value={form.tipoFacturacion} onValueChange={(v) => setForm((prev) => ({ ...prev, tipoFacturacion: v }))}>
                           <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="01">Factura</SelectItem>
-                            <SelectItem value="03">Boleta</SelectItem>
+                            <SelectItem value="01"><span>Factura</span></SelectItem>
+                            <SelectItem value="03"><span>Boleta</span></SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -484,8 +484,8 @@ export default function AuspiciosPage() {
                         <Select value={form.tipDocFacturacion} onValueChange={(v) => setForm((prev) => ({ ...prev, tipDocFacturacion: v }))}>
                           <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="6">RUC</SelectItem>
-                            <SelectItem value="1">DNI</SelectItem>
+                            <SelectItem value="6"><span>RUC</span></SelectItem>
+                            <SelectItem value="1"><span>DNI</span></SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

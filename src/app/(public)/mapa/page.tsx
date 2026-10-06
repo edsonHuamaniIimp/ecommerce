@@ -10,6 +10,7 @@ import { Card, CardContent, Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { LS_KEYS, TIPOS_PLANO } from "@/lib/shared/constants";
+import { authService } from "@/lib/client/api/services/auth-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
 import { usePlanoCarrito } from "@/lib/client/stores/plano-carrito-store";
 import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
@@ -58,9 +59,9 @@ function MapaDinamicoPageContent() {
   useEffect(() => {
     (async () => {
       /*
-       * El evento se elige SIEMPRE en la presala (queda en localStorage del navegador).
-       * No se usa el eventoId de la sesion: asi el mapa siempre pide seleccionar
-       * version de evento y no carga una silenciosa (login obligatorio via middleware).
+       * Evento del mapa: primero el elegido en el portal publico (localStorage).
+       * Si no hay (p. ej. sesion autenticada, donde presala limpia la clave), se usa
+       * el evento de la SESION — /mapa requiere login — y se guarda para el flujo publico.
        */
       const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
       let eid: string | null = null;
@@ -72,6 +73,20 @@ function MapaDinamicoPageContent() {
           const pub = JSON.parse(raw) as { eventoId: string; tipoEvento?: number; codigoEvento?: number };
           eid = pub.eventoId; te = pub.tipoEvento; ce = pub.codigoEvento;
         } catch { /* ignore */ }
+      }
+
+      if (!eid || te === undefined || ce === undefined) {
+        const session = await authService.getSession().catch(() => null);
+        if (session?.authenticated && session.eventoId && session.tipoEvento !== undefined && session.codigoEvento !== undefined) {
+          eid = session.eventoId;
+          te = session.tipoEvento;
+          ce = session.codigoEvento;
+          localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({
+            eventoId: eid, tipoEvento: te, codigoEvento: ce,
+            nombre: session.eventoNombre ?? undefined,
+            eventoPadreNombre: session.eventoPadreNombre ?? undefined,
+          }));
+        }
       }
 
       if (!eid) {

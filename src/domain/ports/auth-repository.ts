@@ -69,6 +69,8 @@ export interface IAuthRepository {
   updatePassword(id: string, password: string): Promise<void>;
   /** Empresa del Portal (PK) a la que pertenece la cuenta, si tiene. */
   findEmpresaIdDeUsuario(email: string): Promise<string | null>;
+  /** Actualiza el nombre visible del evento/padre local con los datos de KB (best-effort). */
+  renombrarEvento(eventoId: string, padreNombre: string | null, anio: string | null): Promise<void>;
   /** Marca/limpia la exigencia de cambio de contrasena (credencial temporal). */
   marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void>;
   /** Estado de la empresa del Portal vinculada al usuario (null si no tiene empresa). */

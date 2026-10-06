@@ -121,7 +121,7 @@ export function DashboardHeader() {
           </div>
           {alertas.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-              No tienes alertas
+              <span>No tienes alertas</span>
             </div>
           ) : (
             <div className="max-h-[300px] overflow-y-auto">
@@ -136,7 +136,7 @@ export function DashboardHeader() {
                     <span className="font-medium text-slate-700 truncate">{a.titulo}</span>
                     <span className="ml-auto text-[10px] text-slate-400 shrink-0">{formatAlertaFecha(a.createdAt)}</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 line-clamp-2">{a.mensaje}</p>
+                  <p className="text-[11px] text-slate-500 line-clamp-2"><span>{a.mensaje}</span></p>
                 </DropdownMenuItem>
               ))}
             </div>

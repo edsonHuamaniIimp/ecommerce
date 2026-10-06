@@ -39,12 +39,15 @@ export default function HomePage() {
   const handleSelect = async (eventoId: string) => {
     if (!isAuth) {
       localStorage.setItem(LS_KEYS.EVENTO_PENDIENTE, eventoId);
+      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId }));
       router.push("/auth/login");
       return;
     }
     try {
       await authService.seleccionarEvento({ eventoId });
-      router.push("/dashboard");
+      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId }));
+      /* Navegacion completa: el dashboard debe leer la sesion con el evento nuevo. */
+      window.location.assign("/dashboard");
     } catch { /* ignore */ }
   };
 

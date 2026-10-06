@@ -528,7 +528,7 @@ export default function FacturacionPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={TIPOS_FACTURACION.MANUAL}>Manual</SelectItem>
+                    <SelectItem value={TIPOS_FACTURACION.MANUAL}><span>Manual</span></SelectItem>
                     <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
                   </SelectContent>
                 </Select>

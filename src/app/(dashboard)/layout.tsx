@@ -13,7 +13,7 @@ export default function DashboardLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="notranslate flex min-h-screen bg-background" translate="no">
+    <div className="flex min-h-screen bg-background">
       <Sidebar
         open={sidebarOpen}
         collapsed={collapsed}

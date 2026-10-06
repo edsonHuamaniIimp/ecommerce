@@ -8,6 +8,7 @@ export interface EventoPublico {
   nombre?: string;
   tipoEvento?: number;
   codigoEvento?: number;
+  eventoPadreNombre?: string;
 }
 
 /**

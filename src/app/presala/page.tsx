@@ -16,6 +16,7 @@ import { estadoEventoBadge } from "@/lib/shared/utils/estado-evento";
 import { eventoUtils } from "@/lib/shared/utils/evento";
 import type { FiltroEvento } from "@/lib/shared/constants";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/models";
+import type { EventoPublico } from "@/hooks/use-evento-publico";
 
 type VersionItem = EventoPresalaDTO;
 interface EventoItem extends Omit<EventoPadrePresalaDTO, "versiones"> { versiones: VersionItem[] }
@@ -53,11 +54,43 @@ function PresalaPageContent() {
       try {
         const session = await authService.getSession();
         setIsAuth(session.authenticated);
+        const isChange = searchParams.get("change") === "1";
+
+        /*
+         * Evento elegido en el portal publico (pendiente o guardado): se lee ANTES
+         * de limpiar y, si difiere del de la sesion, se aplica (el publico manda).
+         * Antes se borraba primero y este flujo nunca corria.
+         */
         if (session.authenticated) {
+          const pendingEvento = localStorage.getItem(LS_KEYS.EVENTO_PENDIENTE);
+          let publico: EventoPublico | null = null;
+          try {
+            const raw = localStorage.getItem(LS_KEYS.EVENTO_PUBLICO);
+            publico = raw ? (JSON.parse(raw) as EventoPublico) : null;
+          } catch { publico = null; }
+          const preferido = pendingEvento ?? publico?.eventoId ?? null;
+          const mismoEvento = preferido === session.eventoId;
+          const mismosNombres = !publico?.nombre || publico.nombre === session.eventoNombre;
+
+          if (preferido && (!mismoEvento || !mismosNombres)) {
+            try {
+              await authService.seleccionarEvento({
+                eventoId: preferido,
+                tipoEvento: publico?.tipoEvento,
+                codigoEvento: publico?.codigoEvento,
+                eventoNombre: publico?.nombre,
+                eventoPadreNombre: publico?.eventoPadreNombre,
+              });
+              localStorage.removeItem(LS_KEYS.EVENTO_PENDIENTE);
+              const returnTo = searchParams.get("returnTo");
+              window.location.assign(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
+              return;
+            } catch { /* fall through to show presala */ }
+          }
           localStorage.removeItem(LS_KEYS.EVENTO_PUBLICO);
           localStorage.removeItem(LS_KEYS.EVENTO_PENDIENTE);
         }
-        const isChange = searchParams.get("change") === "1";
+
         if (session.authenticated && session.eventoId && !isChange) {
           const returnTo = searchParams.get("returnTo");
           if (!returnTo || returnTo === "/dashboard" || returnTo === "/presala") {
@@ -79,17 +112,6 @@ function PresalaPageContent() {
             .catch(() => setNombreUsuario(session.email ?? null));
         }
 
-        const pendingEvento = localStorage.getItem(LS_KEYS.EVENTO_PENDIENTE);
-        if (session.authenticated && pendingEvento) {
-          localStorage.removeItem(LS_KEYS.EVENTO_PENDIENTE);
-          try {
-            await authService.seleccionarEvento({ eventoId: pendingEvento });
-            const returnTo = searchParams.get("returnTo");
-            window.location.assign(returnTo && returnTo !== "/presala" ? returnTo : "/dashboard");
-            return;
-          } catch { /* fall through to show presala */ }
-        }
-
         const json = await eventosServiceClient.listarPresala();
         setEventos(json as EventoItem[]);
       } catch {
@@ -104,7 +126,7 @@ function PresalaPageContent() {
     const returnTo = searchParams.get("returnTo");
 
     if (!isAuth) {
-      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId, nombre, tipoEvento, codigoEvento: codigoEventoNum }));
+      localStorage.setItem(LS_KEYS.EVENTO_PUBLICO, JSON.stringify({ eventoId, nombre, tipoEvento, codigoEvento: codigoEventoNum, eventoPadreNombre }));
       if (returnTo && returnTo !== "/presala") {
         router.push(returnTo);
       } else {

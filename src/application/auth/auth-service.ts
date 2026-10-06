@@ -293,7 +293,9 @@ export class AuthApplicationService {
     const tipoEvento = dto.tipoEvento ?? payload.tipoEvento as number | undefined;
     const codigoEvento = dto.codigoEvento ?? payload.codigoEvento as number | undefined;
 
-    if (tipoEvento && codigoEvento) {
+    /* El `eventoId` explicito manda; los codigos resuelven solo cuando no viene id
+       (si no, se re-resolvia el evento viejo del JWT y la seleccion no cambiaba). */
+    if (!eventoId && tipoEvento && codigoEvento) {
       const ev = await this.repo.findOrCreateEvento(tipoEvento, codigoEvento);
       eventoId = ev.id;
     }
@@ -304,6 +306,11 @@ export class AuthApplicationService {
     await this.repo
       .setEventoSeleccionado(payload.email as string, eventoId, dto.eventoNombre ?? null, dto.eventoPadreNombre ?? null)
       .catch(() => undefined);
+
+    /* El nombre local del evento nace como placeholder ("Evento N"/anio actual):
+       se corrige con el nombre visible de KB (padre y anio de la version). */
+    const anio = dto.eventoNombre?.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
+    await this.repo.renombrarEvento(eventoId, dto.eventoPadreNombre?.trim() || null, anio).catch(() => undefined);
 
     // jose interpreta un numero como marca de tiempo absoluta: se reusa la exp
     // del token anterior para conservar la vigencia, y la cookie usa los

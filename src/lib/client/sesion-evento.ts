@@ -8,16 +8,19 @@ interface EventoPublicoGuardado {
   nombre?: string;
   tipoEvento?: number;
   codigoEvento?: number;
+  eventoPadreNombre?: string;
 }
 
 /**
- * Si el usuario se acaba de autenticar (login/registro) y su sesion aun no tiene
- * evento activo, fija el evento elegido en el portal publico (localStorage) para
- * conservar la seleccion al continuar el flujo (p. ej. reserva desde /mapa).
+ * Si el usuario se acaba de autenticar (login/registro) y eligio un evento en el
+ * portal publico (localStorage), lo aplica a su sesion. **La seleccion publica
+ * reciente gana**: sincroniza si cambia el evento **o** si solo cambian los nombres
+ * visibles (el evento local nace con placeholder "Evento N/2026" y KB lo llama
+ * "PERUMIN 2027": sin esto el dashboard mostraba el placeholder).
  */
 export async function sincronizarEventoPublicoEnSesion(): Promise<void> {
   const session = await authService.getSession();
-  if (!session.authenticated || session.eventoId) return;
+  if (!session.authenticated) return;
 
   let guardado: EventoPublicoGuardado | null = null;
   try {
@@ -28,6 +31,10 @@ export async function sincronizarEventoPublicoEnSesion(): Promise<void> {
   }
   if (!guardado?.eventoId) return;
 
+  const mismoEvento = session.eventoId === guardado.eventoId;
+  const mismosNombres = !guardado.nombre || guardado.nombre === session.eventoNombre;
+  if (mismoEvento && mismosNombres) return;
+
   // Best-effort: si falla la sincronizacion no debe romper el login/registro.
   await authService
     .seleccionarEvento({
@@ -35,6 +42,7 @@ export async function sincronizarEventoPublicoEnSesion(): Promise<void> {
       tipoEvento: guardado.tipoEvento,
       codigoEvento: guardado.codigoEvento,
       eventoNombre: guardado.nombre,
+      eventoPadreNombre: guardado.eventoPadreNombre,
     })
     .catch(() => {});
 }

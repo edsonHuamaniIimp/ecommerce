@@ -134,6 +134,22 @@ export class AuthPrismaRepository implements IAuthRepository {
     return u?.empresaId ?? null;
   }
 
+  /**
+   * Renombra el evento local con el nombre visible de KB: el padre se crea como
+   * "Evento N" (placeholder) y el dashboard lo mostraba asi en vez de "PERUMIN".
+   */
+  async renombrarEvento(eventoId: string, padreNombre: string | null, anio: string | null): Promise<void> {
+    if (!padreNombre && !anio) return;
+    const ev = await prisma.evento.findUnique({ where: { id: eventoId }, select: { eventoPadreId: true } });
+    if (!ev) return;
+    if (padreNombre) {
+      await prisma.eventoPadre.update({ where: { id: ev.eventoPadreId }, data: { nombre: padreNombre } });
+    }
+    if (anio) {
+      await prisma.evento.update({ where: { id: eventoId }, data: { anio } });
+    }
+  }
+
   async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }) {
     await prisma.userRole.updateMany({ where: { email }, data });
   }
