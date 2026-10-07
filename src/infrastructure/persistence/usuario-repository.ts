@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/server/db";
-import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow } from "@/domain/ports/usuario-repository";
+import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow, VinculacionUsuario } from "@/domain/ports/usuario-repository";
 
 /** Include comun para mapear la fila con rol y empresa local. */
 const includeUsuario = {
@@ -73,5 +73,13 @@ export class UsuarioPrismaRepository implements IUsuarioRepository {
 
   async actualizarPasswordUsuarioPortal(id: string, passwordHash: string, debeCambiarPassword: boolean): Promise<void> {
     await prisma.userRole.update({ where: { id }, data: { password: passwordHash, debeCambiarPassword } });
+  }
+
+  async findVinculacionPorEmail(email: string): Promise<VinculacionUsuario | null> {
+    const row = await prisma.userRole.findFirst({
+      where: { email },
+      select: { sieCode: true, idEmpresa: true },
+    });
+    return row ? { sieCode: row.sieCode, idEmpresa: row.idEmpresa } : null;
   }
 }

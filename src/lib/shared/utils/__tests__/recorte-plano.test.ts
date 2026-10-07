@@ -58,4 +58,10 @@ describe("construirSvgRecorte (RF-08)", () => {
     const { svg } = construirSvgRecorte(ITEMS, ["EXT-01"], { etiquetas: { S: "<b>&" } });
     expect(svg).toContain("&lt;b&gt;&amp;");
   });
+
+  it("usa el codigo comercial del objetivo cuando se provee (en vez del id del bloque)", () => {
+    const { svg } = construirSvgRecorte([item("BLOQUE-774", 0, 0)], ["BLOQUE-774"], { codigos: { "BLOQUE-774": "774" } });
+    expect(svg).toContain(">774</text>");
+    expect(svg).not.toContain("BLOQUE-774");
+  });
 });

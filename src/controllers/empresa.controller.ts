@@ -4,14 +4,16 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES, CARGA_MASIVA_EXTENSIONES, CARGA_MASIVA_MAX_BYTES } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { getSession } from "@/lib/server/auth";
-import { mapEmpresaToDTO, mapEmpresasPaginatedToDTO } from "@/lib/shared/mappers/empresa";
+import { mapEmpresaToDTO, mapEmpresasPaginatedToDTO, mapEmpresaFuenteToDTO } from "@/lib/shared/mappers/empresa";
 import { ParserTablaError, parsearArchivoEmpresas } from "@/lib/server/parsers/tabla-empresas";
 import {
   actualizarEmpresaSchema,
+  buscarEmpresaFuenteSchema,
   cambiarEstadoEmpresaSchema,
   crearEmpresaSchema,
   idEmpresaSchema,
   importarCargaEmpresasSchema,
+  registrarCuentaEmpresaSchema,
 } from "@/validators/empresas.validator";
 import type { CrearEmpresaRequestDTO } from "@/types/dto/empresas";
 
@@ -192,5 +194,42 @@ export const empresaController = {
 
     const resultado = await services.empresas.reenviarCredenciales(parsed.data.id);
     return success(resultado);
+  },
+
+  /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
+  async buscarFuente(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = buscarEmpresaFuenteSchema.safeParse({
+      q: new URL(request.url).searchParams.get("q") ?? "",
+    });
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const empresas = await services.empresas.buscarEmpresasFuente(parsed.data.q);
+    return success(empresas.map(mapEmpresaFuenteToDTO));
+  },
+
+  /**
+   * Registra la relacion usuario (persona) - empresa: asegura ambos en
+   * servicio-persona (crea si no existen) y crea la cuenta local con sus
+   * identificadores. La ficha contractual local por RUC se mantiene minima.
+   */
+  async registrarCuentaEmpresa(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = registrarCuentaEmpresaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const resultado = await services.empresas.registrarCuentaEmpresa({
+      ...parsed.data,
+      creadoPor: session.email,
+    });
+    return success(resultado, { status: 201 });
   },
 };

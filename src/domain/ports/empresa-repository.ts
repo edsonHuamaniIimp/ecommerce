@@ -8,6 +8,8 @@ import type {
 /** Datos parciales para actualizar una empresa (solo los campos presentes). */
 export interface ActualizarEmpresaData {
   ruc?: string;
+  /** Identificador de la empresa en servicio-persona (sie_code). */
+  sieCode?: string | null;
   razonSocial?: string;
   logoUrl?: string | null;
   nombreComercial?: string | null;

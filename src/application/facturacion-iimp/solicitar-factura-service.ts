@@ -10,6 +10,7 @@ import {
   REGEX_RUC,
   TIPOS_COMPROBANTE,
   TIPOS_DOCUMENTO_FACTURACION_IIMP,
+  TIPOS_DOCUMENTO_PERSONA,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { ClienteIdent, IFacturacionRepository } from "@/domain/ports/facturacion-repository";
@@ -149,7 +150,7 @@ export class SolicitarFacturaApplicationService {
       if (!REGEX_DNI.test(dni)) {
         throw new DomainError("La boleta requiere DNI de 8 digitos en la solicitud", API_ERROR_CODES.VALIDATION, 400);
       }
-      const persona = await this.personas.buscarPorDocumento(dni).catch(() => null);
+      const persona = await this.personas.buscarPorDocumento(dni, TIPOS_DOCUMENTO_PERSONA.DNI).catch(() => null);
       if (!persona?.nombres || !persona.apellido_paterno) {
         throw new DomainError(`No se encontraron los datos del DNI ${dni} en el padron de personas`, API_ERROR_CODES.VALIDATION, 400);
       }

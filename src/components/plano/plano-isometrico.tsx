@@ -159,6 +159,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
+    contratoDatos, setContratoDatos,
     contrato,
     generandoContrato,
     generarContratoYReservar,
@@ -384,7 +385,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
                 const bid = [...linkedMap.entries()].find(([, v]) => v === detailModal)?.[0];
                 const item = items.find((it) => it.id === bid);
                 const label = item ? blockLabel(item.type).label : "";
-                return <span>Detalles: {label} — {bid ?? detailModal.standCode}</span>;
+                return <span>Detalles: {label} — {detailModal.standCode ?? bid}</span>;
               })() : <span>Detalles</span>}
             </DialogTitle>
           </DialogHeader>
@@ -491,8 +492,10 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             onConfirmadoChange={setConfirmado}
             aceptaRepresentante={aceptaRepresentante}
             onAceptaRepresentanteChange={setAceptaRepresentante}
-        cuotasPago={cuotasConfig}
-        onCuotasPagoChange={setCuotasConfig}
+      cuotasPago={cuotasConfig}
+      onCuotasPagoChange={setCuotasConfig}
+      contratoDatos={contratoDatos}
+      onContratoDatosChange={setContratoDatos}
         contrato={contrato}
         generandoContrato={generandoContrato}
         onGenerarContrato={generarContratoYReservar}

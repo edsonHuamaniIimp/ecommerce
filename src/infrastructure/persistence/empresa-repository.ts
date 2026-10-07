@@ -13,6 +13,7 @@ import type { EstadoEmpresa, TipoComprobante } from "@/lib/shared/constants";
 interface EmpresaRow {
   id: string;
   ruc: string;
+  sieCode: string | null;
   razonSocial: string;
   logoUrl: string | null;
   nombreComercial: string | null;
@@ -38,6 +39,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
   return {
     id: row.id,
     ruc: row.ruc,
+    sieCode: row.sieCode ?? null,
     razonSocial: row.razonSocial,
     logoUrl: row.logoUrl ?? null,
     nombreComercial: row.nombreComercial ?? null,

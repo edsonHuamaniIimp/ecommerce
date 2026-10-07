@@ -23,6 +23,15 @@ export interface IUsuarioRepository {
   findUsuarioPortalById(id: string): Promise<UsuarioPortalRow | null>;
   actualizarUsuarioPortal(id: string, data: ActualizarUsuarioPortalData): Promise<UsuarioPortalRow>;
   actualizarPasswordUsuarioPortal(id: string, passwordHash: string, debeCambiarPassword: boolean): Promise<void>;
+  /** Identificadores externos del usuario (servicio-persona): sie_code de la persona e id_empresa SIE. */
+  findVinculacionPorEmail(email: string): Promise<VinculacionUsuario | null>;
+}
+
+/** Identificadores externos del usuario para cruzarlo con la fuente. */
+export interface VinculacionUsuario {
+  sieCode: string | null;
+  /** Codigo SIE de la empresa (API de entidades / servicio-persona). */
+  idEmpresa: string | null;
 }
 
 /** Cambios parciales de un usuario del portal (solo los campos presentes). */

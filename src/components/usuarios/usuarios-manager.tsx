@@ -356,6 +356,7 @@ function NuevoUsuarioModal({ roles, rolInicial, onClose, onCreado }: {
   const [nombres, setNombres] = useState("");
   const [email, setEmail] = useState("");
   const [celular, setCelular] = useState("");
+  const [direccion, setDireccion] = useState("");
   const [empresa, setEmpresa] = useState<EmpresaAccesoDTO | null>(null);
   const [rolId, setRolId] = useState(rolInicial);
   const [error, setError] = useState<string | null>(null);
@@ -380,6 +381,7 @@ function NuevoUsuarioModal({ roles, rolInicial, onClose, onCreado }: {
         apellidoMaterno: apellidoMaterno.trim() || null,
         nombres: nombres.trim(),
         celular: celular.trim() || null,
+        direccion: direccion.trim() || null,
       });
       if (!resultado.creado) {
         setError(resultado.error ?? "No se pudo crear el usuario");
@@ -448,6 +450,10 @@ function NuevoUsuarioModal({ roles, rolInicial, onClose, onCreado }: {
               <Label htmlFor="usuario-celular" className="text-xs"><span>Celular</span></Label>
               <Input id="usuario-celular" value={celular} onChange={(e) => { setCelular(e.target.value); }} className="h-8 text-xs" />
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="usuario-direccion" className="text-xs"><span>Direccion</span></Label>
+            <Input id="usuario-direccion" value={direccion} onChange={(e) => { setDireccion(e.target.value); }} className="h-8 text-xs" placeholder="Av. Arequipa 1250, Lince" />
           </div>
           <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
           <div className="space-y-1">

@@ -3,6 +3,7 @@ import { DomainError } from "@/lib/server/router";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
 import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow } from "@/domain/ports/usuario-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
@@ -30,6 +31,8 @@ export interface NuevoUsuarioPortalInput {
   apellidoMaterno?: string | null;
   nombres: string;
   celular?: string | null;
+  /** Direccion de la persona (la fuente la exige al crear/actualizar). */
+  direccion?: string | null;
   /** Rol local a asignar; por defecto cliente. */
   rolId?: string | null;
 }
@@ -117,14 +120,27 @@ export class UsuariosApplicationService {
     }
 
     const documento = String(input.documento ?? "").trim();
-    let persona = await this.personaClient.buscarPorDocumento(documento);
-    if (!persona?.sie_code) {
+    let persona = await this.personaClient.buscarPorDocumento(documento, input.tipoDocumento);
+    if (persona?.sie_code) {
+      /* Criterio: si ya existe en la fuente se reutiliza; solo se actualiza si difiere. */
+      await actualizarPersonaSiDifiere(this.personaClient, persona, {
+        tipoDocumento: input.tipoDocumento,
+        documento,
+        apellidoPaterno,
+        apellidoMaterno: (input.apellidoMaterno ?? "").trim() || null,
+        nombres,
+        correo: email,
+        celular: (input.celular ?? "").trim() || null,
+        direccion: (input.direccion ?? "").trim() || null,
+      });
+    } else {
       persona = await this.personaClient.crearPersona({
         apellido_paterno: apellidoPaterno,
         apellido_materno: (input.apellidoMaterno ?? "").trim() || null,
         nombres,
         id_tipo_documento: input.tipoDocumento,
         documento,
+        direccion: (input.direccion ?? "").trim() || null,
         correo: email,
         celular: (input.celular ?? "").trim() || null,
       });

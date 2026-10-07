@@ -244,6 +244,8 @@ model Empresa {
   id       String @id @default(uuid())
   /// RUC (11 digitos). Identificador de negocio; unico.
   ruc      String @unique @db.VarChar(11)
+  /// Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). La empresa vive en la fuente.
+  sieCode  String? @map("sie_code") @db.VarChar(20)
   /// Razon social; usada en el cuerpo del contrato.
   razonSocial String @map("razon_social") @db.VarChar(200)
   /// Logo de la empresa (URL en /uploads/*); se pinta en sus stands reservados del mapa.
@@ -285,6 +287,7 @@ model Empresa {
   usuarios UserRole[]
 
   @@index([razonSocial])
+  @@index([sieCode])
   @@index([estado])
   @@map("empresa")
 }

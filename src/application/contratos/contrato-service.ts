@@ -15,6 +15,7 @@ import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
+import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
@@ -75,6 +76,8 @@ export interface GenerarContratoInput {
   idioma?: Idioma;
   /** Firma digital del cliente (imagen base64) para estamparla en el contrato. */
   firmaExhibidorBase64?: string;
+  /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
+  contrato?: DatosContrato;
   userSub: string;
   userPermissions: string[];
 }
@@ -82,6 +85,8 @@ export interface GenerarContratoInput {
 export interface FirmarContratoInput {
   solicitudId: string;
   idioma?: Idioma;
+  /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
+  contrato?: DatosContrato;
   userSub: string;
   userPermissions: string[];
 }
@@ -96,6 +101,8 @@ export interface GenerarBorradorInput {
   email: string;
   /** Firma digital del cliente (imagen base64) para estamparla en el contrato. */
   firmaExhibidorBase64?: string;
+  /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
+  contrato?: DatosContrato;
 }
 
 /** Firma digital del borrador (antes de que exista la solicitud). */
@@ -104,6 +111,8 @@ export interface FirmarBorradorInput {
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
   idioma?: Idioma;
   email: string;
+  /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
+  contrato?: DatosContrato;
 }
 
 export interface ContratoFirmado {
@@ -156,15 +165,23 @@ export class ContratoApplicationService {
     /* Idioma del contrato: el elegido por quien lo genera (UI) o el del cliente (perfil/cookie). */
     const idioma: Idioma = input.idioma ?? (await resolverIdiomaDestinatario(this.auth, detalle.email ?? null));
 
-    /* Modulos (stands) + recortes por pabellon (el recorte se genera en el servidor). */
-    const bloqueIds = detalle.bloqueId ? [detalle.bloqueId] : [...(detalle.standCodes ?? [])];
-    const { modulos, gruposPabellon } = await this.construirModulos(
-      bloqueIds.map((bloqueId) => ({
-        bloqueId,
-        tipoStand: detalle.tipoStand,
-        pabellon: detalle.pabellon ?? null,
-      })),
-    );
+    /* Modulos (stands) + recortes por pabellon (el recorte se genera en el servidor).
+     * El contrato usa el CODIGO COMERCIAL del stand (standCode); el bloqueId del plano
+     * solo sirve para ubicarlo (nunca se muestra al cliente). */
+    const refs = detalle.standsDetalle && detalle.standsDetalle.length > 0
+      ? detalle.standsDetalle.map((s) => ({
+          bloqueId: s.bloqueId ?? s.standCode,
+          codigoComercial: s.standCode,
+          tipoStand: detalle.tipoStand,
+          pabellon: detalle.pabellon ?? null,
+        }))
+      : (detalle.bloqueId ? [detalle.bloqueId] : [...(detalle.standCodes ?? [])]).map((bloqueId) => ({
+          bloqueId,
+          codigoComercial: null,
+          tipoStand: detalle.tipoStand,
+          pabellon: detalle.pabellon ?? null,
+        }));
+    const { modulos, gruposPabellon } = await this.construirModulos(refs);
 
     /* Importes y cuotas: los MONTOS nunca vienen del cliente (precio del stand en BD). */
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
@@ -188,6 +205,7 @@ export class ContratoApplicationService {
       porcentajes,
       modalidad,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
+      contrato: input.contrato,
       base,
     });
 
@@ -218,7 +236,7 @@ export class ContratoApplicationService {
       throw new DomainError("Algun stand seleccionado ya no esta disponible.", API_ERROR_CODES.CONFLICT, 409);
     }
     const { modulos, gruposPabellon } = await this.construirModulos(
-      stands.map((s) => ({ bloqueId: s.bloqueId ?? s.standCode, tipoStand: s.tipoStand, pabellon: null })),
+      stands.map((s) => ({ bloqueId: s.bloqueId ?? s.standCode, codigoComercial: s.standCode, tipoStand: s.tipoStand, pabellon: null })),
     );
     const neto = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(neto, input.cuotas);
@@ -237,6 +255,7 @@ export class ContratoApplicationService {
       porcentajes,
       modalidad,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
+      contrato: input.contrato,
       base,
     });
   }
@@ -290,13 +309,13 @@ export class ContratoApplicationService {
 
   /** Modulos del Anexo 1 + grupos por pabellon (items del plano para el recorte). */
   private async construirModulos(
-    refs: Array<{ bloqueId: string; tipoStand: string | null; pabellon: string | null }>,
+    refs: Array<{ bloqueId: string; codigoComercial?: string | null; tipoStand: string | null; pabellon: string | null }>,
   ): Promise<{
     modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }>;
-    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
+    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string>; codigos: Record<string, string> }>;
   }> {
     const modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }> = [];
-    const gruposPabellon = new Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>();
+    const gruposPabellon = new Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string>; codigos: Record<string, string> }>();
     const planosPorCodigo = new Map<string, Awaited<ReturnType<IPlanoRepository["detallePorCodigo"]>>>();
     for (const ref of refs) {
       const ubicacion = await this.planos.ubicacionDeBloque(ref.bloqueId);
@@ -322,13 +341,15 @@ export class ContratoApplicationService {
             objetivos: [],
             items: construirItemsPlano(plano),
             etiquetas: Object.fromEntries(plano.tipos.map((t) => [t.codigo, t.label])),
+            codigos: {} as Record<string, string>,
           };
           grupo.objetivos.push(ref.bloqueId);
+          if (ref.codigoComercial) grupo.codigos[ref.bloqueId] = ref.codigoComercial;
           gruposPabellon.set(codigo, grupo);
         }
       }
       modulos.push({
-        modulo: ref.bloqueId,
+        modulo: ref.codigoComercial ?? ref.bloqueId,
         zona: ubicacion?.plano.nombre ?? ref.pabellon ?? "",
         tipo: ref.tipoStand ?? "",
         metraje,
@@ -346,12 +367,14 @@ export class ContratoApplicationService {
     empresaFallback: string | null;
     emailFallback: string | null;
     modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }>;
-    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string> }>;
+    gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string>; codigos: Record<string, string> }>;
     importes: ReturnType<typeof calcularImportes>;
     plan: ReturnType<typeof planCuotasConFechas>;
     porcentajes: number[];
     modalidad: string;
     firmaExhibidorBase64?: string;
+    /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
+    contrato?: DatosContrato | null;
     base: string;
   }): Promise<ContratoGenerado> {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
@@ -370,7 +393,7 @@ export class ContratoApplicationService {
     const planosData: Array<{ imagen_plano: string; pabellon: string; version: string; fecha: string }> = [];
     for (const grupo of gruposPabellon.values()) {
       try {
-        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, { etiquetas: grupo.etiquetas });
+        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, { etiquetas: grupo.etiquetas, codigos: grupo.codigos });
         if (!encontrado) continue;
         const png = await sharp(Buffer.from(svg)).png().toBuffer();
         planosData.push({
@@ -412,13 +435,22 @@ export class ContratoApplicationService {
 
     const monto = (valor: number) => numberUtils.numero(valor, { decimales: 2 });
 
+    /* Datos del cuerpo del contrato: wizard (prioridad) -> empresa local -> fallback. */
+    const c = params.contrato;
+    const razonSocial = c?.razonSocial?.trim() || empresa?.razonSocial || params.empresaFallback || "-";
+    const ruc = c?.ruc?.trim() || empresa?.ruc || "-";
+    const domicilioFiscal = c?.direccion?.trim() || empresa?.direccionFiscal || "-";
+    const representanteLegal = c?.representante?.trim() || empresa?.representanteLegalNombre || "-";
+    const dniRepresentante = c?.representanteDni?.trim() || empresa?.representanteLegalDni || "-";
+    const partidaElectronica = c?.partidaElectronica?.trim() || empresa?.partidaElectronica || "";
+
     const data = {
-      razon_social: empresa?.razonSocial ?? params.empresaFallback ?? "-",
-      ruc: empresa?.ruc ?? "-",
-      domicilio_fiscal: empresa?.direccionFiscal ?? "-",
-      representante_legal: empresa?.representanteLegalNombre ?? "-",
-      dni_representante: empresa?.representanteLegalDni ?? "-",
-      partida_electronica: empresa?.partidaElectronica ?? "",
+      razon_social: razonSocial,
+      ruc,
+      domicilio_fiscal: domicilioFiscal,
+      representante_legal: representanteLegal,
+      dni_representante: dniRepresentante,
+      partida_electronica: partidaElectronica,
       objeto_social: "actividades propias de su giro comercial",
       actividad: "exhibicion de productos y servicios",
       correo_planos: empresa?.emailContacto ?? params.emailFallback ?? "",
@@ -438,10 +470,10 @@ export class ContratoApplicationService {
         monto: monto(c.monto),
         fecha: fechaCorta(c.fechaVencimiento),
       })),
-      firmante_nombre_cargo: empresa?.representanteLegalNombre
-        ? `${empresa.representanteLegalNombre} - Representante Legal`
+      firmante_nombre_cargo: representanteLegal !== "-"
+        ? `${representanteLegal} - Representante Legal`
         : "",
-      firmante_empresa: empresa?.razonSocial ?? params.empresaFallback ?? "",
+      firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
       firmante_fecha: fechaFirma,
     };
@@ -502,6 +534,7 @@ export class ContratoApplicationService {
       solicitudId: input.solicitudId,
       idioma: input.idioma,
       firmaExhibidorBase64: png.toString("base64"),
+      contrato: input.contrato,
       userSub: input.userSub,
       userPermissions: input.userPermissions,
     });

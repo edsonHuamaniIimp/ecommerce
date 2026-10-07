@@ -5,12 +5,15 @@ import type {
   ActualizarEmpresaRequestDTO,
   CrearEmpresaRequestDTO,
   EmpresaDTO,
+  EmpresaFuenteDTO,
   EmpresasPaginatedDTO,
   FilaCargaEmpresaDTO,
   ListarEmpresasQueryDTO,
   PrevisualizacionCargaEmpresasDTO,
+  RegistrarCuentaEmpresaRequestDTO,
   ResultadoCredencialesEmpresaDTO,
   ResultadoImportacionEmpresasDTO,
+  ResultadoRegistroEmpresaDTO,
 } from "@/types/dto/empresas";
 
 /** Empresas registradas por el backoffice (bandeja + alta/edicion). */
@@ -61,5 +64,15 @@ export const empresasService = {
   /** Regenera la contrasena temporal y reenvia las credenciales. */
   reenviarCredenciales(id: string) {
     return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/reenviar-credenciales", { id });
+  },
+
+  /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
+  buscarFuente(q: string) {
+    return internalApi.get<EmpresaFuenteDTO[]>(`/api/empresas/fuente?q=${encodeURIComponent(q)}`);
+  },
+
+  /** Registra la relacion usuario (persona) - empresa: la fuente es servicio-persona. */
+  registrarCuentaEmpresa(body: RegistrarCuentaEmpresaRequestDTO) {
+    return internalApi.post<ResultadoRegistroEmpresaDTO>("/api/empresas/registrar-cuenta-empresa", body);
   },
 };

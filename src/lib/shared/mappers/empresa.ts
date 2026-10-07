@@ -1,11 +1,14 @@
 import type { EmpresaEntity, EmpresasPaginatedResult } from "@/domain/models/empresa";
-import type { EmpresaDTO, EmpresasPaginatedDTO } from "@/types/dto/empresas";
+import type { EmpresaApi } from "@/domain/ports/empresa-client";
+import { REGEX_RUC, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
+import type { EmpresaDTO, EmpresaFuenteDTO, EmpresasPaginatedDTO } from "@/types/dto/empresas";
 
 /** Entidad de dominio -> DTO de respuesta (fechas ISO para la API). */
 export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
   return {
     id: entity.id,
     ruc: entity.ruc,
+    sieCode: entity.sieCode,
     razonSocial: entity.razonSocial,
     logoUrl: entity.logoUrl,
     nombreComercial: entity.nombreComercial,
@@ -36,5 +39,20 @@ export function mapEmpresasPaginatedToDTO(result: EmpresasPaginatedResult): Empr
     page: result.page,
     perPage: result.perPage,
     totalPages: result.totalPages,
+  };
+}
+
+/** Empresa de servicio-persona (fuente) -> DTO de respuesta de la busqueda. */
+export function mapEmpresaFuenteToDTO(empresa: EmpresaApi): EmpresaFuenteDTO {
+  const documento = empresa.documento ?? "";
+  const tipo = empresa.id_tipo_documento ?? (REGEX_RUC.test(documento) ? TIPOS_DOCUMENTO_EMPRESA.RUC : TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+  return {
+    sieCode: empresa.sie_code ?? "",
+    nombre: empresa.nombre ?? "",
+    idTipoDocumento: tipo,
+    documento,
+    direccion: empresa.direccion ?? null,
+    correo: empresa.correo ?? null,
+    telefono: empresa.telefono ?? null,
   };
 }

@@ -1,4 +1,5 @@
 import type { CuotaBorradorDTO } from "./generar-borrador-contrato-request.dto";
+import type { DatosContratoDTO } from "./datos-contrato.dto";
 import type { Idioma } from "@/lib/shared/constants";
 
 /**
@@ -9,4 +10,6 @@ export interface FirmarBorradorContratoRequestDTO {
   standIds: string[];
   idioma?: Idioma;
   cuotas: CuotaBorradorDTO[];
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato?: DatosContratoDTO;
 }

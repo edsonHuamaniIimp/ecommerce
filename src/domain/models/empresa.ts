@@ -8,6 +8,8 @@ import type { EstadoEmpresa, EstadoFilaCarga, TipoComprobante } from "@/lib/shar
 export interface EmpresaEntity {
   id: string;
   ruc: string;
+  /** Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). */
+  sieCode: string | null;
   razonSocial: string;
   /** Logo (URL en /uploads/*) que se pinta en los stands reservados del mapa. */
   logoUrl: string | null;
@@ -35,6 +37,8 @@ export interface EmpresaEntity {
 export interface EmpresaInput {
   ruc: string;
   razonSocial: string;
+  /** Codigo SIE ya conocido (padron IIMP): evita crear/consultar en servicio-persona. */
+  sieCode?: string | null;
   logoUrl?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
@@ -51,6 +55,8 @@ export interface EmpresaInput {
 /** Datos normalizados que persiste el repositorio al crear. */
 export interface CrearEmpresaData {
   ruc: string;
+  /** Identificador de la empresa en servicio-persona (sie_code). */
+  sieCode: string | null;
   razonSocial: string;
   logoUrl: string | null;
   nombreComercial: string | null;

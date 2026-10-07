@@ -1,4 +1,5 @@
 import type { Idioma } from "@/lib/shared/constants";
+import type { DatosContratoDTO } from "./datos-contrato.dto";
 
 /** Cuota configurada por el cliente: porcentaje y fecha (montos los calcula el servidor). */
 export interface CuotaBorradorDTO {
@@ -18,4 +19,6 @@ export interface GenerarBorradorContratoRequestDTO {
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma?: Idioma;
   cuotas: CuotaBorradorDTO[];
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato?: DatosContratoDTO;
 }

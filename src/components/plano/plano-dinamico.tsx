@@ -287,6 +287,7 @@ map.set(String(bloqueId), {
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
+    contratoDatos, setContratoDatos,
     contrato,
     generandoContrato,
     generarContratoYReservar,
@@ -883,8 +884,10 @@ map.set(String(bloqueId), {
           onConfirmadoChange={setConfirmado}
           aceptaRepresentante={aceptaRepresentante}
           onAceptaRepresentanteChange={setAceptaRepresentante}
-        cuotasPago={cuotasConfig}
-        onCuotasPagoChange={setCuotasConfig}
+      cuotasPago={cuotasConfig}
+      onCuotasPagoChange={setCuotasConfig}
+      contratoDatos={contratoDatos}
+      onContratoDatosChange={setContratoDatos}
         contrato={contrato}
         generandoContrato={generandoContrato}
         onGenerarContrato={generarContratoYReservar}
@@ -1099,7 +1102,8 @@ function tituloDetalle(
   const bloqueId = [...linkedMap.entries()].find(([, v]) => v === detalle)?.[0];
   const item = items.find((it) => it.id === bloqueId);
   const label = item ? blockLabel(item.type).label : "";
-  return `Detalles: ${label} - ${bloqueId ?? detalle.standCode}`;
+    /* El contrato/cliente usan el codigo comercial del stand; el bloqueId solo ubica. */
+    return `Detalles: ${label} - ${detalle.standCode ?? bloqueId}`;
 }
 
 function Legend({ color, label }: { color: string; label: string }) {

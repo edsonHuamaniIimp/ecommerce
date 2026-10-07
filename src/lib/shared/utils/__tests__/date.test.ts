@@ -38,3 +38,10 @@ describe("dateUtils.formatDateTimeShort", () => {
     expect(texto).toMatch(/Sep/i);
   });
 });
+
+describe("dateUtils.inputValue", () => {
+  it("convierte una fecha local a YYYY-MM-DD", () => {
+    expect(dateUtils.inputValue(new Date(2026, 9, 3))).toBe("2026-10-03");
+    expect(dateUtils.inputValue(new Date(2026, 0, 31))).toBe("2026-01-31");
+  });
+});

@@ -2,6 +2,8 @@
 export interface EmpresaDTO {
   id: string;
   ruc: string;
+  /** Identificador de la empresa en servicio-persona (sie_code). */
+  sieCode: string | null;
   razonSocial: string;
   /** Logo (URL) que se pinta en los stands reservados del mapa. */
   logoUrl: string | null;

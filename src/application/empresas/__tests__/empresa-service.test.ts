@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, PERMISSIONS, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, PERMISSIONS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { ActualizarEmpresaData, IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
+import type { EmpresaApi, IEmpresaClient, NuevaEmpresaApi } from "@/domain/ports/empresa-client";
+import type { IPersonaClient, NuevaPersonaApi, PersonaApi } from "@/domain/ports/persona-client";
 import type {
   CrearEmpresaData,
   EmpresaEntity,
@@ -41,6 +43,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
     const empresa: EmpresaEntity = {
       id: data.id ?? `emp-${++this.seq}`,
       ruc: data.ruc,
+      sieCode: data.sieCode ?? null,
       razonSocial: data.razonSocial,
       logoUrl: data.logoUrl ?? null,
       nombreComercial: data.nombreComercial ?? null,
@@ -130,15 +133,39 @@ function fakeRoleRepo() {
   return { findByNombre: vi.fn(async () => ({ id: "rol-cliente", nombre: "cliente", permisos: [] })) };
 }
 
+/** Cliente falso de personas de servicio-persona. */
+function fakePersonaClient(overrides: { existente?: PersonaApi | null; creada?: PersonaApi | null } = {}) {
+  return {
+    buscarPorDocumento: vi.fn(async () => overrides.existente ?? null),
+    buscarPersonas: vi.fn(async () => []),
+    crearPersona: vi.fn(async (dto: NuevaPersonaApi) => overrides.creada ?? { sie_code: "P0000012345", ...dto }),
+    actualizarPersona: vi.fn(async (sieCode: string, dto: NuevaPersonaApi) => ({ sie_code: sieCode, ...dto })),
+  };
+}
+
+/** Cliente falso de empresas de servicio-persona. */
+function fakeEmpresaClient(overrides: { existente?: EmpresaApi | null; creada?: EmpresaApi | null } = {}) {
+  return {
+    buscarEmpresas: vi.fn(async () => []),
+    buscarPorDocumento: vi.fn(async () => overrides.existente ?? null),
+    crearEmpresa: vi.fn(async (dto: NuevaEmpresaApi) => overrides.creada ?? { sie_code: "E0000000123", ...dto }),
+    actualizarEmpresa: vi.fn(async (sieCode: string, dto: NuevaEmpresaApi) => ({ sie_code: sieCode, ...dto })),
+  };
+}
+
 function crearServicio(
   repo: IEmpresaRepository,
   auth: ReturnType<typeof fakeAuthRepo> = fakeAuthRepo(),
   roles: ReturnType<typeof fakeRoleRepo> = fakeRoleRepo(),
+  personas: ReturnType<typeof fakePersonaClient> = fakePersonaClient(),
+  empresas: ReturnType<typeof fakeEmpresaClient> = fakeEmpresaClient(),
 ) {
   return new EmpresaApplicationService(
     repo,
     auth as unknown as IAuthRepository,
     roles as unknown as IRoleRepository,
+    personas as unknown as IPersonaClient,
+    empresas as unknown as IEmpresaClient,
   );
 }
 
@@ -201,6 +228,74 @@ describe("EmpresaApplicationService.crear", () => {
 
     const empresa = await service.crear({ ...INPUT_BASE, tipoComprobante: TIPOS_COMPROBANTE.BOLETA }, null);
     expect(empresa.tipoComprobante).toBe(TIPOS_COMPROBANTE.BOLETA);
+  });
+
+  it("alimenta servicio-persona: guarda el sie_code de la empresa creada en la fuente", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    const empresa = await service.crear({ ...INPUT_BASE, direccionFiscal: "Av. Los Ingenieros 245", telefono: "+51987654321" }, null);
+
+    expect(empresas.crearEmpresa).toHaveBeenCalledWith(expect.objectContaining({
+      documento: "20601234567",
+      id_tipo_documento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      pais: UBIGEO_PAIS_PERU,
+    }));
+    expect(empresa.sieCode).toBe("E0000000123");
+  });
+
+  it("alimenta servicio-persona: reutiliza la empresa existente sin crearla", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient({
+      existente: {
+        sie_code: "E9",
+        nombre: "Minera Cordillera S.A.C.",
+        direccion: "Av. Los Ingenieros 245",
+        correo: INPUT_BASE.emailContacto,
+        telefono: "+51987654321",
+      },
+    });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    const empresa = await service.crear({ ...INPUT_BASE, direccionFiscal: "Av. Los Ingenieros 245", telefono: "+51987654321" }, null);
+
+    expect(empresas.crearEmpresa).not.toHaveBeenCalled();
+    expect(empresas.actualizarEmpresa).not.toHaveBeenCalled();
+    expect(empresa.sieCode).toBe("E9");
+  });
+
+  it("si la fuente falla, la ficha local se crea igual sin sie_code", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient();
+    empresas.crearEmpresa.mockRejectedValueOnce(new Error("fuente no disponible"));
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    const empresa = await service.crear({ ...INPUT_BASE, direccionFiscal: "Av. Los Ingenieros 245", telefono: "+51987654321" }, null);
+
+    expect(empresa.sieCode).toBeNull();
+  });
+
+  it("usa el sieCode del padron sin consultar ni crear en la fuente", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    const empresa = await service.crear({ ...INPUT_BASE, sieCode: "E0000003804", direccionFiscal: "Av. Los Ingenieros 245", telefono: "+51987654321" }, null);
+
+    expect(empresas.buscarPorDocumento).not.toHaveBeenCalled();
+    expect(empresas.crearEmpresa).not.toHaveBeenCalled();
+    expect(empresa.sieCode).toBe("E0000003804");
+  });
+
+  it("sin datos minimos (direccion/telefono) no consulta la fuente", async () => {
+    const empresas = fakeEmpresaClient();
+    const service = crearServicio(new FakeEmpresaRepo(), fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    await service.crear(INPUT_BASE, null);
+
+    expect(empresas.buscarPorDocumento).not.toHaveBeenCalled();
+    expect(empresas.crearEmpresa).not.toHaveBeenCalled();
   });
 });
 
@@ -524,5 +619,176 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
     expect(empresa.direccionFiscal).toBe("Av. Los Ingenieros 245, Lima");
     expect(empresa.primerAccesoCompletado).toBe(true);
     expect(empresa.datosValidadosEn).toBeInstanceOf(Date);
+  });
+});
+
+/* ================================================================
+   Servicio-persona: busqueda y registro de la relacion usuario - empresa
+   ================================================================ */
+
+const EMPRESA_FUENTE = {
+  nombre: "Acme Consultores S.A.C.",
+  idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+  documento: "20123456789",
+  direccion: "Av. Javier Prado 1234, San Isidro",
+  correo: "contacto@acme.com",
+  telefono: "+51987654321",
+  pais: UBIGEO_PAIS_PERU,
+};
+
+const PERSONA_CONTACTO = {
+  tipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+  documento: "72183002",
+  apellidoPaterno: "Perez",
+  apellidoMaterno: "Gomez",
+  nombres: "Juan",
+  celular: "+51987654321",
+};
+
+describe("EmpresaApplicationService.buscarEmpresasFuente", () => {
+  it("delega la busqueda en servicio-persona", async () => {
+    const empresas = fakeEmpresaClient();
+    const service = crearServicio(new FakeEmpresaRepo(), fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    await service.buscarEmpresasFuente("ACME");
+
+    expect(empresas.buscarEmpresas).toHaveBeenCalledWith("ACME");
+  });
+});
+
+describe("EmpresaApplicationService.registrarCuentaEmpresa", () => {
+  it("reutiliza empresa y persona existentes y crea la relacion con sus sie_code", async () => {
+    const repo = new FakeEmpresaRepo();
+    const auth = fakeAuthRepo();
+    const personas = fakePersonaClient({ existente: { sie_code: "P0000000001", documento: "72183002" } });
+    const empresas = fakeEmpresaClient({ existente: { sie_code: "E0000000001", documento: "20123456789", nombre: "ACME" } });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), personas, empresas);
+
+    const r = await service.registrarCuentaEmpresa({
+      empresa: EMPRESA_FUENTE,
+      persona: PERSONA_CONTACTO,
+      email: "Juan@Acme.com",
+      creadoPor: "admin@iimp.org.pe",
+    });
+
+    expect(r.empresaCreadaEnFuente).toBe(false);
+    expect(r.empresaActualizadaEnFuente).toBe(true);
+    expect(r.personaCreadaEnFuente).toBe(false);
+    expect(r.sieCodeEmpresa).toBe("E0000000001");
+    expect(r.sieCodePersona).toBe("P0000000001");
+    expect(empresas.crearEmpresa).not.toHaveBeenCalled();
+    expect(empresas.actualizarEmpresa).toHaveBeenCalledWith("E0000000001", expect.objectContaining({
+      nombre: "Acme Consultores S.A.C.",
+      documento: "20123456789",
+      direccion: "Av. Javier Prado 1234, San Isidro",
+    }));
+    expect(personas.crearPersona).not.toHaveBeenCalled();
+    expect(personas.actualizarPersona).toHaveBeenCalledWith("P0000000001", expect.objectContaining({
+      apellido_paterno: "Perez",
+      correo: "juan@acme.com",
+    }));
+    expect(auth.crearUsuario).toHaveBeenCalledWith(expect.objectContaining({
+      email: "juan@acme.com",
+      sieCode: "P0000000001",
+      idEmpresa: "E0000000001",
+      nombreEmpresa: "Acme Consultores S.A.C.",
+      debeCambiarPassword: true,
+    }));
+    const ficha = await repo.findByRuc("20123456789");
+    expect(ficha?.sieCode).toBe("E0000000001");
+    expect(ficha?.cuentaCreada).toBe(true);
+    expect(ficha?.creadoPor).toBe("admin@iimp.org.pe");
+  });
+
+  it("crea la empresa en la fuente cuando no existe y usa el sie_code devuelto", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient({ existente: { sie_code: "P1" } }), empresas);
+
+    const r = await service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: PERSONA_CONTACTO, email: "juan@acme.com" });
+
+    expect(r.empresaCreadaEnFuente).toBe(true);
+    expect(r.sieCodeEmpresa).toBe("E0000000123");
+    expect(empresas.crearEmpresa).toHaveBeenCalledWith(expect.objectContaining({
+      documento: "20123456789",
+      id_tipo_documento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      pais: UBIGEO_PAIS_PERU,
+    }));
+  });
+
+  it("crea la persona de contacto en la fuente cuando no existe", async () => {
+    const personas = fakePersonaClient();
+    const service = crearServicio(new FakeEmpresaRepo(), fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient({ existente: { sie_code: "E1" } }));
+
+    const r = await service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: PERSONA_CONTACTO, email: "juan@acme.com" });
+
+    expect(r.personaCreadaEnFuente).toBe(true);
+    expect(r.sieCodePersona).toBe("P0000012345");
+    expect(personas.crearPersona).toHaveBeenCalledWith(expect.objectContaining({
+      documento: "72183002",
+      correo: "juan@acme.com",
+    }));
+  });
+
+  it("reutiliza la ficha local existente y solo agrega su sie_code", async () => {
+    const repo = new FakeEmpresaRepo();
+    repo.seed({ ruc: "20123456789", razonSocial: "Existente S.A.C.", cuentaCreada: true, sieCode: null });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient({ existente: { sie_code: "P1" } }), fakeEmpresaClient({ existente: { sie_code: "E9" } }));
+
+    const r = await service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: PERSONA_CONTACTO, email: "juan@acme.com" });
+
+    const ficha = await repo.findByRuc("20123456789");
+    expect(r.empresaId).toBe(ficha?.id);
+    expect(ficha?.sieCode).toBe("E9");
+    expect(ficha?.razonSocial).toBe("Existente S.A.C.");
+  });
+
+  it("no actualiza la fuente cuando los datos de la empresa coinciden", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient({
+      existente: {
+        sie_code: "E1",
+        nombre: EMPRESA_FUENTE.nombre,
+        direccion: EMPRESA_FUENTE.direccion,
+        correo: EMPRESA_FUENTE.correo,
+        telefono: EMPRESA_FUENTE.telefono,
+      },
+    });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient({ existente: { sie_code: "P1" } }), empresas);
+
+    const r = await service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: PERSONA_CONTACTO, email: "juan@acme.com" });
+
+    expect(r.empresaActualizadaEnFuente).toBe(false);
+    expect(empresas.actualizarEmpresa).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un correo que ya tiene cuenta con 409", async () => {
+    const service = crearServicio(
+      new FakeEmpresaRepo(),
+      fakeAuthRepo({ existeEmail: true }),
+      fakeRoleRepo(),
+      fakePersonaClient({ existente: { sie_code: "P1" } }),
+      fakeEmpresaClient({ existente: { sie_code: "E1" } }),
+    );
+
+    await expect(
+      service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: PERSONA_CONTACTO, email: "juan@acme.com" }),
+    ).rejects.toMatchObject({ status: 409, code: API_ERROR_CODES.CONFLICT });
+  });
+
+  it("valida el RUC de la empresa (11 digitos)", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+
+    await expect(
+      service.registrarCuentaEmpresa({ empresa: { ...EMPRESA_FUENTE, documento: "123" }, persona: PERSONA_CONTACTO, email: "juan@acme.com" }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("valida el documento de la persona de contacto", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+
+    await expect(
+      service.registrarCuentaEmpresa({ empresa: EMPRESA_FUENTE, persona: { ...PERSONA_CONTACTO, documento: "123" }, email: "juan@acme.com" }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

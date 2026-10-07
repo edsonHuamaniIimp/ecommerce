@@ -17,6 +17,7 @@ const usuarioBaseSchema = z.object({
   apellidoMaterno: z.string().max(30).nullish(),
   nombres: z.string().min(1, "nombres requeridos").max(30),
   celular: z.string().max(35).nullish(),
+  direccion: z.string().max(100).nullish(),
   /** Rol local a asignar; por defecto cliente. */
   rolId: z.string().min(1).nullish(),
 });

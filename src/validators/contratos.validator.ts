@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PAGO, type Idioma } from "@/lib/shared/constants";
-import { fechasCuotasValidas } from "@/lib/shared/utils/cuotas";
+import { fechasCuotasEnRango, fechasCuotasValidas } from "@/lib/shared/utils/cuotas";
 
 const fechaISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -23,7 +23,20 @@ const cuotasContratoSchema = z
   )
   .refine((cuotas) => fechasCuotasValidas(cuotas.map((c) => c.fechaVencimiento)), {
     message: "Las fechas no pueden ser pasadas y deben ir en orden",
+  })
+  .refine((cuotas) => fechasCuotasEnRango(cuotas.map((c) => c.fechaVencimiento)), {
+    message: "Las cuotas superan el maximo permitido (1ra: 1 mes, 2da: 2 meses, 3ra: 3 meses desde la solicitud; tope 15/07/2027)",
   });
+
+/** Datos del exhibidor para el cuerpo del contrato (paso Cuotas del wizard). */
+const contratoDatosSchema = z.object({
+  razonSocial: z.string().trim().max(200).optional(),
+  ruc: z.string().trim().max(20).optional(),
+  direccion: z.string().trim().max(250).optional(),
+  representante: z.string().trim().max(200).optional(),
+  representanteDni: z.string().trim().max(15).optional(),
+  partidaElectronica: z.string().trim().max(50).optional(),
+});
 
 /**
  * Cuerpo de POST `/api/contratos/generar`.
@@ -37,6 +50,8 @@ export const generarContratoSchema = z.object({
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   cuotas: cuotasContratoSchema,
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato: contratoDatosSchema.optional(),
 });
 
 /**
@@ -49,6 +64,8 @@ export const borradorContratoSchema = z.object({
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   cuotas: cuotasContratoSchema,
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato: contratoDatosSchema.optional(),
 });
 
 /**
@@ -59,4 +76,6 @@ export const firmarContratoSchema = z.object({
   solicitudId: z.string().uuid("solicitudId invalido"),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato: contratoDatosSchema.optional(),
 });

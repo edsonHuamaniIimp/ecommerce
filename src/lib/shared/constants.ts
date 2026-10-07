@@ -835,6 +835,15 @@ export const CUOTAS_PORCENTAJE_PASO = 0.01;
 /** Monto minimo (USD) que debe tener cada cuota; si el redondeo da 0 se rechaza. */
 export const CUOTA_MONTO_MINIMO = 0.01;
 
+/** Regla de fechas: la cuota N vence como maximo N meses despues de la solicitud de reserva. */
+export const CUOTAS_MESES_MAX_POR_CUOTA = 1;
+
+/** Minimo de dias que debe distanciar cada cuota de la anterior (orden estricto). */
+export const CUOTAS_DIAS_MIN_ENTRE = 1;
+
+/** Tope absoluto del cronograma de cuotas (fecha ISO yyyy-mm-dd). */
+export const CUOTAS_FECHA_MAXIMA = "2027-07-15";
+
 /** Maximo de cuotas por reserva que acepta el API del IIMP. */
 export const MAX_CUOTAS_IIMP = 9;
 
@@ -916,6 +925,22 @@ export const TIPOS_DOCUMENTO_PERSONA_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: "Carne de extranjeria",
   [TIPOS_DOCUMENTO_PERSONA.PASAPORTE]: "Pasaporte",
 };
+
+/** Tipos de documento de empresa en servicio-persona (`id_tipo_documento`). */
+export const TIPOS_DOCUMENTO_EMPRESA = {
+  RUC: "6",
+  NO_DOMICILIADO: "0",
+} as const;
+
+export type TipoDocumentoEmpresa = (typeof TIPOS_DOCUMENTO_EMPRESA)[keyof typeof TIPOS_DOCUMENTO_EMPRESA];
+
+export const TIPOS_DOCUMENTO_EMPRESA_LABELS: Record<string, string> = {
+  [TIPOS_DOCUMENTO_EMPRESA.RUC]: "RUC",
+  [TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO]: "No domiciliado",
+};
+
+/** Codigo de PERU en el catalogo de ubigeo de servicio-persona. */
+export const UBIGEO_PAIS_PERU = 75;
 
 /** Codigos del API de reserva del IIMP (doc API-RESERVA-STAND-INTEGRACION.md). */
 export const FACTURACION_IIMP = {
@@ -1150,6 +1175,7 @@ export const VALIDACIONES = {
   TELEFONO_MAX: 20,
   CARGO_MAX: 100,
   RUC_LONGITUD: 11,
+  DNI_LONGITUD: 8,
   MENSAJE_MAX: 2000,
 } as const;
 

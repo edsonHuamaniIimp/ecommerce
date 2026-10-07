@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import { SolicitarFacturaApplicationService } from "../solicitar-factura-service";
 import type { IFacturacionRepository, FacturacionRow } from "@/domain/ports/facturacion-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -175,7 +176,7 @@ describe("SolicitarFacturaApplicationService", () => {
     vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({ ...datosBase, datosFacturacion: snapshotBoleta } as never);
     await servicio(m).solicitar("c1", ident);
 
-    expect(m.personas.buscarPorDocumento).toHaveBeenCalledWith("48570568");
+    expect(m.personas.buscarPorDocumento).toHaveBeenCalledWith("48570568", TIPOS_DOCUMENTO_PERSONA.DNI);
     expect(m.reserva.reservar).toHaveBeenCalledWith(expect.objectContaining({
       tipoFacturacion: "03",
       tipDocFacturacion: "1",

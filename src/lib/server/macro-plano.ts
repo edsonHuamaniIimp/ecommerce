@@ -55,7 +55,7 @@ async function leerArchivo(url: string): Promise<Buffer> {
     if (!res.ok) throw new Error(`No se pudo leer ${url}: HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
-  return fs.readFileSync(path.join(process.cwd(), "public", url.replace(/^\//, "")));
+  return await fs.promises.readFile(path.join(process.cwd(), "public", url.replace(/^\//, "")));
 }
 
 async function pdfAPng(pdf: Buffer): Promise<Buffer> {
@@ -89,18 +89,18 @@ function guardarEnMemoria(key: string, base: Buffer): void {
   }
 }
 
-function leerDeDisco(ruta: string): Buffer | null {
+async function leerDeDisco(ruta: string): Promise<Buffer | null> {
   try {
-    return fs.readFileSync(ruta);
+    return await fs.promises.readFile(ruta);
   } catch {
     return null;
   }
 }
 
-function guardarEnDisco(ruta: string, base: Buffer): void {
+async function guardarEnDisco(ruta: string, base: Buffer): Promise<void> {
   try {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    fs.writeFileSync(ruta, base);
+    await fs.promises.mkdir(CACHE_DIR, { recursive: true });
+    await fs.promises.writeFile(ruta, base);
   } catch {
     /* sin disco persistente: solo cache en memoria */
   }
@@ -130,7 +130,7 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
     return cacheado.base;
   }
   const ruta = rutaCache(key);
-  const enDisco = leerDeDisco(ruta);
+  const enDisco = await leerDeDisco(ruta);
   if (enDisco) {
     guardarEnMemoria(key, enDisco);
     return enDisco;
@@ -139,7 +139,7 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
   const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo) : crudo;
   const base = await sharp(png).resize({ width: ANCHO_SALIDA, withoutEnlargement: true }).png().toBuffer();
   guardarEnMemoria(key, base);
-  guardarEnDisco(ruta, base);
+  await guardarEnDisco(ruta, base);
   return base;
 }
 

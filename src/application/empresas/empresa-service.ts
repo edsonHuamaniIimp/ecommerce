@@ -1,8 +1,12 @@
-import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, IDIOMA_DEFAULT, PERMISSIONS, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, IDIOMA_DEFAULT, PERMISSIONS, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
+import type { EmpresaApi, IEmpresaClient } from "@/domain/ports/empresa-client";
+import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -20,6 +24,56 @@ import type {
 } from "@/domain/models/empresa";
 
 const LARGO_MIN_RAZON_SOCIAL = 2;
+
+/** Datos de la empresa a registrar en servicio-persona (si no existe en la fuente). */
+export interface RegistrarEmpresaFuenteInput {
+  nombre: string;
+  /** Codigo de tipo de documento de empresa (6 = RUC, 0 = no domiciliado). */
+  idTipoDocumento: string;
+  documento: string;
+  direccion: string;
+  correo: string;
+  telefono: string;
+  /** Codigo de pais del catalogo de ubigeo (75 = PERU). */
+  pais: number;
+  linkLogo?: string | null;
+}
+
+/** Persona de contacto que se reutiliza (por documento) o se crea en la fuente. */
+export interface RegistrarPersonaContactoInput {
+  tipoDocumento: string;
+  documento: string;
+  apellidoPaterno: string;
+  apellidoMaterno?: string | null;
+  nombres: string;
+  celular?: string | null;
+  direccion?: string | null;
+}
+
+/** Registro de la relacion usuario (persona) - empresa (fuente: servicio-persona). */
+export interface RegistrarCuentaEmpresaInput {
+  /** sie_code de la empresa ya elegida en la busqueda (null = crearla en la fuente). */
+  sieCodeEmpresa?: string | null;
+  empresa: RegistrarEmpresaFuenteInput;
+  persona: RegistrarPersonaContactoInput;
+  email: string;
+  rolId?: string | null;
+  /** Usuario del backoffice que registra la relacion. */
+  creadoPor?: string | null;
+}
+
+export interface ResultadoRegistroEmpresa {
+  email: string;
+  emailEnviado: boolean;
+  sieCodeEmpresa: string;
+  sieCodePersona: string;
+  empresaCreadaEnFuente: boolean;
+  /** true = la empresa ya existia en la fuente con datos distintos y se actualizo (PUT). */
+  empresaActualizadaEnFuente: boolean;
+  personaCreadaEnFuente: boolean;
+  /** FK de la ficha contractual local por RUC (null si no aplica). */
+  empresaId: string | null;
+}
 
 /** Texto limpio (trim) o null si queda vacio. */
 function limpiar(valor?: string | null): string | null {
@@ -60,10 +114,267 @@ export class EmpresaApplicationService {
     private readonly repo: IEmpresaRepository,
     private readonly authRepo: IAuthRepository,
     private readonly roleRepo: IRoleRepository,
+    private readonly personaClient: IPersonaClient,
+    private readonly empresaClient: IEmpresaClient,
   ) {}
 
   async listar(params: EmpresasListParams): Promise<EmpresasPaginatedResult> {
     return this.repo.listarPaginated(params);
+  }
+
+  /** Busca empresas en la fuente (servicio-persona) por razon social o RUC. */
+  buscarEmpresasFuente(q: string) {
+    return this.empresaClient.buscarEmpresas(q);
+  }
+
+  /** Valida y normaliza los datos de la empresa segun la guia de servicio-persona. */
+  private validarEmpresaFuente(empresa: RegistrarEmpresaFuenteInput): RegistrarEmpresaFuenteInput {
+    const tipos = Object.values(TIPOS_DOCUMENTO_EMPRESA) as string[];
+    const nombre = String(empresa.nombre ?? "").trim();
+    if (nombre.length < LARGO_MIN_RAZON_SOCIAL) {
+      throw new DomainError("La razon social es obligatoria", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (!tipos.includes(empresa.idTipoDocumento)) {
+      throw new DomainError(`Tipo de documento de empresa invalido: ${empresa.idTipoDocumento}. Valores: ${tipos.join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    const documento = String(empresa.documento ?? "").trim();
+    if (empresa.idTipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC && !REGEX_RUC.test(documento)) {
+      throw new DomainError("El RUC debe tener 11 digitos", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (!documento || documento.length > 20) {
+      throw new DomainError("El documento de la empresa es obligatorio (maximo 20 caracteres)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const direccion = String(empresa.direccion ?? "").trim();
+    if (!direccion || direccion.length > 200) {
+      throw new DomainError("La direccion es obligatoria (maximo 200 caracteres)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const correo = String(empresa.correo ?? "").trim();
+    if (!REGEX_EMAIL.test(correo) || correo.length > 101) {
+      throw new DomainError("El correo de la empresa es invalido", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const telefono = String(empresa.telefono ?? "").trim();
+    if (!telefono || telefono.length > 35) {
+      throw new DomainError("El telefono de la empresa es obligatorio (maximo 35 caracteres)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const pais = Number.isInteger(empresa.pais) && empresa.pais > 0 ? empresa.pais : UBIGEO_PAIS_PERU;
+    return { nombre, idTipoDocumento: empresa.idTipoDocumento, documento, direccion, correo, telefono, pais, linkLogo: limpiar(empresa.linkLogo) };
+  }
+
+  /**
+   * Criterio de deduplicacion en la fuente: si la empresa ya existe alli se
+   * reutiliza (nunca se crea de nuevo); solo se actualiza (PUT) cuando los datos
+   * difieren y hay minimos completos (direccion, correo y telefono).
+   */
+  private async resolverEmpresaFuente(sieCodeElegido: string | null | undefined, empresa: RegistrarEmpresaFuenteInput): Promise<{ sieCode: string; creada: boolean; actualizada: boolean }> {
+    const elegido = String(sieCodeElegido ?? "").trim();
+    const existente = elegido ? null : await this.empresaClient.buscarPorDocumento(empresa.idTipoDocumento, empresa.documento);
+    const sieCode = elegido || existente?.sie_code || "";
+    if (sieCode) {
+      const actualizada = await this.actualizarFuenteSiDifiere(sieCode, existente, empresa);
+      return { sieCode, creada: false, actualizada };
+    }
+    const creada = await this.empresaClient.crearEmpresa({
+      nombre: empresa.nombre,
+      id_tipo_documento: empresa.idTipoDocumento,
+      documento: empresa.documento,
+      direccion: empresa.direccion,
+      correo: empresa.correo,
+      telefono: empresa.telefono,
+      pais: empresa.pais,
+      link_logo: empresa.linkLogo ?? null,
+    });
+    if (!creada.sie_code) {
+      throw new DomainError("servicio-persona no devolvio el identificador (sie_code) de la empresa", API_ERROR_CODES.INTERNAL, 502);
+    }
+    return { sieCode: creada.sie_code, creada: true, actualizada: false };
+  }
+
+  /** Actualiza (PUT) la empresa de la fuente solo si sus datos difieren de los locales. */
+  private async actualizarFuenteSiDifiere(sieCode: string, actual: EmpresaApi | null, empresa: RegistrarEmpresaFuenteInput): Promise<boolean> {
+    if (!empresa.direccion || !empresa.correo || !empresa.telefono) return false;
+    const enFuente = actual ?? (await this.empresaClient.buscarPorDocumento(empresa.idTipoDocumento, empresa.documento));
+    if (!enFuente) return false;
+    const igual = (a?: string | null, b?: string | null) => (a ?? "").trim() === (b ?? "").trim();
+    const sinCambios =
+      igual(enFuente.nombre, empresa.nombre) &&
+      igual(enFuente.direccion, empresa.direccion) &&
+      igual(enFuente.correo, empresa.correo) &&
+      igual(enFuente.telefono, empresa.telefono);
+    if (sinCambios) return false;
+    await this.empresaClient.actualizarEmpresa(sieCode, {
+      nombre: empresa.nombre,
+      id_tipo_documento: empresa.idTipoDocumento,
+      documento: empresa.documento,
+      direccion: empresa.direccion,
+      correo: empresa.correo,
+      telefono: empresa.telefono,
+      pais: empresa.pais,
+      link_logo: empresa.linkLogo ?? null,
+    });
+    return true;
+  }
+
+  /**
+   * Best-effort: asegura la empresa en servicio-persona (fuente) al registrarla en el
+   * backoffice. Sin los datos minimos que exige la fuente (direccion, correo y
+   * telefono) o si la fuente falla, la ficha local se crea igual y el `sie_code`
+   * queda pendiente (se completa al usar el flujo "Registrar desde servicio-persona").
+   */
+  private async asegurarEmpresaEnFuenteBestEffort(empresa: RegistrarEmpresaFuenteInput): Promise<string | null> {
+    if (!empresa.direccion || !empresa.correo || !empresa.telefono) return null;
+    try {
+      return (await this.resolverEmpresaFuente(null, empresa)).sieCode;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Asegura la persona de contacto en la fuente: reutiliza (y actualiza si difiere) o la crea. */
+  private async resolverPersonaFuente(persona: RegistrarPersonaContactoInput, email: string): Promise<{ sieCode: string; creada: boolean }> {
+    const documento = String(persona.documento ?? "").trim();
+    const existente = await this.personaClient.buscarPorDocumento(documento, persona.tipoDocumento);
+    if (existente?.sie_code) {
+      await actualizarPersonaSiDifiere(this.personaClient, existente, {
+        tipoDocumento: persona.tipoDocumento,
+        documento,
+        apellidoPaterno: String(persona.apellidoPaterno ?? "").trim(),
+        apellidoMaterno: (persona.apellidoMaterno ?? "").trim() || null,
+        nombres: String(persona.nombres ?? "").trim(),
+        correo: email,
+        celular: (persona.celular ?? "").trim() || null,
+        direccion: (persona.direccion ?? "").trim() || null,
+      });
+      return { sieCode: existente.sie_code, creada: false };
+    }
+    const creada = await this.personaClient.crearPersona({
+      apellido_paterno: String(persona.apellidoPaterno ?? "").trim(),
+      apellido_materno: (persona.apellidoMaterno ?? "").trim() || null,
+      nombres: String(persona.nombres ?? "").trim(),
+      id_tipo_documento: persona.tipoDocumento,
+      documento,
+      direccion: (persona.direccion ?? "").trim() || null,
+      correo: email,
+      celular: (persona.celular ?? "").trim() || null,
+    });
+    if (!creada.sie_code) {
+      throw new DomainError("servicio-persona no devolvio el identificador (sie_code) de la persona", API_ERROR_CODES.INTERNAL, 502);
+    }
+    return { sieCode: creada.sie_code, creada: true };
+  }
+
+  /**
+   * Ficha contractual local por RUC (contratos / facturacion / portal): reutiliza la
+   * existente (solo agrega `sie_code` si falta) o la crea minima desde la fuente.
+   * Para empresas no domiciliadas (sin RUC) no aplica.
+   */
+  private async asegurarFichaLocal(empresa: RegistrarEmpresaFuenteInput, sieCode: string, creadoPor: string | null): Promise<{ empresaId: string | null; ficha: EmpresaEntity | null }> {
+    if (empresa.idTipoDocumento !== TIPOS_DOCUMENTO_EMPRESA.RUC) {
+      return { empresaId: null, ficha: null };
+    }
+    const ruc = empresa.documento.replace(/\D/g, "");
+    let ficha = await this.repo.findByRuc(ruc);
+    if (ficha) {
+      if (!ficha.sieCode) ficha = await this.repo.update(ficha.id, { sieCode });
+      return { empresaId: ficha.id, ficha };
+    }
+    ficha = await this.repo.create({
+      ruc,
+      sieCode,
+      razonSocial: empresa.nombre,
+      logoUrl: empresa.linkLogo ?? null,
+      nombreComercial: null,
+      direccionFiscal: empresa.direccion,
+      telefono: empresa.telefono,
+      emailContacto: empresa.correo,
+      emailFacturacion: null,
+      representanteLegalNombre: null,
+      representanteLegalDni: null,
+      partidaElectronica: null,
+      tipoComprobante: TIPOS_COMPROBANTE.FACTURA,
+      sitioWeb: null,
+      creadoPor,
+    });
+    return { empresaId: ficha.id, ficha };
+  }
+
+  /**
+   * Registra la relacion usuario (persona) - empresa: asegura empresa y persona en
+   * servicio-persona (crea si no existen) y crea la cuenta local con sus
+   * identificadores (sie_code / id_empresa). Si la empresa es RUC, mantiene la
+   * ficha contractual local minima (contratos/facturacion) ligada por RUC.
+   */
+  async registrarCuentaEmpresa(input: RegistrarCuentaEmpresaInput): Promise<ResultadoRegistroEmpresa> {
+    const email = String(input.email ?? "").trim().toLowerCase();
+    if (!REGEX_EMAIL.test(email)) {
+      throw new DomainError("Correo invalido", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const empresa = this.validarEmpresaFuente(input.empresa);
+    const errorPersona = validarDocumentoPersona(input.persona.tipoDocumento, input.persona.documento ?? "");
+    if (errorPersona) {
+      throw new DomainError(errorPersona, API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (!String(input.persona.apellidoPaterno ?? "").trim() || !String(input.persona.nombres ?? "").trim()) {
+      throw new DomainError("Apellido paterno y nombres del contacto son requeridos", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    if (await this.authRepo.existeEmail(email)) {
+      throw new DomainError(`El correo ${email} ya tiene una cuenta habilitada`, API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const empresaFuente = await this.resolverEmpresaFuente(input.sieCodeEmpresa, empresa);
+    const personaFuente = await this.resolverPersonaFuente(input.persona, email);
+
+    const { empresaId, ficha } = await this.asegurarFichaLocal(empresa, empresaFuente.sieCode, limpiar(input.creadoPor));
+
+    const rol = input.rolId
+      ? await this.roleRepo.findById(input.rolId)
+      : await this.roleRepo.findByNombre(ROLES.CLIENTE);
+    if (!rol) {
+      throw new DomainError(
+        input.rolId ? "Rol no encontrado" : `No existe el rol ${ROLES.CLIENTE} en el sistema`,
+        input.rolId ? API_ERROR_CODES.NOT_FOUND : API_ERROR_CODES.INTERNAL,
+        input.rolId ? 404 : 500,
+      );
+    }
+
+    const passwordTemporal = generarPasswordTemporal();
+    await this.authRepo.crearUsuario({
+      userId: `user|${email}`,
+      email,
+      password: hashPassword(passwordTemporal),
+      /* Solo referencia: la persona y la empresa viven en servicio-persona. */
+      nombre: "",
+      apellidos: "",
+      telefono: empresa.telefono,
+      nombreEmpresa: empresa.nombre,
+      roleId: rol.id,
+      empresaId,
+      idEmpresa: empresaFuente.sieCode,
+      sieCode: personaFuente.sieCode,
+      debeCambiarPassword: true,
+    });
+    if (ficha && !ficha.cuentaCreada) {
+      await this.repo.update(ficha.id, { cuentaCreada: true });
+    }
+
+    const emailEnviado = await this.enviarCredenciales(
+      {
+        razonSocial: empresa.nombre,
+        representanteLegalNombre: [String(input.persona.nombres ?? "").trim(), String(input.persona.apellidoPaterno ?? "").trim()].filter(Boolean).join(" "),
+      },
+      email,
+      passwordTemporal,
+    );
+    return {
+      email,
+      emailEnviado,
+      sieCodeEmpresa: empresaFuente.sieCode,
+      sieCodePersona: personaFuente.sieCode,
+      empresaCreadaEnFuente: empresaFuente.creada,
+      empresaActualizadaEnFuente: empresaFuente.actualizada,
+      personaCreadaEnFuente: personaFuente.creada,
+      empresaId,
+    };
   }
 
   /**
@@ -107,8 +418,20 @@ export class EmpresaApplicationService {
       throw new DomainError(`Ya existe una empresa con el RUC ${ruc}`, API_ERROR_CODES.CONFLICT, 409);
     }
 
+    /* Criterio: si el padron ya dio el codigo SIE se usa; si no, se asegura en la fuente. */
+    const sieCode = limpiar(input.sieCode) ?? await this.asegurarEmpresaEnFuenteBestEffort({
+      nombre: razonSocial,
+      idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      documento: ruc,
+      direccion: limpiar(input.direccionFiscal) ?? "",
+      correo: limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion) ?? "",
+      telefono: limpiar(input.telefono) ?? "",
+      pais: UBIGEO_PAIS_PERU,
+    });
+
     const data: CrearEmpresaData = {
       ruc,
+      sieCode,
       razonSocial,
       logoUrl: limpiar(input.logoUrl),
       nombreComercial: limpiar(input.nombreComercial),
@@ -428,7 +751,7 @@ export class EmpresaApplicationService {
   }
 
   /** Envio best-effort del correo con las credenciales (no revierte la cuenta). */
-  private async enviarCredenciales(empresa: EmpresaEntity, email: string, passwordTemporal: string): Promise<boolean> {
+  private async enviarCredenciales(empresa: Pick<EmpresaEntity, "razonSocial" | "representanteLegalNombre">, email: string, passwordTemporal: string): Promise<boolean> {
     try {
       /* Nota: la empresa aun no tiene idioma propio; se envia en español (default). */
       return await enviarEmailPlantilla({

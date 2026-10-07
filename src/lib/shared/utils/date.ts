@@ -2,6 +2,13 @@ import { localeDeIdioma } from "./idioma";
 
 const SIN_VALOR = "-";
 
+/** Valor `YYYY-MM-DD` (hora local) de una fecha. */
+function aInputValue(fecha: Date): string {
+  const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dd = String(fecha.getDate()).padStart(2, "0");
+  return `${fecha.getFullYear()}-${mm}-${dd}`;
+}
+
 /** Opciones comunes de formateo por idioma. */
 interface OpcionesFecha {
   /** Idioma (es | en). Sin valor usa espanol (es-PE). */
@@ -55,12 +62,14 @@ export const dateUtils = {
     return iso.slice(0, 10);
   },
 
+  /** Valor `YYYY-MM-DD` para un `<input type="date">` de una fecha (hora local). */
+  inputValue(fecha: Date): string {
+    return aInputValue(fecha);
+  },
+
   /** Valor `YYYY-MM-DD` para un `<input type="date">` con la fecha de hoy (hora local). */
   todayInputValue(): string {
-    const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${mm}-${dd}`;
+    return aInputValue(new Date());
   },
 
   extractYear(iso: string): number {

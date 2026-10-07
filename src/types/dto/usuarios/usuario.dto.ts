@@ -34,6 +34,8 @@ export interface NuevoUsuarioPortalDTO {
   apellidoMaterno?: string | null;
   nombres: string;
   celular?: string | null;
+  /** Direccion de la persona (la fuente la exige al crear/actualizar). */
+  direccion?: string | null;
   /** Rol local a asignar; por defecto cliente. */
   rolId?: string | null;
 }

@@ -46,6 +46,7 @@ function fakeRepos() {
     buscarPorDocumento: vi.fn(async () => null),
     buscarPersonas: vi.fn(async () => []),
     crearPersona: vi.fn(async (dto: NuevaPersonaApi) => ({ sie_code: "P0000012345", ...dto })),
+    actualizarPersona: vi.fn(async (sieCode: string, dto: NuevaPersonaApi) => ({ sie_code: sieCode, ...dto })),
   } as unknown as IPersonaClient;
   return { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient };
 }
@@ -126,6 +127,12 @@ describe("UsuariosApplicationService.crear (servicio-persona)", () => {
 
     expect(r.creado).toBe(true);
     expect(personaClient.crearPersona).not.toHaveBeenCalled();
+    expect(personaClient.actualizarPersona).toHaveBeenCalledWith("P0000099999", expect.objectContaining({
+      apellido_paterno: "PEREZ",
+      nombres: "JUAN",
+      correo: "juan@empresa.com",
+      direccion: null,
+    }));
     expect(authRepo.crearUsuario).toHaveBeenCalledWith(expect.objectContaining({ sieCode: "P0000099999" }));
   });
 

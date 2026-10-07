@@ -23,10 +23,13 @@ function texto(value: unknown): string | undefined {
 }
 
 function aRucResponse(data: Record<string, unknown>): RucResponse {
+  /* SUNAT `full` puede no traer `direccion`; se compone con distrito/provincia/departamento. */
+  const partes = [data.distrito, data.provincia, data.departamento].map(texto).filter(Boolean);
+  const direccion = texto(data.direccion) ?? (partes.length > 0 ? partes.join(", ") : undefined);
   return {
     razonSocial: texto(data.razonSocial),
     nombre: texto(data.nombre),
-    direccion: texto(data.direccion),
+    direccion,
     error: texto(data.error),
   };
 }

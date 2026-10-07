@@ -10,6 +10,8 @@ import type { PlanoBounds, PlanoItem } from "@/lib/shared/planos/registry";
 export interface RecorteSvgOpciones {
   /** Etiqueta legible por codigo de tipo (leyenda). */
   etiquetas?: Record<string, string>;
+  /** Codigo comercial por id de bloque objetivo (la etiqueta de "TU STAND" lo prefiere). */
+  codigos?: Record<string, string>;
   /** Oculta la leyenda de tipos. */
   sinLeyenda?: boolean;
 }
@@ -71,7 +73,7 @@ export function construirSvgRecorte(
    * apunta al stand; etiqueta en la cola ("TU STAND" + codigo, o numero en multiple).
    */
   const anotaciones = objetivos
-    .map((it, i) => anotarObjetivo(it, items, vb, refUnit, i, multiple))
+    .map((it, i) => anotarObjetivo(it, items, vb, refUnit, i, multiple, opciones.codigos ?? {}))
     .join("");
 
   const leyenda = opciones.sinLeyenda ? "" : construirLeyenda(items, vb, refUnit, opciones.etiquetas ?? {});
@@ -152,6 +154,7 @@ function anotarObjetivo(
   refUnit: number,
   indice: number,
   multiple: boolean,
+  codigos: Record<string, string>,
 ): string {
   const margen = refUnit * 0.02;
   const holguraAncho = refUnit * 0.06;
@@ -197,7 +200,7 @@ function anotarObjetivo(
   const estiloTitulo = `font-size="${fmt(refUnit * 0.028)}" font-weight="700" fill="${OBJETIVO_TEXTO}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.006)}" paint-order="stroke"`;
   const estiloCodigo = `font-size="${fmt(refUnit * 0.024)}" font-weight="600" fill="#1f2937" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.005)}" paint-order="stroke"`;
   const titulo = "TU STAND";
-  const codigo = esc(it.id);
+  const codigo = esc(codigos[it.id] ?? it.id);
   const aire = refUnit * 0.018;
   let etiqueta: string;
   if (dir === "arriba") {

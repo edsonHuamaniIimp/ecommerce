@@ -9,6 +9,7 @@ import { PlanoPrismaRepository } from "@/infrastructure/persistence/plano-reposi
 import { KbServiciosClient } from "@/infrastructure/external/kbservicios-client";
 import { ListstandClient } from "@/infrastructure/external/liststand-client";
 import { PersonaApiClient } from "@/infrastructure/external/persona-client";
+import { EmpresaApiClient } from "@/infrastructure/external/empresa-client";
 import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import { SgcClient } from "@/infrastructure/external/sgc-client";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
@@ -25,6 +26,7 @@ import { EventoApplicationService } from "@/application/eventos/evento-service";
 import { PresalaApplicationService } from "@/application/eventos/presala-service";
 import { GessApplicationService } from "@/application/gess/gess-service";
 import { ReservaApplicationService } from "@/application/reservas/reserva-service";
+import { PrellenadoReservaApplicationService } from "@/application/reservas/prellenado-reserva-service";
 import { AuthApplicationService } from "@/application/auth/auth-service";
 import { DashboardApplicationService } from "@/application/dashboard/dashboard-service";
 import { SolicitudCuentaApplicationService } from "@/application/solicitud-cuenta/solicitud-cuenta-service";
@@ -57,6 +59,7 @@ const usuarioRepo = new UsuarioPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
 const personaClient = new PersonaApiClient();
+const empresaClient = new EmpresaApiClient();
 const reservaIimpClient = new ReservaIimpClient();
 const sgcConfig = getSgcConfig();
 const sgcRepo = new SgcPrismaRepository();
@@ -76,6 +79,7 @@ export const services = {
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
+  prellenadoReserva: new PrellenadoReservaApplicationService(usuarioRepo, personaClient, empresaClient),
   auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo),
   dashboard: new DashboardApplicationService(gessRepo),
   solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo),
@@ -86,7 +90,7 @@ export const services = {
   sgcOutbox,
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion),
   planos: new PlanoApplicationService(planoRepo),
-  empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo),
+  empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),

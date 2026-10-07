@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { generarContratoSchema } from "../contratos.validator";
+import { fechaMaximaCuota } from "@/lib/shared/utils/cuotas";
 
 const SOLICITUD_ID = "11111111-1111-4111-8111-111111111111";
 
-function cuota(porcentaje: number, fechaVencimiento = "2099-01-01") {
+function cuota(porcentaje: number, fechaVencimiento = fechaMaximaCuota(0)) {
   return { porcentaje, fechaVencimiento };
 }
 
@@ -17,15 +18,15 @@ describe("generarContratoSchema — cuotas configurables (RF-10)", () => {
   });
 
   it("acepta 50% + 50% en fechas ascendentes", () => {
-    expect(parse({ cuotas: [cuota(50, "2099-01-01"), cuota(50, "2099-02-01")] }).success).toBe(true);
+    expect(parse({ cuotas: [cuota(50, fechaMaximaCuota(0)), cuota(50, fechaMaximaCuota(1))] }).success).toBe(true);
   });
 
   it("acepta un plan personalizado de 3 cuotas que suman 100", () => {
-    expect(parse({ cuotas: [cuota(30, "2099-01-01"), cuota(30, "2099-02-01"), cuota(40, "2099-03-01")] }).success).toBe(true);
+    expect(parse({ cuotas: [cuota(30, fechaMaximaCuota(0)), cuota(30, fechaMaximaCuota(1)), cuota(40, fechaMaximaCuota(2))] }).success).toBe(true);
   });
 
   it("acepta la suma exacta aun con ruido de punto flotante", () => {
-    expect(parse({ cuotas: [cuota(33.33, "2099-01-01"), cuota(33.33, "2099-02-01"), cuota(33.34, "2099-03-01")] }).success).toBe(true);
+    expect(parse({ cuotas: [cuota(33.33, fechaMaximaCuota(0)), cuota(33.33, fechaMaximaCuota(1)), cuota(33.34, fechaMaximaCuota(2))] }).success).toBe(true);
   });
 
   it("rechaza una lista vacia", () => {
@@ -69,7 +70,12 @@ describe("generarContratoSchema — cuotas configurables (RF-10)", () => {
   });
 
   it("rechaza fechas fuera de orden cronologico", () => {
-    expect(parse({ cuotas: [cuota(50, "2099-02-01"), cuota(50, "2099-01-01")] }).success).toBe(false);
+    expect(parse({ cuotas: [cuota(50, fechaMaximaCuota(1)), cuota(50, fechaMaximaCuota(0))] }).success).toBe(false);
+  });
+
+  it("rechaza una fecha posterior al maximo de su cuota (regla de rangos)", () => {
+    expect(parse({ cuotas: [cuota(100, fechaMaximaCuota(1))] }).success).toBe(false);
+    expect(parse({ cuotas: [cuota(50, fechaMaximaCuota(0)), cuota(50, fechaMaximaCuota(2))] }).success).toBe(false);
   });
 
   it("rechaza un solicitudId que no es uuid", () => {
@@ -81,5 +87,19 @@ describe("generarContratoSchema — cuotas configurables (RF-10)", () => {
     expect(parse({ cuotas: [cuota(100)], idioma: "es" }).success).toBe(true);
     expect(parse({ cuotas: [cuota(100)], idioma: "pt" }).success).toBe(false);
     expect(parse({ cuotas: [cuota(100)] }).success).toBe(true);
+  });
+
+  it("acepta los datos del contrato del wizard (exhibidor) y rechaza campos largos", () => {
+    const contrato = {
+      razonSocial: "Minera Cordillera S.A.C.",
+      ruc: "20601234567",
+      direccion: "Av. Los Ingenieros 245, La Molina",
+      representante: "Jorge Quispe Ramos",
+      representanteDni: "45871233",
+      partidaElectronica: "11014857",
+    };
+    expect(parse({ cuotas: [cuota(100)], contrato }).success).toBe(true);
+    expect(parse({ cuotas: [cuota(100)], contrato: {} }).success).toBe(true);
+    expect(parse({ cuotas: [cuota(100)], contrato: { ...contrato, representanteDni: "1".repeat(16) } }).success).toBe(false);
   });
 });

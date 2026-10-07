@@ -6,7 +6,8 @@ import { ShieldCheck, Store } from "lucide-react";
 import { onlyDigits, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
-import { BADGE_STYLES, MAESTRA_TABLAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
+import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
+import { BADGE_STYLES, MAESTRA_TABLAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 import type { FormDatos } from "./interfaces";
 
@@ -37,6 +38,9 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
 
   // Autocomplete: consulta SUNAT/RENIEC al completar el documento (solo al editar, no al cargar)
   const docEditedRef = useRef(false);
+  /* Datos actuales del formulario: evita pisar lo que el usuario ya escribio. */
+  const datosRef = useRef(datos);
+  useEffect(() => { datosRef.current = datos; }, [datos]);
   useEffect(() => {
     const num = datos.numeroDocumento;
     if (!num || num.length !== docMax || !docEditedRef.current) return;
@@ -45,7 +49,8 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
     const lookup = isFactura
       ? sunatService.consultarRuc(num).then((r) => {
           if (r.razonSocial) {
-            onChange({ razonSocial: r.razonSocial });
+            /* SUNAT (full) tambien devuelve la direccion fiscal: se autocompleta. */
+            onChange({ razonSocial: r.razonSocial, ...(r.direccion ? { direccion: r.direccion } : {}) });
             setValidado(true);
           }
         })
@@ -55,7 +60,22 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
             setValidado(true);
           }
         });
-    lookup.finally(() => setLookupLoading(false));
+    /* Prellenado interno (solo del propio usuario logueado): completa lo vacio. */
+    const tipoDoc = isFactura ? TIPOS_DOCUMENTO_EMPRESA.RUC : TIPOS_DOCUMENTO_PERSONA.DNI;
+    const prellenado = reservaDatosService.prellenar(tipoDoc, num).catch(() => null);
+    Promise.allSettled([lookup, prellenado])
+      .then(([, pre]) => {
+        const d = pre.status === "fulfilled" ? pre.value : null;
+        if (!d) return;
+        const actuales = datosRef.current;
+        const update: Partial<FormDatos> = {};
+        if (d.contacto && !actuales.contacto.trim()) update.contacto = d.contacto;
+        if (d.direccion && !actuales.direccion.trim()) update.direccion = d.direccion;
+        if (d.telefono && !actuales.telefono.trim()) update.telefono = onlyPhoneDigits(d.telefono);
+        if (d.correo && !actuales.email.trim()) update.email = d.correo;
+        if (Object.keys(update).length > 0) onChange(update);
+      })
+      .finally(() => setLookupLoading(false));
   }, [datos.numeroDocumento, isFactura, docMax]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cambiarComprobante = (valor: string) => {
@@ -121,13 +141,13 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
                 <Label htmlFor="numeroDocumento" className={LABEL_CLASE}><span>{docLabel}</span></Label>
                 {lookupLoading && (
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.WARNING}`}>
-                    Buscando en SUNAT...
+                    <span>{isFactura ? "Buscando en SUNAT..." : "Buscando en RENIEC..."}</span>
                   </span>
                 )}
                 {!lookupLoading && validado && (
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.SUCCESS}`}>
                     <ShieldCheck className="h-3 w-3" />
-                    Validado SUNAT
+                    <span>{isFactura ? "Validado SUNAT" : "Validado RENIEC"}</span>
                   </span>
                 )}
               </div>

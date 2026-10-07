@@ -11,7 +11,7 @@ import { StepContrato } from "./step-contrato";
 import { StepConfirmacion } from "./step-confirmacion";
 import { StepPagos } from "./step-pagos";
 import { ReservaAuthForm } from "./reserva-auth-form";
-import type { FormDatos } from "./interfaces";
+import type { DatosContratoForm, FormDatos } from "./interfaces";
 import type { CuotaConfig } from "./use-reserva-form";
 
 interface Props {
@@ -47,6 +47,9 @@ interface Props {
   /** Cuotas configuradas por el cliente: porcentaje + fecha (1..3). */
   cuotasPago: CuotaConfig[];
   onCuotasPagoChange: (cuotas: CuotaConfig[]) => void;
+  /** Datos del exhibidor para el cuerpo del contrato (paso Cuotas). */
+  contratoDatos: DatosContratoForm;
+  onContratoDatosChange: (datos: DatosContratoForm) => void;
   contrato: { solicitudId: string; docxUrl: string; pdfUrl: string | null } | null;
   generandoContrato: boolean;
   onGenerarContrato: () => Promise<boolean>;
@@ -77,7 +80,7 @@ export function ReservaModal(props: Props) {
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
     aceptaRepresentante, onAceptaRepresentanteChange,
-    cuotasPago, onCuotasPagoChange, contrato, generandoContrato, onGenerarContrato,
+    cuotasPago, onCuotasPagoChange, contratoDatos, onContratoDatosChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
     firmaPerfilUrl, firmandoDigital, onFirmarDigital,
   } = props;
@@ -148,6 +151,8 @@ export function ReservaModal(props: Props) {
                   precios={selectedItems.map((s) => s.precio ?? 0)}
                   cuotas={cuotasPago}
                   onCuotasChange={onCuotasPagoChange}
+                  contratoDatos={contratoDatos}
+                  onContratoDatosChange={onContratoDatosChange}
                   contrato={contrato}
                 />
               )}

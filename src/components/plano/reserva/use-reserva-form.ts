@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
@@ -9,11 +9,12 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
-import { fechasCuotasValidas, porcentajesValidos, siguienteFechaCuota } from "@/lib/shared/utils/cuotas";
+import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, porcentajesValidos } from "@/lib/shared/utils/cuotas";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
 import { ANEXOS_REQUERIDOS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
-import type { FormDatos, GessLinkedInfo } from "./interfaces";
+import { datosContratoValidos } from "./interfaces";
+import type { DatosContratoForm, FormDatos, GessLinkedInfo } from "./interfaces";
 
 /** Contrato generado en el paso de cuotas (se descarga y firma en el paso final). */
 export interface ContratoReserva {
@@ -28,11 +29,12 @@ export interface CuotaConfig {
   fecha: string;
 }
 
-/** True si las cuotas configuradas son validas: porcentajes suman 100% y fechas validas. */
+/** True si las cuotas configuradas son validas: porcentajes suman 100%, fechas validas y en rango. */
 export function cuotasConfigValidas(cuotas: CuotaConfig[]): boolean {
   return (
     porcentajesValidos(cuotas.map((c) => c.porcentaje)) &&
-    fechasCuotasValidas(cuotas.map((c) => c.fecha))
+    fechasCuotasValidas(cuotas.map((c) => c.fecha)) &&
+    fechasCuotasEnRango(cuotas.map((c) => c.fecha))
   );
 }
 
@@ -42,6 +44,11 @@ function standIdsKey(ids: string[]): string {
 
 function emptyDatos(): FormDatos {
   return { razonSocial: "", tipoDocumento: "", numeroDocumento: "", direccion: "", telefono: "", contacto: "", email: "", tipoComprobante: "" };
+}
+
+/** Datos del contrato vacios (paso Cuotas). */
+function emptyContratoDatos(): DatosContratoForm {
+  return { razonSocial: "", ruc: "", direccion: "", representante: "", representanteDni: "", partidaElectronica: "" };
 }
 
 /**
@@ -76,7 +83,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   /* Paso 3: cuotas + contrato. */
   /** Cuotas configuradas por el cliente: porcentaje + fecha de pago (1..3). */
-  const [cuotasConfig, setCuotasConfig] = useState<CuotaConfig[]>([{ porcentaje: 100, fecha: siguienteFechaCuota(null) }]);
+  const [cuotasConfig, setCuotasConfig] = useState<CuotaConfig[]>([{ porcentaje: 100, fecha: fechaMaximaCuota(0) }]);
+  /** Datos del exhibidor que van al cuerpo del contrato (paso Cuotas). */
+  const [contratoDatos, setContratoDatos] = useState<DatosContratoForm>(emptyContratoDatos);
+  /** Representante legal de la empresa del perfil (precarga del contrato). */
+  const [representantePerfil, setRepresentantePerfil] = useState("");
   const [contrato, setContrato] = useState<ContratoReserva | null>(null);
   const [generandoContrato, setGenerandoContrato] = useState(false);
   /* Paso 4: contrato firmado por el cliente. */
@@ -94,13 +105,23 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   /** Los 3 documentos requeridos (Ficha RUC, Vigencia de Poder, DNI/Pasaporte) estan adjuntos. */
   const anexosCompletos = ANEXOS_REQUERIDOS.every((a) => Boolean(docsRequisitos[a.key]));
 
+  /** Datos del contrato con lo vacio completado desde el paso 1 y el perfil. */
+  const contratoEfectivo = useMemo(() => ({
+    razonSocial: contratoDatos.razonSocial || formDatos.razonSocial || formDatos.contacto,
+    ruc: contratoDatos.ruc || formDatos.numeroDocumento,
+    direccion: contratoDatos.direccion || formDatos.direccion,
+    representante: contratoDatos.representante || representantePerfil,
+    representanteDni: contratoDatos.representanteDni,
+    partidaElectronica: contratoDatos.partidaElectronica,
+  }), [contratoDatos, formDatos, representantePerfil]);
+
   const stepDone = useCallback((step: number): boolean => {
     if (step === 0) return isStepDatosCompleto(formDatos);
-    if (step === 1) return cuotasConfigValidas(cuotasConfig);
+    if (step === 1) return cuotasConfigValidas(cuotasConfig) && datosContratoValidos(contratoEfectivo);
     if (step === 2) return Boolean(contrato) && anexosCompletos && Boolean(contratoFirmadoUrl);
     if (step === 3) return Boolean(contrato) && confirmado && aceptaRepresentante && Boolean(contratoFirmadoUrl);
     return false;
-  }, [formDatos, anexosCompletos, cuotasConfig, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl]);
+  }, [formDatos, anexosCompletos, cuotasConfig, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -108,7 +129,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     if (step === 2) return stepDone(0) && stepDone(1) && Boolean(contrato);
     if (step === 3) return stepDone(0) && stepDone(1) && stepDone(2);
     return false;
-  }, [stepDone]);
+  }, [stepDone, contrato]);
+
+  /* Prellena los datos del contrato: la fusion vive en `contratoEfectivo` (sin efectos). */
 
   // Load from IndexedDB when modal opens or key changes
   useEffect(() => {
@@ -119,6 +142,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         reservaBorradorDB.cargar(selectedIds),
       ]);
       setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
+      setRepresentantePerfil(perfil?.empresa?.representanteLegalNombre ?? "");
       const base = draft ? { ...emptyDatos(), ...draft.datos } : emptyDatos();
       setFormDatos(prefillEmpresa(base, perfil?.empresa ?? null));
       if (draft) {
@@ -132,10 +156,23 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       }
       setConfirmado(false);
       setAceptaRepresentante(false);
+      setContratoDatos(emptyContratoDatos());
       setContrato(null);
       setContratoFirmadoUrl(null);
     })();
   }, [reservaOpen, currentKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Prellena los datos del contrato: la fusion vive en `contratoEfectivo` (sin efectos). */
+
+  /** Datos del contrato listos para enviar (contratoEfectivo ya completa lo vacio). */
+  const contratoPayload = useCallback(() => ({
+    razonSocial: contratoEfectivo.razonSocial.trim(),
+    ruc: contratoEfectivo.ruc.trim(),
+    direccion: contratoEfectivo.direccion.trim(),
+    representante: contratoEfectivo.representante.trim(),
+    representanteDni: contratoEfectivo.representanteDni.trim(),
+    partidaElectronica: contratoEfectivo.partidaElectronica.trim(),
+  }), [contratoEfectivo]);
 
   // Auto-save to IndexedDB on form changes
   useEffect(() => {
@@ -237,6 +274,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         standIds,
         cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
         idioma: idiomaODefecto(leerIdiomaCookie()),
+        contrato: contratoPayload(),
       });
       setContrato({ solicitudId: "", docxUrl: data.docxUrl, pdfUrl: data.pdfUrl });
       setContratoFirmadoUrl(null);
@@ -248,7 +286,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     } finally {
       setGenerandoContrato(false);
     }
-  }, [cuotasConfig, standIdsSeleccionados]);
+  }, [cuotasConfig, standIdsSeleccionados, contratoPayload]);
 
   /** Paso 4: sube el contrato firmado por el cliente. */
   const subirContratoFirmado = async (file: File) => {
@@ -283,6 +321,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         standIds,
         cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
         idioma: idiomaODefecto(leerIdiomaCookie()),
+        contrato: contratoPayload(),
       });
       setContratoFirmadoUrl(data.pdfUrl ?? data.docxUrl);
       setFirmaDigitalAplicada(true);
@@ -293,7 +332,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     } finally {
       setFirmandoDigital(false);
     }
-  }, [contrato, cuotasConfig, standIdsSeleccionados]);
+  }, [contrato, cuotasConfig, standIdsSeleccionados, contratoPayload]);
 
   /**
    * Paso 4 (Confirmar): recien aqui se crea la solicitud (reserva), se adjunta el contrato
@@ -316,6 +355,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         solicitudId,
         cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
         idioma: idiomaODefecto(leerIdiomaCookie()),
+        contrato: contratoPayload(),
       });
 
       /* Si la firma vigente es la digital, se regenera firmada sobre la solicitud. */
@@ -324,6 +364,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         const firmado = await contratosService.firmar({
           solicitudId,
           idioma: idiomaODefecto(leerIdiomaCookie()),
+          contrato: contratoPayload(),
         });
         firmadoUrl = firmado.pdfUrl ?? firmado.docxUrl;
       }
@@ -363,7 +404,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setReservaStep(0);
     setConfirmado(false);
     setAceptaRepresentante(false);
-    setCuotasConfig([{ porcentaje: 100, fecha: siguienteFechaCuota(null) }]);
+    setCuotasConfig([{ porcentaje: 100, fecha: fechaMaximaCuota(0) }]);
+    setContratoDatos(emptyContratoDatos());
+    setRepresentantePerfil("");
     setContrato(null);
     setContratoFirmadoUrl(null);
     setFirmaDigitalAplicada(false);
@@ -390,6 +433,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig,
+    contratoDatos: contratoEfectivo, setContratoDatos,
+    contratoValido: datosContratoValidos(contratoEfectivo),
     contrato,
     generandoContrato,
     generarContratoYReservar: generarContratoBorrador,

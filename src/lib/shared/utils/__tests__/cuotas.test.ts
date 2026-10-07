@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fechasCuotasValidas, planCuotas, planCuotasConFechas, planCuotasPorModalidad, porcentajesValidos, siguienteFechaCuota } from "../cuotas";
+import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, planCuotas, planCuotasConFechas, planCuotasPorModalidad, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
 const BASE = new Date("2026-10-03T00:00:00");
@@ -25,14 +25,48 @@ describe("fechasCuotasValidas", () => {
   it("acepta fechas de hoy en adelante en orden ascendente", () => {
     expect(fechasCuotasValidas(["2026-10-03", "2026-11-02"], HOY)).toBe(true);
     expect(fechasCuotasValidas(["2099-01-01"], HOY)).toBe(true);
-    expect(fechasCuotasValidas(["2026-11-02", "2026-11-02"], HOY)).toBe(true); // mismo dia permitido
+    expect(fechasCuotasValidas(["2026-11-02", "2026-11-03"], HOY)).toBe(true); // un dia despues: posterior valida
   });
 
-  it("rechaza fechas pasadas, invalidas o desordenadas", () => {
+  it("rechaza fechas pasadas, invalidas, desordenadas o no posteriores", () => {
     expect(fechasCuotasValidas(["2026-10-02"], HOY)).toBe(false);
     expect(fechasCuotasValidas(["01/11/2026"], HOY)).toBe(false);
     expect(fechasCuotasValidas([null], HOY)).toBe(false);
     expect(fechasCuotasValidas(["2026-12-01", "2026-11-01"], HOY)).toBe(false);
+    expect(fechasCuotasValidas(["2026-11-02", "2026-11-02"], HOY)).toBe(false); // mismo dia: debe ser posterior
+  });
+});
+
+describe("sumarMesesISO", () => {
+  it("suma meses recortando al ultimo dia del mes destino", () => {
+    expect(sumarMesesISO("2026-10-03", 1)).toBe("2026-11-03");
+    expect(sumarMesesISO("2026-01-31", 1)).toBe("2026-02-28");
+    expect(sumarMesesISO("2026-10-15", 3)).toBe("2027-01-15");
+  });
+});
+
+describe("fechaMaximaCuota (cuota N: N meses desde la solicitud, tope 15/07/2027)", () => {
+  it("calcula el maximo de cada cuota desde la fecha base", () => {
+    expect(fechaMaximaCuota(0, BASE)).toBe("2026-11-03");
+    expect(fechaMaximaCuota(1, BASE)).toBe("2026-12-03");
+    expect(fechaMaximaCuota(2, BASE)).toBe("2027-01-03");
+  });
+
+  it("aplica el tope absoluto del cronograma", () => {
+    expect(fechaMaximaCuota(2, new Date("2027-06-20T00:00:00"))).toBe("2027-07-15");
+  });
+});
+
+describe("fechasCuotasEnRango", () => {
+  it("acepta fechas dentro del maximo de cada cuota", () => {
+    expect(fechasCuotasEnRango([fechaMaximaCuota(0, BASE)], BASE)).toBe(true);
+    expect(fechasCuotasEnRango([fechaMaximaCuota(0, BASE), fechaMaximaCuota(1, BASE)], BASE)).toBe(true);
+  });
+
+  it("rechaza una fecha posterior al maximo de su cuota o vacia", () => {
+    expect(fechasCuotasEnRango(["2026-11-04"], BASE)).toBe(false);
+    expect(fechasCuotasEnRango([fechaMaximaCuota(0, BASE), "2026-12-04"], BASE)).toBe(false);
+    expect(fechasCuotasEnRango([null], BASE)).toBe(false);
   });
 });
 

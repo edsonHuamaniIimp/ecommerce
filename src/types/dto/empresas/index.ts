@@ -15,3 +15,6 @@ export type { ResultadoImportacionEmpresasDTO } from "./resultado-importacion-em
 export type { PrevisualizacionCargaResponse, ImportarCargaResponse } from "./carga-masiva-response.dto";
 export type { ValidarDatosEmpresaRequestDTO } from "./validar-datos-empresa-request.dto";
 export type { MisDatosEmpresaResponse, ValidarDatosEmpresaResponse } from "./portal-response.dto";
+export type { EmpresaFuenteDTO } from "./empresa-fuente.dto";
+export type { RegistrarCuentaEmpresaRequestDTO, RegistrarEmpresaFuenteDTO, RegistrarPersonaContactoDTO } from "./registrar-cuenta-empresa-request.dto";
+export type { ResultadoRegistroEmpresaDTO } from "./resultado-registro-empresa.dto";

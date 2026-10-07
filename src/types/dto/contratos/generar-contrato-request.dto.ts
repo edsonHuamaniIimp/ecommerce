@@ -1,4 +1,5 @@
 import type { Idioma } from "@/lib/shared/constants";
+import type { DatosContratoDTO } from "./datos-contrato.dto";
 
 /** Cuota configurada por el cliente: porcentaje y fecha (montos los calcula el servidor). */
 export interface CuotaContratoRequestDTO {
@@ -19,4 +20,6 @@ export interface GenerarContratoRequestDTO {
   idioma?: Idioma;
   /** Cuotas configuradas (1..3, porcentajes suman 100%; fechas ascendentes desde hoy). */
   cuotas: CuotaContratoRequestDTO[];
+  /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
+  contrato?: DatosContratoDTO;
 }

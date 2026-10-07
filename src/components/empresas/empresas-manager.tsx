@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
+import { Building2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -13,6 +13,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
+import { RegistrarEmpresaFuenteModal } from "./registrar-empresa-fuente-modal";
 
 const PER_PAGE_OPCIONES = [10, 15, 50];
 
@@ -37,6 +38,7 @@ export function EmpresasManager() {
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [formOpen, setFormOpen] = useState(false);
   const [cargaOpen, setCargaOpen] = useState(false);
+  const [fuenteOpen, setFuenteOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
@@ -156,6 +158,16 @@ export function EmpresasManager() {
             >
               <Upload className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Carga masiva</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setFuenteOpen(true)}
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Registrar desde servicio-persona</span>
+              <span className="sm:hidden">Servicio</span>
             </Button>
             <Button
               size="sm"
@@ -347,6 +359,12 @@ export function EmpresasManager() {
         <EmpresaCargaMasivaModal
           onClose={() => setCargaOpen(false)}
           onSaved={() => void load()}
+        />
+      )}
+      {fuenteOpen && (
+        <RegistrarEmpresaFuenteModal
+          onClose={() => setFuenteOpen(false)}
+          onRegistrado={() => void load()}
         />
       )}
       {confirmDialog}

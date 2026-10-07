@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 
 const emailOpcional = z
   .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invalido")])
@@ -12,6 +12,7 @@ const textoOpcional = z.string().trim().max(250).optional().nullable();
 export const crearEmpresaSchema = z.object({
   ruc: z.string().trim().regex(REGEX_RUC, "El RUC debe tener 11 digitos"),
   razonSocial: z.string().trim().min(2, "La razon social es obligatoria").max(200),
+  sieCode: z.string().trim().max(20).optional().nullable(),
   logoUrl: z.string().max(500).optional().nullable(),
   nombreComercial: z.string().trim().max(200).optional().nullable(),
   direccionFiscal: textoOpcional,
@@ -68,4 +69,41 @@ export const validarDatosEmpresaSchema = crearEmpresaSchema;
 /** Cambio del idioma preferido del usuario. */
 export const cambiarIdiomaSchema = z.object({
   idioma: z.enum([IDIOMAS.ES, IDIOMAS.EN]),
+});
+
+/** Busqueda de empresas en la fuente servicio-persona (mismo criterio que personas). */
+export const buscarEmpresaFuenteSchema = z.object({
+  q: z.string().trim().min(3, "q requerido (minimo 3 caracteres)").max(120),
+});
+
+/** Empresa a registrar en servicio-persona (se crea en la fuente si no existe). */
+const registrarEmpresaFuenteSchema = z.object({
+  nombre: z.string().trim().min(2, "La razon social es obligatoria").max(100),
+  idTipoDocumento: z.enum([TIPOS_DOCUMENTO_EMPRESA.RUC, TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO]),
+  documento: z.string().trim().min(1, "El documento es obligatorio").max(20),
+  direccion: z.string().trim().min(1, "La direccion es obligatoria").max(200),
+  correo: z.string().trim().regex(REGEX_EMAIL, "Correo invalido").max(101),
+  telefono: z.string().trim().min(1, "El telefono es obligatorio").max(35),
+  pais: z.number().int().positive().default(UBIGEO_PAIS_PERU),
+  linkLogo: z.string().max(2048).optional().nullable(),
+});
+
+/** Persona de contacto (se reutiliza por documento o se crea en la fuente). */
+const registrarPersonaContactoSchema = z.object({
+  tipoDocumento: z.enum([TIPOS_DOCUMENTO_PERSONA.DNI, TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, TIPOS_DOCUMENTO_PERSONA.PASAPORTE]),
+  documento: z.string().trim().min(1, "El documento del contacto es obligatorio").max(15),
+  apellidoPaterno: z.string().trim().min(1, "El apellido paterno es obligatorio").max(30),
+  apellidoMaterno: z.string().trim().max(30).optional().nullable(),
+  nombres: z.string().trim().min(1, "Los nombres son obligatorios").max(30),
+  celular: z.string().trim().max(35).optional().nullable(),
+  direccion: z.string().trim().max(100).optional().nullable(),
+});
+
+/** Registro de la relacion usuario (persona) - empresa (fuente servicio-persona). */
+export const registrarCuentaEmpresaSchema = z.object({
+  sieCodeEmpresa: z.string().trim().max(20).optional().nullable(),
+  empresa: registrarEmpresaFuenteSchema,
+  persona: registrarPersonaContactoSchema,
+  email: z.string().trim().regex(REGEX_EMAIL, "Correo invalido"),
+  rolId: z.string().trim().optional().nullable(),
 });

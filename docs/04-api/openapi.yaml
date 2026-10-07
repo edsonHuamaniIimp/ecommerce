@@ -232,7 +232,7 @@ paths:
     post:
       tags: [Gess]
       summary: Libera pre-reservas en lote (vuelven a `disponible` y se limpia la empresa asignada)
-      description: Todo o nada: si algún stand no está `pre_reservado` responde 409 y no modifica ninguno.
+      description: "Todo o nada: si algún stand no está `pre_reservado` responde 409 y no modifica ninguno."
       requestBody:
         required: true
         content:
@@ -525,6 +525,11 @@ paths:
     post:
       tags: [Empresas]
       summary: Alta individual de empresa (valida RUC, correos y duplicados)
+      description: |
+        Ademas de la ficha contractual local, asegura la empresa en **servicio-persona**
+        (fuente) de forma best-effort: la busca por RUC y la crea si no existe, guardando
+        su `sie_code` en la ficha. Sin direccion/correo/telefono (minimos de la fuente) o
+        si servicio-persona falla, la ficha se crea igual con el `sie_code` pendiente.
       requestBody:
         required: true
         content:
@@ -676,6 +681,110 @@ paths:
                 $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
         "404":
           $ref: "#/components/responses/NotFound"
+  /empresas/fuente:
+    get:
+      tags: [Empresas]
+      summary: Busca empresas en servicio-persona (fuente) por razon social o RUC
+      description: |
+        La empresa vive en servicio-persona (fuente del ecosistema IIMP). Acepta el
+        mismo criterio que el listado de la fuente: prefijo de razon social o RUC
+        (11 digitos). Requiere `empresas:manage`.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 120 }
+          description: Razon social o RUC
+      responses:
+        "200":
+          description: Empresas encontradas en la fuente (vacio si no hay coincidencias)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sieCode: { type: string, description: sie_code de la empresa en servicio-persona }
+                    nombre: { type: string }
+                    idTipoDocumento: { type: string, description: "6 = RUC, 0 = no domiciliado" }
+                    documento: { type: string }
+                    direccion: { type: string, nullable: true }
+                    correo: { type: string, nullable: true }
+                    telefono: { type: string, nullable: true }
+        "400":
+          description: q requerido (minimo 3 caracteres)
+        "502":
+          description: Error de servicio-persona
+  /empresas/registrar-cuenta-empresa:
+    post:
+      tags: [Empresas]
+      summary: Registra la relacion usuario (persona) - empresa con servicio-persona como fuente
+      description: |
+        Asegura la empresa y la persona de contacto en servicio-persona (las crea si no
+        existen, usando su documento) y crea la cuenta local con sus identificadores
+        (`sie_code` de la persona e `id_empresa` de la empresa). Si la empresa es RUC,
+        mantiene/crea la ficha contractual local minima ligada por RUC. Envia las
+        credenciales por correo. Requiere `empresas:manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [empresa, persona, email]
+              properties:
+                sieCodeEmpresa:
+                  type: string
+                  nullable: true
+                  description: sie_code de la empresa ya elegida en la busqueda (null = crearla en la fuente)
+                empresa:
+                  type: object
+                  required: [nombre, idTipoDocumento, documento, direccion, correo, telefono, pais]
+                  properties:
+                    nombre: { type: string, maxLength: 100 }
+                    idTipoDocumento: { type: string, enum: ["6", "0"] }
+                    documento: { type: string, maxLength: 20 }
+                    direccion: { type: string, maxLength: 200 }
+                    correo: { type: string, maxLength: 101 }
+                    telefono: { type: string, maxLength: 35 }
+                    pais: { type: integer, description: Codigo de ubigeo (75 = PERU) }
+                    linkLogo: { type: string, nullable: true, maxLength: 2048 }
+                persona:
+                  type: object
+                  required: [tipoDocumento, documento, apellidoPaterno, nombres]
+                  properties:
+                    tipoDocumento: { type: string, enum: ["1", "4", "7"], description: "1 = DNI, 4 = CE, 7 = Pasaporte" }
+                    documento: { type: string, maxLength: 15 }
+                    apellidoPaterno: { type: string, maxLength: 30 }
+                    apellidoMaterno: { type: string, nullable: true, maxLength: 30 }
+                    nombres: { type: string, maxLength: 30 }
+                    celular: { type: string, nullable: true, maxLength: 35 }
+                    direccion: { type: string, nullable: true, maxLength: 100, description: Direccion de la persona (la fuente la exige al crear/actualizar) }
+                email: { type: string, description: Correo del acceso local (login) }
+                rolId: { type: string, nullable: true, description: "Rol local; por defecto cliente" }
+      responses:
+        "201":
+          description: Relacion registrada y cuenta local creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  emailEnviado: { type: boolean }
+                  sieCodeEmpresa: { type: string }
+                  sieCodePersona: { type: string }
+                  empresaCreadaEnFuente: { type: boolean }
+                  empresaActualizadaEnFuente: { type: boolean, description: "true = ya existia en la fuente con datos distintos y se actualizo (PUT)" }
+                  personaCreadaEnFuente: { type: boolean }
+                  empresaId: { type: string, nullable: true, description: FK de la ficha contractual local por RUC }
+        "400":
+          description: Datos invalidos (documento, correos o campos obligatorios)
+        "409":
+          description: El correo ya tiene una cuenta habilitada
+        "502":
+          description: Error de servicio-persona
   /auth/cambiar-password:
     post:
       tags: [Auth]
@@ -1186,6 +1295,7 @@ components:
       properties:
         ruc: { type: string, minLength: 11, maxLength: 11 }
         razonSocial: { type: string, maxLength: 200 }
+        sieCode: { type: string, nullable: true, maxLength: 20, description: "Codigo SIE ya conocido (padron IIMP): evita crear/consultar en servicio-persona" }
         nombreComercial: { type: string, nullable: true, maxLength: 200 }
         direccionFiscal: { type: string, nullable: true, maxLength: 250 }
         telefono: { type: string, nullable: true, maxLength: 30 }
