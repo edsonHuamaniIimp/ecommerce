@@ -370,7 +370,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <span className="font-mono text-sm font-bold text-primary">
                           {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
                         </span>
-                        {row.bloqueId && <span className="font-mono text-[10px] text-muted-foreground">{row.bloqueId}</span>}
                         <span className="text-xs text-muted-foreground">{row.tipoStand ?? "-"}</span>
                         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                           <CalendarDays className="h-3.5 w-3.5" />
@@ -393,7 +392,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <Dato label="Documentos" valor={`${(row.documentos as string[])?.length ?? 0}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
                         <Dato label="Ubicacion" valor={row.ubicacion} />
-                        <Dato label="Bloque" valor={row.bloqueId} />
                         <Dato label="Tipo" valor={row.tipoStand} />
                       </div>
 
@@ -502,7 +500,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Stand</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Bloque</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Tipo</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Precio</TableHead>
@@ -522,7 +519,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             <span className="ml-1 font-normal text-muted-foreground">({row.standCodes.join(", ")})</span>
                           )}
                         </TableCell>
-                        <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">{row.bloqueId ?? "—"}</TableCell>
                         <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "—"}</TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
@@ -618,10 +614,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Stand</span>
                     <span className="font-mono text-xs font-semibold text-foreground">{standTitulo(detailRow)}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Bloque</span>
-                    <span className="font-mono text-xs text-foreground">{detailRow.bloqueId ?? "—"}</span>
                   </div>
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>

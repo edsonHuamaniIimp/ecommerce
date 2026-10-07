@@ -5,6 +5,7 @@ import { ChevronRight, ChevronLeft, Building2, X, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { RESERVA_STEPS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { StepIndicator } from "./step-indicator";
 import { StepDatos } from "./step-datos";
 import { StepContrato } from "./step-contrato";
@@ -34,7 +35,7 @@ interface Props {
   selectedCount: number;
   singleStand: boolean;
   selectedLabels: string;
-  selectedItems: { id: string; typeLabel: string; medidas: string | null; reserved: boolean; precio?: number }[];
+  selectedItems: { id: string; standCode?: string | null; typeLabel: string; medidas: string | null; reserved: boolean; precio?: number }[];
   existingDocs: string[];
   onAddRequisito: (requisito: string, file: File) => Promise<void>;
   onRemoveRequisito: (requisito: string) => void;
@@ -295,7 +296,7 @@ export function ReservaModal(props: Props) {
               <span
                 className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-black/10 ${item.reserved ? "bg-muted-foreground" : "bg-success"}`}
               />
-              <span className="font-mono font-semibold text-primary">{item.id}</span>
+              <span className="font-mono font-semibold text-primary">{codigoComercialStand(item.standCode || item.id)}</span>
               <span className="truncate text-muted-foreground">{item.typeLabel}</span>
               {item.medidas && <span className="ml-auto font-medium text-foreground">{item.medidas}</span>}
               {item.reserved && (

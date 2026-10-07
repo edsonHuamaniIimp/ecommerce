@@ -27,6 +27,7 @@ import { fechasCuotasValidas, planCuotasConFechas, porcentajesValidos } from "@/
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
 import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 
 /** Limite de espera de la conversion DOCX -> PDF (LibreOffice/Word headless). */
 const CONVERSION_PDF_TIMEOUT_MS = 90_000;
@@ -344,12 +345,12 @@ export class ContratoApplicationService {
             codigos: {} as Record<string, string>,
           };
           grupo.objetivos.push(ref.bloqueId);
-          if (ref.codigoComercial) grupo.codigos[ref.bloqueId] = ref.codigoComercial;
+          if (ref.codigoComercial) grupo.codigos[ref.bloqueId] = codigoComercialStand(ref.codigoComercial);
           gruposPabellon.set(codigo, grupo);
         }
       }
       modulos.push({
-        modulo: ref.codigoComercial ?? ref.bloqueId,
+        modulo: codigoComercialStand(ref.codigoComercial ?? ref.bloqueId),
         zona: ubicacion?.plano.nombre ?? ref.pabellon ?? "",
         tipo: ref.tipoStand ?? "",
         metraje,

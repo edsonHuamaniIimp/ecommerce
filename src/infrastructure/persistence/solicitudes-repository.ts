@@ -8,6 +8,7 @@ import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 
 type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
@@ -104,9 +105,10 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   if (gessStandId) {
     const stand = row.gessStand;
     if (stand) {
-      standCode = stand.standCode;
+      /* El cliente ve el codigo comercial; el prefijo tecnico "BLOQUE-" del plano se omite. */
+      standCode = codigoComercialStand(stand.standCode);
       standCodes = [standCode];
-      standsDetalle = [{ standCode: stand.standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
+      standsDetalle = [{ standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
       standApiId = stand.standApiId;
       empresaMontajistaId = stand.montajistaId;
       empresaMontajistaNombre = stand.montajistaNombre;
@@ -127,8 +129,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       where: { solicitudId },
       include: { gessStand: true },
     });
-    standCodes = stands.map((s) => s.gessStand.standCode);
-    standsDetalle = stands.map((s) => ({ standCode: s.gessStand.standCode, bloqueId: s.gessStand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }));
+    standCodes = stands.map((s) => codigoComercialStand(s.gessStand.standCode));
+    standsDetalle = stands.map((s) => ({ standCode: codigoComercialStand(s.gessStand.standCode), bloqueId: s.gessStand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }));
     /* Plano (pabellon) de cada bloque, para agrupar ubicaciones por pabellon. */
     const bloquesReserva = standsDetalle.map((s) => s.bloqueId).filter((v): v is string => Boolean(v));
     if (bloquesReserva.length > 0) {

@@ -12,6 +12,7 @@ import type { PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
 import { textosReserva } from "@/lib/shared/textos/reserva";
@@ -385,7 +386,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
                 const bid = [...linkedMap.entries()].find(([, v]) => v === detailModal)?.[0];
                 const item = items.find((it) => it.id === bid);
                 const label = item ? blockLabel(item.type).label : "";
-                return <span>Detalles: {label} — {detailModal.standCode ?? bid}</span>;
+                return <span>Detalles: {label} — {codigoComercialStand(detailModal.standCode ?? bid)}</span>;
               })() : <span>Detalles</span>}
             </DialogTitle>
           </DialogHeader>
@@ -479,6 +480,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
           const info = linkedMap.get(sel.id);
           return {
             id: sel.id,
+            standCode: info?.standCode ?? null,
             typeLabel: blockLabel(sel.type).label,
             medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,

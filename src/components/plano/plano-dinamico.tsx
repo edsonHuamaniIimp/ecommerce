@@ -11,6 +11,7 @@ import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { areaDesdeTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
@@ -871,6 +872,7 @@ map.set(String(bloqueId), {
           const info = linkedMap.get(c.bloqueId);
           return {
             id: c.bloqueId,
+            standCode: info?.standCode ?? null,
             typeLabel: c.pabellonCodigo !== planoId ? `${c.tipoLabel ?? "?"} (${c.pabellonCodigo})` : (c.tipoLabel ?? "?"),
             medidas: info?.medidas ?? null,
             reserved: info?.reserved ?? false,
@@ -1103,7 +1105,7 @@ function tituloDetalle(
   const item = items.find((it) => it.id === bloqueId);
   const label = item ? blockLabel(item.type).label : "";
     /* El contrato/cliente usan el codigo comercial del stand; el bloqueId solo ubica. */
-    return `Detalles: ${label} - ${detalle.standCode ?? bloqueId}`;
+    return `Detalles: ${label} - ${codigoComercialStand(detalle.standCode ?? bloqueId)}`;
 }
 
 function Legend({ color, label }: { color: string; label: string }) {

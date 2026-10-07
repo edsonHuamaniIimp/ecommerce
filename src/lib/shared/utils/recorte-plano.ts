@@ -1,4 +1,5 @@
 import type { PlanoBounds, PlanoItem } from "@/lib/shared/planos/registry";
+import { codigoComercialStand } from "./stand-codigo";
 
 /**
  * Recorte del plano (RF-08): viewBox del pabellon completo + SVG top-down con los
@@ -200,7 +201,7 @@ function anotarObjetivo(
   const estiloTitulo = `font-size="${fmt(refUnit * 0.028)}" font-weight="700" fill="${OBJETIVO_TEXTO}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.006)}" paint-order="stroke"`;
   const estiloCodigo = `font-size="${fmt(refUnit * 0.024)}" font-weight="600" fill="#1f2937" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.005)}" paint-order="stroke"`;
   const titulo = "TU STAND";
-  const codigo = esc(codigos[it.id] ?? it.id);
+  const codigo = esc(codigoComercialStand(codigos[it.id] ?? it.id));
   const aire = refUnit * 0.018;
   let etiqueta: string;
   if (dir === "arriba") {
