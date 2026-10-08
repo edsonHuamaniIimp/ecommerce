@@ -574,6 +574,7 @@ map.set(String(bloqueId), {
               reserved={reserved}
               hoverText={reserved ? (info?.empresa?.trim() || "Reservado") : null}
               logoUrl={reserved ? (info?.empresaLogo ?? null) : null}
+              topLabel={info?.standCode ? String(info.standCode).trim() || null : null}
               onHover={setHoverStand}
               onSelect={handleSelect}
             />

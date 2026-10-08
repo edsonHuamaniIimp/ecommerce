@@ -29,6 +29,7 @@ function useLogoTextures(
   const [cargada, setCargada] = useState<{ url: string; img: HTMLImageElement } | null>(null);
 
   useEffect(() => {
+    if (!url) return;
     let vivo = true;
     const img = new Image();
     img.onload = () => { if (vivo) setCargada({ url, img }); };
@@ -37,7 +38,7 @@ function useLogoTextures(
     return () => { vivo = false; };
   }, [url]);
 
-  const imagen = cargada && cargada.url === url ? cargada.img : null;
+  const imagen = url && cargada && cargada.url === url ? cargada.img : null;
 
   return useMemo(() => {
     if (!imagen) return { frontal: null, lateral: null };
@@ -66,9 +67,40 @@ function useLogoTextures(
   }, [imagen, dim.w, dim.d, dim.h]);
 }
 
-/** Materiales del bloque reservado con logo: caras laterales con textura, tapa/base solidas. */
-function MaterialesLogo({ url, colorFondo, dim }: { url: string; colorFondo: string; dim: { w: number; d: number; h: number } }) {
-  const { frontal, lateral } = useLogoTextures(url, dim);
+/** Textura del rotulo (numero comercial del stand) para la cara superior del bloque. */
+function useRotuloTexture(rotulo: string | null, dim: { w: number; d: number }): THREE.Texture | null {
+  return useMemo(() => {
+    if (!rotulo) return null;
+    const canvas = document.createElement("canvas");
+    const escala = 512 / Math.max(dim.w, dim.d, 0.01);
+    canvas.width = Math.max(64, Math.round(dim.w * escala));
+    canvas.height = Math.max(64, Math.round(dim.d * escala));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = Math.max(2, canvas.width * 0.025);
+    ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
+    const texto = rotulo.trim().toUpperCase();
+    const base = Math.min(canvas.width, canvas.height) / Math.max(texto.length, 3);
+    const fontSize = Math.max(18, Math.floor(base * 1.35));
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(texto, canvas.width / 2, canvas.height / 2, canvas.width * 0.88);
+    const textura = new THREE.CanvasTexture(canvas);
+    textura.colorSpace = THREE.SRGBColorSpace;
+    textura.anisotropy = 4;
+    return textura;
+  }, [rotulo, dim.w, dim.d]);
+}
+
+/** Materiales del bloque: caras laterales con logo (si hay), tapa con el numero comercial, base solida. */
+function MaterialesLogo({ url, rotulo, colorFondo, dim }: { url?: string | null; rotulo?: string | null; colorFondo: string; dim: { w: number; d: number; h: number } }) {
+  const { frontal, lateral } = useLogoTextures(url ?? "", dim);
+  const rotuloTex = useRotuloTexture(rotulo ?? null, dim);
   /*
    * Se construye el array de 6 materiales y se asigna directo a `mesh.material`.
    * Caras del box: 0=+X, 1=-X, 2=+Y (tapa), 3=-Y (base), 4=+Z, 5=-Z.
@@ -83,10 +115,12 @@ function MaterialesLogo({ url, colorFondo, dim }: { url: string; colorFondo: str
         roughness: 0.7,
         metalness: 0.05,
       });
-    const tapa = new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
+    const tapa = rotuloTex
+      ? new THREE.MeshStandardMaterial({ map: rotuloTex, color: "#ffffff", roughness: 0.65, metalness: 0.05 })
+      : new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
     const base = new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
     return [cara(lateral), cara(lateral), tapa, base, cara(frontal), cara(frontal)];
-  }, [frontal, lateral, colorFondo]);
+  }, [frontal, lateral, rotuloTex, colorFondo]);
 
   useEffect(() => {
     return () => { materiales.forEach((m) => m.dispose()); };
@@ -96,15 +130,21 @@ function MaterialesLogo({ url, colorFondo, dim }: { url: string; colorFondo: str
     return () => { frontal?.dispose(); lateral?.dispose(); };
   }, [frontal, lateral]);
 
+  useEffect(() => {
+    return () => { rotuloTex?.dispose(); };
+  }, [rotuloTex]);
+
   return <primitive object={materiales} attach="material" />;
 }
 
-export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, onSelect, onHover }: {
+export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabel, onSelect, onHover }: {
   item: PlanoItem; selected: boolean; reserved: boolean;
   /** Texto a mostrar al pasar el cursor (razon social de la empresa que reservo; RF-09). */
   hoverText?: string | null;
-  /** Logo de la empresa/usuario a pintar en las caras del bloque reservado. */
+  /** Logo de la empresa/usuario a pintar en las caras laterales del bloque reservado. */
   logoUrl?: string | null;
+  /** Numero comercial del stand: se pinta en la cara superior del bloque. */
+  topLabel?: string | null;
   onSelect: (id: string) => void;
   onHover?: (info: { x: number; y: number; text: string } | null) => void;
 }) {
@@ -148,8 +188,8 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, onSelec
       onPointerOut={() => { document.body.style.cursor = "auto"; onHover?.(null); }}
     >
       <boxGeometry args={[w - .15, h + (selected ? 0.6 : 0), d - .15]} />
-      {reserved && logoUrl ? (
-        <MaterialesLogo url={logoUrl} colorFondo="#9ca3af" dim={{ w, d, h }} />
+      {logoUrl || topLabel ? (
+        <MaterialesLogo url={logoUrl} rotulo={topLabel} colorFondo={reserved ? "#9ca3af" : color} dim={{ w, d, h }} />
       ) : (
         <meshStandardMaterial
           color={reserved ? "#9ca3af" : selected ? "#f59e0b" : color}
