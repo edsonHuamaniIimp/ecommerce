@@ -71,6 +71,7 @@ bloques del plano 3D**.
 - Re-importación: conserva el estado local (`en_evaluacion`/`reservado`) si el API dice `LIBRE`, aplica `RESERVADO` del API, no pisa la empresa con vacío y no toca `bloqueId`/documentos/imágenes. Detalle: [integracion-liststand.md](../05-integraciones/integracion-liststand.md).
 - Cliente externo `liststand-client.ts`: `POST /auth/login` (cuenta técnica, token 30 min cacheado) + `POST /stands/liststand` con `{TipEvCod, EvenCod}`; desactiva la verificación TLS al llamar. Credenciales: `LISTSTAND_USUARIO` / `LISTSTAND_CLAVE`.
 - Catálogo de tipos/precios **hardcodeado** (`gess-service.ts:6-36`): `Preferencial`, `Estandar A`, `Estandar B/Columna`, `Isla Grande`.
+- **Código comercial**: en las vistas del cliente (contrato y anexos, etiqueta "TU STAND" del recorte, wizard y Mis reservas) el código mostrado es el **código comercial** del stand (`codigoComercialStand`, sin el prefijo técnico `BLOQUE-`); el `bloqueId` solo se usa para ubicar el bloque en el plano.
 
 ### 5.4 Endpoints
 
@@ -125,7 +126,7 @@ legacy de GESS/KB (`Reservado`, `En evaluacion`, `available`, `reserved`). IDs d
 - **`medidas` contiene precios**, no dimensiones (`"3000.00 US$"`), y así se etiqueta en la UI.
 - **`TipoStand` y `Stand` no se usan** en la aplicación (solo schema y scripts de seed).
 - **Baja de usuario de rol probablemente rota**: el cliente envía `DELETE` por querystring, el controlador lee `request.json()`.
-- **Alta de usuario con contraseña por defecto `123456`**; sin UI para fijarla.
+- **Alta de usuario desde Roles** usa credencial por defecto (sin UI para fijarla); el alta de usuarios del Portal (`/dashboard/usuarios`) envía contraseña temporal por correo y exige cambiarla.
 - Acoplamiento: la vinculación llama `GET /api/planos/planos-evento`, que exige `laboratorio:view`.
 - Clientes KB/Planogess **desactivan TLS** temporalmente.
 - Sin tests para eventos/gess/roles.

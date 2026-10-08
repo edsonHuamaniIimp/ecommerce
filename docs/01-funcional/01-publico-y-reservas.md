@@ -51,15 +51,14 @@ registro crea la solicitud que luego recorren las áreas.
 - Sin sesión: guarda `PLANO_SELECCION` en localStorage y va a login con `returnTo` que reabre el modal.
 - Bloques sin `dbId` (sin `GessStand` vinculado) no son reservables en `/mapa` (badge "sin stand").
 
-### 3.4 Modal de reserva — 3 pasos
-Definidos en `RESERVA_STEPS` (`constants.ts:514-520`): `DATOS`, `DOCUMENTOS`, `CONFIRMACION`.
+### 3.4 Modal de reserva — 4 pasos
+Definidos en `RESERVA_STEPS` (`constants.ts`): `DATOS`, `CUOTAS`, `CONTRATO`, `CONFIRMACION`.
 Lógica en `src/components/plano/reserva/use-reserva-form.ts`.
 
-1. **DATOS** (`step-datos.tsx`): comprobante desde maestra `comprobante_tipo`; factura → RUC (11) + razón social, boleta → DNI (8). Autocompleta con SUNAT/RENIEC; teléfono `/^9\d{8}$/`, email y dirección obligatorios.
-2. **DOCUMENTOS** (`step-documentos.tsx`):
-   - **1 stand**: obligatorio adjuntar contrato firmado (PDF/JPG/PNG/DOCX, 10 MB declarado); descarga los formatos del stand.
-   - **N stands**: sin documentos; el admin sube el contrato y el cliente lo adjunta después (ver [02-solicitudes-y-aprobaciones.md](./02-solicitudes-y-aprobaciones.md)).
-3. **CONFIRMACION** (`step-confirmacion.tsx`): resumen + checkbox obligatorio de términos y condiciones.
+1. **DATOS** (`step-datos.tsx`): comprobante desde maestra `comprobante_tipo`; factura → RUC (11) + razón social (SUNAT autocompleta y, si no hay dirección, la compone con distrito/provincia), boleta → DNI (8) (RENIEC autocompleta el contacto). Badges de validación SUNAT/RENIEC. **Prellenado propio** (`GET /api/reserva-datos/prellenar`, self-only: la persona por `sie_code` o la empresa por `id_empresa` del usuario logueado) completa contacto/dirección/teléfono/correo sin exponer datos de terceros. Teléfono `/^9\d{8}$/`, email y dirección obligatorios.
+2. **CUOTAS** (`step-pagos.tsx`): el cliente configura 1–3 cuotas (porcentaje y fecha editables; presets 100% y 50/50). Reglas: la cuota N vence como máximo N meses después de la reserva (`CUOTAS_MESES_MAX_POR_CUOTA`), separación mínima de 1 día (`CUOTAS_DIAS_MIN_ENTRE`) y tope absoluto 2027-07-15 (`CUOTAS_FECHA_MAXIMA`); los montos los calcula el servidor.
+3. **CONTRATO** (`step-contrato.tsx`): descarga el contrato **borrador** (`POST /api/contratos/borrador`, sin crear la solicitud), firma (digital con la firma del perfil, o subida) y adjunta los documentos requeridos (Ficha RUC, Vigencia de Poder, DNI/Pasaporte del representante; RF-13).
+4. **CONFIRMACION** (`step-confirmacion.tsx`): resumen + checkbox obligatorio de términos y condiciones; recién aquí se **crea la solicitud** (`POST /api/reservas/crear`) y se regenera el contrato definitivo con sus anexos.
 
 El borrador se guarda en IndexedDB por conjunto de IDs y se borra tras el envío (`use-reserva-form.ts:10-84`).
 
@@ -96,6 +95,8 @@ reserva** (revisión por áreas, contrato por SGC, documentos) y un **bloque de 
 | `PATCH` | `/api/gess/actualizar` | Vincular bloque, documentos, imágenes, estado |
 | `POST` | `/api/planogess/fetch` | Lista stands del API real del IIMP (login + liststand) |
 | `POST` | `/api/reservas/crear` | Crear la solicitud |
+| `GET` | `/api/reserva-datos/prellenar` | Prellenado del wizard con datos del propio usuario (self-only) |
+| `POST` | `/api/contratos/borrador` · `/generar` · `/firmar-borrador` | Contrato del wizard (borrador, definitivo y firma digital) |
 | `POST` | `/api/upload` | Subir archivos |
 | `GET` | `/api/maestra/listar?tabla=` | Catálogos (comprobantes, estados) |
 | `GET` | `/api/sunat/ruc` · `/api/reniec/dni` | Autocompletado de documento |

@@ -31,6 +31,8 @@ tags:
     description: Interoperabilidad con facturación (SAP/John)
   - name: Empresas
     description: Consumo (proxy) de empresas/personas
+  - name: Usuarios
+    description: Accesos del Portal del Cliente (backoffice) contra servicio-persona
   - name: SGC
     description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
 security:
@@ -716,6 +718,41 @@ paths:
           description: q requerido (minimo 3 caracteres)
         "502":
           description: Error de servicio-persona
+  /empresas/persona-fuente:
+    get:
+      tags: [Empresas]
+      summary: Busca una persona en servicio-persona y el padron interno (representante legal)
+      description: |
+        Devuelve la persona de la fuente por tipo y numero de documento; se usa al
+        registrar al representante legal de una empresa. Requiere `empresas:manage`.
+      parameters:
+        - name: tipoDocumento
+          in: query
+          required: false
+          schema: { type: string, enum: ["1", "4", "7"], default: "1", description: "1 = DNI, 4 = CE, 7 = Pasaporte" }
+        - name: numeroDocumento
+          in: query
+          required: true
+          schema: { type: string, maxLength: 15 }
+      responses:
+        "200":
+          description: Persona encontrada (null si no existe en la fuente)
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+                properties:
+                  sieCode: { type: string }
+                  documento: { type: string }
+                  nombreCompleto: { type: string }
+                  direccion: { type: string, nullable: true }
+                  correo: { type: string, nullable: true }
+                  celular: { type: string, nullable: true }
+        "400":
+          description: Parametros invalidos
+        "502":
+          description: Error de servicio-persona
   /empresas/registrar-cuenta-empresa:
     post:
       tags: [Empresas]
@@ -842,6 +879,254 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EmpresaRegistrada"
+  /usuarios/listar:
+    get:
+      tags: [Usuarios]
+      summary: Bandeja de accesos del Portal del Cliente
+      description: |
+        Usuarios locales (incluye internos sin empresa). La persona vive en
+        servicio-persona (`sieCode`). Requiere `usuarios:manage`.
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    email: { type: string }
+                    nombre: { type: string, nullable: true }
+                    apellidos: { type: string, nullable: true }
+                    telefono: { type: string, nullable: true }
+                    ruc: { type: string, nullable: true, description: RUC de la empresa vinculada }
+                    rol: { type: string }
+                    empresaId: { type: string, nullable: true }
+                    idEmpresa: { type: string, nullable: true, description: Codigo SIE }
+                    empresa: { type: string, nullable: true }
+                    esPortal: { type: boolean }
+                    sieCode: { type: string, nullable: true }
+                    debeCambiarPassword: { type: boolean }
+  /usuarios/personas:
+    get:
+      tags: [Usuarios]
+      summary: Busca personas en servicio-persona (apellido paterno o DNI)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3 }
+      responses:
+        "200":
+          description: Personas encontradas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sie_code: { type: string }
+                    apellido_paterno: { type: string, nullable: true }
+                    apellido_materno: { type: string, nullable: true }
+                    nombres: { type: string, nullable: true }
+                    nombre_completo: { type: string, nullable: true }
+                    documento: { type: string, nullable: true }
+                    correo: { type: string, nullable: true }
+                    celular: { type: string, nullable: true }
+  /usuarios/crear:
+    post:
+      tags: [Usuarios]
+      summary: Alta individual (persona en servicio-persona + acceso local)
+      description: |
+        Busca/crea la persona en servicio-persona y persiste el acceso local:
+        `sieCode` + correo + empresa (codigo SIE + FK por RUC) + rol. Envia la
+        contrasena temporal por correo. Requiere `usuarios:manage`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idEmpresa, nombreEmpresa, email, tipoDocumento, documento, apellidoPaterno, nombres]
+              properties:
+                idEmpresa: { type: string, description: Codigo SIE de la empresa }
+                nombreEmpresa: { type: string, maxLength: 200 }
+                ruc: { type: string, nullable: true, maxLength: 20, description: Si existe ficha local con ese RUC se vincula la FK }
+                email: { type: string }
+                tipoDocumento: { type: string, enum: ["1", "4", "7"], description: "1 = DNI, 4 = CE, 7 = Pasaporte" }
+                documento: { type: string, maxLength: 15 }
+                apellidoPaterno: { type: string, maxLength: 30 }
+                apellidoMaterno: { type: string, nullable: true, maxLength: 30 }
+                nombres: { type: string, maxLength: 30 }
+                celular: { type: string, nullable: true, maxLength: 35 }
+                direccion: { type: string, nullable: true, maxLength: 100 }
+                rolId: { type: string, nullable: true, description: "Rol local; por defecto cliente" }
+      responses:
+        "201":
+          description: Resultado del alta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  creado: { type: boolean }
+                  emailEnviado: { type: boolean, nullable: true }
+                  error: { type: string, nullable: true }
+        "400":
+          description: Datos invalidos
+  /usuarios/crear-lote:
+    post:
+      tags: [Usuarios]
+      summary: Alta por lote (hasta 100 personas) para la misma empresa y rol
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idEmpresa, nombreEmpresa, usuarios]
+              properties:
+                idEmpresa: { type: string }
+                nombreEmpresa: { type: string, maxLength: 200 }
+                ruc: { type: string, nullable: true, maxLength: 20 }
+                rolId: { type: string, nullable: true }
+                usuarios:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [email, tipoDocumento, documento, apellidoPaterno, nombres]
+                    properties:
+                      email: { type: string }
+                      tipoDocumento: { type: string, enum: ["1", "4", "7"] }
+                      documento: { type: string, maxLength: 15 }
+                      apellidoPaterno: { type: string, maxLength: 30 }
+                      apellidoMaterno: { type: string, nullable: true, maxLength: 30 }
+                      nombres: { type: string, maxLength: 30 }
+                      celular: { type: string, nullable: true, maxLength: 35 }
+                      direccion: { type: string, nullable: true, maxLength: 100 }
+      responses:
+        "200":
+          description: Resultado por fila
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resultados:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        email: { type: string }
+                        creado: { type: boolean }
+                        emailEnviado: { type: boolean, nullable: true }
+                        error: { type: string, nullable: true }
+  /usuarios/crear-cuenta:
+    post:
+      tags: [Usuarios]
+      summary: Crea el acceso para una persona existente en servicio-persona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idEmpresa, nombreEmpresa, sieCode, email]
+              properties:
+                idEmpresa: { type: string }
+                nombreEmpresa: { type: string, maxLength: 200 }
+                ruc: { type: string, nullable: true, maxLength: 20 }
+                sieCode: { type: string, description: sie_code de la persona en servicio-persona }
+                email: { type: string }
+                rolId: { type: string, nullable: true }
+      responses:
+        "201":
+          description: Resultado del alta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  creado: { type: boolean }
+                  emailEnviado: { type: boolean, nullable: true }
+                  error: { type: string, nullable: true }
+  /usuarios/actualizar:
+    post:
+      tags: [Usuarios]
+      summary: Asigna/cambia la empresa del acceso local
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, idEmpresa, nombreEmpresa]
+              properties:
+                id: { type: string }
+                idEmpresa: { type: string, description: Codigo SIE }
+                nombreEmpresa: { type: string, maxLength: 200 }
+                ruc: { type: string, nullable: true, maxLength: 20, description: Resuelve la FK local de la empresa por RUC }
+      responses:
+        "200":
+          description: Usuario actualizado
+  /usuarios/enviar-accesos:
+    post:
+      tags: [Usuarios]
+      summary: Regenera la contrasena temporal y reenvia las credenciales
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: Credenciales regeneradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email: { type: string }
+                  emailEnviado: { type: boolean }
+  /reserva-datos/prellenar:
+    get:
+      tags: [Usuarios]
+      summary: Prellenado del wizard de reserva con datos del propio usuario (self-only)
+      description: |
+        Devuelve datos de la persona (`sie_code`) o de la empresa (`id_empresa`) del
+        usuario logueado, leidos de servicio-persona. Si el documento consultado no
+        pertenece al usuario, devuelve `{}` (privacidad).
+      parameters:
+        - name: tipoDocumento
+          in: query
+          required: true
+          schema: { type: string, enum: ["1", "6"], description: "1 = DNI, 6 = RUC" }
+        - name: numeroDocumento
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Datos de prellenado (vacio si no aplica)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contacto: { type: string }
+                  direccion: { type: string }
+                  telefono: { type: string }
+                  correo: { type: string }
   /auth/idioma:
     patch:
       tags: [Auth]

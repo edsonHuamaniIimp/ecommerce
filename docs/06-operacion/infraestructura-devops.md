@@ -51,6 +51,9 @@
 | `STORAGE_PROVIDER` | `s3` en producción |
 | `S3_BUCKET` / `S3_REGION` / `S3_ENDPOINT` | Bucket de archivos |
 | `RUN_MIGRATIONS` | `true` fuerza `prisma migrate deploy` en cada arranque |
+| `PERSONAS_API_URL` / `PERSONAS_API_USUARIO` / `PERSONAS_API_CLAVE` | **servicio-persona** (fuente de personas/empresas del ecosistema IIMP) |
+| `LISTSTAND_API_URL` (+ `LISTSTAND_*`) | Integración **liststand** (Vinculación de Stands / pre-reservas en lote) |
+| `EMAIL_FROM` | Remitente de correos (no-reply); si falta usa `ADMIN_EMAIL` |
 
 > **Adicionales no documentadas en los `.example`:** `NEXT_PUBLIC_API_DOMAIN` y `NEXT_PUBLIC_API_BASE_PATH` (destino del rewrite `/api/proxy/*` en `next.config.ts`).
 

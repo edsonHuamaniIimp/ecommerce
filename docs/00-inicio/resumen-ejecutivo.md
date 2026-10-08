@@ -53,7 +53,7 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 ### 2.2 Fuera de alcance (se interopera)
 
 - **Facturación / contabilidad** → SAP (orden de venta, comprobantes, centro de costo, cuentas).
-- **Fuente maestra de empresas/personas** → se consume del sistema de John y/o BD centralizada (pendiente de definir).
+- **Fuente maestra de empresas/personas** → **servicio-persona** (fuente del ecosistema IIMP): se consume por API y solo se persisten identificadores (`sie_code`, `id_empresa`).
 - Generación del servicio de coordenadas X/Y del plano → provisto por John (pendiente de entrega formal).
 
 ---
@@ -84,8 +84,17 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 | Auspicios (proxy KBServicios: listar + grabar) | ✅ Completo |
 | API M2M de contratos/exhibidoras (API key) | ✅ Completo |
 | Facturación local (cuotas, pagos, Niubizz) | ✅ Completo |
+| Portal del Cliente (Mi Panel del cliente, perfil del representante legal, login por correo/RUC) | ✅ Completo |
+| Empresas y accesos del Portal contra servicio-persona (`sie_code`/`id_empresa`, RENIEC/SUNAT) | ✅ Completo |
+| Pre-reservas en lote (empresa o título) en el plano | ✅ Completo |
+| Contratos automáticos (DOCX/PDF + anexos con recorte y mapa macro) y firma digital | ✅ Completo |
+| Integración SGC (expediente, documentos, webhook, reconciliación) | ✅ Completo (SGC QA) |
+| Reserva/facturación IIMP desde Mis pagos + liststand (Vinculación de stands) | ✅ Completo |
+| Laboratorio de planos 3D (editor, bloques, tipos globales, decoraciones) | ✅ Completo |
+| i18n ES/EN del portal (selector de idioma, plantillas bilingües) | ✅ Completo |
+| Suite de tests (Vitest: 500+ specs de servicios/utilidades) | ✅ Completo |
 | PostgreSQL + Prisma v7 + Docker (dev y prod) | ✅ Completo |
-| CI/CD GitHub Actions + despliegue EC2 con Docker | ✅ Completo |
+| CI/CD GitHub Actions + despliegue ECS Fargate (imagen arm64) | ✅ Completo |
 
 ### 3.2 Pendientes conocidos
 
@@ -93,17 +102,17 @@ esas capacidades permanecen en SAP y se consumen vía servicios (interoperabilid
 |---|---|---|
 | 1 | **Integración SAP (facturación)** | El sistema debe interoperar con SAP/HANA vía servicios de John. No implementado. |
 | 2 | **Migración a Auth0** | Hoy la autenticación es JWT propio con `jose`. Auth0 está previsto pero no integrado. |
-| 3 | **Suite de tests** | No existen tests automatizados (Vitest está configurado pero sin specs). |
+| 3 | **Tests e2e** | Hay 500+ specs unit/integration (Vitest); falta cobertura end-to-end de UI. |
 | 4 | **Planos PERUMIN/WMC/ProExplo** | Bloqueado: la API KBEventos solo tiene un evento con datos; el resto devuelve 404/datos parciales. |
-| 5 | **Contrato de interoperabilidad** | Falta definir endpoints, request/response, formato X/Y y autenticación con el sistema de John. |
-| 6 | **Fuente única de empresas** | Falta definir si se comparte la BD de Niel o se consume API de John. |
+| 5 | **Contrato de interoperabilidad** | Reserva/facturación IIMP y liststand ya integrados; faltan otros servicios de John (planos X/Y, eventos). |
+| 6 | **Credenciales de servicio-persona (pruebas)** | Falta el usuario/clave del ambiente de pruebas (hoy se usa prod en local). |
 | 7 | **Responsabilidades por área** | Validaciones exactas de Logística y roles de Eventos/Asociados sin documentar (Mabel/José). |
 | 8 | **Rotación de secretos** | Los secretos de desarrollo estuvieron en texto plano en `bitacora.md`; rotar antes de producción. |
 | 9 | **Documentación OpenAPI sincronizada** | `docs/04-api/openapi.yaml` existe pero debe mantenerse sincronizado con la implementación real. |
 
 ### 3.3 Deuda técnica identificada
 
-- Sin tests automatizados (unit/e2e).
+- Cobertura de tests: Vitest cubre 500+ specs (servicios, utilidades, mappers); pendiente e2e de UI.
 - `docs/04-api/endpoints.md` describe el contrato propuesto; el inventario real está en `docs/04-api/api-inventario.md`.
 - Tabla `aprobacion` y vista `/dashboard/reservas` marcadas como legacy.
 - `next.config.ts` no define `output: "standalone"` (el runtime Docker usa `next start` con código montado); el workflow sube `.next/standalone/` que no se genera (no rompe el flujo, pero es inconsistente).

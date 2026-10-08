@@ -46,8 +46,8 @@
 |---|---|---|
 | `/api/auth/session` | GET | SesiÃ³n actual del usuario |
 | `/api/auth/perfil` | GET | Perfil del usuario autenticado |
-| `/api/auth/perfil` | PATCH | Actualiza datos del perfil |
-| `/api/auth/login` | POST | Login; emite JWT en cookie httpOnly |
+| `/api/auth/perfil` | PATCH | Actualiza datos del perfil (incluye los datos del representante legal, que se guardan en la ficha de la empresa; el correo es de solo lectura) |
+| `/api/auth/login` | POST | Login; emite JWT en cookie httpOnly. Acepta **correo o RUC** (11 digitos: elige la cuenta cuya contrasena coincide) |
 | `/api/auth/registro` | POST | Inicia el registro de exhibidor: guarda datos temporales (password hasheada) y envia un codigo de verificacion al correo |
 | `/api/auth/registro/confirmar` | POST | Confirma el registro con el codigo; crea la cuenta (rol cliente) con auto-login y emite JWT en cookie httpOnly |
 | `/api/auth/logout` | POST | Cierra sesiÃ³n y limpia la cookie |
@@ -256,9 +256,10 @@ y escritura con `empresas:manage` (el admin `admin:full` siempre accede).
 | `/api/empresas/estado` | POST | Activa/desactiva (`id`, `estado`: `activa` \| `inactiva`) |
 | `/api/empresas/carga-masiva/previsualizar` | POST | Sube Excel/CSV (`multipart`, campo `archivo`) y valida por fila: RUC/correos/comprobante, duplicados (archivo y BD), datos contractuales faltantes |
 | `/api/empresas/carga-masiva/importar` | POST | Importa las filas vÃ¡lidas (`{ filas }`); las filas con error se omiten. MÃ¡x. 500 filas / 5 MB |
-| `/api/empresas/crear-cuenta` | POST | Crea la cuenta del Portal (`id`): usuario + contraseÃ±a temporal, rol cliente, vÃ­nculo `empresa_id`; envÃ­a credenciales por correo y exige cambio en el primer ingreso |
+| `/api/empresas/crear-cuenta` | POST | Crea la cuenta del Portal (`id`): usuario + contraseÃ±a temporal, rol cliente, vÃ­nculo `empresa_id`; envÃ­a credenciales por correo y exige cambio en el primer ingreso. Acepta `email` opcional (correo del representante cuando su cuenta es distinta) |
 | `/api/empresas/reenviar-credenciales` | POST | Regenera la contraseÃ±a temporal y reenvÃ­a las credenciales (`id`) |
 | `/api/empresas/fuente` | GET | Busca empresas en **servicio-persona** (fuente) por razon social o RUC (`q`); requiere `empresas:manage` |
+| `/api/empresas/persona-fuente` | GET | Busca una persona en **servicio-persona** por `tipoDocumento` y `numeroDocumento` (padron interno del representante legal); requiere `empresas:manage` |
 | `/api/empresas/registrar-cuenta-empresa` | POST | Asegura empresa y persona en **servicio-persona** (crea si no existen) y crea la cuenta local con `sie_code`/`id_empresa` + ficha local minima por RUC |
 
 ### 3.20 Portal del Cliente (empresa propia) - `src/app/api/portal/empresa/[...slug]/route.ts`
@@ -272,6 +273,28 @@ El middleware exige cambiar contraseÃ±a/validar datos cuando la credencial es 
 | `/api/auth/cambiar-password` | POST | Cambio de la contraseÃ±a temporal (valida actual, longitud mÃ­nima); reemite la sesiÃ³n sin el flag |
 | `/api/portal/empresa/mis-datos` | GET | Datos de la empresa vinculada al usuario (primer ingreso / Mi empresa) |
 | `/api/portal/empresa/validar` | POST | Valida/actualiza los datos contractuales y marca `primerAccesoCompletado` |
+
+### 3.21 Usuarios (Portal del Cliente) - `src/app/api/usuarios/[...slug]/route.ts`
+
+Bandeja y alta de accesos del Portal del Cliente. La persona vive en **servicio-persona**
+(`sie_code`) y aca solo se persiste el acceso local (correo, empresa SIE, rol). Requieren
+`usuarios:manage` (el admin `admin:full` siempre accede).
+
+| Ruta | MÃ©todos | DescripciÃ³n |
+|---|---|---|
+| `/api/usuarios/listar` | GET | Bandeja de usuarios (rol, empresa local/SIE, `sieCode`, credencial temporal; incluye internos sin empresa) |
+| `/api/usuarios/personas` | GET | Busca personas en servicio-persona (`q`: apellido paterno o DNI) |
+| `/api/usuarios/crear` | POST | Alta individual: busca/crea la persona en la fuente y crea el acceso (empresa + rol; contrasena temporal por correo) |
+| `/api/usuarios/crear-lote` | POST | Alta por lote (hasta 100 personas) para la misma empresa/rol |
+| `/api/usuarios/crear-cuenta` | POST | Crea el acceso para una persona existente en la fuente (`sieCode` + correo + empresa + rol) |
+| `/api/usuarios/actualizar` | POST | Asigna/cambia la empresa del acceso (`id` + empresa: codigo SIE + RUC; resuelve la FK local por RUC) |
+| `/api/usuarios/enviar-accesos` | POST | Regenera la contrasena temporal y reenvia las credenciales |
+
+### 3.22 Reserva-datos (prellenado del wizard) - `src/app/api/reserva-datos/[...slug]/route.ts`
+
+| Ruta | MÃ©todos | DescripciÃ³n |
+|---|---|---|
+| `/api/reserva-datos/prellenar` | GET | Prellena el paso "Tus datos" (`tipoDocumento`, `numeroDocumento`) con datos del **propio usuario logueado** (persona por `sie_code` o empresa por `id_empresa` de servicio-persona). Self-only: si el documento no es del usuario, devuelve `{}` |
 
 ---
 

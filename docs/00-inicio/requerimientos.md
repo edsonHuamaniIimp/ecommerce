@@ -459,12 +459,12 @@ Lineamientos de despliegue:
 | Datos del evento | Completo | Solo lectura; datos de `gess_stand` |
 | Gestión de stands + documentación | Completo | Subida de contrato/imágenes |
 | Sincronización GESS (importar + vincular `bloqueId`) | Completo | Sincronización API→BD con `GessStand` |
-| Administración de roles/permisos/usuarios | Completo | Baja de usuario probablemente rota; password por defecto |
-| Perfil de usuario | Completo | Empresa asignable solo por admin |
-| Autenticación JWT + middleware | Completo | Password en texto plano; permisos del primer rol |
+| Administración de roles/permisos/usuarios | Completo | Alta de usuarios del Portal contra servicio-persona (contraseña temporal hasheada) |
+| Perfil de usuario | Completo | Empresa asignable solo por admin; representante legal (RENIEC + foto) y gate de completitud |
+| Autenticación JWT + proxy (Next 16) | Completo | Passwords hasheadas (scrypt); login por correo o RUC; permisos del primer rol |
 | Dashboard KPIs | Parcial | KPIs de stands; pipeline de aprobaciones desconectado (`reservas={[]}`) |
 | Integración Sistema de Montaje (M2M) | Completo | `x-api-key`; 3 endpoints |
-| Integración SGC | Implementada pero **en mock** | Sin adaptador HTTP real; `SGC_ENABLED=0` por defecto |
+| Integración SGC | Completa (SGC QA) | Activa en prod (`SGC_ENABLED=1`); en local apagada por defecto |
 | RENIEC/SUNAT, entidades, KBServicios | Completo | Endpoints sin auth de handler |
 | Postgres + Prisma v7 + Docker multi-ambiente | Completo | Migraciones versionadas |
 

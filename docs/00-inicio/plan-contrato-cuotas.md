@@ -11,11 +11,11 @@
 | Plantilla | Se adapta la plantilla real (`CONTRAO-CONDICIONES GENERALES – PERUMIN 38`) con **tags**; Legal la valida. |
 | Generación | **Automática** al confirmar la reserva. El cliente descarga, firma y la envía; luego pasa a validación. |
 | IGV | Los precios del sistema son **netos**. El **IGV 18% se agrega siempre** al total (factura y boleta); el comprobante elegido solo define RUC/DNI en la reserva. |
-| Cuotas | El cliente **configura 1 a 3 cuotas** con **porcentaje y fecha de pago editables** (los porcentajes suman 100%; las fechas no son pasadas y van en orden); presets rapidos 100% y 50/50. El contrato marca **Modalidad 1** (100%), **Modalidad 2** (50/50) o **Modalidad 3 (personalizada)** imprimiendo el cronograma con montos y fechas. |
-| Imágenes del Anexo 1 | **Una imagen por pabellón** (todos los stands del cliente en ese pabellón destacados), no una por stand. Se reutiliza el recorte (RF-08). |
+| Cuotas | El cliente **configura 1 a 3 cuotas** con **porcentaje y fecha de pago editables** (los porcentajes suman 100%; las fechas no son pasadas y van en orden); presets rapidos 100% y 50/50. El contrato marca **Modalidad 1** (100%), **Modalidad 2** (50/50) o **Modalidad 3 (personalizada)** imprimiendo el cronograma con montos y fechas. Reglas vigentes: la **cuota N vence como maximo N meses despues de la reserva** (`CUOTAS_MESES_MAX_POR_CUOTA=1`), separacion minima de **1 dia** entre cuotas (`CUOTAS_DIAS_MIN_ENTRE`) y tope absoluto **2027-07-15** (`CUOTAS_FECHA_MAXIMA`). |
+| Imágenes del Anexo 1 | **Una imagen por pabellón** (todos los stands del cliente en ese pabellón destacados), no una por stand. Se reutiliza el recorte (RF-08), rediseñado con el **stand resaltado ("TU STAND") y flecha de llamada**; el anexo suma el **mapa macro de pabellones** con la declaracion del representante legal. |
 | Anexos 4/5 (Reglamentos) | Se adjuntan **aparte**, en el mismo paso del wizard. |
 | Partida electrónica | Se agrega como campo de la empresa (si aplica) y se imprime en el contrato. |
-| PDF | DOCX (docxtemplater) + PDF (LibreOffice headless en el contenedor ECS). |
+| PDF | DOCX (docxtemplater) + PDF (LibreOffice headless en el contenedor ECS); **fallback local via MS Word** (conversion DOCX→PDF acotada por semaforo) y **cache EFS del mapa macro**. |
 
 ## 2. Arquitectura implementada
 
@@ -27,6 +27,11 @@
   datos de empresa, `{#modulos}` (tabla Anexo 1), montos/IGV, `{sel_modalidad_1|2}`,
   Anexo 3 (firmante) y `{#planos}{%imagen_plano}{pabellon}{/planos}`.
 - **Motor**: `docxtemplater` + `pizzip` + `docxtemplater-image-module-free`.
+- **PDF y mapa macro**: conversion con `soffice` (LibreOffice headless del contenedor ECS) y
+  **cache EFS del mapa macro** (`/app/public/uploads/.cache-macro`) para evitar el 504: CF
+  `origin_read_timeout=60s`, ALB `idle_timeout=120s`, tarea ECS con 2048 MB y `HOME=/tmp`.
+  Si `soffice` no esta disponible, **fallback local via MS Word** (conversion acotada por
+  semaforo). El recorte del plano (RF-08) resalta el stand ("TU STAND") con flecha de llamada.
 - **Servicio**: `src/application/contratos/contrato-service.ts`
   (empresa de la cuenta → datos; stands → Anexo 1; `calcularImportes` + `planCuotasPorModalidad`;
   recortes por pabellón → imágenes; render DOCX; PDF best-effort con `soffice`;
@@ -53,6 +58,10 @@
   mientras la solicitud está `pendiente`; después, solo admin.
 - **Redondeo exacto**: la última cuota absorbe el resto para que la suma de montos sea
   exactamente el total (probado con casos trampa).
+- **Fechas acotadas**: `fechasCuotasEnRango`/`fechaMaximaCuota` (utils `cuotas.ts`) aplican
+  `CUOTAS_MESES_MAX_POR_CUOTA` (1 mes por cuota), `CUOTAS_DIAS_MIN_ENTRE` (1 día) y
+  `CUOTAS_FECHA_MAXIMA` (2027-07-15); la UI llena `min`/`max` de los inputs con
+  `dateUtils.inputValue` y el error se muestra en el wizard.
 - **Imágenes del Anexo 1 generadas en el servidor**: una por pabellón (todos los stands del
   cliente numerados), con la util compartida de recorte + `sharp`; el cliente **no envía
   archivos** y la imagen se regenera igual en cada versión del contrato (leyenda

@@ -74,6 +74,28 @@ CRON_SECRET=<cron de reconciliación>
 - Contrato y anexos se envían por la **misma API** (`POST /contracts/{id}/documents`) cambiando
   `category` (`"contract"` / `"annex"`). Detalle: `docs/05-integraciones/integracion-sgc.md`.
 
+### 0.5 Otras variables del task ECS (2026-10)
+
+```
+PERSONAS_API_URL=https://secure2.iimp.org:8443/servicio-persona/api   (fuente de personas/empresas)
+PERSONAS_API_USUARIO=integra
+PERSONAS_API_CLAVE=<clave del servicio-persona>
+LISTSTAND_API_URL / LISTSTAND_*     (integracion liststand para Vinculacion de Stands)
+EMAIL_FROM=<no-reply>               (remitente de correos; fallback ADMIN_EMAIL)
+```
+
+- **Correos**: remitente configurable via `EMAIL_FROM`; los enlaces usan `APP_URL` de runtime.
+- **Foto de personas**: se sube a servicio-persona (`POST /personas/{codigo}/foto`, JPG/PNG/WEBP <= 5 MB).
+
+### 0.6 Ajustes de infraestructura productiva (2026-10)
+
+- **ECS Fargate**: task con **2048 MB** de memoria (evita OOM al generar contratos con el mapa macro).
+- **CloudFront**: `origin_read_timeout = 60s`; **ALB**: `idle_timeout = 120s` (evitan el 504 en la
+  generacion del contrato). Variable `HOME=/tmp` en el task (LibreOffice/soffice).
+- **Cache del mapa macro**: EFS en `/app/public/uploads/.cache-macro` (reutiliza imagenes entre tareas).
+- **Migraciones**: el entrypoint ECS corre `prisma migrate deploy` en cada arranque; el rehash de
+  contrasenas legacy (`scripts/rehash-passwords.ts`) se ejecuta como **tarea ECS one-off**.
+
 ## 1. Topología
 
 ```

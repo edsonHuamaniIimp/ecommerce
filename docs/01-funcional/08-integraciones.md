@@ -58,13 +58,21 @@ Autenticación por header `x-api-key` contra `INTEGRACION_API_KEY` (**bypass si 
 |---|---|---|
 | `POST` | `/api/entidades/persona` `{documento?, nombre?}` | `${ENTIDADES_API_URL ?? KBSERVICIOS_URL}/rest/searchpersonv00` |
 | `POST` | `/api/entidades/empresa` `{nroDocument?, razonSocial?}` | `.../rest/searchempresa` |
+| `GET` | `/api/empresas/fuente` (y `/api/empresas/persona-fuente`) | **servicio-persona** (`PERSONAS_API_URL`; login `PERSONAS_API_USUARIO`/`PERSONAS_API_CLAVE`) |
+| `GET` | `/api/usuarios/personas` | servicio-persona (busca personas para crear accesos) |
+| `GET` | `/api/reserva-datos/prellenar` | servicio-persona (persona/empresa del usuario logueado; self-only) |
+| `POST`/`PUT` | `/api/empresas/registrar-cuenta-empresa` | servicio-persona (asegura empresa/persona; foto en `POST /personas/{codigo}/foto`) |
 | `GET` | `/api/reniec/dni?numero=` (8 dígitos) | `https://api.apis.net.pe/v2/reniec/dni` |
 | `GET` | `/api/sunat/ruc?numero=` (11 dígitos) | `.../sunat/ruc/full` (Bearer `SUNAT_API_TOKEN`) |
 | `POST` | `/api/kbservicios/events` | `${KBSERVICIOS_URL}/rest/events` |
 | `POST` | `/api/kbservicios/event-types` | `${KBSERVICIOS_URL}/rest/listeventtype` |
 
 - KBServicios alimenta la presala (tipos y eventos) y auspicios.
-- **Divergencia documental (dudoso)**: `docs/05-integraciones/guia-consumo-servicio-persona.md` describe otro servicio (`/servicio-persona/api`, Bearer) que **no coincide** con el cliente implementado (`/rest/searchpersonv00`).
+- **servicio-persona es la fuente de personas y empresas** del ecosistema IIMP: la persona/empresa
+  vive en la fuente y localmente solo se guardan sus identificadores (`sie_code`, `id_empresa`),
+  correo, rol y la ficha contractual minima. La foto de la persona se sube/borra por
+  `POST`/`DELETE /personas/{codigo}/foto` (JPG/PNG/WEBP <= 5 MB). Guia de consumo:
+  `docs/05-integraciones/guia-consumo-servicio-persona.md`.
 
 ## 4. Otras integraciones
 
@@ -74,15 +82,17 @@ Autenticación por header `x-api-key` contra `INTEGRACION_API_KEY` (**bypass si 
 - **Storage**: `POST /api/upload` guarda en `public/uploads/` (local) o S3 según `STORAGE_PROVIDER`.
 - **Operación**: `GET /api/health`, `POST /api/errors/log`.
 
-## 5. Rutas públicas vs. protegidas (middleware)
+## 5. Rutas públicas vs. protegidas (proxy.ts — Next 16 renombró middleware)
 
 - **Públicas**: `/`, `/presala`, `/auth/login`, `/403`; prefijos `/api/auth/`, `/api/maestra/`; exactas `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`, `/api/planos/publico`, `/api/integracion/sgc/webhook`; caso `POST /api/eventos/listar?presala=1`.
-- **Protegidas** (prefijo → permiso): `/dashboard/vinculacion` → `stands:vinculacion`; `/dashboard/datos-evento` → `eventos:datos`; `/dashboard/solicitudes|mis-solicitudes`, `/api/solicitudes`, `/api/sgc` → `solicitudes:view`; `/dashboard/stands` → `stands:manage`; `/dashboard/reservas` → `read:reservas`; `/dashboard/auspicios`, `/api/auspicios` → `auspicios:view`; `/dashboard/facturacion`, `/api/facturacion` → `facturacion:view`; `/dashboard/laboratorio`, `/api/planos` → `laboratorio:view`; `/dashboard/roles`, `/api/roles` → `roles:manage`; `/dashboard/eventos`, `/api/eventos` → `events:manage`; `/plano`, `/mapa` → `stands:plano`.
+- **Protegidas por permiso**: `/dashboard/vinculacion` → `stands:vinculacion`; `/dashboard/datos-evento` → `eventos:datos`; `/dashboard/solicitudes` → `solicitudes:gestion`; `/dashboard/mis-solicitudes` → `mis-reservas:view`; `/dashboard/mis-pagos`, `/api/pagos` → `pagos:view`; `/dashboard/stands` → `stands:manage`; `/dashboard/pre-reservas` → `stands:pre_reservar`; `/dashboard/reservas` → `read:reservas`; `/dashboard/auspicios`, `/api/auspicios` → `auspicios:view`; `/dashboard/facturacion`, `/api/facturacion` → `facturacion:view`; `/dashboard/laboratorio`, `/api/planos` → `laboratorio:view`; `/dashboard/roles`, `/api/roles`, `/api/solicitudes-cuenta` → `roles:manage`; `/dashboard/usuarios`, `/api/usuarios` → `usuarios:manage`; `/dashboard/eventos`, `/api/eventos` → `events:manage`; `/dashboard/empresas`, `/api/empresas` → `empresas:view`; `/api/solicitudes`, `/api/sgc` → `solicitudes:view`; `/plano`, `/mapa` → `stands:plano`.
+- **Sin permiso (solo sesión)**: `/dashboard` (portada; el rol cliente ve Mi Panel), `/api/dashboard`, `/api/entidades`, `/api/alertas`, `/api/exhibidoras`, `/api/empresas-montajistas`.
 - **Sin cobertura** (pasan sin token): `/api/kbservicios/**`, `/api/reniec/**`, `/api/sunat/**`, `/api/upload`, `/api/errors/log`, `/api/health`, `/api/gess/**`, `/api/planogess/**`, `/api/facturacion/niubizz/**`.
 
 ## 6. Limitaciones y observaciones
 
-- **SGC desactivado por defecto** (`SGC_ENABLED=0`); `SGC_MODE=real` usa `SGC_API_URL`/`SGC_API_KEY` (adaptador real existente).
+- **SGC activo en producción** (`SGC_ENABLED=1`, `SGC_MODE=real`, apuntando al SGC **QA**); en local
+  desactivado por defecto (`SGC_ENABLED=0`).
 - **Anexos/contrato SGC** ya tienen caller: `POST /api/sgc/subir-contrato` y `/api/sgc/subir-anexos` (botones en el panel SGC).
 - **`validators/sgc.validator.ts` no existe** (validacion inline en controllers; pendiente Zod).
 - **Constantes muertas**: `SGC_DOCUMENTO_ESTADO.SUBIDO`, `SGC_WEBHOOK_DELIVERY_HEADER`.

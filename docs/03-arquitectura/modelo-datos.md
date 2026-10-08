@@ -1,7 +1,8 @@
 # Modelo de Datos — ContratosStands
 
-> **Estado:** v0.4 — incluye modelos GessStand, Role, UserRole y la integración SGC
-> (`sgc_expediente`, `sgc_documento`, `sgc_webhook_evento`). Motor confirmado: PostgreSQL + Prisma v7.
+> **Estado:** v0.5 — incluye modelos GessStand, Role/UserRole del Portal del Cliente
+> (`empresa`, `user_role` con vínculos a servicio-persona), plan de pagos (`facturacion`)
+> y la integración SGC. Motor confirmado: PostgreSQL + Prisma v7.
 > **Relacionado:** `docs/00-inicio/requerimientos.md`, `.opencode/reglas/lineamientos-bd`.
 
 ## 1. Alcance del modelo
@@ -296,15 +297,23 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | id | id/uuid | No | PK. |
 | userId | string(100) | No | ID del usuario (ej: `user\|email`). |
 | roleId | FK | No | → role. |
-| email | string(200) | No | Email del usuario. |
-| password | string(100) | No | Hash scrypt de la contraseña. |
-| nombreEmpresa | string(200) | Sí | Razón social vinculada (cliente). |
+| email | string(200) | No | Email del usuario (también login; acepta **correo o RUC** en el login por cuenta). |
+| password | string(100) | No | Hash scrypt de la contraseña (siempre hasheada; ver `scripts/rehash-passwords.ts`). |
+| nombre / apellidos | string(200) | Sí | Nombres del usuario (perfil). |
+| telefono | string(20) | Sí | Teléfono de contacto (se sincroniza a `celular` en servicio-persona). |
+| tipoUsuarioId | int | Sí | Tipo de usuario (maestra). |
+| idEmpresa | string(50) | Sí | Código SIE de la empresa (API de entidades / servicio-persona). |
+| sieCode | string(20) | Sí | `sie_code` de la persona en servicio-persona (la persona vive en la fuente). |
+| ruc | string(11) | Sí | RUC de la empresa vinculada (copiado de la ficha; permite re-resolver la FK). |
+| nombreEmpresa | string(200) | Sí | Razón social vinculada (campo legacy que acompaña al vínculo SIE). |
 | logoUrl | string(500) | Sí | Logo propio del usuario (URL); tiene prioridad sobre el de su empresa en el mapa. |
-| empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente creada por backoffice (1 por empresa). |
+| firmaUrl | string(500) | Sí | Firma digital (PNG/JPG) para firmar contratos desde el portal. |
+| eventoId / eventoNombre / eventoPadreNombre | string | Sí | Último evento elegido: se reusa al iniciar sesión. |
+| empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente (representante legal de la ficha). |
 | debeCambiarPassword | boolean | No | Credencial temporal: exige cambio de contraseña en el primer ingreso. |
 | idioma | string(5) | No | Idioma preferido: `es` (default) \| `en`. Se usa en el selector y en las plantillas de correo/documentos. |
 
-Unique: `[userId, roleId]`. Índices: `userId`, `email`, `empresaId`.
+Unique: `[userId, roleId]`. Índices: `userId`, `email`, `empresaId`, `sieCode`.
 
 ### 4.15 `sgc_expediente` (Integración · correlación)
 
@@ -388,7 +397,8 @@ Operaciones hacia el SGC con reintentos y backoff. Ver `docs/05-integraciones/in
 
 Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico
 (`/auth/solicitar-cuenta`). Nace en estado `pendiente` y la resuelve un
-administrador.
+administrador; al aprobar se copia el `ruc` del solicitante y la cuenta creada
+queda vinculada a la ficha local de la empresa (`user_role.empresaId`).
 
 | Campo | Tipo | Nulo | Descripción |
 | --- | --- | --- | --- |
@@ -441,6 +451,7 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 | --- | --- | --- | --- |
 | id | id/uuid | No | PK. |
 | ruc | string(11) | No | RUC (11 dígitos). **Único**. |
+| sieCode | string(20) | Sí | `sie_code` de la empresa en servicio-persona (la empresa vive en la fuente). |
 | razonSocial | string(200) | No | Razón social; usada en el contrato. |
 | logoUrl | string(500) | Sí | Logo de la empresa (URL en `/uploads/*`); se pinta en sus stands reservados del mapa. |
 | nombreComercial | string(200) | Sí | Nombre comercial (no contractual). |
@@ -450,6 +461,9 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 | emailFacturacion | string(200) | Sí | Correo para facturación/comprobantes. |
 | representanteLegalNombre | string(200) | Sí | Representante legal (firma el contrato). |
 | representanteLegalDni | string(15) | Sí | DNI/pasaporte del representante legal. |
+| representanteCorreo | string(200) | Sí | Correo del representante legal (crea su cuenta del Portal; se sincroniza con la fuente). |
+| representanteCelular | string(35) | Sí | Celular del representante legal (se sincroniza con la fuente). |
+| representanteDireccion | string(100) | Sí | Dirección del representante legal (se sincroniza con la fuente). |
 | partidaElectronica | string(50) | Sí | Partida electrónica de inscripción de poderes del representante (si aplica). Se imprime en el contrato. |
 | tipoComprobante | string(20) | No | `factura` \| `boleta` (preferido por la empresa). |
 | sitioWeb | string(200) | Sí | Sitio web (opcional). |
@@ -459,7 +473,12 @@ Cliente se crea explícitamente (1 cuenta por empresa) y las credenciales se env
 | datosValidadosEn | datetime | Sí | Fecha de validación de datos contractuales. |
 | creadoPor | string(200) | Sí | Usuario del backoffice que registró la empresa. |
 
-Índices: `ruc` (único), `razonSocial`, `estado`.
+Índices: `ruc` (único), `razonSocial`, `estado`, `sieCode`.
+
+> La **cuenta del Portal** (representante legal) vive en `user_role` (`empresaId` + `sieCode`
+> de la persona). El perfil del representante mantiene estos campos (DNI, nombre, partida,
+> dirección, correo, celular, foto) y exige DNI/correo/celular/dirección para operar; el
+> correo solo se cambia con validación previa.
 
 ### 4.22 `facturacion` / `facturacion_cuota` (Transaccional · plan de pagos)
 
