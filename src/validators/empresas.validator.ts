@@ -22,6 +22,10 @@ export const crearEmpresaSchema = z.object({
   representanteLegalNombre: z.string().trim().max(200).optional().nullable(),
   representanteLegalDni: z.string().trim().max(15).optional().nullable(),
   partidaElectronica: z.string().trim().max(50).optional().nullable(),
+  representanteDireccion: z.string().trim().max(100).optional().nullable(),
+  representanteCorreo: emailOpcional,
+  representanteCelular: z.string().trim().max(35).optional().nullable(),
+  representanteFotoUrl: z.string().max(2048).optional().nullable(),
   tipoComprobante: z.enum([TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA]).optional().nullable(),
   sitioWeb: z.string().trim().max(200).optional().nullable(),
 });
@@ -40,6 +44,11 @@ export const cambiarEstadoEmpresaSchema = z.object({
 /** Operaciones que solo requieren el id de la empresa. */
 export const idEmpresaSchema = z.object({
   id: z.string().min(1, "id requerido"),
+});
+
+/** Crear cuenta del Portal: permite indicar el correo del representante si la ficha no lo tiene. */
+export const crearCuentaEmpresaSchema = idEmpresaSchema.extend({
+  email: z.string().trim().regex(REGEX_EMAIL, "Correo invalido").optional().nullable(),
 });
 
 /** Fila de la carga masiva (texto plano del archivo). */
@@ -74,6 +83,12 @@ export const cambiarIdiomaSchema = z.object({
 /** Busqueda de empresas en la fuente servicio-persona (mismo criterio que personas). */
 export const buscarEmpresaFuenteSchema = z.object({
   q: z.string().trim().min(3, "q requerido (minimo 3 caracteres)").max(120),
+});
+
+/** Busqueda de una persona en el padron interno (servicio-persona) por documento exacto. */
+export const buscarPersonaFuenteSchema = z.object({
+  tipoDocumento: z.enum([TIPOS_DOCUMENTO_PERSONA.DNI, TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, TIPOS_DOCUMENTO_PERSONA.PASAPORTE]),
+  numeroDocumento: z.string().trim().min(1, "numeroDocumento requerido").max(15),
 });
 
 /** Empresa a registrar en servicio-persona (se crea en la fuente si no existe). */

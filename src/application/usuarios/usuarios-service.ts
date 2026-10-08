@@ -165,6 +165,7 @@ export class UsuariosApplicationService {
       empresaId: empresaResuelta.empresaId,
       idEmpresa: empresaResuelta.idEmpresa,
       sieCode,
+      ruc: String(empresa.ruc ?? "").replace(/\D/g, "") || null,
       debeCambiarPassword: true,
     });
 
@@ -215,6 +216,7 @@ export class UsuariosApplicationService {
       empresaId: empresaResuelta.empresaId,
       idEmpresa: empresaResuelta.idEmpresa,
       sieCode,
+      ruc: String(input.ruc ?? "").replace(/\D/g, "") || null,
       debeCambiarPassword: true,
     });
 

@@ -1,7 +1,8 @@
 import type { EmpresaEntity, EmpresasPaginatedResult } from "@/domain/models/empresa";
 import type { EmpresaApi } from "@/domain/ports/empresa-client";
+import type { PersonaApi } from "@/domain/ports/persona-client";
 import { REGEX_RUC, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
-import type { EmpresaDTO, EmpresaFuenteDTO, EmpresasPaginatedDTO } from "@/types/dto/empresas";
+import type { EmpresaDTO, EmpresaFuenteDTO, EmpresasPaginatedDTO, PersonaFuenteDTO } from "@/types/dto/empresas";
 
 /** Entidad de dominio -> DTO de respuesta (fechas ISO para la API). */
 export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
@@ -18,6 +19,9 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     emailFacturacion: entity.emailFacturacion,
     representanteLegalNombre: entity.representanteLegalNombre,
     representanteLegalDni: entity.representanteLegalDni,
+    representanteCorreo: entity.representanteCorreo,
+    representanteCelular: entity.representanteCelular,
+    representanteDireccion: entity.representanteDireccion,
     partidaElectronica: entity.partidaElectronica,
     tipoComprobante: entity.tipoComprobante,
     sitioWeb: entity.sitioWeb,
@@ -54,5 +58,17 @@ export function mapEmpresaFuenteToDTO(empresa: EmpresaApi): EmpresaFuenteDTO {
     direccion: empresa.direccion ?? null,
     correo: empresa.correo ?? null,
     telefono: empresa.telefono ?? null,
+  };
+}
+
+/** Persona de servicio-persona (padron interno) -> DTO de respuesta. */
+export function mapPersonaFuenteToDTO(persona: PersonaApi): PersonaFuenteDTO {
+  return {
+    sieCode: persona.sie_code ?? "",
+    documento: persona.documento ?? "",
+    nombreCompleto: persona.nombre_completo ?? "",
+    direccion: persona.direccion ?? null,
+    correo: persona.correo ?? null,
+    celular: persona.celular ?? null,
   };
 }

@@ -10,6 +10,7 @@ import { KbServiciosClient } from "@/infrastructure/external/kbservicios-client"
 import { ListstandClient } from "@/infrastructure/external/liststand-client";
 import { PersonaApiClient } from "@/infrastructure/external/persona-client";
 import { EmpresaApiClient } from "@/infrastructure/external/empresa-client";
+import { ConsultaDocumentoClient } from "@/infrastructure/external/consulta-documento-client";
 import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import { SgcClient } from "@/infrastructure/external/sgc-client";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
@@ -60,6 +61,7 @@ const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
 const personaClient = new PersonaApiClient();
 const empresaClient = new EmpresaApiClient();
+const consultaDocumentoClient = new ConsultaDocumentoClient();
 const reservaIimpClient = new ReservaIimpClient();
 const sgcConfig = getSgcConfig();
 const sgcRepo = new SgcPrismaRepository();
@@ -80,9 +82,9 @@ export const services = {
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
   prellenadoReserva: new PrellenadoReservaApplicationService(usuarioRepo, personaClient, empresaClient),
-  auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo),
+  auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo, personaClient),
   dashboard: new DashboardApplicationService(gessRepo),
-  solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo),
+  solicitudCuenta: new SolicitudCuentaApplicationService(solicitudCuentaRepo, roleRepo, empresaRepo),
   kbServicios: kbServiciosClient,
   planogess: planogessClient,
   sgc: sgcIntegracion,
@@ -90,7 +92,7 @@ export const services = {
   sgcOutbox,
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion),
   planos: new PlanoApplicationService(planoRepo),
-  empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient),
+  empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),

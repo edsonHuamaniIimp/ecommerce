@@ -25,6 +25,8 @@ export interface NuevoUsuarioAuth {
   idEmpresa?: string | null;
   /** Identificador de la persona en servicio-persona (sie_code). */
   sieCode?: string | null;
+  /** RUC de la empresa vinculada (copia local para representar la cuenta). */
+  ruc?: string | null;
   /** Credencial temporal: exigir cambio de contrasena en el primer ingreso. */
   debeCambiarPassword?: boolean;
   /** Idioma preferido al crear la cuenta (es | en); default espanol. */
@@ -51,6 +53,8 @@ export interface RegistroPendienteEntity extends RegistroPendienteData {
 
 export interface IAuthRepository {
   findByEmail(email: string): Promise<(UserRoleEntity & { password: string; role: { nombre: string; permisos: string[] } })[]>;
+  /** Cuentas por RUC (login alternativo y validacion de duplicados). */
+  findByRuc(ruc: string): Promise<(UserRoleEntity & { password: string; role: { nombre: string; permisos: string[] } })[]>;
   existeEmail(email: string): Promise<boolean>;
   crearUsuario(data: NuevoUsuarioAuth): Promise<void>;
   upsertRegistroPendiente(data: RegistroPendienteData): Promise<void>;
@@ -61,7 +65,7 @@ export interface IAuthRepository {
   findOrCreateEvento(tipoEvento: number, codigoEvento: number): Promise<{ id: string }>;
   /** Persiste el ultimo evento elegido para reusarlo en el proximo login. */
   setEventoSeleccionado(email: string, eventoId: string, eventoNombre?: string | null, eventoPadreNombre?: string | null): Promise<void>;
-  findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null; empresa: { ruc: string; razonSocial: string; direccionFiscal: string | null; telefono: string | null; emailContacto: string | null; representanteLegalNombre: string | null } | null; logoUrl: string | null; firmaUrl: string | null; idioma: string | null } | null>;
+  findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null; empresa: { ruc: string; razonSocial: string; direccionFiscal: string | null; telefono: string | null; emailContacto: string | null; representanteLegalNombre: string | null; representanteLegalDni: string | null; representanteCorreo: string | null; representanteCelular: string | null; representanteDireccion: string | null; partidaElectronica: string | null } | null; logoUrl: string | null; firmaUrl: string | null; idioma: string | null } | null>;
   updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }): Promise<void>;
   findForReset(email: string): Promise<{ id: string; email: string; nombre: string | null } | null>;
   setResetToken(id: string, token: string, expires: Date): Promise<void>;
@@ -69,6 +73,10 @@ export interface IAuthRepository {
   updatePassword(id: string, password: string): Promise<void>;
   /** Empresa del Portal (PK) a la que pertenece la cuenta, si tiene. */
   findEmpresaIdDeUsuario(email: string): Promise<string | null>;
+  /** Identificador de la persona en servicio-persona (sie_code) del usuario; null si no tiene. */
+  findSieCodePorEmail(email: string): Promise<string | null>;
+  /** true si ya existe una cuenta local con ese RUC (evita recrear cuentas de empresa). */
+  existeCuentaConRuc(ruc: string): Promise<boolean>;
   /** Actualiza el nombre visible del evento/padre local con los datos de KB (best-effort). */
   renombrarEvento(eventoId: string, padreNombre: string | null, anio: string | null): Promise<void>;
   /** Marca/limpia la exigencia de cambio de contrasena (credencial temporal). */

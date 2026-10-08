@@ -20,7 +20,22 @@ interface PerfilDTO {
     telefono: string | null;
     emailContacto: string | null;
     representanteLegalNombre: string | null;
+    representanteLegalDni: string | null;
+    representanteCorreo: string | null;
+    representanteCelular: string | null;
+    representanteDireccion: string | null;
+    /** Partida electronica del representante (ficha: partidaElectronica). */
+    representantePartida: string | null;
   } | null;
+  /** true = tiene empresa y le faltan datos obligatorios del representante legal. */
+  representanteIncompleto?: boolean;
+  /** Datos del representante legal (se guardan en la ficha de la empresa). */
+  representanteNombre?: string | null;
+  representanteDni?: string | null;
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  representanteDireccion?: string | null;
+  representantePartida?: string | null;
   /** Logo propio del usuario (URL); prioridad sobre el de su empresa en el mapa. */
   logoUrl?: string | null;
   /** Firma digital del usuario (imagen); se usa para firmar contratos desde el portal. */

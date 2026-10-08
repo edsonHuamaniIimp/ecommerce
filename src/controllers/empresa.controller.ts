@@ -4,17 +4,20 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES, CARGA_MASIVA_EXTENSIONES, CARGA_MASIVA_MAX_BYTES } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { getSession } from "@/lib/server/auth";
-import { mapEmpresaToDTO, mapEmpresasPaginatedToDTO, mapEmpresaFuenteToDTO } from "@/lib/shared/mappers/empresa";
+import { mapEmpresaToDTO, mapEmpresasPaginatedToDTO, mapEmpresaFuenteToDTO, mapPersonaFuenteToDTO } from "@/lib/shared/mappers/empresa";
 import { ParserTablaError, parsearArchivoEmpresas } from "@/lib/server/parsers/tabla-empresas";
 import {
   actualizarEmpresaSchema,
   buscarEmpresaFuenteSchema,
+  buscarPersonaFuenteSchema,
   cambiarEstadoEmpresaSchema,
+  crearCuentaEmpresaSchema,
   crearEmpresaSchema,
   idEmpresaSchema,
   importarCargaEmpresasSchema,
   registrarCuentaEmpresaSchema,
 } from "@/validators/empresas.validator";
+import { TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import type { CrearEmpresaRequestDTO } from "@/types/dto/empresas";
 
 const PER_PAGE_DEFAULT = 10;
@@ -173,12 +176,12 @@ export const empresaController = {
     const session = await sesionRequerida();
     services.empresas.autorizarGestion(session.permissions);
 
-    const parsed = idEmpresaSchema.safeParse(await request.json());
+    const parsed = crearCuentaEmpresaSchema.safeParse(await request.json());
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
 
-    const resultado = await services.empresas.crearCuenta(parsed.data.id);
+    const resultado = await services.empresas.crearCuenta(parsed.data.id, parsed.data.email ?? null);
     return success(resultado);
   },
 
@@ -210,6 +213,24 @@ export const empresaController = {
 
     const empresas = await services.empresas.buscarEmpresasFuente(parsed.data.q);
     return success(empresas.map(mapEmpresaFuenteToDTO));
+  },
+
+  /** Busca una persona en el padron interno (servicio-persona) por documento exacto. */
+  async buscarPersonaFuente(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const params = new URL(request.url).searchParams;
+    const parsed = buscarPersonaFuenteSchema.safeParse({
+      tipoDocumento: params.get("tipoDocumento") ?? TIPOS_DOCUMENTO_PERSONA.DNI,
+      numeroDocumento: params.get("numeroDocumento") ?? "",
+    });
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const persona = await services.empresas.buscarPersonaEnFuente(parsed.data.numeroDocumento, parsed.data.tipoDocumento);
+    return success(persona ? mapPersonaFuenteToDTO(persona) : null);
   },
 
   /**

@@ -20,6 +20,9 @@ export interface EmpresaEntity {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  representanteCorreo: string | null;
+  representanteCelular: string | null;
+  representanteDireccion: string | null;
   /** Partida electronica de poderes del representante (si aplica). */
   partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;
@@ -48,6 +51,13 @@ export interface EmpresaInput {
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
   partidaElectronica?: string | null;
+  /** Correo y celular del representante (se persisten y se usan para su cuenta). */
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  /** Datos del representante para servicio-persona (no se persisten en la ficha local). */
+  representanteDireccion?: string | null;
+  /** Foto del representante (URL local /uploads o http) para subirla a servicio-persona. */
+  representanteFotoUrl?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }
@@ -66,6 +76,10 @@ export interface CrearEmpresaData {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  /** Correo y celular del representante (se persisten en la ficha). */
+  representanteCorreo: string | null;
+  representanteCelular: string | null;
+  representanteDireccion: string | null;
   /** Partida electronica de poderes del representante (si aplica). */
   partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;

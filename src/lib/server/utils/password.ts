@@ -1,5 +1,7 @@
-import 'server-only';
-
+/*
+ * Hashing de contrasenas (scrypt). Sin `server-only` a proposito: el seed de
+ * `prisma/seed.ts` (tsx) también lo usa para no guardar credenciales en texto plano.
+ */
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 const PREFIJO = "scrypt";

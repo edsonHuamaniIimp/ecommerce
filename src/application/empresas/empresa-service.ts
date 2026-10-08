@@ -1,10 +1,12 @@
-import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, IDIOMA_DEFAULT, PERMISSIONS, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PERMISSIONS, REGEX_DNI, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
+import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
+import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { EmpresaApi, IEmpresaClient } from "@/domain/ports/empresa-client";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
@@ -116,6 +118,7 @@ export class EmpresaApplicationService {
     private readonly roleRepo: IRoleRepository,
     private readonly personaClient: IPersonaClient,
     private readonly empresaClient: IEmpresaClient,
+    private readonly consultaDocumento: IConsultaDocumentoClient,
   ) {}
 
   async listar(params: EmpresasListParams): Promise<EmpresasPaginatedResult> {
@@ -125,6 +128,69 @@ export class EmpresaApplicationService {
   /** Busca empresas en la fuente (servicio-persona) por razon social o RUC. */
   buscarEmpresasFuente(q: string) {
     return this.empresaClient.buscarEmpresas(q);
+  }
+
+  /** Busca una persona en la fuente (servicio-persona) por documento exacto (padron interno). */
+  buscarPersonaEnFuente(numeroDocumento: string, tipoDocumento: string) {
+    return this.personaClient.buscarPorDocumento(numeroDocumento, tipoDocumento);
+  }
+
+  /**
+   * Asegura al representante legal como persona en la fuente (misma logica que las
+   * empresas): con RENIEC se obtienen nombres/apellidos oficiales; si ya existe por
+   * documento se reutiliza (y se actualiza si difiere); si no, se crea. Direccion,
+   * correo, celular y foto viajan a servicio-persona. Best-effort.
+   */
+  private async asegurarRepresentanteEnFuente(
+    dni: string,
+    email: string | null,
+    telefono: string | null,
+    direccion: string | null,
+    fotoUrl: string | null,
+  ): Promise<string | null> {
+    try {
+      const datos = await this.consultaDocumento.consultarDni(dni).catch(() => null);
+      if (!datos?.apellidoPaterno || !datos.nombres) return null;
+      const deseada = {
+        tipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+        documento: dni,
+        apellidoPaterno: datos.apellidoPaterno,
+        apellidoMaterno: datos.apellidoMaterno ?? null,
+        nombres: datos.nombres,
+        correo: email,
+        celular: telefono,
+        direccion,
+      };
+      const existente = await this.personaClient.buscarPorDocumento(dni, TIPOS_DOCUMENTO_PERSONA.DNI);
+      let sieCode = existente?.sie_code ?? null;
+      if (sieCode) {
+        await actualizarPersonaSiDifiere(this.personaClient, existente ?? {}, deseada);
+      } else {
+        const creada = await this.personaClient.crearPersona({
+          apellido_paterno: deseada.apellidoPaterno,
+          apellido_materno: deseada.apellidoMaterno,
+          nombres: deseada.nombres,
+          id_tipo_documento: deseada.tipoDocumento,
+          documento: dni,
+          direccion,
+          correo: email,
+          celular: telefono,
+        });
+        sieCode = creada.sie_code ?? null;
+      }
+      /* Foto: se sube a la fuente (Post /personas/{codigo}/foto) cuando hay imagen valida. */
+      if (sieCode && fotoUrl) {
+        const imagen = await leerImagenFuente(fotoUrl);
+        const tipo = imagen ? tipoImagen(imagen) : null;
+        if (imagen && tipo && imagen.length <= FOTO_PERSONA_MAX_BYTES) {
+          await this.personaClient.subirFoto(sieCode, imagen, tipo);
+        }
+      }
+      return sieCode;
+    } catch {
+      /* best-effort: la ficha contractual local no depende de la fuente */
+      return null;
+    }
   }
 
   /** Valida y normaliza los datos de la empresa segun la guia de servicio-persona. */
@@ -289,6 +355,9 @@ export class EmpresaApplicationService {
       emailFacturacion: null,
       representanteLegalNombre: null,
       representanteLegalDni: null,
+      representanteCorreo: null,
+      representanteCelular: null,
+      representanteDireccion: null,
       partidaElectronica: null,
       tipoComprobante: TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: null,
@@ -351,6 +420,7 @@ export class EmpresaApplicationService {
       empresaId,
       idEmpresa: empresaFuente.sieCode,
       sieCode: personaFuente.sieCode,
+      ruc: empresa.idTipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC ? empresa.documento : null,
       debeCambiarPassword: true,
     });
     if (ficha && !ficha.cuentaCreada) {
@@ -400,8 +470,13 @@ export class EmpresaApplicationService {
     return empresa;
   }
 
-  /** Alta de empresa (backoffice): valida y normaliza los datos contractuales. */
-  async crear(input: EmpresaInput, creadoPor: string | null): Promise<EmpresaEntity> {
+  /**
+   * Alta de empresa (backoffice): valida y normaliza los datos contractuales.
+   * Con `sincronizarFuente` (default) asegura la empresa y al representante en
+   * servicio-persona; la carga masiva lo desactiva (se sincroniza despues 1x1).
+   */
+  async crear(input: EmpresaInput, creadoPor: string | null, opciones: { sincronizarFuente?: boolean } = {}): Promise<EmpresaEntity> {
+    const sincronizarFuente = opciones.sincronizarFuente ?? true;
     const razonSocial = limpiar(input.razonSocial);
     if (!razonSocial || razonSocial.length < LARGO_MIN_RAZON_SOCIAL) {
       throw new DomainError("La razon social es obligatoria", API_ERROR_CODES.VALIDATION, 400);
@@ -419,7 +494,7 @@ export class EmpresaApplicationService {
     }
 
     /* Criterio: si el padron ya dio el codigo SIE se usa; si no, se asegura en la fuente. */
-    const sieCode = limpiar(input.sieCode) ?? await this.asegurarEmpresaEnFuenteBestEffort({
+    const sieCode = limpiar(input.sieCode) ?? (sincronizarFuente ? await this.asegurarEmpresaEnFuenteBestEffort({
       nombre: razonSocial,
       idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
       documento: ruc,
@@ -427,7 +502,19 @@ export class EmpresaApplicationService {
       correo: limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion) ?? "",
       telefono: limpiar(input.telefono) ?? "",
       pais: UBIGEO_PAIS_PERU,
-    });
+    }) : null);
+
+    /* Misma logica para el representante legal: reutilizar/actualizar o crear en la fuente. */
+    const dniRepresentante = limpiar(input.representanteLegalDni);
+    if (sincronizarFuente && dniRepresentante && REGEX_DNI.test(dniRepresentante)) {
+      await this.asegurarRepresentanteEnFuente(
+        dniRepresentante,
+        limpiar(input.representanteCorreo) ?? limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion),
+        limpiar(input.representanteCelular) ?? limpiar(input.telefono),
+        limpiar(input.representanteDireccion) ?? limpiar(input.direccionFiscal),
+        limpiar(input.representanteFotoUrl),
+      );
+    }
 
     const data: CrearEmpresaData = {
       ruc,
@@ -441,12 +528,33 @@ export class EmpresaApplicationService {
       emailFacturacion: limpiar(input.emailFacturacion),
       representanteLegalNombre: limpiar(input.representanteLegalNombre),
       representanteLegalDni: limpiar(input.representanteLegalDni),
+      representanteCorreo: limpiar(input.representanteCorreo),
+      representanteCelular: limpiar(input.representanteCelular),
+      representanteDireccion: limpiar(input.representanteDireccion),
       partidaElectronica: limpiar(input.partidaElectronica),
       tipoComprobante,
       sitioWeb: limpiar(input.sitioWeb),
       creadoPor: limpiar(creadoPor),
     };
-    return this.repo.create(data);
+    const empresa = await this.repo.create(data);
+
+    /*
+     * Relacion usuario(representante) - empresa: MISMA logica que /dashboard/perfil
+     * (user_role.id_empresa + nombre_empresa + FK local por RUC). Solo si el correo
+     * del representante ya tiene una cuenta local; el resto de relaciones se crean
+     * en los flujos de Usuarios / Registro desde servicio-persona.
+     */
+    const emailRepresentante = limpiar(input.representanteCorreo);
+    if (sincronizarFuente && emailRepresentante) {
+      const correo = emailRepresentante.toLowerCase();
+      const cuentas = await this.authRepo.findByEmail(correo).catch(() => []);
+      if (cuentas.length > 0) {
+        await this.authRepo
+          .updatePerfil(correo, { idEmpresa: sieCode, nombreEmpresa: razonSocial, empresaId: empresa.id })
+          .catch(() => {});
+      }
+    }
+    return empresa;
   }
 
   /** Edicion parcial: solo actualiza los campos enviados (undefined = sin cambio). */
@@ -490,7 +598,7 @@ export class EmpresaApplicationService {
       cambios.tipoComprobante = validarTipoComprobante(input.tipoComprobante);
     }
 
-    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "partidaElectronica", "sitioWeb"] as const) {
+    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "representanteCorreo", "representanteCelular", "representanteDireccion", "partidaElectronica", "sitioWeb"] as const) {
       if (input[campo] !== undefined) cambios[campo] = limpiar(input[campo]);
     }
 
@@ -669,6 +777,8 @@ export class EmpresaApplicationService {
             sitioWeb: fila.sitioWeb || null,
           },
           creadoPor,
+          /* Carga masiva: solo crea empresas; la fuente/representante se asigna luego 1x1. */
+          { sincronizarFuente: false },
         );
         creadas++;
       } catch {
@@ -686,24 +796,62 @@ export class EmpresaApplicationService {
    * temporal, rol cliente y vinculo a la empresa. Envia las credenciales por correo
    * y exige el cambio de contrasena en el primer ingreso.
    */
-  async crearCuenta(id: string): Promise<ResultadoCredencialesEmpresa> {
+  async crearCuenta(id: string, emailPortal?: string | null): Promise<ResultadoCredencialesEmpresa> {
     const empresa = await this.obtener(id);
     if (empresa.cuentaCreada) {
       throw new DomainError("La empresa ya tiene cuenta creada. Usa 'Reenviar credenciales'.", API_ERROR_CODES.CONFLICT, 409);
     }
 
-    const email = (empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
+    /* La cuenta es del representante legal: su correo manda sobre los de la empresa. */
+    const emailOverride = limpiar(emailPortal)?.toLowerCase() ?? null;
+    const email = (emailOverride ?? limpiar(empresa.representanteCorreo) ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
     if (!email) {
-      throw new DomainError("La empresa no tiene correo de contacto ni de facturacion", API_ERROR_CODES.VALIDATION, 400);
+      throw new DomainError("La empresa no tiene correo del representante ni de contacto/facturacion", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (emailOverride && !REGEX_EMAIL.test(emailOverride)) {
+      throw new DomainError("Correo del representante invalido", API_ERROR_CODES.VALIDATION, 400);
     }
     if (await this.authRepo.existeEmail(email)) {
       throw new DomainError(`El correo ${email} ya tiene una cuenta habilitada`, API_ERROR_CODES.CONFLICT, 409);
+    }
+    /* Evita recrear cuentas: mismo RUC ya habilitado (rol cliente, 1 cuenta por empresa). */
+    if (empresa.ruc && await this.authRepo.existeCuentaConRuc(empresa.ruc)) {
+      throw new DomainError(`El RUC ${empresa.ruc} ya tiene una cuenta habilitada`, API_ERROR_CODES.CONFLICT, 409);
     }
 
     const rol = await this.roleRepo.findByNombre(ROLES.CLIENTE);
     if (!rol) {
       throw new DomainError(`No existe el rol ${ROLES.CLIENTE} en el sistema`, API_ERROR_CODES.INTERNAL, 500);
     }
+
+    /*
+     * La cuenta es del REPRESENTANTE LEGAL: se asegura en la fuente (sie_code) y se
+     * vincula a la empresa con los mismos identificadores que usan Usuarios/perfil
+     * (id_empresa SIE + FK local por RUC). Best-effort: sin fuente, la cuenta se crea igual.
+     */
+    let idEmpresa = empresa.sieCode;
+    if (!idEmpresa) {
+      idEmpresa = await this.asegurarEmpresaEnFuenteBestEffort({
+        nombre: empresa.razonSocial,
+        idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+        documento: empresa.ruc,
+        direccion: limpiar(empresa.direccionFiscal) ?? "",
+        correo: limpiar(empresa.emailContacto) ?? limpiar(empresa.emailFacturacion) ?? "",
+        telefono: limpiar(empresa.telefono) ?? "",
+        pais: UBIGEO_PAIS_PERU,
+      });
+      if (idEmpresa) await this.repo.update(empresa.id, { sieCode: idEmpresa });
+    }
+    const dniRepresentante = limpiar(empresa.representanteLegalDni);
+    const sieCode = dniRepresentante && REGEX_DNI.test(dniRepresentante)
+      ? await this.asegurarRepresentanteEnFuente(
+          dniRepresentante,
+          email,
+          limpiar(empresa.representanteCelular),
+          null,
+          null,
+        )
+      : null;
 
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.crearUsuario({
@@ -712,15 +860,22 @@ export class EmpresaApplicationService {
       password: hashPassword(passwordTemporal),
       nombre: empresa.representanteLegalNombre ?? empresa.razonSocial,
       apellidos: "",
-      telefono: empresa.telefono,
+      telefono: empresa.representanteCelular ?? empresa.telefono,
       nombreEmpresa: empresa.razonSocial,
       roleId: rol.id,
       empresaId: empresa.id,
+      idEmpresa: idEmpresa ?? null,
+      sieCode: sieCode ?? null,
+      ruc: empresa.ruc,
       debeCambiarPassword: true,
     });
 
     const emailEnviado = await this.enviarCredenciales(empresa, email, passwordTemporal);
-    await this.repo.update(id, { cuentaCreada: true });
+    await this.repo.update(id, {
+      cuentaCreada: true,
+      /* Si el correo del representante no estaba en la ficha, se guarda para futuros envios. */
+      ...(!limpiar(empresa.representanteCorreo) && emailOverride ? { representanteCorreo: emailOverride } : {}),
+    });
     return { email, emailEnviado };
   }
 
@@ -731,9 +886,9 @@ export class EmpresaApplicationService {
       throw new DomainError("La empresa aun no tiene cuenta creada", API_ERROR_CODES.CONFLICT, 409);
     }
 
-    const email = (empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
+    const email = (limpiar(empresa.representanteCorreo) ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
     if (!email) {
-      throw new DomainError("La empresa no tiene correo de contacto ni de facturacion", API_ERROR_CODES.VALIDATION, 400);
+      throw new DomainError("La empresa no tiene correo del representante ni de contacto/facturacion", API_ERROR_CODES.VALIDATION, 400);
     }
     const usuarios = await this.authRepo.findByEmail(email);
     const principal = usuarios[0];

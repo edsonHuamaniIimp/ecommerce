@@ -844,6 +844,9 @@ export const CUOTAS_DIAS_MIN_ENTRE = 1;
 /** Tope absoluto del cronograma de cuotas (fecha ISO yyyy-mm-dd). */
 export const CUOTAS_FECHA_MAXIMA = "2027-07-15";
 
+/** Maximo de bytes para la foto de una persona en servicio-persona (5 MB). */
+export const FOTO_PERSONA_MAX_BYTES = 5 * 1024 * 1024;
+
 /** Maximo de cuotas por reserva que acepta el API del IIMP. */
 export const MAX_CUOTAS_IIMP = 9;
 

@@ -1,4 +1,5 @@
 import type { ISolicitudCuentaRepository } from "@/domain/ports/solicitud-cuenta-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { SolicitudCuentaEntity } from "@/domain/models/entities";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -47,6 +48,7 @@ export class SolicitudCuentaApplicationService {
   constructor(
     private readonly repo: ISolicitudCuentaRepository,
     private readonly roleRepo: IRoleRepository,
+    private readonly empresaRepo: IEmpresaRepository,
   ) {}
 
   async crear(dto: CrearSolicitudCuentaRequestDTO): Promise<CrearSolicitudCuentaResult> {
@@ -129,6 +131,9 @@ export class SolicitudCuentaApplicationService {
     if (!rol) return { ok: false, message: `No existe el rol ${ROLES.CLIENTE} en el sistema` };
 
     const token = generarTokenAleatorio();
+    /* Guarda en la cuenta los datos minimos de la empresa: RUC y FK local si ya existe. */
+    const ruc = (solicitud.ruc ?? "").replace(/\D/g, "");
+    const fichaLocal = ruc.length === 11 ? await this.empresaRepo.findByRuc(ruc) : null;
     await this.repo.aprobar(solicitud.id, {
       revisadoPor: revisor,
       usuario: {
@@ -138,6 +143,8 @@ export class SolicitudCuentaApplicationService {
         apellidos: solicitud.apellidos,
         telefono: solicitud.telefono,
         nombreEmpresa: solicitud.razonSocial,
+        ruc: ruc || null,
+        empresaId: fichaLocal?.id ?? null,
         password: hashPassword(generarTokenAleatorio()),
         resetToken: token,
         resetTokenExpires: new Date(Date.now() + INVITACION_CUENTA_MINUTOS_VIGENCIA * MS_POR_MINUTO),

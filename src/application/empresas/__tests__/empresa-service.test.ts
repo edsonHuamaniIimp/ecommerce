@@ -5,6 +5,7 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { EmpresaApi, IEmpresaClient, NuevaEmpresaApi } from "@/domain/ports/empresa-client";
 import type { IPersonaClient, NuevaPersonaApi, PersonaApi } from "@/domain/ports/persona-client";
+import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type {
   CrearEmpresaData,
   EmpresaEntity,
@@ -31,6 +32,11 @@ vi.mock("@/lib/server/utils/password", () => ({
   hashPassword: (plano: string) => `hash:${plano}`,
   generarPasswordTemporal: () => "TempPass123",
 }));
+vi.mock("node:fs", () => ({
+  default: {
+    readFileSync: vi.fn(() => Buffer.from([0xff, 0xd8, 0xff, 0xe0])),
+  },
+}));
 
 /** Repositorio falso en memoria para los tests del servicio. */
 class FakeEmpresaRepo implements IEmpresaRepository {
@@ -53,6 +59,9 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       emailFacturacion: data.emailFacturacion ?? null,
       representanteLegalNombre: data.representanteLegalNombre ?? null,
       representanteLegalDni: data.representanteLegalDni ?? null,
+      representanteCorreo: data.representanteCorreo ?? null,
+      representanteCelular: data.representanteCelular ?? null,
+      representanteDireccion: data.representanteDireccion ?? null,
       partidaElectronica: data.partidaElectronica ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
@@ -88,6 +97,10 @@ class FakeEmpresaRepo implements IEmpresaRepository {
     return [...this.items.values()].find((e) => e.ruc === ruc) ?? null;
   }
 
+  async findBySieCode(sieCode: string): Promise<EmpresaEntity | null> {
+    return [...this.items.values()].find((e) => e.sieCode === sieCode) ?? null;
+  }
+
   async create(data: CrearEmpresaData): Promise<EmpresaEntity> {
     return this.seed(data);
   }
@@ -114,14 +127,17 @@ const INPUT_BASE = {
 function fakeAuthRepo(overrides: {
   existeEmail?: boolean;
   usuarioExistente?: boolean;
+  rucExistente?: boolean;
   empresaPortal?: { empresaId: string; primerAccesoCompletado: boolean } | null;
 } = {}) {
   const llamadas = { creados: [] as unknown[], passwords: [] as string[], flags: [] as boolean[] };
   return {
     llamadas,
     existeEmail: vi.fn(async () => overrides.existeEmail ?? false),
+    existeCuentaConRuc: vi.fn(async () => overrides.rucExistente ?? false),
     crearUsuario: vi.fn(async (data: unknown) => { llamadas.creados.push(data); }),
     findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1" }] : [])),
+    updatePerfil: vi.fn(async () => undefined),
     updatePassword: vi.fn(async (_id: string, password: string) => { llamadas.passwords.push(password); }),
     marcarCambioPasswordRequerido: vi.fn(async (_email: string, requerido: boolean) => { llamadas.flags.push(requerido); }),
     estadoEmpresaPortal: vi.fn(async () => overrides.empresaPortal ?? null),
@@ -140,6 +156,7 @@ function fakePersonaClient(overrides: { existente?: PersonaApi | null; creada?: 
     buscarPersonas: vi.fn(async () => []),
     crearPersona: vi.fn(async (dto: NuevaPersonaApi) => overrides.creada ?? { sie_code: "P0000012345", ...dto }),
     actualizarPersona: vi.fn(async (sieCode: string, dto: NuevaPersonaApi) => ({ sie_code: sieCode, ...dto })),
+    subirFoto: vi.fn(async () => undefined),
   };
 }
 
@@ -153,12 +170,20 @@ function fakeEmpresaClient(overrides: { existente?: EmpresaApi | null; creada?: 
   };
 }
 
+/** Cliente falso de la consulta RENIEC (SUNAT/RENIEC externo). */
+function fakeConsultaDocumento(overrides: { dni?: Record<string, unknown> | null } = {}) {
+  return {
+    consultarDni: vi.fn(async () => overrides.dni ?? null),
+  };
+}
+
 function crearServicio(
   repo: IEmpresaRepository,
   auth: ReturnType<typeof fakeAuthRepo> = fakeAuthRepo(),
   roles: ReturnType<typeof fakeRoleRepo> = fakeRoleRepo(),
   personas: ReturnType<typeof fakePersonaClient> = fakePersonaClient(),
   empresas: ReturnType<typeof fakeEmpresaClient> = fakeEmpresaClient(),
+  consultaDocumento: ReturnType<typeof fakeConsultaDocumento> = fakeConsultaDocumento(),
 ) {
   return new EmpresaApplicationService(
     repo,
@@ -166,6 +191,7 @@ function crearServicio(
     roles as unknown as IRoleRepository,
     personas as unknown as IPersonaClient,
     empresas as unknown as IEmpresaClient,
+    consultaDocumento as unknown as IConsultaDocumentoClient,
   );
 }
 
@@ -288,6 +314,70 @@ describe("EmpresaApplicationService.crear", () => {
     expect(empresa.sieCode).toBe("E0000003804");
   });
 
+  it("asegura al representante: reutiliza (y actualiza si difiere) la persona existente por DNI", async () => {
+    const repo = new FakeEmpresaRepo();
+    const personas = fakePersonaClient({ existente: { sie_code: "P0000000009", documento: "45871233" } });
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient({ existente: { sie_code: "E1" } }), consulta);
+
+    await service.crear(INPUT_BASE, null);
+
+    expect(consulta.consultarDni).toHaveBeenCalledWith("45871233");
+    expect(personas.buscarPorDocumento).toHaveBeenCalledWith("45871233", TIPOS_DOCUMENTO_PERSONA.DNI);
+    expect(personas.crearPersona).not.toHaveBeenCalled();
+    expect(personas.actualizarPersona).toHaveBeenCalledWith("P0000000009", expect.objectContaining({
+      apellido_paterno: "QUISPE",
+      nombres: "JORGE",
+    }));
+  });
+
+  it("asegura al representante: crea la persona con los datos de RENIEC si no existe", async () => {
+    const repo = new FakeEmpresaRepo();
+    const personas = fakePersonaClient();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient({ existente: { sie_code: "E1" } }), consulta);
+
+    await service.crear(INPUT_BASE, null);
+
+    expect(consulta.consultarDni).toHaveBeenCalledWith("45871233");
+    expect(personas.crearPersona).toHaveBeenCalledWith(expect.objectContaining({
+      apellido_paterno: "QUISPE",
+      apellido_materno: "RAMOS",
+      nombres: "JORGE",
+      id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.DNI,
+      documento: "45871233",
+    }));
+  });
+
+  it("sube la foto del representante a la fuente (bytes) cuando hay imagen valida", async () => {
+    const repo = new FakeEmpresaRepo();
+    const personas = fakePersonaClient();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient({ existente: { sie_code: "E1" } }), consulta);
+
+    await service.crear({ ...INPUT_BASE, representanteFotoUrl: "/uploads/rep.jpg" }, null);
+
+    expect(personas.subirFoto).toHaveBeenCalledWith("P0000012345", expect.any(Buffer), "image/jpeg");
+  });
+
+  it("vincula al representante (usuario local) con la empresa como en perfil", async () => {
+    const repo = new FakeEmpresaRepo();
+    const auth = fakeAuthRepo({ usuarioExistente: true });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), fakePersonaClient(), fakeEmpresaClient({ existente: { sie_code: "E1" } }));
+
+    const empresa = await service.crear(
+      { ...INPUT_BASE, direccionFiscal: "Av. Los Ingenieros 245", telefono: "+51987654321", representanteCorreo: "rep@empresa.pe" },
+      null,
+    );
+
+    expect(auth.findByEmail).toHaveBeenCalledWith("rep@empresa.pe");
+    expect(auth.updatePerfil).toHaveBeenCalledWith("rep@empresa.pe", expect.objectContaining({
+      idEmpresa: "E1",
+      nombreEmpresa: "Minera Cordillera S.A.C.",
+      empresaId: empresa.id,
+    }));
+  });
+
   it("sin datos minimos (direccion/telefono) no consulta la fuente", async () => {
     const empresas = fakeEmpresaClient();
     const service = crearServicio(new FakeEmpresaRepo(), fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
@@ -408,6 +498,26 @@ const FILA_BASE: FilaCargaEmpresa = {
   sitioWeb: "",
 };
 
+describe("EmpresaApplicationService.importarCarga (carga masiva: solo empresas)", () => {
+  it("no sincroniza con servicio-persona: crea la ficha local sin llamadas externas", async () => {
+    const repo = new FakeEmpresaRepo();
+    const personas = fakePersonaClient();
+    const empresas = fakeEmpresaClient();
+    const consulta = fakeConsultaDocumento();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, empresas, consulta);
+
+    const r = await service.importarCarga([FILA_BASE], "admin@iimp.org.pe");
+
+    expect(r.creadas).toBe(1);
+    expect(empresas.buscarPorDocumento).not.toHaveBeenCalled();
+    expect(empresas.crearEmpresa).not.toHaveBeenCalled();
+    expect(personas.buscarPorDocumento).not.toHaveBeenCalled();
+    expect(consulta.consultarDni).not.toHaveBeenCalled();
+    const ficha = await repo.findByRuc("20601234567");
+    expect(ficha?.sieCode).toBeNull();
+  });
+});
+
 describe("EmpresaApplicationService.previsualizarCarga", () => {
   it("marca como lista una fila completa", async () => {
     const service = crearServicio(new FakeEmpresaRepo());
@@ -526,6 +636,36 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     expect((await repo.findById(creada.id))?.cuentaCreada).toBe(true);
   });
 
+  it("crea la cuenta vinculada al representante legal (sie_code) y a la empresa (SIE)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ...empresaBase, representanteLegalDni: "45871233", sieCode: "E0000000123" });
+    const auth = fakeAuthRepo();
+    const personas = fakePersonaClient();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), personas, fakeEmpresaClient(), consulta);
+
+    await service.crearCuenta(creada.id);
+
+    expect(personas.buscarPorDocumento).toHaveBeenCalledWith("45871233", TIPOS_DOCUMENTO_PERSONA.DNI);
+    const datos = auth.llamadas.creados[0] as Record<string, unknown>;
+    expect(datos.sieCode).toBe("P0000012345");
+    expect(datos.idEmpresa).toBe("E0000000123");
+    expect(datos.empresaId).toBe(creada.id);
+    expect(datos.ruc).toBe("20601234567");
+  });
+
+  it("permite indicar el correo del representante al crear la cuenta (y lo guarda en la ficha)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaBase);
+    const auth = fakeAuthRepo();
+    const service = crearServicio(repo, auth);
+
+    const r = await service.crearCuenta(creada.id, "rep@empresa.pe");
+
+    expect(r.email).toBe("rep@empresa.pe");
+    expect((await repo.findById(creada.id))?.representanteCorreo).toBe("rep@empresa.pe");
+  });
+
   it("409 si la cuenta ya fue creada", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ...empresaBase, cuentaCreada: true });
@@ -549,6 +689,16 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     const service = crearServicio(repo, auth);
 
     await expect(service.crearCuenta(creada.id)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("409 si el RUC ya tiene una cuenta habilitada (no re-crear cuentas)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaBase);
+    const auth = fakeAuthRepo({ rucExistente: true });
+    const service = crearServicio(repo, auth);
+
+    await expect(service.crearCuenta(creada.id)).rejects.toMatchObject({ status: 409 });
+    expect(auth.crearUsuario).not.toHaveBeenCalled();
   });
 });
 

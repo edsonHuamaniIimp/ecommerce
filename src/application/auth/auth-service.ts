@@ -1,13 +1,15 @@
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { IPersonaClient } from "@/domain/ports/persona-client";
 import { signToken } from "@/lib/server/auth";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { generarCodigoNumerico, generarTokenAleatorio } from "@/lib/server/utils/token";
 import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/password";
+import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH } from "@/lib/shared/constants";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
@@ -37,6 +39,7 @@ export class AuthApplicationService {
     private readonly repo: IAuthRepository,
     private readonly roleRepo: IRoleRepository,
     private readonly empresas: IEmpresaRepository,
+    private readonly personaClient: IPersonaClient,
   ) {}
 
   /**
@@ -140,13 +143,23 @@ export class AuthApplicationService {
   }
 
   async login(dto: LoginRequestDTO): Promise<LoginResult> {
-    const email = dto.email.trim().toLowerCase();
-    const userRoles = await this.repo.findByEmail(email);
-    const [principal] = userRoles;
+    /* El identificador puede ser correo o RUC (11 digitos): se busca por el que corresponda. */
+    const identificador = dto.email.trim().toLowerCase();
+    const esRuc = REGEX_RUC.test(identificador);
+    const userRoles = esRuc ? await this.repo.findByRuc(identificador) : await this.repo.findByEmail(identificador);
+    /*
+     * Con RUC puede haber varias cuentas de la empresa (usuarios): se elige la que
+     * valida la contrasena; si ninguna, se reporta la contrasena incorrecta.
+     */
+    const principal = esRuc
+      ? userRoles.find((u) => verificarPassword(dto.password, u.password)) ?? userRoles[0]
+      : userRoles[0];
     if (!principal) return { error: "Usuario sin roles asignados", status: 403 } as const;
     if (!verificarPassword(dto.password, principal.password)) {
       return { error: "Contrasena incorrecta", status: 401 } as const;
     }
+    /* La sesion y el resto del flujo usan el correo REAL de la cuenta (no el identificador). */
+    const email = principal.email.trim().toLowerCase();
     // Migracion transparente: si venia en texto plano, se guarda hasheada.
     if (!esHash(principal.password)) {
       await this.repo.updatePassword(principal.id, hashPassword(dto.password)).catch(() => {});
@@ -336,8 +349,29 @@ export class AuthApplicationService {
     const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return null;
-      const u = await this.repo.findPerfilByEmail(session.email);
-      return u ?? { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, empresa: null, logoUrl: null, firmaUrl: null, idioma: null };
+    const u = await this.repo.findPerfilByEmail(session.email);
+    if (!u) {
+      return { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, empresa: null, representanteIncompleto: false, logoUrl: null, firmaUrl: null, idioma: null };
+    }
+    /* Portal del Cliente: el representante legal debe tener DNI, correo, celular y direccion completos. */
+    const ficha = u.empresa ?? (u.idEmpresa ? await this.empresas.findBySieCode(u.idEmpresa).catch(() => null) : null);
+    const empresa = ficha ? {
+      ruc: ficha.ruc,
+      razonSocial: ficha.razonSocial,
+      direccionFiscal: ficha.direccionFiscal,
+      telefono: ficha.telefono,
+      emailContacto: ficha.emailContacto,
+      representanteLegalNombre: ficha.representanteLegalNombre,
+      representanteLegalDni: ficha.representanteLegalDni,
+      representanteCorreo: ficha.representanteCorreo,
+      representanteCelular: ficha.representanteCelular,
+      representanteDireccion: ficha.representanteDireccion,
+      representantePartida: ficha.partidaElectronica,
+    } : null;
+    const representanteIncompleto = Boolean(
+      empresa && (!empresa.representanteLegalDni || !empresa.representanteCorreo || !empresa.representanteCelular || !empresa.representanteDireccion),
+    );
+    return { ...u, empresa, representanteIncompleto };
   }
 
   /** Guarda el idioma preferido del usuario (selector ES/EN del dashboard). */
@@ -369,7 +403,8 @@ export class AuthApplicationService {
      * fiscal local por RUC para dejar la FK `empresa_id`; sin registro local queda
      * solo el vinculo legacy (codigo + nombre). Al desvincular se limpia la FK.
      */
-    const { ruc, ...resto } = dto;
+    /* Los campos `representante*` no pertenecen a user_role: se guardan en la ficha de la empresa. */
+    const { ruc, representanteNombre, representanteDni, representanteCorreo, representanteCelular, representanteDireccion, representantePartida, ...resto } = dto;
     let empresaId: string | null | undefined;
     if (ruc) {
       const limpio = ruc.replace(/\D/g, "");
@@ -379,7 +414,80 @@ export class AuthApplicationService {
       empresaId = null;
     }
     await this.repo.updatePerfil(session.email, { ...resto, ...(empresaId !== undefined ? { empresaId } : {}) });
+
+    /* Datos del representante legal: se guardan en la ficha de la empresa del usuario
+     * (FK local o, si solo hay vinculo SIE, la ficha que tenga ese sie_code). */
+    if (representanteNombre !== undefined || representanteDni !== undefined || representanteCorreo !== undefined || representanteCelular !== undefined || representanteDireccion !== undefined || representantePartida !== undefined) {
+      let fichaId = await this.repo.findEmpresaIdDeUsuario(session.email).catch(() => null);
+      if (!fichaId) {
+        const info = await this.repo.findPerfilByEmail(session.email).catch(() => null);
+        if (info?.idEmpresa) {
+          fichaId = (await this.empresas.findBySieCode(info.idEmpresa).catch(() => null))?.id ?? null;
+        }
+      }
+      if (fichaId) {
+        await this.empresas.update(fichaId, {
+          ...(representanteNombre !== undefined ? { representanteLegalNombre: (representanteNombre ?? "").trim() || null } : {}),
+          ...(representanteDni !== undefined ? { representanteLegalDni: (representanteDni ?? "").trim() || null } : {}),
+          ...(representanteCorreo !== undefined ? { representanteCorreo: (representanteCorreo ?? "").trim() || null } : {}),
+          ...(representanteCelular !== undefined ? { representanteCelular: (representanteCelular ?? "").trim() || null } : {}),
+          ...(representanteDireccion !== undefined ? { representanteDireccion: (representanteDireccion ?? "").trim() || null } : {}),
+          ...(representantePartida !== undefined ? { partidaElectronica: (representantePartida ?? "").trim() || null } : {}),
+        }).catch(() => {});
+      }
+    }
+
+    /* Refleja en servicio-persona lo editable del perfil (telefono/correo -> celular/correo, logo -> foto). */
+    await this.sincronizarPersonaFuente(session.email, dto).catch(() => {});
     return true;
+  }
+
+  /**
+   * Sincroniza en servicio-persona lo editable del perfil cuando la cuenta tiene
+   * `sie_code`: celular del representante (o telefono personal) -> celular,
+   * correo del representante -> correo, direccion -> direccion (PUT con el
+   * cuerpo completo que trae el GET) y logoUrl -> foto (subida binaria; null la elimina).
+   * El correo no se cambia desde Perfil sin validacion previa. Best-effort.
+   */
+  private async sincronizarPersonaFuente(email: string, dto: PerfilUpdateRequestDTO): Promise<void> {
+    if (dto.telefono === undefined && dto.representanteCelular === undefined && dto.logoUrl === undefined && dto.representanteCorreo === undefined && dto.representanteDireccion === undefined) return;
+    const sieCode = await this.repo.findSieCodePorEmail(email);
+    if (!sieCode) return;
+    const persona = await this.personaClient.obtenerPersona(sieCode);
+    if (!persona) return;
+
+    const celularDestino = dto.representanteCelular !== undefined
+      ? ((dto.representanteCelular ?? "").trim() || null)
+      : dto.telefono !== undefined
+        ? ((dto.telefono ?? "").trim() || null)
+        : (persona.celular ?? null);
+    const cambioTelefono = (dto.representanteCelular !== undefined || dto.telefono !== undefined) && (persona.celular ?? "").trim() !== (celularDestino ?? "");
+    const cambioCorreo = dto.representanteCorreo !== undefined && (persona.correo ?? "").trim() !== ((dto.representanteCorreo ?? "").trim() || "");
+    const cambioDireccion = dto.representanteDireccion !== undefined && (persona.direccion ?? "").trim() !== ((dto.representanteDireccion ?? "").trim() || "");
+    if ((cambioTelefono || cambioCorreo || cambioDireccion) && persona.apellido_paterno && persona.nombres && persona.documento) {
+      await this.personaClient.actualizarPersona(sieCode, {
+        apellido_paterno: persona.apellido_paterno,
+        apellido_materno: persona.apellido_materno ?? null,
+        nombres: persona.nombres,
+        id_tipo_documento: persona.id_tipo_documento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
+        documento: persona.documento,
+        direccion: dto.representanteDireccion !== undefined ? ((dto.representanteDireccion ?? "").trim() || null) : (persona.direccion ?? null),
+        correo: dto.representanteCorreo !== undefined ? ((dto.representanteCorreo ?? "").trim() || null) : (persona.correo ?? null),
+        celular: celularDestino,
+      });
+    }
+
+    if (dto.logoUrl !== undefined) {
+      if (dto.logoUrl) {
+        const imagen = await leerImagenFuente(dto.logoUrl);
+        const tipo = imagen ? tipoImagen(imagen) : null;
+        if (imagen && tipo && imagen.length <= FOTO_PERSONA_MAX_BYTES) {
+          await this.personaClient.subirFoto(sieCode, imagen, tipo);
+        }
+      } else {
+        await this.personaClient.borrarFoto(sieCode);
+      }
+    }
   }
 
   async requestReset(dto: ResetPasswordRequestDTO): Promise<RequestResetResult> {

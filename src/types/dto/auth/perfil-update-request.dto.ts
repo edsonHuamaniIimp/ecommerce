@@ -11,4 +11,11 @@ export interface PerfilUpdateRequestDTO {
   logoUrl?: string | null;
   /** Firma digital del usuario (imagen PNG/JPG en /uploads/*). */
   firmaUrl?: string | null;
+  /** Datos del representante legal (se guardan en la ficha de la empresa del usuario). */
+  representanteNombre?: string | null;
+  representanteDni?: string | null;
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  representanteDireccion?: string | null;
+  representantePartida?: string | null;
 }

@@ -2,13 +2,15 @@
 
 import { useRef, useState } from "react";
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Image as ImageIcon, Loader2, Search, Upload } from "lucide-react";
+import { Image as ImageIcon, Loader2, Pencil, Search, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { entidadesService, type EmpresaEntidadDTO } from "@/lib/client/api/services/entidades-service";
+import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
+import { RepresentanteLegalModal } from "./representante-legal-modal";
 
 interface Props {
   /** Empresa a editar; null = alta. */
@@ -29,6 +31,10 @@ interface FormState {
   representanteLegalNombre: string;
   representanteLegalDni: string;
   partidaElectronica: string;
+  representanteDireccion: string;
+  representanteCorreo: string;
+  representanteCelular: string;
+  representanteFotoUrl: string;
   tipoComprobante: string;
   sitioWeb: string;
 }
@@ -46,6 +52,10 @@ function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
     representanteLegalNombre: empresa?.representanteLegalNombre ?? "",
     representanteLegalDni: empresa?.representanteLegalDni ?? "",
     partidaElectronica: empresa?.partidaElectronica ?? "",
+    representanteDireccion: "",
+    representanteCorreo: empresa?.representanteCorreo ?? "",
+    representanteCelular: empresa?.representanteCelular ?? "",
+    representanteFotoUrl: "",
     tipoComprobante: empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
     sitioWeb: empresa?.sitioWeb ?? "",
   };
@@ -92,6 +102,10 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const [resultadosFuente, setResultadosFuente] = useState<EmpresaFuenteDTO[] | null>(null);
   const [sieCodeFuente, setSieCodeFuente] = useState<string | null>(null);
   const [avisoConsulta, setAvisoConsulta] = useState<string | null>(null);
+  /* Empresa encontrada: se muestra su informacion y "Modificar informacion" abre el formulario. */
+  const [mostrarFormulario, setMostrarFormulario] = useState(empresa !== null);
+  /* Representante legal: modal adicional (dato del contrato). */
+  const [repModalOpen, setRepModalOpen] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const esEdicion = empresa !== null;
 
@@ -119,18 +133,47 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
       setResultadosFuente(null);
       setSieCodeFuente(null);
       setAvisoConsulta(null);
+      setMostrarFormulario(false);
     }
   };
 
-  /** Prellena (solo campos vacios) con los datos de la empresa de servicio-persona. */
+  /** Prellena (solo campos vacios) con los datos de la empresa encontrada en la fuente. */
   const aplicarDatosFuente = (fuente: EmpresaFuenteDTO) => {
     setForm((prev) => ({
       ...prev,
+      /* El RUC hallado se copia al campo para poder enriquecer con SUNAT. */
+      ruc: prev.ruc.trim() || (REGEX_RUC.test(fuente.documento) ? fuente.documento : prev.ruc),
       razonSocial: prev.razonSocial.trim() || fuente.nombre,
       direccionFiscal: prev.direccionFiscal.trim() || (fuente.direccion ?? ""),
       telefono: prev.telefono.trim() || (fuente.telefono ?? ""),
       emailContacto: prev.emailContacto.trim() || (fuente.correo ?? ""),
     }));
+  };
+
+  /** Completa lo que el padron no trae: servicio-persona (correo/telefono/direccion) y SUNAT (direccion). */
+  const enriquecerConFuentes = async (documento?: string) => {
+    const ruc = (REGEX_RUC.test(form.ruc.trim()) ? form.ruc.trim() : "") || (documento && REGEX_RUC.test(documento) ? documento : "");
+    if (ruc) {
+      const fuente = await empresasService.buscarFuente(ruc).catch(() => null);
+      const hallada = fuente?.[0];
+      if (hallada) {
+        setForm((prev) => ({
+          ...prev,
+          razonSocial: prev.razonSocial.trim() || hallada.nombre,
+          direccionFiscal: prev.direccionFiscal.trim() || (hallada.direccion ?? ""),
+          telefono: prev.telefono.trim() || (hallada.telefono ?? ""),
+          emailContacto: prev.emailContacto.trim() || (hallada.correo ?? ""),
+        }));
+      }
+      const r = await sunatService.consultarRuc(ruc).catch(() => null);
+      if (r) {
+        setForm((prev) => ({
+          ...prev,
+          razonSocial: prev.razonSocial.trim() || r.razonSocial || prev.razonSocial,
+          direccionFiscal: prev.direccionFiscal.trim() || r.direccion || prev.direccionFiscal,
+        }));
+      }
+    }
   };
 
   /** Empresa del padron IIMP (API de entidades, la misma del perfil) -> DTO de la fuente. */
@@ -163,6 +206,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     setResultadosFuente(null);
     setSieCodeFuente(null);
     setAvisoConsulta(null);
+    setMostrarFormulario(false);
     try {
       if (esRucValido) {
         const pagina = await empresasService.listar({ page: 1, perPage: 10, search: ruc });
@@ -211,6 +255,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         setEncontradaFuente(exacta);
         setSieCodeFuente(exacta.sieCode || null);
         aplicarDatosFuente(exacta);
+        void enriquecerConFuentes(exacta.documento);
       } else if (coincidencias.length > 0) {
         setResultadosFuente(coincidencias);
       }
@@ -270,6 +315,10 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         representanteLegalNombre: form.representanteLegalNombre.trim() || null,
         representanteLegalDni: form.representanteLegalDni.trim() || null,
         partidaElectronica: form.partidaElectronica.trim() || null,
+        representanteDireccion: form.representanteDireccion.trim() || null,
+        representanteCorreo: form.representanteCorreo.trim() || null,
+        representanteCelular: form.representanteCelular.trim() || null,
+        representanteFotoUrl: form.representanteFotoUrl || null,
         tipoComprobante: form.tipoComprobante,
         sitioWeb: form.sitioWeb.trim() || null,
       };
@@ -288,6 +337,53 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     setEnviando(false);
   };
 
+  /** Control compacto del representante legal: abre el modal adicional (dato del contrato). */
+  const controlRepresentante = (
+    <div className="rounded-lg border border-border px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-foreground">Representante legal</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {form.representanteLegalNombre || form.representanteLegalDni
+              ? `${form.representanteLegalNombre || "—"} · DNI ${form.representanteLegalDni || "—"}${form.representanteCorreo ? ` · ${form.representanteCorreo}` : ""}${form.partidaElectronica ? ` · Partida ${form.partidaElectronica}` : ""}`
+              : "Se usa en el contrato; con el DNI (8 digitos) se obtiene de RENIEC."}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setRepModalOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>{form.representanteLegalNombre || form.representanteLegalDni ? "Editar" : "Agregar"}</span>
+          </Button>
+          {(form.representanteLegalNombre || form.representanteLegalDni) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-destructive"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  representanteLegalNombre: "",
+                  representanteLegalDni: "",
+                  partidaElectronica: "",
+                  representanteDireccion: "",
+                  representanteCorreo: "",
+                  representanteCelular: "",
+                  representanteFotoUrl: "",
+                }))
+              }
+            >
+              <span>Quitar</span>
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  /** Empresa encontrada en la fuente: se muestra su informacion con opcion de modificar. */
+  const mostrarResumen = !esEdicion && !mostrarFormulario && Boolean(encontradaFuente) && !duplicadaLocal;
+
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-2xl">
@@ -302,6 +398,39 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4">
+          {mostrarResumen && encontradaFuente ? (
+            <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Empresa encontrada</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{encontradaFuente.nombre}</p>
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    {REGEX_RUC.test(form.ruc.trim()) ? `RUC ${form.ruc.trim()}` : (encontradaFuente.documento || "—")}
+                    {" · "}SIE {encontradaFuente.sieCode || "—"}
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 text-xs" onClick={() => setMostrarFormulario(true)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Modificar informacion</span>
+                </Button>
+              </div>
+              <div className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-2">
+                <p><span className="text-muted-foreground">Direccion fiscal: </span>{form.direccionFiscal || "—"}</p>
+                <p><span className="text-muted-foreground">Telefono: </span>{form.telefono || "—"}</p>
+                <p><span className="text-muted-foreground">Correo de contacto: </span>{form.emailContacto || "—"}</p>
+                <p><span className="text-muted-foreground">Correo de facturacion: </span>{form.emailFacturacion || "—"}</p>
+              </div>
+              {controlRepresentante}
+              <p className="text-[11px] text-muted-foreground">
+                <span>
+                  El padron entrega razon social, RUC/SIE y (via SUNAT) la direccion fiscal. Telefono, correos y
+                  representante no vienen en esas fuentes: completalos con &ldquo;Modificar informacion&rdquo; o los
+                  validara la empresa en su primer acceso al portal.
+                </span>
+              </p>
+            </div>
+          ) : (
+            <>
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Razon social" requerido valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} error={errores.razonSocial} placeholder="Minera Cordillera S.A.C." />
             <div>
@@ -349,7 +478,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
                         size="sm"
                         variant="outline"
                         className="h-7 shrink-0 text-xs"
-                        onClick={() => { setEncontradaFuente(e); setSieCodeFuente(e.sieCode || null); aplicarDatosFuente(e); setResultadosFuente(null); }}
+                        onClick={() => { setEncontradaFuente(e); setSieCodeFuente(e.sieCode || null); aplicarDatosFuente(e); setResultadosFuente(null); void enriquecerConFuentes(e.documento); }}
                       >
                         <span>Usar</span>
                       </Button>
@@ -381,13 +510,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             <CampoForm label="Telefono" valor={form.telefono} onChange={(v) => setCampo("telefono", v)} placeholder="+51 987 654 321" />
             <CampoForm label="Sitio web" valor={form.sitioWeb} onChange={(v) => setCampo("sitioWeb", v)} placeholder="www.empresa.pe" />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <CampoForm label="Representante legal" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" />
-            <CampoForm label="DNI del representante" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", v)} placeholder="45871233" mono />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <CampoForm label="Partida electronica (opcional)" valor={form.partidaElectronica} onChange={(v) => setCampo("partidaElectronica", v)} placeholder="11014857" mono />
-          </div>
+          {controlRepresentante}
           <div>
             <Label className="text-xs">Logo de la empresa</Label>
             <div className="mt-1 flex items-center gap-3">
@@ -428,6 +551,8 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
               </Select>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border pt-3">
@@ -444,6 +569,22 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             <span>{esEdicion ? "Guardar cambios" : "Registrar empresa"}</span>
           </Button>
         </div>
+
+        {repModalOpen && (
+          <RepresentanteLegalModal
+            inicial={{
+              nombre: form.representanteLegalNombre,
+              dni: form.representanteLegalDni,
+              partida: form.partidaElectronica,
+              direccion: form.representanteDireccion,
+              correo: form.representanteCorreo,
+              celular: form.representanteCelular,
+              fotoUrl: form.representanteFotoUrl,
+            }}
+            onGuardar={(datos) => setForm((prev) => ({ ...prev, ...datos }))}
+            onClose={() => setRepModalOpen(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

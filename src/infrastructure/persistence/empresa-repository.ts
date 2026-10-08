@@ -23,6 +23,9 @@ interface EmpresaRow {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  representanteCorreo: string | null;
+  representanteCelular: string | null;
+  representanteDireccion: string | null;
   partidaElectronica: string | null;
   tipoComprobante: string;
   sitioWeb: string | null;
@@ -49,6 +52,9 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     emailFacturacion: row.emailFacturacion ?? null,
     representanteLegalNombre: row.representanteLegalNombre ?? null,
     representanteLegalDni: row.representanteLegalDni ?? null,
+    representanteCorreo: row.representanteCorreo ?? null,
+    representanteCelular: row.representanteCelular ?? null,
+    representanteDireccion: row.representanteDireccion ?? null,
     partidaElectronica: row.partidaElectronica ?? null,
     tipoComprobante: row.tipoComprobante as TipoComprobante,
     sitioWeb: row.sitioWeb ?? null,
@@ -98,6 +104,11 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
 
   async findByRuc(ruc: string): Promise<EmpresaEntity | null> {
     const row = await prisma.empresa.findUnique({ where: { ruc } });
+    return row ? mapRow(row as EmpresaRow) : null;
+  }
+
+  async findBySieCode(sieCode: string): Promise<EmpresaEntity | null> {
+    const row = await prisma.empresa.findFirst({ where: { sieCode } });
     return row ? mapRow(row as EmpresaRow) : null;
   }
 

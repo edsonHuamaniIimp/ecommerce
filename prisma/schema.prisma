@@ -150,6 +150,8 @@ model UserRole {
   idioma            String    @default("es") @db.VarChar(5)
   /// Identificador de la persona en servicio-persona (sie_code, ej. P0000012345). La persona vive en la fuente.
   sieCode           String?   @map("sie_code") @db.VarChar(20)
+  /// RUC de la empresa vinculada (copiado de la ficha) para representar la cuenta.
+  ruc               String?   @db.VarChar(11)
 
   role     Role   @relation(fields: [roleId], references: [id])
   empresa  Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
@@ -264,6 +266,12 @@ model Empresa {
   representanteLegalNombre String? @map("representante_legal_nombre") @db.VarChar(200)
   /// DNI/pasaporte del representante legal.
   representanteLegalDni String? @map("representante_legal_dni") @db.VarChar(15)
+  /// Correo del representante legal (crea su cuenta del Portal y sincroniza con la fuente).
+  representanteCorreo String? @map("representante_correo") @db.VarChar(200)
+  /// Celular del representante legal.
+  representanteCelular String? @map("representante_celular") @db.VarChar(35)
+  /// Direccion del representante legal.
+  representanteDireccion String? @map("representante_direccion") @db.VarChar(100)
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
   partidaElectronica String? @map("partida_electronica") @db.VarChar(50)
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).

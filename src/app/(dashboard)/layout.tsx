@@ -5,6 +5,7 @@ import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { Menu } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { RepresentanteGate } from "@/components/dashboard/representante-gate";
 
 export default function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default function DashboardLayout({
         </header>
         <div className="flex-1 min-w-0 px-3 sm:px-6 lg:px-10 py-4 sm:py-6">{children}</div>
       </div>
+      <RepresentanteGate />
     </div>
   );
 }

@@ -123,3 +123,40 @@ export async function peticionServicioPersona<T>(path: string, options: Peticion
 
   return (await res.json()) as T;
 }
+
+/** Sube un binario (p. ej. la foto de una persona) o elimina un recurso, con la misma auth y retry. */
+export async function enviarBinarioServicioPersona(
+  path: string,
+  body: Buffer | null,
+  contentType: string | null,
+  method: "POST" | "DELETE" = "POST",
+): Promise<unknown> {
+  const { apiUrl } = config();
+  const ejecutar = async (token: string) =>
+    fetch(`${apiUrl}${path}`, {
+      method,
+      headers: {
+        ...(contentType ? { "Content-Type": contentType } : {}),
+        Authorization: `Bearer ${token}`,
+      },
+      ...(body ? { body: new Uint8Array(body) } : {}),
+      cache: "no-store",
+      signal: AbortSignal.timeout(TIMEOUT_PETICION_MS),
+    });
+
+  let res = await ejecutar(await obtenerToken());
+  if (res.status === 401) {
+    tokenCache = null;
+    res = await ejecutar(await obtenerToken());
+    if (res.status === 401) {
+      throw new DomainError("La sesion con servicio-persona expiro", API_ERROR_CODES.UNAUTHORIZED, 502);
+    }
+  }
+  if (res.status === 413) {
+    throw new DomainError("La imagen supera el maximo de 5 MB", API_ERROR_CODES.VALIDATION, 400);
+  }
+  if (!res.ok) {
+    throw new DomainError(`Error de servicio-persona: ${res.status}`, API_ERROR_CODES.INTERNAL, 502);
+  }
+  return res.json().catch(() => null);
+}

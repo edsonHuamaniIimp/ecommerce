@@ -6,6 +6,7 @@ export const { GET, POST } = createRouter({
     listar: (req) => empresaController.listar(req),
     detalle: (req) => empresaController.detalle(req),
     fuente: (req) => empresaController.buscarFuente(req),
+    "persona-fuente": (req) => empresaController.buscarPersonaFuente(req),
   },
   POST: {
     crear: (req) => empresaController.crear(req),

@@ -2,15 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/shared/utils";
 import { authService } from "@/lib/client/api/services/auth-service";
-import { PERMISSIONS } from "@/lib/shared/constants";
+import { PERMISSIONS, ROLES } from "@/lib/shared/constants";
 
-const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  permission?: string;
+}
+
+const navItems: NavItem[] = [
   { href: "/dashboard", label: "Panel de Control", icon: LayoutDashboard, permission: PERMISSIONS.DASHBOARD_VIEW },
   { href: "/dashboard/datos-evento", label: "Datos del Evento", icon: Map, permission: PERMISSIONS.EVENTOS_DATOS },
   { href: "/dashboard/vinculacion", label: "Vinculacion de Stands", icon: Wrench, permission: PERMISSIONS.STANDS_VINCULACION },
@@ -28,7 +35,7 @@ const navItems = [
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
   { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW },
   { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
-] as const;
+];
 
 interface Props {
   open: boolean;
@@ -39,11 +46,13 @@ interface Props {
 export function Sidebar({ open, collapsed, onClose }: Props) {
   const pathname = usePathname();
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     authService.getSession().then((s) => {
       setPermissions(s.permissions ?? []);
+      setRoles(s.roles ?? []);
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
@@ -61,6 +70,12 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
     if (!perm) return true;
     return permissions.includes(perm) || permissions.includes(PERMISSIONS.ADMIN_FULL);
   };
+
+  /* Portal del Cliente: su inicio es "Mi Panel"; el panel de control queda para los demas roles. */
+  const esCliente = roles.includes(ROLES.CLIENTE) && !roles.includes(ROLES.ADMIN);
+  const items: NavItem[] = esCliente
+    ? [{ href: "/dashboard", label: "Inicio", icon: LayoutDashboard }, ...navItems.filter((item) => item.href !== "/dashboard")]
+    : navItems;
 
   const content = (
     <>
@@ -82,7 +97,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
       </div>
       <nav className={cn("flex-1 overflow-y-auto p-2", collapsed ? "flex flex-col items-center gap-0.5" : "space-y-0.5")}>
         {!collapsed && <p className="px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.2em] text-muted-foreground">General</p>}
-        {navItems.map((item) => {
+        {items.map((item) => {
           if (item.permission && !loaded) return null;
           if (item.permission && !canSee(item.permission)) return null;
           const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);

@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { TIPOLOGIAS_STAND, TIPOS_PLANO } from "../src/lib/shared/constants";
+import { hashPassword } from "../src/lib/server/utils/password";
 import { ROLES_SEED, USUARIOS_SEED } from "./seed-data";
 
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
@@ -32,8 +33,8 @@ async function main() {
     if (!role) continue;
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
-      update: { password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
-      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
+      update: { password: hashPassword(tu.password), tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
+      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: hashPassword(tu.password), tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
     });
   }
 

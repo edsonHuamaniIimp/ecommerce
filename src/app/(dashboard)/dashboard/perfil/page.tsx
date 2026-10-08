@@ -4,14 +4,16 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Search, X, Loader2, Image as ImageIcon, Upload, PenLine } from "lucide-react";
+import { Building2, Search, X, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { entidadesService } from "@/lib/client/api/services/entidades-service";
+import { sunatService } from "@/lib/client/api/services/sunat-service";
+import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { MAESTRA_TABLAS } from "@/lib/shared/constants";
+import { BADGE_STYLES, MAESTRA_TABLAS, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 function PerfilPageContent() {
@@ -39,6 +41,15 @@ function PerfilPageContent() {
   // Empresa
   const [idEmpresa, setIdEmpresa] = useState<string | null>(null);
   const [nombreEmpresa, setNombreEmpresa] = useState<string | null>(null);
+  /* Representante legal (ficha de la empresa vinculada): todos los campos del formulario. */
+  const [empresaVinculada, setEmpresaVinculada] = useState(false);
+  const [repNombre, setRepNombre] = useState("");
+  const [repDni, setRepDni] = useState("");
+  const [repPartida, setRepPartida] = useState("");
+  const [repDireccion, setRepDireccion] = useState("");
+  const [repCorreo, setRepCorreo] = useState("");
+  const [repCelular, setRepCelular] = useState("");
+  const [repDniValidado, setRepDniValidado] = useState(false);
   const [searchEmpresa, setSearchEmpresa] = useState("");
   const [empresasResults, setEmpresasResults] = useState<Array<{ id_empresa: string; empresa: string; documento: string }>>([]);
   const [searching, setSearching] = useState(false);
@@ -61,15 +72,62 @@ function PerfilPageContent() {
       setTipoUsuarioId(perfilData.tipoUsuarioId ?? null);
       setIdEmpresa(perfilData.idEmpresa ?? null);
       setNombreEmpresa(perfilData.nombreEmpresa ?? null);
+      setEmpresaVinculada(Boolean(perfilData.empresa));
+      setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
+      setRepDni(perfilData.empresa?.representanteLegalDni ?? "");
+      setRepPartida(perfilData.empresa?.representantePartida ?? "");
+      setRepDireccion(perfilData.empresa?.representanteDireccion ?? "");
+      setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
+      setRepCelular(perfilData.empresa?.representanteCelular ?? "");
       if (perfilData.nombreEmpresa) setSearchEmpresa(perfilData.nombreEmpresa);
       setLoading(false);
     })();
   }, []);
 
+  /* Llena los datos del representante con la API cuando hay DNI completo:
+     RENIEC (nombre oficial) + servicio-persona (prellenado propio, solo el del usuario). La fuente sobrescribe. */
+  useEffect(() => {
+    if (!empresaVinculada) return;
+    const dni = repDni.trim();
+    if (dni.length !== VALIDACIONES.DNI_LONGITUD) return;
+    let vigente = true;
+    Promise.allSettled([
+      sunatService.consultarDni(dni),
+      reservaDatosService.prellenar(TIPOS_DOCUMENTO_PERSONA.DNI, dni),
+    ]).then(([ren, pre]) => {
+      if (!vigente) return;
+      const r = ren.status === "fulfilled" ? ren.value : null;
+      const p = pre.status === "fulfilled" ? pre.value : null;
+      const nombreOficial = p?.contacto || r?.nombreCompleto || r?.nombres || "";
+      if (nombreOficial) setRepNombre(nombreOficial);
+      if (r?.nombreCompleto || p?.contacto) setRepDniValidado(true);
+      if (p?.correo) setRepCorreo(p.correo);
+      if (p?.telefono) setRepCelular(p.telefono);
+      if (p?.direccion) setRepDireccion(p.direccion);
+    });
+    return () => { vigente = false; };
+  }, [empresaVinculada, repDni]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await perfilService.update({ nombre, apellidos, telefono, tipoUsuarioId, idEmpresa, nombreEmpresa, logoUrl: logoUrl || null, firmaUrl: firmaUrl || null });
+      await perfilService.update({
+        nombre,
+        apellidos,
+        telefono,
+        tipoUsuarioId,
+        idEmpresa,
+        nombreEmpresa,
+        logoUrl: logoUrl || null,
+        firmaUrl: firmaUrl || null,
+        ...(empresaVinculada ? {
+          representanteNombre: repNombre.trim() || null,
+          representanteDni: repDni.trim() || null,
+          representantePartida: repPartida.trim() || null,
+          representanteDireccion: repDireccion.trim() || null,
+          representanteCelular: repCelular.trim() || null,
+        } : {}),
+      });
       toast.success("Perfil actualizado");
     } catch { toast.error("Error al guardar"); }
     setSaving(false);
@@ -207,10 +265,12 @@ function PerfilPageContent() {
               <CardTitle><span>Informacion personal</span></CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="email"><span>Correo electronico</span></Label>
-                <Input id="email" value={email} disabled className="opacity-60 text-xs" />
-              </div>
+              {!empresaVinculada && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="email"><span>Correo electronico</span></Label>
+                  <Input id="email" value={email} disabled className="opacity-60 text-xs" />
+                </div>
+              )}
               <div className="flex gap-3">
                 <div className="flex-1 space-y-1.5">
                   <Label htmlFor="nombre"><span>Nombres</span></Label>
@@ -221,10 +281,84 @@ function PerfilPageContent() {
                   <Input id="apellidos" placeholder="Perez" value={apellidos} onChange={(e) => setApellidos(e.target.value)} className="text-xs" />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="telefono"><span>Telefono</span></Label>
-                <Input id="telefono" placeholder="999888777" maxLength={9} value={telefono} onChange={(e) => setTelefono(e.target.value.replace(/\D/g, "").slice(0, 9))} className="text-xs" />
-              </div>
+              {!empresaVinculada && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="telefono"><span>Telefono</span></Label>
+                  <Input id="telefono" placeholder="999888777" maxLength={9} value={telefono} onChange={(e) => setTelefono(e.target.value.replace(/\D/g, "").slice(0, 9))} className="text-xs" />
+                </div>
+              )}
+              {empresaVinculada && (
+                <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-3">
+                  <p className="text-xs font-semibold text-foreground"><span>Representante legal (de tu empresa)</span></p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="repDni"><span>DNI del representante</span></Label>
+                      {repDniValidado && (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.SUCCESS}`}>
+                          <ShieldCheck className="h-3 w-3" />
+                          <span>Validado RENIEC</span>
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      id="repDni"
+                      placeholder="45871233"
+                      maxLength={15}
+                      value={repDni}
+                      onChange={(e) => {
+                        setRepDniValidado(false);
+                        setRepDni(e.target.value.replace(/[^\dA-Za-z]/g, "").slice(0, 15));
+                      }}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="repNombre"><span>Nombre completo</span></Label>
+                    <Input id="repNombre" placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="repPartida"><span>Partida electronica (opcional)</span></Label>
+                    <Input id="repPartida" placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="repDireccion"><span>Direccion</span></Label>
+                    <Input id="repDireccion" placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="repCorreo"><span>Correo</span></Label>
+                    <Input id="repCorreo" type="email" value={repCorreo} disabled className="opacity-60 text-xs" />
+                    <p className="text-[11px] text-muted-foreground"><span>Para cambiar el correo, primero debe validarse.</span></p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="repCelular"><span>Celular</span></Label>
+                    <Input id="repCelular" placeholder="+51 987 654 321" maxLength={35} value={repCelular} onChange={(e) => setRepCelular(e.target.value)} className="text-xs" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label><span>Foto (opcional)</span></Label>
+                    <div className="flex items-center gap-3">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Foto del representante" className="h-12 w-12 rounded-full border bg-white object-cover" />
+                      ) : (
+                        <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed text-muted-foreground">
+                          <ImageIcon className="h-4 w-4" />
+                        </span>
+                      )}
+                      <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void onLogoFile(e); }} />
+                      <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoLogo} onClick={() => logoRef.current?.click()}>
+                        {subiendoLogo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                        <span>{logoUrl ? "Cambiar foto" : "Subir foto"}</span>
+                      </Button>
+                      {logoUrl && (
+                        <Button type="button" variant="ghost" size="sm" className="rounded-full text-xs text-destructive" onClick={() => void quitarLogo()}>
+                          <span>Quitar</span>
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground"><span>PNG o JPG hasta 5 MB. Tiene prioridad sobre el logo de tu empresa en los stands reservados del mapa.</span></p>
+                  </div>
+                </div>
+              )}
+              {!empresaVinculada && (
               <div className="space-y-1.5">
                 <Label><span>Logo personal (opcional)</span></Label>
                 <div className="flex items-center gap-3">
@@ -235,7 +369,7 @@ function PerfilPageContent() {
                       <ImageIcon className="h-4 w-4" />
                     </span>
                   )}
-                  <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void onLogoFile(e); }} />
+                  <input ref={undefined} type="file" accept="image/*" className="hidden" onChange={(e) => { void onLogoFile(e); }} />
                   <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoLogo} onClick={() => logoRef.current?.click()}>
                     {subiendoLogo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                     {logoUrl ? "Cambiar logo" : "Subir logo"}
@@ -248,6 +382,7 @@ function PerfilPageContent() {
                 </div>
                 <p className="text-[11px] text-muted-foreground">Tiene prioridad sobre el logo de tu empresa en los stands reservados del mapa.</p>
               </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label><span>Firma digital (para contratos)</span></Label>

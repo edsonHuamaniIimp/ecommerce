@@ -63,6 +63,8 @@ export class SolicitudCuentaPrismaRepository implements ISolicitudCuentaReposito
           apellidos: u.apellidos,
           telefono: u.telefono,
           nombreEmpresa: u.nombreEmpresa,
+          ruc: u.ruc ?? null,
+          empresaId: u.empresaId ?? null,
           resetToken: u.resetToken,
           resetTokenExpires: u.resetTokenExpires,
         },

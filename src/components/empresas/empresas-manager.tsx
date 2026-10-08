@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Button, Card, CardContent, CardHeader, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { Badge, Button, Card, CardContent, CardHeader, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { Building2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useConfirm } from "@/hooks/use-confirm";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
-import { BADGE_STYLES, ESTADOS_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_EMPRESA, REGEX_EMAIL, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
@@ -40,6 +40,9 @@ export function EmpresasManager() {
   const [cargaOpen, setCargaOpen] = useState(false);
   const [fuenteOpen, setFuenteOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
+  /* Crear cuenta: si la ficha no tiene correo del representante, se pide antes. */
+  const [cuentaPendiente, setCuentaPendiente] = useState<EmpresaDTO | null>(null);
+  const [cuentaEmail, setCuentaEmail] = useState("");
   const { confirm, confirmDialog } = useConfirm();
 
   const pageRef = useRef(page);
@@ -93,16 +96,18 @@ export function EmpresasManager() {
     }
   };
 
-  const crearCuenta = async (empresa: EmpresaDTO) => {
-    const destino = empresa.emailContacto ?? empresa.emailFacturacion ?? "(sin correo)";
+  /** Ejecuta la creacion de la cuenta (con confirmacion) usando el correo indicado. */
+  const ejecutarCrearCuenta = async (empresa: EmpresaDTO, email?: string) => {
+    const destino = email ?? empresa.representanteCorreo ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "(sin correo)";
+    const titular = empresa.representanteLegalNombre ?? empresa.razonSocial;
     const ok = await confirm({
       title: "Crear cuenta del Portal",
-      description: `Se creara la cuenta de "${empresa.razonSocial}" y se enviaran las credenciales a ${destino}. La contrasena es temporal: debera cambiarla en el primer ingreso.`,
+      description: `Se creara la cuenta de "${titular}" (representante legal de ${empresa.razonSocial}) y se enviaran las credenciales a ${destino}. La contrasena es temporal: debera cambiarla en el primer ingreso.`,
       confirmLabel: "Crear cuenta",
     });
     if (!ok) return;
     try {
-      const resultado = await empresasService.crearCuenta(empresa.id);
+      const resultado = await empresasService.crearCuenta(empresa.id, email);
       if (resultado.emailEnviado) {
         toast.success(`Cuenta creada. Credenciales enviadas a ${resultado.email}.`);
       } else {
@@ -112,6 +117,16 @@ export function EmpresasManager() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo crear la cuenta");
     }
+  };
+
+  /** La cuenta es del representante: si la ficha no guarda su correo, se pide en un modal. */
+  const crearCuenta = (empresa: EmpresaDTO) => {
+    if (empresa.representanteCorreo) {
+      void ejecutarCrearCuenta(empresa);
+      return;
+    }
+    setCuentaEmail(empresa.emailFacturacion ?? empresa.emailContacto ?? "");
+    setCuentaPendiente(empresa);
   };
 
   const reenviarCredenciales = async (empresa: EmpresaDTO) => {
@@ -366,6 +381,47 @@ export function EmpresasManager() {
           onClose={() => setFuenteOpen(false)}
           onRegistrado={() => void load()}
         />
+      )}
+      {cuentaPendiente && (
+        <Dialog open onOpenChange={(v) => { if (!v) setCuentaPendiente(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-base font-semibold">Crear cuenta del representante legal</DialogTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                La cuenta pertenece a {cuentaPendiente.representanteLegalNombre ?? cuentaPendiente.razonSocial}
+                {cuentaPendiente.representanteLegalNombre ? ` (representante legal de ${cuentaPendiente.razonSocial})` : ""}.
+                Se enviaran las credenciales a este correo (se guardara en la ficha).
+              </p>
+            </DialogHeader>
+            <div className="space-y-1 py-2">
+              <Label className="text-xs"><span>Correo del representante</span></Label>
+              <Input
+                type="email"
+                value={cuentaEmail}
+                onChange={(e) => setCuentaEmail(e.target.value)}
+                className="h-9 text-sm"
+                placeholder="representante@empresa.pe"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setCuentaPendiente(null)}><span>Cancelar</span></Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!REGEX_EMAIL.test(cuentaEmail.trim())) {
+                    toast.error("Ingresa un correo valido para el representante");
+                    return;
+                  }
+                  const empresa = cuentaPendiente;
+                  setCuentaPendiente(null);
+                  void ejecutarCrearCuenta(empresa, cuentaEmail.trim());
+                }}
+              >
+                <span>Crear cuenta</span>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
       {confirmDialog}
     </Card>

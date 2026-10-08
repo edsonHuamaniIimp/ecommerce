@@ -19,6 +19,9 @@ export interface ActualizarEmpresaData {
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  representanteDireccion?: string | null;
   partidaElectronica?: string | null;
   tipoComprobante?: string;
   sitioWeb?: string | null;
@@ -33,6 +36,8 @@ export interface IEmpresaRepository {
   findById(id: string): Promise<EmpresaEntity | null>;
   /** Busca por RUC exacto (para validar duplicados). */
   findByRuc(ruc: string): Promise<EmpresaEntity | null>;
+  /** Busca por codigo SIE (servicio-persona/entidades); null si la ficha no lo tiene guardado. */
+  findBySieCode(sieCode: string): Promise<EmpresaEntity | null>;
   create(data: CrearEmpresaData): Promise<EmpresaEntity>;
   update(id: string, data: ActualizarEmpresaData): Promise<EmpresaEntity>;
 }

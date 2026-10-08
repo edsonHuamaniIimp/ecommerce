@@ -9,7 +9,7 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import { PortalAuthLayout, PortalField } from "@/components/layout/portal-auth-layout";
 import { useEventoPublico } from "@/hooks/use-evento-publico";
-import { PORTAL_UI } from "@/lib/shared/constants";
+import { PORTAL_UI, ROLES } from "@/lib/shared/constants";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -38,7 +38,14 @@ function LoginPageContent() {
         return;
       }
       await sincronizarEventoPublicoEnSesion();
-      const returnTo = params.get("returnTo") ?? "/presala";
+      /*
+       * Portal del Cliente: el rol cliente entra directo a su panel ("Mi Panel" en
+       * /dashboard); el resto pasa por la presala (seleccion/monitoreo de eventos).
+       * Sin evento elegido, el proxy los manda al selector con returnTo=/dashboard.
+       */
+      const roles = resultado.roles ?? [];
+      const esCliente = roles.includes(ROLES.CLIENTE) && !roles.includes(ROLES.ADMIN);
+      const returnTo = params.get("returnTo") ?? (esCliente ? "/dashboard" : "/presala");
       /* Navegacion completa: el layout del dashboard debe leer la sesion nueva
          (el router cliente reusaba el render previo al logout). */
       window.location.assign(returnTo);
@@ -81,13 +88,13 @@ function LoginPageContent() {
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <PortalField id="email" label="Correo electronico corporativo" icono={<Mail className="h-[19px] w-[19px]" />}>
+        <PortalField id="email" label="Correo electronico o RUC" icono={<Mail className="h-[19px] w-[19px]" />}>
           <Input
             id="email"
-            type="email"
+            type="text"
             autoComplete="email"
             required
-            placeholder="ejemplo@empresa.com.pe"
+            placeholder="correo@empresa.com.pe o RUC de 11 digitos"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={PORTAL_UI.INPUT_CON_ICONO}

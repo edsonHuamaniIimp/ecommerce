@@ -14,6 +14,9 @@ export interface EmpresaDTO {
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  representanteCorreo: string | null;
+  representanteCelular: string | null;
+  representanteDireccion: string | null;
   partidaElectronica: string | null;
   tipoComprobante: string;
   sitioWeb: string | null;

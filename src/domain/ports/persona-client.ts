@@ -5,6 +5,7 @@ export interface PersonaApi {
   apellido_materno?: string;
   nombres?: string;
   nombre_completo?: string;
+  id_tipo_documento?: string;
   documento?: string;
   direccion?: string;
   correo?: string;
@@ -32,8 +33,14 @@ export interface IPersonaClient {
   buscarPorDocumento(documento: string, tipoDocumento?: string): Promise<PersonaApi | null>;
   /** Lista personas por termino de busqueda (prefijo de apellido paterno o DNI). */
   buscarPersonas(q: string): Promise<PersonaApi[]>;
+  /** Obtiene la persona completa por su `sie_code` (null si no existe o esta de baja). */
+  obtenerPersona(sieCode: string): Promise<PersonaApi | null>;
   /** Crea la persona en la fuente y devuelve su `sie_code`. */
   crearPersona(dto: NuevaPersonaApi): Promise<PersonaApi>;
   /** Actualiza la persona en la fuente (`PUT /personas/{codigo}`; el logo/foto no se toca). */
   actualizarPersona(sieCode: string, dto: NuevaPersonaApi): Promise<PersonaApi>;
+  /** Sube la foto de la persona (`POST /personas/{codigo}/foto`, bytes JPG/PNG/WEBP hasta 5 MB). */
+  subirFoto(sieCode: string, imagen: Buffer, contentType: string): Promise<void>;
+  /** Quita la foto de la persona (`DELETE /personas/{codigo}/foto`). */
+  borrarFoto(sieCode: string): Promise<void>;
 }

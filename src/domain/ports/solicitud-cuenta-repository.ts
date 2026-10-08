@@ -19,6 +19,10 @@ export interface NuevoUsuarioCuentaData {
   apellidos: string;
   telefono: string | null;
   nombreEmpresa: string;
+  /** RUC de la empresa solicitada (copia local para representar la cuenta). */
+  ruc?: string | null;
+  /** FK local de la empresa si ya existe la ficha por RUC. */
+  empresaId?: string | null;
   password: string;
   /** Token de invitacion para que el usuario defina su contrasena. */
   resetToken: string;

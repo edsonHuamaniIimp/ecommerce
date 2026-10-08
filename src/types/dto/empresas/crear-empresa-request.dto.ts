@@ -13,6 +13,12 @@ export interface CrearEmpresaRequestDTO {
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
   partidaElectronica?: string | null;
+  /** Datos del representante que viajan a servicio-persona (no se persisten localmente). */
+  representanteDireccion?: string | null;
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  /** Foto del representante (URL /uploads o http) para subirla a servicio-persona. */
+  representanteFotoUrl?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }

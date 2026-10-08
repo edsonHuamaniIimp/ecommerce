@@ -1,4 +1,10 @@
 import { prisma } from "@/lib/server/db";
+import { esHash, hashPassword } from "@/lib/server/utils/password";
+
+/** Blindaje: cualquier contrasena que llegue en texto plano se hashea antes de persistir. */
+function hashearSiHaceFalta(password: string): string {
+  return esHash(password) ? password : hashPassword(password);
+}
 import type {
   IAuthRepository,
   NuevoUsuarioAuth,
@@ -9,6 +15,13 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
     return prisma.userRole.findMany({
       where: { email },
+      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, role: { select: { nombre: true, permisos: true } } },
+    });
+  }
+
+  async findByRuc(ruc: string) {
+    return prisma.userRole.findMany({
+      where: { ruc },
       select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, role: { select: { nombre: true, permisos: true } } },
     });
   }
@@ -35,15 +48,17 @@ export class AuthPrismaRepository implements IAuthRepository {
         userId: data.userId,
         roleId: data.roleId,
         email: data.email,
-        password: data.password,
+        /* Blindaje: nunca se guarda texto plano aunque el caller lo olvide. */
+        password: hashearSiHaceFalta(data.password),
         nombre: data.nombre,
         apellidos: data.apellidos,
         telefono: data.telefono,
       nombreEmpresa: data.nombreEmpresa,
       empresaId: data.empresaId ?? null,
-      idEmpresa: data.idEmpresa ?? null,
-      sieCode: data.sieCode ?? null,
-      debeCambiarPassword: data.debeCambiarPassword ?? false,
+        idEmpresa: data.idEmpresa ?? null,
+        sieCode: data.sieCode ?? null,
+        ruc: data.ruc ?? null,
+        debeCambiarPassword: data.debeCambiarPassword ?? false,
       ...(data.idioma ? { idioma: data.idioma } : {}),
       },
     });
@@ -52,7 +67,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   async upsertRegistroPendiente(data: RegistroPendienteData): Promise<void> {
     const registro = {
       codigo: data.codigo,
-      password: data.password,
+      password: hashearSiHaceFalta(data.password),
       nombre: data.nombre,
       apellidos: data.apellidos,
       razonSocial: data.razonSocial,
@@ -123,7 +138,7 @@ export class AuthPrismaRepository implements IAuthRepository {
       select: {
         email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
-        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true } },
+        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true } },
       },
     });
   }
@@ -132,6 +147,16 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findEmpresaIdDeUsuario(email: string): Promise<string | null> {
     const u = await prisma.userRole.findFirst({ where: { email }, select: { empresaId: true } });
     return u?.empresaId ?? null;
+  }
+
+  async findSieCodePorEmail(email: string): Promise<string | null> {
+    const u = await prisma.userRole.findFirst({ where: { email }, select: { sieCode: true } });
+    return u?.sieCode ?? null;
+  }
+
+  async existeCuentaConRuc(ruc: string): Promise<boolean> {
+    const u = await prisma.userRole.findFirst({ where: { ruc }, select: { email: true } });
+    return Boolean(u);
   }
 
   /**
@@ -173,7 +198,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async updatePassword(id: string, password: string) {
-    await prisma.userRole.update({ where: { id }, data: { password, resetToken: null, resetTokenExpires: null } });
+    await prisma.userRole.update({ where: { id }, data: { password: hashearSiHaceFalta(password), resetToken: null, resetTokenExpires: null } });
   }
 
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {

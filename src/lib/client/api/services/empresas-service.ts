@@ -9,6 +9,7 @@ import type {
   EmpresasPaginatedDTO,
   FilaCargaEmpresaDTO,
   ListarEmpresasQueryDTO,
+  PersonaFuenteDTO,
   PrevisualizacionCargaEmpresasDTO,
   RegistrarCuentaEmpresaRequestDTO,
   ResultadoCredencialesEmpresaDTO,
@@ -56,9 +57,9 @@ export const empresasService = {
     return internalApi.post<ResultadoImportacionEmpresasDTO>("/api/empresas/carga-masiva/importar", { filas });
   },
 
-  /** Crea la cuenta del Portal del Cliente y envia las credenciales por correo. */
-  crearCuenta(id: string) {
-    return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/crear-cuenta", { id });
+  /** Crea la cuenta del Portal del Cliente (del representante) y envia las credenciales. */
+  crearCuenta(id: string, email?: string) {
+    return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/crear-cuenta", email ? { id, email } : { id });
   },
 
   /** Regenera la contrasena temporal y reenvia las credenciales. */
@@ -69,6 +70,12 @@ export const empresasService = {
   /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
   buscarFuente(q: string) {
     return internalApi.get<EmpresaFuenteDTO[]>(`/api/empresas/fuente?q=${encodeURIComponent(q)}`);
+  },
+
+  /** Busca una persona en el padron interno (servicio-persona) por documento exacto. */
+  buscarPersonaFuente(tipoDocumento: string, numeroDocumento: string) {
+    const qs = new URLSearchParams({ tipoDocumento, numeroDocumento });
+    return internalApi.get<PersonaFuenteDTO | null>(`/api/empresas/persona-fuente?${qs.toString()}`);
   },
 
   /** Registra la relacion usuario (persona) - empresa: la fuente es servicio-persona. */

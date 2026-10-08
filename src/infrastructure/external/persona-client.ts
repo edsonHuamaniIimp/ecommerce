@@ -5,7 +5,7 @@
  *
  * Doc: docs/05-integraciones/guia-consumo-servicio-persona.md
  */
-import { peticionServicioPersona, resetServicioPersonaTokenCache } from "./servicio-persona-auth";
+import { enviarBinarioServicioPersona, peticionServicioPersona, resetServicioPersonaTokenCache } from "./servicio-persona-auth";
 import type { IPersonaClient, NuevaPersonaApi, PersonaApi } from "@/domain/ports/persona-client";
 
 /** Limpia la cache de token (pruebas). */
@@ -21,6 +21,7 @@ function mapearPersona(raw: Record<string, unknown>): PersonaApi {
     apellido_materno: texto(raw.apellido_materno),
     nombres: texto(raw.nombres),
     nombre_completo: texto(raw.nombre_completo),
+    id_tipo_documento: texto(raw.id_tipo_documento),
     documento: texto(raw.documento),
     direccion: texto(raw.direccion),
     correo: texto(raw.correo),
@@ -64,6 +65,14 @@ export class PersonaApiClient implements IPersonaClient {
     return (json.contenido ?? []).map(mapearPersona);
   }
 
+  async obtenerPersona(sieCode: string): Promise<PersonaApi | null> {
+    const json = await peticionServicioPersona<Record<string, unknown> | null>(
+      `/personas/${encodeURIComponent(sieCode)}`,
+      { permitir404: true },
+    );
+    return json ? mapearPersona(json) : null;
+  }
+
   async crearPersona(dto: NuevaPersonaApi): Promise<PersonaApi> {
     const creada = await peticionServicioPersona<Record<string, unknown>>("/personas", {
       method: "POST",
@@ -78,5 +87,13 @@ export class PersonaApiClient implements IPersonaClient {
       { method: "PUT", body: cuerpoPersona(dto) },
     );
     return mapearPersona(actualizada);
+  }
+
+  async subirFoto(sieCode: string, imagen: Buffer, contentType: string): Promise<void> {
+    await enviarBinarioServicioPersona(`/personas/${encodeURIComponent(sieCode)}/foto`, imagen, contentType);
+  }
+
+  async borrarFoto(sieCode: string): Promise<void> {
+    await enviarBinarioServicioPersona(`/personas/${encodeURIComponent(sieCode)}/foto`, null, null, "DELETE");
   }
 }
