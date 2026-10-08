@@ -63,7 +63,7 @@ const inputBase = {
 };
 
 /** Fila de usuario del portal para los tests. */
-function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repository").UsuarioPortalRow> = {}) {
+function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repository").UsuarioPortalRow> = {}): import("@/domain/ports/usuario-repository").UsuarioPortalRow {
   return {
     id: "u1",
     email: "juan@empresa.com",
@@ -78,6 +78,7 @@ function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repositor
     sieCode: "P0000012345",
     debeCambiarPassword: true,
     ...overrides,
+    ruc: overrides.ruc ?? null,
   };
 }
 

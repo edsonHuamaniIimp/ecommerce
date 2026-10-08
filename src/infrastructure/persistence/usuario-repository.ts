@@ -13,6 +13,7 @@ type FilaUsuario = {
   nombre: string | null;
   apellidos: string | null;
   telefono: string | null;
+  ruc: string | null;
   empresaId: string | null;
   idEmpresa: string | null;
   nombreEmpresa: string | null;
@@ -29,6 +30,7 @@ function aFila(r: FilaUsuario): UsuarioPortalRow {
     nombre: r.nombre,
     apellidos: r.apellidos,
     telefono: r.telefono,
+    ruc: r.ruc,
     rol: r.role.nombre,
     empresaId: r.empresaId,
     idEmpresa: r.idEmpresa,

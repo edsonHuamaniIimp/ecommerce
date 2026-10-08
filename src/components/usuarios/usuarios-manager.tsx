@@ -32,7 +32,7 @@ import { Pencil, Search, Send, UserPlus, UserSearch, Users } from "lucide-react"
 import { toast } from "sonner";
 import { usuariosService } from "@/lib/client/api/services/usuarios-service";
 import { rolesService } from "@/lib/client/api/services/roles-service";
-import { EmpresaPicker } from "@/components/shared/empresa-picker";
+import { EmpresaPicker, type FuenteEmpresa } from "@/components/shared/empresa-picker";
 import { BADGE_STYLES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import type {
@@ -51,6 +51,9 @@ interface RolOpcion {
 /** Filtro de la bandeja por empresa (UI_SENTINEL.TODOS = sin filtrar). */
 const FILTRO_EMPRESA = { PORTAL: "portal", SIN_EMPRESA: "sin-empresa" } as const;
 type FiltroEmpresa = typeof UI_SENTINEL.TODOS | typeof FILTRO_EMPRESA.PORTAL | typeof FILTRO_EMPRESA.SIN_EMPRESA;
+
+/** Fuentes del selector de empresa: primero las empresas del backoffice, luego el catalogo SIE. */
+const FUENTES_EMPRESA: FuenteEmpresa[] = ["local", "sie"];
 
 /**
  * Fila parseada del textarea de alta masiva (una linea por usuario):
@@ -455,7 +458,7 @@ function NuevoUsuarioModal({ roles, rolInicial, onClose, onCreado }: {
             <Label htmlFor="usuario-direccion" className="text-xs"><span>Direccion</span></Label>
             <Input id="usuario-direccion" value={direccion} onChange={(e) => { setDireccion(e.target.value); }} className="h-8 text-xs" placeholder="Av. Arequipa 1250, Lince" />
           </div>
-          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
+          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} fuentes={FUENTES_EMPRESA} />
           <div className="space-y-1">
             <Label className="text-xs"><span>Rol *</span></Label>
             <Select value={rolId} onValueChange={setRolId}>
@@ -528,7 +531,7 @@ function CrearUsuariosLoteModal({ roles, rolInicial, onClose, onCreado }: {
           <DialogTitle><span>Crear varios usuarios</span></DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
+          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} fuentes={FUENTES_EMPRESA} />
           <div className="space-y-1">
             <Label className="text-xs"><span>Rol *</span></Label>
             <Select value={rolId} onValueChange={setRolId}>
@@ -600,7 +603,7 @@ function EditarUsuarioModal({ usuario, onClose, onGuardado }: {
 }) {
   const [empresa, setEmpresa] = useState<EmpresaAccesoDTO | null>(
     usuario.idEmpresa
-      ? { idEmpresa: usuario.idEmpresa, nombreEmpresa: usuario.empresa ?? usuario.idEmpresa, ruc: null }
+      ? { idEmpresa: usuario.idEmpresa, nombreEmpresa: usuario.empresa ?? usuario.idEmpresa, ruc: usuario.ruc ?? null }
       : null,
   );
   const [error, setError] = useState<string | null>(null);
@@ -637,7 +640,7 @@ function EditarUsuarioModal({ usuario, onClose, onGuardado }: {
             <Label className="text-xs"><span>ID Persona (servicio-persona)</span></Label>
             <Input value={usuario.sieCode ?? "—"} readOnly disabled className="h-8 font-mono text-xs" />
           </div>
-          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
+          <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} fuentes={FUENTES_EMPRESA} />
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
         <DialogFooter>
@@ -783,7 +786,7 @@ function BuscarPersonaModal({ roles, rolInicial, onClose, onCreado }: {
                 <Label htmlFor="persona-email" className="text-xs"><span>Correo del acceso *</span></Label>
                 <Input id="persona-email" value={email} onChange={(e) => { setEmail(e.target.value); }} className="h-8 text-xs" placeholder="usuario@empresa.com" />
               </div>
-              <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
+              <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} fuentes={FUENTES_EMPRESA} />
               <div className="space-y-1">
                 <Label className="text-xs"><span>Rol *</span></Label>
                 <Select value={rolId} onValueChange={setRolId}>

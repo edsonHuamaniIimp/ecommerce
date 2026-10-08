@@ -5,6 +5,8 @@ export interface UsuarioPortalRow {
   nombre: string | null;
   apellidos: string | null;
   telefono: string | null;
+  /** RUC de la empresa vinculada (para re-resolver la ficha local al reasignar). */
+  ruc: string | null;
   rol: string;
   empresaId: string | null;
   /** Codigo SIE de la empresa en la API de entidades (ej. E0000003804). */
