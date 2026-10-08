@@ -127,6 +127,8 @@ export interface FilaCargaEmpresa {
 export interface FilaCargaValidada extends FilaCargaEmpresa {
   estado: EstadoFilaCarga;
   mensajes: string[];
+  /** sie_code completado desde servicio-persona al validar (se persiste al importar). */
+  sieCode: string | null;
 }
 
 export interface ResumenCargaEmpresas {
@@ -147,8 +149,30 @@ export interface ResultadoImportacionEmpresas {
 
 /** Resultado de crear la cuenta del Portal / reenviar credenciales. */
 export interface ResultadoCredencialesEmpresa {
-  /** Correo (usuario) de la cuenta del Portal. */
+  /** Correo (usuario) de la cuenta del Portal; provisional (`acceso-<ruc>@acceso.iimp`) si se creo solo con RUC. */
   email: string;
-  /** True si el correo con las credenciales se envio correctamente. */
-  emailEnviado: boolean;
+  /** Usuario de acceso: el correo de la cuenta o el RUC (cuentas sin correo real). */
+  usuario: string;
+  /** Contrasena temporal generada; se muestra una vez al administrador. */
+  passwordTemporal: string;
+  /** true = correo enviado; false = no se pudo enviar; null = sin envio (cuenta provisional sin correo real). */
+  emailEnviado: boolean | null;
+}
+
+/** Resultado por empresa de la creacion masiva de cuentas (solo con RUC). */
+export interface ResultadoCuentaEmpresa {
+  ruc: string;
+  razonSocial: string;
+  /** Usuario de acceso (RUC) si la cuenta se creo. */
+  usuario: string | null;
+  /** Contrasena temporal (se muestra una vez al administrador). */
+  passwordTemporal: string | null;
+  creada: boolean;
+  error: string | null;
+}
+
+export interface ResultadoCreacionCuentasEmpresas {
+  creadas: number;
+  omitidas: number;
+  resultados: ResultadoCuentaEmpresa[];
 }

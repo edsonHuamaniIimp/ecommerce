@@ -12,6 +12,7 @@ import type {
   PersonaFuenteDTO,
   PrevisualizacionCargaEmpresasDTO,
   RegistrarCuentaEmpresaRequestDTO,
+  ResultadoCreacionCuentasEmpresasDTO,
   ResultadoCredencialesEmpresaDTO,
   ResultadoImportacionEmpresasDTO,
   ResultadoRegistroEmpresaDTO,
@@ -57,12 +58,17 @@ export const empresasService = {
     return internalApi.post<ResultadoImportacionEmpresasDTO>("/api/empresas/carga-masiva/importar", { filas });
   },
 
-  /** Crea la cuenta del Portal del Cliente (del representante) y envia las credenciales. */
-  crearCuenta(id: string, email?: string) {
-    return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/crear-cuenta", email ? { id, email } : { id });
+  /** Crea la cuenta de acceso (solo con RUC): devuelve la contrasena temporal para el administrador. */
+  crearCuenta(id: string) {
+    return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/crear-cuenta", { id });
   },
 
-  /** Regenera la contrasena temporal y reenvia las credenciales. */
+  /** Crea las cuentas de acceso (solo con RUC) de varias empresas; una fila por RUC. */
+  crearCuentas(rucs: string[]) {
+    return internalApi.post<ResultadoCreacionCuentasEmpresasDTO>("/api/empresas/crear-cuentas", { rucs });
+  },
+
+  /** Regenera la contrasena temporal y reenvia/entrega las credenciales. */
   reenviarCredenciales(id: string) {
     return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/reenviar-credenciales", { id });
   },

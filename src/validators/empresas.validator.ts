@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 
 const emailOpcional = z
   .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invalido")])
@@ -46,9 +46,15 @@ export const idEmpresaSchema = z.object({
   id: z.string().min(1, "id requerido"),
 });
 
-/** Crear cuenta del Portal: permite indicar el correo del representante si la ficha no lo tiene. */
-export const crearCuentaEmpresaSchema = idEmpresaSchema.extend({
-  email: z.string().trim().regex(REGEX_EMAIL, "Correo invalido").optional().nullable(),
+/** Crear cuenta del Portal (solo con RUC; ya no recibe correo). */
+export const crearCuentaEmpresaSchema = idEmpresaSchema;
+
+/** Creacion masiva de cuentas de acceso (solo con RUC) para empresas ya registradas. */
+export const crearCuentasEmpresasSchema = z.object({
+  rucs: z
+    .array(z.string().trim().regex(REGEX_RUC, "RUC invalido (11 digitos)"))
+    .min(1, "Al menos un RUC")
+    .max(CARGA_MASIVA_MAX_FILAS, `Maximo ${CARGA_MASIVA_MAX_FILAS} RUCs por lote`),
 });
 
 /** Fila de la carga masiva (texto plano del archivo). */

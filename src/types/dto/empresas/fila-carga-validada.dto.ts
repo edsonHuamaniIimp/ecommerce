@@ -4,4 +4,6 @@ import type { FilaCargaEmpresaDTO } from "./fila-carga-empresa.dto";
 export interface FilaCargaValidadaDTO extends FilaCargaEmpresaDTO {
   estado: string;
   mensajes: string[];
+  /** sie_code completado desde servicio-persona al validar. */
+  sieCode?: string | null;
 }

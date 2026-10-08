@@ -49,6 +49,8 @@ function PerfilPageContent() {
   const [repDireccion, setRepDireccion] = useState("");
   const [repCorreo, setRepCorreo] = useState("");
   const [repCelular, setRepCelular] = useState("");
+  /* Cuenta creada solo con RUC: el representante registra su correo la primera vez. */
+  const [repCorreoRegistrable, setRepCorreoRegistrable] = useState(false);
   const [repDniValidado, setRepDniValidado] = useState(false);
   const [searchEmpresa, setSearchEmpresa] = useState("");
   const [empresasResults, setEmpresasResults] = useState<Array<{ id_empresa: string; empresa: string; documento: string }>>([]);
@@ -78,6 +80,7 @@ function PerfilPageContent() {
       setRepPartida(perfilData.empresa?.representantePartida ?? "");
       setRepDireccion(perfilData.empresa?.representanteDireccion ?? "");
       setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
+      setRepCorreoRegistrable(Boolean(perfilData.empresa) && !(perfilData.empresa?.representanteCorreo ?? "").trim());
       setRepCelular(perfilData.empresa?.representanteCelular ?? "");
       if (perfilData.nombreEmpresa) setSearchEmpresa(perfilData.nombreEmpresa);
       setLoading(false);
@@ -126,6 +129,7 @@ function PerfilPageContent() {
           representantePartida: repPartida.trim() || null,
           representanteDireccion: repDireccion.trim() || null,
           representanteCelular: repCelular.trim() || null,
+          ...(repCorreoRegistrable ? { representanteCorreo: repCorreo.trim() || null } : {}),
         } : {}),
       });
       toast.success("Perfil actualizado");
@@ -326,8 +330,17 @@ function PerfilPageContent() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="repCorreo"><span>Correo</span></Label>
-                    <Input id="repCorreo" type="email" value={repCorreo} disabled className="opacity-60 text-xs" />
-                    <p className="text-[11px] text-muted-foreground"><span>Para cambiar el correo, primero debe validarse.</span></p>
+                    {repCorreoRegistrable ? (
+                      <>
+                        <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
+                        <p className="text-[11px] text-muted-foreground"><span>Registra el correo del representante: se usara en el contrato y para las notificaciones.</span></p>
+                      </>
+                    ) : (
+                      <>
+                        <Input id="repCorreo" type="email" value={repCorreo} disabled className="opacity-60 text-xs" />
+                        <p className="text-[11px] text-muted-foreground"><span>Para cambiar el correo, primero debe validarse.</span></p>
+                      </>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="repCelular"><span>Celular</span></Label>

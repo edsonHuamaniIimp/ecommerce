@@ -254,10 +254,11 @@ y escritura con `empresas:manage` (el admin `admin:full` siempre accede).
 | `/api/empresas/crear` | POST | Alta individual: valida RUC (11 dÃ­gitos), correos, comprobante y duplicados (409) |
 | `/api/empresas/actualizar` | POST | EdiciÃ³n parcial (`id` + campos enviados) |
 | `/api/empresas/estado` | POST | Activa/desactiva (`id`, `estado`: `activa` \| `inactiva`) |
-| `/api/empresas/carga-masiva/previsualizar` | POST | Sube Excel/CSV (`multipart`, campo `archivo`) y valida por fila: RUC/correos/comprobante, duplicados (archivo y BD), datos contractuales faltantes |
-| `/api/empresas/carga-masiva/importar` | POST | Importa las filas vÃ¡lidas (`{ filas }`); las filas con error se omiten. MÃ¡x. 500 filas / 5 MB |
-| `/api/empresas/crear-cuenta` | POST | Crea la cuenta del Portal (`id`): usuario + contraseÃ±a temporal, rol cliente, vÃ­nculo `empresa_id`; envÃ­a credenciales por correo y exige cambio en el primer ingreso. Acepta `email` opcional (correo del representante cuando su cuenta es distinta) |
-| `/api/empresas/reenviar-credenciales` | POST | Regenera la contraseÃ±a temporal y reenvÃ­a las credenciales (`id`) |
+| `/api/empresas/carga-masiva/previsualizar` | POST | Sube Excel/CSV (`multipart`, campo `archivo`) y valida por fila: RUC, correos, comprobante, duplicados (archivo y BD). **Basta el RUC**: razon social/contacto se completan desde servicio-persona; el duplicado local es advertencia (se reutiliza) |
+| `/api/empresas/carga-masiva/importar` | POST | Importa las filas validas (`{ filas }`); persiste `sie_code` completado. Max. 500 filas / 5 MB |
+| `/api/empresas/crear-cuenta` | POST | Crea la cuenta de acceso **solo con RUC** (`id`): usuario provisional `acceso-<ruc>@acceso.iimp`, rol cliente, `empresa_id` + SIE; **sin envio de correo** (devuelve `usuario` + `passwordTemporal` para mostrarla una vez) |
+| `/api/empresas/crear-cuentas` | POST | Crea cuentas de acceso en lote (`{ rucs[] }`, max. 500); devuelve por RUC `usuario`/`passwordTemporal`/`creada`/`error` |
+| `/api/empresas/reenviar-credenciales` | POST | Repone la contrasena temporal (`id`): si la cuenta tiene correo real lo reenvia; si es solo-RUC devuelve `passwordTemporal` |
 | `/api/empresas/fuente` | GET | Busca empresas en **servicio-persona** (fuente) por razon social o RUC (`q`); requiere `empresas:manage` |
 | `/api/empresas/persona-fuente` | GET | Busca una persona en **servicio-persona** por `tipoDocumento` y `numeroDocumento` (padron interno del representante legal); requiere `empresas:manage` |
 | `/api/empresas/registrar-cuenta-empresa` | POST | Asegura empresa y persona en **servicio-persona** (crea si no existen) y crea la cuenta local con `sie_code`/`id_empresa` + ficha local minima por RUC |

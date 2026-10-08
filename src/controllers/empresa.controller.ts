@@ -12,6 +12,7 @@ import {
   buscarPersonaFuenteSchema,
   cambiarEstadoEmpresaSchema,
   crearCuentaEmpresaSchema,
+  crearCuentasEmpresasSchema,
   crearEmpresaSchema,
   idEmpresaSchema,
   importarCargaEmpresasSchema,
@@ -181,7 +182,21 @@ export const empresaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
 
-    const resultado = await services.empresas.crearCuenta(parsed.data.id, parsed.data.email ?? null);
+    const resultado = await services.empresas.crearCuenta(parsed.data.id);
+    return success(resultado);
+  },
+
+  /** Crea las cuentas de acceso (solo con RUC) de varias empresas a la vez. */
+  async crearCuentasMasivas(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = crearCuentasEmpresasSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const resultado = await services.empresas.crearCuentasPorRuc(parsed.data.rucs);
     return success(resultado);
   },
 

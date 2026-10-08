@@ -1,6 +1,7 @@
 export type { EmpresaDTO } from "./empresa.dto";
 export type { EmpresasPaginatedDTO } from "./empresas-paginated.dto";
 export type { ResultadoCredencialesEmpresaDTO } from "./resultado-credenciales-empresa.dto";
+export type { ResultadoCreacionCuentasEmpresasDTO, ResultadoCuentaEmpresaDTO } from "./resultado-creacion-cuentas.dto";
 export type { EmpresasListResponse, EmpresaDetalleResponse, EmpresaMutacionResponse } from "./empresas-response.dto";
 export type { CrearEmpresaRequestDTO } from "./crear-empresa-request.dto";
 export type { ActualizarEmpresaRequestDTO } from "./actualizar-empresa-request.dto";

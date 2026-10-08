@@ -8,7 +8,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useConfirm } from "@/hooks/use-confirm";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
-import { BADGE_STYLES, ESTADOS_EMPRESA, REGEX_EMAIL, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
@@ -40,9 +40,8 @@ export function EmpresasManager() {
   const [cargaOpen, setCargaOpen] = useState(false);
   const [fuenteOpen, setFuenteOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
-  /* Crear cuenta: si la ficha no tiene correo del representante, se pide antes. */
-  const [cuentaPendiente, setCuentaPendiente] = useState<EmpresaDTO | null>(null);
-  const [cuentaEmail, setCuentaEmail] = useState("");
+  /* Credenciales generadas: se muestran una vez (no se envian correos). */
+  const [credenciales, setCredenciales] = useState<{ razonSocial: string; usuario: string; passwordTemporal: string } | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const pageRef = useRef(page);
@@ -96,58 +95,45 @@ export function EmpresasManager() {
     }
   };
 
-  /** Ejecuta la creacion de la cuenta (con confirmacion) usando el correo indicado. */
-  const ejecutarCrearCuenta = async (empresa: EmpresaDTO, email?: string) => {
-    const destino = email ?? empresa.representanteCorreo ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "(sin correo)";
-    const titular = empresa.representanteLegalNombre ?? empresa.razonSocial;
+  /**
+   * Crea la cuenta de acceso SOLO con RUC (no se envia correo): la contrasena
+   * temporal se muestra una vez para entregarla al representante.
+   */
+  const crearCuenta = async (empresa: EmpresaDTO) => {
     const ok = await confirm({
-      title: "Crear cuenta del Portal",
-      description: `Se creara la cuenta de "${titular}" (representante legal de ${empresa.razonSocial}) y se enviaran las credenciales a ${destino}. La contrasena es temporal: debera cambiarla en el primer ingreso.`,
+      title: "Crear cuenta de acceso",
+      description: `Se creara la cuenta de "${empresa.razonSocial}" usando su RUC como usuario. Se mostrara la contrasena temporal para que la entregues al representante; al primer ingreso el sistema le pedira cambiarla y completar sus datos (DNI, correo, celular, direccion) en el perfil.`,
       confirmLabel: "Crear cuenta",
     });
     if (!ok) return;
     try {
-      const resultado = await empresasService.crearCuenta(empresa.id, email);
-      if (resultado.emailEnviado) {
-        toast.success(`Cuenta creada. Credenciales enviadas a ${resultado.email}.`);
-      } else {
-        toast.warning(`Cuenta creada para ${resultado.email}, pero el correo no pudo enviarse. Usa "Reenviar credenciales".`);
-      }
+      const resultado = await empresasService.crearCuenta(empresa.id);
+      setCredenciales({ razonSocial: empresa.razonSocial, usuario: resultado.usuario, passwordTemporal: resultado.passwordTemporal });
       void load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo crear la cuenta");
     }
   };
 
-  /** La cuenta es del representante: si la ficha no guarda su correo, se pide en un modal. */
-  const crearCuenta = (empresa: EmpresaDTO) => {
-    if (empresa.representanteCorreo) {
-      void ejecutarCrearCuenta(empresa);
-      return;
-    }
-    setCuentaEmail(empresa.emailFacturacion ?? empresa.emailContacto ?? "");
-    setCuentaPendiente(empresa);
-  };
-
+  /** Repone la contrasena temporal: la muestra si la cuenta es solo-RUC; si tiene correo real, la reenvia. */
   const reenviarCredenciales = async (empresa: EmpresaDTO) => {
-    const destino = empresa.emailContacto ?? empresa.emailFacturacion ?? "(sin correo)";
     const ok = await confirm({
-      title: "Reenviar credenciales",
-      description: `Se generara una nueva contrasena temporal para "${empresa.razonSocial}" y se enviara a ${destino}. La contrasena anterior dejara de funcionar.`,
-      confirmLabel: "Reenviar",
+      title: "Reponer contrasena temporal",
+      description: `Se generara una nueva contrasena temporal para "${empresa.razonSocial}". La contrasena anterior dejara de funcionar.`,
+      confirmLabel: "Reponer",
       destructive: true,
     });
     if (!ok) return;
     try {
       const resultado = await empresasService.reenviarCredenciales(empresa.id);
-      if (resultado.emailEnviado) {
+      if (resultado.emailEnviado === true) {
         toast.success(`Credenciales reenviadas a ${resultado.email}.`);
       } else {
-        toast.warning(`Se regenero la contrasena de ${resultado.email}, pero el correo no pudo enviarse.`);
+        setCredenciales({ razonSocial: empresa.razonSocial, usuario: resultado.usuario, passwordTemporal: resultado.passwordTemporal });
       }
       void load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "No se pudieron reenviar las credenciales");
+      toast.error(e instanceof Error ? e.message : "No se pudieron reponer las credenciales");
     }
   };
 
@@ -161,7 +147,7 @@ export function EmpresasManager() {
               {pagination.total}
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Al registrar la empresa se creara su cuenta y se enviaran las credenciales de acceso.
+              Usa la llave para crear la cuenta de acceso (usuario = RUC). No se envian correos: el representante completa sus datos en el primer ingreso.
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -296,7 +282,7 @@ export function EmpresasManager() {
                                   <KeyRound className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent side="top"><span>Crear cuenta del Portal y enviar credenciales</span></TooltipContent>
+                              <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC)</span></TooltipContent>
                             </Tooltip>
                           ) : (
                             <Tooltip>
@@ -310,7 +296,7 @@ export function EmpresasManager() {
                                   <Mail className="h-3.5 w-3.5" />
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent side="top"><span>Reenviar credenciales (regenera la contrasena temporal)</span></TooltipContent>
+                              <TooltipContent side="top"><span>Reponer contrasena temporal</span></TooltipContent>
                             </Tooltip>
                           )}
                           <Tooltip>
@@ -382,43 +368,45 @@ export function EmpresasManager() {
           onRegistrado={() => void load()}
         />
       )}
-      {cuentaPendiente && (
-        <Dialog open onOpenChange={(v) => { if (!v) setCuentaPendiente(null); }}>
+      {credenciales && (
+        <Dialog open onOpenChange={(v) => { if (!v) setCredenciales(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader className="text-left">
-              <DialogTitle className="text-base font-semibold">Crear cuenta del representante legal</DialogTitle>
+              <DialogTitle className="text-base font-semibold">Credenciales de acceso (se muestran una sola vez)</DialogTitle>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                La cuenta pertenece a {cuentaPendiente.representanteLegalNombre ?? cuentaPendiente.razonSocial}
-                {cuentaPendiente.representanteLegalNombre ? ` (representante legal de ${cuentaPendiente.razonSocial})` : ""}.
-                Se enviaran las credenciales a este correo (se guardara en la ficha).
+                <span>Cuenta de <strong>{credenciales.razonSocial}</strong>. No se envio ningun correo: entrega estos datos al representante legal.</span>
               </p>
             </DialogHeader>
-            <div className="space-y-1 py-2">
-              <Label className="text-xs"><span>Correo del representante</span></Label>
-              <Input
-                type="email"
-                value={cuentaEmail}
-                onChange={(e) => setCuentaEmail(e.target.value)}
-                className="h-9 text-sm"
-                placeholder="representante@empresa.pe"
-              />
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <Label className="text-xs"><span>Usuario (RUC)</span></Label>
+                <Input value={credenciales.usuario} readOnly className="h-8 font-mono text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs"><span>Contrasena temporal</span></Label>
+                <Input value={credenciales.passwordTemporal} readOnly className="h-8 font-mono text-xs" />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                <span>
+                  El representante ingresa con su RUC y esta contrasena; el sistema le pedira cambiarla y
+                  completar sus datos (DNI, correo, celular, direccion) en el perfil.
+                </span>
+              </p>
             </div>
             <DialogFooter>
-              <Button variant="ghost" size="sm" onClick={() => setCuentaPendiente(null)}><span>Cancelar</span></Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (!REGEX_EMAIL.test(cuentaEmail.trim())) {
-                    toast.error("Ingresa un correo valido para el representante");
-                    return;
-                  }
-                  const empresa = cuentaPendiente;
-                  setCuentaPendiente(null);
-                  void ejecutarCrearCuenta(empresa, cuentaEmail.trim());
+                  void navigator.clipboard.writeText(
+                    `Usuario: ${credenciales.usuario} | Contrasena: ${credenciales.passwordTemporal}`,
+                  );
+                  toast.success("Credenciales copiadas");
                 }}
               >
-                <span>Crear cuenta</span>
+                <span>Copiar</span>
               </Button>
+              <Button size="sm" onClick={() => { setCredenciales(null); }}><span>Cerrar</span></Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -136,7 +136,8 @@ function fakeAuthRepo(overrides: {
     existeEmail: vi.fn(async () => overrides.existeEmail ?? false),
     existeCuentaConRuc: vi.fn(async () => overrides.rucExistente ?? false),
     crearUsuario: vi.fn(async (data: unknown) => { llamadas.creados.push(data); }),
-    findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1" }] : [])),
+    findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1", email: "cuenta@empresa.pe" }] : [])),
+    findByRuc: vi.fn(async () => []),
     updatePerfil: vi.fn(async () => undefined),
     updatePassword: vi.fn(async (_id: string, password: string) => { llamadas.passwords.push(password); }),
     marcarCambioPasswordRequerido: vi.fn(async (_email: string, requerido: boolean) => { llamadas.flags.push(requerido); }),
@@ -499,7 +500,7 @@ const FILA_BASE: FilaCargaEmpresa = {
 };
 
 describe("EmpresaApplicationService.importarCarga (carga masiva: solo empresas)", () => {
-  it("no sincroniza con servicio-persona: crea la ficha local sin llamadas externas", async () => {
+  it("completa desde servicio-persona sin crear empresas en la fuente (crea la ficha local)", async () => {
     const repo = new FakeEmpresaRepo();
     const personas = fakePersonaClient();
     const empresas = fakeEmpresaClient();
@@ -509,7 +510,7 @@ describe("EmpresaApplicationService.importarCarga (carga masiva: solo empresas)"
     const r = await service.importarCarga([FILA_BASE], "admin@iimp.org.pe");
 
     expect(r.creadas).toBe(1);
-    expect(empresas.buscarPorDocumento).not.toHaveBeenCalled();
+    expect(empresas.buscarPorDocumento).toHaveBeenCalled();
     expect(empresas.crearEmpresa).not.toHaveBeenCalled();
     expect(personas.buscarPorDocumento).not.toHaveBeenCalled();
     expect(consulta.consultarDni).not.toHaveBeenCalled();
@@ -551,14 +552,32 @@ describe("EmpresaApplicationService.previsualizarCarga", () => {
     expect(filas[1]?.mensajes.join(" ")).toContain("Duplicado en el archivo (fila 2)");
   });
 
-  it("detecta RUC ya registrado en la base de datos", async () => {
+  it("detecta RUC ya registrado en la base de datos (advertencia: se reutiliza)", async () => {
     const repo = new FakeEmpresaRepo();
     repo.seed({ ruc: "20601234567", razonSocial: "Existente S.A.C." });
     const service = crearServicio(repo);
 
     const { filas } = await service.previsualizarCarga([FILA_BASE]);
-    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ERROR);
+    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ADVERTENCIA);
     expect(filas[0]?.mensajes.join(" ")).toContain("RUC ya registrado: Existente S.A.C.");
+  });
+
+  it("solo con RUC: completa razon social y contacto desde servicio-persona", async () => {
+    const repo = new FakeEmpresaRepo();
+    const empresas = fakeEmpresaClient({
+      existente: { sie_code: "E0000000999", nombre: "Fuente S.A.C.", direccion: "Av. Fuente 123", correo: "contacto@fuente.pe", telefono: "999888777" },
+    });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), fakePersonaClient(), empresas);
+
+    const { filas } = await service.previsualizarCarga([{ ...FILA_BASE, razonSocial: "", direccionFiscal: "", telefono: "", emailContacto: "" }]);
+
+    expect(filas[0]?.razonSocial).toBe("Fuente S.A.C.");
+    expect(filas[0]?.direccionFiscal).toBe("Av. Fuente 123");
+    expect(filas[0]?.telefono).toBe("999888777");
+    expect(filas[0]?.emailContacto).toBe("contacto@fuente.pe");
+    expect(filas[0]?.sieCode).toBe("E0000000999");
+    expect(filas[0]?.mensajes.join(" ")).toContain("Completado desde servicio-persona");
+    expect(filas[0]?.estado).not.toBe(ESTADOS_FILA_CARGA.ERROR);
   });
 
   it("advierte cuando faltan datos contractuales", async () => {
@@ -618,7 +637,7 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     telefono: "999888777",
   };
 
-  it("crea la cuenta con credencial temporal, vinculo a la empresa y envia el correo", async () => {
+  it("crea la cuenta SOLO con RUC (usuario provisional) sin enviar correo", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed(empresaBase);
     const auth = fakeAuthRepo();
@@ -626,10 +645,13 @@ describe("EmpresaApplicationService.crearCuenta", () => {
 
     const resultado = await service.crearCuenta(creada.id);
 
-    expect(resultado).toEqual({ email: "contacto@mineracordillera.pe", emailEnviado: true });
+    expect(resultado.email).toBe("acceso-20601234567@acceso.iimp");
+    expect(resultado.usuario).toBe("20601234567");
+    expect(resultado.passwordTemporal).toBe("TempPass123");
+    expect(resultado.emailEnviado).toBeNull();
     expect(auth.llamadas.creados).toHaveLength(1);
     const datos = auth.llamadas.creados[0] as Record<string, unknown>;
-    expect(datos.userId).toBe("user|contacto@mineracordillera.pe");
+    expect(datos.userId).toBe("user|acceso-20601234567@acceso.iimp");
     expect(datos.empresaId).toBe(creada.id);
     expect(datos.debeCambiarPassword).toBe(true);
     expect(datos.roleId).toBe("rol-cliente");
@@ -654,16 +676,30 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     expect(datos.ruc).toBe("20601234567");
   });
 
-  it("permite indicar el correo del representante al crear la cuenta (y lo guarda en la ficha)", async () => {
+  it("crea cuentas en lote por RUC (crearCuentasPorRuc): reporta creadas y omitidas", async () => {
     const repo = new FakeEmpresaRepo();
-    const creada = repo.seed(empresaBase);
+    repo.seed(empresaBase);
+    const service = crearServicio(repo);
+
+    const r = await service.crearCuentasPorRuc(["20601234567", "20123456789"]);
+
+    expect(r.creadas).toBe(1);
+    expect(r.omitidas).toBe(1);
+    expect(r.resultados[0]?.usuario).toBe("20601234567");
+    expect(r.resultados[0]?.passwordTemporal).toBe("TempPass123");
+    expect(r.resultados[1]?.error).toContain("No existe la ficha local");
+  });
+
+  it("recorta el telefono de la fuente a 20 caracteres (varchar de user_role)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ...empresaBase, telefono: "51-1-012034200 Anx: 4263" });
     const auth = fakeAuthRepo();
     const service = crearServicio(repo, auth);
 
-    const r = await service.crearCuenta(creada.id, "rep@empresa.pe");
+    await service.crearCuenta(creada.id);
 
-    expect(r.email).toBe("rep@empresa.pe");
-    expect((await repo.findById(creada.id))?.representanteCorreo).toBe("rep@empresa.pe");
+    const datos = auth.llamadas.creados[0] as Record<string, unknown>;
+    expect(datos.telefono).toBe("51-1-012034200 4263");
   });
 
   it("409 si la cuenta ya fue creada", async () => {
@@ -672,14 +708,6 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     const service = crearServicio(repo);
 
     await expect(service.crearCuenta(creada.id)).rejects.toMatchObject({ status: 409 });
-  });
-
-  it("400 si la empresa no tiene correo", async () => {
-    const repo = new FakeEmpresaRepo();
-    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Sin Correo S.A.C." });
-    const service = crearServicio(repo);
-
-    await expect(service.crearCuenta(creada.id)).rejects.toMatchObject({ status: 400 });
   });
 
   it("409 si el correo ya tiene una cuenta habilitada", async () => {

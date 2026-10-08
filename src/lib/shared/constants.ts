@@ -1009,8 +1009,8 @@ export type CampoPlantillaEmpresa =
 
 /** Columnas de la plantilla de carga masiva (orden = columnas del archivo). */
 export const CAMPOS_CARGA_EMPRESA: { campo: CampoPlantillaEmpresa; header: string; requerido: boolean; alias?: string[] }[] = [
-  { campo: "ruc", header: "RUC", requerido: true, alias: ["RUC EMPRESA"] },
-  { campo: "razonSocial", header: "RAZON SOCIAL", requerido: true, alias: ["RAZON SOCIAL EMPRESA", "EMPRESA"] },
+  { campo: "ruc", header: "RUC", requerido: true, alias: ["RUC EMPRESA", "NUMERO DOC", "NUMERO DOCUMENTO", "NUMERO DE DOCUMENTO", "NRO DOC", "N DOCUMENTO", "DOCUMENTO"] },
+  { campo: "razonSocial", header: "RAZON SOCIAL", requerido: false, alias: ["RAZON SOCIAL EMPRESA", "EMPRESA"] },
   { campo: "nombreComercial", header: "NOMBRE COMERCIAL", requerido: false },
   { campo: "direccionFiscal", header: "DIRECCION FISCAL", requerido: false, alias: ["DIRECCION"] },
   { campo: "telefono", header: "TELEFONO", requerido: false, alias: ["CELULAR"] },
@@ -1029,6 +1029,13 @@ export const CARGA_MASIVA_EXTENSIONES = ["xlsx", "csv"] as const;
 /* ================================================================
    Credenciales del Portal del Cliente
    ================================================================ */
+
+/**
+ * Dominio interno del correo provisional de las cuentas creadas solo con RUC:
+ * el usuario ingresa con su RUC y completa su correo real en el primer acceso.
+ * A este dominio nunca se envian correos.
+ */
+export const EMAIL_PROVISIONAL_DOMINIO = "acceso.iimp";
 
 /** Longitud minima de la contrasena al cambiarla (credencial temporal -> definitiva). */
 export const PASSWORD_MIN_LENGTH = 8;

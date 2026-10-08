@@ -636,11 +636,12 @@ paths:
   /empresas/crear-cuenta:
     post:
       tags: [Empresas]
-      summary: Crea la cuenta del Portal del Cliente y envía las credenciales por correo
+      summary: Crea la cuenta de acceso de la empresa (solo con RUC)
       description: |
-        1 cuenta por empresa (creada explícitamente por el backoffice). Genera una
-        contraseña temporal (cambio obligatorio en el primer ingreso), vincula el usuario
-        a la empresa y envía el correo. La respuesta indica si el correo salió.
+        Crea la cuenta del representante legal usando el RUC como usuario (correo
+        provisional `acceso-<ruc>@acceso.iimp`), con contrasena temporal. NO envia
+        correo: devuelve la contrasena para mostrarla una vez al administrador. Al
+        primer ingreso el representante la cambia y completa sus datos en el perfil.
       requestBody:
         required: true
         content:
@@ -657,10 +658,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
-        "400":
-          description: La empresa no tiene correo de contacto/facturación
         "409":
-          description: La empresa ya tiene cuenta o el correo ya está registrado
+          description: La empresa ya tiene cuenta o el RUC ya tiene cuenta
+  /empresas/crear-cuentas:
+    post:
+      tags: [Empresas]
+      summary: Crea cuentas de acceso (solo con RUC) en lote
+      description: |
+        Crea la cuenta de cada empresa por RUC (max. 500). Sin envio de correo:
+        devuelve por fila el usuario y la contrasena temporal para entregarlos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rucs]
+              properties:
+                rucs:
+                  type: array
+                  maxItems: 500
+                  items: { type: string, pattern: "^[0-9]{11}$" }
+      responses:
+        "200":
+          description: Resultado por RUC
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  creadas: { type: integer }
+                  omitidas: { type: integer }
+                  resultados:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ruc: { type: string }
+                        razonSocial: { type: string }
+                        usuario: { type: string, nullable: true }
+                        passwordTemporal: { type: string, nullable: true }
+                        creada: { type: boolean }
+                        error: { type: string, nullable: true }
   /empresas/reenviar-credenciales:
     post:
       tags: [Empresas]
@@ -1642,10 +1681,12 @@ components:
             errores: { type: integer }
     ResultadoCredencialesEmpresa:
       type: object
-      required: [email, emailEnviado]
+      required: [email, usuario, passwordTemporal, emailEnviado]
       properties:
-        email: { type: string, format: email, description: "Usuario de la cuenta del Portal" }
-        emailEnviado: { type: boolean, description: "True si el correo con las credenciales salió" }
+        email: { type: string, description: "Correo de la cuenta (provisional acceso-<ruc>@acceso.iimp si es solo-RUC)" }
+        usuario: { type: string, description: "Usuario de acceso (RUC para cuentas solo-RUC)" }
+        passwordTemporal: { type: string, description: "Contrasena temporal (se muestra una vez al administrador)" }
+        emailEnviado: { type: boolean, nullable: true, description: "True si el correo con las credenciales salió" }
     ApiError:
       type: object
       required: [error]
