@@ -8,14 +8,12 @@ import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useConfirm } from "@/hooks/use-confirm";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
-import { BADGE_STYLES, ESTADOS_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_EMPRESA, PER_PAGE_OPCIONES, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
 import { RegistrarEmpresaFuenteModal } from "./registrar-empresa-fuente-modal";
-
-const PER_PAGE_OPCIONES = [10, 15, 50];
 
 function EstadoEmpresaBadge({ estado }: { estado: string }) {
   const activa = estado === ESTADOS_EMPRESA.ACTIVA;

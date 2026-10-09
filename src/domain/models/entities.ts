@@ -118,6 +118,8 @@ export interface UserRoleEntity {
   empresaId?: string | null;
   /** Credencial temporal: debe cambiar la contrasena en el primer ingreso. */
   debeCambiarPassword?: boolean;
+  /** Acceso habilitado (flg_activo): false = deshabilitado por backoffice. */
+  flgActivo?: boolean;
 }
 
 export interface AuthUser {

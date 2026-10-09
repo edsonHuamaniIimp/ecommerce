@@ -283,12 +283,12 @@ Bandeja y alta de accesos del Portal del Cliente. La persona vive en **servicio-
 
 | Ruta | MÃ©todos | DescripciÃ³n |
 |---|---|---|
-| `/api/usuarios/listar` | GET | Bandeja de usuarios (rol, empresa local/SIE, `sieCode`, credencial temporal; incluye internos sin empresa) |
+| `/api/usuarios/listar` | GET | Bandeja paginada server-side (`page`, `per_page` máx. 100, `search`, `filtro=portal|sin-empresa`; respuesta `{ data, pagination }`) con rol, empresa local/SIE, `sieCode`, credencial temporal y estado `flgActivo` |
 | `/api/usuarios/personas` | GET | Busca personas en servicio-persona (`q`: apellido paterno o DNI) |
 | `/api/usuarios/crear` | POST | Alta individual: busca/crea la persona en la fuente y crea el acceso (empresa + rol; contrasena temporal por correo) |
 | `/api/usuarios/crear-lote` | POST | Alta por lote (hasta 100 personas) para la misma empresa/rol |
 | `/api/usuarios/crear-cuenta` | POST | Crea el acceso para una persona existente en la fuente (`sieCode` + correo + empresa + rol) |
-| `/api/usuarios/actualizar` | POST | Asigna/cambia la empresa del acceso (`id` + empresa: codigo SIE + RUC; resuelve la FK local por RUC) |
+| `/api/usuarios/actualizar` | POST | Actualiza el acceso (al menos uno): correo del login (`email`, reescribe `userId`), estado (`flgActivo:false` deshabilita y corta la sesion) y/o empresa (`idEmpresa`+`nombreEmpresa`+RUC, resuelve la FK local) |
 | `/api/usuarios/enviar-accesos` | POST | Regenera la contrasena temporal y reenvia las credenciales |
 
 ### 3.22 Reserva-datos (prellenado del wizard) - `src/app/api/reserva-datos/[...slug]/route.ts`

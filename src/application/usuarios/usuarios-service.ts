@@ -4,7 +4,7 @@ import { enviarEmailPlantilla } from "@/lib/server/email";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
-import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow } from "@/domain/ports/usuario-repository";
+import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow, UsuariosPaginationParams } from "@/domain/ports/usuario-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -44,6 +44,16 @@ export interface CrearCuentaPersonaInput extends EmpresaAccesoInput {
   rolId?: string | null;
 }
 
+/** Cambios del acceso local desde la bandeja de Usuarios (empresa, correo y estado). */
+export interface ActualizarAccesoInput {
+  /** Empresa elegida de la API de entidades; omitida = no cambia. */
+  empresa?: EmpresaAccesoInput;
+  /** Correo del login; omitido/null = no cambia. */
+  email?: string | null;
+  /** Estado del acceso; omitido/null = no cambia. false = deshabilitado. */
+  flgActivo?: boolean | null;
+}
+
 export interface ResultadoCreacionUsuario {
   email: string;
   creado: boolean;
@@ -66,8 +76,9 @@ export class UsuariosApplicationService {
     private readonly personaClient: IPersonaClient,
   ) {}
 
-  listar() {
-    return this.repo.listarUsuariosPortal();
+  /** Bandeja paginada de usuarios (paginacion/busqueda/filtro server-side). */
+  listar(params: UsuariosPaginationParams) {
+    return this.repo.listarUsuariosPortal(params);
   }
 
   /** Busca personas en la fuente (servicio-persona) para reutilizarlas como cuenta local. */
@@ -224,17 +235,50 @@ export class UsuariosApplicationService {
     return { email, creado: true, emailEnviado, error: null };
   }
 
-  /** Asigna/cambia la empresa (API de entidades) del acceso local. */
-  async actualizar(id: string, empresa: EmpresaAccesoInput): Promise<UsuarioPortalRow> {
+  /**
+   * Actualiza el acceso local: empresa (API de entidades), correo del login y/o
+   * estado. Deshabilitar corta la sesion activa (validacion en proxy/getSession)
+   * y el login; un admin no puede deshabilitar su propia cuenta.
+   */
+  async actualizar(id: string, cambios: ActualizarAccesoInput, solicitanteEmail?: string | null): Promise<UsuarioPortalRow> {
     const usuario = await this.repo.findUsuarioPortalById(id);
     if (!usuario) throw new DomainError("Usuario no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
 
-    const empresaResuelta = await this.resolverEmpresa(empresa);
-    const data: ActualizarUsuarioPortalData = {
-      idEmpresa: empresaResuelta.idEmpresa,
-      nombreEmpresa: empresaResuelta.nombreEmpresa,
-      empresaId: empresaResuelta.empresaId ?? undefined,
-    };
+    const data: ActualizarUsuarioPortalData = {};
+
+    if (cambios.empresa) {
+      const empresaResuelta = await this.resolverEmpresa(cambios.empresa);
+      data.idEmpresa = empresaResuelta.idEmpresa;
+      data.nombreEmpresa = empresaResuelta.nombreEmpresa;
+      data.empresaId = empresaResuelta.empresaId ?? undefined;
+    }
+
+    if (cambios.email != null) {
+      const email = String(cambios.email).trim().toLowerCase();
+      if (!REGEX_EMAIL.test(email)) {
+        throw new DomainError("Correo invalido", API_ERROR_CODES.VALIDATION, 400);
+      }
+      if (email !== usuario.email.trim().toLowerCase()) {
+        if (await this.repo.existeEmailEnOtraCuenta(email, usuario.userId)) {
+          throw new DomainError("El correo ya pertenece a otra cuenta", API_ERROR_CODES.CONFLICT, 409);
+        }
+        data.email = email;
+      }
+    }
+
+    if (cambios.flgActivo != null) {
+      const esMismaCuenta = solicitanteEmail != null
+        && solicitanteEmail.trim().toLowerCase() === usuario.email.trim().toLowerCase();
+      if (!cambios.flgActivo && esMismaCuenta) {
+        throw new DomainError("No puedes deshabilitar tu propia cuenta", API_ERROR_CODES.VALIDATION, 400);
+      }
+      data.flgActivo = cambios.flgActivo;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new DomainError("No hay cambios por aplicar", API_ERROR_CODES.VALIDATION, 400);
+    }
+
     return this.repo.actualizarUsuarioPortal(id, data);
   }
 

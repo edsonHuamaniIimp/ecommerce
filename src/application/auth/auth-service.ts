@@ -158,6 +158,10 @@ export class AuthApplicationService {
     if (!verificarPassword(dto.password, principal.password)) {
       return { error: "Contrasena incorrecta", status: 401 } as const;
     }
+    /* Cuenta deshabilitada por backoffice: sin login y con sesion activa cortada. */
+    if (principal.flgActivo === false) {
+      return { error: "Cuenta deshabilitada. Contacta al administrador.", status: 403 } as const;
+    }
     /* La sesion y el resto del flujo usan el correo REAL de la cuenta (no el identificador). */
     const email = principal.email.trim().toLowerCase();
     // Migracion transparente: si venia en texto plano, se guarda hasheada.
@@ -492,7 +496,8 @@ export class AuthApplicationService {
 
   async requestReset(dto: ResetPasswordRequestDTO): Promise<RequestResetResult> {
     const user = await this.repo.findForReset(dto.email);
-    if (!user) return { ok: true, message: "Si el email existe, recibiras un enlace" };
+    /* Cuenta deshabilitada: misma respuesta generica, sin generar enlace. */
+    if (!user || user.flgActivo === false) return { ok: true, message: "Si el email existe, recibiras un enlace" };
 
     const token = generarTokenAleatorio();
     await this.repo.setResetToken(user.id, token, new Date(Date.now() + RESET_PASSWORD_MINUTOS_VIGENCIA * MS_POR_MINUTO));

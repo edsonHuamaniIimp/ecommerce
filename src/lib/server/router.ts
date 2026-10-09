@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
 
 export class DomainError extends Error {
   constructor(
@@ -42,6 +44,10 @@ export function createRouter(config: RouterConfig) {
       } catch (err) {
         if (err instanceof DomainError) {
           return NextResponse.json({ success: false, error: { code: err.code, message: err.message } }, { status: err.status });
+        }
+        if (err instanceof ZodError) {
+          const message = err.issues.map((issue) => issue.message).join("; ");
+          return NextResponse.json({ success: false, error: { code: API_ERROR_CODES.VALIDATION, message } }, { status: 400 });
         }
         const message = err instanceof Error ? err.message : "Error interno";
         return NextResponse.json({ success: false, error: { code: "INTERNAL", message } }, { status: 500 });

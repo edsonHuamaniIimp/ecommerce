@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
+import { paginatedResponse } from "@/lib/server/pagination";
 import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { crearUsuarioSchema, crearUsuariosLoteSchema, crearCuentaUsuarioSchema, actualizarUsuarioSchema, enviarAccesosUsuarioSchema } from "@/validators/usuarios.validator";
+import { crearUsuarioSchema, crearUsuariosLoteSchema, crearCuentaUsuarioSchema, actualizarUsuarioSchema, enviarAccesosUsuarioSchema, usuariosListarSchema } from "@/validators/usuarios.validator";
 
 /** Solo admin (o rol con el permiso dedicado de usuarios) puede gestionar usuarios del portal. */
 async function autorizarGestionUsuarios(): Promise<NextResponse | null> {
@@ -16,11 +17,24 @@ async function autorizarGestionUsuarios(): Promise<NextResponse | null> {
 }
 
 export const usuariosController = {
-  /** GET /api/usuarios/listar — usuarios del Portal del Cliente con su empresa. */
-  async listar(): Promise<NextResponse> {
+  /** GET /api/usuarios/listar — bandeja paginada (?page=&per_page=&search=&filtro=). */
+  async listar(request: Request): Promise<NextResponse> {
     const noAutorizado = await autorizarGestionUsuarios();
     if (noAutorizado) return noAutorizado;
-    return success(await services.usuarios.listar());
+    const params = new URL(request.url).searchParams;
+    const query = usuariosListarSchema.parse({
+      page: params.get("page") ?? undefined,
+      per_page: params.get("per_page") ?? undefined,
+      search: params.get("search") ?? undefined,
+      filtro: params.get("filtro") ?? undefined,
+    });
+    const resultado = await services.usuarios.listar({
+      page: query.page,
+      perPage: query.per_page,
+      search: query.search,
+      filtro: query.filtro,
+    });
+    return success(paginatedResponse(resultado.data, resultado.total, resultado.page, resultado.perPage));
   },
 
   /** POST /api/usuarios/crear — { email, tipoDocumento, ..., idEmpresa, nombreEmpresa, ruc?, rolId? }. */
@@ -60,13 +74,20 @@ export const usuariosController = {
     return success(await services.usuarios.crearCuentaDesdePersona(body), { status: 201 });
   },
 
-  /** POST /api/usuarios/actualizar — { id, idEmpresa, nombreEmpresa, ruc? }. */
+  /** POST /api/usuarios/actualizar — { id, email?, flgActivo?, idEmpresa?+nombreEmpresa?+ruc? }. */
   async actualizar(request: Request): Promise<NextResponse> {
     const noAutorizado = await autorizarGestionUsuarios();
     if (noAutorizado) return noAutorizado;
     const body = actualizarUsuarioSchema.parse(await request.json());
-    const { id, idEmpresa, nombreEmpresa, ruc } = body;
-    return success(await services.usuarios.actualizar(id, { idEmpresa, nombreEmpresa, ruc }));
+    const session = await getSession();
+    const empresa = body.idEmpresa != null && body.nombreEmpresa != null
+      ? { idEmpresa: body.idEmpresa, nombreEmpresa: body.nombreEmpresa, ruc: body.ruc ?? null }
+      : undefined;
+    return success(await services.usuarios.actualizar(
+      body.id,
+      { empresa, email: body.email, flgActivo: body.flgActivo },
+      session?.email,
+    ));
   },
 
   /** POST /api/usuarios/enviar-accesos — { id }: regenera la credencial y la envia por correo. */

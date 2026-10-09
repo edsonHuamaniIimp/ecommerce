@@ -899,6 +899,23 @@ export const ESTADOS_EMPRESA = {
 
 export type EstadoEmpresa = (typeof ESTADOS_EMPRESA)[keyof typeof ESTADOS_EMPRESA];
 
+/** Estado de acceso de un usuario (user_role.flg_activo). */
+export const ESTADOS_ACCESO_USUARIO = {
+  ACTIVO: true,
+  DESHABILITADO: false,
+} as const;
+
+/** Filtro de la bandeja de Usuarios por vinculo con empresa (omitido = todos). */
+export const FILTROS_USUARIO_EMPRESA = {
+  PORTAL: "portal",
+  SIN_EMPRESA: "sin-empresa",
+} as const;
+
+export type FiltroUsuarioEmpresa = (typeof FILTROS_USUARIO_EMPRESA)[keyof typeof FILTROS_USUARIO_EMPRESA];
+
+/** Opciones de registros por pagina en bandejas con paginacion server-side. */
+export const PER_PAGE_OPCIONES = [10, 15, 50] as const;
+
 /** Etiquetas legibles del tipo de comprobante (ver TIPOS_COMPROBANTE). */
 export const TIPO_COMPROBANTE_LABELS: Record<string, string> = {
   [TIPOS_COMPROBANTE.FACTURA]: "Factura",

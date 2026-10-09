@@ -28,10 +28,11 @@ vi.mock("@/lib/server/utils/password", () => ({
 
 function fakeRepos() {
   const usuarioRepo = {
-    listarUsuariosPortal: vi.fn(async () => []),
+    listarUsuariosPortal: vi.fn(async () => ({ data: [], total: 0, page: 1, perPage: 10, totalPages: 1 })),
     findUsuarioPortalById: vi.fn(async () => null),
     actualizarUsuarioPortal: vi.fn(),
     actualizarPasswordUsuarioPortal: vi.fn(async () => {}),
+    existeEmailEnOtraCuenta: vi.fn(async () => false),
   } as unknown as IUsuarioRepository;
   const authRepo = { existeEmail: vi.fn(async () => false), crearUsuario: vi.fn(async () => {}) } as unknown as IAuthRepository;
   const empresaRepo = {
@@ -66,6 +67,7 @@ const inputBase = {
 function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repository").UsuarioPortalRow> = {}): import("@/domain/ports/usuario-repository").UsuarioPortalRow {
   return {
     id: "u1",
+    userId: "user|juan@empresa.com",
     email: "juan@empresa.com",
     nombre: "",
     apellidos: "",
@@ -77,6 +79,7 @@ function usuarioFila(overrides: Partial<import("@/domain/ports/usuario-repositor
     esPortal: true,
     sieCode: "P0000012345",
     debeCambiarPassword: true,
+    flgActivo: true,
     ...overrides,
     ruc: overrides.ruc ?? null,
   };
@@ -200,6 +203,26 @@ describe("UsuariosApplicationService.crear (servicio-persona)", () => {
   });
 });
 
+describe("UsuariosApplicationService.listar", () => {
+  it("delega la paginacion, busqueda y filtro al repositorio", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.listarUsuariosPortal).mockResolvedValue({
+      data: [usuarioFila()],
+      total: 1,
+      page: 2,
+      perPage: 10,
+      totalPages: 1,
+    });
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    const r = await svc.listar({ page: 2, perPage: 10, search: "juan", filtro: "portal" });
+
+    expect(usuarioRepo.listarUsuariosPortal).toHaveBeenCalledWith({ page: 2, perPage: 10, search: "juan", filtro: "portal" });
+    expect(r.total).toBe(1);
+    expect(r.data).toHaveLength(1);
+  });
+});
+
 describe("UsuariosApplicationService.buscarPersonas", () => {
   it("delega la busqueda en servicio-persona", async () => {
     const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
@@ -271,7 +294,7 @@ describe("UsuariosApplicationService.actualizar", () => {
     vi.mocked(usuarioRepo.actualizarUsuarioPortal).mockResolvedValue(usuarioFila());
     const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
 
-    await svc.actualizar("u1", empresaAcceso);
+    await svc.actualizar("u1", { empresa: empresaAcceso });
 
     expect(usuarioRepo.actualizarUsuarioPortal).toHaveBeenCalledWith("u1", expect.objectContaining({
       idEmpresa: "E0000003804",
@@ -283,7 +306,60 @@ describe("UsuariosApplicationService.actualizar", () => {
     const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
     const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
 
-    await expect(svc.actualizar("u-x", empresaAcceso)).rejects.toMatchObject({ status: 404 });
+    await expect(svc.actualizar("u-x", { empresa: empresaAcceso })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("cambia el correo del acceso normalizado a minusculas", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.findUsuarioPortalById).mockResolvedValue(usuarioFila());
+    vi.mocked(usuarioRepo.actualizarUsuarioPortal).mockResolvedValue(usuarioFila({ email: "nuevo@empresa.com" }));
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    const r = await svc.actualizar("u1", { email: " Nuevo@Empresa.com " });
+
+    expect(usuarioRepo.existeEmailEnOtraCuenta).toHaveBeenCalledWith("nuevo@empresa.com", "user|juan@empresa.com");
+    expect(usuarioRepo.actualizarUsuarioPortal).toHaveBeenCalledWith("u1", { email: "nuevo@empresa.com" });
+    expect(r.email).toBe("nuevo@empresa.com");
+  });
+
+  it("rechaza un correo que ya pertenece a otra cuenta", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.findUsuarioPortalById).mockResolvedValue(usuarioFila());
+    vi.mocked(usuarioRepo.existeEmailEnOtraCuenta).mockResolvedValue(true);
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    await expect(svc.actualizar("u1", { email: "otro@empresa.com" })).rejects.toMatchObject({ status: 409 });
+    expect(usuarioRepo.actualizarUsuarioPortal).not.toHaveBeenCalled();
+  });
+
+  it("deshabilita el acceso", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.findUsuarioPortalById).mockResolvedValue(usuarioFila());
+    vi.mocked(usuarioRepo.actualizarUsuarioPortal).mockResolvedValue(usuarioFila({ flgActivo: false }));
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    const r = await svc.actualizar("u1", { flgActivo: false });
+
+    expect(usuarioRepo.actualizarUsuarioPortal).toHaveBeenCalledWith("u1", { flgActivo: false });
+    expect(r.flgActivo).toBe(false);
+  });
+
+  it("no permite deshabilitar la propia cuenta del solicitante", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.findUsuarioPortalById).mockResolvedValue(usuarioFila());
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    await expect(svc.actualizar("u1", { flgActivo: false }, "JUAN@empresa.com")).rejects.toMatchObject({ status: 400 });
+    expect(usuarioRepo.actualizarUsuarioPortal).not.toHaveBeenCalled();
+  });
+
+  it("exige al menos un cambio por aplicar", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    vi.mocked(usuarioRepo.findUsuarioPortalById).mockResolvedValue(usuarioFila());
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    await expect(svc.actualizar("u1", {})).rejects.toMatchObject({ status: 400 });
+    expect(usuarioRepo.actualizarUsuarioPortal).not.toHaveBeenCalled();
   });
 });
 

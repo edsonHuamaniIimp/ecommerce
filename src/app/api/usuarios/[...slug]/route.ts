@@ -3,7 +3,7 @@ import { usuariosController } from "@/controllers/usuarios.controller";
 
 export const { GET, POST } = createRouter({
   GET: {
-    listar: () => usuariosController.listar(),
+    listar: (req) => usuariosController.listar(req),
     personas: (req) => usuariosController.buscarPersonas(req),
   },
   POST: {

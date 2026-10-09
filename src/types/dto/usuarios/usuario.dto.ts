@@ -17,6 +17,8 @@ export interface UsuarioPortalDTO {
   /** Identificador de la persona en servicio-persona (sie_code). */
   sieCode: string | null;
   debeCambiarPassword: boolean;
+  /** Acceso habilitado (flg_activo): false = deshabilitado, no puede ingresar. */
+  flgActivo: boolean;
 }
 
 /** Empresa elegida desde la API de entidades (codigo SIE + razon social). */
@@ -79,9 +81,17 @@ export interface ResultadoLoteUsuariosDTO {
   resultados: ResultadoCreacionUsuarioDTO[];
 }
 
-/** Asignar/cambiar la empresa (API de entidades) del acceso local. */
-export interface ActualizarUsuarioDTO extends EmpresaAccesoDTO {
+/** Actualizar el acceso local: empresa (API de entidades), correo del login y/o estado. */
+export interface ActualizarUsuarioDTO {
   id: string;
+  /** Nuevo correo del acceso (login). */
+  email?: string | null;
+  /** Estado del acceso: false deshabilita (no puede ingresar). */
+  flgActivo?: boolean | null;
+  /** Empresa (SIE): idEmpresa y nombreEmpresa van juntos; ruc resuelve la FK local. */
+  idEmpresa?: string | null;
+  nombreEmpresa?: string | null;
+  ruc?: string | null;
 }
 
 export interface EnviarAccesosUsuarioDTO {

@@ -67,7 +67,7 @@ export interface IAuthRepository {
   setEventoSeleccionado(email: string, eventoId: string, eventoNombre?: string | null, eventoPadreNombre?: string | null): Promise<void>;
   findPerfilByEmail(email: string): Promise<{ email: string; nombre: string | null; apellidos: string | null; telefono: string | null; tipoUsuarioId: number | null; idEmpresa: string | null; nombreEmpresa: string | null; empresa: { ruc: string; razonSocial: string; direccionFiscal: string | null; telefono: string | null; emailContacto: string | null; representanteLegalNombre: string | null; representanteLegalDni: string | null; representanteCorreo: string | null; representanteCelular: string | null; representanteDireccion: string | null; partidaElectronica: string | null } | null; logoUrl: string | null; firmaUrl: string | null; idioma: string | null } | null>;
   updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }): Promise<void>;
-  findForReset(email: string): Promise<{ id: string; email: string; nombre: string | null } | null>;
+  findForReset(email: string): Promise<{ id: string; email: string; nombre: string | null; flgActivo: boolean } | null>;
   setResetToken(id: string, token: string, expires: Date): Promise<void>;
   findByResetToken(token: string): Promise<{ id: string } | null>;
   updatePassword(id: string, password: string): Promise<void>;

@@ -1,4 +1,5 @@
 import { internalApi } from "./internal-api";
+import type { PaginatedResponseDTO } from "@/types/dto/pagination.dto";
 import type {
   ActualizarUsuarioDTO,
   CrearCuentaUsuarioDTO,
@@ -13,9 +14,15 @@ import type {
 } from "@/types/dto/usuarios/usuario.dto";
 
 export const usuariosService = {
-  /** Usuarios del Portal del Cliente con su empresa (bandeja de Usuarios). */
-  listar() {
-    return internalApi.get<UsuarioPortalDTO[]>("/api/usuarios/listar");
+  /** Bandeja paginada de usuarios (paginacion/busqueda/filtro server-side). */
+  listar(params: { page?: number; per_page?: number; search?: string; filtro?: string } = {}) {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.per_page) q.set("per_page", String(params.per_page));
+    if (params.search) q.set("search", params.search);
+    if (params.filtro) q.set("filtro", params.filtro);
+    const qs = q.toString();
+    return internalApi.get<PaginatedResponseDTO<UsuarioPortalDTO>>(`/api/usuarios/listar${qs ? `?${qs}` : ""}`);
   },
 
   /** Busca personas en servicio-persona (fuente) por apellido paterno o documento. */

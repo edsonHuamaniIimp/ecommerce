@@ -139,12 +139,33 @@ export async function hasDBPermission(session: JwtPayload, permission: string): 
   }
 }
 
+/**
+ * Cuenta habilitada (user_role.flg_activo): una cuenta deshabilitada por el
+ * backoffice no puede iniciar sesion y su sesion activa se corta. Si la BD falla
+ * se asume activa (los endpoints fallaran igual mas adelante).
+ */
+export async function isUsuarioActivo(email: string): Promise<boolean> {
+  try {
+    const { prisma } = await import("./db");
+    const cuenta = await prisma.userRole.findFirst({
+      where: { email, flgActivo: true },
+      select: { id: true },
+    });
+    return Boolean(cuenta);
+  } catch {
+    return true;
+  }
+}
+
 export async function getSession(): Promise<JwtPayload | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
     if (!token) return null;
-    return verifyToken(token);
+    const payload = await verifyToken(token);
+    if (!payload) return null;
+    if (!(await isUsuarioActivo(payload.email))) return null;
+    return payload;
   } catch {
     return null;
   }

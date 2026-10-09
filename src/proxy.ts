@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, verifyToken, hasPermission } from "@/lib/server/auth";
+import { getTokenFromRequest, verifyToken, hasPermission, isUsuarioActivo } from "@/lib/server/auth";
 import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
@@ -70,6 +70,9 @@ export async function proxy(request: NextRequest) {
 
       const payload = await verifyToken(token);
       if (!payload) return redirectToLogin(request);
+
+      /* Cuenta deshabilitada por backoffice: corta la sesion activa de inmediato. */
+      if (!(await isUsuarioActivo(payload.email))) return redirectToLogin(request);
 
       /* Credencial temporal: solo puede cambiar contrasena/validar datos hasta completarlo. */
       if (

@@ -921,33 +921,60 @@ paths:
   /usuarios/listar:
     get:
       tags: [Usuarios]
-      summary: Bandeja de accesos del Portal del Cliente
+      summary: Bandeja paginada de accesos del Portal del Cliente
       description: |
         Usuarios locales (incluye internos sin empresa). La persona vive en
-        servicio-persona (`sieCode`). Requiere `usuarios:manage`.
+        servicio-persona (`sieCode`). Paginacion, busqueda y filtro server-side.
+        Requiere `usuarios:manage`.
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 200 }
+          description: Busca en correo, nombres, empresa (razon social/SIE), rol y sieCode.
+        - in: query
+          name: filtro
+          schema: { type: string, enum: [portal, sin-empresa] }
+          description: Vinculo con empresa; omitido = todos.
       responses:
         "200":
-          description: Lista de usuarios
+          description: Pagina de usuarios
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id: { type: string }
-                    email: { type: string }
-                    nombre: { type: string, nullable: true }
-                    apellidos: { type: string, nullable: true }
-                    telefono: { type: string, nullable: true }
-                    ruc: { type: string, nullable: true, description: RUC de la empresa vinculada }
-                    rol: { type: string }
-                    empresaId: { type: string, nullable: true }
-                    idEmpresa: { type: string, nullable: true, description: Codigo SIE }
-                    empresa: { type: string, nullable: true }
-                    esPortal: { type: boolean }
-                    sieCode: { type: string, nullable: true }
-                    debeCambiarPassword: { type: boolean }
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        email: { type: string }
+                        nombre: { type: string, nullable: true }
+                        apellidos: { type: string, nullable: true }
+                        telefono: { type: string, nullable: true }
+                        ruc: { type: string, nullable: true, description: RUC de la empresa vinculada }
+                        rol: { type: string }
+                        empresaId: { type: string, nullable: true }
+                        idEmpresa: { type: string, nullable: true, description: Codigo SIE }
+                        empresa: { type: string, nullable: true }
+                        esPortal: { type: boolean }
+                        sieCode: { type: string, nullable: true }
+                        debeCambiarPassword: { type: boolean }
+                        flgActivo: { type: boolean, description: false = cuenta deshabilitada }
+                  pagination:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      total_pages: { type: integer }
   /usuarios/personas:
     get:
       tags: [Usuarios]
@@ -1098,22 +1125,32 @@ paths:
   /usuarios/actualizar:
     post:
       tags: [Usuarios]
-      summary: Asigna/cambia la empresa del acceso local
+      summary: Actualiza el acceso local (correo del login, estado y/o empresa)
+      description: |
+        Actualización parcial: enviar al menos uno de `email`, `flgActivo` o la
+        pareja `idEmpresa`+`nombreEmpresa`. `flgActivo: false` deshabilita la
+        cuenta (bloquea el login y corta su sesión activa); un admin no puede
+        deshabilitar su propia cuenta. Al cambiar `email` también cambia el
+        `userId` (`user|<email>`) y la sesión activa del usuario se cierra.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [id, idEmpresa, nombreEmpresa]
+              required: [id]
               properties:
                 id: { type: string }
-                idEmpresa: { type: string, description: Codigo SIE }
-                nombreEmpresa: { type: string, maxLength: 200 }
+                email: { type: string, nullable: true, description: Nuevo correo del acceso (login) }
+                flgActivo: { type: boolean, nullable: true, description: false deshabilita la cuenta }
+                idEmpresa: { type: string, nullable: true, description: Codigo SIE (junto con nombreEmpresa) }
+                nombreEmpresa: { type: string, maxLength: 200, nullable: true }
                 ruc: { type: string, nullable: true, maxLength: 20, description: Resuelve la FK local de la empresa por RUC }
       responses:
         "200":
           description: Usuario actualizado
+        "409":
+          description: El correo ya pertenece a otra cuenta
   /usuarios/enviar-accesos:
     post:
       tags: [Usuarios]

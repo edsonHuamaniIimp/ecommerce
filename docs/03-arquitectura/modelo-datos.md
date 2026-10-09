@@ -311,6 +311,7 @@ Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 | eventoId / eventoNombre / eventoPadreNombre | string | Sí | Último evento elegido: se reusa al iniciar sesión. |
 | empresaId | FK | Sí | → empresa. Cuenta del Portal del Cliente (representante legal de la ficha). |
 | debeCambiarPassword | boolean | No | Credencial temporal: exige cambio de contraseña en el primer ingreso. |
+| flgActivo | boolean | No | Acceso habilitado (default `true`). `false` bloquea el login y corta la sesión activa (proxy/getSession) desde la bandeja de Usuarios. |
 | idioma | string(5) | No | Idioma preferido: `es` (default) \| `en`. Se usa en el selector y en las plantillas de correo/documentos. |
 
 Unique: `[userId, roleId]`. Índices: `userId`, `email`, `empresaId`, `sieCode`.

@@ -152,6 +152,8 @@ model UserRole {
   empresaId           String?   @map("empresa_id")
   /// Credencial temporal: el usuario debe cambiar la contrasena en el primer ingreso.
   debeCambiarPassword Boolean   @default(false) @map("debe_cambiar_password")
+  /// Acceso habilitado: false bloquea el login y corta la sesion activa (cuenta deshabilitada).
+  flgActivo           Boolean   @default(true) @map("flg_activo")
   /// Idioma preferido del usuario: es | en (ver IDIOMAS). Default espanol.
   idioma              String    @default("es") @db.VarChar(5)
   /// Identificador de la persona en servicio-persona (sie_code, ej. P0000012345). La persona vive en la fuente.

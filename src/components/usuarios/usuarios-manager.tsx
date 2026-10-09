@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -16,7 +16,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -28,12 +27,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { Pencil, Search, Send, UserPlus, UserSearch, Users } from "lucide-react";
+import { Pencil, Power, PowerOff, Search, Send, UserPlus, UserSearch, Users } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/hooks/use-confirm";
+import { Pagination } from "@/components/shared/pagination";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { usuariosService } from "@/lib/client/api/services/usuarios-service";
 import { rolesService } from "@/lib/client/api/services/roles-service";
 import { EmpresaPicker, type FuenteEmpresa } from "@/components/shared/empresa-picker";
-import { BADGE_STYLES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import type {
   EmpresaAccesoDTO,
@@ -48,9 +50,8 @@ interface RolOpcion {
   nombre: string;
 }
 
-/** Filtro de la bandeja por empresa (UI_SENTINEL.TODOS = sin filtrar). */
-const FILTRO_EMPRESA = { PORTAL: "portal", SIN_EMPRESA: "sin-empresa" } as const;
-type FiltroEmpresa = typeof UI_SENTINEL.TODOS | typeof FILTRO_EMPRESA.PORTAL | typeof FILTRO_EMPRESA.SIN_EMPRESA;
+/** Filtro de la bandeja por empresa (UI_SENTINEL.TODOS = sin filtrar; server-side). */
+type FiltroEmpresa = typeof UI_SENTINEL.TODOS | typeof FILTROS_USUARIO_EMPRESA.PORTAL | typeof FILTROS_USUARIO_EMPRESA.SIN_EMPRESA;
 
 /** Fuentes del selector de empresa: primero las empresas del backoffice, luego el catalogo SIE. */
 const FUENTES_EMPRESA: FuenteEmpresa[] = ["local", "sie"];
@@ -93,53 +94,78 @@ function resultadoTexto(resultado: ResultadoCreacionUsuarioDTO): { texto: string
 }
 
 export function UsuariosManager() {
-  const [usuarios, setUsuarios] = useState<UsuarioPortalDTO[] | null>(null);
+  const [usuarios, setUsuarios] = useState<UsuarioPortalDTO[]>([]);
   const [roles, setRoles] = useState<RolOpcion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [filtroEmpresa, setFiltroEmpresa] = useState<FiltroEmpresa>(UI_SENTINEL.TODOS);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState<number>(PER_PAGE_OPCIONES[0]);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [cargando, setCargando] = useState(true);
   const [modalIndividual, setModalIndividual] = useState(false);
   const [modalLote, setModalLote] = useState(false);
   const [modalBuscar, setModalBuscar] = useState(false);
   const [usuarioEditar, setUsuarioEditar] = useState<UsuarioPortalDTO | null>(null);
   const [enviandoAccesosId, setEnviandoAccesosId] = useState<string | null>(null);
+  const [cambiandoEstadoId, setCambiandoEstadoId] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const rolPorDefecto = useMemo(
     () => roles.find((r) => r.nombre === ROLES.CLIENTE)?.id ?? roles[0]?.id ?? "",
     [roles],
   );
 
-  const cargar = useCallback(async () => {
+  /* Refs para que recargar (tras mutaciones) no dependa de estado capturado. */
+  const pageRef = useRef(page);
+  const perPageRef = useRef(perPage);
+  const busquedaRef = useRef(busqueda);
+  const filtroRef = useRef(filtroEmpresa);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { perPageRef.current = perPage; }, [perPage]);
+  useEffect(() => { busquedaRef.current = busqueda; }, [busqueda]);
+  useEffect(() => { filtroRef.current = filtroEmpresa; }, [filtroEmpresa]);
+
+  /** Carga la pagina actual desde el backend (paginacion/busqueda/filtro server-side). */
+  const cargar = useCallback(async (p?: number, s?: string, pp?: number, f?: FiltroEmpresa) => {
+    setCargando(true);
     try {
-      const [listaUsuarios, listaRoles] = await Promise.all([
-        usuariosService.listar(),
-        rolesService.list(),
-      ]);
-      setUsuarios(listaUsuarios);
-      setRoles(listaRoles.map((r) => ({ id: r.id, nombre: r.nombre })));
+      const filtroActual = f ?? filtroRef.current;
+      const resultado = await usuariosService.listar({
+        page: p ?? pageRef.current,
+        per_page: pp ?? perPageRef.current,
+        search: (s ?? busquedaRef.current).trim() || undefined,
+        filtro: filtroActual === UI_SENTINEL.TODOS ? undefined : filtroActual,
+      });
+      setUsuarios(resultado.data ?? []);
+      setPagination({
+        page: resultado.pagination.page,
+        total: resultado.pagination.total,
+        totalPages: Math.max(1, resultado.pagination.total_pages),
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
       setUsuarios([]);
+      setPagination({ page: 1, total: 0, totalPages: 1 });
+    } finally {
+      setCargando(false);
     }
   }, []);
 
   useEffect(() => {
+    (async () => { await cargar(); })();
+  }, [cargar]);
+
+  /* Roles del selector de alta: carga independiente del listado. */
+  useEffect(() => {
     let activo = true;
     void (async () => {
       try {
-        const [listaUsuarios, listaRoles] = await Promise.all([
-          usuariosService.listar(),
-          rolesService.list(),
-        ]);
-        if (!activo) return;
-        setUsuarios(listaUsuarios);
-        setRoles(listaRoles.map((r) => ({ id: r.id, nombre: r.nombre })));
-        setError(null);
-      } catch (err) {
-        if (!activo) return;
-        setError(err instanceof Error ? err.message : "Error desconocido");
-        setUsuarios([]);
+        const listaRoles = await rolesService.list();
+        if (activo) setRoles(listaRoles.map((r) => ({ id: r.id, nombre: r.nombre })));
+      } catch {
+        /* Sin roles el alta usa el default; el listado reporta su propio error. */
       }
     })();
     return () => { activo = false; };
@@ -162,35 +188,57 @@ export function UsuariosManager() {
     }
   };
 
-  const filtrados = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
-    return (usuarios ?? []).filter((u) => {
-      const coincideEmpresa =
-        filtroEmpresa === UI_SENTINEL.TODOS
-        || (filtroEmpresa === FILTRO_EMPRESA.PORTAL && u.esPortal)
-        || (filtroEmpresa === FILTRO_EMPRESA.SIN_EMPRESA && !u.esPortal);
-      if (!coincideEmpresa) return false;
-      if (!termino) return true;
-      return [u.email, u.empresa, u.rol, u.sieCode, u.idEmpresa]
-        .some((valor) => (valor ?? "").toLowerCase().includes(termino));
+  const cambiarEstado = async (usuario: UsuarioPortalDTO) => {
+    const deshabilitar = usuario.flgActivo;
+    const ok = await confirm({
+      title: deshabilitar ? "Deshabilitar usuario" : "Habilitar usuario",
+      description: deshabilitar
+        ? `${usuario.email} no podra iniciar sesion y su sesion activa se cerrara.`
+        : `${usuario.email} podra volver a iniciar sesion.`,
+      confirmLabel: deshabilitar ? "Deshabilitar" : "Habilitar",
+      destructive: deshabilitar,
     });
-  }, [usuarios, busqueda, filtroEmpresa]);
+    if (!ok) return;
+    setCambiandoEstadoId(usuario.id);
+    try {
+      await usuariosService.actualizar({
+        id: usuario.id,
+        flgActivo: deshabilitar ? ESTADOS_ACCESO_USUARIO.DESHABILITADO : ESTADOS_ACCESO_USUARIO.ACTIVO,
+      });
+      toast.success(deshabilitar ? `Usuario ${usuario.email} deshabilitado` : `Usuario ${usuario.email} habilitado`);
+      void cargar();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cambiar el estado");
+    } finally {
+      setCambiandoEstadoId(null);
+    }
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {usuarios === null ? "Cargando..." : `${filtrados.length} de ${usuarios.length} usuarios`}
+          {cargando && usuarios.length === 0
+            ? "Cargando..."
+            : `${pagination.total} resultado(s) — pagina ${pagination.page} de ${pagination.totalPages}`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={filtroEmpresa} onValueChange={(v) => { setFiltroEmpresa(v as FiltroEmpresa); }}>
+          <Select
+            value={filtroEmpresa}
+            onValueChange={(v) => {
+              const filtro = v as FiltroEmpresa;
+              setFiltroEmpresa(filtro);
+              setPage(1);
+              void cargar(1, busqueda, perPage, filtro);
+            }}
+          >
             <SelectTrigger className="h-8 w-[180px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={UI_SENTINEL.TODOS}><span>Todos</span></SelectItem>
-              <SelectItem value={FILTRO_EMPRESA.PORTAL}><span>Con empresa (Portal)</span></SelectItem>
-              <SelectItem value={FILTRO_EMPRESA.SIN_EMPRESA}><span>Sin empresa</span></SelectItem>
+              <SelectItem value={FILTROS_USUARIO_EMPRESA.PORTAL}><span>Con empresa (Portal)</span></SelectItem>
+              <SelectItem value={FILTROS_USUARIO_EMPRESA.SIN_EMPRESA}><span>Sin empresa</span></SelectItem>
             </SelectContent>
           </Select>
           <div className="relative">
@@ -199,9 +247,33 @@ export function UsuariosManager() {
               placeholder="Buscar por correo, ID, empresa..."
               value={busqueda}
               onChange={(e) => { setBusqueda(e.target.value); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setPage(1);
+                  void cargar(1, e.currentTarget.value, perPage, filtroEmpresa);
+                }
+              }}
               className="h-8 w-[240px] pl-8 text-xs"
             />
           </div>
+          <Select
+            value={String(perPage)}
+            onValueChange={(v) => {
+              const n = Number(v);
+              setPerPage(n);
+              setPage(1);
+              void cargar(1, busqueda, n, filtroEmpresa);
+            }}
+          >
+            <SelectTrigger className="h-8 w-[70px] shrink-0 text-xs" title="Registros por pagina">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PER_PAGE_OPCIONES.map((n) => (
+                <SelectItem key={n} value={String(n)}><span>{n}</span></SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" className="h-8" onClick={() => { setModalBuscar(true); }}>
             <UserSearch className="mr-1 h-3.5 w-3.5" />
             <span>Buscar persona (API)</span>
@@ -225,8 +297,8 @@ export function UsuariosManager() {
 
       {error ? (
         <p className="text-sm text-destructive">Error al cargar usuarios: {error}</p>
-      ) : usuarios === null ? (
-        <Skeleton className="h-64 w-full rounded-xl" />
+      ) : cargando && usuarios.length === 0 ? (
+        <TableSkeleton rows={perPage} columns={7} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
@@ -237,11 +309,12 @@ export function UsuariosManager() {
                 <TableHead className="text-[10px] uppercase">Empresa</TableHead>
                 <TableHead className="text-[10px] uppercase">Rol</TableHead>
                 <TableHead className="text-[10px] uppercase">Credencial</TableHead>
+                <TableHead className="text-[10px] uppercase">Estado</TableHead>
                 <TableHead className="text-right text-[10px] uppercase">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.map((u) => (
+              {usuarios.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="text-xs font-medium">{u.email}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{u.sieCode ?? "—"}</TableCell>
@@ -266,6 +339,13 @@ export function UsuariosManager() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {u.flgActivo ? (
+                      <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.SUCCESS}`}><span>Activo</span></Badge>
+                    ) : (
+                      <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}><span>Deshabilitado</span></Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex justify-end gap-0.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -278,7 +358,7 @@ export function UsuariosManager() {
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top"><span>Asignar empresa</span></TooltipContent>
+                        <TooltipContent side="top"><span>Editar correo/empresa</span></TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -294,19 +374,43 @@ export function UsuariosManager() {
                         </TooltipTrigger>
                         <TooltipContent side="top"><span>Enviar accesos</span></TooltipContent>
                       </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 p-0"
+                            disabled={cambiandoEstadoId === u.id}
+                            onClick={() => { void cambiarEstado(u); }}
+                          >
+                            {u.flgActivo ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top"><span>{u.flgActivo ? "Deshabilitar" : "Habilitar"}</span></TooltipContent>
+                      </Tooltip>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
-              {filtrados.length === 0 && (
+              {usuarios.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
                     <span>No hay usuarios que coincidan.</span>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
+          <div className="flex flex-col gap-2 border-t border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs text-muted-foreground">
+              {pagination.total} resultado(s) — pagina {pagination.page} de {pagination.totalPages}
+            </span>
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(p) => { setPage(p); void cargar(p, busqueda, perPage, filtroEmpresa); }}
+            />
+          </div>
         </div>
       )}
 
@@ -341,6 +445,7 @@ export function UsuariosManager() {
           onGuardado={() => { void cargar(); }}
         />
       )}
+      {confirmDialog}
     </div>
   );
 }
@@ -595,12 +700,13 @@ function CrearUsuariosLoteModal({ roles, rolInicial, onClose, onCreado }: {
   );
 }
 
-/** Asignar/cambiar la empresa (API de entidades) del acceso local. */
+/** Edita el acceso local: correo del login y empresa (API de entidades). */
 function EditarUsuarioModal({ usuario, onClose, onGuardado }: {
   usuario: UsuarioPortalDTO;
   onClose: () => void;
   onGuardado: () => void;
 }) {
+  const [email, setEmail] = useState(usuario.email);
   const [empresa, setEmpresa] = useState<EmpresaAccesoDTO | null>(
     usuario.idEmpresa
       ? { idEmpresa: usuario.idEmpresa, nombreEmpresa: usuario.empresa ?? usuario.idEmpresa, ruc: usuario.ruc ?? null }
@@ -611,11 +717,16 @@ function EditarUsuarioModal({ usuario, onClose, onGuardado }: {
 
   const guardar = async () => {
     setError(null);
-    if (!empresa) { setError("Selecciona la empresa"); return; }
+    const emailLimpio = email.trim().toLowerCase();
+    if (!REGEX_EMAIL.test(emailLimpio)) { setError("Ingresa un correo valido"); return; }
     setGuardando(true);
     try {
-      await usuariosService.actualizar({ id: usuario.id, ...empresa });
-      toast.success(`Empresa de ${usuario.email} actualizada`);
+      await usuariosService.actualizar({
+        id: usuario.id,
+        email: emailLimpio,
+        ...(empresa ? { idEmpresa: empresa.idEmpresa, nombreEmpresa: empresa.nombreEmpresa, ruc: empresa.ruc ?? null } : {}),
+      });
+      toast.success(`Usuario ${emailLimpio} actualizado`);
       onGuardado();
       onClose();
     } catch (err) {
@@ -629,12 +740,21 @@ function EditarUsuarioModal({ usuario, onClose, onGuardado }: {
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle><span>Asignar empresa</span></DialogTitle>
+          <DialogTitle><span>Editar usuario</span></DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label className="text-xs"><span>Correo</span></Label>
-            <Input value={usuario.email} readOnly disabled className="h-8 text-xs" />
+            <Label htmlFor="editar-usuario-email" className="text-xs"><span>Correo (login)</span></Label>
+            <Input
+              id="editar-usuario-email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); }}
+              className="h-8 text-xs"
+              placeholder="usuario@empresa.com"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              <span>Es el usuario de acceso; al cambiarlo, su sesion activa se cierra.</span>
+            </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs"><span>ID Persona (servicio-persona)</span></Label>
