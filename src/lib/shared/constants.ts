@@ -426,6 +426,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "facturacion:view",
     "pagos:view",
     "pagos:manage",
+    "portal:manage",
   ],
   [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
   [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"],
@@ -436,6 +437,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
 
 export const ALL_PERMISSIONS = [
   { key: "admin:full", label: "Acceso total", descripcion: "Control completo del sistema", section: "sistema" },
+  { key: "portal:manage", label: "Configuracion del portal", descripcion: "Editar los enlaces y contactos publicos del portal (login/presala)", section: "sistema" },
   // Dashboard general
   { key: "dashboard:view", label: "Panel de Control", descripcion: "Acceder al panel de control principal", section: "dashboard" },
   { key: "eventos:datos", label: "Datos del Evento", descripcion: "Ver datos y precios de la version del evento", section: "dashboard" },
@@ -522,6 +524,7 @@ export const PERMISSIONS = {
   EVENTS_TOGGLE: "events:toggle",
   EMPRESAS_VIEW: "empresas:view",
   EMPRESAS_MANAGE: "empresas:manage",
+  PORTAL_MANAGE: "portal:manage",
 } as const satisfies Record<string, Permission>;
 
 export const PERMISSION_SECTIONS = {

@@ -46,6 +46,8 @@ import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-ima
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
 import { ContratoApplicationService } from "@/application/contratos/contrato-service";
 import { AlertasApplicationService } from "@/application/alertas/alertas-service";
+import { ConfiguracionPrismaRepository } from "@/infrastructure/persistence/configuracion-repository";
+import { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import { getStorage } from "@/lib/server/storage";
 
 const eventoRepo = new EventoPrismaRepository();
@@ -57,6 +59,7 @@ const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
 const empresaRepo = new EmpresaPrismaRepository();
 const usuarioRepo = new UsuarioPrismaRepository();
+const configuracionRepo = new ConfiguracionPrismaRepository();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
 const personaClient = new PersonaApiClient();
@@ -99,6 +102,7 @@ export const services = {
   contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
   alertas: new AlertasApplicationService(authRepo),
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
+  configuracion: new ConfiguracionApplicationService(configuracionRepo),
   gessRepo,
   roleRepo,
 };

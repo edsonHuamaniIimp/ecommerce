@@ -28,6 +28,7 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/dashboard/usuarios", permission: PERMISSIONS.USUARIOS_MANAGE },
   { path: "/api/usuarios", permission: PERMISSIONS.USUARIOS_MANAGE },
   { path: "/dashboard/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
+  { path: "/dashboard/configuracion", permission: PERMISSIONS.PORTAL_MANAGE },
   /* Empresas (Portal del Cliente). El prefijo exacto de montajistas va primero para no
      quedar capturado por `/api/empresas` (catalogo SIE usado tambien por clientes). */
   { path: "/api/empresas-montajistas" },

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { useEffect, useState, useRef } from "react";
@@ -78,8 +79,8 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b bg-background">
       <div className="flex h-12 items-center gap-2 px-3 sm:gap-4 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-1.5 text-sm font-semibold tracking-tight">
-          <span className="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">IIMP</span>
-          <span className="hidden sm:inline">Contratos Stands</span>
+          <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-6 w-auto" preload />
+          <span className="hidden sm:inline">ecommerce</span>
         </Link>
 
         {/* Desktop nav */}

@@ -1,6 +1,12 @@
+# check=skip=SecretsUsedInArgOrEnv
 # Dockerfile ECS — Next.js standalone (multi-stage) para Fargate
 # Sin nginx: el ALB termina TLS y hace el health check en /api/health.
 # La imagen final solo lleva lo que produce `next build` (output: standalone) + deps de produccion.
+#
+# Nota: el stage `builder` define ENV JWT_SECRET / SUNAT_API_TOKEN con valores FALSOS
+# ("build-placeholder") solo para que `next build` compile (los route handlers evaluan las
+# variables al colectar paginas). En runtime la app recibe los reales desde Secrets Manager;
+# por eso se silencia la regla SecretsUsedInArgOrEnv del linter de Docker.
 
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app

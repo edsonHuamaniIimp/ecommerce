@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { Building2, CalendarDays, HelpCircle, LifeBuoy, LogIn } from "lucide-react";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { usePortalConfig } from "@/hooks/use-portal-config";
 
 interface PresalaHeaderProps {
   autenticado: boolean;
@@ -29,12 +33,10 @@ export function PresalaHeader({ autenticado, nombreUsuario, empresa, codigoEmpre
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-6">
           <Link href="/" className="group flex items-center gap-3.5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-inner">
-              <Building2 className="h-5 w-5 text-gold-soft" />
-            </span>
+            <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-8 w-auto" preload />
             <span>
               <span className="flex items-center gap-2">
-                <span className="text-base font-bold tracking-tight text-primary">IIMP Stands</span>
+                <span className="text-base font-bold tracking-tight text-primary">ecommerce</span>
                 <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-gold uppercase">
                   Reserva Oficial
                 </span>
@@ -106,6 +108,8 @@ export function PresalaHeader({ autenticado, nombreUsuario, empresa, codigoEmpre
 
 /** Tarjeta de asistencia del portal (aside de presala). */
 export function PresalaAyudaCard() {
+  const config = usePortalConfig();
+
   return (
     <div id="soporte" className="rounded-xl border border-border bg-card p-6 shadow-sm">
       <div className="mb-3 flex items-center gap-2.5 text-primary">
@@ -116,15 +120,17 @@ export function PresalaAyudaCard() {
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
         Si necesitas apoyo con la reserva, los documentos del contrato o el estado de tu solicitud,
-        contacta a la Mesa de Ayuda del IIMP.
+        contacta a la Mesa de Ayuda del IIMP{config.mesaAyudaEmail ? ":" : "."}
       </p>
-      <a
-        href="#contacto"
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-primary py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-secondary"
-      >
-        <HelpCircle className="h-4 w-4" />
-        <span>Ir a Mesa de Ayuda</span>
-      </a>
+      {config.mesaAyudaEmail && (
+        <a
+          href={`mailto:${config.mesaAyudaEmail}`}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-primary py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-secondary"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span>Escribir a {config.mesaAyudaEmail}</span>
+        </a>
+      )}
     </div>
   );
 }

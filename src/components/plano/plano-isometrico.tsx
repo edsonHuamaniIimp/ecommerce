@@ -543,7 +543,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             >
               <span className="text-lg">‹</span>
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img src={imgCarousel.images[imgCarousel.idx]} alt="" className="max-h-[70vh] w-full object-contain" />
             <button
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/20 p-2 text-white hover:bg-white/40 z-10"

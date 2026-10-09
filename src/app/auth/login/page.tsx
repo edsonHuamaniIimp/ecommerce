@@ -57,7 +57,7 @@ function LoginPageContent() {
   };
 
   return (
-    <PortalAuthLayout>
+    <PortalAuthLayout fondo="/login-bg.jpg">
       <div className="flex flex-col items-center border-b border-border pb-6 text-center">
         <div className="mb-4 flex items-center justify-center gap-2">
           <span className="flex h-8 items-center justify-center rounded-lg bg-primary px-2.5 text-xs font-bold tracking-wider text-primary-foreground">

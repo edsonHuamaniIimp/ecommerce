@@ -700,7 +700,7 @@ map.set(String(bloqueId), {
                     <span className="text-muted-foreground">Empresa</span>
                     <div className="flex items-center gap-2">
                       {detailModal.empresaLogo && (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img src={detailModal.empresaLogo} alt={`Logo de ${detailModal.empresa}`} className="h-5 w-5 rounded border border-border bg-white object-contain" />
                       )}
                       <p className="font-medium">{detailModal.empresa}</p>
@@ -735,7 +735,7 @@ map.set(String(bloqueId), {
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Imagen referencial{detailModal.tipoStand ? ` (${detailModal.tipoStand})` : ""}
                     </p>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img
                       src={detailModal.tipoImagen}
                       alt={`Imagen referencial del tipo ${detailModal.tipoStand ?? ""}`}
@@ -796,7 +796,7 @@ map.set(String(bloqueId), {
                               onClick={() => abrirCarrusel(imgFiltro, Math.max(0, activos.indexOf(url)))}
                               title={`Ver ${CATEGORIA_IMAGEN_LABELS[categoria]} del stand ${detailModal.standCode}`}
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              { }
                               <img src={url} alt={`${CATEGORIA_IMAGEN_LABELS[categoria]} del stand ${detailModal.standCode}`} className="h-16 w-full object-cover transition-transform group-hover:scale-105" />
                               {conFiltro && imgFiltro === "todas" && (
                                 <span className="pointer-events-none absolute bottom-0 left-0 max-w-full truncate rounded-tr bg-foreground/70 px-1 text-[9px] font-medium text-background">
@@ -992,7 +992,7 @@ map.set(String(bloqueId), {
                     <ChevronLeft className="h-5 w-5" />
                   </Button>
                 )}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+                { }
                 <img
                   src={imgCarousel.images[imgCarousel.idx]}
                   alt={`Imagen ${imgCarousel.idx + 1} de ${imgCarousel.images.length}`}
@@ -1020,7 +1020,7 @@ map.set(String(bloqueId), {
                       onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: i } : null)}
                       title={`Ir a la imagen ${i + 1}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      { }
                       <img src={url} alt="" className="h-full w-full object-cover" />
                     </Button>
                   ))}

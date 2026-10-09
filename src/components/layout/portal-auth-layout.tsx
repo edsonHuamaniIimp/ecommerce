@@ -1,14 +1,33 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import { Label } from "@nrivera-iimp/ui-kit-iimp";
 import { PortalFooter, PortalHeader } from "./portal-stands";
 
-/** Shell de las vistas de acceso del portal: header institucional + tarjeta centrada + footer. */
-export function PortalAuthLayout({ children, ancho = "max-w-[460px]" }: { children: ReactNode; ancho?: string }) {
+/**
+ * Shell de las vistas de acceso del portal: header institucional + tarjeta centrada + footer.
+ * `fondo` permite usar una foto a pantalla completa (login); sin el, usa la grilla del portal.
+ */
+export function PortalAuthLayout({ children, ancho = "max-w-[460px]", fondo }: { children: ReactNode; ancho?: string; fondo?: string }) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <PortalHeader />
-      <main className="bg-architectural-grid relative z-10 flex flex-1 items-center justify-center px-4 py-8">
-        <div className={`w-full rounded-xl border border-border bg-card p-7 shadow-xl transition-all sm:p-9 ${ancho}`}>
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-8">
+        {fondo ? (
+          <>
+            <Image src={fondo} alt="" fill sizes="100vw" preload className="object-cover" aria-hidden />
+            {/*
+             * Diseno de enfoque: la foto aporta contexto pero no compite con el acceso.
+             * 1) blur suave sobre la imagen, 2) degradado diagonal oscuro con tinte azulado,
+             * 3) vineta radial que oscurece los bordes y deja la tarjeta como centro.
+             */}
+            <div className="absolute inset-0 backdrop-blur-[3px]" aria-hidden />
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/85 via-slate-950/50 to-slate-900/80" aria-hidden />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_15%,rgba(2,6,23,0.6)_100%)]" aria-hidden />
+          </>
+        ) : (
+          <span className="bg-architectural-grid absolute inset-0" aria-hidden />
+        )}
+        <div className={`relative w-full rounded-xl border border-border bg-card p-7 shadow-2xl transition-all sm:p-9 ${ancho}`}>
           {children}
         </div>
       </main>

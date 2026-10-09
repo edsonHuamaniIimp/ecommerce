@@ -183,7 +183,7 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
             <Label className="text-xs">Foto (opcional)</Label>
             <div className="mt-1 flex items-center gap-3">
               {fotoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img src={fotoUrl} alt="Foto del representante" className="h-12 w-12 rounded-full border bg-white object-cover" />
               ) : (
                 <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed text-muted-foreground">

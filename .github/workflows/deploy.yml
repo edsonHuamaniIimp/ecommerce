@@ -35,13 +35,11 @@ concurrency:
 env:
   NODE_VERSION: '20'
   AWS_DEFAULT_REGION: 'us-east-1'
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # ─── CI: Lint + TypeCheck + Tests ─────────────────────────────────────────
   ci:
     name: CI — Lint, TypeCheck y Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       # Postgres efimero para validar que las migraciones reflejan el schema (drift).
       postgres:
@@ -59,10 +57,10 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -102,7 +100,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verificar secrets ECR
         id: check-ecr
@@ -116,7 +114,7 @@ jobs:
 
       - name: Configurar credenciales AWS
         if: steps.check-ecr.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -137,7 +135,7 @@ jobs:
 
       - name: Setup Buildx
         if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login ECR
         if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
@@ -145,7 +143,7 @@ jobs:
 
       - name: Build y push (arm64 nativo, cache)
         if: steps.check-ecr.outputs.skip != 'true' && steps.check-img.outputs.exists != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.ecs
@@ -165,7 +163,7 @@ jobs:
   # ─── Rollout ECS ──────────────────────────────────────────────────────────
   deploy-ecs:
     name: CD — Rollout ECS
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Requiere `ci` (lint/tsc/tests/drift) ademas de la imagen: el guard anti-drift
     # debe BLOQUEAR el deploy. No suma tiempo: `ci` (~1 min) termina antes que el build (~4 min).
     needs: [build-image, ci]
@@ -186,7 +184,7 @@ jobs:
 
       - name: Configurar credenciales AWS
         if: steps.check-ecr.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -223,7 +221,7 @@ jobs:
   # ─── EC2 (legado) ─────────────────────────────────────────────────────────
   deploy-ec2:
     name: CD — Deploy EC2 (legado)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: ci
     # LEGADO. Deshabilitado por defecto: activar con la variable de repo DEPLOY_EC2=1.
     if: |

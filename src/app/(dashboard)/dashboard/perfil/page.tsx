@@ -1,15 +1,14 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Badge } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Search, X, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck } from "lucide-react";
+import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
-import { entidadesService } from "@/lib/client/api/services/entidades-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
@@ -49,12 +48,9 @@ function PerfilPageContent() {
   const [repDireccion, setRepDireccion] = useState("");
   const [repCorreo, setRepCorreo] = useState("");
   const [repCelular, setRepCelular] = useState("");
+  const [repDniValidado, setRepDniValidado] = useState(false);
   /* Cuenta creada solo con RUC: el representante registra su correo la primera vez. */
   const [repCorreoRegistrable, setRepCorreoRegistrable] = useState(false);
-  const [repDniValidado, setRepDniValidado] = useState(false);
-  const [searchEmpresa, setSearchEmpresa] = useState("");
-  const [empresasResults, setEmpresasResults] = useState<Array<{ id_empresa: string; empresa: string; documento: string }>>([]);
-  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -82,7 +78,6 @@ function PerfilPageContent() {
       setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
       setRepCorreoRegistrable(Boolean(perfilData.empresa) && !(perfilData.empresa?.representanteCorreo ?? "").trim());
       setRepCelular(perfilData.empresa?.representanteCelular ?? "");
-      if (perfilData.nombreEmpresa) setSearchEmpresa(perfilData.nombreEmpresa);
       setLoading(false);
     })();
   }, []);
@@ -187,53 +182,6 @@ function PerfilPageContent() {
     } catch {
       toast.error("No se pudo quitar la firma");
     }
-  };
-
-  const handleSearchEmpresa = async () => {
-    const q = searchEmpresa.trim();
-    if (!q || q.length < 2) { toast.error("Ingresa al menos 2 caracteres"); return; }
-    setSearching(true);
-    try {
-      const esRuc = /^\d{11}$/.test(q);
-      const data = esRuc
-        ? await entidadesService.searchEmpresa(q, undefined)
-        : await entidadesService.searchEmpresa(undefined, q);
-      // API responde { ListEmpresa: [{ ecicod, razonSocial, numDocumento }] }
-      const rawList = (data as Record<string, unknown>).ListEmpresa
-        ?? (data as Record<string, unknown>).listEmpresa
-        ?? (data as Record<string, unknown>).ListInfoEmpresa
-        ?? [];
-      const results = (rawList as Array<Record<string, unknown>> | undefined)?.map((e) => ({
-        id_empresa: String(e.ecicod ?? e.id_empresa ?? e.sie_code ?? ""),
-        empresa: String(e.razonSocial ?? e.empresa ?? ""),
-        documento: String(e.numDocumento ?? e.documento ?? ""),
-      })).filter((e) => e.empresa || e.id_empresa) ?? [];
-      setEmpresasResults(results);
-      if (results.length === 0) toast.error("No se encontraron empresas");
-    } catch { toast.error("Error al buscar"); }
-    setSearching(false);
-  };
-
-  const selectEmpresa = async (row: { id_empresa: string; empresa: string; documento: string }) => {
-    setIdEmpresa(row.id_empresa);
-    setNombreEmpresa(row.empresa);
-    setSearchEmpresa(row.empresa);
-    setEmpresasResults([]);
-    try {
-      await perfilService.update({ idEmpresa: row.id_empresa, nombreEmpresa: row.empresa, ruc: row.documento || null });
-      toast.success("Empresa vinculada");
-    } catch { toast.error("Error al vincular empresa"); }
-  };
-
-  const clearEmpresa = async () => {
-    setIdEmpresa(null);
-    setNombreEmpresa(null);
-    setSearchEmpresa("");
-    setEmpresasResults([]);
-    try {
-      await perfilService.update({ idEmpresa: null, nombreEmpresa: null, ruc: null });
-      toast.success("Empresa desvinculada");
-    } catch { toast.error("Error al desvincular"); }
   };
 
   const handleResetRequest = async () => {
@@ -434,51 +382,22 @@ function PerfilPageContent() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {nombreEmpresa && (
-                <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-800">{nombreEmpresa}</p>
-                    {idEmpresa && <p className="text-[11px] text-emerald-600">{idEmpresa}</p>}
+              {nombreEmpresa ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary/50 px-4 py-3">
+                  <Building2 className="h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{nombreEmpresa}</p>
+                    {idEmpresa && <p className="font-mono text-[11px] text-muted-foreground">{idEmpresa}</p>}
                   </div>
-                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 h-8 w-8 p-0" onClick={clearEmpresa} title="Desvincular empresa">
-                    <X className="h-4 w-4" />
-                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-3">
+                  <p className="text-sm font-medium text-foreground"><span>Sin empresa vinculada</span></p>
                 </div>
               )}
-              <>
-                  <p className="text-xs text-slate-500">
-                    {nombreEmpresa ? "Cambia tu empresa: busca por nombre o RUC." : "Vincula tu empresa registrada en el IIMP (búscala por nombre o RUC)."}
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Buscar por nombre o RUC"
-                      value={searchEmpresa}
-                      onChange={(e) => setSearchEmpresa(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleSearchEmpresa(); }}
-                      className="text-xs"
-                    />
-                    <Button size="sm" variant="outline" className="shrink-0 rounded-full" onClick={handleSearchEmpresa} disabled={searching}>
-                      {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                    </Button>
-                  </div>
-                  {empresasResults.length > 0 && (
-                    <div className="rounded-lg border bg-white max-h-48 overflow-y-auto divide-y">
-                      {empresasResults.map((r, i) => (
-                        <button
-                          key={i}
-                          className="flex items-center justify-between w-full px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
-                          onClick={() => selectEmpresa(r)}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-700 truncate">{r.empresa}</p>
-                            <p className="text-[10px] text-slate-400">{r.documento}</p>
-                          </div>
-                          <Badge variant="secondary" className="text-[9px] shrink-0 ml-2">{r.id_empresa}</Badge>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
+              <p className="text-[11px] text-muted-foreground">
+                <span>La empresa la asigna el administrador; para cambios contacta al IIMP.</span>
+              </p>
             </CardContent>
           </Card>
         </div>

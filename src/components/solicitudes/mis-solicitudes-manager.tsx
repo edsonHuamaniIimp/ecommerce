@@ -390,7 +390,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 onClick={() => setImgCarousel({ images: row.imagenes as string[], idx: i })}
                                 title={`Ver imagen ${i + 1} del stand`}
                               >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                { }
                                 <img src={url} alt={`Imagen ${i + 1} del stand`} className="h-full w-full object-cover" />
                               </button>
                             ))}

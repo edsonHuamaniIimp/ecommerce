@@ -233,7 +233,7 @@ export function MacroMapaView({ imagenFondo, secciones, ocupacion, nombrePlano }
                   onError={() => marcarFondo(false, true)}
                 />
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   key={`img-${reintentos}`}
                   src={imagenFondo}

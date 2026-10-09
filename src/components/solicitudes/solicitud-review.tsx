@@ -780,7 +780,7 @@ export function SolicitudReview({
                 />
               )}
               {tipoPreview(previewDoc.url) === "imagen" && (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={previewDoc.url}
                   alt={previewDoc.nombre}

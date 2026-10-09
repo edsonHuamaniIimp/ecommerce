@@ -460,7 +460,7 @@ export function MacroEditor({ plano, planos, onChange }: {
                 onError={() => marcarFondo(false, true)}
               />
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
+               
               <img
                 src={fondoUrl}
                 alt="Mapa de pabellones"

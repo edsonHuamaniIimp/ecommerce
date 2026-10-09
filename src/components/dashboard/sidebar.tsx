@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, Settings, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/shared/utils";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/roles", label: "Roles y Permisos", icon: Shield, permission: PERMISSIONS.ROLES_MANAGE },
   { href: "/dashboard/usuarios", label: "Usuarios", icon: Users, permission: PERMISSIONS.USUARIOS_MANAGE },
   { href: "/dashboard/eventos", label: "Gestion de Eventos", icon: Calendar, permission: PERMISSIONS.EVENTS_MANAGE },
+  { href: "/dashboard/configuracion", label: "Configuracion", icon: Settings, permission: PERMISSIONS.PORTAL_MANAGE },
   { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW },
   { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO },
 ];
@@ -79,12 +81,12 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
 
   const content = (
     <>
-      <div className={cn("flex h-12 items-center border-b px-3", collapsed ? "justify-center" : "justify-between")}>
+      <div className={cn("flex h-12 items-center border-b", collapsed ? "justify-center px-1" : "justify-between px-3")}>
         {!collapsed && (
           <>
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">IIMP</span>
-              <span className="text-xs font-semibold text-foreground">Contratos Stands</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-6 w-auto shrink-0" preload />
+              <span className="truncate text-xs font-semibold text-foreground">ecommerce</span>
             </div>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 lg:hidden" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -92,7 +94,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
           </>
         )}
         {collapsed && (
-          <span className="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">IIMP</span>
+          <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-3.5 w-auto" preload />
         )}
       </div>
       <nav className={cn("flex-1 overflow-y-auto p-2", collapsed ? "flex flex-col items-center gap-0.5" : "space-y-0.5")}>

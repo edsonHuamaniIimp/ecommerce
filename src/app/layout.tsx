@@ -14,8 +14,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Contratos Stands - IIMP",
-  description: "Gestión de contratos de stands para eventos IIMP",
+  title: "ecommerce - IIMP",
+  description: "Gestion de contratos de stands para eventos IIMP",
+  /* Portal interno: fuera de buscadores. */
+  robots: { index: false, follow: false },
 };
 
 export default async function RootLayout({

@@ -6,9 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
-/* ================================================================
-   1. MAESTRAS — catálogos que rara vez cambian
-   ================================================================ */
+/**
+ * ================================================================
+ * 1. MAESTRAS — catálogos que rara vez cambian
+ * ================================================================
+ */
 
 model EventoPadre {
   id       String   @id @default(uuid())
@@ -24,33 +26,33 @@ model EventoPadre {
 }
 
 model Evento {
-  id             String      @id @default(uuid())
-  eventoPadreId  String      @map("evento_padre_id")
-  tipoEvento     Int         @map("tipo_evento")
-  codigoEvento   Int         @map("codigo_evento")
-  anio           String      @db.VarChar(4)
-  estado         String      @default("active") @db.VarChar(20)
-  planoRef       String?     @map("plano_ref") @db.VarChar(255)
-  fechaInicio    DateTime?   @map("fecha_inicio")
-  fechaFin       DateTime?   @map("fecha_fin")
-  imagen         String?     @db.VarChar(500)
-  flgActivo      Boolean     @default(true) @map("flg_activo")
-  flgVisible     Boolean     @default(true) @map("flg_visible")
-  plano          String      @default("gess") @db.VarChar(50)
+  id            String    @id @default(uuid())
+  eventoPadreId String    @map("evento_padre_id")
+  tipoEvento    Int       @map("tipo_evento")
+  codigoEvento  Int       @map("codigo_evento")
+  anio          String    @db.VarChar(4)
+  estado        String    @default("active") @db.VarChar(20)
+  planoRef      String?   @map("plano_ref") @db.VarChar(255)
+  fechaInicio   DateTime? @map("fecha_inicio")
+  fechaFin      DateTime? @map("fecha_fin")
+  imagen        String?   @db.VarChar(500)
+  flgActivo     Boolean   @default(true) @map("flg_activo")
+  flgVisible    Boolean   @default(true) @map("flg_visible")
+  plano         String    @default("gess") @db.VarChar(50)
 
-  eventoPadre    EventoPadre    @relation(fields: [eventoPadreId], references: [id])
-  tiposStand     TipoStand[]
-  stands         Stand[]
-  gessStands     GessStand[]
-  reservas       Reserva[]
-  plantillas     ContratoPlantilla[]
+  eventoPadre EventoPadre         @relation(fields: [eventoPadreId], references: [id])
+  tiposStand  TipoStand[]
+  stands      Stand[]
+  gessStands  GessStand[]
+  reservas    Reserva[]
+  plantillas  ContratoPlantilla[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@unique([tipoEvento, codigoEvento])
   @@index([eventoPadreId])
   @@index([estado])
-  @@unique([tipoEvento, codigoEvento])
   @@map("evento")
 }
 
@@ -71,15 +73,15 @@ model EventoMetadata {
 }
 
 model TipoStand {
-  id        String @id @default(uuid())
-  eventoId  String @map("evento_id")
-  nombre    String @db.VarChar(50)
+  id        String  @id @default(uuid())
+  eventoId  String  @map("evento_id")
+  nombre    String  @db.VarChar(50)
   medidas   String? @db.VarChar(50)
-  montoBase Float  @map("monto_base")
-  moneda    String @default("USD") @db.VarChar(3)
+  montoBase Float   @map("monto_base")
+  moneda    String  @default("USD") @db.VarChar(3)
 
-  evento    Evento          @relation(fields: [eventoId], references: [id])
-  stands    Stand[]
+  evento     Evento              @relation(fields: [eventoId], references: [id])
+  stands     Stand[]
   plantillas ContratoPlantilla[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -90,14 +92,14 @@ model TipoStand {
 }
 
 model ContratoPlantilla {
-  id         String    @id @default(uuid())
-  tipoStandId String   @map("tipo_stand_id")
-  eventoId   String?   @map("evento_id")
-  nombre     String    @db.VarChar(100)
-  url        String?   @db.VarChar(500)
+  id          String  @id @default(uuid())
+  tipoStandId String  @map("tipo_stand_id")
+  eventoId    String? @map("evento_id")
+  nombre      String  @db.VarChar(100)
+  url         String? @db.VarChar(500)
 
-  tipoStand  TipoStand @relation(fields: [tipoStandId], references: [id])
-  evento     Evento?   @relation(fields: [eventoId], references: [id])
+  tipoStand TipoStand @relation(fields: [tipoStandId], references: [id])
+  evento    Evento?   @relation(fields: [eventoId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -106,12 +108,12 @@ model ContratoPlantilla {
 }
 
 model Role {
-  id          String     @id @default(uuid())
-  nombre      String     @unique @db.VarChar(50)
-  descripcion String?    @db.VarChar(200)
-  permisos    String[]   @default([])
+  id          String   @id @default(uuid())
+  nombre      String   @unique @db.VarChar(50)
+  descripcion String?  @db.VarChar(200)
+  permisos    String[] @default([])
 
-  usuarios    UserRole[]
+  usuarios UserRole[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -120,41 +122,45 @@ model Role {
 }
 
 model UserRole {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id") @db.VarChar(100)
-  roleId            String    @map("role_id")
-  email             String    @db.VarChar(200)
-  password          String    @default("123456") @db.VarChar(100)
-  nombre            String?   @db.VarChar(200)
-  apellidos         String?   @db.VarChar(200)
-  telefono          String?   @db.VarChar(20)
-  tipoUsuarioId     Int?      @map("tipo_usuario_id")
-  idEmpresa         String?   @map("id_empresa") @db.VarChar(50)
-  nombreEmpresa     String?   @map("nombre_empresa") @db.VarChar(200)
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id") @db.VarChar(100)
+  roleId              String    @map("role_id")
+  email               String    @db.VarChar(200)
+  password            String    @default("123456") @db.VarChar(100)
+  nombre              String?   @db.VarChar(200)
+  apellidos           String?   @db.VarChar(200)
+  telefono            String?   @db.VarChar(20)
+  tipoUsuarioId       Int?      @map("tipo_usuario_id")
+  idEmpresa           String?   @map("id_empresa") @db.VarChar(50)
+  nombreEmpresa       String?   @map("nombre_empresa") @db.VarChar(200)
   /// Logo propio del usuario (URL en /uploads/*); tiene prioridad sobre el de la empresa en el mapa.
-  logoUrl           String?   @map("logo_url") @db.VarChar(500)
+  logoUrl             String?   @map("logo_url") @db.VarChar(500)
   /// Firma digital del usuario (imagen PNG/JPG en /uploads/*) para firmar contratos desde el portal.
-  firmaUrl          String?   @map("firma_url") @db.VarChar(500)
-  /** Ultimo evento seleccionado: se reusa al iniciar sesion para no pedirlo de nuevo. */
-  eventoId          String?   @map("evento_id") @db.VarChar(50)
-  /** Nombre visible del ultimo evento elegido (lo envia la presala); se reusa al iniciar sesion. */
-  eventoNombre      String?   @map("evento_nombre") @db.VarChar(200)
-  eventoPadreNombre String?   @map("evento_padre_nombre") @db.VarChar(200)
-  resetToken        String?   @map("reset_token") @db.VarChar(200)
-  resetTokenExpires DateTime? @map("reset_token_expires")
+  firmaUrl            String?   @map("firma_url") @db.VarChar(500)
+  /**
+   * Ultimo evento seleccionado: se reusa al iniciar sesion para no pedirlo de nuevo.
+   */
+  eventoId            String?   @map("evento_id") @db.VarChar(50)
+  /**
+   * Nombre visible del ultimo evento elegido (lo envia la presala); se reusa al iniciar sesion.
+   */
+  eventoNombre        String?   @map("evento_nombre") @db.VarChar(200)
+  eventoPadreNombre   String?   @map("evento_padre_nombre") @db.VarChar(200)
+  resetToken          String?   @map("reset_token") @db.VarChar(200)
+  resetTokenExpires   DateTime? @map("reset_token_expires")
   /// Empresa del Portal del Cliente a la que pertenece la cuenta (registrada por backoffice).
-  empresaId         String?   @map("empresa_id")
+  empresaId           String?   @map("empresa_id")
   /// Credencial temporal: el usuario debe cambiar la contrasena en el primer ingreso.
-  debeCambiarPassword Boolean @default(false) @map("debe_cambiar_password")
+  debeCambiarPassword Boolean   @default(false) @map("debe_cambiar_password")
   /// Idioma preferido del usuario: es | en (ver IDIOMAS). Default espanol.
-  idioma            String    @default("es") @db.VarChar(5)
+  idioma              String    @default("es") @db.VarChar(5)
   /// Identificador de la persona en servicio-persona (sie_code, ej. P0000012345). La persona vive en la fuente.
-  sieCode           String?   @map("sie_code") @db.VarChar(20)
+  sieCode             String?   @map("sie_code") @db.VarChar(20)
   /// RUC de la empresa vinculada (copiado de la ficha) para representar la cuenta.
-  ruc               String?   @db.VarChar(11)
+  ruc                 String?   @db.VarChar(11)
 
-  role     Role   @relation(fields: [roleId], references: [id])
-  empresa  Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  role    Role     @relation(fields: [roleId], references: [id])
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
 
   @@unique([userId, roleId])
   @@index([userId])
@@ -170,31 +176,31 @@ model SolicitudCuenta {
   id String @id @default(uuid())
 
   /// Correo electronico corporativo del solicitante.
-  email         String  @db.VarChar(200)
+  email         String    @db.VarChar(200)
   /// Nombres del contacto.
-  nombre        String  @db.VarChar(200)
+  nombre        String    @db.VarChar(200)
   /// Apellidos del contacto.
-  apellidos     String  @db.VarChar(200)
+  apellidos     String    @db.VarChar(200)
   /// Telefono de contacto.
-  telefono      String? @db.VarChar(20)
+  telefono      String?   @db.VarChar(20)
   /// Razon social de la empresa exhibidora.
-  razonSocial   String  @map("razon_social") @db.VarChar(200)
+  razonSocial   String    @map("razon_social") @db.VarChar(200)
   /// RUC de la empresa (11 digitos).
-  ruc           String? @db.VarChar(11)
+  ruc           String?   @db.VarChar(11)
   /// Cargo del contacto dentro de la empresa.
-  cargo         String? @db.VarChar(100)
+  cargo         String?   @db.VarChar(100)
   /// Mensaje adicional del solicitante.
-  mensaje       String? @db.Text
+  mensaje       String?   @db.Text
   /// Estado de la solicitud (ver ESTADOS_SOLICITUD_CUENTA).
-  estado        String  @default("pendiente") @db.VarChar(20)
+  estado        String    @default("pendiente") @db.VarChar(20)
   /// Motivo obligatorio cuando la solicitud es rechazada.
-  motivoRechazo String? @map("motivo_rechazo") @db.Text
+  motivoRechazo String?   @map("motivo_rechazo") @db.Text
   /// Email del administrador que reviso la solicitud.
-  revisadoPor   String? @map("revisado_por") @db.VarChar(200)
+  revisadoPor   String?   @map("revisado_por") @db.VarChar(200)
   /// Fecha de la revision.
   revisadoEn    DateTime? @map("revisado_en")
   /// userId del usuario creado al aprobar la solicitud.
-  usuarioId     String? @map("usuario_id") @db.VarChar(100)
+  usuarioId     String?   @map("usuario_id") @db.VarChar(100)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -210,23 +216,23 @@ model RegistroPendiente {
   id String @id @default(uuid())
 
   /// Correo electronico a verificar (unico).
-  email       String  @unique @db.VarChar(200)
+  email       String   @unique @db.VarChar(200)
   /// Codigo numerico enviado por correo.
-  codigo      String  @db.VarChar(10)
+  codigo      String   @db.VarChar(10)
   /// Contrasena ya hasheada (se transfiere al usuario al confirmar).
-  password    String  @db.VarChar(100)
+  password    String   @db.VarChar(100)
   /// Nombres del contacto.
-  nombre      String  @db.VarChar(200)
+  nombre      String   @db.VarChar(200)
   /// Apellidos del contacto.
-  apellidos   String  @db.VarChar(200)
+  apellidos   String   @db.VarChar(200)
   /// Razon social de la empresa exhibidora.
-  razonSocial String  @map("razon_social") @db.VarChar(200)
+  razonSocial String   @map("razon_social") @db.VarChar(200)
   /// Telefono de contacto.
-  telefono    String? @db.VarChar(20)
+  telefono    String?  @db.VarChar(20)
   /// RUC de la empresa (11 digitos).
-  ruc         String? @db.VarChar(11)
+  ruc         String?  @db.VarChar(11)
   /// Intentos de verificacion fallidos.
-  intentos    Int     @default(0)
+  intentos    Int      @default(0)
   /// Fecha/hora de expiracion del codigo.
   expiraEn    DateTime @map("expira_en")
 
@@ -236,58 +242,60 @@ model RegistroPendiente {
   @@map("registro_pendiente")
 }
 
-/* ================================================================
-   2. TRANSACCIONALES — datos que cambian con frecuencia
-   ================================================================ */
+/**
+ * ================================================================
+ * 2. TRANSACCIONALES — datos que cambian con frecuencia
+ * ================================================================
+ */
 
 /// Empresa exhibidora registrada por el backoffice (cuenta del Portal del Cliente).
 /// Los datos marcados como contractuales alimentan el contrato de alquiler.
 model Empresa {
-  id       String @id @default(uuid())
+  id                       String    @id @default(uuid())
   /// RUC (11 digitos). Identificador de negocio; unico.
-  ruc      String @unique @db.VarChar(11)
+  ruc                      String    @unique @db.VarChar(11)
   /// Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). La empresa vive en la fuente.
-  sieCode  String? @map("sie_code") @db.VarChar(20)
+  sieCode                  String?   @map("sie_code") @db.VarChar(20)
   /// Razon social; usada en el cuerpo del contrato.
-  razonSocial String @map("razon_social") @db.VarChar(200)
+  razonSocial              String    @map("razon_social") @db.VarChar(200)
   /// Logo de la empresa (URL en /uploads/*); se pinta en sus stands reservados del mapa.
-  logoUrl String? @map("logo_url") @db.VarChar(500)
+  logoUrl                  String?   @map("logo_url") @db.VarChar(500)
   /// Nombre comercial (opcional, no contractual).
-  nombreComercial String? @map("nombre_comercial") @db.VarChar(200)
+  nombreComercial          String?   @map("nombre_comercial") @db.VarChar(200)
   /// Direccion fiscal; usada en el contrato.
-  direccionFiscal String? @map("direccion_fiscal") @db.VarChar(250)
+  direccionFiscal          String?   @map("direccion_fiscal") @db.VarChar(250)
   /// Telefono de contacto de la empresa.
-  telefono String? @db.VarChar(30)
+  telefono                 String?   @db.VarChar(30)
   /// Correo de contacto general.
-  emailContacto String? @map("email_contacto") @db.VarChar(200)
+  emailContacto            String?   @map("email_contacto") @db.VarChar(200)
   /// Correo para facturacion y comprobantes (Tributos).
-  emailFacturacion String? @map("email_facturacion") @db.VarChar(200)
+  emailFacturacion         String?   @map("email_facturacion") @db.VarChar(200)
   /// Representante legal (nombre completo); firma el contrato.
-  representanteLegalNombre String? @map("representante_legal_nombre") @db.VarChar(200)
+  representanteLegalNombre String?   @map("representante_legal_nombre") @db.VarChar(200)
   /// DNI/pasaporte del representante legal.
-  representanteLegalDni String? @map("representante_legal_dni") @db.VarChar(15)
+  representanteLegalDni    String?   @map("representante_legal_dni") @db.VarChar(15)
   /// Correo del representante legal (crea su cuenta del Portal y sincroniza con la fuente).
-  representanteCorreo String? @map("representante_correo") @db.VarChar(200)
+  representanteCorreo      String?   @map("representante_correo") @db.VarChar(200)
   /// Celular del representante legal.
-  representanteCelular String? @map("representante_celular") @db.VarChar(35)
+  representanteCelular     String?   @map("representante_celular") @db.VarChar(35)
   /// Direccion del representante legal.
-  representanteDireccion String? @map("representante_direccion") @db.VarChar(100)
+  representanteDireccion   String?   @map("representante_direccion") @db.VarChar(100)
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
-  partidaElectronica String? @map("partida_electronica") @db.VarChar(50)
+  partidaElectronica       String?   @map("partida_electronica") @db.VarChar(50)
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).
-  tipoComprobante String @default("factura") @map("tipo_comprobante") @db.VarChar(20)
+  tipoComprobante          String    @default("factura") @map("tipo_comprobante") @db.VarChar(20)
   /// Sitio web (opcional).
-  sitioWeb String? @map("sitio_web") @db.VarChar(200)
+  sitioWeb                 String?   @map("sitio_web") @db.VarChar(200)
   /// Estado de la empresa: activa | inactiva (ver ESTADOS_EMPRESA).
-  estado String @default("activa") @db.VarChar(20)
+  estado                   String    @default("activa") @db.VarChar(20)
   /// La cuenta del Portal del Cliente ya fue creada/enviada.
-  cuentaCreada Boolean @default(false) @map("cuenta_creada")
+  cuentaCreada             Boolean   @default(false) @map("cuenta_creada")
   /// El primer acceso (validacion de datos) fue completado.
-  primerAccesoCompletado Boolean @default(false) @map("primer_acceso_completado")
+  primerAccesoCompletado   Boolean   @default(false) @map("primer_acceso_completado")
   /// Registro de datos validados por la empresa (primer login).
-  datosValidadosEn DateTime? @map("datos_validados_en")
+  datosValidadosEn         DateTime? @map("datos_validados_en")
   /// Usuario (correo) que dio de alta la empresa en el backoffice.
-  creadoPor String? @map("creado_por") @db.VarChar(200)
+  creadoPor                String?   @map("creado_por") @db.VarChar(200)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -301,20 +309,20 @@ model Empresa {
 }
 
 model Stand {
-  id           String     @id @default(uuid())
-  eventoId     String     @map("evento_id")
-  tipoStandId  String     @map("tipo_stand_id")
-  numero       String     @db.VarChar(20)
+  id           String  @id @default(uuid())
+  eventoId     String  @map("evento_id")
+  tipoStandId  String  @map("tipo_stand_id")
+  numero       String  @db.VarChar(20)
   monto        Float
-  moneda       String     @default("USD") @db.VarChar(3)
-  estado       String     @default("disponible") @db.VarChar(20)
-  tipoCamara   String?    @map("tipo_camara") @db.VarChar(20)
-  numeroCamara String?    @map("numero_camara") @db.VarChar(20)
+  moneda       String  @default("USD") @db.VarChar(3)
+  estado       String  @default("disponible") @db.VarChar(20)
+  tipoCamara   String? @map("tipo_camara") @db.VarChar(20)
+  numeroCamara String? @map("numero_camara") @db.VarChar(20)
 
-  evento       Evento        @relation(fields: [eventoId], references: [id])
-  tipoStand    TipoStand     @relation(fields: [tipoStandId], references: [id])
-  posicion     PlanoPosicion?
-  reservas     ReservaStand[]
+  evento    Evento         @relation(fields: [eventoId], references: [id])
+  tipoStand TipoStand      @relation(fields: [tipoStandId], references: [id])
+  posicion  PlanoPosicion?
+  reservas  ReservaStand[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -329,52 +337,52 @@ model PlanoPosicion {
   x       Float
   y       Float
 
-  stand   Stand  @relation(fields: [standId], references: [id])
+  stand Stand @relation(fields: [standId], references: [id])
 
   @@map("plano_posicion")
 }
 
 model GessStand {
-  id          String  @id @default(uuid())
-  eventoId    String  @map("evento_id")
-  standApiId  String  @map("stand_api_id") @db.VarChar(50)
-  standCode   String  @map("stand_code") @db.VarChar(50)
-  tipoStand   String? @map("tipo_stand") @db.VarChar(100)
-  medidas     String? @db.VarChar(100)
-  estado      String? @db.VarChar(50)
-  empresa     String? @db.VarChar(200)
-  pabellon    String? @db.VarChar(50)
-  ubicacion   String? @db.VarChar(100)
-  rawData     Json?   @map("raw_data")
-  bloqueId    String? @map("bloque_id") @db.VarChar(50)
-  email       String? @db.VarChar(200)
-  userId      String? @map("user_id") @db.VarChar(100)
-  documentos  Json?   @default("[]")
-  imagenes    Json?   @default("[]")
+  id                    String    @id @default(uuid())
+  eventoId              String    @map("evento_id")
+  standApiId            String    @map("stand_api_id") @db.VarChar(50)
+  standCode             String    @map("stand_code") @db.VarChar(50)
+  tipoStand             String?   @map("tipo_stand") @db.VarChar(100)
+  medidas               String?   @db.VarChar(100)
+  estado                String?   @db.VarChar(50)
+  empresa               String?   @db.VarChar(200)
+  pabellon              String?   @db.VarChar(50)
+  ubicacion             String?   @db.VarChar(100)
+  rawData               Json?     @map("raw_data")
+  bloqueId              String?   @map("bloque_id") @db.VarChar(50)
+  email                 String?   @db.VarChar(200)
+  userId                String?   @map("user_id") @db.VarChar(100)
+  documentos            Json?     @default("[]")
+  imagenes              Json?     @default("[]")
   /// Categoria por imagen: { "<url>": "<categoria>" } (ver CATEGORIAS_IMAGEN).
-  imagenesCategorias Json? @default("{}") @map("imagenes_categorias")
+  imagenesCategorias    Json?     @default("{}") @map("imagenes_categorias")
   /// Categoria por documento: { "<url>": "<categoria>" } (ver CATEGORIAS_DOCUMENTO).
-  documentosCategorias Json? @default("{}") @map("documentos_categorias")
+  documentosCategorias  Json?     @default("{}") @map("documentos_categorias")
   /// Empresa montajista asignada (SIE code, ej. E0000105823).
-  montajistaId        String?   @map("montajista_id") @db.VarChar(20)
-  montajistaNombre    String?   @map("montajista_nombre") @db.VarChar(200)
-  montajistaAsignadaEn DateTime? @map("montajista_asignada_en")
-  montajistaAsignadaPor String?  @map("montajista_asignada_por") @db.VarChar(200)
+  montajistaId          String?   @map("montajista_id") @db.VarChar(20)
+  montajistaNombre      String?   @map("montajista_nombre") @db.VarChar(200)
+  montajistaAsignadaEn  DateTime? @map("montajista_asignada_en")
+  montajistaAsignadaPor String?   @map("montajista_asignada_por") @db.VarChar(200)
 
   /// Pre-reserva (bloqueo con empresa, sin solicitud ni contrato).
-  preReservaRazonSocial String?  @map("pre_reserva_razon_social") @db.VarChar(200)
+  preReservaRazonSocial String?   @map("pre_reserva_razon_social") @db.VarChar(200)
   /// Pre-reserva por titulo (texto libre) cuando no hay empresa.
-  preReservaTitulo      String?  @map("pre_reserva_titulo") @db.VarChar(200)
-  preReservaRuc         String?  @map("pre_reserva_ruc") @db.VarChar(11)
-  preReservaSie         String?  @map("pre_reserva_sie") @db.VarChar(20)
-  preReservaLogoUrl     String?  @map("pre_reserva_logo_url") @db.VarChar(500)
-  preReservaNota        String?  @map("pre_reserva_nota") @db.VarChar(300)
-  preReservaPor         String?  @map("pre_reserva_por") @db.VarChar(200)
+  preReservaTitulo      String?   @map("pre_reserva_titulo") @db.VarChar(200)
+  preReservaRuc         String?   @map("pre_reserva_ruc") @db.VarChar(11)
+  preReservaSie         String?   @map("pre_reserva_sie") @db.VarChar(20)
+  preReservaLogoUrl     String?   @map("pre_reserva_logo_url") @db.VarChar(500)
+  preReservaNota        String?   @map("pre_reserva_nota") @db.VarChar(300)
+  preReservaPor         String?   @map("pre_reserva_por") @db.VarChar(200)
   preReservaAt          DateTime? @map("pre_reserva_at")
 
-  evento      Evento      @relation(fields: [eventoId], references: [id])
-  solicitudes Solicitud[]
-  solicitudStands SolicitudStand[] @relation("SolicitudStandGess")
+  evento              Evento                     @relation(fields: [eventoId], references: [id])
+  solicitudes         Solicitud[]
+  solicitudStands     SolicitudStand[]           @relation("SolicitudStandGess")
   montajistaHistorial StandMontajistaHistorial[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -405,22 +413,24 @@ model TipoStandImagen {
   @@map("tipo_stand_imagen")
 }
 
-/* ================================================================
-   2.5 SOLICITUDES — ciclo de reserva
-   ================================================================ */
+/**
+ * ================================================================
+ * 2.5 SOLICITUDES — ciclo de reserva
+ * ================================================================
+ */
 
 model Solicitud {
-  id          String    @id @default(uuid())
-  gessStandId String?   @map("gess_stand_id")
-  userId      String?   @map("user_id") @db.VarChar(100)
-  email       String?   @db.VarChar(200)
-  documentos  Json?     @default("[]")
+  id                  String    @id @default(uuid())
+  gessStandId         String?   @map("gess_stand_id")
+  userId              String?   @map("user_id") @db.VarChar(100)
+  email               String?   @db.VarChar(200)
+  documentos          Json?     @default("[]")
   /// RF-08: URL de la imagen (PNG) del recorte del pabellon con el stand destacado; se adjunta al contrato.
-  recortePlanoUrl String? @map("recorte_plano_url") @db.VarChar(500)
+  recortePlanoUrl     String?   @map("recorte_plano_url") @db.VarChar(500)
   /// RF-10/11: snapshot del plan de cuotas configurado al reservar { modalidad, cuotas[] }.
-  planCuotas Json? @map("plan_cuotas")
+  planCuotas          Json?     @map("plan_cuotas")
   /// Datos comerciales/fiscales capturados en el paso 1 del wizard (payload del IIMP).
-  datosFacturacion Json? @map("datos_facturacion")
+  datosFacturacion    Json?     @map("datos_facturacion")
   /// Reserva oficial en el API del IIMP: contrato (10 digitos), cuenta corriente y cliente.
   iimpContrato        String?   @map("iimp_contrato") @db.VarChar(20)
   iimpCuentaCorriente String?   @map("iimp_cuenta_corriente") @db.VarChar(20)
@@ -428,41 +438,43 @@ model Solicitud {
   /// Respuesta completa del API de reserva (auditoria y conciliacion).
   iimpReserva         Json?     @map("iimp_reserva")
   iimpReservaAt       DateTime? @map("iimp_reserva_at")
-  flgActivo   Boolean   @default(true) @map("flg_activo")
-  estado      String?   @db.VarChar(20)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  flgActivo           Boolean   @default(true) @map("flg_activo")
+  estado              String?   @db.VarChar(20)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  gessStand   GessStand?      @relation(fields: [gessStandId], references: [id])
-  revisiones  Revision[]
+  gessStand      GessStand?           @relation(fields: [gessStandId], references: [id])
+  revisiones     Revision[]
   reevaluaciones Reevaluacion[]
-  docsAdjuntos SolicitudDocumento[] @relation("SolicitudDocs")
-  stands      SolicitudStand[]
-  facturaciones Facturacion[]
-  sgcExpediente SgcExpediente?
+  docsAdjuntos   SolicitudDocumento[] @relation("SolicitudDocs")
+  stands         SolicitudStand[]
+  facturaciones  Facturacion[]
+  sgcExpediente  SgcExpediente?
 
   @@index([gessStandId])
   @@map("solicitud")
 }
 
-/* ================================================================
-   3. RESERVAS — ciclo completo de reserva
-   ================================================================ */
+/**
+ * ================================================================
+ * 3. RESERVAS — ciclo completo de reserva
+ * ================================================================
+ */
 
 model Reserva {
-  id                String           @id @default(uuid())
-  eventoId          String           @map("evento_id")
-  empresaRef        String           @map("empresa_ref") @db.VarChar(100)
-  tipoComprobante   String           @map("tipo_comprobante") @db.VarChar(20)
-  datosFacturacion  Json            @map("datos_facturacion")
-  responsablePago   Json?           @map("responsable_pago")
-  estado            String           @default("registrada") @db.VarChar(20)
+  id               String @id @default(uuid())
+  eventoId         String @map("evento_id")
+  empresaRef       String @map("empresa_ref") @db.VarChar(100)
+  tipoComprobante  String @map("tipo_comprobante") @db.VarChar(20)
+  datosFacturacion Json   @map("datos_facturacion")
+  responsablePago  Json?  @map("responsable_pago")
+  estado           String @default("registrada") @db.VarChar(20)
 
-  evento            Evento           @relation(fields: [eventoId], references: [id])
-  stands            ReservaStand[]
-  cuotas            Cuota[]
-  aprobaciones      Aprobacion[]
-  interop           InteropFacturacion?
+  evento       Evento              @relation(fields: [eventoId], references: [id])
+  stands       ReservaStand[]
+  cuotas       Cuota[]
+  aprobaciones Aprobacion[]
+  interop      InteropFacturacion?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -481,8 +493,8 @@ model ReservaStand {
   monto     Float
   moneda    String @default("USD") @db.VarChar(3)
 
-  reserva   Reserva @relation(fields: [reservaId], references: [id])
-  stand     Stand   @relation(fields: [standId], references: [id])
+  reserva Reserva @relation(fields: [reservaId], references: [id])
+  stand   Stand   @relation(fields: [standId], references: [id])
 
   @@index([reservaId])
   @@index([standId])
@@ -490,14 +502,14 @@ model ReservaStand {
 }
 
 model Cuota {
-  id        String @id @default(uuid())
-  reservaId String @map("reserva_id")
-  numero    Int
+  id         String    @id @default(uuid())
+  reservaId  String    @map("reserva_id")
+  numero     Int
   porcentaje Float
-  monto     Float
-  fechaPago DateTime? @map("fecha_pago")
+  monto      Float
+  fechaPago  DateTime? @map("fecha_pago")
 
-  reserva   Reserva @relation(fields: [reservaId], references: [id])
+  reserva Reserva @relation(fields: [reservaId], references: [id])
 
   @@index([reservaId])
   @@map("cuota")
@@ -512,38 +524,38 @@ model Aprobacion {
   comentario  String?
   fecha       DateTime?
 
-  reserva     Reserva   @relation(fields: [reservaId], references: [id])
+  reserva Reserva @relation(fields: [reservaId], references: [id])
 
   @@index([reservaId])
   @@map("aprobacion")
 }
 
 model Revision {
-  id          String    @id @default(uuid())
-  solicitudId String    @map("solicitud_id")
-  area        String    @db.VarChar(20)
-  estado      String    @default("pendiente") @db.VarChar(20)
+  id          String   @id @default(uuid())
+  solicitudId String   @map("solicitud_id")
+  area        String   @db.VarChar(20)
+  estado      String   @default("pendiente") @db.VarChar(20)
   comentario  String?
-  createdBy   String?   @map("created_by") @db.VarChar(100)
-  updatedBy   String?   @map("updated_by") @db.VarChar(100)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by") @db.VarChar(100)
+  updatedBy   String?  @map("updated_by") @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
 
   @@unique([solicitudId, area])
   @@map("revision")
 }
 
 model RevisionHistorial {
-  id               String   @id @default(uuid())
-  solicitudId      String   @map("solicitud_id")
-  area             String   @db.VarChar(20)
-  estadoAnterior   String   @map("estado_anterior") @db.VarChar(20)
-  comentarioAnterior String? @map("comentario_anterior")
-  motivo           String   @db.VarChar(500)
-  createdBy        String?  @map("created_by") @db.VarChar(100)
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(uuid())
+  solicitudId        String   @map("solicitud_id")
+  area               String   @db.VarChar(20)
+  estadoAnterior     String   @map("estado_anterior") @db.VarChar(20)
+  comentarioAnterior String?  @map("comentario_anterior")
+  motivo             String   @db.VarChar(500)
+  createdBy          String?  @map("created_by") @db.VarChar(100)
+  createdAt          DateTime @default(now()) @map("created_at")
 
   @@index([solicitudId])
   @@index([solicitudId, area])
@@ -562,7 +574,7 @@ model Reevaluacion {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
 
   @@index([solicitudId])
   @@index([estado])
@@ -578,14 +590,16 @@ model InteropFacturacion {
   requestRef  Json?   @map("request_ref")
   responseRef Json?   @map("response_ref")
 
-  reserva     Reserva @relation(fields: [reservaId], references: [id])
+  reserva Reserva @relation(fields: [reservaId], references: [id])
 
   @@map("interop_facturacion")
 }
 
-/* ================================================================
-   4. AUDITORÍA
-   ================================================================ */
+/**
+ * ================================================================
+ * 4. AUDITORÍA
+ * ================================================================
+ */
 
 model AuditLog {
   id        String   @id @default(uuid())
@@ -599,7 +613,7 @@ model AuditLog {
   @@index([tipo])
   @@index([entidad])
   @@index([createdAt])
-   @@map("audit_log")
+  @@map("audit_log")
 }
 
 model ErrorLog {
@@ -619,7 +633,7 @@ model ErrorLog {
 model Facturacion {
   id          String   @id @default(uuid())
   solicitudId String   @map("solicitud_id")
-  tipo        String   @default("manual") @db.VarChar(20)  // "niubizz" | "manual"
+  tipo        String   @default("manual") @db.VarChar(20) // "niubizz" | "manual"
   estado      String   @default("pendiente") @db.VarChar(20) // pendiente, pagado, cancelado
   montoTotal  Decimal  @map("monto_total") @db.Decimal(12, 2)
   moneda      String   @default("US$") @db.VarChar(5)
@@ -629,8 +643,8 @@ model Facturacion {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
-  cuotas      FacturacionCuota[]
+  solicitud Solicitud          @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  cuotas    FacturacionCuota[]
 
   @@index([solicitudId])
   @@index([estado])
@@ -638,14 +652,14 @@ model Facturacion {
 }
 
 model FacturacionCuota {
-  id             String   @id @default(uuid())
-  facturacionId  String   @map("facturacion_id")
-  numero         Int
-  monto          Decimal  @db.Decimal(12, 2)
-  fechaVencimiento DateTime? @map("fecha_vencimiento")
-  estado         String   @default("pendiente") @db.VarChar(20) // pendiente, pagado, vencido
+  id                      String    @id @default(uuid())
+  facturacionId           String    @map("facturacion_id")
+  numero                  Int
+  monto                   Decimal   @db.Decimal(12, 2)
+  fechaVencimiento        DateTime? @map("fecha_vencimiento")
+  estado                  String    @default("pendiente") @db.VarChar(20) // pendiente, pagado, vencido
   /// Voucher de pago subido por el cliente (pendiente de confirmacion).
-  comprobante    String?  @db.VarChar(500)
+  comprobante             String?   @db.VarChar(500)
   /// Comprobante fiscal (boleta/factura) que adjunta Facturacion a la cuota pagada: URL del archivo.
   comprobanteFiscal       String?   @map("comprobante_fiscal") @db.VarChar(500)
   /// Tipo del comprobante fiscal: "boleta" | "factura" (ver TIPOS_COMPROBANTE).
@@ -657,11 +671,11 @@ model FacturacionCuota {
   /// Usuario que adjunto el comprobante fiscal.
   comprobanteFiscalBy     String?   @map("comprobante_fiscal_by") @db.VarChar(100)
   /// Documento fiscal emitido por el IIMP para esta cuota (serie, numero, fecha, IGV, total).
-  iimpDocumento Json? @map("iimp_documento")
-  iimpEmitidaAt DateTime? @map("iimp_emitida_at")
-  createdAt      DateTime @default(now()) @map("created_at")
+  iimpDocumento           Json?     @map("iimp_documento")
+  iimpEmitidaAt           DateTime? @map("iimp_emitida_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
 
-  facturacion    Facturacion @relation(fields: [facturacionId], references: [id], onDelete: Cascade)
+  facturacion Facturacion @relation(fields: [facturacionId], references: [id], onDelete: Cascade)
 
   @@index([facturacionId])
   @@map("facturacion_cuota")
@@ -682,19 +696,19 @@ model FacturacionHistorial {
 }
 
 model Alerta {
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id") @db.VarChar(100)
-  tipo         String   @db.VarChar(30)
-  titulo       String   @db.VarChar(200)
-  mensaje      String   @db.VarChar(1000)
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id") @db.VarChar(100)
+  tipo        String   @db.VarChar(30)
+  titulo      String   @db.VarChar(200)
+  mensaje     String   @db.VarChar(1000)
   /// Clave de plantilla (`ALERTA_CLAVES`) para renderizar titulo/mensaje en el idioma del destinatario.
-  clave        String?  @db.VarChar(60)
+  clave       String?  @db.VarChar(60)
   /// Datos de interpolacion de la plantilla de alerta.
-  datos        Json?
-  leida        Boolean  @default(false)
-  url          String?  @db.VarChar(500)
-  solicitudId  String?  @map("solicitud_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  datos       Json?
+  leida       Boolean  @default(false)
+  url         String?  @db.VarChar(500)
+  solicitudId String?  @map("solicitud_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([userId, leida])
@@ -715,7 +729,7 @@ model SolicitudDocumento {
   flgActivo   Boolean  @default(true) @map("flg_activo")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  solicitud   Solicitud @relation(fields: [solicitudId], references: [id], name: "SolicitudDocs")
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id], name: "SolicitudDocs")
 
   @@index([solicitudId])
   @@map("solicitud_documento")
@@ -726,8 +740,8 @@ model SolicitudStand {
   solicitudId String @map("solicitud_id")
   gessStandId String @map("gess_stand_id")
 
-  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
-  gessStand   GessStand @relation(fields: [gessStandId], references: [id], name: "SolicitudStandGess")
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
+  gessStand GessStand @relation(fields: [gessStandId], references: [id], name: "SolicitudStandGess")
 
   @@unique([solicitudId, gessStandId])
   @@index([solicitudId])
@@ -735,19 +749,21 @@ model SolicitudStand {
   @@map("solicitud_stand")
 }
 
-/* ================================================================
-   5. MAESTRA — diccionario jerarquico de valores lookup
-   ================================================================ */
+/**
+ * ================================================================
+ * 5. MAESTRA — diccionario jerarquico de valores lookup
+ * ================================================================
+ */
 
 model Maestra {
-  id               Int       @id @default(autoincrement())
-  nidMaestraPadre  Int       @default(0) @map("nid_maestra_padre")
-  tabla            String    @db.VarChar(100)
-  itemId           Int?      @map("item_id")
-  numOrden         Int       @default(0) @map("num_orden")
-  nombre           String    @db.VarChar(250)
-  descripcion      String?   @db.VarChar(500)
-  activo           Boolean   @default(true)
+  id              Int     @id @default(autoincrement())
+  nidMaestraPadre Int     @default(0) @map("nid_maestra_padre")
+  tabla           String  @db.VarChar(100)
+  itemId          Int?    @map("item_id")
+  numOrden        Int     @default(0) @map("num_orden")
+  nombre          String  @db.VarChar(250)
+  descripcion     String? @db.VarChar(500)
+  activo          Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -757,25 +773,27 @@ model Maestra {
   @@map("maestra")
 }
 
-/* ================================================================
-   6. PLANOS 3D — Laboratorio 3D: mapas editables almacenados en BD
-      plano.codigo es lo que guarda evento_metadata.plano
-   ================================================================ */
+/**
+ * ================================================================
+ * 6. PLANOS 3D — Laboratorio 3D: mapas editables almacenados en BD
+ * plano.codigo es lo que guarda evento_metadata.plano
+ * ================================================================
+ */
 
 model Plano {
-  id          String   @id @default(uuid())
-  codigo      String   @unique @db.VarChar(50)         // "gess", "perumin"
-  nombre      String   @db.VarChar(100)
-  descripcion String?  @db.VarChar(300)
-  tipo        String   @default("simple") @db.VarChar(10) // "simple" | "macro"
-  imagenFondo String?  @map("imagen_fondo") @db.VarChar(500) // mapa de pabellones (macro)
-  config      Json?                                      // { floor, camera, legend } opcional
-  flgActivo   Boolean  @default(true) @map("flg_activo")
+  id          String  @id @default(uuid())
+  codigo      String  @unique @db.VarChar(50) // "gess", "perumin"
+  nombre      String  @db.VarChar(100)
+  descripcion String? @db.VarChar(300)
+  tipo        String  @default("simple") @db.VarChar(10) // "simple" | "macro"
+  imagenFondo String? @map("imagen_fondo") @db.VarChar(500) // mapa de pabellones (macro)
+  config      Json? // { floor, camera, legend } opcional
+  flgActivo   Boolean @default(true) @map("flg_activo")
 
-  tipos       PlanoTipoBloque[]
-  bloques     PlanoBloque[]
-  furniture   PlanoFurniture[]
-  secciones   PlanoSeccion[]
+  tipos     PlanoTipoBloque[]
+  bloques   PlanoBloque[]
+  furniture PlanoFurniture[]
+  secciones PlanoSeccion[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -786,19 +804,19 @@ model Plano {
 model PlanoSeccion {
   id          String  @id @default(uuid())
   planoId     String  @map("plano_id")
-  codigo      String  @db.VarChar(50)                  // "PAB-A"
-  nombre      String  @db.VarChar(100)                 // "Pabellon A"
-  x           Float   @db.Real                         // coords normalizadas 0-1 sobre la imagen
+  codigo      String  @db.VarChar(50) // "PAB-A"
+  nombre      String  @db.VarChar(100) // "Pabellon A"
+  x           Float   @db.Real // coords normalizadas 0-1 sobre la imagen
   y           Float   @db.Real
   w           Float   @db.Real
   h           Float   @db.Real
-  rotacion    Float   @default(0) @db.Real @map("rotacion") // grados (0-360), rotacion del rect sobre la imagen
-  puntos      Json?                                    // seccion libre: N puntos normalizados [{x,y}]; null = rectangulo
-  color       String  @db.VarChar(10) @default("#3b82f6")
-  planoHijoId String? @map("plano_hijo_id")            // FK logica → plano 3D del pabellon
+  rotacion    Float   @default(0) @map("rotacion") @db.Real // grados (0-360), rotacion del rect sobre la imagen
+  puntos      Json? // seccion libre: N puntos normalizados [{x,y}]; null = rectangulo
+  color       String  @default("#3b82f6") @db.VarChar(10)
+  planoHijoId String? @map("plano_hijo_id") // FK logica → plano 3D del pabellon
   orden       Int     @default(0)
 
-  plano       Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  plano Plano @relation(fields: [planoId], references: [id], onDelete: Cascade)
 
   @@unique([planoId, codigo])
   @@index([planoId])
@@ -806,21 +824,21 @@ model PlanoSeccion {
 }
 
 model PlanoTipoBloque {
-  id       String  @id @default(uuid())
-  planoId  String  @map("plano_id")
-  codigo   String  @db.VarChar(20)                     // "S", "BG", "P", "C"
-  label    String  @db.VarChar(20)
-  nombre   String  @db.VarChar(50)                     // "Columna", "Preferencial"
-  w        Float   @db.Real
-  d        Float   @db.Real
-  h        Float   @db.Real
-  color    String  @db.VarChar(10)                     // "#FFD700"
-  ambito   String  @default("interno") @db.VarChar(10) // "interno" | "externo"
-  forma    String  @default("bloque") @db.VarChar(20)  // "bloque" | "tractor-orugas" | "cargador-frontal"
+  id        String  @id @default(uuid())
+  planoId   String  @map("plano_id")
+  codigo    String  @db.VarChar(20) // "S", "BG", "P", "C"
+  label     String  @db.VarChar(20)
+  nombre    String  @db.VarChar(50) // "Columna", "Preferencial"
+  w         Float   @db.Real
+  d         Float   @db.Real
+  h         Float   @db.Real
+  color     String  @db.VarChar(10) // "#FFD700"
+  ambito    String  @default("interno") @db.VarChar(10) // "interno" | "externo"
+  forma     String  @default("bloque") @db.VarChar(20) // "bloque" | "tractor-orugas" | "cargador-frontal"
   flgActivo Boolean @default(true) @map("flg_activo")
 
-  plano    Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
-  bloques  PlanoBloque[]
+  plano   Plano         @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  bloques PlanoBloque[]
 
   @@unique([planoId, codigo])
   @@map("plano_tipo_bloque")
@@ -845,20 +863,20 @@ model TipoBloqueGlobal {
 }
 
 model PlanoBloque {
-  id         String   @id @default(uuid())
-  planoId    String   @map("plano_id")
-  tipoId     String?  @map("tipo_id")
-  bloqueId   String   @db.VarChar(50)                  // "EXT-IZQ-01" — join key a gess_stand.bloque_id
-  tipoCodigo String   @db.VarChar(20)                  // redundante para queries rapidas
-  tipologia  String?  @db.VarChar(1) @map("tipologia") // "1"=Complejo, "2"=Simple, "3"=Octanorm (maestra stand_tipologia)
-  x          Float    @db.Real
-  z          Float    @db.Real
-  rotY       Float    @default(0) @map("rot_y") @db.Real
-  orden      Int      @default(0)
-  flgActivo  Boolean  @default(true) @map("flg_activo")
+  id         String  @id @default(uuid())
+  planoId    String  @map("plano_id")
+  tipoId     String? @map("tipo_id")
+  bloqueId   String  @db.VarChar(50) // "EXT-IZQ-01" — join key a gess_stand.bloque_id
+  tipoCodigo String  @db.VarChar(20) // redundante para queries rapidas
+  tipologia  String? @map("tipologia") @db.VarChar(1) // "1"=Complejo, "2"=Simple, "3"=Octanorm (maestra stand_tipologia)
+  x          Float   @db.Real
+  z          Float   @db.Real
+  rotY       Float   @default(0) @map("rot_y") @db.Real
+  orden      Int     @default(0)
+  flgActivo  Boolean @default(true) @map("flg_activo")
 
-  plano      Plano          @relation(fields: [planoId], references: [id], onDelete: Cascade)
-  tipo       PlanoTipoBloque? @relation(fields: [tipoId], references: [id], onDelete: SetNull)
+  plano Plano            @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  tipo  PlanoTipoBloque? @relation(fields: [tipoId], references: [id], onDelete: SetNull)
 
   @@unique([planoId, bloqueId])
   @@index([planoId])
@@ -866,52 +884,54 @@ model PlanoBloque {
 }
 
 model PlanoFurniture {
-  id      String  @id @default(uuid())
-  planoId String  @map("plano_id")
-  refId   String  @db.VarChar(50) @map("ref_id")       // "KIOSKO_IZQ"
-  tipo    String  @db.VarChar(30)                      // "kiosko" (extensible)
-  x       Float   @db.Real
-  z       Float   @db.Real
-  rotY    Float   @default(0) @map("rot_y") @db.Real
-  config  Json?
+  id        String  @id @default(uuid())
+  planoId   String  @map("plano_id")
+  refId     String  @map("ref_id") @db.VarChar(50) // "KIOSKO_IZQ"
+  tipo      String  @db.VarChar(30) // "kiosko" (extensible)
+  x         Float   @db.Real
+  z         Float   @db.Real
+  rotY      Float   @default(0) @map("rot_y") @db.Real
+  config    Json?
   flgActivo Boolean @default(true) @map("flg_activo")
 
-  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  plano Plano @relation(fields: [planoId], references: [id], onDelete: Cascade)
 
   @@unique([planoId, refId])
   @@index([planoId])
   @@map("plano_furniture")
 }
 
-/* ================================================================
-   7. INTEGRACIÓN SGC — correlación con el Sistema de Gestión de Contratos
-      Contrato: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
-   ================================================================ */
+/**
+ * ================================================================
+ * 7. INTEGRACIÓN SGC — correlación con el Sistema de Gestión de Contratos
+ * Contrato: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
+ * ================================================================
+ */
 
 model SgcExpediente {
-  id               String    @id @default(uuid())
-  solicitudId      String    @unique @map("solicitud_id")
-  code             String    @unique @db.VarChar(50)
-  contractId       String?   @unique @map("contract_id") @db.VarChar(64)
-  estadoEnvio      String    @default("pendiente") @map("estado_envio") @db.VarChar(20)
-  stage            String?   @db.VarChar(40)
-  lifecycleStatus  String?   @map("lifecycle_status") @db.VarChar(20)
-  version          Int?
-  areaCode         String    @map("area_code") @db.VarChar(40)
-  contractTypeCode String    @map("contract_type_code") @db.VarChar(40)
+  id                String    @id @default(uuid())
+  solicitudId       String    @unique @map("solicitud_id")
+  code              String    @unique @db.VarChar(50)
+  contractId        String?   @unique @map("contract_id") @db.VarChar(64)
+  estadoEnvio       String    @default("pendiente") @map("estado_envio") @db.VarChar(20)
+  stage             String?   @db.VarChar(40)
+  lifecycleStatus   String?   @map("lifecycle_status") @db.VarChar(20)
+  version           Int?
+  areaCode          String    @map("area_code") @db.VarChar(40)
+  contractTypeCode  String    @map("contract_type_code") @db.VarChar(40)
   /// Motivo (libre) de la corrección declarado por el admin cuando el SGC devuelve el
   /// trámite. Puede repetirse N veces (una por cada devolución); se limpia al reenviar.
-  subsanacionMotivo String? @map("subsanacion_motivo") @db.VarChar(500)
+  subsanacionMotivo String?   @map("subsanacion_motivo") @db.VarChar(500)
   /// Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
-  subsanacionModo   String? @map("subsanacion_modo") @db.VarChar(20)
-  lastSyncedAt     DateTime? @map("last_synced_at")
-  lastError        String?   @map("last_error") @db.VarChar(500)
+  subsanacionModo   String?   @map("subsanacion_modo") @db.VarChar(20)
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  lastError         String?   @map("last_error") @db.VarChar(500)
   /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
-  bypassAprobado   Boolean   @default(false) @map("bypass_aprobado")
+  bypassAprobado    Boolean   @default(false) @map("bypass_aprobado")
 
-  solicitud        Solicitud     @relation(fields: [solicitudId], references: [id])
-  documentos       SgcDocumento[]
-  subsanaciones    SgcSubsanacion[]
+  solicitud     Solicitud        @relation(fields: [solicitudId], references: [id])
+  documentos    SgcDocumento[]
+  subsanaciones SgcSubsanacion[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -948,18 +968,18 @@ model SgcSubsanacion {
 }
 
 model SgcDocumento {
-  id               String   @id @default(uuid())
-  sgcExpedienteId  String   @map("sgc_expediente_id")
-  documentId       String   @unique @map("document_id") @db.VarChar(64)
-  currentVersionId String?  @map("current_version_id") @db.VarChar(64)
-  category         String   @db.VarChar(20)
-  title            String   @db.VarChar(200)
-  fileName         String   @map("file_name") @db.VarChar(255)
-  checksumSha256   String?  @map("checksum_sha256") @db.VarChar(64)
-  sizeBytes        Int?     @map("size_bytes")
-  estado           String   @default("reservado") @db.VarChar(20)
+  id               String  @id @default(uuid())
+  sgcExpedienteId  String  @map("sgc_expediente_id")
+  documentId       String  @unique @map("document_id") @db.VarChar(64)
+  currentVersionId String? @map("current_version_id") @db.VarChar(64)
+  category         String  @db.VarChar(20)
+  title            String  @db.VarChar(200)
+  fileName         String  @map("file_name") @db.VarChar(255)
+  checksumSha256   String? @map("checksum_sha256") @db.VarChar(64)
+  sizeBytes        Int?    @map("size_bytes")
+  estado           String  @default("reservado") @db.VarChar(20)
 
-  sgcExpediente    SgcExpediente @relation(fields: [sgcExpedienteId], references: [id])
+  sgcExpediente SgcExpediente @relation(fields: [sgcExpedienteId], references: [id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -987,16 +1007,16 @@ model SgcWebhookEvento {
 
 /// Cola de salida (outbox): operaciones hacia el SGC con reintentos y backoff.
 model SgcOutbox {
-  id             String    @id @default(uuid())
-  operacion      String    @db.VarChar(40)   // subir-contrato | subir-anexos | subsanar
-  idempotencyKey String?   @unique @map("idempotency_key") @db.VarChar(160)
+  id             String   @id @default(uuid())
+  operacion      String   @db.VarChar(40) // subir-contrato | subir-anexos | subsanar
+  idempotencyKey String?  @unique @map("idempotency_key") @db.VarChar(160)
   payload        Json
-  estado         String    @default("pendiente") @db.VarChar(20) // pendiente|enviado|error
-  intentos       Int       @default(0)
-  ultimoError    String?   @map("ultimo_error") @db.VarChar(500)
-  programadoAt   DateTime  @default(now()) @map("programado_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  estado         String   @default("pendiente") @db.VarChar(20) // pendiente|enviado|error
+  intentos       Int      @default(0)
+  ultimoError    String?  @map("ultimo_error") @db.VarChar(500)
+  programadoAt   DateTime @default(now()) @map("programado_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@index([estado, programadoAt])
   @@map("sgc_outbox")
@@ -1018,4 +1038,22 @@ model StandMontajistaHistorial {
 
   @@index([gessStandId])
   @@map("stand_montajista_historial")
+}
+
+/// Configuracion publica del portal (registro unico): enlaces y contactos que usan
+/// el login y la presala. Administrable desde /dashboard/configuracion.
+model PortalConfig {
+  id             String   @id @default("default") @db.VarChar(20)
+  /// Correo de la Mesa de Ayuda (se pinta como mailto en el portal).
+  mesaAyudaEmail String?  @map("mesa_ayuda_email") @db.VarChar(200)
+  /// Correo de contacto general.
+  contactoEmail  String?  @map("contacto_email") @db.VarChar(200)
+  /// URL del Manual del Exhibidor.
+  manualUrl      String?  @map("manual_url") @db.VarChar(500)
+  /// URL del Reglamento de Stands.
+  reglamentoUrl  String?  @map("reglamento_url") @db.VarChar(500)
+  updatedBy      String?  @map("updated_by") @db.VarChar(200)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("portal_config")
 }

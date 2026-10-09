@@ -29,6 +29,12 @@ const eslintConfig = defineConfig([
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+      /*
+       * Imagenes dinamicas de usuario (logos, fotos del representante, firmas, vouchers y
+       * capturas de plano) servidas desde /uploads o URL variable: next/image exigiria
+       * dimensiones y remotePatterns por origen, sin beneficio real en el backoffice.
+       */
+      "@next/next/no-img-element": "off",
     },
   },
 ]);
