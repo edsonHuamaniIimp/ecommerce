@@ -306,6 +306,8 @@ export const EDITOR_PLANO = {
   SNAP_ROTACION_MAYOR_GRADOS: 15,
   /** Distancia maxima para que una guia magnetica alinee el objeto (metros). */
   UMBRAL_GUIA: 0.35,
+  /** Umbral en pixeles para iniciar un arrastre (evita movimientos involuntarios al hacer clic). */
+  UMBRAL_ARRASTRE_PX: 4,
 } as const;
 
 /* ================================================================

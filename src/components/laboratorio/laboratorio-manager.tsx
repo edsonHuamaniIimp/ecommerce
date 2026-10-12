@@ -105,34 +105,53 @@ function DragManager({ dragging, onMove, onEnd }: {
   onEnd: () => void;
 }) {
   const { gl, camera, raycaster } = useThree();
+  const onMoveRef = useRef(onMove);
+  const onEndRef = useRef(onEnd);
+  useEffect(() => { onMoveRef.current = onMove; }, [onMove]);
+  useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
   useEffect(() => {
     if (!dragging) return;
+    /* Estado del gesto local al efecto: sobrevive re-renders y no se re-arma con cada move. */
+    let inicio: { x: number; y: number } | null = null;
+    let activado = false;
     // OrbitControls se desactiva via la prop `enabled` mientras dura el drag
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const pointer = new THREE.Vector2();
     const point = new THREE.Vector3();
 
     const onPointerMove = (e: PointerEvent) => {
+      /* Sin boton presionado no hay drag (evita movimientos fantasma si se perdio el pointerup). */
+      if (e.buttons === 0) {
+        onEndRef.current();
+        return;
+      }
+      if (!activado) {
+        if (!inicio) inicio = { x: e.clientX, y: e.clientY };
+        if (Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) < EDITOR_PLANO.UMBRAL_ARRASTRE_PX) return;
+        activado = true;
+      }
       const rect = gl.domElement.getBoundingClientRect();
       pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
       if (raycaster.ray.intersectPlane(ground, point)) {
-        onMove(point.x, point.z, e.shiftKey);
+        onMoveRef.current(point.x, point.z, e.shiftKey);
       }
     };
     const onPointerUp = () => {
-      onEnd();
+      onEndRef.current();
     };
 
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointermove", onPointerMove, true);
+    window.addEventListener("pointerup", onPointerUp, true);
+    window.addEventListener("pointercancel", onPointerUp, true);
     return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerup", onPointerUp, true);
+      window.removeEventListener("pointercancel", onPointerUp, true);
     };
-  }, [dragging, gl, camera, raycaster, onMove, onEnd]);
+  }, [dragging, gl, camera, raycaster]);
 
   return null;
 }
@@ -928,7 +947,7 @@ export function LaboratorioManager() {
           {loadingDetail ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground"><span>Cargando mapa...</span></div>
           ) : (
-            <Canvas shadows camera={{ position: camPos.position, fov: 45 }} key={planoSel?.id ?? "empty"}>
+            <Canvas shadows camera={{ position: camPos.position, fov: 45 }} key={planoSel?.id ?? "empty"} style={{ cursor: dragging ? "grabbing" : undefined }}>
               <color attach="background" args={["#e2e8f0"]} />
               <ambientLight intensity={0.6} />
               <directionalLight position={[15, 25, 10]} intensity={1.1} castShadow shadow-mapSize={[2048, 2048]} />

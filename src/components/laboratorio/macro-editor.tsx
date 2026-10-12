@@ -9,7 +9,7 @@ import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { seccionPuntosUtils, type PuntoSeccion } from "@/lib/shared/utils/seccion-puntos";
 import { planoVisitaCache } from "@/lib/client/stores/plano-visita-cache";
 import { PdfCanvas } from "@/components/plano/pdf-canvas";
-import { TIPOS_PLANO } from "@/lib/shared/constants";
+import { EDITOR_PLANO, TIPOS_PLANO } from "@/lib/shared/constants";
 import type { PlanoDTO, PlanoListItemDTO } from "@/types/dto/planos/planos-response.dto";
 
 interface EditSeccion {
@@ -49,6 +49,8 @@ export function MacroEditor({ plano, planos, onChange }: {
 }) {
   const [secciones, setSecciones] = useState<EditSeccion[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  /** Verdadero mientras hay un arrastre de seccion en curso (cursor "grabbing"). */
+  const [dragActivo, setDragActivo] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -70,6 +72,9 @@ export function MacroEditor({ plano, planos, onChange }: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<DragInfo | null>(null);
+  /** Umbral de arrastre: la seccion se mueve recien cuando el puntero supera UMBRAL_ARRASTRE_PX (clic = seleccionar). */
+  const dragPxRef = useRef<{ x: number; y: number } | null>(null);
+  const dragActivadoRef = useRef(false);
   /** Modo dibujo de seccion libre (poligono por clics). */
   const [modoLibre, setModoLibre] = useState(false);
   const [borrador, setBorrador] = useState<PuntoSeccion[]>([]);
@@ -194,13 +199,26 @@ export function MacroEditor({ plano, planos, onChange }: {
     e.preventDefault();
     const s = secciones.find((x) => x.codigo === codigo);
     if (!s) return;
+    dragPxRef.current = { x: e.clientX, y: e.clientY };
+    dragActivadoRef.current = false;
     setSelected(codigo);
+    setDragActivo(true);
     const { nx, ny } = normFromEvent(e);
     dragRef.current = { codigo, mode, startNX: nx, startNY: ny, orig: { ...s }, index };
 
     const onMove = (ev: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
+      /* Sin boton presionado no hay drag (evita mover la seccion con el cursor tras soltar). */
+      if (ev.buttons === 0) {
+        onUp();
+        return;
+      }
+      if (!dragActivadoRef.current) {
+        const px = dragPxRef.current;
+        if (px && Math.hypot(ev.clientX - px.x, ev.clientY - px.y) < EDITOR_PLANO.UMBRAL_ARRASTRE_PX) return;
+        dragActivadoRef.current = true;
+      }
       const { nx: cnx, ny: cny } = normFromEvent(ev);
       const esPoligono = seccionPuntosUtils.esPoligono(drag.orig.puntos);
 
@@ -256,11 +274,16 @@ export function MacroEditor({ plano, planos, onChange }: {
     };
     const onUp = () => {
       dragRef.current = null;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+      dragPxRef.current = null;
+      dragActivadoRef.current = false;
+      setDragActivo(false);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
     };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
   };
 
   
@@ -481,7 +504,7 @@ export function MacroEditor({ plano, planos, onChange }: {
               return (
                 <div
                   key={s.codigo}
-                  className={`absolute group cursor-move touch-none ${activa ? "z-20" : "z-10"}`}
+                  className={`absolute group touch-none ${dragActivo && selected === s.codigo ? "cursor-grabbing" : "cursor-move"} ${activa ? "z-20" : "z-10"}`}
                   style={{
                     left: `${s.x * 100}%`,
                     top: `${s.y * 100}%`,
