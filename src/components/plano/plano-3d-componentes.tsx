@@ -193,6 +193,7 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
 }) {
   const { w, d, h, color } = item.dim;
   const formaMaquina = item.forma && item.forma !== FORMAS_BLOQUE.BLOQUE ? item.forma : null;
+  const rotulo = topLabel && topLabel.trim() ? topLabel.trim() : null;
   if (formaMaquina) {
     return (
       <group
@@ -212,11 +213,16 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
           <boxGeometry args={[w, h + 0.1, d]} />
           <meshBasicMaterial color="#f59e0b" transparent opacity={selected ? 0.14 : 0} depthWrite={false} />
         </mesh>
+        {/* Numero comercial: globo flotante sobre la maquina (las formas no tienen tapa legible). */}
+        {rotulo && (
+          <group position={[item.x, 0, item.z]}>
+            <RotuloTooltip rotulo={rotulo} y={MAQUINA_ALTURA_ROTULO * escalaMaquinaria(formaMaquina, { w, d }) + (selected ? 0.35 : 0)} />
+          </group>
+        )}
       </group>
     );
   }
   const colorFondo = reserved ? "#9ca3af" : color;
-  const rotulo = topLabel && topLabel.trim() ? topLabel.trim() : null;
   return (
     <group
       position={[item.x, 0, item.z]}
@@ -1944,14 +1950,21 @@ const MAQUINA_EXTENT: Record<string, { w: number; d: number }> = {
   [FORMAS_BLOQUE.MOTONIVELADORA]: { w: 7.3, d: 3.8 },
 };
 
+/** Altura visual maxima de las maquinas (m, sin escalar); el rotulo flota por encima. */
+const MAQUINA_ALTURA_ROTULO = 3.35;
+
+/** Escala uniforme para que la maquina ocupe ~80% de la huella (w/d) del tipo de bloque. */
+export function escalaMaquinaria(forma: string | null | undefined, footprint?: { w: number; d: number }): number {
+  const extent = forma ? MAQUINA_EXTENT[forma] : undefined;
+  if (!extent || !footprint || footprint.w <= 0 || footprint.d <= 0) return 1;
+  return Math.max(0.1, Math.min((footprint.w * 0.8) / extent.w, (footprint.d * 0.8) / extent.d));
+}
+
 /** Renderiza la maquinaria segun la forma del tipo de bloque (null = bloque normal).
  * Si se recibe la huella del tipo, la maquina se escala uniformemente para ocupar ~80% de W/D. */
 export function MaquinariaBloque({ forma, x, z, rotY = 0, footprint }: { forma?: string | null; x: number; z: number; rotY?: number; footprint?: { w: number; d: number } }) {
   if (forma !== FORMAS_BLOQUE.TRACTOR_ORUGAS && forma !== FORMAS_BLOQUE.CARGADOR_FRONTAL && forma !== FORMAS_BLOQUE.MOTONIVELADORA) return null;
-  const extent = MAQUINA_EXTENT[forma]!;
-  const escala = footprint && footprint.w > 0 && footprint.d > 0
-    ? Math.max(0.1, Math.min((footprint.w * 0.8) / extent.w, (footprint.d * 0.8) / extent.d))
-    : 1;
+  const escala = escalaMaquinaria(forma, footprint);
   return (
     <group position={[x, 0, z]} rotation={[0, rotY, 0]} scale={escala}>
       {forma === FORMAS_BLOQUE.TRACTOR_ORUGAS && <TractorOrugas x={0} z={0} rotY={0} />}
