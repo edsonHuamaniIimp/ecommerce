@@ -67,46 +67,95 @@ function useLogoTextures(
   }, [imagen, dim.w, dim.d, dim.h]);
 }
 
-/** Textura del rotulo (numero comercial del stand) para la cara superior del bloque. */
-function useRotuloTexture(rotulo: string | null, dim: { w: number; d: number }): THREE.Texture | null {
+/** Textura tipo tooltip (globo con pico inferior) con el numero comercial del stand. */
+function useRotuloTooltip(rotulo: string | null): { textura: THREE.Texture; aspecto: number } | null {
   return useMemo(() => {
     if (!rotulo) return null;
+    const texto = rotulo.trim().toUpperCase();
     const canvas = document.createElement("canvas");
-    const escala = 512 / Math.max(dim.w, dim.d, 0.01);
-    canvas.width = Math.max(64, Math.round(dim.w * escala));
-    canvas.height = Math.max(64, Math.round(dim.d * escala));
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#94a3b8";
-    ctx.lineWidth = Math.max(2, canvas.width * 0.025);
-    ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
-    const texto = rotulo.trim().toUpperCase();
-    const base = Math.min(canvas.width, canvas.height) / Math.max(texto.length, 3);
-    const fontSize = Math.max(18, Math.floor(base * 1.35));
-    ctx.fillStyle = "#0f172a";
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    const fuente = 68;
+    ctx.font = `bold ${fuente}px Arial, sans-serif`;
+    const anchoTexto = ctx.measureText(texto).width;
+    const altoPildora = Math.ceil(fuente * 1.6);
+    const altoCola = 30;
+    const anchoCola = 44;
+    canvas.width = Math.ceil(anchoTexto + 88);
+    canvas.height = altoPildora + altoCola;
+    canvas.width = Math.max(canvas.width, anchoCola + 20);
+    const radio = altoPildora / 2;
+    const cx = canvas.width / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#1b365d";
+    ctx.shadowColor = "rgba(15, 23, 42, 0.5)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 5;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(0, 0, canvas.width, altoPildora, radio);
+    } else {
+      const r = radio;
+      ctx.moveTo(r, 0);
+      ctx.lineTo(canvas.width - r, 0);
+      ctx.arcTo(canvas.width, 0, canvas.width, r, r);
+      ctx.lineTo(canvas.width, altoPildora - r);
+      ctx.arcTo(canvas.width, altoPildora, canvas.width - r, altoPildora, r);
+      ctx.lineTo(r, altoPildora);
+      ctx.arcTo(0, altoPildora, 0, altoPildora - r, r);
+      ctx.lineTo(0, r);
+      ctx.arcTo(0, 0, r, 0, r);
+      ctx.closePath();
+    }
+    ctx.moveTo(cx - anchoCola / 2, altoPildora - 1);
+    ctx.lineTo(cx + anchoCola / 2, altoPildora - 1);
+    ctx.lineTo(cx, canvas.height - 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.font = `bold ${fuente}px Arial, sans-serif`;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(texto, canvas.width / 2, canvas.height / 2, canvas.width * 0.88);
+    ctx.fillText(texto, cx, altoPildora / 2);
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     const textura = new THREE.CanvasTexture(canvas);
     textura.colorSpace = THREE.SRGBColorSpace;
     textura.anisotropy = 4;
-    return textura;
-  }, [rotulo, dim.w, dim.d]);
+    return { textura, aspecto: canvas.width / canvas.height };
+  }, [rotulo]);
 }
 
-/** Materiales del bloque: caras laterales con logo (si hay), tapa con el numero comercial, base solida. */
-function MaterialesLogo({ url, rotulo, colorFondo, dim }: { url?: string | null; rotulo?: string | null; colorFondo: string; dim: { w: number; d: number; h: number } }) {
+/** Rotulo 3D tipo bandera: mastil sobre el bloque + pildora flotante que siempre mira a la camara. */
+function RotuloTooltip({ rotulo, y }: { rotulo: string; y: number }) {
+  const rotuloData = useRotuloTooltip(rotulo);
+  useEffect(() => {
+    return () => { rotuloData?.textura.dispose(); };
+  }, [rotuloData]);
+  if (!rotuloData) return null;
+  const altura = 0.85;
+  const ancho = altura * rotuloData.aspecto;
+  return (
+    <group position={[0, y, 0]}>
+      <sprite position={[0, 0.18 + altura / 2, 0]} scale={[ancho, altura, 1]} raycast={() => null}>
+        <spriteMaterial map={rotuloData.textura} transparent depthWrite={false} toneMapped={false} />
+      </sprite>
+    </group>
+  );
+}
+/** Materiales del bloque reservado con logo: caras laterales con textura, tapa/base solidas. */
+function MaterialesLogo({ url, colorFondo, dim }: { url?: string | null; colorFondo: string; dim: { w: number; d: number; h: number } }) {
   const { frontal, lateral } = useLogoTextures(url ?? "", dim);
-  const rotuloTex = useRotuloTexture(rotulo ?? null, dim);
-  /*
-   * Se construye el array de 6 materiales y se asigna directo a `mesh.material`.
-   * Caras del box: 0=+X, 1=-X, 2=+Y (tapa), 3=-Y (base), 4=+Z, 5=-Z.
-   * (Con attach="material-N" sobre un mesh que ya tenia material unico, el renderer
-   * seguia usando el material viejo y la textura nunca se veia.)
-   */
   const materiales = useMemo(() => {
     const cara = (map: THREE.Texture | null) =>
       new THREE.MeshStandardMaterial({
@@ -115,12 +164,10 @@ function MaterialesLogo({ url, rotulo, colorFondo, dim }: { url?: string | null;
         roughness: 0.7,
         metalness: 0.05,
       });
-    const tapa = rotuloTex
-      ? new THREE.MeshStandardMaterial({ map: rotuloTex, color: "#ffffff", roughness: 0.65, metalness: 0.05 })
-      : new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
+    const tapa = new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
     const base = new THREE.MeshStandardMaterial({ color: colorFondo, roughness: 0.7, metalness: 0.05 });
     return [cara(lateral), cara(lateral), tapa, base, cara(frontal), cara(frontal)];
-  }, [frontal, lateral, rotuloTex, colorFondo]);
+  }, [frontal, lateral, colorFondo]);
 
   useEffect(() => {
     return () => { materiales.forEach((m) => m.dispose()); };
@@ -129,10 +176,6 @@ function MaterialesLogo({ url, rotulo, colorFondo, dim }: { url?: string | null;
   useEffect(() => {
     return () => { frontal?.dispose(); lateral?.dispose(); };
   }, [frontal, lateral]);
-
-  useEffect(() => {
-    return () => { rotuloTex?.dispose(); };
-  }, [rotuloTex]);
 
   return <primitive object={materiales} attach="material" />;
 }
@@ -172,11 +215,12 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
       </group>
     );
   }
+  const colorFondo = reserved ? "#9ca3af" : color;
+  const rotulo = topLabel && topLabel.trim() ? topLabel.trim() : null;
   return (
-    <mesh
-      position={[item.x, h / 2, item.z]}
+    <group
+      position={[item.x, 0, item.z]}
       rotation={[0, item.rotY ?? 0, 0]}
-      castShadow receiveShadow
       onClick={(e) => { e.stopPropagation(); onSelect(item.id); }}
       onPointerOver={(e) => {
         document.body.style.cursor = "pointer";
@@ -187,19 +231,22 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
       }}
       onPointerOut={() => { document.body.style.cursor = "auto"; onHover?.(null); }}
     >
-      <boxGeometry args={[w - .15, h + (selected ? 0.6 : 0), d - .15]} />
-      {logoUrl || topLabel ? (
-        <MaterialesLogo url={logoUrl} rotulo={topLabel} colorFondo={reserved ? "#9ca3af" : color} dim={{ w, d, h }} />
-      ) : (
-        <meshStandardMaterial
-          color={reserved ? "#9ca3af" : selected ? "#f59e0b" : color}
-          roughness={reserved ? .7 : .55}
-          metalness={.1}
-          emissive={selected ? "#f59e0b" : "#000000"}
-          emissiveIntensity={selected ? 0.3 : 0}
-        />
-      )}
-    </mesh>
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w - .15, h + (selected ? 0.6 : 0), d - .15]} />
+        {reserved && logoUrl ? (
+          <MaterialesLogo url={logoUrl} colorFondo={colorFondo} dim={{ w, d, h }} />
+        ) : (
+          <meshStandardMaterial
+            color={selected ? "#f59e0b" : colorFondo}
+            roughness={reserved ? .7 : .55}
+            metalness={.1}
+            emissive={selected ? "#f59e0b" : "#000000"}
+            emissiveIntensity={selected ? 0.3 : 0}
+          />
+        )}
+      </mesh>
+      {rotulo && <RotuloTooltip rotulo={rotulo} y={h + (selected ? 0.6 : 0) + 0.02} />}
+    </group>
   );
 }
 
