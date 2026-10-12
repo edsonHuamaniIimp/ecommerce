@@ -773,8 +773,9 @@ map.set(String(bloqueId), {
           </Button>
         </div>
         {panelAyuda && (
-          <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary/85 px-3 py-1 text-[11px] font-medium text-primary-foreground shadow">
-            <span>{modoOriginal ? "Modo guiado: arrastrar gira la vista sobre los ejes X/Y ┬À Rueda para zoom" : "Modo manual: arrastrar mueve el plano ┬À Rueda para zoom"}</span>
+          <div className="pointer-events-none absolute bottom-4 left-3 right-14 z-10 rounded-xl bg-primary/85 px-3 py-1 text-center text-[10px] font-medium leading-tight text-primary-foreground shadow sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:whitespace-nowrap sm:rounded-full sm:text-left sm:text-[11px]">
+            <span className="sm:hidden">{modoOriginal ? "Arrastra para girar la vista · 2 dedos para zoom" : "Arrastra para mover el plano · 2 dedos para zoom"}</span>
+            <span className="hidden sm:inline">{modoOriginal ? "Modo guiado: arrastrar gira la vista sobre los ejes X/Y · Rueda para zoom" : "Modo manual: arrastrar mueve el plano · Rueda para zoom"}</span>
           </div>
         )}
         {hoverStand && (
