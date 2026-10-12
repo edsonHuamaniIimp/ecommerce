@@ -1,11 +1,11 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet, SheetContent, SheetHeader, SheetTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight } from "lucide-react";
+import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight, ZoomIn, ZoomOut, RotateCcw, RotateCw, Home, Compass, Hand, HelpCircle } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
@@ -74,6 +74,128 @@ function getIdApi(row: Record<string, unknown>): string {
   return String(row.uid ?? row.UID ?? row.codigo ?? row.stand ?? row.STANDID ?? row.standId ?? row.stand_id ?? row.STAND ?? row.standCode ?? "");
 }
 
+/** API imperativa de la vista 3D para los botones de navegacion y el enfoque de bloques. */
+interface VistaApi {
+  /** Centra y acerca la vista a un bloque con vista elevada (arriba + costado),
+   *  encuadrando tambien el globo del numero comercial. */
+  enfocar: (x: number, z: number, tamano: number, altura: number) => void;
+  /** Gira la camara alrededor del centro actual (grados; positivo = izquierda). */
+  girar: (grados: number) => void;
+  /** Acerca/aleja manteniendo el centro (factor < 1 acerca). */
+  zoom: (factor: number) => void;
+  /** Recentra el pivote de giro en el centro del plano (conserva la orientacion). */
+  centrar: () => void;
+  /** Vuelve a la vista inicial del plano. */
+  reiniciar: () => void;
+}
+
+const suavizarMovimiento = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+/** Boton de navegacion compacto: el titulo aparece como tooltip a la izquierda en hover. */
+function BotonNav({ label, activo, onClick, children }: { label: string; activo?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <div className="group relative">
+      <Button
+        variant={activo ? "secondary" : "ghost"}
+        size="icon"
+        className={`h-8 w-8 ${activo ? "bg-primary/10 text-primary" : ""}`}
+        aria-label={label}
+        aria-pressed={activo}
+        onClick={onClick}
+      >
+        {children}
+      </Button>
+      <span className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Anima la camara y el target de OrbitControls con transiciones suaves.
+ * La navegacion "de mapa" (arrastrar = mover) y los botones pasan por aqui.
+ */
+function CameraRig({ registrar, cx, cz, S }: { registrar: (api: VistaApi) => void; cx: number; cz: number; S: number }) {
+  const { camera, controls } = useThree();
+  const anim = useRef<{ t: number; dur: number; pos0: THREE.Vector3; pos1: THREE.Vector3; obj0: THREE.Vector3; obj1: THREE.Vector3 } | null>(null);
+  const inicial = useMemo(
+    () => ({ pos: new THREE.Vector3(cx, S * 0.7, cz + S * 0.35), obj: new THREE.Vector3(cx, 0, cz) }),
+    [cx, cz, S],
+  );
+  const minDistancia = S * 0.15;
+  const maxDistancia = S * 1.6;
+
+  useEffect(() => {
+    const ctrl = controls as unknown as { target?: THREE.Vector3; addEventListener?: (tipo: string, fn: () => void) => void; removeEventListener?: (tipo: string, fn: () => void) => void } | null;
+    const centroActual = () => (ctrl?.target ?? inicial.obj).clone();
+    const activar = (pos1: THREE.Vector3, obj1: THREE.Vector3, dur = 0.7) => {
+      anim.current = { t: 0, dur, pos0: camera.position.clone(), pos1, obj0: centroActual(), obj1 };
+    };
+
+    const api: VistaApi = {
+      enfocar: (x, z, tamano, altura) => {
+        /* Apunta al cuerpo alto del bloque (no al piso) y aleja lo suficiente para que
+           entren el bloque completo y el globo del numero comercial de arriba. */
+        const obj1 = new THREE.Vector3(x, altura * 0.7, z);
+        const destino = Math.min(Math.max(tamano * 3, altura * 2.5, 10), maxDistancia);
+        /* Vista siempre elevada (arriba + costado, ~58 grados): evita que otros bloques
+           tapen el seleccionado y deja ver el globo del numero comercial. Conserva el
+           angulo de giro actual para no desorientar. */
+        const offset = camera.position.clone().sub(centroActual());
+        const azimut = (Number.isFinite(offset.x) && offset.lengthSq() > 1e-6) ? Math.atan2(offset.x, offset.z) : 0.5;
+        const elevacion = (58 * Math.PI) / 180;
+        const dir = new THREE.Vector3(
+          Math.sin(azimut) * Math.cos(elevacion),
+          Math.sin(elevacion),
+          Math.cos(azimut) * Math.cos(elevacion),
+        );
+        const dist = Math.max(destino, minDistancia * 1.05);
+        activar(obj1.clone().add(dir.multiplyScalar(dist)), obj1);
+      },
+      girar: (grados) => {
+        const centro = centroActual();
+        const offset = camera.position.clone().sub(centro).applyAxisAngle(new THREE.Vector3(0, 1, 0), (grados * Math.PI) / 180);
+        activar(centro.clone().add(offset), centro);
+      },
+      zoom: (factor) => {
+        const centro = centroActual();
+        const offset = camera.position.clone().sub(centro);
+        const dist = Math.min(Math.max(offset.length() * factor, minDistancia), maxDistancia);
+        activar(centro.clone().add(offset.normalize().multiplyScalar(dist)), centro);
+      },
+      centrar: () => {
+        const centro = new THREE.Vector3(cx, 0, cz);
+        const dir = camera.position.clone().sub(centroActual());
+        if (!Number.isFinite(dir.x) || dir.lengthSq() < 1e-6) dir.set(0, 0.7, 0.35);
+        dir.normalize();
+        const dist = Math.min(Math.max(camera.position.distanceTo(centroActual()), S * 0.6, minDistancia * 1.05), maxDistancia);
+        activar(centro.clone().add(dir.multiplyScalar(dist)), centro);
+      },
+      reiniciar: () => activar(inicial.pos.clone(), inicial.obj.clone(), 0.85),
+    };
+    registrar(api);
+
+    /* Si el usuario empieza a arrastrar, la animacion se cancela y no pelea con el gesto. */
+    const cancelar = () => { anim.current = null; };
+    ctrl?.addEventListener?.("start", cancelar);
+    return () => { ctrl?.removeEventListener?.("start", cancelar); };
+  }, [camera, controls, cx, cz, S, inicial, minDistancia, maxDistancia, registrar]);
+
+  useFrame((_, delta) => {
+    const a = anim.current;
+    if (!a) return;
+    a.t = Math.min(1, a.t + delta / a.dur);
+    const k = suavizarMovimiento(a.t);
+    camera.position.lerpVectors(a.pos0, a.pos1, k);
+    const ctrl = controls as unknown as { target?: THREE.Vector3 } | null;
+    if (ctrl?.target) ctrl.target.lerpVectors(a.obj0, a.obj1, k);
+    if (a.t >= 1) anim.current = null;
+  });
+
+  return null;
+}
+
 export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "gess", openReserva, parentCodigo = null, bloqueInicial = null, nombrePlano = null }: { eventoId: string; tipoEvento: number; codigoEvento: number; planoId?: string; openReserva?: boolean; parentCodigo?: string | null; bloqueInicial?: string | null; nombrePlano?: string | null }) {
   const router = useRouter();
   const [plano, setPlano] = useState<PlanoDefinition | null>(null);
@@ -140,6 +262,12 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const [panelMovil, setPanelMovil] = useState(false);
   /** Tooltip del hover sobre un stand reservado: posicion del cursor + razon social (RF-09). */
   const [hoverStand, setHoverStand] = useState<{ x: number; y: number; text: string } | null>(null);
+  /** API de navegacion del visor (botones + enfoque de bloques). */
+  const vistaApiRef = useRef<VistaApi | null>(null);
+  /** Por defecto rige la navegacion original: arrastrar gira la vista alrededor del centro del plano. */
+  const [modoOriginal, setModoOriginal] = useState(true);
+  /** Los iconos de ayuda se muestran solo cuando el usuario habilita la navegacion manual. */
+  const [panelAyuda, setPanelAyuda] = useState(false);
   const cx=(bnd.minX+bnd.maxX)/2,cz=(bnd.minZ+bnd.maxZ)/2,S=Math.max(bnd.maxX-bnd.minX,bnd.maxZ-bnd.minZ);
 
   const blockLabel = (type: PlanoItem["type"]) => plano?.blockLabel[type] ?? { label: "?", nombre: "?" };
@@ -576,13 +704,79 @@ map.set(String(bloqueId), {
               logoUrl={reserved ? (info?.empresaLogo ?? null) : null}
               topLabel={info?.standCode ? String(info.standCode).trim() || null : null}
               onHover={setHoverStand}
-              onSelect={handleSelect}
+              onSelect={(id) => {
+                handleSelect(id);
+                /* Enfoca la vista al bloque tocado (con encuadre que incluye el globo). */
+                vistaApiRef.current?.enfocar(it.x, it.z, Math.max(it.dim.w, it.dim.d), it.dim.h);
+              }}
             />
           );
         })}
         {furniture.map((f)=><FurnitureRenderer key={f.id} item={f}/>)}
-        <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}/>
+        <CameraRig registrar={(api) => { vistaApiRef.current = api; }} cx={cx} cz={cz} S={S}/>
+        {/* Por defecto: navegacion original (arrastrar gira alrededor del centro del plano).
+            El modo mapa (arrastrar mueve) se alterna desde los iconos de ayuda. */}
+        <OrbitControls makeDefault enableRotate enablePan enableZoom target={[cx,0,cz]} maxPolarAngle={Math.PI/2.1} minDistance={S*.15} maxDistance={S*1.6}
+          enableDamping dampingFactor={0.12}
+          mouseButtons={modoOriginal
+            ? { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }
+            : { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
+          touches={modoOriginal
+            ? { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }
+            : { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}/>
       </Canvas>
+        {/* Navegacion manual: boton visible que despliega los iconos de ayuda (zoom, giro, centrar). */}
+        <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-1">
+          {panelAyuda && (
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-white/95 p-1 shadow-md">
+              <BotonNav label="Acercar" onClick={() => vistaApiRef.current?.zoom(0.75)}>
+                <ZoomIn className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav label="Alejar" onClick={() => vistaApiRef.current?.zoom(1.35)}>
+                <ZoomOut className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav label="Girar a la izquierda" onClick={() => vistaApiRef.current?.girar(45)}>
+                <RotateCcw className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav label="Girar a la derecha" onClick={() => vistaApiRef.current?.girar(-45)}>
+                <RotateCw className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav label="Centrar vista" onClick={() => vistaApiRef.current?.reiniciar()}>
+                <Home className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav
+                label="Modo guiado (arrastrar gira sobre los ejes X/Y)"
+                activo={modoOriginal}
+                onClick={() => { setModoOriginal(true); vistaApiRef.current?.centrar(); }}
+              >
+                <Compass className="h-4 w-4" />
+              </BotonNav>
+              <BotonNav
+                label="Modo manual (arrastrar mueve el plano)"
+                activo={!modoOriginal}
+                onClick={() => setModoOriginal(false)}
+              >
+                <Hand className="h-4 w-4" />
+              </BotonNav>
+            </div>
+          )}
+          <Button
+            variant={panelAyuda ? "secondary" : "outline"}
+            size="icon"
+            className={`h-8 w-8 shadow-md ${panelAyuda ? "bg-primary/10 text-primary" : "bg-white/95"}`}
+            title={panelAyuda ? "Ocultar controles de navegacion" : "Mostrar controles de navegacion"}
+            aria-label="Mostrar controles de navegacion"
+            aria-expanded={panelAyuda}
+            onClick={() => setPanelAyuda((v) => !v)}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </div>
+        {panelAyuda && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary/85 px-3 py-1 text-[11px] font-medium text-primary-foreground shadow">
+            <span>{modoOriginal ? "Modo guiado: arrastrar gira la vista sobre los ejes X/Y ┬À Rueda para zoom" : "Modo manual: arrastrar mueve el plano ┬À Rueda para zoom"}</span>
+          </div>
+        )}
         {hoverStand && (
           <div
             className="pointer-events-none fixed z-50 max-w-[260px] rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-lg"
