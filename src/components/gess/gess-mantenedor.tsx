@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Popover, PopoverContent, PopoverTrigger, Label } from "@nrivera-iimp/ui-kit-iimp";
 import { Search, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
 import { gessService } from "@/lib/client/api/services/gess-service";
@@ -310,8 +311,8 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
         await gessService.vincular(gessStandId, bloqueId);
       }
       await loadDb();
-    } catch {
-      // ignore
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo vincular el stand");
     }
   };
 

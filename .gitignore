@@ -117,3 +117,6 @@ plan-*.json
 
 # Colecciones Postman con credenciales (NO commitear: repo publico)
 docs/05-integraciones/postman-sgc.json
+
+# Backups de datos de produccion (solo locales)
+backups/

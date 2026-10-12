@@ -86,7 +86,15 @@ export class GessApplicationService {
   }
 
   async vincular(id: string, bloqueId: string | null) {
-    return this.repo.update(id, { bloqueId });
+    try {
+      return await this.repo.update(id, { bloqueId });
+    } catch (e) {
+      /* gess_stand tiene unique(evento, bloque): el bloque ya esta tomado por otro stand. */
+      if (typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") {
+        throw new DomainError("Ese bloque ya esta vinculado a otro stand del evento", API_ERROR_CODES.VALIDATION, 400);
+      }
+      throw e;
+    }
   }
 
   async actualizarStand(id: string, data: { documentos?: string[]; documentosCategorias?: Record<string, string>; imagenes?: string[]; imagenesCategorias?: Record<string, string>; estado?: string }) {

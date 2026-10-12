@@ -80,7 +80,33 @@ export class PlanoApplicationService {
       throw new DomainError(`Bloques con tipo inexistente: ${sinTipo.map((b) => b.bloqueId).join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
     }
 
-    return this.repo.guardarLayout(id, data);
+    await this.validarCodigosBloqueUnicos(id, ids);
+    try {
+      return await this.repo.guardarLayout(id, data);
+    } catch (e) {
+      throw this.mapearConflictoBloque(e);
+    }
+  }
+
+  /**
+   * El codigo de bloque es unico en toda la BD (indice plano_bloque_bloqueId_key):
+   * la vinculacion de stands une por codigo y es unica por evento, por lo que
+   * codigos repetidos entre pabellones rompen la vinculacion.
+   */
+  private async validarCodigosBloqueUnicos(planoId: string | null, codigos: string[]): Promise<void> {
+    const conflictos = await this.repo.bloquesConCodigoFueraDelPlano(planoId, codigos);
+    if (conflictos.length > 0) {
+      const detalle = conflictos.map((c) => `${c.bloqueId} (${c.planoNombre})`).join(", ");
+      throw new DomainError(`Codigo(s) de bloque ya usados en otro pabellon: ${detalle}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+  }
+
+  /** Mapea el conflicto unico de Prisma (P2002) a un error claro para el usuario. */
+  private mapearConflictoBloque(e: unknown): unknown {
+    if (typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") {
+      return new DomainError("Codigo de bloque duplicado: ningun otro pabellon puede usar el mismo codigo", API_ERROR_CODES.VALIDATION, 400);
+    }
+    return e;
   }
 
   async guardarTipos(id: string, tipos: Parameters<IPlanoRepository["guardarTipos"]>[1]): Promise<PlanoEntity> {
@@ -186,7 +212,13 @@ export class PlanoApplicationService {
     if (!Array.isArray(data.tipos) || !Array.isArray(data.bloques)) {
       throw new DomainError("Formato de archivo invalido (tipos/bloques)", API_ERROR_CODES.VALIDATION, 400);
     }
-    return this.repo.importar(data);
+    const existente = await this.repo.detallePorCodigo(data.codigo);
+    await this.validarCodigosBloqueUnicos(existente?.id ?? null, data.bloques.map((b) => b.bloqueId));
+    try {
+      return await this.repo.importar(data);
+    } catch (e) {
+      throw this.mapearConflictoBloque(e);
+    }
   }
 
   async exportarTypeScript(id: string): Promise<{ bloques: string; tipos: string; construccion: string; index: string; registrySnippet: string }> {

@@ -395,6 +395,19 @@ export class PlanoPrismaRepository implements IPlanoRepository {
     await prisma.plano.delete({ where: { id } });
   }
 
+  async bloquesConCodigoFueraDelPlano(planoId: string | null, codigos: string[]): Promise<Array<{ bloqueId: string; planoCodigo: string; planoNombre: string }>> {
+    if (codigos.length === 0) return [];
+    const rows = await prisma.planoBloque.findMany({
+      where: { bloqueId: { in: codigos }, ...(planoId ? { planoId: { not: planoId } } : {}) },
+      select: { bloqueId: true, plano: { select: { codigo: true, nombre: true } } },
+    });
+    const unicos = new Map<string, { bloqueId: string; planoCodigo: string; planoNombre: string }>();
+    for (const r of rows) {
+      if (!unicos.has(r.bloqueId)) unicos.set(r.bloqueId, { bloqueId: r.bloqueId, planoCodigo: r.plano.codigo, planoNombre: r.plano.nombre });
+    }
+    return [...unicos.values()];
+  }
+
   async guardarLayout(
     id: string,
     data: {

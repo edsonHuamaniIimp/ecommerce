@@ -881,6 +881,9 @@ model PlanoBloque {
   tipo  PlanoTipoBloque? @relation(fields: [tipoId], references: [id], onDelete: SetNull)
 
   @@unique([planoId, bloqueId])
+  /// Codigo de bloque unico en toda la BD: la vinculacion (gess_stand.bloque_id)
+  /// une por codigo y es unica por evento; dos planos con el mismo codigo se bloquean.
+  @@unique([bloqueId])
   @@index([planoId])
   @@map("plano_bloque")
 }

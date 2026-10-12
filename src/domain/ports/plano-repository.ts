@@ -30,6 +30,12 @@ export interface IPlanoRepository {
 
   guardarSecciones(id: string, secciones: Array<Omit<PlanoSeccionEntity, "id" | "planoId">>): Promise<PlanoEntity>;
 
+  /**
+   * Bloques (de OTROS planos) que ya usan alguno de los codigos indicados.
+   * `planoId` null = busca en todos los planos (alta/import de plano nuevo).
+   */
+  bloquesConCodigoFueraDelPlano(planoId: string | null, codigos: string[]): Promise<Array<{ bloqueId: string; planoCodigo: string; planoNombre: string }>>;
+
   /** Persiste solo el catalogo de tipos (sin tocar bloques ni decoraciones). */
   guardarTipos(id: string, tipos: Array<Omit<PlanoTipoBloqueEntity, "id" | "planoId">>): Promise<PlanoEntity>;
 

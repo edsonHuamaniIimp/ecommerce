@@ -400,3 +400,22 @@ describe("GessApplicationService pre-reservas", () => {
       .rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe("GessApplicationService.vincular (bloque unico por evento)", () => {
+  it("mapea el conflicto unico (bloque ya vinculado) a un error claro", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.update).mockRejectedValueOnce(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.vincular("g1", "E-102")).rejects.toThrow(/ya esta vinculado a otro stand/);
+  });
+
+  it("vincula sin error cuando no hay conflicto", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.update).mockResolvedValueOnce(stand({ bloqueId: "E-102" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    const r = await svc.vincular("g1", "E-102");
+    expect(r.bloqueId).toBe("E-102");
+  });
+});
