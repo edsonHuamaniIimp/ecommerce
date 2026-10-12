@@ -75,13 +75,13 @@ function useRotuloTooltip(rotulo: string | null): { textura: THREE.Texture; aspe
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    const fuente = 68;
+    const fuente = 96;
     ctx.font = `bold ${fuente}px Arial, sans-serif`;
     const anchoTexto = ctx.measureText(texto).width;
     const altoPildora = Math.ceil(fuente * 1.6);
-    const altoCola = 30;
-    const anchoCola = 44;
-    canvas.width = Math.ceil(anchoTexto + 88);
+    const altoCola = 42;
+    const anchoCola = 62;
+    canvas.width = Math.ceil(anchoTexto + 124);
     canvas.height = altoPildora + altoCola;
     canvas.width = Math.max(canvas.width, anchoCola + 20);
     const radio = altoPildora / 2;
@@ -136,18 +136,30 @@ function useRotuloTooltip(rotulo: string | null): { textura: THREE.Texture; aspe
   }, [rotulo]);
 }
 
-/** Rotulo 3D tipo bandera: mastil sobre el bloque + pildora flotante que siempre mira a la camara. */
-function RotuloTooltip({ rotulo, y }: { rotulo: string; y: number }) {
+/**
+ * Altura objetivo (unidades mundo) del rotulo/globo segun la huella del bloque.
+ * Proporcional a sqrt(area) para que crezca con el tamano del bloque; con tope
+ * inferior (legible en bloques chicos) y superior (no tapa el mapa en bloques enormes).
+ */
+export function alturaRotuloBloque(w: number, d: number): number {
+  const area = Math.max(1, w) * Math.max(1, d);
+  return Math.min(6, Math.max(1.2, 0.62 * Math.sqrt(area)));
+}
+
+/** Rotulo 3D tipo globo: pildora flotante que siempre mira a la camara, escalada al bloque. */
+function RotuloTooltip({ rotulo, y, alturaObjetivo, maxAncho }: { rotulo: string; y: number; alturaObjetivo: number; maxAncho: number }) {
   const rotuloData = useRotuloTooltip(rotulo);
   useEffect(() => {
     return () => { rotuloData?.textura.dispose(); };
   }, [rotuloData]);
   if (!rotuloData) return null;
-  const altura = 0.85;
-  const ancho = altura * rotuloData.aspecto;
+  /* Escala uniforme: se limita por la altura objetivo y por el ancho disponible del bloque
+     (evita que el globo pise a los bloques vecinos en grillas densas). */
+  const escala = Math.min(alturaObjetivo, maxAncho / rotuloData.aspecto);
+  const ancho = escala * rotuloData.aspecto;
   return (
     <group position={[0, y, 0]}>
-      <sprite position={[0, 0.18 + altura / 2, 0]} scale={[ancho, altura, 1]} raycast={() => null}>
+      <sprite position={[0, 0.22 * escala + escala / 2, 0]} scale={[ancho, escala, 1]} raycast={() => null}>
         <spriteMaterial map={rotuloData.textura} transparent depthWrite={false} toneMapped={false} />
       </sprite>
     </group>
@@ -216,7 +228,12 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
         {/* Numero comercial: globo flotante sobre la maquina (las formas no tienen tapa legible). */}
         {rotulo && (
           <group position={[item.x, 0, item.z]}>
-            <RotuloTooltip rotulo={rotulo} y={MAQUINA_ALTURA_ROTULO * escalaMaquinaria(formaMaquina, { w, d }) + (selected ? 0.35 : 0)} />
+            <RotuloTooltip
+              rotulo={rotulo}
+              y={MAQUINA_ALTURA_ROTULO * escalaMaquinaria(formaMaquina, { w, d }) + (selected ? 0.35 : 0)}
+              alturaObjetivo={alturaRotuloBloque(w, d)}
+              maxAncho={Math.min(w, d) * 1.2}
+            />
           </group>
         )}
       </group>
@@ -251,7 +268,14 @@ export function Bloque3D({ item, selected, reserved, hoverText, logoUrl, topLabe
           />
         )}
       </mesh>
-      {rotulo && <RotuloTooltip rotulo={rotulo} y={h + (selected ? 0.6 : 0) + 0.02} />}
+      {rotulo && (
+        <RotuloTooltip
+          rotulo={rotulo}
+          y={h + (selected ? 0.6 : 0) + 0.02}
+          alturaObjetivo={alturaRotuloBloque(w, d)}
+          maxAncho={Math.min(w, d) * 1.2}
+        />
+      )}
     </group>
   );
 }
