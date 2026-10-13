@@ -990,6 +990,53 @@ export class EmpresaApplicationService {
     return { email: principal.email, usuario: empresa.ruc, passwordTemporal, emailEnviado };
   }
 
+  /**
+   * Revierte una cuenta creada con correo real a cuenta solo-RUC (usuario = RUC):
+   * cambia el correo de acceso al provisional, reescribe el userId de la cuenta y
+   * regenera la contrasena temporal sin enviar correo (la entrega el administrador).
+   * Solo aplica a empresas SIN representante legal: con representante, la cuenta
+   * con correo es la registrada desde servicio-persona.
+   */
+  async revertirCuentaARuc(id: string): Promise<ResultadoCredencialesEmpresa> {
+    const empresa = await this.obtener(id);
+    if (limpiar(empresa.representanteLegalNombre)) {
+      throw new DomainError(
+        "La empresa tiene representante legal: su cuenta se registra con 'Registrar desde servicio-persona' (correo)",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!empresa.cuentaCreada) {
+      throw new DomainError("La empresa aun no tiene cuenta creada", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (!empresa.ruc) {
+      throw new DomainError("La empresa no tiene RUC para la cuenta de acceso", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    const porRuc = await this.authRepo.findByRuc(empresa.ruc).catch(() => []);
+    const emailContacto = (limpiar(empresa.representanteCorreo) ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
+    const porEmail = emailContacto ? await this.authRepo.findByEmail(emailContacto) : [];
+    const principal = porRuc[0] ?? porEmail[0];
+    if (!principal) {
+      throw new DomainError("No se encontro la cuenta de la empresa", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+    if (esEmailProvisional(principal.email)) {
+      throw new DomainError("La cuenta ya usa el RUC como usuario", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const usuario = emailProvisionalPorRuc(empresa.ruc);
+    if (await this.authRepo.existeEmail(usuario)) {
+      throw new DomainError(`La cuenta provisional ${usuario} ya existe`, API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const passwordTemporal = generarPasswordTemporal();
+    await this.authRepo.actualizarEmailCuenta(principal.userId, usuario);
+    await this.authRepo.updatePassword(principal.id, hashPassword(passwordTemporal));
+    await this.authRepo.marcarCambioPasswordRequerido(usuario, true);
+    await this.repo.update(id, { cuentaCreada: true, primerAccesoCompletado: false });
+    return { email: usuario, usuario: empresa.ruc, passwordTemporal, emailEnviado: null };
+  }
+
   /** Envio best-effort del correo con las credenciales (no revierte la cuenta). */
   private async enviarCredenciales(empresa: Pick<EmpresaEntity, "razonSocial" | "representanteLegalNombre">, email: string, passwordTemporal: string): Promise<boolean> {
     try {

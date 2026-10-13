@@ -29,6 +29,8 @@ export interface EmpresaEntity {
   sitioWeb: string | null;
   estado: EstadoEmpresa;
   cuentaCreada: boolean;
+  /** Correo de acceso de la cuenta vinculada; se completa en el listado (null si no se consulto). */
+  cuentaEmail?: string | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: Date | null;
   creadoPor: string | null;

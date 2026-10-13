@@ -214,6 +214,20 @@ export const empresaController = {
     return success(resultado);
   },
 
+  /** Revierte una cuenta con correo real a cuenta solo-RUC (usuario = RUC); sin envio de correo. */
+  async revertirCuenta(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = crearCuentaEmpresaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const resultado = await services.empresas.revertirCuentaARuc(parsed.data.id);
+    return success(resultado);
+  },
+
   /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
   async buscarFuente(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();

@@ -259,6 +259,7 @@ y escritura con `empresas:manage` (el admin `admin:full` siempre accede).
 | `/api/empresas/crear-cuenta` | POST | Crea la cuenta de acceso **solo con RUC** (`id`): usuario provisional `acceso-<ruc>@acceso.iimp`, rol cliente, `empresa_id` + SIE; **sin envio de correo** (devuelve `usuario` + `passwordTemporal` para mostrarla una vez) |
 | `/api/empresas/crear-cuentas` | POST | Crea cuentas de acceso en lote (`{ rucs[] }`, max. 500); devuelve por RUC `usuario`/`passwordTemporal`/`creada`/`error` |
 | `/api/empresas/reenviar-credenciales` | POST | Repone la contrasena temporal (`id`): si la cuenta tiene correo real lo reenvia; si es solo-RUC devuelve `passwordTemporal` |
+| `/api/empresas/revertir-cuenta` | POST | Revierte a cuenta solo-RUC (`id`): empresa **sin representante legal** con cuenta de correo real; cambia el correo de acceso a `acceso-<ruc>@acceso.iimp` y devuelve `passwordTemporal` (sin envio de correo) |
 | `/api/empresas/fuente` | GET | Busca empresas en **servicio-persona** (fuente) por razon social o RUC (`q`); requiere `empresas:manage` |
 | `/api/empresas/persona-fuente` | GET | Busca una persona en **servicio-persona** por `tipoDocumento` y `numeroDocumento` (padron interno del representante legal); requiere `empresas:manage` |
 | `/api/empresas/registrar-cuenta-empresa` | POST | Asegura empresa y persona en **servicio-persona** (crea si no existen) y crea la cuenta local con `sie_code`/`id_empresa` + ficha local minima por RUC |

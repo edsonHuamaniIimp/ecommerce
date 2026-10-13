@@ -128,18 +128,25 @@ function fakeAuthRepo(overrides: {
   existeEmail?: boolean;
   usuarioExistente?: boolean;
   rucExistente?: boolean;
+  cuentaRuc?: { id: string; userId: string; email: string } | null;
   empresaPortal?: { empresaId: string; primerAccesoCompletado: boolean } | null;
 } = {}) {
-  const llamadas = { creados: [] as unknown[], passwords: [] as string[], flags: [] as boolean[] };
+  const llamadas = {
+    creados: [] as unknown[],
+    passwords: [] as string[],
+    flags: [] as boolean[],
+    emails: [] as Array<{ userId: string; email: string }>,
+  };
   return {
     llamadas,
     existeEmail: vi.fn(async () => overrides.existeEmail ?? false),
     existeCuentaConRuc: vi.fn(async () => overrides.rucExistente ?? false),
     crearUsuario: vi.fn(async (data: unknown) => { llamadas.creados.push(data); }),
-    findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1", email: "cuenta@empresa.pe" }] : [])),
-    findByRuc: vi.fn(async () => []),
+    findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1", userId: "user|cuenta@empresa.pe", email: "cuenta@empresa.pe" }] : [])),
+    findByRuc: vi.fn(async () => (overrides.cuentaRuc ? [overrides.cuentaRuc] : [])),
     updatePerfil: vi.fn(async () => undefined),
     updatePassword: vi.fn(async (_id: string, password: string) => { llamadas.passwords.push(password); }),
+    actualizarEmailCuenta: vi.fn(async (userId: string, email: string) => { llamadas.emails.push({ userId, email }); }),
     marcarCambioPasswordRequerido: vi.fn(async (_email: string, requerido: boolean) => { llamadas.flags.push(requerido); }),
     estadoEmpresaPortal: vi.fn(async () => overrides.empresaPortal ?? null),
   };
@@ -760,6 +767,87 @@ describe("EmpresaApplicationService.reenviarCredenciales", () => {
     const conCuenta = repo.seed({ ruc: "20551122334", razonSocial: "Con Cuenta S.A.C.", emailContacto: "y@empresa.pe", cuentaCreada: true });
     const serviceSinUsuario = crearServicio(repo, fakeAuthRepo({ usuarioExistente: false }));
     await expect(serviceSinUsuario.reenviarCredenciales(conCuenta.id)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("EmpresaApplicationService.revertirCuentaARuc", () => {
+  const empresaSinRep = {
+    ruc: "20101363008",
+    razonSocial: "SCANIA DEL PERU S.A.",
+    emailContacto: "carlos.cano@scania.com",
+    cuentaCreada: true,
+  };
+
+  it("convierte la cuenta con correo real a cuenta RUC (usuario = RUC) sin enviar correo", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaSinRep);
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-9", userId: "user|carlos.cano@scania.com", email: "carlos.cano@scania.com" },
+    });
+    const service = crearServicio(repo, auth);
+
+    const resultado = await service.revertirCuentaARuc(creada.id);
+
+    expect(resultado).toEqual({
+      email: "acceso-20101363008@acceso.iimp",
+      usuario: "20101363008",
+      passwordTemporal: "TempPass123",
+      emailEnviado: null,
+    });
+    expect(auth.llamadas.emails).toEqual([{ userId: "user|carlos.cano@scania.com", email: "acceso-20101363008@acceso.iimp" }]);
+    expect(auth.llamadas.passwords).toEqual(["hash:TempPass123"]);
+    expect(auth.llamadas.flags).toEqual([true]);
+    const ficha = await repo.findById(creada.id);
+    expect(ficha?.cuentaCreada).toBe(true);
+    expect(ficha?.primerAccesoCompletado).toBe(false);
+  });
+
+  it("409 si la empresa tiene representante legal", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ...empresaSinRep, representanteLegalNombre: "Carlos Cano" });
+    const service = crearServicio(repo);
+
+    await expect(service.revertirCuentaARuc(creada.id)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("409 si la empresa aun no tiene cuenta creada", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ...empresaSinRep, cuentaCreada: false });
+    const service = crearServicio(repo);
+
+    await expect(service.revertirCuentaARuc(creada.id)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("409 si la cuenta ya usa el RUC como usuario (provisional)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaSinRep);
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-9", userId: "user|acceso-20101363008@acceso.iimp", email: "acceso-20101363008@acceso.iimp" },
+    });
+    const service = crearServicio(repo, auth);
+
+    await expect(service.revertirCuentaARuc(creada.id)).rejects.toMatchObject({ status: 409 });
+    expect(auth.llamadas.emails).toHaveLength(0);
+  });
+
+  it("404 si no se encuentra la cuenta de la empresa", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaSinRep);
+    const service = crearServicio(repo, fakeAuthRepo());
+
+    await expect(service.revertirCuentaARuc(creada.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("409 si el correo provisional (acceso-<ruc>) ya existe", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaSinRep);
+    const auth = fakeAuthRepo({
+      existeEmail: true,
+      cuentaRuc: { id: "ur-9", userId: "user|carlos.cano@scania.com", email: "carlos.cano@scania.com" },
+    });
+    const service = crearServicio(repo, auth);
+
+    await expect(service.revertirCuentaARuc(creada.id)).rejects.toMatchObject({ status: 409 });
   });
 });
 

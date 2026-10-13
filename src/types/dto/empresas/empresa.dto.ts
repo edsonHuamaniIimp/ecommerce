@@ -22,6 +22,8 @@ export interface EmpresaDTO {
   sitioWeb: string | null;
   estado: string;
   cuentaCreada: boolean;
+  /** Correo de acceso de la cuenta vinculada (`acceso-<RUC>@acceso.iimp` si es solo RUC); null si no existe o no se consulto. */
+  cuentaEmail: string | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: string | null;
   creadoPor: string | null;

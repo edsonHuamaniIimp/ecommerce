@@ -73,6 +73,11 @@ export const empresasService = {
     return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/reenviar-credenciales", { id });
   },
 
+  /** Revierte una cuenta creada con correo a cuenta RUC (usuario = RUC); sin envio de correo. */
+  revertirCuenta(id: string) {
+    return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/revertir-cuenta", { id });
+  },
+
   /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
   buscarFuente(q: string) {
     return internalApi.get<EmpresaFuenteDTO[]>(`/api/empresas/fuente?q=${encodeURIComponent(q)}`);

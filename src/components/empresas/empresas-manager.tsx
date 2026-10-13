@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { Building2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, Search, Upload } from "lucide-react";
+import { Building2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -10,6 +10,7 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { BADGE_STYLES, ESTADOS_EMPRESA, PER_PAGE_OPCIONES, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { esEmailProvisional } from "@/lib/shared/utils/email";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
@@ -113,12 +114,40 @@ export function EmpresasManager() {
     }
   };
 
-  /** Repone la contrasena temporal: la muestra si la cuenta es solo-RUC; si tiene correo real, la reenvia. */
-  const reenviarCredenciales = async (empresa: EmpresaDTO) => {
+  /**
+   * Revierte la cuenta con correo a cuenta solo-RUC (usuario = RUC): se genera una
+   * nueva contrasena temporal (la anterior deja de funcionar) y se muestra una vez.
+   * Sin envio de correo.
+   */
+  const revertirCuenta = async (empresa: EmpresaDTO) => {
     const ok = await confirm({
-      title: "Reponer contrasena temporal",
-      description: `Se generara una nueva contrasena temporal para "${empresa.razonSocial}". La contrasena anterior dejara de funcionar.`,
-      confirmLabel: "Reponer",
+      title: "Revertir a cuenta RUC",
+      description: `Se convertira la cuenta de "${empresa.razonSocial}" a usuario = RUC: el correo de acceso pasara a acceso-${empresa.ruc}@acceso.iimp y se generara una nueva contrasena temporal (la anterior dejara de funcionar). No se envia correo; la contrasena se muestra una vez.`,
+      confirmLabel: "Revertir",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const resultado = await empresasService.revertirCuenta(empresa.id);
+      setCredenciales({ razonSocial: empresa.razonSocial, usuario: resultado.usuario, passwordTemporal: resultado.passwordTemporal });
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo revertir la cuenta");
+    }
+  };
+
+  /**
+   * Renueva la contrasena temporal segun el tipo de cuenta: con correo real se
+   * reenvia al correo; cuenta solo-RUC se genera y se muestra aqui (sin envio).
+   */
+  const renovarCredenciales = async (empresa: EmpresaDTO) => {
+    const esSoloRuc = !!empresa.cuentaEmail && esEmailProvisional(empresa.cuentaEmail);
+    const ok = await confirm({
+      title: esSoloRuc ? "Solicitar contrasena temporal" : "Reponer contrasena temporal",
+      description: esSoloRuc
+        ? `Se generara una nueva contrasena temporal para "${empresa.razonSocial}" y se mostrara aqui para entregarla (no se envia correo). La contrasena anterior dejara de funcionar.`
+        : `Se generara una nueva contrasena temporal para "${empresa.razonSocial}" y se enviara al correo de la cuenta. La contrasena anterior dejara de funcionar.`,
+      confirmLabel: esSoloRuc ? "Solicitar" : "Reponer",
       destructive: true,
     });
     if (!ok) return;
@@ -131,7 +160,7 @@ export function EmpresasManager() {
       }
       void load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "No se pudieron reponer las credenciales");
+      toast.error(e instanceof Error ? e.message : "No se pudieron renovar las credenciales");
     }
   };
 
@@ -144,9 +173,9 @@ export function EmpresasManager() {
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
               {pagination.total}
             </span>
-            <span className="text-[11px] text-muted-foreground">
-              Usa la llave para crear la cuenta de acceso (usuario = RUC). No se envian correos: el representante completa sus datos en el primer ingreso.
-            </span>
+              <span className="text-[11px] text-muted-foreground">
+                La llave crea la cuenta de acceso (usuario = RUC) en empresas sin representante legal. No se envian correos: los datos se completan en el primer ingreso.
+              </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button
@@ -269,33 +298,68 @@ export function EmpresasManager() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5">
                           {!empresa.cuentaCreada ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 text-primary hover:text-primary"
-                                  onClick={() => { void crearCuenta(empresa); }}
-                                >
-                                  <KeyRound className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC)</span></TooltipContent>
-                            </Tooltip>
+                            !empresa.representanteLegalNombre?.trim() ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-primary hover:text-primary"
+                                    onClick={() => { void crearCuenta(empresa); }}
+                                  >
+                                    <KeyRound className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC)</span></TooltipContent>
+                              </Tooltip>
+                            ) : null
                           ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => { void reenviarCredenciales(empresa); }}
-                                >
-                                  <Mail className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top"><span>Reponer contrasena temporal</span></TooltipContent>
-                            </Tooltip>
+                            <>
+                              {!empresa.representanteLegalNombre?.trim() && empresa.cuentaEmail && !esEmailProvisional(empresa.cuentaEmail) ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-warning hover:text-warning"
+                                      onClick={() => { void revertirCuenta(empresa); }}
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><span>Revertir a cuenta RUC (usuario = RUC)</span></TooltipContent>
+                                </Tooltip>
+                              ) : null}
+                              {empresa.cuentaEmail && esEmailProvisional(empresa.cuentaEmail) ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0 text-primary hover:text-primary"
+                                      onClick={() => { void renovarCredenciales(empresa); }}
+                                    >
+                                      <KeyRound className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><span>Solicitar contrasena temporal (se muestra aqui)</span></TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => { void renovarCredenciales(empresa); }}
+                                    >
+                                      <Mail className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><span>Reponer contrasena temporal (se envia por correo)</span></TooltipContent>
+                                </Tooltip>
+                              )}
+                            </>
                           )}
                           <Tooltip>
                             <TooltipTrigger asChild>

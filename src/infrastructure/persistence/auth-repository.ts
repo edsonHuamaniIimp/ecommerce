@@ -201,6 +201,17 @@ export class AuthPrismaRepository implements IAuthRepository {
     await prisma.userRole.update({ where: { id }, data: { password: hashearSiHaceFalta(password), resetToken: null, resetTokenExpires: null } });
   }
 
+  /**
+   * Cambia el correo de acceso de la cuenta completa: se propaga a todas las filas
+   * con el mismo userId y se reescribe `user|<email>` para que el login siga resolviendo.
+   */
+  async actualizarEmailCuenta(userId: string, email: string): Promise<void> {
+    await prisma.userRole.updateMany({
+      where: { userId },
+      data: { email, userId: `user|${email}` },
+    });
+  }
+
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
     await prisma.userRole.updateMany({ where: { email }, data: { debeCambiarPassword: requerido } });
   }

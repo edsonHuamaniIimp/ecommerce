@@ -15,6 +15,7 @@ export const { GET, POST } = createRouter({
     "crear-cuenta": (req) => empresaController.crearCuenta(req),
     "crear-cuentas": (req) => empresaController.crearCuentasMasivas(req),
     "reenviar-credenciales": (req) => empresaController.reenviarCredenciales(req),
+    "revertir-cuenta": (req) => empresaController.revertirCuenta(req),
     "carga-masiva/previsualizar": (req) => empresaController.cargaMasivaPrevisualizar(req),
     "carga-masiva/importar": (req) => empresaController.cargaMasivaImportar(req),
     "registrar-cuenta-empresa": (req) => empresaController.registrarCuentaEmpresa(req),

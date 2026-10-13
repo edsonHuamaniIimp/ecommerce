@@ -31,11 +31,19 @@ interface EmpresaRow {
   sitioWeb: string | null;
   estado: string;
   cuentaCreada: boolean;
+  /** Cuentas de acceso vinculadas (solo se incluye en el listado paginado). */
+  usuarios?: { email: string; ruc: string | null }[] | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: Date | null;
   creadoPor: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Cuenta de acceso principal de la ficha: la del RUC o, si no, la primera vinculada. */
+function principalCuenta(row: EmpresaRow): { email: string; ruc: string | null } | null {
+  const cuentas = row.usuarios ?? [];
+  return cuentas.find((u) => u.ruc === row.ruc) ?? cuentas[0] ?? null;
 }
 
 function mapRow(row: EmpresaRow): EmpresaEntity {
@@ -60,6 +68,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     sitioWeb: row.sitioWeb ?? null,
     estado: row.estado as EstadoEmpresa,
     cuentaCreada: row.cuentaCreada ?? false,
+    cuentaEmail: principalCuenta(row)?.email ?? null,
     primerAccesoCompletado: row.primerAccesoCompletado ?? false,
     datosValidadosEn: row.datosValidadosEn ?? null,
     creadoPor: row.creadoPor ?? null,
@@ -85,6 +94,7 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
         orderBy: { razonSocial: "asc" },
         skip: (params.page - 1) * params.perPage,
         take: params.perPage,
+        include: { usuarios: { select: { email: true, ruc: true } } },
       }),
       prisma.empresa.count({ where: where as never }),
     ]);

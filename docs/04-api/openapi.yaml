@@ -722,6 +722,36 @@ paths:
                 $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
         "404":
           $ref: "#/components/responses/NotFound"
+  /empresas/revertir-cuenta:
+    post:
+      tags: [Empresas]
+      summary: Revierte una cuenta con correo a cuenta solo-RUC (usuario = RUC)
+      description: |
+        Convierte la cuenta de una empresa SIN representante legal (creada con
+        correo real) a cuenta solo-RUC: cambia el correo de acceso a
+        `acceso-<ruc>@acceso.iimp`, reescribe el userId de la cuenta y regenera la
+        contrasena temporal sin enviar correo (se muestra una vez al administrador).
+        Con representante legal la cuenta con correo es la legitima y no se revierte.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultadoCredencialesEmpresa"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: La empresa tiene representante legal, no tiene cuenta, o la cuenta ya usa el RUC
   /empresas/fuente:
     get:
       tags: [Empresas]
@@ -1674,6 +1704,7 @@ components:
             id: { type: string, format: uuid }
             estado: { type: string, enum: [activa, inactiva] }
             cuentaCreada: { type: boolean }
+            cuentaEmail: { type: string, nullable: true, description: "Correo de acceso de la cuenta vinculada (acceso-<RUC>@acceso.iimp si es solo RUC)" }
             primerAccesoCompletado: { type: boolean }
             datosValidadosEn: { type: string, format: date-time, nullable: true }
             creadoPor: { type: string, nullable: true }
