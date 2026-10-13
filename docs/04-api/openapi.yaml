@@ -752,6 +752,34 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: La empresa tiene representante legal, no tiene cuenta, o la cuenta ya usa el RUC
+  /empresas/sincronizar-representante:
+    post:
+      tags: [Empresas]
+      summary: Sincroniza al representante legal con servicio-persona (crear/actualizar)
+      description: |
+        Reutiliza por DNI a la persona en servicio-persona (la actualiza si difiere) o
+        la crea si no existe (requiere respuesta de RENIEC para nombres/apellidos), y
+        guarda su `representanteSieCode` en la ficha local. Solo admin (`empresas:manage`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmpresaRegistrada"
+        "400":
+          description: La empresa no tiene DNI valido del representante
+        "502":
+          description: RENIEC sin datos o servicio de personas no disponible
   /empresas/fuente:
     get:
       tags: [Empresas]
@@ -935,6 +963,11 @@ paths:
     post:
       tags: [Portal]
       summary: Valida/actualiza los datos contractuales de la empresa (primer ingreso)
+      description: |
+        Exige los datos del representante legal que usa el sistema: nombre, DNI valido,
+        correo (usuario del sistema), celular y direccion (la partida es opcional). Si la
+        cuenta se creo solo con RUC (correo provisional `acceso-<RUC>@acceso.iimp`), adopta
+        el correo del representante como correo de acceso y reemite la sesion.
       requestBody:
         required: true
         content:
@@ -1694,6 +1727,10 @@ components:
         emailFacturacion: { type: string, nullable: true, format: email }
         representanteLegalNombre: { type: string, nullable: true, maxLength: 200 }
         representanteLegalDni: { type: string, nullable: true, maxLength: 15 }
+        representanteCorreo: { type: string, nullable: true, format: email, description: "Correo del representante legal (solo local; el admin lo sincroniza con servicio-persona)" }
+        representanteCelular: { type: string, nullable: true, maxLength: 35 }
+        representanteDireccion: { type: string, nullable: true, maxLength: 100 }
+        partidaElectronica: { type: string, nullable: true, maxLength: 50 }
         tipoComprobante: { type: string, enum: [factura, boleta], default: factura }
         sitioWeb: { type: string, nullable: true, maxLength: 200 }
     EmpresaRegistrada:
@@ -1705,6 +1742,7 @@ components:
             estado: { type: string, enum: [activa, inactiva] }
             cuentaCreada: { type: boolean }
             cuentaEmail: { type: string, nullable: true, description: "Correo de acceso de la cuenta vinculada (acceso-<RUC>@acceso.iimp si es solo RUC)" }
+            representanteSieCode: { type: string, nullable: true, description: "Codigo SIE de la persona del representante en servicio-persona (null = aun solo local, pendiente de sincronizar)" }
             primerAccesoCompletado: { type: boolean }
             datosValidadosEn: { type: string, format: date-time, nullable: true }
             creadoPor: { type: string, nullable: true }

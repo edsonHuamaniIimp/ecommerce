@@ -11,6 +11,11 @@ export interface ValidarDatosEmpresaRequestDTO {
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  /** Datos del representante legal (se guardan en la ficha local; el admin los sincroniza con servicio-persona). */
+  representanteCorreo?: string | null;
+  representanteCelular?: string | null;
+  representanteDireccion?: string | null;
+  partidaElectronica?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
 }

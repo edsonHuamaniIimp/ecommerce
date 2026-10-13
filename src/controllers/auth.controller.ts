@@ -42,7 +42,14 @@ export const authController = {
       const code: ApiErrorCode = CODIGO_ERROR_POR_STATUS[result.status] ?? API_ERROR_CODES.UNAUTHORIZED;
       return error(code, result.error, result.status);
     }
-    const body: LoginResponseDTO = { token: result.token, roles: result.roles, email: result.email, idioma: result.idioma };
+    const body: LoginResponseDTO = {
+      token: result.token,
+      roles: result.roles,
+      email: result.email,
+      idioma: result.idioma,
+      ...(result.debeCambiarPassword ? { debeCambiarPassword: true } : {}),
+      ...(result.requiereValidarDatos ? { requiereValidarDatos: true } : {}),
+    };
     const res = NextResponse.json(body);
     setTokenCookie(res, result.token, result.remember ? SESION.MAX_AGE_RECORDADA : SESION.MAX_AGE_ESTANDAR);
     /* Sincroniza la preferencia de idioma (Google Translate) desde el primer ingreso. */
@@ -148,9 +155,12 @@ export const authController = {
   /** @request PerfilUpdateRequestDTO */
   async updatePerfil(request: Request): Promise<NextResponse> {
     const dto: PerfilUpdateRequestDTO = await request.json();
-    const ok = await services.auth.updatePerfil(dto);
-    if (!ok) return error(API_ERROR_CODES.UNAUTHORIZED, "No autenticado", 401);
-    return success({ ok: true });
+    const resultado = await services.auth.updatePerfil(dto);
+    if (!resultado.ok) return error(API_ERROR_CODES.UNAUTHORIZED, "No autenticado", 401);
+    const res = success({ ok: true });
+    /* La cuenta adopto el correo del representante: renueva la sesion con el nuevo correo. */
+    if (resultado.token) setTokenCookie(res, resultado.token, SESION.MAX_AGE_ESTANDAR);
+    return res;
   },
 
   /** @request ResetPasswordRequestDTO */

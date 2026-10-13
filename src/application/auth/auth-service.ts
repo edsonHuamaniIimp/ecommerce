@@ -31,6 +31,7 @@ import type { CambiarPasswordResult } from "@/types/dto/auth/cambiar-password-re
 import type { CambiarIdiomaRequestDTO } from "@/types/dto/auth/cambiar-idioma-request.dto";
 import type { CambiarIdiomaResult } from "@/types/dto/auth/cambiar-idioma-result.dto";
 import { esIdioma, idiomaODefecto } from "@/lib/shared/utils/idioma";
+import { esEmailProvisional } from "@/lib/shared/utils/email";
 
 const MENSAJE_CUENTA_EXISTENTE = "Este correo ya tiene una cuenta. Inicia sesion.";
 
@@ -398,10 +399,10 @@ export class AuthApplicationService {
     return resolverIdiomaDestinatario(this.repo, email ?? null);
   }
 
-  async updatePerfil(dto: PerfilUpdateRequestDTO): Promise<boolean> {
+  async updatePerfil(dto: PerfilUpdateRequestDTO): Promise<{ ok: boolean; token?: string }> {
     const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
-    if (!session) return false;
+    if (!session) return { ok: false };
     /*
      * El RUC de la empresa elegida (codigo SIE de entidades) resuelve la empresa
      * fiscal local por RUC para dejar la FK `empresa_id`; sin registro local queda
@@ -443,7 +444,44 @@ export class AuthApplicationService {
 
     /* Refleja en servicio-persona lo editable del perfil (telefono/correo -> celular/correo, logo -> foto). */
     await this.sincronizarPersonaFuente(session.email, dto).catch(() => {});
-    return true;
+
+    /*
+     * El representante legal ES el usuario del sistema: si la cuenta se creo solo con RUC
+     * (correo provisional), adopta el correo del representante como correo de acceso y se
+     * reemite la sesion (el token viejo apuntaria a un correo inexistente).
+     */
+    let token: string | undefined;
+    if (representanteCorreo !== undefined) {
+      const nuevoCorreo = String(representanteCorreo ?? "").trim().toLowerCase();
+      if (nuevoCorreo && esEmailProvisional(session.email) && nuevoCorreo !== session.email.trim().toLowerCase()) {
+        const libre = !(await this.repo.existeEmail(nuevoCorreo).catch(() => true));
+        const principal = libre ? (await this.repo.findByEmail(session.email).catch(() => []))[0] : undefined;
+        if (principal) {
+          await this.repo.actualizarEmailCuenta(principal.userId, nuevoCorreo).catch(() => {});
+          token = await signToken(
+            {
+              sub: `user|${nuevoCorreo}`,
+              email: nuevoCorreo,
+              name: session.name,
+              roles: session.roles,
+              permissions: session.permissions,
+              ...(session.eventoId
+                ? {
+                    eventoId: session.eventoId,
+                    eventoPadreId: session.eventoPadreId,
+                    tipoEvento: session.tipoEvento,
+                    codigoEvento: session.codigoEvento,
+                    eventoNombre: session.eventoNombre,
+                    eventoPadreNombre: session.eventoPadreNombre,
+                  }
+                : {}),
+            },
+            SESION.JWT_EXPIRACION_ESTANDAR,
+          );
+        }
+      }
+    }
+    return { ok: true, token };
   }
 
   /**

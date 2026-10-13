@@ -282,6 +282,8 @@ model Empresa {
   representanteCelular     String?   @map("representante_celular") @db.VarChar(35)
   /// Direccion del representante legal.
   representanteDireccion   String?   @map("representante_direccion") @db.VarChar(100)
+  /// Codigo SIE de la persona del representante en servicio-persona (null = aun solo local, pendiente de sincronizar).
+  representanteSieCode     String?   @map("representante_sie_code") @db.VarChar(20)
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
   partidaElectronica       String?   @map("partida_electronica") @db.VarChar(50)
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).

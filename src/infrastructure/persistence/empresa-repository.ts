@@ -26,6 +26,7 @@ interface EmpresaRow {
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
+  representanteSieCode: string | null;
   partidaElectronica: string | null;
   tipoComprobante: string;
   sitioWeb: string | null;
@@ -63,6 +64,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     representanteCorreo: row.representanteCorreo ?? null,
     representanteCelular: row.representanteCelular ?? null,
     representanteDireccion: row.representanteDireccion ?? null,
+    representanteSieCode: row.representanteSieCode ?? null,
     partidaElectronica: row.partidaElectronica ?? null,
     tipoComprobante: row.tipoComprobante as TipoComprobante,
     sitioWeb: row.sitioWeb ?? null,

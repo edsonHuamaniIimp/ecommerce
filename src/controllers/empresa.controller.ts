@@ -228,6 +228,20 @@ export const empresaController = {
     return success(resultado);
   },
 
+  /** Sincroniza al representante legal con servicio-persona (crear/actualizar) y guarda su codigo SIE. */
+  async sincronizarRepresentante(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = crearCuentaEmpresaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const empresa = await services.empresas.sincronizarRepresentante(parsed.data.id);
+    return success(mapEmpresaToDTO(empresa));
+  },
+
   /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
   async buscarFuente(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();

@@ -1075,6 +1075,18 @@ export const RUTAS_PERMITIDAS_CAMBIO_PASSWORD = [
   "/403",
 ] as const;
 
+/**
+ * Rutas permitidas mientras la empresa del Portal tiene el primer ingreso pendiente
+ * (validacion de datos): bloqueo duro en el proxy hasta completar el formulario.
+ * No aplica a credenciales temporales (esas pasan primero por cambiar contrasena).
+ */
+export const RUTAS_PERMITIDAS_VALIDAR_DATOS = [
+  "/auth/validar-datos",
+  "/api/auth",
+  "/api/portal",
+  "/403",
+] as const;
+
 /** Estados a los que un administrador puede llevar una solicitud de cuenta. */
 export const ESTADOS_SOLICITUD_CUENTA_REVISION = [
   ESTADOS_SOLICITUD_CUENTA.APROBADA,

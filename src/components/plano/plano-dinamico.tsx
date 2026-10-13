@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet, SheetContent, SheetHeader, SheetTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight, ZoomIn, ZoomOut, RotateCcw, RotateCw, Home, Compass, Hand, HelpCircle } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
+import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
@@ -431,6 +432,31 @@ map.set(String(bloqueId), {
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
 
+  /** Verificando el perfil antes de abrir el wizard (bloquea el boton mientras consulta). */
+  const [verificandoPerfil, setVerificandoPerfil] = useState(false);
+
+  /**
+   * Candado previo al wizard de reserva: las cuentas vinculadas a una empresa deben
+   * tener completos los datos obligatorios del representante (perfil); si faltan,
+   * se redirige a /dashboard/perfil en vez de abrir la reserva.
+   */
+  const abrirReservaConPerfil = useCallback(async (): Promise<boolean> => {
+    setVerificandoPerfil(true);
+    try {
+      const perfil = await perfilService.get().catch(() => null);
+      if (perfil?.representanteIncompleto) {
+        toast.error("Completa los datos del representante legal en tu perfil para continuar con la reserva.");
+        router.push("/dashboard/perfil");
+        return false;
+      }
+      setReservaOpen(true);
+      setReservaStep(0);
+      return true;
+    } finally {
+      setVerificandoPerfil(false);
+    }
+  }, [router, setReservaOpen, setReservaStep]);
+
   useEffect(() => {
     if (!openReserva || !dataReady) return;
     void (async () => {
@@ -442,15 +468,14 @@ map.set(String(bloqueId), {
           if (valid.length > 0) {
             const { sincronizarPlano } = usePlanoCarrito.getState();
             sincronizarPlano(planoId, valid.map(carritoInfoDe));
-            setReservaOpen(true);
-            setReservaStep(0);
+            void abrirReservaConPerfil();
           }
         }
       } catch { /* ignore */ }
       localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
       router.replace("/plano", { scroll: false });
     })();
-  }, [openReserva, dataReady, linkedMap, router, setReservaOpen, setReservaStep, planoId, carritoInfoDe]);
+  }, [openReserva, dataReady, linkedMap, router, abrirReservaConPerfil, planoId, carritoInfoDe]);
 
   // Override: auto-open + restore selection from login redirect
   useEffect(() => {
@@ -468,9 +493,8 @@ map.set(String(bloqueId), {
         }
       } catch { /* ignore */ }
       localStorage.removeItem(LS_KEYS.PLANO_SELECCION);
-      setReservaOpen(true);
-      setReservaStep(0);
       router.replace(`/mapa?codigo=${planoId}`, { scroll: false });
+      void abrirReservaConPerfil();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openReserva, dataReady, planoId, router]);
@@ -655,11 +679,8 @@ map.set(String(bloqueId), {
             <Button
               variant="default"
               className="w-full gap-2 bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90"
-              disabled={totalCarritoCount === 0 || hayReservados || haySinStand}
-              onClick={() => {
-                setReservaOpen(true);
-                setReservaStep(0);
-              }}
+              disabled={totalCarritoCount === 0 || hayReservados || haySinStand || verificandoPerfil}
+              onClick={() => { void abrirReservaConPerfil(); }}
             >
               <span>{hayReservados ? "Hay bloques no disponibles" : haySinStand ? "Hay bloques sin stand vinculado" : `Continuar con la Reserva (${totalCarritoCount})`}</span>
               {!hayReservados && !haySinStand && <ChevronRight className="h-4 w-4" />}

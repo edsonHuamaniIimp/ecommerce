@@ -361,6 +361,7 @@ export class EmpresaApplicationService {
       representanteCorreo: null,
       representanteCelular: null,
       representanteDireccion: null,
+      representanteSieCode: null,
       partidaElectronica: null,
       tipoComprobante: TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: null,
@@ -509,8 +510,9 @@ export class EmpresaApplicationService {
 
     /* Misma logica para el representante legal: reutilizar/actualizar o crear en la fuente. */
     const dniRepresentante = limpiar(input.representanteLegalDni);
+    let representanteSieCode: string | null = null;
     if (sincronizarFuente && dniRepresentante && REGEX_DNI.test(dniRepresentante)) {
-      await this.asegurarRepresentanteEnFuente(
+      representanteSieCode = await this.asegurarRepresentanteEnFuente(
         dniRepresentante,
         limpiar(input.representanteCorreo) ?? limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion),
         limpiar(input.representanteCelular) ?? limpiar(input.telefono),
@@ -534,6 +536,7 @@ export class EmpresaApplicationService {
       representanteCorreo: limpiar(input.representanteCorreo),
       representanteCelular: limpiar(input.representanteCelular),
       representanteDireccion: limpiar(input.representanteDireccion),
+      representanteSieCode,
       partidaElectronica: limpiar(input.partidaElectronica),
       tipoComprobante,
       sitioWeb: limpiar(input.sitioWeb),
@@ -618,6 +621,33 @@ export class EmpresaApplicationService {
     return this.repo.update(id, { estado });
   }
 
+  /**
+   * Sincroniza al representante legal con servicio-persona (admin): reutiliza/actualiza
+   * la persona por DNI o la crea si no existe, y guarda su codigo SIE en la ficha local.
+   * Sin respuesta de RENIEC no se puede crear la persona (nombres/apellidos oficiales).
+   */
+  async sincronizarRepresentante(id: string): Promise<EmpresaEntity> {
+    const empresa = await this.obtener(id);
+    const dni = limpiar(empresa.representanteLegalDni);
+    if (!dni || !REGEX_DNI.test(dni)) {
+      throw new DomainError("La empresa no tiene DNI valido del representante legal: no se puede sincronizar", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const sieCode = await this.asegurarRepresentanteEnFuente(
+      dni,
+      limpiar(empresa.representanteCorreo) ?? limpiar(empresa.emailContacto) ?? limpiar(empresa.emailFacturacion),
+      limpiar(empresa.representanteCelular) ?? limpiar(empresa.telefono),
+      limpiar(empresa.representanteDireccion) ?? limpiar(empresa.direccionFiscal),
+      null,
+    );
+    if (!sieCode) {
+      throw new DomainError("No se pudo sincronizar: RENIEC no devolvio datos del DNI o el servicio de personas no respondio", API_ERROR_CODES.BAD_GATEWAY, 502);
+    }
+    const actualizada = await this.repo.update(id, { representanteSieCode: sieCode });
+    /* Alinea la cuenta vinculada (si no tenia persona en la fuente) para el sync del perfil. */
+    await this.authRepo.actualizarSieCodeDeEmpresa(id, sieCode).catch(() => {});
+    return actualizada;
+  }
+
   /** Marca que la cuenta del Portal fue creada y las credenciales enviadas. */
   async marcarCuentaCreada(id: string, cuentaCreada = true): Promise<EmpresaEntity> {
     await this.obtener(id);
@@ -645,10 +675,30 @@ export class EmpresaApplicationService {
 
   /**
    * Valida/actualiza los datos contractuales de la empresa del usuario y marca el
-   * primer acceso completado (el contrato usara estos datos).
+   * primer acceso completado (el contrato usara estos datos). Devuelve tambien el
+   * correo adoptado por la cuenta (correo del representante) para reemitir la sesion.
    */
-  async validarDatosPortal(email: string, input: EmpresaInput): Promise<EmpresaEntity> {
+  async validarDatosPortal(email: string, input: EmpresaInput): Promise<{ empresa: EmpresaEntity; correoNuevo: string | null }> {
     const empresa = await this.obtenerDatosPortal(email);
+    /*
+     * El representante legal ES el usuario del sistema: si la cuenta se creo solo con
+     * RUC (correo provisional `acceso-<ruc>@acceso.iimp`), adopta su correo como correo
+     * de acceso. El token se reemite en el controlador para no cortar la sesion.
+     */
+    let correoNuevo: string | null = null;
+    const correoRepresentante = limpiar(input.representanteCorreo)?.toLowerCase();
+    if (correoRepresentante && empresa.ruc) {
+      const provisional = emailProvisionalPorRuc(empresa.ruc);
+      const cuentas = await this.authRepo.findByEmail(provisional).catch(() => []);
+      const principal = cuentas[0];
+      if (principal && principal.email.trim().toLowerCase() !== correoRepresentante) {
+        if (await this.authRepo.existeEmail(correoRepresentante)) {
+          throw new DomainError(`El correo ${correoRepresentante} ya pertenece a otra cuenta del Portal`, API_ERROR_CODES.CONFLICT, 409);
+        }
+        await this.authRepo.actualizarEmailCuenta(principal.userId, correoRepresentante);
+        correoNuevo = correoRepresentante;
+      }
+    }
     await this.actualizar(empresa.id, {
       ruc: input.ruc,
       razonSocial: input.razonSocial,
@@ -658,10 +708,29 @@ export class EmpresaApplicationService {
       emailFacturacion: input.emailFacturacion,
       representanteLegalNombre: input.representanteLegalNombre,
       representanteLegalDni: input.representanteLegalDni,
+      representanteCorreo: input.representanteCorreo,
+      representanteCelular: input.representanteCelular,
+      representanteDireccion: input.representanteDireccion,
+      partidaElectronica: input.partidaElectronica,
       tipoComprobante: input.tipoComprobante,
       sitioWeb: input.sitioWeb,
     });
-    return this.repo.update(empresa.id, { primerAccesoCompletado: true, datosValidadosEn: new Date() });
+    /*
+     * Usuario del sistema: las cuentas de la empresa reflejan lo basico del representante
+     * (nombre visible y celular). La sincronizacion con servicio-persona la hace el admin.
+     */
+    const nombreRepresentante = limpiar(input.representanteLegalNombre);
+    const celularRepresentante = limpiar(input.representanteCelular);
+    if (nombreRepresentante || celularRepresentante) {
+      await this.authRepo
+        .actualizarDatosUsuarioDeEmpresa(empresa.id, {
+          ...(nombreRepresentante ? { nombre: nombreRepresentante } : {}),
+          ...(celularRepresentante ? { telefono: celularRepresentante } : {}),
+        })
+        .catch(() => {});
+    }
+    const actualizada = await this.repo.update(empresa.id, { primerAccesoCompletado: true, datosValidadosEn: new Date() });
+    return { empresa: actualizada, correoNuevo };
   }
 
   /* ================================================================
@@ -957,7 +1026,10 @@ export class EmpresaApplicationService {
       ruc: empresa.ruc,
       debeCambiarPassword: true,
     });
-    await this.repo.update(empresa.id, { cuentaCreada: true });
+    await this.repo.update(empresa.id, {
+      cuentaCreada: true,
+      ...(sieCode ? { representanteSieCode: sieCode } : {}),
+    });
     /* Sin envio de correo: las credenciales se muestran una vez al administrador. */
     return { email: usuario, usuario: empresa.ruc, passwordTemporal, emailEnviado: null };
   }

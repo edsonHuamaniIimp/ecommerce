@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 
 const emailOpcional = z
   .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invalido")])
@@ -78,8 +79,39 @@ export const importarCargaEmpresasSchema = z.object({
   filas: z.array(filaCargaEmpresaSchema).min(1, "filas requeridas"),
 });
 
-/** Validacion/actualizacion de los datos de la empresa en el Portal (primer ingreso). */
-export const validarDatosEmpresaSchema = crearEmpresaSchema;
+/**
+ * Validacion del primer ingreso del Portal: exige los datos del representante legal que
+ * usa el sistema (contrato + sincronizacion con servicio-persona): nombre, DNI valido,
+ * correo (usuario del sistema), celular y direccion. La partida es opcional.
+ */
+export const validarDatosEmpresaSchema = crearEmpresaSchema
+  .refine((v) => Boolean(v.representanteLegalNombre?.trim()), {
+    message: "El nombre del representante legal es obligatorio",
+    path: ["representanteLegalNombre"],
+  })
+  .refine((v) => {
+    const dni = String(v.representanteLegalDni ?? "").trim();
+    if (!dni) return false;
+    const error = /^\d+$/.test(dni)
+      ? validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.DNI, dni)
+      : validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, dni);
+    return error === null;
+  }, {
+    message: "El DNI del representante legal debe tener 8 digitos (o documento alfanumerico valido)",
+    path: ["representanteLegalDni"],
+  })
+  .refine((v) => Boolean(v.representanteCorreo?.trim()), {
+    message: "El correo del representante legal es obligatorio",
+    path: ["representanteCorreo"],
+  })
+  .refine((v) => Boolean(v.representanteCelular?.trim()), {
+    message: "El celular del representante legal es obligatorio",
+    path: ["representanteCelular"],
+  })
+  .refine((v) => Boolean(v.representanteDireccion?.trim()), {
+    message: "La direccion del representante legal es obligatoria",
+    path: ["representanteDireccion"],
+  });
 
 /** Cambio del idioma preferido del usuario. */
 export const cambiarIdiomaSchema = z.object({

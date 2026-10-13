@@ -73,6 +73,10 @@ export interface IAuthRepository {
   updatePassword(id: string, password: string): Promise<void>;
   /** Cambia el correo de acceso de la cuenta completa (todas sus filas de rol) y reescribe el userId. */
   actualizarEmailCuenta(userId: string, email: string): Promise<void>;
+  /** Setea el sie_code (persona en servicio-persona) a las cuentas de la empresa que aun no lo tienen. */
+  actualizarSieCodeDeEmpresa(empresaId: string, sieCode: string): Promise<void>;
+  /** Refleja los datos del representante (usuario del sistema) en las cuentas de la empresa. */
+  actualizarDatosUsuarioDeEmpresa(empresaId: string, data: { nombre?: string | null; telefono?: string | null }): Promise<void>;
   /** Empresa del Portal (PK) a la que pertenece la cuenta, si tiene. */
   findEmpresaIdDeUsuario(email: string): Promise<string | null>;
   /** Identificador de la persona en servicio-persona (sie_code) del usuario; null si no tiene. */

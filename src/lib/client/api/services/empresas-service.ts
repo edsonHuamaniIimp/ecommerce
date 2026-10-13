@@ -78,6 +78,11 @@ export const empresasService = {
     return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/revertir-cuenta", { id });
   },
 
+  /** Sincroniza al representante legal con servicio-persona (crear/actualizar) y guarda su codigo SIE. */
+  sincronizarRepresentante(id: string) {
+    return internalApi.post<EmpresaDTO>("/api/empresas/sincronizar-representante", { id });
+  },
+
   /** Busca empresas en servicio-persona (fuente) por razon social o RUC. */
   buscarFuente(q: string) {
     return internalApi.get<EmpresaFuenteDTO[]>(`/api/empresas/fuente?q=${encodeURIComponent(q)}`);

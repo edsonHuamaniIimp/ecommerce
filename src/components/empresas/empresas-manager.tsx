@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { Building2, KeyRound, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
+import { BadgeCheck, Building2, CloudUpload, KeyRound, Loader2, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -41,6 +41,8 @@ export function EmpresasManager() {
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
   /* Credenciales generadas: se muestran una vez (no se envian correos). */
   const [credenciales, setCredenciales] = useState<{ razonSocial: string; usuario: string; passwordTemporal: string } | null>(null);
+  /** Empresa cuyo representante se esta sincronizando con servicio-persona (bloquea su icono). */
+  const [sincronizandoId, setSincronizandoId] = useState<string | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const pageRef = useRef(page);
@@ -134,6 +136,25 @@ export function EmpresasManager() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo revertir la cuenta");
     }
+  };
+
+  /** Admin: crea/actualiza al representante legal en servicio-persona y guarda su codigo SIE. */
+  const sincronizarRepresentante = async (empresa: EmpresaDTO) => {
+    const ok = await confirm({
+      title: "Sincronizar representante legal",
+      description: `Se creara o actualizara al representante de "${empresa.razonSocial}" en el servicio de personas (RENIEC + servicio-persona) y se guardara su codigo SIE.`,
+      confirmLabel: "Sincronizar",
+    });
+    if (!ok) return;
+    setSincronizandoId(empresa.id);
+    try {
+      const actualizada = await empresasService.sincronizarRepresentante(empresa.id);
+      toast.success(`Representante sincronizado${actualizada.representanteSieCode ? ` (${actualizada.representanteSieCode})` : ""}.`);
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo sincronizar el representante");
+    }
+    setSincronizandoId(null);
   };
 
   /**
@@ -275,10 +296,45 @@ export function EmpresasManager() {
                     <TableRow key={empresa.id}>
                       <TableCell className="max-w-[260px]">
                         <p className="truncate text-xs font-semibold text-foreground">{empresa.razonSocial}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {empresa.representanteLegalNombre ?? "Sin representante legal"}
-                          {empresa.creadoPor ? ` · ${dateUtils.formatDateTime(empresa.createdAt)}` : ""}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {empresa.representanteLegalNombre ?? "Sin representante legal"}
+                          </p>
+                          {empresa.representanteLegalNombre ? (
+                            empresa.representanteSieCode ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex shrink-0 text-success" aria-label="Representante sincronizado">
+                                    <BadgeCheck className="h-3.5 w-3.5" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top"><span>Sincronizado con servicio-persona ({empresa.representanteSieCode})</span></TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 shrink-0 p-0 text-warning hover:bg-warning/10 hover:text-warning"
+                                    disabled={sincronizandoId === empresa.id}
+                                    onClick={() => { void sincronizarRepresentante(empresa); }}
+                                  >
+                                    {sincronizandoId === empresa.id
+                                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      : <CloudUpload className="h-3.5 w-3.5" />}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top"><span>Sincronizar representante legal (crear/actualizar en servicio-persona)</span></TooltipContent>
+                              </Tooltip>
+                            )
+                          ) : null}
+                        </div>
+                        {empresa.creadoPor ? (
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {dateUtils.formatDateTime(empresa.createdAt)}
+                          </p>
+                        ) : null}
                       </TableCell>
                       <TableCell className="hidden font-mono text-xs md:table-cell">{empresa.ruc}</TableCell>
                       <TableCell className="hidden max-w-[200px] truncate text-xs lg:table-cell">

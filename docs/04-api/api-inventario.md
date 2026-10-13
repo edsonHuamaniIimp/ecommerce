@@ -260,6 +260,7 @@ y escritura con `empresas:manage` (el admin `admin:full` siempre accede).
 | `/api/empresas/crear-cuentas` | POST | Crea cuentas de acceso en lote (`{ rucs[] }`, max. 500); devuelve por RUC `usuario`/`passwordTemporal`/`creada`/`error` |
 | `/api/empresas/reenviar-credenciales` | POST | Repone la contrasena temporal (`id`): si la cuenta tiene correo real lo reenvia; si es solo-RUC devuelve `passwordTemporal` |
 | `/api/empresas/revertir-cuenta` | POST | Revierte a cuenta solo-RUC (`id`): empresa **sin representante legal** con cuenta de correo real; cambia el correo de acceso a `acceso-<ruc>@acceso.iimp` y devuelve `passwordTemporal` (sin envio de correo) |
+| `/api/empresas/sincronizar-representante` | POST | Sincroniza al representante legal con **servicio-persona** (`id`): actualiza la persona por DNI o la crea si no existe; guarda `representanteSieCode` en la ficha local. Requiere `empresas:manage` |
 | `/api/empresas/fuente` | GET | Busca empresas en **servicio-persona** (fuente) por razon social o RUC (`q`); requiere `empresas:manage` |
 | `/api/empresas/persona-fuente` | GET | Busca una persona en **servicio-persona** por `tipoDocumento` y `numeroDocumento` (padron interno del representante legal); requiere `empresas:manage` |
 | `/api/empresas/registrar-cuenta-empresa` | POST | Asegura empresa y persona en **servicio-persona** (crea si no existen) y crea la cuenta local con `sie_code`/`id_empresa` + ficha local minima por RUC |
@@ -274,7 +275,7 @@ El middleware exige cambiar contraseÃ±a/validar datos cuando la credencial es 
 |---|---|---|
 | `/api/auth/cambiar-password` | POST | Cambio de la contraseÃ±a temporal (valida actual, longitud mÃ­nima); reemite la sesiÃ³n sin el flag |
 | `/api/portal/empresa/mis-datos` | GET | Datos de la empresa vinculada al usuario (primer ingreso / Mi empresa) |
-| `/api/portal/empresa/validar` | POST | Valida/actualiza los datos contractuales y marca `primerAccesoCompletado` |
+| `/api/portal/empresa/validar` | POST | Valida/actualiza los datos contractuales (**representante legal obligatorio**: nombre, DNI valido, correo, celular, direccion; partida opcional) **solo en local**; si la cuenta era solo-RUC **adopta el correo del representante** como correo de acceso y marca `primerAccesoCompletado` |
 
 ### 3.21 Usuarios (Portal del Cliente) - `src/app/api/usuarios/[...slug]/route.ts`
 

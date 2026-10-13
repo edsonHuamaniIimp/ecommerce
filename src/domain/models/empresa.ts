@@ -23,7 +23,8 @@ export interface EmpresaEntity {
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
-  /** Partida electronica de poderes del representante (si aplica). */
+  /** Codigo SIE de la persona del representante en servicio-persona (null = aun solo local). */
+  representanteSieCode: string | null;
   partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;
   sitioWeb: string | null;
@@ -82,6 +83,8 @@ export interface CrearEmpresaData {
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
+  /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
+  representanteSieCode: string | null;
   /** Partida electronica de poderes del representante (si aplica). */
   partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;

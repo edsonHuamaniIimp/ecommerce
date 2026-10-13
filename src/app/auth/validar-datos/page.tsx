@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertTriangle, Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
+import { authService } from "@/lib/client/api/services/auth-service";
 import { PortalAuthCardHeader, PortalAuthLayout } from "@/components/layout/portal-auth-layout";
-import { TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
+import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface FormState {
@@ -19,6 +21,10 @@ interface FormState {
   emailFacturacion: string;
   representanteLegalNombre: string;
   representanteLegalDni: string;
+  representanteCorreo: string;
+  representanteCelular: string;
+  representanteDireccion: string;
+  partidaElectronica: string;
   tipoComprobante: string;
   sitioWeb: string;
 }
@@ -30,6 +36,10 @@ function Campo({
   contractual = false,
   placeholder,
   mono = false,
+  deshabilitado = false,
+  nota,
+  requerido = false,
+  error,
 }: {
   label: string;
   valor: string;
@@ -37,11 +47,17 @@ function Campo({
   contractual?: boolean;
   placeholder?: string;
   mono?: boolean;
+  deshabilitado?: boolean;
+  nota?: string;
+  requerido?: boolean;
+  error?: string;
 }) {
   return (
     <div className={contractual ? "rounded-lg border border-warning/40 bg-warning/5 p-3" : ""}>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
-        <Label className="text-xs font-semibold text-primary">{label}</Label>
+        <Label className="text-xs font-semibold text-primary">
+          {label} {requerido && <span className="text-destructive">*</span>}
+        </Label>
         {contractual && (
           <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[9px] font-bold tracking-wide text-warning uppercase">
             Se usara en el contrato
@@ -52,10 +68,47 @@ function Campo({
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`h-10 text-sm ${mono ? "font-mono" : ""}`}
+        disabled={deshabilitado}
+        className={`h-10 text-sm ${mono ? "font-mono" : ""} ${deshabilitado ? "opacity-60" : ""} ${error ? "border-destructive" : ""}`}
       />
+      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {nota && <p className="mt-1 text-[10px] text-muted-foreground">{nota}</p>}
     </div>
   );
+}
+
+/**
+ * Reglas de validacion del formulario (mismas que el endpoint). Los datos del
+ * representante legal son obligatorios: contrato + sincronizacion + usuario del sistema.
+ */
+function erroresDeFormulario(form: FormState): Partial<Record<keyof FormState, string>> {
+  const nuevos: Partial<Record<keyof FormState, string>> = {};
+  if (!form.razonSocial.trim()) nuevos.razonSocial = "La razon social es obligatoria";
+  if (!REGEX_RUC.test(form.ruc.trim())) nuevos.ruc = "El RUC debe tener 11 digitos";
+  if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
+    nuevos.emailFacturacion = "Correo invalido";
+  }
+  if (!form.representanteLegalNombre.trim()) {
+    nuevos.representanteLegalNombre = "El nombre del representante legal es obligatorio";
+  }
+  const dni = form.representanteLegalDni.trim();
+  if (!dni) {
+    nuevos.representanteLegalDni = "El DNI del representante legal debe tener 8 digitos (o documento alfanumerico valido)";
+  } else {
+    const errorDni = /^\d+$/.test(dni)
+      ? validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.DNI, dni)
+      : validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, dni);
+    if (errorDni) nuevos.representanteLegalDni = errorDni;
+  }
+  const correoRep = form.representanteCorreo.trim();
+  if (!correoRep) {
+    nuevos.representanteCorreo = "El correo del representante legal es obligatorio";
+  } else if (!REGEX_EMAIL.test(correoRep)) {
+    nuevos.representanteCorreo = "Correo invalido";
+  }
+  if (!form.representanteCelular.trim()) nuevos.representanteCelular = "El celular del representante legal es obligatorio";
+  if (!form.representanteDireccion.trim()) nuevos.representanteDireccion = "La direccion del representante legal es obligatoria";
+  return nuevos;
 }
 
 function ValidarDatosContent() {
@@ -64,6 +117,8 @@ function ValidarDatosContent() {
   const [empresa, setEmpresa] = useState<EmpresaDTO | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [confirmado, setConfirmado] = useState(false);
+  /** Cuenta sin correo del representante: puede registrarlo en este primer ingreso (solo local). */
+  const [repCorreoRegistrable, setRepCorreoRegistrable] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,9 +136,14 @@ function ValidarDatosContent() {
           emailFacturacion: datos.emailFacturacion ?? "",
           representanteLegalNombre: datos.representanteLegalNombre ?? "",
           representanteLegalDni: datos.representanteLegalDni ?? "",
+          representanteCorreo: datos.representanteCorreo ?? "",
+          representanteCelular: datos.representanteCelular ?? "",
+          representanteDireccion: datos.representanteDireccion ?? "",
+          partidaElectronica: datos.partidaElectronica ?? "",
           tipoComprobante: datos.tipoComprobante,
           sitioWeb: datos.sitioWeb ?? "",
         });
+        setRepCorreoRegistrable(!(datos.representanteCorreo ?? "").trim());
       } catch (e) {
         setError(e instanceof Error ? e.message : "No se pudieron cargar los datos de tu empresa");
       }
@@ -95,10 +155,30 @@ function ValidarDatosContent() {
     setForm((prev) => (prev ? { ...prev, [campo]: valor } : prev));
   };
 
+  /** Validacion viva: el boton de guardar solo se habilita con los obligatorios completos. */
+  const formularioCompleto = useMemo(() => (form ? Object.keys(erroresDeFormulario(form)).length === 0 : false), [form]);
+
+  /** Errores de formato en vivo (solo campos con contenido): los vacios se guian por el * y el aviso. */
+  const erroresVivos = useMemo(() => {
+    if (!form) return {} as Partial<Record<keyof FormState, string>>;
+    const nuevos = erroresDeFormulario(form);
+    const visibles: Partial<Record<keyof FormState, string>> = {};
+    for (const [campo, mensaje] of Object.entries(nuevos) as Array<[keyof FormState, string]>) {
+      if (String(form[campo] ?? "").trim()) visibles[campo] = mensaje;
+    }
+    return visibles;
+  }, [form]);
+
+  const validar = (): boolean => (form ? Object.keys(erroresDeFormulario(form)).length === 0 : false);
+
   const guardar = async () => {
     if (!form || !confirmado) return;
-    setGuardando(true);
+    if (!validar()) {
+      setError("Revisa los campos marcados en rojo antes de continuar.");
+      return;
+    }
     setError(null);
+    setGuardando(true);
     try {
       await portalEmpresaService.validarDatos({
         ruc: form.ruc.trim(),
@@ -109,6 +189,10 @@ function ValidarDatosContent() {
         emailFacturacion: form.emailFacturacion.trim() || null,
         representanteLegalNombre: form.representanteLegalNombre.trim() || null,
         representanteLegalDni: form.representanteLegalDni.trim() || null,
+        representanteCorreo: form.representanteCorreo.trim() || null,
+        representanteCelular: form.representanteCelular.trim() || null,
+        representanteDireccion: form.representanteDireccion.trim() || null,
+        partidaElectronica: form.partidaElectronica.trim() || null,
         tipoComprobante: form.tipoComprobante,
         sitioWeb: form.sitioWeb.trim() || null,
       });
@@ -149,16 +233,34 @@ function ValidarDatosContent() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Campo contractual label="Razon social" valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} placeholder="Minera Cordillera S.A.C." />
-            <Campo contractual label="RUC" valor={form.ruc} onChange={(v) => setCampo("ruc", v)} placeholder="20601234567" mono />
+            <Campo contractual requerido label="Razon social" valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} placeholder="Minera Cordillera S.A.C." error={erroresVivos.razonSocial} />
+            <Campo contractual requerido label="RUC" valor={form.ruc} onChange={(v) => setCampo("ruc", v)} placeholder="20601234567" mono error={erroresVivos.ruc} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo contractual label="Direccion fiscal" valor={form.direccionFiscal} onChange={(v) => setCampo("direccionFiscal", v)} placeholder="Av. Los Ingenieros 245, Lima" />
-            <Campo contractual label="Representante legal" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" />
+            <Campo contractual requerido label="Representante legal" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" error={erroresVivos.representanteLegalNombre} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Campo contractual label="DNI del representante legal" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", v)} placeholder="45871233" mono />
-            <Campo contractual label="Correo de facturacion" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} placeholder="facturacion@empresa.pe" />
+            <Campo contractual requerido label="DNI del representante legal" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", v)} placeholder="45871233" mono error={erroresVivos.representanteLegalDni} />
+            <Campo contractual label="Correo de facturacion" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} placeholder="facturacion@empresa.pe" error={erroresVivos.emailFacturacion} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo
+              contractual
+              requerido
+              label="Correo del representante"
+              valor={form.representanteCorreo}
+              onChange={(v) => setCampo("representanteCorreo", v)}
+              placeholder="representante@empresa.pe"
+              deshabilitado={!repCorreoRegistrable}
+              nota={repCorreoRegistrable ? "Se usara en el contrato, como usuario del sistema y para las notificaciones." : "Para cambiar el correo, primero debe validarse."}
+              error={erroresVivos.representanteCorreo}
+            />
+            <Campo contractual requerido label="Celular del representante" valor={form.representanteCelular} onChange={(v) => setCampo("representanteCelular", v)} placeholder="+51 987 654 321" error={erroresVivos.representanteCelular} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo contractual requerido label="Direccion del representante" valor={form.representanteDireccion} onChange={(v) => setCampo("representanteDireccion", v)} placeholder="Av. Arequipa 1250, Lince" error={erroresVivos.representanteDireccion} />
+            <Campo contractual label="Partida electronica (opcional)" valor={form.partidaElectronica} onChange={(v) => setCampo("partidaElectronica", v)} placeholder="11014857" mono />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -206,20 +308,29 @@ function ValidarDatosContent() {
             </div>
           )}
 
+          {!formularioCompleto && (
+            <p className="text-right text-[11px] text-muted-foreground">
+              Completa los campos obligatorios (*) para guardar.
+            </p>
+          )}
+
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
               className="rounded-full px-4 text-xs"
               disabled={guardando}
-              onClick={() => { router.push("/dashboard"); router.refresh(); }}
+              onClick={async () => {
+                await authService.logout().catch(() => undefined);
+                router.push("/auth/login");
+              }}
             >
-              Mas tarde
+              Cerrar sesion
             </Button>
             <Button
               size="sm"
               className="rounded-full px-5 text-xs font-semibold"
-              disabled={guardando || !confirmado}
+              disabled={guardando || !confirmado || !formularioCompleto}
               onClick={guardar}
             >
               {guardando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

@@ -74,7 +74,7 @@ function parseJwtPayload(payload: JWTPayload): JwtPayload | null {
   const permisosValidos: string[] = permissions.filter((p): p is string => typeof p === "string");
   if (permisosValidos.length !== permissions.length) return null;
 
-  const { eventoId, eventoPadreId, tipoEvento, codigoEvento, eventoNombre, eventoPadreNombre } = payload;
+  const { eventoId, eventoPadreId, tipoEvento, codigoEvento, eventoNombre, eventoPadreNombre, debeCambiarPassword } = payload;
   return {
     sub,
     email,
@@ -87,6 +87,7 @@ function parseJwtPayload(payload: JWTPayload): JwtPayload | null {
     codigoEvento: typeof codigoEvento === "number" ? codigoEvento : undefined,
     eventoNombre: typeof eventoNombre === "string" ? eventoNombre : undefined,
     eventoPadreNombre: typeof eventoPadreNombre === "string" ? eventoPadreNombre : undefined,
+    debeCambiarPassword: debeCambiarPassword === true ? true : undefined,
   };
 }
 
@@ -154,6 +155,27 @@ export async function isUsuarioActivo(email: string): Promise<boolean> {
     return Boolean(cuenta);
   } catch {
     return true;
+  }
+}
+
+/**
+ * Estado de acceso para el proxy (una sola consulta): cuenta habilitada y si la
+ * empresa del Portal vinculada tiene el primer ingreso pendiente (validar datos).
+ * Si la BD falla se asume activo y sin bloqueo (los endpoints fallaran igual).
+ */
+export async function estadoAcceso(email: string): Promise<{ activo: boolean; validarDatosPendiente: boolean }> {
+  try {
+    const { prisma } = await import("./db");
+    const cuenta = await prisma.userRole.findFirst({
+      where: { email, flgActivo: true },
+      select: { empresaId: true, empresa: { select: { primerAccesoCompletado: true } } },
+    });
+    return {
+      activo: Boolean(cuenta),
+      validarDatosPendiente: Boolean(cuenta?.empresaId && cuenta.empresa && !cuenta.empresa.primerAccesoCompletado),
+    };
+  } catch {
+    return { activo: true, validarDatosPendiente: false };
   }
 }
 

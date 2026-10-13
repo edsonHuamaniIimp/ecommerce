@@ -62,6 +62,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       representanteCorreo: data.representanteCorreo ?? null,
       representanteCelular: data.representanteCelular ?? null,
       representanteDireccion: data.representanteDireccion ?? null,
+      representanteSieCode: data.representanteSieCode ?? null,
       partidaElectronica: data.partidaElectronica ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
@@ -129,6 +130,7 @@ function fakeAuthRepo(overrides: {
   usuarioExistente?: boolean;
   rucExistente?: boolean;
   cuentaRuc?: { id: string; userId: string; email: string } | null;
+  cuentaProvisional?: { id: string; userId: string; email: string } | null;
   empresaPortal?: { empresaId: string; primerAccesoCompletado: boolean } | null;
 } = {}) {
   const llamadas = {
@@ -142,11 +144,16 @@ function fakeAuthRepo(overrides: {
     existeEmail: vi.fn(async () => overrides.existeEmail ?? false),
     existeCuentaConRuc: vi.fn(async () => overrides.rucExistente ?? false),
     crearUsuario: vi.fn(async (data: unknown) => { llamadas.creados.push(data); }),
-    findByEmail: vi.fn(async () => (overrides.usuarioExistente ? [{ id: "ur-1", userId: "user|cuenta@empresa.pe", email: "cuenta@empresa.pe" }] : [])),
+    findByEmail: vi.fn(async (email: string) => {
+      if (overrides.cuentaProvisional && email === overrides.cuentaProvisional.email) return [overrides.cuentaProvisional];
+      return overrides.usuarioExistente ? [{ id: "ur-1", userId: "user|cuenta@empresa.pe", email: "cuenta@empresa.pe" }] : [];
+    }),
     findByRuc: vi.fn(async () => (overrides.cuentaRuc ? [overrides.cuentaRuc] : [])),
     updatePerfil: vi.fn(async () => undefined),
     updatePassword: vi.fn(async (_id: string, password: string) => { llamadas.passwords.push(password); }),
     actualizarEmailCuenta: vi.fn(async (userId: string, email: string) => { llamadas.emails.push({ userId, email }); }),
+    actualizarSieCodeDeEmpresa: vi.fn(async () => undefined),
+    actualizarDatosUsuarioDeEmpresa: vi.fn(async () => undefined),
     marcarCambioPasswordRequerido: vi.fn(async (_email: string, requerido: boolean) => { llamadas.flags.push(requerido); }),
     estadoEmpresaPortal: vi.fn(async () => overrides.empresaPortal ?? null),
   };
@@ -355,6 +362,17 @@ describe("EmpresaApplicationService.crear", () => {
       id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.DNI,
       documento: "45871233",
     }));
+  });
+
+  it("guarda el sie_code del representante en la ficha al asegurarlo en la fuente", async () => {
+    const repo = new FakeEmpresaRepo();
+    const personas = fakePersonaClient();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient({ existente: { sie_code: "E1" } }), consulta);
+
+    const empresa = await service.crear(INPUT_BASE, null);
+
+    expect(empresa.representanteSieCode).toBe("P0000012345");
   });
 
   it("sube la foto del representante a la fuente (bytes) cuando hay imagen valida", async () => {
@@ -851,6 +869,72 @@ describe("EmpresaApplicationService.revertirCuentaARuc", () => {
   });
 });
 
+describe("EmpresaApplicationService.sincronizarRepresentante", () => {
+  const empresaRep = {
+    ruc: "20601234567",
+    razonSocial: "Minera Cordillera S.A.C.",
+    representanteLegalNombre: "Jorge Quispe Ramos",
+    representanteLegalDni: "45871233",
+    representanteCorreo: "jorge.quispe@mineracordillera.pe",
+    representanteCelular: "+51 987654321",
+    representanteDireccion: "Av. Arequipa 1250, Lince",
+  };
+
+  it("crea la persona en servicio-persona y guarda el sie_code en la ficha", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaRep);
+    const personas = fakePersonaClient();
+    const auth = fakeAuthRepo();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), personas, fakeEmpresaClient(), consulta);
+
+    const empresa = await service.sincronizarRepresentante(creada.id);
+
+    expect(empresa.representanteSieCode).toBe("P0000012345");
+    expect(auth.actualizarSieCodeDeEmpresa).toHaveBeenCalledWith(creada.id, "P0000012345");
+    expect(personas.crearPersona).toHaveBeenCalledWith(expect.objectContaining({
+      documento: "45871233",
+      correo: "jorge.quispe@mineracordillera.pe",
+      celular: "+51 987654321",
+      direccion: "Av. Arequipa 1250, Lince",
+    }));
+  });
+
+  it("reutiliza y actualiza la persona existente en la fuente", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaRep);
+    const personas = fakePersonaClient({ existente: { sie_code: "P0000000009", documento: "45871233" } });
+    const auth = fakeAuthRepo();
+    const consulta = fakeConsultaDocumento({ dni: { apellidoPaterno: "QUISPE", apellidoMaterno: "RAMOS", nombres: "JORGE" } });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), personas, fakeEmpresaClient(), consulta);
+
+    const empresa = await service.sincronizarRepresentante(creada.id);
+
+    expect(empresa.representanteSieCode).toBe("P0000000009");
+    expect(auth.actualizarSieCodeDeEmpresa).toHaveBeenCalledWith(creada.id, "P0000000009");
+    expect(personas.actualizarPersona).toHaveBeenCalledWith("P0000000009", expect.objectContaining({ correo: "jorge.quispe@mineracordillera.pe" }));
+    expect(personas.crearPersona).not.toHaveBeenCalled();
+  });
+
+  it("400 si la empresa no tiene DNI valido del representante", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Sin DNI S.A.C.", representanteLegalNombre: "Alguien" });
+    const service = crearServicio(repo);
+
+    await expect(service.sincronizarRepresentante(creada.id)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("502 si la fuente no devuelve datos (RENIEC sin respuesta)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaRep);
+    const personas = fakePersonaClient();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient(), fakeConsultaDocumento());
+
+    await expect(service.sincronizarRepresentante(creada.id)).rejects.toMatchObject({ status: 502 });
+    expect(personas.crearPersona).not.toHaveBeenCalled();
+  });
+});
+
 describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
   it("obtenerDatosPortal: 404 si el usuario no tiene empresa vinculada", async () => {
     const service = crearServicio(new FakeEmpresaRepo(), fakeAuthRepo());
@@ -870,21 +954,85 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
   it("validarDatosPortal actualiza los datos contractuales y marca el primer acceso", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera", direccionFiscal: null, representanteLegalNombre: null });
-    const service = crearServicio(repo, fakeAuthRepo({ empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false } }));
+    const auth = fakeAuthRepo({ empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false } });
+    const service = crearServicio(repo, auth);
 
-    const empresa = await service.validarDatosPortal("contacto@mineracordillera.pe", {
+    const { empresa, correoNuevo } = await service.validarDatosPortal("contacto@mineracordillera.pe", {
       ruc: "20601234567",
       razonSocial: "Minera Cordillera S.A.C.",
       direccionFiscal: "Av. Los Ingenieros 245, Lima",
       representanteLegalNombre: "Jorge Quispe Ramos",
       representanteLegalDni: "45871233",
+      representanteCorreo: "jorge.quispe@mineracordillera.pe",
+      representanteCelular: "+51 987 654 321",
+      representanteDireccion: "Av. Arequipa 1250, Lince",
+      partidaElectronica: "11014857",
       tipoComprobante: "factura",
     });
 
     expect(empresa.razonSocial).toBe("Minera Cordillera S.A.C.");
     expect(empresa.direccionFiscal).toBe("Av. Los Ingenieros 245, Lima");
+    expect(empresa.representanteLegalNombre).toBe("Jorge Quispe Ramos");
+    expect(empresa.representanteCorreo).toBe("jorge.quispe@mineracordillera.pe");
+    expect(empresa.representanteCelular).toBe("+51 987 654 321");
+    expect(empresa.representanteDireccion).toBe("Av. Arequipa 1250, Lince");
+    expect(empresa.partidaElectronica).toBe("11014857");
     expect(empresa.primerAccesoCompletado).toBe(true);
     expect(empresa.datosValidadosEn).toBeInstanceOf(Date);
+    /* El usuario del sistema (cuentas de la empresa) refleja nombre y celular del representante. */
+    expect(auth.actualizarDatosUsuarioDeEmpresa).toHaveBeenCalledWith(creada.id, {
+      nombre: "Jorge Quispe Ramos",
+      telefono: "+51 987 654 321",
+    });
+    /* Sin cuenta provisional vinculada no hay adopcion de correo. */
+    expect(correoNuevo).toBeNull();
+  });
+
+  it("validarDatosPortal adopta el correo del representante en la cuenta provisional (usuario = RUC)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "AIREX S.A.C." });
+    const auth = fakeAuthRepo({
+      empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false },
+      cuentaProvisional: { id: "ur-9", userId: "user|acceso-20601234567@acceso.iimp", email: "acceso-20601234567@acceso.iimp" },
+    });
+    const service = crearServicio(repo, auth);
+
+    const { correoNuevo } = await service.validarDatosPortal("acceso-20601234567@acceso.iimp", {
+      ruc: "20601234567",
+      razonSocial: "AIREX S.A.C.",
+      representanteLegalNombre: "Jorge Ruben",
+      representanteLegalDni: "48570568",
+      representanteCorreo: "Jorge@Empresa.PE",
+      representanteCelular: "918874873",
+      representanteDireccion: "Lince",
+    });
+
+    expect(correoNuevo).toBe("jorge@empresa.pe");
+    expect(auth.actualizarEmailCuenta).toHaveBeenCalledWith("user|acceso-20601234567@acceso.iimp", "jorge@empresa.pe");
+  });
+
+  it("validarDatosPortal 409 si el correo del representante ya pertenece a otra cuenta", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "AIREX S.A.C." });
+    const auth = fakeAuthRepo({
+      existeEmail: true,
+      empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false },
+      cuentaProvisional: { id: "ur-9", userId: "user|acceso-20601234567@acceso.iimp", email: "acceso-20601234567@acceso.iimp" },
+    });
+    const service = crearServicio(repo, auth);
+
+    await expect(
+      service.validarDatosPortal("acceso-20601234567@acceso.iimp", {
+        ruc: "20601234567",
+        razonSocial: "AIREX S.A.C.",
+        representanteLegalNombre: "Jorge Ruben",
+        representanteLegalDni: "48570568",
+        representanteCorreo: "jorge@empresa.pe",
+        representanteCelular: "918874873",
+        representanteDireccion: "Lince",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(auth.actualizarEmailCuenta).not.toHaveBeenCalled();
   });
 });
 

@@ -212,6 +212,19 @@ export class AuthPrismaRepository implements IAuthRepository {
     });
   }
 
+  /** Setea el sie_code (persona en servicio-persona) a las cuentas de la empresa que aun no lo tienen. */
+  async actualizarSieCodeDeEmpresa(empresaId: string, sieCode: string): Promise<void> {
+    await prisma.userRole.updateMany({
+      where: { empresaId, sieCode: null },
+      data: { sieCode },
+    });
+  }
+
+  /** Refleja los datos del representante (usuario del sistema) en las cuentas de la empresa. */
+  async actualizarDatosUsuarioDeEmpresa(empresaId: string, data: { nombre?: string | null; telefono?: string | null }): Promise<void> {
+    await prisma.userRole.updateMany({ where: { empresaId }, data });
+  }
+
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
     await prisma.userRole.updateMany({ where: { email }, data: { debeCambiarPassword: requerido } });
   }

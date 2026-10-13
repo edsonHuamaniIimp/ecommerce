@@ -22,6 +22,8 @@ export interface ActualizarEmpresaData {
   representanteCorreo?: string | null;
   representanteCelular?: string | null;
   representanteDireccion?: string | null;
+  /** Codigo SIE del representante en servicio-persona (se guarda al sincronizar). */
+  representanteSieCode?: string | null;
   partidaElectronica?: string | null;
   tipoComprobante?: string;
   sitioWeb?: string | null;

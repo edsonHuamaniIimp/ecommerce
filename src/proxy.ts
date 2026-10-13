@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, verifyToken, hasPermission, isUsuarioActivo } from "@/lib/server/auth";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD } from "@/lib/shared/constants";
+import { getTokenFromRequest, verifyToken, hasPermission, estadoAcceso } from "@/lib/server/auth";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
@@ -72,7 +72,8 @@ export async function proxy(request: NextRequest) {
       if (!payload) return redirectToLogin(request);
 
       /* Cuenta deshabilitada por backoffice: corta la sesion activa de inmediato. */
-      if (!(await isUsuarioActivo(payload.email))) return redirectToLogin(request);
+      const acceso = await estadoAcceso(payload.email);
+      if (!acceso.activo) return redirectToLogin(request);
 
       /* Credencial temporal: solo puede cambiar contrasena/validar datos hasta completarlo. */
       if (
@@ -80,6 +81,20 @@ export async function proxy(request: NextRequest) {
         !(RUTAS_PERMITIDAS_CAMBIO_PASSWORD as readonly string[]).some((p) => pathname.startsWith(p))
       ) {
         return NextResponse.redirect(new URL("/auth/cambiar-password", request.url));
+      }
+
+      /*
+       * Bloqueo duro del primer ingreso de la empresa (Portal del Cliente): hasta validar
+       * sus datos solo puede usar el formulario y las APIs del portal. No aplica a
+       * credenciales temporales (esas pasan primero por el cambio de contrasena).
+       */
+      if (
+        payload.debeCambiarPassword !== true &&
+        !payload.roles.includes(ROLES.ADMIN) &&
+        !(RUTAS_PERMITIDAS_VALIDAR_DATOS as readonly string[]).some((p) => pathname.startsWith(p)) &&
+        acceso.validarDatosPendiente
+      ) {
+        return NextResponse.redirect(new URL("/auth/validar-datos", request.url));
       }
 
       if (route.permission && !hasPermission(payload, route.permission)) {

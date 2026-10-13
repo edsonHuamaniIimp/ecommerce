@@ -17,6 +17,8 @@ export interface EmpresaDTO {
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
+  /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
+  representanteSieCode: string | null;
   partidaElectronica: string | null;
   tipoComprobante: string;
   sitioWeb: string | null;
