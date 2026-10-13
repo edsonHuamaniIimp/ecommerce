@@ -198,7 +198,6 @@ export class ContratoApplicationService {
       idioma,
       empresa,
       empresaFallback: detalle.empresa,
-      emailFallback: detalle.email,
       modulos,
       gruposPabellon,
       importes,
@@ -248,7 +247,6 @@ export class ContratoApplicationService {
       idioma,
       empresa,
       empresaFallback: null,
-      emailFallback: input.email,
       modulos,
       gruposPabellon,
       importes,
@@ -366,7 +364,6 @@ export class ContratoApplicationService {
     idioma: Idioma;
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>;
     empresaFallback: string | null;
-    emailFallback: string | null;
     modulos: Array<{ modulo: string; zona: string; tipo: string; metraje: string; frente: string; fondo: string }>;
     gruposPabellon: Map<string, { nombre: string; planoId: string; objetivos: string[]; items: PlanoItem[]; etiquetas: Record<string, string>; codigos: Record<string, string> }>;
     importes: ReturnType<typeof calcularImportes>;
@@ -386,6 +383,13 @@ export class ContratoApplicationService {
 
     const hoy = new Date();
     const fechaFirma = `${String(hoy.getDate()).padStart(2, "0")}/${String(hoy.getMonth() + 1).padStart(2, "0")}/${hoy.getFullYear()}`;
+
+    /* Copy insertado en el contrato: en ingles no debe filtrarse espanol. */
+    const esContratoEn = idioma === IDIOMAS.EN;
+    const textoUbicacionGeneral = esContratoEn ? "General location - Pavilions map" : "Ubicacion general - Mapa de pabellones";
+    const textoObjetoSocial = esContratoEn ? "activities related to its line of business" : "actividades propias de su giro comercial";
+    const textoActividad = esContratoEn ? "exhibition of products and services" : "exhibicion de productos y servicios";
+    const textoCargoRepresentante = esContratoEn ? "Legal Representative" : "Representante Legal";
 
     /*
      * Imagenes del Anexo 1: una por pabellon, generadas en el SERVIDOR con los mismos
@@ -427,7 +431,7 @@ export class ContratoApplicationService {
         if (!jpg) continue;
         planosData.unshift({
           imagen_plano: jpg.toString("base64"),
-          pabellon: "Ubicacion general - Mapa de pabellones",
+          pabellon: textoUbicacionGeneral,
           version: "1",
           fecha: fechaFirma,
         });
@@ -452,9 +456,8 @@ export class ContratoApplicationService {
       representante_legal: representanteLegal,
       dni_representante: dniRepresentante,
       partida_electronica: partidaElectronica,
-      objeto_social: "actividades propias de su giro comercial",
-      actividad: "exhibicion de productos y servicios",
-      correo_planos: empresa?.emailContacto ?? params.emailFallback ?? "",
+      objeto_social: textoObjetoSocial,
+      actividad: textoActividad,
       modulos,
       planos: planosData,
       monto_total: monto(importes.total),
@@ -472,8 +475,10 @@ export class ContratoApplicationService {
         fecha: fechaCorta(c.fechaVencimiento),
       })),
       firmante_nombre_cargo: representanteLegal !== "-"
-        ? `${representanteLegal} - Representante Legal`
+        ? `${representanteLegal} - ${textoCargoRepresentante}`
         : "",
+      /** Codigos comerciales de los stands (Anexo 4: asunto de zona maquinaria). */
+      codigos_stands: modulos.map((m) => m.modulo).join(", "),
       firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
       firmante_fecha: fechaFirma,

@@ -50,7 +50,6 @@ doc.render({
   partida_electronica: "11014857",
   objeto_social: "actividades mineras",
   actividad: "exhibicion de equipos",
-  correo_planos: "planos@empresa.pe",
   modulos: [
     { modulo: "EXT-DER-03", zona: "Pabellon GESS", tipo: "Estandar", metraje: "9", frente: "3", fondo: "3" },
     { modulo: "EXT-DER-04", zona: "Pabellon GESS", tipo: "Estandar", metraje: "9", frente: "3", fondo: "3" },
@@ -70,6 +69,7 @@ doc.render({
     { numero: 3, porcentaje: 40, monto: "1,600.00", fecha: "31/01/2027" },
   ],
   firmante_nombre_cargo: "Jorge Quispe - Gerente General",
+  codigos_stands: "EXT-DER-03, EXT-DER-04",
   firmante_empresa: "Minera Cordillera S.A.C.",
   firma_exhibidor: PNG_1PX.toString("base64"),
   firmante_fecha: "03/10/2026",

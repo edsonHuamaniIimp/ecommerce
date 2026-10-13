@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import PizZip from "pizzip";
 import { ContratoApplicationService } from "../contrato-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -452,7 +454,14 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     /* La firma va ARRIBA de la linea, centrada con un tab de 6513 twips (sin imagen flotante). */
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     expect(xml).toContain('w:pos="6513"');
-    expect(xml).not.toContain("<wp:anchor");
+    /*
+     * El Anexo 4 (Reglamento) trae imagenes ancladas propias del IIMP: la firma no debe
+     * AGREGAR imagenes flotantes, por eso se compara el conteo contra la plantilla.
+     */
+    const plantilla = fs.readFileSync(path.join(process.cwd(), "plantillas", "contrato-perumin38-tags.docx"));
+    const xmlPlantilla = new PizZip(plantilla).file("word/document.xml")?.asText() ?? "";
+    const contarAnclas = (texto: string) => (texto.match(/<wp:anchor/g) ?? []).length;
+    expect(contarAnclas(xml)).toBe(contarAnclas(xmlPlantilla));
     vi.unstubAllGlobals();
   });
 

@@ -28,11 +28,12 @@ $zip.Dispose()
 
 # ---------------------------------------------------------------------------
 # 1) Placeholders "xxx" del contrato (en orden de aparicion)
+#    v9.10.26: se elimino el placeholder del correo de planos (3.2.7 cambio),
+#    por eso ahora son 8.
 # ---------------------------------------------------------------------------
 $tagsX = @(
   "{razon_social}", "{ruc}", "{domicilio_fiscal}", "{representante_legal}",
-  "{dni_representante}", "{partida_electronica}", "{objeto_social}", "{actividad}",
-  "{correo_planos}"
+  "{dni_representante}", "{partida_electronica}", "{objeto_social}", "{actividad}"
 )
 $matchesX = [regex]::Matches($xml, '<w:t[^>]*>([^<]*[xX]{3,}[^<]*)</w:t>')
 if ($matchesX.Count -ne $tagsX.Count) { throw "Se esperaban $($tagsX.Count) placeholders x, encontrados $($matchesX.Count)" }
