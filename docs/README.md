@@ -18,6 +18,7 @@ orden de lectura recomendado.
 | [`05-integraciones/`](./05-integraciones) | Sistemas externos | `integracion-sgc.md`, `api-sistema-montaje.md`, `guia-consumo-servicio-persona.md` |
 | [`06-operacion/`](./06-operacion) | Operación y DevOps | `infraestructura-devops.md`, `pruebas-produccion.md` |
 | [`07-seguridad/`](./07-seguridad) | Auditoría de seguridad | `run-1/`, `run-2/` |
+| [`08-manual/`](./08-manual) | Manuales de usuario | `manual-exhibidor.md` |
 
 ## Detalle
 
@@ -85,6 +86,11 @@ orden de lectura recomendado.
 
 ### 07 — Seguridad
 Ver [`07-seguridad/README.md`](./07-seguridad/README.md).
+
+### 08 — Manual
+| Documento | Contenido |
+|---|---|
+| [manual-exhibidor.md](./08-manual/manual-exhibidor.md) | Manual del exhibidor (Portal del Cliente): acceso, selección de evento, plano, reserva en 4 pasos, contrato, seguimiento, pagos y perfil |
 
 ## Publicación en Confluence
 

@@ -1,0 +1,130 @@
+/* Estilos del Manual del Exhibidor (/manual). Alcance: contenido del Markdown. */
+.manual-content {
+  color: var(--foreground);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+.manual-content h1,
+.manual-content h2,
+.manual-content h3 {
+  scroll-margin-top: 5rem;
+}
+.manual-content h1 {
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 3px solid var(--gold);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.manual-content h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.manual-content h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.manual-content p {
+  margin: 0.6rem 0;
+}
+.manual-content ul,
+.manual-content ol {
+  margin: 0.6rem 0;
+  padding-left: 1.4rem;
+}
+.manual-content li {
+  margin: 0.25rem 0;
+}
+.manual-content li > ul,
+.manual-content li > ol {
+  margin: 0.25rem 0;
+}
+.manual-content blockquote {
+  margin: 1rem 0;
+  padding: 0.6rem 1rem;
+  border-left: 4px solid var(--gold);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+.manual-content table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.manual-content th,
+.manual-content td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+.manual-content th {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+.manual-content tr:nth-child(even) td {
+  background: var(--secondary);
+}
+.manual-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.9rem 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.manual-content em {
+  display: block;
+  margin-bottom: 0.9rem;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  font-style: normal;
+}
+.manual-content code {
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--secondary);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.85em;
+}
+.manual-content pre {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--secondary);
+  overflow-x: auto;
+}
+.manual-content pre code {
+  padding: 0;
+  background: transparent;
+}
+.manual-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.manual-content hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 768px) {
+  .manual-content {
+    font-size: 1rem;
+  }
+  .manual-content h1 {
+    font-size: 1.9rem;
+  }
+  .manual-content h2 {
+    font-size: 1.4rem;
+  }
+}

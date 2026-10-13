@@ -18,6 +18,7 @@ export const PUBLIC_ROUTES = [
   "/presala",
   "/",
   "/403",
+  "/manual",
 ] as const;
 
 /** Prefijos de API publicos (startsWith). */
