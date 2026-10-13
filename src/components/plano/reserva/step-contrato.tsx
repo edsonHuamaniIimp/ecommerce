@@ -3,7 +3,9 @@
 import { useRef } from "react";
 import { Download, FileText, Loader2, PenLine, Upload, X } from "lucide-react";
 import { Button, Input } from "@nrivera-iimp/ui-kit-iimp";
-import { ANEXOS_REQUERIDOS } from "@/lib/shared/constants";
+import { toast } from "sonner";
+import { ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES, ANEXOS_UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { stringUtils } from "@/lib/shared/utils/string";
 
 interface Props {
@@ -46,6 +48,19 @@ export function StepContrato({
   onRemoveRequisito,
 }: Props) {
   const firmadoRef = useRef<HTMLInputElement>(null);
+
+  /** Valida el archivo elegido (formatos y peso visibles en la tarjeta) antes de subirlo. */
+  const validarAnexo = (file: File): boolean => {
+    if (!archivoUtils.extensionPermitida(file.name, ANEXOS_UPLOAD_EXTENSIONES)) {
+      toast.error("Formato no permitido. Adjunta PDF, JPG, PNG o DOCX.");
+      return false;
+    }
+    if (file.size > ANEXOS_UPLOAD_MAX_BYTES) {
+      toast.error(`El archivo supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
+      return false;
+    }
+    return true;
+  };
 
   return (
     <div className="flex flex-col gap-3 pt-3">
@@ -132,11 +147,11 @@ export function StepContrato({
           <input
             ref={firmadoRef}
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            accept={ANEXOS_UPLOAD_EXTENSIONES.map((extension) => `.${extension}`).join(",")}
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) onSubirFirmado(file);
+              if (file && validarAnexo(file)) onSubirFirmado(file);
               e.target.value = "";
             }}
           />
@@ -205,11 +220,11 @@ export function StepContrato({
                         <Input
                           type="file"
                           className="hidden"
-                          accept=".pdf,.jpg,.jpeg,.png,.docx,.doc"
+                          accept={ANEXOS_UPLOAD_EXTENSIONES.map((extension) => `.${extension}`).join(",")}
                           disabled={subiendoRequisito !== null}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) void onAddRequisito(doc.key, file);
+                            if (file && validarAnexo(file)) void onAddRequisito(doc.key, file);
                             e.target.value = "";
                           }}
                         />

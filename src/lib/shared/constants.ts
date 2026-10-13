@@ -1554,6 +1554,14 @@ export const SGC_UPLOAD_MAX_BYTES = 26214400;
 /** Formatos admitidos por el SGC para los documentos. */
 export const SGC_UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "docx", "xlsx", "png", "jpg", "jpeg"] as const;
 
+/** Subida generica de archivos (/api/upload): extensiones admitidas y tamano maximo. */
+export const UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg", "webp", "gif", "json", "txt", "csv"] as const;
+export const UPLOAD_MAX_BYTES = 26214400;
+
+/** Anexos del wizard de reserva (Ficha RUC, Vigencia de Poder, DNI): formatos y tamano visibles al cliente. */
+export const ANEXOS_UPLOAD_EXTENSIONES = ["pdf", "jpg", "jpeg", "png", "docx", "doc"] as const;
+export const ANEXOS_UPLOAD_MAX_BYTES = 10485760;
+
 /** Anexos requeridos por el SGC para la separación de stands. */
 export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
   { key: "ficha-ruc", label: "Ficha RUC (o equivalente, en caso de empresa extranjera)" },
