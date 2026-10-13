@@ -9,6 +9,8 @@ export interface CarritoStandInfo {
   standCode: string;
   pabellonCodigo: string;
   tipoLabel: string | null;
+  /** Precio neto (USD) del stand; null/undefined = no resuelto (estado persistido antiguo). */
+  precio?: number | null;
 }
 
 interface PlanoCarritoState {

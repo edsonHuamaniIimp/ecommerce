@@ -359,6 +359,7 @@ map.set(String(bloqueId), {
       standCode: info?.standCode ?? "",
       pabellonCodigo: planoId,
       tipoLabel: item ? (plano?.blockLabel[item.type]?.label ?? null) : null,
+      precio: info?.precio ?? null,
     };
   }, [linkedMap, items, plano, planoId]);
 
@@ -528,6 +529,14 @@ map.set(String(bloqueId), {
   // (todos los pabellones).
   const totalCarritoCount = totalCarrito(seleccionesCarrito);
   const pabellonesConItems = new Set(entradasCarrito.map((c) => c.pabellonCodigo)).size;
+  /* Total del carrito: precio persistido por item o el resuelto de la fila actual. */
+  const totalCarritoPrecio = useMemo(
+    () => entradasCarrito.reduce(
+      (acc, c) => acc + (c.precio ?? linkedMap.get(c.bloqueId)?.precio ?? 0),
+      0,
+    ),
+    [entradasCarrito, linkedMap],
+  );
   // Plano macro al que se puede volver desde este pabellon (padre registrado o macro global).
   const macroDestino = parentsCarrito[planoId] ?? (macroCodigo && macroCodigo !== planoId ? macroCodigo : null);
   const contenidoPanel = (
@@ -560,6 +569,8 @@ map.set(String(bloqueId), {
             {entradasCarrito.map((c) => {
               const info = linkedMap.get(c.bloqueId);
               const esPlanoActual = c.pabellonCodigo === planoId;
+              /* Precio: el persistido en el carrito (sirve entre pabellones) o el de la fila actual. */
+              const precioItem = c.precio != null ? precioTexto(c.precio) : (info?.medidas ?? null);
               return (
                 <div
                   key={c.bloqueId}
@@ -567,7 +578,7 @@ map.set(String(bloqueId), {
                   onClick={() => { if (info) { setImgFiltro("todas"); setDetailModal(info); } }}
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-bold text-primary">{c.standCode || c.bloqueId}</span>
                       {!esPlanoActual && (
                         <Badge className="pointer-events-none border-transparent bg-info/10 text-[10px] text-info">
@@ -587,8 +598,10 @@ map.set(String(bloqueId), {
                     <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
                       {c.tipoLabel ?? ""}
                       {info?.tipoStand ? ` • ${info.tipoStand}` : ""}
-                      {info?.medidas ? ` • ${info.medidas}` : ""}
                     </p>
+                    {precioItem && (
+                      <p className="mt-1 text-sm font-bold text-gold">{precioItem}</p>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     {!esPlanoActual && (
@@ -620,9 +633,14 @@ map.set(String(bloqueId), {
           </div>
 
           <div className="space-y-2.5 border-t border-border bg-secondary px-4 py-3.5">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
               <span className="font-semibold text-primary">Total</span>
-              <span className="font-bold text-primary">{totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}</span>
+              <div className="text-right">
+                <p className="text-base leading-tight font-extrabold text-gold">{precioTexto(totalCarritoPrecio)}</p>
+                <p className="text-[10px] font-medium text-muted-foreground">
+                  {totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}
+                </p>
+              </div>
             </div>
             {macroDestino && (
               <Button
@@ -659,7 +677,7 @@ map.set(String(bloqueId), {
 
   return (
     <div className="flex h-[calc(100vh-7rem)] w-full flex-col gap-4 lg:flex-row">
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex-[78]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             <h1 className="flex items-center gap-2 text-lg font-bold text-primary">
@@ -853,7 +871,8 @@ map.set(String(bloqueId), {
         </div>
       </section>
 
-      <aside className="hidden w-80 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex">
+      {/* 22% del contenedor (min. 15rem para que el carrito siga usable en pantallas chicas). */}
+      <aside className="hidden flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex lg:min-w-[15rem] lg:flex-[22]">
         {contenidoPanel}
       </aside>
 

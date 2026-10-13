@@ -154,7 +154,7 @@ function MapaDinamicoPageContent() {
   return (
     <main className="flex flex-1 flex-col px-4 py-6 sm:px-6">
       {modalInformativo}
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
+      <div className="mx-auto flex w-[90%] flex-1 flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
           {destinoVolver ? (
             <Button variant="ghost" size="sm" className="h-7 text-xs -ml-2" asChild>
