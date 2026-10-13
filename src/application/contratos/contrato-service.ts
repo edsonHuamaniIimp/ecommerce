@@ -547,10 +547,17 @@ export class ContratoApplicationService {
     return { docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl, nombre: generado.nombre };
   }
 
-  /** Lee la imagen de firma local (`/uploads/*`) o remota (S3). */
+  /** Lee la imagen de firma del storage (`/uploads/*`: S3 o volumen local) o remota. */
   private async leerImagenFirma(url: string): Promise<Buffer> {
     if (url.startsWith("/uploads/")) {
-      return fs.readFileSync(path.join(process.cwd(), "public", url));
+      const archivo = await this.storage.read(url.replace(/^\/uploads\//, "")).catch(() => null);
+      if (archivo) return archivo.bytes;
+      /* Compatibilidad pre-migracion a S3: archivo aun en el volumen local. */
+      try {
+        return fs.readFileSync(path.join(process.cwd(), "public", url));
+      } catch {
+        throw new DomainError("No se pudo leer tu firma digital", API_ERROR_CODES.INTERNAL, 500);
+      }
     }
     const res = await fetch(url);
     if (!res.ok) throw new DomainError("No se pudo leer tu firma digital", API_ERROR_CODES.INTERNAL, 500);

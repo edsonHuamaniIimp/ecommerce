@@ -126,6 +126,7 @@ function build(overrides: { detalle?: Partial<SolicitudRow> } = {}) {
   const gess = { findById: vi.fn() } as unknown as IGessRepository;
   const storage = {
     upload: vi.fn(async (_buf: Buffer, filename: string) => `/uploads/${filename}`),
+    read: vi.fn(async () => null),
   } as unknown as StorageAdapter;
 
   const svc = new ContratoApplicationService(solicitudes, empresas, planos, gess, auth, storage);

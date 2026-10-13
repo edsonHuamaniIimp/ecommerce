@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getStorage } from "@/lib/server/storage";
 
-/** Lee la imagen de la fuente local (`/uploads/*`) o remota (http) para enviarla a servicio-persona. */
+/**
+ * Lee la imagen de la fuente local (`/uploads/*`, volumen EFS o S3) o remota (http)
+ * para enviarla a servicio-persona.
+ */
 export async function leerImagenFuente(url: string): Promise<Buffer | null> {
   try {
     if (url.startsWith("http")) {
@@ -10,7 +14,13 @@ export async function leerImagenFuente(url: string): Promise<Buffer | null> {
       return Buffer.from(await res.arrayBuffer());
     }
     if (url.startsWith("/uploads/")) {
-      return fs.readFileSync(path.join(process.cwd(), "public", url));
+      /* 1) Volumen local (legado/EFS); 2) storage (S3). */
+      try {
+        return fs.readFileSync(path.join(process.cwd(), "public", url));
+      } catch {
+        const archivo = await getStorage().read(url.replace(/^\/uploads\//, ""));
+        return archivo?.bytes ?? null;
+      }
     }
     return null;
   } catch {

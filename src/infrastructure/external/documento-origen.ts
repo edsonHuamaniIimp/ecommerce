@@ -1,11 +1,12 @@
 import { readFile } from "fs/promises";
 import { basename, resolve, sep } from "path";
+import { getStorage } from "@/lib/server/storage";
 import type { DocumentoOrigenContenido, IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import { mimeDesdeNombre } from "@/lib/shared/utils/sgc";
 
 const UPLOADS_PREFIX = "/uploads/";
 
-/** Lee documentos de `public/uploads` (local) o de una URL publica. */
+/** Lee documentos del storage (`/uploads/*`: S3 o volumen local) o de una URL publica. */
 export class DocumentoOrigen implements IDocumentoOrigen {
   async leer(url: string): Promise<DocumentoOrigenContenido> {
     if (url.startsWith(UPLOADS_PREFIX)) return this.leerLocal(url);
@@ -14,6 +15,12 @@ export class DocumentoOrigen implements IDocumentoOrigen {
   }
 
   private async leerLocal(url: string): Promise<DocumentoOrigenContenido> {
+    const clave = url.slice(UPLOADS_PREFIX.length);
+    const desdeStorage = await getStorage().read(clave).catch(() => null);
+    if (desdeStorage) {
+      return { bytes: new Uint8Array(desdeStorage.bytes), mimeType: mimeDesdeNombre(url), fileName: basename(url) };
+    }
+    /* Compatibilidad pre-migracion a S3: archivo aun en el volumen local. */
     const base = resolve(process.cwd(), "public", "uploads");
     const filepath = resolve(process.cwd(), "public", url.replace(/^\//, ""));
     if (filepath !== base && !filepath.startsWith(base + sep)) {

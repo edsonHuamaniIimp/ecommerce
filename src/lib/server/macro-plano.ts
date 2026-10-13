@@ -3,6 +3,7 @@ import 'server-only';
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { getStorage } from "@/lib/server/storage";
 import { construirSvgMacro } from "@/lib/shared/utils/macro-plano-svg";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
 
@@ -18,8 +19,8 @@ import type { PlanoEntity } from "@/domain/models/plano-entities";
 const ANCHO_SALIDA = 2200;
 const MAX_FONDOS_CACHE = 3;
 const TIMEOUT_FONDO_MS = 35_000;
-/* En produccion public/uploads es el EFS: la cache persiste entre tasks y deploys. */
-const CACHE_DIR = path.join(process.cwd(), "public", "uploads", ".cache-macro");
+/* Cache del fondo por macro+updatedAt: persiste via el storage (S3 en prod; EFS/filesystem en local). */
+const CACHE_PREFIJO = "cache-macro";
 
 const fondosCache = new Map<string, { usado: number; base: Buffer }>();
 
@@ -55,6 +56,10 @@ async function leerArchivo(url: string): Promise<Buffer> {
     if (!res.ok) throw new Error(`No se pudo leer ${url}: HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
+  if (url.startsWith("/uploads/")) {
+    const archivo = await getStorage().read(url.replace(/^\/uploads\//, "")).catch(() => null);
+    if (archivo) return archivo.bytes;
+  }
   return await fs.promises.readFile(path.join(process.cwd(), "public", url.replace(/^\//, "")));
 }
 
@@ -77,8 +82,8 @@ async function pdfAPng(pdf: Buffer): Promise<Buffer> {
   return canvas.toBuffer("image/png");
 }
 
-function rutaCache(key: string): string {
-  return path.join(CACHE_DIR, `${key.replace(/[^A-Za-z0-9._-]/g, "_")}.png`);
+function claveCache(key: string): string {
+  return `${CACHE_PREFIJO}/${key.replace(/[^A-Za-z0-9._-]/g, "_")}.png`;
 }
 
 function guardarEnMemoria(key: string, base: Buffer): void {
@@ -89,20 +94,22 @@ function guardarEnMemoria(key: string, base: Buffer): void {
   }
 }
 
-async function leerDeDisco(ruta: string): Promise<Buffer | null> {
+async function leerDeCache(key: string): Promise<Buffer | null> {
+  const archivo = await getStorage().read(claveCache(key)).catch(() => null);
+  if (archivo) return archivo.bytes;
+  /* Compatibilidad pre-migracion a S3: archivo aun en el volumen local. */
   try {
-    return await fs.promises.readFile(ruta);
+    return await fs.promises.readFile(path.join(process.cwd(), "public", "uploads", claveCache(key)));
   } catch {
     return null;
   }
 }
 
-async function guardarEnDisco(ruta: string, base: Buffer): Promise<void> {
+async function guardarEnCache(key: string, base: Buffer): Promise<void> {
   try {
-    await fs.promises.mkdir(CACHE_DIR, { recursive: true });
-    await fs.promises.writeFile(ruta, base);
+    await getStorage().upload(base, claveCache(key), "image/png");
   } catch {
-    /* sin disco persistente: solo cache en memoria */
+    /* sin storage persistente: solo cache en memoria */
   }
 }
 
@@ -129,8 +136,7 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
     cacheado.usado = Date.now();
     return cacheado.base;
   }
-  const ruta = rutaCache(key);
-  const enDisco = await leerDeDisco(ruta);
+  const enDisco = await leerDeCache(key);
   if (enDisco) {
     guardarEnMemoria(key, enDisco);
     return enDisco;
@@ -139,7 +145,7 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
   const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo) : crudo;
   const base = await sharp(png).resize({ width: ANCHO_SALIDA, withoutEnlargement: true }).png().toBuffer();
   guardarEnMemoria(key, base);
-  await guardarEnDisco(ruta, base);
+  await guardarEnCache(key, base);
   return base;
 }
 
