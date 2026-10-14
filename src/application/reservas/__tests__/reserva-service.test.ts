@@ -13,12 +13,28 @@ import { ReservaApplicationService } from "../reserva-service";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 
-/** Repositorio de auth falso (solo se usa para resolver el idioma del correo). */
-function authRepoFalso(): IAuthRepository {
-  return { findPerfilByEmail: vi.fn(async () => null) } as unknown as IAuthRepository;
+/** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
+function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null } | null = null): IAuthRepository {
+  return {
+    findPerfilByEmail: vi.fn(async () =>
+      perfil
+        ? { empresa: { ruc: perfil.ruc ?? "", razonSocial: perfil.razonSocial ?? "" }, nombreEmpresa: perfil.razonSocial ?? null }
+        : null,
+    ),
+  } as unknown as IAuthRepository;
 }
 
-function gessRepoCon(stands: Array<{ id: string; standCode: string; eventoId?: string | null; estado?: string | null }>) {
+function gessRepoCon(
+  stands: Array<{
+    id: string;
+    standCode: string;
+    eventoId?: string | null;
+    estado?: string | null;
+    preReservaRuc?: string | null;
+    preReservaSie?: string | null;
+    preReservaRazonSocial?: string | null;
+  }>,
+) {
   const findById = vi.fn(async (id: string) => {
     const found = stands.find((s) => s.id === id);
     if (!found) return null;
@@ -35,6 +51,9 @@ function gessRepoCon(stands: Array<{ id: string; standCode: string; eventoId?: s
       email: null,
       userId: null,
       rawData: null,
+      preReservaRuc: found.preReservaRuc ?? null,
+      preReservaSie: found.preReservaSie ?? null,
+      preReservaRazonSocial: found.preReservaRazonSocial ?? null,
     };
   });
   const update = vi.fn(async () => ({}));
@@ -86,5 +105,47 @@ describe("ReservaApplicationService — validacion de evento", () => {
     const res = await svc.crear({ standIds: ["g1", "g2"], eventoId: "evt-1" });
     expect(res.ok).toBe(false);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("permite a la empresa dueña reservar su pre-reserva", async () => {
+    const { repo, update } = gessRepoCon([
+      {
+        id: "g1",
+        standCode: "A-1",
+        eventoId: "evt-1",
+        estado: "pre_reservado",
+        preReservaRuc: "20123456789",
+        preReservaRazonSocial: "Minera Cordillera S.A.C.",
+      },
+    ]);
+    const svc = new ReservaApplicationService(
+      repo,
+      undefined,
+      authRepoFalso({ ruc: "20123456789", razonSocial: "Minera Cordillera S.A.C." }),
+    );
+    const res = await svc.crear({ standIds: ["g1"], eventoId: "evt-1", userEmail: "duena@minera.pe" });
+    expect(res.ok).toBe(true);
+    expect(update).toHaveBeenCalledWith("g1", expect.objectContaining({ estado: "en_evaluacion" }));
+  });
+
+  it("rechaza a terceros reservar un stand pre-reservado", async () => {
+    const { repo, update } = gessRepoCon([
+      { id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789" },
+    ]);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso({ ruc: "20999999999" }));
+    const res = await svc.crear({ standIds: ["g1"], eventoId: "evt-1", userEmail: "tercero@otra.pe" });
+    expect(res.ok).toBe(false);
+    expect(res.conflicted).toContain("A-1 esta pre-reservado para otra empresa");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la pre-reserva si el solicitante no tiene empresa identificada", async () => {
+    const { repo } = gessRepoCon([
+      { id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789" },
+    ]);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
+    const res = await svc.crear({ standIds: ["g1"], eventoId: "evt-1" });
+    expect(res.ok).toBe(false);
+    expect(res.conflicted).toContain("A-1 esta pre-reservado para otra empresa");
   });
 });

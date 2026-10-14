@@ -2,6 +2,8 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
+import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
@@ -44,6 +46,15 @@ export class ReservaApplicationService {
     const validos: Array<{ dbId: string; standCode: string }> = [];
     let eventoComun: string | null = request.eventoId ?? null;
 
+    /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueño). */
+    const perfil = request.userEmail
+      ? await this.authRepo.findPerfilByEmail(request.userEmail).catch(() => null)
+      : null;
+    const viewer: EmpresaViewer = {
+      ruc: perfil?.empresa?.ruc ?? null,
+      razonSocial: perfil?.empresa?.razonSocial ?? perfil?.nombreEmpresa ?? null,
+    };
+
     for (const dbId of idsUnicos) {
       const stand = await this.gessRepo.findById(dbId);
       if (!stand) {
@@ -62,6 +73,11 @@ export class ReservaApplicationService {
       if (stand.estado && BLOQUEADOS.includes(stand.estado)) {
         const label = stand.estado === ESTADOS_STAND.RESERVADO || stand.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "Reservado" : "En evaluacion";
         conflicted.push(`${stand.standCode} ya esta en estado ${label}`);
+        continue;
+      }
+      /* Pre-reserva: solo la empresa dueña (RUC/SIE/razon social) puede reservarla. */
+      if (stand.estado === ESTADOS_STAND.PRE_RESERVADO && !esEmpresaDuenaPreReserva(stand, viewer)) {
+        conflicted.push(`${stand.standCode} esta pre-reservado para otra empresa`);
         continue;
       }
       validos.push({ dbId: stand.id, standCode: stand.standCode });

@@ -7,6 +7,8 @@ import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
 import { precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
 import { claveTipoStand } from "@/lib/shared/utils/tipo-stand";
+import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
+import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 
 const TIPO_STAND_POR_NOMBRE: Record<string, string> = {
   Preferencial: "PREFERENCIAL",
@@ -50,7 +52,11 @@ export class GessApplicationService {
     return { ...row, tipoImagen: clave ? (porTipo.get(clave) ?? null) : null };
   }
 
-  async listar(eventoId: string, params: { page: number; perPage: number; search?: string; estado?: string }) {
+  async listar(
+    eventoId: string,
+    params: { page: number; perPage: number; search?: string; estado?: string },
+    viewer?: EmpresaViewer | null,
+  ) {
     const result = await this.repo.findAllPaginated(eventoId, params);
 
     /*
@@ -75,6 +81,27 @@ export class GessApplicationService {
     result.data = result.data.map((d) => this.conTipoImagen(d, porTipo));
     /* Logo de pre-reserva: se pinta igual que el de una reserva en el plano. */
     result.data = result.data.map((d) => (d.empresaLogo ? d : { ...d, empresaLogo: d.preReservaLogoUrl ?? null }));
+    /* Vista efectiva de la empresa dueña: su pre-reserva se muestra como stand
+     * disponible y se enmascara el snapshot (modelo "empresa dueña"). El staff
+     * no recibe `viewer`, asi que su vista no cambia. */
+    if (viewer && (viewer.ruc || viewer.razonSocial || viewer.sieCode)) {
+      result.data = result.data.map((d) =>
+        d.estado === ESTADOS_STAND.PRE_RESERVADO && esEmpresaDuenaPreReserva(d, viewer)
+          ? {
+              ...d,
+              estado: ESTADOS_STAND.DISPONIBLE,
+              empresa: null,
+              empresaLogo: null,
+              preReservaRazonSocial: null,
+              preReservaTitulo: null,
+              preReservaRuc: null,
+              preReservaSie: null,
+              preReservaLogoUrl: null,
+              preReservaNota: null,
+            }
+          : d,
+      );
+    }
     return result;
   }
 

@@ -56,3 +56,42 @@ export function estadoComercialStand(
   }
   return ESTADOS_STAND.DISPONIBLE;
 }
+
+/** Identidad minima de la empresa que mira un stand (para pre-reservas). */
+export interface EmpresaViewer {
+  ruc?: string | null;
+  sieCode?: string | null;
+  razonSocial?: string | null;
+}
+
+/** Normaliza texto para comparar (mayusculas, sin tildes, espacios simples). */
+function normalizarTexto(valor: string | null | undefined): string {
+  return (valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * True si la empresa espectadora es la **dueña de la pre-reserva** del stand:
+ * coincide por RUC (primario), SIE o razón social normalizada. Solo compara el
+ * snapshot; el llamador decide según el estado del stand.
+ */
+export function esEmpresaDuenaPreReserva(
+  stand: { preReservaRuc?: string | null; preReservaSie?: string | null; preReservaRazonSocial?: string | null },
+  viewer: EmpresaViewer,
+): boolean {
+  const rucStand = normalizarTexto(stand.preReservaRuc);
+  const rucViewer = normalizarTexto(viewer.ruc);
+  if (rucStand && rucViewer && rucStand === rucViewer) return true;
+
+  const sieStand = normalizarTexto(stand.preReservaSie);
+  const sieViewer = normalizarTexto(viewer.sieCode);
+  if (sieStand && sieViewer && sieStand === sieViewer) return true;
+
+  const rsStand = normalizarTexto(stand.preReservaRazonSocial);
+  const rsViewer = normalizarTexto(viewer.razonSocial);
+  return Boolean(rsStand && rsViewer && rsStand === rsViewer);
+}

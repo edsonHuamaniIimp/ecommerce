@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS, ROLES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { updateGessStandSchema, preReservaSchema, liberarPreReservaSchema, actualizarPreReservaSchema } from "@/validators/gess.validator";
 import { guardarTipoStandImagenSchema } from "@/validators/tipos-stand.validator";
+import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 
 /** Guarda de escritura de stands: sesion + `stands:manage` (el admin pasa por `admin:full`). */
 async function autorizarEscrituraStands(): Promise<NextResponse | null> {
@@ -48,7 +49,19 @@ export const gessController = {
     const search = searchParams.get("search") ?? undefined;
     const estado = searchParams.get("estado") ?? undefined;
 
-    const result = await services.gess.listar(eventoId, { page, perPage, search, estado });
+    /* Sesion opcional: si es una empresa cliente, se resuelve para la vista efectiva
+     * de pre-reservas propias (su stand pre-reservado se muestra disponible). */
+    const session = await getSession();
+    let viewer: EmpresaViewer | null = null;
+    if (session?.roles.includes(ROLES.CLIENTE)) {
+      const perfil = await services.auth.getPerfil().catch(() => null);
+      viewer = {
+        ruc: perfil?.empresa?.ruc ?? null,
+        razonSocial: perfil?.empresa?.razonSocial ?? perfil?.nombreEmpresa ?? null,
+      };
+    }
+
+    const result = await services.gess.listar(eventoId, { page, perPage, search, estado }, viewer);
     return NextResponse.json({
       data: result.data,
       pagination: { page: result.page, per_page: result.perPage, total: result.total, total_pages: result.totalPages },
