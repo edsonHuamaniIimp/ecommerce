@@ -426,6 +426,7 @@ map.set(String(bloqueId), {
     subiendoFirmado,
     subirContratoFirmado,
     firmaPerfilUrl,
+    subirFirmaPerfil,
     firmandoDigital,
     firmarDigitalmente,
   } = useReservaForm(idsGlobales, linkedMap);
@@ -1133,6 +1134,7 @@ map.set(String(bloqueId), {
         subiendoFirmado={subiendoFirmado}
         onSubirFirmado={(file) => { void subirContratoFirmado(file); }}
         firmaPerfilUrl={firmaPerfilUrl}
+        onSubirFirmaPerfil={subirFirmaPerfil}
         firmandoDigital={firmandoDigital}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {

@@ -1,8 +1,9 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -201,6 +202,19 @@ export class SolicitudesApplicationService {
       if (!ANEXOS_REQUERIDOS.some((a) => a.key === params.requisito)) {
         throw new DomainError(
           `Requisito de anexo invalido: ${params.requisito}`,
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      /*
+       * Formatos por requisito (RF-13): Ficha RUC y Vigencia de Poder solo PDF;
+       * DNI o Pasaporte tambien acepta imagen (PNG/JPG). La regla vive en
+       * constantes y se valida tanto en el cliente como aqui (backend).
+       */
+      const extensiones = extensionesPermitidasAnexo(params.requisito);
+      if (!archivoUtils.extensionPermitida(params.url, extensiones)) {
+        throw new DomainError(
+          `Formato no permitido: el anexo solo admite ${extensiones.map((e) => e.toUpperCase()).join(", ")}`,
           API_ERROR_CODES.VALIDATION,
           400,
         );

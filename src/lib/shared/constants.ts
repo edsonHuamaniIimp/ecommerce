@@ -1613,22 +1613,64 @@ export const SGC_UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "docx", "xlsx", "png", "jpg
 export const UPLOAD_ALLOWED_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg", "webp", "gif", "json", "txt", "csv"] as const;
 export const UPLOAD_MAX_BYTES = 26214400;
 
-/** Anexos del wizard de reserva (Ficha RUC, Vigencia de Poder, DNI): formatos y tamano visibles al cliente. */
-export const ANEXOS_UPLOAD_EXTENSIONES = ["pdf", "jpg", "jpeg", "png", "docx", "doc"] as const;
+/** Formatos del contrato firmado del cliente (wizard de reserva) y tope de peso de los anexos. */
+export const CONTRATO_FIRMADO_EXTENSIONES = ["pdf"] as const;
 export const ANEXOS_UPLOAD_MAX_BYTES = 10485760;
+
+/** Firma digital del usuario (Perfil y wizard de reserva): imagen PNG o JPG. */
+export const FIRMA_PERFIL_EXTENSIONES = ["png", "jpg"] as const;
+export const FIRMA_PERFIL_MAX_BYTES = 10485760;
+
+/** Claves de los anexos requeridos; tambien son la clave de `docsRequisitos` en el wizard. */
+export const ANEXOS_KEYS = {
+  FICHA_RUC: "ficha-ruc",
+  VIGENCIA_PODER: "vigencia-poder",
+  DNI_REPRESENTANTE: "dni-representante",
+} as const;
+export type AnexoKey = (typeof ANEXOS_KEYS)[keyof typeof ANEXOS_KEYS];
+
+/**
+ * Formatos permitidos por requisito (RF-13): la Ficha RUC y la Vigencia de Poder
+ * son documentos escaneados en PDF; el DNI o Pasaporte tambien acepta imagen (PNG/JPG).
+ */
+export const ANEXOS_UPLOAD_EXTENSIONES_POR_REQUISITO: Record<string, readonly string[]> = {
+  [ANEXOS_KEYS.FICHA_RUC]: ["pdf"],
+  [ANEXOS_KEYS.VIGENCIA_PODER]: ["pdf"],
+  [ANEXOS_KEYS.DNI_REPRESENTANTE]: ["pdf", "png", "jpg"],
+};
+
+/** Formatos de los anexos sin requisito ("otros documentos" del SGC). */
+export const ANEXOS_OTROS_EXTENSIONES = ["pdf", "jpg", "jpeg", "png", "docx"] as const;
+
+/** Union de todos los formatos aceptados por los anexos requeridos (atributo `accept` por defecto). */
+export const ANEXOS_UPLOAD_EXTENSIONES_TODAS: readonly string[] = [
+  ...new Set(Object.values(ANEXOS_UPLOAD_EXTENSIONES_POR_REQUISITO).flat()),
+];
+
+/** Fallback seguro (el mas restrictivo) si un requisito no tiene lista propia. */
+export const ANEXOS_UPLOAD_EXTENSIONES_DEFAULT = ["pdf"] as const;
+
+/**
+ * Formatos admitidos para un requisito de anexo. Sin requisito devuelve los de
+ * "otros documentos"; con un requisito desconocido, el fallback mas restrictivo.
+ */
+export function extensionesPermitidasAnexo(requisito: string | null | undefined): readonly string[] {
+  if (!requisito) return ANEXOS_OTROS_EXTENSIONES;
+  return ANEXOS_UPLOAD_EXTENSIONES_POR_REQUISITO[requisito] ?? ANEXOS_UPLOAD_EXTENSIONES_DEFAULT;
+}
 
 /** Anexos requeridos por el SGC para la separación de stands. */
 export const ANEXOS_REQUERIDOS: { key: string; label: string }[] = [
-  { key: "ficha-ruc", label: "Ficha RUC (o equivalente, en caso de empresa extranjera)" },
-  { key: "vigencia-poder", label: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)" },
-  { key: "dni-representante", label: "DNI o Pasaporte del Representante Legal" },
+  { key: ANEXOS_KEYS.FICHA_RUC, label: "Ficha RUC (o equivalente, en caso de empresa extranjera)" },
+  { key: ANEXOS_KEYS.VIGENCIA_PODER, label: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)" },
+  { key: ANEXOS_KEYS.DNI_REPRESENTANTE, label: "DNI o Pasaporte del Representante Legal" },
 ];
 
 /**
  * Anexos que **bloquean** el envío a revisión Legal (SGC) si faltan
  * (decisión RF-13). La Ficha RUC se exige pero no bloquea.
  */
-export const ANEXOS_BLOQUEANTES: string[] = ["vigencia-poder", "dni-representante"];
+export const ANEXOS_BLOQUEANTES: string[] = [ANEXOS_KEYS.VIGENCIA_PODER, ANEXOS_KEYS.DNI_REPRESENTANTE];
 
 /**
  * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:

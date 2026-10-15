@@ -59,6 +59,8 @@ interface Props {
   onSubirFirmado: (file: File) => void;
   /** Firma digital del perfil (RF-12). */
   firmaPerfilUrl: string | null;
+  /** Sube la firma del usuario sin salir del wizard; queda asignada a su perfil. */
+  onSubirFirmaPerfil: (file: File) => Promise<void>;
   firmandoDigital: boolean;
   onFirmarDigital: () => void;
 }
@@ -83,7 +85,7 @@ export function ReservaModal(props: Props) {
     aceptaRepresentante, onAceptaRepresentanteChange,
     cuotasPago, onCuotasPagoChange, contratoDatos, onContratoDatosChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
-    firmaPerfilUrl, firmandoDigital, onFirmarDigital,
+    firmaPerfilUrl, onSubirFirmaPerfil, firmandoDigital, onFirmarDigital,
   } = props;
 
   const isLast = step === RESERVA_STEPS.CONFIRMACION;
@@ -164,6 +166,7 @@ export function ReservaModal(props: Props) {
                   subiendoFirmado={subiendoFirmado}
                   onSubirFirmado={onSubirFirmado}
                   firmaPerfilUrl={firmaPerfilUrl}
+                  onSubirFirmaPerfil={onSubirFirmaPerfil}
                   firmandoDigital={firmandoDigital}
                   onFirmarDigital={onFirmarDigital}
                   generandoContrato={generandoContrato}

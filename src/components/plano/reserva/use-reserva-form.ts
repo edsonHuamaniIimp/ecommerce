@@ -228,6 +228,13 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     });
   };
 
+  /** Sube la firma digital desde el wizard: mismo efecto que en /dashboard/perfil. */
+  const subirFirmaPerfil = async (file: File): Promise<void> => {
+    const url = await handleUpload(file);
+    await perfilService.update({ firmaUrl: url });
+    setFirmaPerfilUrl(url);
+  };
+
   /** Crea la reserva (bloquea los stands) y devuelve el id de la solicitud ("" si falla). */
   const crearReserva = useCallback(async (): Promise<string> => {
     const standIds = selectedIds
@@ -454,6 +461,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     subiendoFirmado,
     subirContratoFirmado,
     firmaPerfilUrl,
+    subirFirmaPerfil,
     firmandoDigital,
     firmarDigitalmente,
   };

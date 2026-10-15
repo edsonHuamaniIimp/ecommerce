@@ -5,7 +5,7 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
@@ -231,5 +231,83 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(repo.crearAlertaRol).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la Ficha RUC en un formato distinto de PDF (regla backend)", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/ficha.png",
+        nombre: "ficha.png",
+        userSub: "user-1",
+        userEmail: "cliente@iimp.org.pe",
+        userPermissions: [],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: ANEXOS_KEYS.FICHA_RUC,
+      }),
+    ).rejects.toThrow(/PDF/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la Vigencia de Poder en imagen (solo PDF)", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/vigencia.jpg",
+        nombre: "vigencia.jpg",
+        userSub: "user-1",
+        userEmail: "cliente@iimp.org.pe",
+        userPermissions: [],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: ANEXOS_KEYS.VIGENCIA_PODER,
+      }),
+    ).rejects.toThrow(/PDF/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("permite el DNI o Pasaporte en PNG (imagen del documento)", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/dni.png",
+      nombre: "dni.png",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      requisito: ANEXOS_KEYS.DNI_REPRESENTANTE,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
+  });
+
+  it("permite otros documentos (anexo sin requisito) en otros formatos", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/otro.png",
+      nombre: "otro.png",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      requisito: null,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
   });
 });

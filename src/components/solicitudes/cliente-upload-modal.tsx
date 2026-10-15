@@ -5,7 +5,8 @@ import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from 
 import { CheckCircle2, FileText, Upload, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {
@@ -33,6 +34,18 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const requisitoRef = useRef<string | null>(null);
 
   const handleUpload = async (file: File) => {
+    /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
+    if (!esContrato) {
+      const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
+      if (!archivoUtils.extensionPermitida(file.name, permitidas)) {
+        setError(`Formato no permitido. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
+        return;
+      }
+      if (file.size > ANEXOS_UPLOAD_MAX_BYTES) {
+        setError(`El archivo supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
+        return;
+      }
+    }
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
@@ -46,7 +59,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
   const abrirSelector = (requisito: string | null) => {
     requisitoRef.current = requisito;
-    fileRef.current?.click();
+    const input = fileRef.current;
+    if (!input) return;
+    const extensiones = esContrato ? ANEXOS_OTROS_EXTENSIONES : extensionesPermitidasAnexo(requisito);
+    input.accept = extensiones.map((extension) => `.${extension}`).join(",");
+    input.click();
   };
 
   const handleRemove = (idx: number) => {
@@ -198,7 +215,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               ))}
             </div>
           )}
-          <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={(e) => {
+          <input ref={fileRef} type="file" className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) handleUpload(file);
             e.target.value = "";
