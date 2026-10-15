@@ -302,6 +302,14 @@ export interface SgcExpedienteEntity {
   lastError: string | null;
   /** Bypass admin: aprobado localmente; el sync-on-read no debe revertir el estado. */
   bypassAprobado?: boolean;
+  /** Ultima devolucion: `true` = exige version nueva del principal (subsanable). */
+  devolucionRequiereCambio?: boolean | null;
+  /** Motivo (libre) de la ultima devolucion (`data.reason` del webhook). */
+  devolucionMotivo?: string | null;
+  /** Etapa destino de la devolucion (`null` = origen). */
+  devolucionDestinoStepId?: string | null;
+  /** Estrategia: `return-to-sender` | `restart-forward`. */
+  devolucionEstrategia?: string | null;
 }
 
 export interface SgcWebhookResource {

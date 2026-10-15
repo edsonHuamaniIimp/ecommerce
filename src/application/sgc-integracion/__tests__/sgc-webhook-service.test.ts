@@ -180,9 +180,11 @@ describe("SgcWebhookApplicationService.procesar", () => {
         empresa: "Minera Cordillera S.A.C.",
         email: "cliente@minera.pe",
         userId: "user-1",
+        estado: "aprobado",
         revisiones: [{ area: "asociado", estado: "aprobado", comentario: null }],
       }),
       findNombreUsuario: vi.fn().mockResolvedValue("Jorge Quispe"),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
     } as unknown as ISolicitudesRepository;
     const auth = { findPerfilByEmail: vi.fn().mockResolvedValue({ idioma: "en" }) } as unknown as IAuthRepository;
     const svc = build(repo, sgcRepo, CONFIG, solicitudes, auth);
@@ -193,6 +195,166 @@ describe("SgcWebhookApplicationService.procesar", () => {
 
     expect(vi.mocked(enviarEmailPlantilla)).toHaveBeenCalledWith(
       expect.objectContaining({ to: "cliente@minera.pe", plantilla: "revision-resultado", idioma: "en" }),
+    );
+  });
+  it("deberia generar la orden de pago automaticamente cuando el SGC aprueba (activo)", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "aprobado" }),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
+  });
+  it("deberia no regenerar la orden de pago si la solicitud ya esta pendiente de pago o pagada", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "pendiente_pago" }),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+  });
+  it("deberia no generar orden de pago cuando la aprobacion cierra sin activar el contrato", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "en_proceso" }),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "finalized" } }),
+    );
+
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+  });
+  it("deberia no repetir la orden de pago si el expediente ya estaba Vigente", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    vi.mocked(sgcRepo.findExpedientePorContractId).mockResolvedValue({
+      ...expediente(),
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+    });
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "aprobado" }),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+  });
+  it("deberia seguir procesando el webhook si la orden de pago falla (best-effort)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "aprobado" }),
+      marcarOrdenPago: vi.fn().mockRejectedValue(new Error("db caida")),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    const r = await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(r.recibido).toBe(true);
+    expect(repo.marcarProcesado).toHaveBeenCalledWith("evt-1", null);
+    spy.mockRestore();
+  });
+  it("deberia marcar observado y guardar datos cuando la devolucion exige cambio documental", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const svc = build(repo, sgcRepo);
+
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_RETURNED,
+        data: {
+          reason: "Falta el anexo de garantias.",
+          requiresDocumentChange: true,
+          destinationStepId: null,
+          strategy: "return-to-sender",
+          round: 1,
+        },
+      }),
+    );
+
+    expect(sgcRepo.actualizarExpediente).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        devolucionRequiereCambio: true,
+        devolucionMotivo: "Falta el anexo de garantias.",
+        devolucionDestinoStepId: null,
+        devolucionEstrategia: "return-to-sender",
+      }),
+    );
+  });
+  it("deberia NO marcar observado cuando la devolucion es validacion interna (sin cambio documental)", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const svc = build(repo, sgcRepo);
+
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_RETURNED,
+        data: {
+          reason: "Validar monto con el area.",
+          requiresDocumentChange: false,
+          destinationStepId: "step-9",
+          strategy: "restart-forward",
+          round: 1,
+        },
+      }),
+    );
+
+    const cambios = vi.mocked(sgcRepo.actualizarExpediente).mock.calls[0]?.[1];
+    expect(cambios?.lifecycleStatus).toBeUndefined();
+    expect(cambios).toEqual(
+      expect.objectContaining({
+        devolucionRequiereCambio: false,
+        devolucionMotivo: "Validar monto con el area.",
+        devolucionDestinoStepId: "step-9",
+        devolucionEstrategia: "restart-forward",
+      }),
+    );
+  });
+  it("deberia tratar como devolucion con cambio cuando el webhook no trae requiresDocumentChange (legado)", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const svc = build(repo, sgcRepo);
+
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_RETURNED,
+        data: { reason: "Devolucion sin el campo nuevo", round: 1 },
+      }),
+    );
+
+    expect(sgcRepo.actualizarExpediente).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        devolucionRequiereCambio: true,
+      }),
     );
   });
   it("deberia ignorar un evento sin eventId", async () => {

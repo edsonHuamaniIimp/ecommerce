@@ -8,6 +8,7 @@ import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 
 const MAX_ERROR_LENGTH = 500;
 
@@ -74,9 +75,19 @@ export class SgcWebhookApplicationService {
         }
         break;
       }
-      case SGC_EVENT_TYPES.WORKFLOW_RETURNED:
-        cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.OBSERVED;
+      case SGC_EVENT_TYPES.WORKFLOW_RETURNED: {
+        /* Guia §8: no toda devolucion exige accion del cliente. `requiresDocumentChange`
+         * `true` = el tramite vuelve a elaboracion (subsanable por el cliente); `false` =
+         * validacion interna de la misma version (no se pide correccion). Campo ausente
+         * = comportamiento legado (se trata como devolucion con cambio). */
+        const requiereCambio = data.requiresDocumentChange !== false;
+        cambios.devolucionRequiereCambio = requiereCambio;
+        cambios.devolucionMotivo = textoONull(data.reason, 500);
+        cambios.devolucionDestinoStepId = textoONull(data.destinationStepId, 64);
+        cambios.devolucionEstrategia = textoONull(data.strategy, 30);
+        if (requiereCambio) cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.OBSERVED;
         break;
+      }
       case SGC_EVENT_TYPES.WORKFLOW_APPROVED:
         cambios.lifecycleStatus =
           data.finalization === SGC_FINALIZATION.ACTIVE
@@ -101,6 +112,10 @@ export class SgcWebhookApplicationService {
 
     await this.sgcRepo.actualizarExpediente(expediente.id, cambios);
     if (aprobadoAhora) await this.notificarAprobacion(expediente.solicitudId);
+    /* Aprobado el contrato (Vigente), la orden de facturacion se genera sola. */
+    if (aprobadoAhora && this.solicitudes) {
+      await habilitarOrdenPagoAutomatica(this.solicitudes, expediente.solicitudId);
+    }
   }
 
   /** Correo "resultado de revision" al cliente cuando Legal (SGC) aprueba. Best-effort. */
@@ -129,4 +144,11 @@ export class SgcWebhookApplicationService {
       /* best-effort: un fallo de correo no revierte la aprobacion del SGC */
     }
   }
+}
+
+/** Texto recortado a `max` caracteres; `null` si no es string o viene vacio. */
+function textoONull(valor: unknown, max: number): string | null {
+  if (typeof valor !== "string") return null;
+  const texto = valor.trim();
+  return texto ? texto.slice(0, max) : null;
 }

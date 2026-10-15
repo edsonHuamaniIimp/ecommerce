@@ -8,7 +8,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { isStepDatosCompleto } from "@/lib/shared/utils/form-validator";
+import { isStepDatosCompleto, isValidTelefono, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
 import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, porcentajesValidos } from "@/lib/shared/utils/cuotas";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
@@ -52,17 +52,29 @@ function emptyContratoDatos(): DatosContratoForm {
 }
 
 /**
+ * Telefono normalizado solo si es valido (9 digitos empezando en 9). La fuente puede
+ * traerlo formateado o incompleto (ej. "914-536-27"); en ese caso no se prellena para
+ * no bloquear el paso 1.
+ */
+function telefonoValidoO(value: string | null | undefined): string | null {
+  const digits = onlyPhoneDigits(String(value ?? ""));
+  return isValidTelefono(digits) ? digits : null;
+}
+
+/**
  * Completa los datos comerciales con la empresa fiscal vinculada al usuario
  * (perfil), sin pisar lo que el usuario ya escribio o el borrador guardado.
  */
 function prefillEmpresa(prev: FormDatos, empresa: PerfilDTO["empresa"] | null | undefined): FormDatos {
   if (!empresa) return prev;
+  /* Telefono: el de la empresa si es valido; si no, el celular del representante. */
+  const telefono = telefonoValidoO(empresa.telefono) ?? telefonoValidoO(empresa.representanteCelular) ?? "";
   return {
     razonSocial: prev.razonSocial || empresa.razonSocial || "",
     tipoDocumento: prev.tipoDocumento || (empresa.ruc ? TIPOS_DOCUMENTO.RUC : ""),
     numeroDocumento: prev.numeroDocumento || empresa.ruc || "",
     direccion: prev.direccion || empresa.direccionFiscal || "",
-    telefono: prev.telefono || empresa.telefono || "",
+    telefono: prev.telefono || telefono,
     contacto: prev.contacto || empresa.representanteLegalNombre || "",
     email: prev.email || empresa.emailContacto || "",
     tipoComprobante: prev.tipoComprobante || (empresa.ruc ? TIPOS_COMPROBANTE.FACTURA : ""),

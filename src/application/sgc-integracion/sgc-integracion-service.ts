@@ -18,6 +18,7 @@ import {
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_RESEND_PREFIX,
   SGC_MOTIVO_CARGA_INICIAL,
+  SGC_RECONCILIAR_MAX_POR_CORRIDA,
   SGC_SUBSANACION_MOTIVO,
   SGC_LIFECYCLE_STATUSES,
   CATEGORIAS_DOCUMENTO,
@@ -28,6 +29,7 @@ import { construirIdempotencyKey, extraerDocumentosLegacy, sha256Hex } from "@/l
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
+import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 
 export interface SgcIntegracionConfig {
   enabled: boolean;
@@ -70,6 +72,8 @@ export class SgcIntegracionApplicationService {
       lastSyncedAt: new Date(),
     });
     console.warn("[sgc] Bypass admin: expediente aprobado (Vigente)", { solicitudId, autor });
+    /* Igual que el webhook real: aprobado el contrato, la orden de pago se genera sola. */
+    await habilitarOrdenPagoAutomatica(this.solicitudRepo, solicitudId);
     return true;
   }
 
@@ -191,7 +195,11 @@ export class SgcIntegracionApplicationService {
   async reconciliar(): Promise<number> {
     if (!this.config.enabled) return 0;
 
-    const expedientes = await this.repo.listarConContractId();
+    /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia §1.1);
+     * rotacion por `lastSyncedAt` ascendente (nunca sincronizados primero). */
+    const expedientes = [...(await this.repo.listarConContractId())]
+      .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
+      .slice(0, SGC_RECONCILIAR_MAX_POR_CORRIDA);
     let sincronizados = 0;
     for (const expediente of expedientes) {
       if (!expediente.contractId) continue;

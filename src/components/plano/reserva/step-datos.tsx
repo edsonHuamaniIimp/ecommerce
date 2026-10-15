@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { ShieldCheck, Store } from "lucide-react";
-import { onlyDigits, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
+import { isValidDocumento, isValidEmail, isValidTelefono, onlyDigits, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
@@ -14,6 +14,7 @@ import type { FormDatos } from "./interfaces";
 const LABEL_CLASE = "text-[11px] font-medium text-muted-foreground";
 const INPUT_CLASE =
   "h-9 border-border text-sm focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary";
+const INPUT_ERROR_CLASE = "border-destructive focus-visible:border-destructive focus-visible:ring-destructive";
 
 interface Props {
   datos: FormDatos;
@@ -26,6 +27,8 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
   const [comprobantes, setComprobantes] = useState<MaestraItemDTO[]>([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [validado, setValidado] = useState(false);
+  /* Campos tocados (blur): el error de un campo vacio recien aparece al salir de el. */
+  const [tocados, setTocados] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     maestraService.listar(MAESTRA_TABLAS.COMPROBANTE_TIPO).then(setComprobantes).catch(() => {});
@@ -71,7 +74,8 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
         const update: Partial<FormDatos> = {};
         if (d.contacto && !actuales.contacto.trim()) update.contacto = d.contacto;
         if (d.direccion && !actuales.direccion.trim()) update.direccion = d.direccion;
-        if (d.telefono && !actuales.telefono.trim()) update.telefono = onlyPhoneDigits(d.telefono);
+        const telefonoPrellenado = onlyPhoneDigits(d.telefono ?? "");
+        if (isValidTelefono(telefonoPrellenado) && !actuales.telefono.trim()) update.telefono = telefonoPrellenado;
         if (d.correo && !actuales.email.trim()) update.email = d.correo;
         if (Object.keys(update).length > 0) onChange(update);
       })
@@ -83,6 +87,36 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
     setValidado(false);
     onChange({ tipoComprobante: valor, numeroDocumento: "", razonSocial: "", contacto: "" });
   };
+
+  /* Errores por campo: mismas reglas que `isStepDatosCompleto` (form-validator). */
+  const errores = {
+    documento: datos.numeroDocumento
+      ? (isValidDocumento(datos.numeroDocumento, isFactura) ? null : `El ${docLabel} debe tener ${docMax} digitos numericos`)
+      : `Ingresa el ${docLabel} (${docMax} digitos)`,
+    razonSocial: isFactura && !datos.razonSocial.trim() ? "Ingresa la razon social (se autocompleta al validar el RUC)" : null,
+    direccion: datos.direccion.trim() ? null : "Ingresa la direccion fiscal",
+    contacto: datos.contacto.trim() ? null : "Ingresa la persona de contacto",
+    telefono: datos.telefono
+      ? (isValidTelefono(datos.telefono) ? null : "El telefono debe tener 9 digitos y empezar con 9")
+      : "Ingresa el telefono (9 digitos, ej. 999 888 777)",
+    email: datos.email.trim()
+      ? (isValidEmail(datos.email) ? null : "El correo no es valido (ej. contacto@empresa.pe)")
+      : "Ingresa el correo electronico",
+  };
+
+  /** Muestra el error si el campo ya tiene contenido o el usuario salio de el. */
+  const errorVisible = (campo: keyof typeof errores, valor: string): string | null => {
+    if (!errores[campo]) return null;
+    return tocados[campo] || valor.trim().length > 0 ? errores[campo] : null;
+  };
+  const marcarTocado = (campo: keyof typeof errores) => setTocados((prev) => ({ ...prev, [campo]: true }));
+
+  const errorDocumento = errorVisible("documento", datos.numeroDocumento);
+  const errorRazonSocial = errorVisible("razonSocial", datos.razonSocial);
+  const errorDireccion = errorVisible("direccion", datos.direccion);
+  const errorContacto = errorVisible("contacto", datos.contacto);
+  const errorTelefono = errorVisible("telefono", datos.telefono);
+  const errorEmail = errorVisible("email", datos.email);
 
   return (
     <div className="flex flex-col gap-4 pt-3">
@@ -154,34 +188,50 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
               <Input
                 id="numeroDocumento"
                 placeholder={docPlaceholder}
-                className={INPUT_CLASE}
+                className={errorDocumento ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE}
+                aria-invalid={Boolean(errorDocumento)}
                 maxLength={docMax}
                 inputMode="numeric"
                 value={datos.numeroDocumento}
+                onBlur={() => marcarTocado("documento")}
                 onChange={(e) => {
                   docEditedRef.current = true;
                   setValidado(false);
                   onChange({ numeroDocumento: onlyDigits(e.target.value, docMax), tipoDocumento: docLabel });
                 }}
               />
+              {errorDocumento && (
+                <p role="alert" className="text-[10px] font-medium text-destructive">{errorDocumento}</p>
+              )}
             </div>
           )}
 
           {isFactura && (
             <div className="space-y-1">
               <Label htmlFor="razonSocial" className={LABEL_CLASE}><span>Razon social</span></Label>
-              <Input id="razonSocial" placeholder="Ej. Corporacion Minera S.A." className={INPUT_CLASE} maxLength={150}
-                value={datos.razonSocial} onChange={(e) => onChange({ razonSocial: e.target.value })} />
-              <p className="text-[10px] text-muted-foreground">
-                Dato validado automaticamente con el padron de contribuyentes de SUNAT.
-              </p>
+              <Input id="razonSocial" placeholder="Ej. Corporacion Minera S.A." className={errorRazonSocial ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE} maxLength={150}
+                aria-invalid={Boolean(errorRazonSocial)}
+                value={datos.razonSocial} onBlur={() => marcarTocado("razonSocial")}
+                onChange={(e) => onChange({ razonSocial: e.target.value })} />
+              {errorRazonSocial ? (
+                <p role="alert" className="text-[10px] font-medium text-destructive">{errorRazonSocial}</p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Dato validado automaticamente con el padron de contribuyentes de SUNAT.
+                </p>
+              )}
             </div>
           )}
 
           <div className="space-y-1">
             <Label htmlFor="direccion" className={LABEL_CLASE}><span>Direccion fiscal</span></Label>
-            <Input id="direccion" placeholder="Av. Principal 123, Distrito, Provincia" className={INPUT_CLASE} maxLength={200}
-              value={datos.direccion} onChange={(e) => onChange({ direccion: e.target.value })} />
+            <Input id="direccion" placeholder="Av. Principal 123, Distrito, Provincia" className={errorDireccion ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE} maxLength={200}
+              aria-invalid={Boolean(errorDireccion)}
+              value={datos.direccion} onBlur={() => marcarTocado("direccion")}
+              onChange={(e) => onChange({ direccion: e.target.value })} />
+            {errorDireccion && (
+              <p role="alert" className="text-[10px] font-medium text-destructive">{errorDireccion}</p>
+            )}
           </div>
         </div>
       </div>
@@ -196,19 +246,34 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
         <div className="flex gap-3">
           <div className="flex-1 space-y-1">
             <Label htmlFor="contacto" className={LABEL_CLASE}><span>Persona de contacto</span></Label>
-            <Input id="contacto" placeholder="Nombre y apellido" className={INPUT_CLASE} maxLength={100}
-              value={datos.contacto} onChange={(e) => onChange({ contacto: e.target.value })} />
+            <Input id="contacto" placeholder="Nombre y apellido" className={errorContacto ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE} maxLength={100}
+              aria-invalid={Boolean(errorContacto)}
+              value={datos.contacto} onBlur={() => marcarTocado("contacto")}
+              onChange={(e) => onChange({ contacto: e.target.value })} />
+            {errorContacto && (
+              <p role="alert" className="text-[10px] font-medium text-destructive">{errorContacto}</p>
+            )}
           </div>
           <div className="flex-1 space-y-1">
             <Label htmlFor="telefono" className={LABEL_CLASE}><span>Telefono</span></Label>
-            <Input id="telefono" placeholder="999 888 777" className={INPUT_CLASE} maxLength={9} inputMode="numeric"
-              value={datos.telefono} onChange={(e) => onChange({ telefono: onlyPhoneDigits(e.target.value) })} />
+            <Input id="telefono" placeholder="999 888 777" className={errorTelefono ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE} maxLength={9} inputMode="numeric"
+              aria-invalid={Boolean(errorTelefono)}
+              value={datos.telefono} onBlur={() => marcarTocado("telefono")}
+              onChange={(e) => onChange({ telefono: onlyPhoneDigits(e.target.value) })} />
+            {errorTelefono && (
+              <p role="alert" className="text-[10px] font-medium text-destructive">{errorTelefono}</p>
+            )}
           </div>
         </div>
         <div className="space-y-1">
           <Label htmlFor="emailReserva" className={LABEL_CLASE}><span>Correo electronico</span></Label>
-          <Input id="emailReserva" type="email" placeholder="contacto@empresa.pe" className={INPUT_CLASE} maxLength={150}
-            value={datos.email} onChange={(e) => onChange({ email: e.target.value })} />
+          <Input id="emailReserva" type="email" placeholder="contacto@empresa.pe" className={errorEmail ? `${INPUT_CLASE} ${INPUT_ERROR_CLASE}` : INPUT_CLASE} maxLength={150}
+            aria-invalid={Boolean(errorEmail)}
+            value={datos.email} onBlur={() => marcarTocado("email")}
+            onChange={(e) => onChange({ email: e.target.value })} />
+          {errorEmail && (
+            <p role="alert" className="text-[10px] font-medium text-destructive">{errorEmail}</p>
+          )}
         </div>
       </div>
 

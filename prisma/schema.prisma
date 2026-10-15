@@ -935,6 +935,16 @@ model SgcExpediente {
   lastError         String?   @map("last_error") @db.VarChar(500)
   /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
   bypassAprobado    Boolean   @default(false) @map("bypass_aprobado")
+  /// Ultima devolucion del SGC (`workflow.returned`, guia §8): `true` = exige version nueva
+  /// del principal (vuelve a elaboracion y el cliente puede subsanar); `false` = validacion
+  /// interna sobre la misma version (no se pide correccion al cliente).
+  devolucionRequiereCambio Boolean? @map("devolucion_requiere_cambio")
+  /// Motivo (libre) de la ultima devolucion, tal como llega en `data.reason` del webhook.
+  devolucionMotivo         String?  @map("devolucion_motivo") @db.VarChar(500)
+  /// Etapa destino de la devolucion (`null` = origen).
+  devolucionDestinoStepId  String?  @map("devolucion_destino_step_id") @db.VarChar(64)
+  /// Estrategia de la devolucion: `return-to-sender` | `restart-forward`.
+  devolucionEstrategia     String?  @map("devolucion_estrategia") @db.VarChar(30)
 
   solicitud     Solicitud        @relation(fields: [solicitudId], references: [id])
   documentos    SgcDocumento[]

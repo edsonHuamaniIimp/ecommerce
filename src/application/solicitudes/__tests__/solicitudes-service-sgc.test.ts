@@ -56,6 +56,8 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),
     datosReservaIImp: vi.fn(),
+    findSolicitudIdPorNumeroIImp: vi.fn(),
+    findSolicitudIdPorContrato: vi.fn(),
   };
 }
 

@@ -8,6 +8,7 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { SgcExpedienteEntity } from "@/domain/models/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import {
+  ESTADOS_SOLICITUD,
   SGC_CREATE_STATUS,
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_PREFIX,
@@ -143,6 +144,8 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),
     datosReservaIImp: vi.fn(),
+    findSolicitudIdPorNumeroIImp: vi.fn(),
+    findSolicitudIdPorContrato: vi.fn(),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {
@@ -241,5 +244,40 @@ describe("SgcIntegracionApplicationService.crearExpedienteDesdeSolicitud", () =>
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
     expect(result).toBeNull();
     expect(client.crearExpediente).not.toHaveBeenCalled();
+  });
+});
+
+describe("SgcIntegracionApplicationService.aprobarBypass", () => {
+  function build(solicitudes: ISolicitudesRepository, repo = sgcRepoMock(expediente({ contractId: "contract-1" }))) {
+    return new SgcIntegracionApplicationService(solicitudes, repo, clientMock(), documentoOrigenMock(), CONFIG);
+  }
+  it("deberia marcar Vigente y generar la orden de pago automaticamente", async () => {
+    const solicitudes = solicitudRepoMock(detalle());
+    const svc = build(solicitudes);
+    const ok = await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
+    expect(ok).toBe(true);
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
+  });
+  it("deberia no regenerar la orden de pago si la solicitud ya esta pendiente de pago", async () => {
+    const solicitudes = solicitudRepoMock(detalle({ estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO }));
+    const svc = build(solicitudes);
+    await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+  });
+  it("deberia no lanzar ni revertir el bypass si la orden de pago falla (best-effort)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const solicitudes = solicitudRepoMock(detalle());
+    vi.mocked(solicitudes.marcarOrdenPago).mockRejectedValue(new Error("db caida"));
+    const svc = build(solicitudes);
+    const ok = await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
+    expect(ok).toBe(true);
+    spy.mockRestore();
+  });
+  it("deberia no generar la orden si el expediente no existe", async () => {
+    const solicitudes = solicitudRepoMock(detalle());
+    const svc = build(solicitudes, sgcRepoMock(null));
+    const ok = await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
+    expect(ok).toBe(false);
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
   });
 });

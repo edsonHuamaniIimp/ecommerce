@@ -26,6 +26,10 @@ interface SgcExpedienteRow {
   lastSyncedAt: Date | null;
   lastError: string | null;
   bypassAprobado: boolean;
+  devolucionRequiereCambio: boolean | null;
+  devolucionMotivo: string | null;
+  devolucionDestinoStepId: string | null;
+  devolucionEstrategia: string | null;
 }
 
 interface SgcDocumentoRow {
@@ -58,6 +62,10 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     lastSyncedAt: row.lastSyncedAt ?? null,
     lastError: row.lastError ?? null,
     bypassAprobado: row.bypassAprobado ?? false,
+    devolucionRequiereCambio: row.devolucionRequiereCambio ?? null,
+    devolucionMotivo: row.devolucionMotivo ?? null,
+    devolucionDestinoStepId: row.devolucionDestinoStepId ?? null,
+    devolucionEstrategia: row.devolucionEstrategia ?? null,
   };
 }
 

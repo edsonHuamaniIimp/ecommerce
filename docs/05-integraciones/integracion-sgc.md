@@ -101,7 +101,7 @@ que este repo no implementa. Pendiente corregir esa lÃ­nea del doc del SM.
 | Reservar/subir/confirmar documento | **Contrato v1** = documento del **admin** (`SolicitudDocumento.userId === null`); **anexos** = documentos del **cliente** (`userId` no nulo) | `SolicitudDocumento` |
 | `GET /contracts/{contractId}` | Usuario abre el sidebar del stand | `Solicitud` + correlaciÃ³n `SgcExpediente` |
 | `workflow.returned` | El SGC devuelve â†’ estado observado | `SgcWebhookEvento` â†’ `SgcExpediente` |
-| `workflow.approved` + finalization `active` | Descargar contrato firmado | `SgcDocumento` |
+| `workflow.approved` + finalization `active` | Contrato Vigente + correo al cliente + **orden de pago automatica** (solicitud `pendiente_pago` y `Facturacion` con el plan de cuotas). El **bypass admin** genera la orden igual | `SgcExpediente` + `Solicitud`/`Facturacion` |
 | `contract.closed` | Cierre formal | `SgcExpediente` |
 
 ### 3.1 Punto de disparo (RESUELTO): aprobacion de Asociado -> SGC

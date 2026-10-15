@@ -45,6 +45,14 @@ export interface ActualizarSgcExpedienteData {
   lastError?: string | null;
   /** Marca/limpia el bypass admin (aprobado local sin respuesta del SGC). */
   bypassAprobado?: boolean;
+  /** Ultima devolucion del SGC: `true` = exige cambio documental (subsanable). */
+  devolucionRequiereCambio?: boolean | null;
+  /** Motivo (libre) de la ultima devolucion (`data.reason` del webhook). */
+  devolucionMotivo?: string | null;
+  /** Etapa destino de la devolucion (`null` = origen). */
+  devolucionDestinoStepId?: string | null;
+  /** Estrategia: `return-to-sender` | `restart-forward`. */
+  devolucionEstrategia?: string | null;
 }
 
 export interface CrearSgcDocumentoData {
