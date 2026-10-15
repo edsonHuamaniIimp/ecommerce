@@ -55,9 +55,9 @@ const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
   montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
-    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false },
-    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false },
-    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false },
+    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
+    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
+    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
   ],
 };
 

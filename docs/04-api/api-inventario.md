@@ -182,7 +182,7 @@
 | `/api/exhibidoras` | GET | Lista exhibidoras con bÃºsqueda `q` (API key M2M) |
 | `/api/stands/asignar-montajista` | POST | Asigna/reemplaza/desasigna la empresa montajista de un stand (M2M `x-api-key` o sesiÃ³n con `stands:manage`). Audita en `stand_montajista_historial` |
 | `/api/empresas-montajistas` | GET | CatÃ¡logo de montajistas (`q` = RUC o razÃ³n social; sin `q`, las ya asignadas). Misma auth que el anterior |
-| `/api/integracion/factura` | POST | **API entrante del sistema de facturación (SIE)**: registra el documento y estado de pago de una cuota (`numeroSolicitud` o `contrato` + `cuota` + `documento` + `estadoPago` 0/1/2). Auth `x-api-key`. Detalle: `docs/05-integraciones/api-facturacion-entrante.md` |
+| `/api/integracion/factura` | POST | **API entrante del sistema de facturación (SIE)**: registra el documento y estado de pago de una cuota (`numeroSolicitud` o `contrato` + `cuota` + `documento` + `estadoPago` 0/1/2; `justificacion` obligatoria con `2`). Auth `x-api-key`. Detalle: `docs/05-integraciones/api-facturacion-entrante.md` |
 
 > Detalle del contrato de integraciÃ³n con el Sistema de Montaje: `docs/05-integraciones/api-sistema-montaje.md`.
 

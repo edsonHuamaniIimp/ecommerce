@@ -291,10 +291,19 @@ export function MisPagosManager() {
                   </Tooltip>
                 )}
                 {cuota.documentoSieAnulado && (
-                  <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
-                    <XCircle className="mr-0.5 h-2.5 w-2.5" />
-                    <span>Documento anulado/rechazado por el IIMP</span>
-                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
+                          <XCircle className="mr-0.5 h-2.5 w-2.5" />
+                          <span>Factura anulada por el IIMP</span>
+                        </Badge>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <span>{cuota.documentoSieJustificacion ? `Motivo de la anulación: ${cuota.documentoSieJustificacion}` : "Anulada o rechazada por el IIMP"}</span>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
                   <span className="text-[10px] text-muted-foreground">Pendiente de confirmacion</span>

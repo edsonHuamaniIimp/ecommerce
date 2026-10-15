@@ -65,6 +65,7 @@ Diagramas de este acuerdo (carpeta de entrega):
 | **Pagos parciales** | ContratosStands **no trackea parciales**: cada voucher/pago se notifica; el **SIE decide** si el pago quedó completo (`0`) o sigue pendiente (`1`) |
 | **Estados** | `0` PAGADA · `1` PENDIENTE (incluye parciales) · `2` ANULADA **o rechazo** (código **homologado** con la declaración del SIE; no existe código separado de rechazo) |
 | **Efecto de `2`** | Limpia el documento de la cuota (vuelve a pendiente de documento); **no revierte el pago** (por confirmar — §7 #2) |
+| **Justificación de rechazo** | Con `estadoPago: 2` el SIE envía la **justificación** (`justificacion`, obligatoria, máx. 500 caracteres); queda en el historial de facturación |
 | **Re-emisión** | Si el documento se reemite, basta reenviarlo: reemplaza al anterior (sin `Idempotency-Key`) |
 | **Rechazo bidireccional** | ContratosStands podrá solicitar el rechazo al SIE por la API de este (canal por definir — §7 #3) |
 | **Cierre** | Con **todas** las cuotas en `0`, ContratosStands cierra la facturación y la solicitud (`pagado`) |
@@ -87,7 +88,7 @@ Diagramas de este acuerdo (carpeta de entrega):
 
 1. **Emitir** el documento por cuota (hasta 3 por reserva, identificadas por `cuota` 1–3) y **notificar** con `documento` + `estadoPago` vigente en **cada** notificación.
 2. **Determinar el estado**: `0` solo con saldo 0 en SAP — es decir, con **ambos pagos acreditados** cuando hay detracción; `1` mientras el pago sea parcial.
-3. **Anular/rechazar** → notificar `2` (código homologado).
+3. **Anular/rechazar** → notificar `2` (código homologado) **con la justificación** (`justificacion`, obligatoria).
 4. **Detracción SPOT**: aplicar el umbral S/ 700 (conversión si la cuota está en USD) y aceptar pagos en **cualquier orden**.
 5. **Consumir los vouchers** que ContratosStands registra en la cuenta corriente (confirmar canal — §7 #1).
 6. **Definir el canal** para recibir solicitudes de rechazo de ContratosStands (§7 #3).

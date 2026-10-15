@@ -35,6 +35,8 @@ export interface FacturacionRow {
     documentoSie: string | null;
     /** true si el sistema de facturacion notifico la anulacion/rechazo del documento de la cuota (estado 2). */
     documentoSieAnulado: boolean;
+    /** Justificacion del sistema de facturacion al anular o rechazar (estado 2); null si no aplica. */
+    documentoSieJustificacion: string | null;
     /** Documento fiscal emitido por el IIMP para la cuota (1ra al reservar; resto en su fecha). */
     iimpDocumento: IimpDocumentoRow | null;
   }>;
@@ -91,6 +93,8 @@ export interface DatosComprobanteFiscal {
 export interface NotificacionFacturaExterna {
   documento: string;
   estadoPago: import("@/lib/shared/constants").EstadoPagoExterno;
+  /** Motivo de la anulacion o rechazo (estado 2); se guarda en el historial de facturacion. */
+  justificacion?: string | null;
 }
 
 export interface IFacturacionRepository {

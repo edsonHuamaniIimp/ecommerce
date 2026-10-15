@@ -10,4 +10,6 @@ export interface NotificacionFacturaRequestDTO {
   documento: string;
   /** Codigo del estado: 0 PAGADA | 1 PENDIENTE | 2 ANULADA (ver ESTADOS_PAGO_EXTERNO). */
   estadoPago: number;
+  /** Motivo de la anulacion o rechazo (max. 500 caracteres). Obligatoria cuando `estadoPago` es 2. */
+  justificacion?: string | null;
 }

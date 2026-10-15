@@ -43,7 +43,7 @@ describe("NotificacionFacturaApplicationService", () => {
     expect(m.facturacion.findFacturacionIdPorSolicitud).toHaveBeenCalledWith("sol-1");
     expect(m.facturacion.registrarNotificacionFactura).toHaveBeenCalledWith(
       "cu1",
-      { documento: "F001-1234.pdf", estadoPago: 0 },
+      { documento: "F001-1234.pdf", estadoPago: 0, justificacion: null },
       AUTORES_SISTEMA.IIMP,
     );
     expect(r).toEqual({ cuotaId: "cu1", numero: 1, documento: "F001-1234.pdf", estadoPago: 0 });
@@ -57,14 +57,14 @@ describe("NotificacionFacturaApplicationService", () => {
     expect(m.solicitudes.findSolicitudIdPorNumeroIImp).not.toHaveBeenCalled();
     expect(m.facturacion.registrarNotificacionFactura).toHaveBeenCalledWith(
       "cu2",
-      { documento: "B001-9.pdf", estadoPago: 1 },
+      { documento: "B001-9.pdf", estadoPago: 1, justificacion: null },
       AUTORES_SISTEMA.IIMP,
     );
   });
 
   it("alerta a Facturacion cuando llega anulacion o rechazo (2)", async () => {
     const m = mocks();
-    await servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA });
+    await servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA, justificacion: "RUC incorrecto en la factura" });
 
     expect(m.solicitudes.crearAlertaRol).toHaveBeenCalledWith(expect.objectContaining({
       clave: "factura-anulada-rechazada",
@@ -72,16 +72,27 @@ describe("NotificacionFacturaApplicationService", () => {
     }));
   });
 
-  it("registra la anulacion (2 = ANULADA) de la cuota", async () => {
+  it("registra la anulacion (2 = ANULADA) de la cuota con su justificacion", async () => {
     const m = mocks();
-    const r = await servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA });
+    const r = await servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA, justificacion: "Rechazada por Facturacion: monto no coincide" });
 
     expect(m.facturacion.registrarNotificacionFactura).toHaveBeenCalledWith(
       "cu1",
-      { documento: "F001-1234.pdf", estadoPago: 2 },
+      { documento: "F001-1234.pdf", estadoPago: 2, justificacion: "Rechazada por Facturacion: monto no coincide" },
       AUTORES_SISTEMA.IIMP,
     );
     expect(r.estadoPago).toBe(2);
+  });
+
+  it("exige justificacion al anular y acota su longitud (400)", async () => {
+    const m = mocks();
+    /* Anulacion sin justificacion. */
+    await expect(servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA })).rejects.toMatchObject({ status: 400 });
+    /* Justificacion en blanco. */
+    await expect(servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA, justificacion: "   " })).rejects.toMatchObject({ status: 400 });
+    /* Justificacion demasiado larga. */
+    await expect(servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA, justificacion: "x".repeat(501) })).rejects.toMatchObject({ status: 400 });
+    expect(m.facturacion.registrarNotificacionFactura).not.toHaveBeenCalled();
   });
 
   it("404 cuando no existe la solicitud activa para el numero/contrato", async () => {

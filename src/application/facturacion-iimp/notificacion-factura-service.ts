@@ -3,6 +3,7 @@ import {
   AUTORES_SISTEMA,
   ESTADOS_PAGO_EXTERNO,
   MAX_DOCUMENTO_FACTURACION,
+  MAX_JUSTIFICACION_FACTURACION,
   ROLES,
   type EstadoPagoExterno,
 } from "@/lib/shared/constants";
@@ -50,7 +51,11 @@ export class NotificacionFacturaApplicationService {
       throw new DomainError(`La facturacion no tiene la cuota ${input.cuota}`, API_ERROR_CODES.NOT_FOUND, 404);
     }
 
-    await this.facturacion.registrarNotificacionFactura(cuota.id, { documento, estadoPago }, AUTORES_SISTEMA.IIMP);
+    await this.facturacion.registrarNotificacionFactura(
+      cuota.id,
+      { documento, estadoPago, justificacion: (input.justificacion ?? "").trim() || null },
+      AUTORES_SISTEMA.IIMP,
+    );
 
     /* Anulacion o rechazo (mismo codigo 2): alerta operativa a Facturacion para reemitir. */
     if (estadoPago === ESTADOS_PAGO_EXTERNO.ANULADA) {
@@ -83,6 +88,13 @@ export class NotificacionFacturaApplicationService {
     const validos: number[] = [ESTADOS_PAGO_EXTERNO.PAGADA, ESTADOS_PAGO_EXTERNO.PENDIENTE, ESTADOS_PAGO_EXTERNO.ANULADA];
     if (!Number.isInteger(input.estadoPago) || !validos.includes(input.estadoPago)) {
       throw new DomainError("estadoPago debe ser 0 (PAGADA), 1 (PENDIENTE) o 2 (ANULADA/RECHAZADA)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const justificacion = (input.justificacion ?? "").trim();
+    if (input.estadoPago === ESTADOS_PAGO_EXTERNO.ANULADA && !justificacion) {
+      throw new DomainError("justificacion es obligatoria cuando estadoPago es 2 (ANULADA/RECHAZADA)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (justificacion.length > MAX_JUSTIFICACION_FACTURACION) {
+      throw new DomainError(`justificacion no puede superar ${MAX_JUSTIFICACION_FACTURACION} caracteres`, API_ERROR_CODES.VALIDATION, 400);
     }
     return input.estadoPago as EstadoPagoExterno;
   }

@@ -677,6 +677,8 @@ model FacturacionCuota {
   /// Documento fiscal emitido por el IIMP para esta cuota (serie, numero, fecha, IGV, total).
   iimpDocumento           Json?     @map("iimp_documento")
   iimpEmitidaAt           DateTime? @map("iimp_emitida_at")
+  /// Justificacion del sistema de facturacion al anular o rechazar (estado 2); se limpia al reemitir.
+  iimpJustificacion       String?   @map("iimp_justificacion") @db.VarChar(500)
   createdAt               DateTime  @default(now()) @map("created_at")
 
   facturacion Facturacion @relation(fields: [facturacionId], references: [id], onDelete: Cascade)

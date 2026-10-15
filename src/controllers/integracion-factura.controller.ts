@@ -36,6 +36,7 @@ export const integracionFacturaController = {
         cuota: Number(raw.cuota),
         documento: typeof raw.documento === "string" ? raw.documento : "",
         estadoPago: Number(raw.estadoPago),
+        justificacion: typeof raw.justificacion === "string" ? raw.justificacion : null,
       };
       const resultado = await service.registrar(body);
       return success(resultado);

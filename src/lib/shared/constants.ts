@@ -1052,6 +1052,9 @@ export type EstadoPagoExterno = (typeof ESTADOS_PAGO_EXTERNO)[keyof typeof ESTAD
 /** Longitud maxima del nombre del documento en la notificacion de facturacion. */
 export const MAX_DOCUMENTO_FACTURACION = 250;
 
+/** Longitud maxima de la justificacion de anulacion/rechazo notificada por el sistema de facturacion. */
+export const MAX_JUSTIFICACION_FACTURACION = 500;
+
 /* ================================================================
    Carga masiva de empresas (Excel / CSV)
    ================================================================ */

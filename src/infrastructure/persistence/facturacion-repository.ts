@@ -34,8 +34,9 @@ interface FacturacionRaw {
     comprobanteFiscalTipo: string | null;
     comprobanteFiscalNumero: string | null;
   comprobanteFiscalAt: Date | null;
-  comprobanteFiscalBy: string | null;
-  iimpDocumento: unknown | null;
+    comprobanteFiscalBy: string | null;
+    iimpDocumento: unknown | null;
+    iimpJustificacion: string | null;
   iimpEmitidaAt: Date | null;
     createdAt: Date;
   }>;
@@ -94,6 +95,7 @@ function toRow(r: FacturacionRaw): FacturacionRow {
         : null,
       documentoSie: c.comprobanteFiscal && !(c.comprobanteFiscalTipo && c.comprobanteFiscalNumero) ? c.comprobanteFiscal : null,
       documentoSieAnulado: !c.comprobanteFiscal && c.comprobanteFiscalAt !== null && c.comprobanteFiscalBy === AUTORES_SISTEMA.IIMP,
+      documentoSieJustificacion: c.iimpJustificacion ?? null,
       iimpDocumento: (c.iimpDocumento ?? null) as FacturacionRow["cuotas"][number]["iimpDocumento"],
     })),
   };
@@ -224,7 +226,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
    * - `1` PENDIENTE: solo registra el documento.
    * - `2` ANULADA: limpia el documento de la cuota (vuelve a pendiente de documento).
    */
-  async registrarNotificacionFactura(cuotaId: string, data: { documento: string; estadoPago: import("@/lib/shared/constants").EstadoPagoExterno }, createdBy: string) {
+  async registrarNotificacionFactura(cuotaId: string, data: { documento: string; estadoPago: import("@/lib/shared/constants").EstadoPagoExterno; justificacion?: string | null }, createdBy: string) {
     const anterior = await prisma.facturacionCuota.findUnique({
       where: { id: cuotaId },
       select: { comprobanteFiscal: true },
@@ -238,6 +240,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         comprobanteFiscal: anulada ? null : data.documento,
         comprobanteFiscalAt: new Date(),
         comprobanteFiscalBy: createdBy,
+        iimpJustificacion: anulada ? (data.justificacion ?? null) : null,
         ...(data.estadoPago === ESTADOS_PAGO_EXTERNO.PAGADA ? { estado: ESTADOS_CUOTA.PAGADO } : {}),
       },
     });
@@ -246,8 +249,8 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         facturacionId: cuota.facturacionId,
         accion: ACCIONES_FACTURACION.DOCUMENTO_IIMP,
         detalle: anulada
-          ? `Documento '${anterior.comprobanteFiscal ?? data.documento}' anulado o rechazado desde el sistema de facturacion (estado 2)`
-          : `Documento '${data.documento}' registrado desde el sistema de facturacion (estado ${data.estadoPago})`,
+          ? `Documento '${anterior.comprobanteFiscal ?? data.documento}' anulado o rechazado desde el sistema de facturacion (estado 2)${data.justificacion ? `: ${data.justificacion}` : ""}`
+          : `Documento '${data.documento}' registrado desde el sistema de facturacion (estado ${data.estadoPago})${data.justificacion ? `: ${data.justificacion}` : ""}`,
         createdBy,
       },
     });

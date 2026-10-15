@@ -1,4 +1,4 @@
-# API de notificación de facturación — ContratosStands (IIMP)
+﻿# API de notificación de facturación — ContratosStands (IIMP)
 
 > Guía de integración para el **sistema de facturación (SIE)**.
 > Servicio para registrar, contra una **cuota** de una reserva de stands, el
@@ -96,7 +96,7 @@ sequenceDiagram
 
 | # | Casuística | Comportamiento |
 |---|---|---|
-| 7 | El SIE **rechaza o anula** la factura | Notifica por esta API con `estadoPago: 2` (ANULADA) — código **homologado** con la declaración del SIE (no existe un código separado de rechazo) |
+| 7 | El SIE **rechaza o anula** la factura | Notifica por esta API con `estadoPago: 2` (ANULADA) — código **homologado** con la declaración del SIE (no existe un código separado de rechazo) — enviando la **justificación** del rechazo (obligatoria) |
 | 8 | ContratosStands solicita un **rechazo** al SIE | Comunicación **bidireccional**: ContratosStands enviará la solicitud de rechazo por la API del SIE (canal por definir, ver §9) |
 
 ## 1. Ambientes
@@ -105,7 +105,7 @@ sequenceDiagram
 |---|---|
 | Producción | `https://ecommerce.sistemasiimp.org.pe` |
 | Local / desarrollo | `http://localhost:3001` (solo pruebas internas; en local no se exige clave) |
-| **Prueba en curso (túnel)** | `https://troops-fast-authentic-soma.trycloudflare.com` — túnel al local del equipo ContratosStands. **URL efímera**: cambia si el túnel se reinicia. En este ambiente **no se exige `x-api-key`** |
+| **Prueba en curso (túnel)** | `https://officially-apollo-hybrid-assigned.trycloudflare.com` — túnel al local del equipo ContratosStands. **URL efímera**: cambia si el túnel se reinicia. En este ambiente **no se exige `x-api-key`** |
 
 Endpoint (los dos ambientes):
 
@@ -141,6 +141,7 @@ x-api-key: <clave compartida>
 | `cuota` | number | Sí | Número de cuota de la cuenta (**1 a 3**, en el orden de `Cuotas` de la reserva). El plan tiene **hasta 3 cuotas** y la notificación es **por cuota** |
 | `documento` | string | Sí | **Nombre del documento** emitido (máx. 250 caracteres). No es el archivo |
 | `estadoPago` | number | Sí | Código del estado: `0` PAGADA · `1` PENDIENTE · `2` ANULADA |
+| `justificacion` | string | **Con `estadoPago: 2`** | Motivo de la anulación o rechazo (máx. 500 caracteres). **Obligatoria** cuando `estadoPago` es `2` |
 
 ### Códigos de `estadoPago`
 
@@ -171,7 +172,7 @@ emisión de la factura, el estado natural es `1` PENDIENTE).
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
-| 400 | `VALIDATION` | JSON inválido; falta `numeroSolicitud`/`contrato`; `cuota` no es entero ≥ 1; `documento` vacío o > 250; `estadoPago` distinto de `0`, `1` o `2` (también si viene como texto) |
+| 400 | `VALIDATION` | JSON inválido; falta `numeroSolicitud`/`contrato`; `cuota` no es entero ≥ 1; `documento` vacío o > 250; `estadoPago` distinto de `0`, `1` o `2` (también si viene como texto); `estadoPago: 2` **sin `justificacion`** o con más de 500 caracteres |
 | 401 | `UNAUTHORIZED` | Clave `x-api-key` ausente o inválida |
 | 404 | `NOT_FOUND` | No existe solicitud **activa** para ese `numeroSolicitud`/`contrato` (si la reserva fue anulada, también responde 404); sin facturación activa; la facturación no tiene esa cuota |
 | 500 | `INTERNAL` | Error interno |
@@ -208,11 +209,11 @@ flowchart TD
 |---|---|
 | `0` PAGADA | La cuota pasa a **pagada**; si no quedan cuotas pendientes, la facturación de la reserva pasa a `pagado` y la solicitud también |
 | `1` PENDIENTE | Solo registra el documento; no cambia estados |
-| `2` ANULADA | Limpia el documento de la cuota (vuelve a **pendiente de documento**); no revierte estados de pago |
+| `2` ANULADA | Limpia el documento de la cuota (vuelve a **pendiente de documento**); no revierte estados de pago. La **justificación** queda en el historial y se muestra al cliente en "Mis pagos" (tooltip del documento anulado) |
 
 Cada notificación además:
 1. Guarda el **nombre del documento** en la cuota (visible para el backoffice y el cliente).
-2. Registra el movimiento en el historial de facturación (firmado por `iimp`).
+2. Registra el movimiento en el historial de facturación (firmado por `iimp`; incluye la **justificación** cuando la envían).
 
 La llamada puede repetirse: cada envío actualiza el documento y el estado con lo
 último notificado (no hay `Idempotency-Key`).
@@ -236,8 +237,16 @@ curl -X POST https://ecommerce.sistemasiimp.org.pe/api/integracion/factura \
 ```
 
 ```bash
+# [Paso 6] Anulación o rechazo — la justificación es obligatoria con estadoPago 2
+curl -X POST https://ecommerce.sistemasiimp.org.pe/api/integracion/factura \
+  -H "x-api-key: $CLAVE_COMPARTIDA" \
+  -H "Content-Type: application/json" \
+  -d '{"numeroSolicitud":"CTRS-dbef0d24ff1246b1b419edd05","cuota":1,"documento":"F001-1234.pdf","estadoPago":2,"justificacion":"Rechazada: RUC incorrecto en la factura"}'
+```
+
+```bash
 # Prueba en curso contra el túnel (sin clave) — usar la URL vigente de §1
-curl -X POST https://troops-fast-authentic-soma.trycloudflare.com/api/integracion/factura \
+curl -X POST https://officially-apollo-hybrid-assigned.trycloudflare.com/api/integracion/factura \
   -H "Content-Type: application/json" \
   -d '{"contrato":"0000000008","cuota":1,"documento":"PRUEBA.pdf","estadoPago":1}'
 ```

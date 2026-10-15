@@ -1470,6 +1470,7 @@ paths:
                 cuota: { type: integer, minimum: 1 }
                 documento: { type: string, maxLength: 250, description: Nombre del documento (no el archivo) }
                 estadoPago: { type: integer, enum: [0, 1, 2] }
+                justificacion: { type: string, maxLength: 500, description: "Motivo de la anulacion/rechazo; obligatoria cuando estadoPago es 2" }
       responses:
         "200":
           description: Notificacion registrada
@@ -1483,7 +1484,7 @@ paths:
                   documento: { type: string }
                   estadoPago: { type: integer }
         "400":
-          description: Validacion (numeroSolicitud/contrato, cuota, documento, estadoPago)
+          description: Validacion (numeroSolicitud/contrato, cuota, documento, estadoPago y justificacion obligatoria en 2)
         "401":
           description: Clave x-api-key ausente o invalida
         "404":
