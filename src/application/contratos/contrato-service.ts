@@ -9,6 +9,8 @@ import Docxtemplater from "docxtemplater";
 import ImageModule from "docxtemplater-image-module-free";
 import sharp from "sharp";
 
+import { concatenarAnexosPdf } from "./anexos-pdf";
+
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
@@ -63,6 +65,17 @@ function liberarTurnoConversion(): void {
 export const PLANTILLAS_CONTRATO: Record<Idioma, string[]> = {
   [IDIOMAS.ES]: ["plantillas", "contrato-perumin38-tags.docx"],
   [IDIOMAS.EN]: ["plantillas", "contrato-perumin38-tags-en.docx"],
+};
+
+/**
+ * Anexos PDF fijos que se concatenan al final del contrato, en este orden:
+ * 1) Fichas de Reglamento (Anexo B1 + listados por pabellon), 2) Fichas IPD.
+ * Se copian tal cual (copyPages: sin re-render ni recomprimir) para conservar su
+ * diseno y distribucion; hoy son las mismas para ES/EN (documentos oficiales en espanol).
+ */
+export const ANEXOS_PDF_CONTRATO: Record<Idioma, string[]> = {
+  [IDIOMAS.ES]: ["anexos/fichas-reglamento-perumin38.pdf", "anexos/fichas-ipd-perumin38.pdf"],
+  [IDIOMAS.EN]: ["anexos/fichas-reglamento-perumin38.pdf", "anexos/fichas-ipd-perumin38.pdf"],
 };
 
 /** PNG 1x1 transparente: se usa cuando el contrato no lleva firma digital. */
@@ -504,7 +517,7 @@ export class ContratoApplicationService {
       `${base}.docx`,
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    const pdfBuffer = await this.convertirPdf(docxBuffer);
+    const pdfBuffer = await this.generarPdfContrato(docxBuffer, idioma);
     const pdfUrl = pdfBuffer ? await this.storage.upload(pdfBuffer, `${base}.pdf`, "application/pdf") : null;
 
     return { docxUrl, pdfUrl, nombre: base, pdfDisponible: pdfBuffer !== null };
@@ -562,6 +575,13 @@ export class ContratoApplicationService {
     const res = await fetch(url);
     if (!res.ok) throw new DomainError("No se pudo leer tu firma digital", API_ERROR_CODES.INTERNAL, 500);
     return Buffer.from(await res.arrayBuffer());
+  }
+
+  /** DOCX -> PDF con los anexos fijos al final (Fichas de Reglamento y Fichas IPD); null si no hay conversor. */
+  private async generarPdfContrato(docx: Buffer, idioma: Idioma): Promise<Buffer | null> {
+    const pdf = await this.convertirPdf(docx);
+    if (!pdf) return null;
+    return concatenarAnexosPdf(pdf, ANEXOS_PDF_CONTRATO[idioma]).catch(() => pdf);
   }
 
   /** Convierte DOCX a PDF: LibreOffice (soffice) o, en Windows, Microsoft Word; null si no hay conversor. */
