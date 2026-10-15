@@ -70,7 +70,7 @@ export function MisPagosManager() {
   /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
   const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
-  const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
+  const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number } | null>(null);
 
   const puedeGestionar = Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
@@ -248,19 +248,21 @@ export function MisPagosManager() {
                     </TooltipContent>
                   </Tooltip>
                 ) : row.iimpContrato ? (
+                  cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode })}
+                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero })}
                       >
                         <Files className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top"><span>Documentos de la cuenta corriente (OC, HES, detracción)</span></TooltipContent>
                   </Tooltip>
+                  )
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -291,7 +293,7 @@ export function MisPagosManager() {
                 {cuota.documentoSieAnulado && (
                   <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
                     <XCircle className="mr-0.5 h-2.5 w-2.5" />
-                    <span>Factura anulada por el IIMP</span>
+                    <span>Documento anulado/rechazado por el IIMP</span>
                   </Badge>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
@@ -506,6 +508,7 @@ export function MisPagosManager() {
         cuotaId={archivosCuota?.cuotaId ?? ""}
         cuotas={archivosCuota?.cuotas ?? 0}
         standCode={archivosCuota?.standCode}
+        cuotaNumero={archivosCuota?.numero}
       />
 
       <Dialog open={dialog !== null} onOpenChange={(v) => { if (!v) setDialog(null); }}>

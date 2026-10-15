@@ -30,4 +30,8 @@ export const PLANTILLAS_ALERTA_ES: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Contrato firmado subido",
     mensaje: `El cliente subio el contrato firmado de la solicitud ${stands}. Revisa los documentos para continuar con el flujo.`,
   }),
+  "factura-anulada-rechazada": ({ cuota, documento }) => ({
+    titulo: "Documento anulado o rechazado",
+    mensaje: `El sistema de facturacion anulo o rechazo el documento '${documento}' de la cuota ${cuota}. Se reemitira; revisa la cuenta corriente del IIMP.`,
+  }),
 };

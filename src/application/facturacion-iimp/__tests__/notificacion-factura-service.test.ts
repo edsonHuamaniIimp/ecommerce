@@ -20,7 +20,8 @@ function mocks() {
   const solicitudes = {
     findSolicitudIdPorNumeroIImp: vi.fn(async () => "sol-1"),
     findSolicitudIdPorContrato: vi.fn(async () => "sol-1"),
-  } as unknown as Pick<ISolicitudesRepository, "findSolicitudIdPorNumeroIImp" | "findSolicitudIdPorContrato">;
+    crearAlertaRol: vi.fn(async () => {}),
+  } as unknown as Pick<ISolicitudesRepository, "findSolicitudIdPorNumeroIImp" | "findSolicitudIdPorContrato" | "crearAlertaRol">;
   const facturacion = {
     findFacturacionIdPorSolicitud: vi.fn(async () => "f1"),
     detalle: vi.fn(async () => ({ id: "f1", cuotas: [{ id: "cu1", numero: 1 }, { id: "cu2", numero: 2 }] })),
@@ -59,6 +60,16 @@ describe("NotificacionFacturaApplicationService", () => {
       { documento: "B001-9.pdf", estadoPago: 1 },
       AUTORES_SISTEMA.IIMP,
     );
+  });
+
+  it("alerta a Facturacion cuando llega anulacion o rechazo (2)", async () => {
+    const m = mocks();
+    await servicio(m).registrar({ ...BASE, estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA });
+
+    expect(m.solicitudes.crearAlertaRol).toHaveBeenCalledWith(expect.objectContaining({
+      clave: "factura-anulada-rechazada",
+      datos: { cuota: 1, documento: "F001-1234.pdf" },
+    }));
   });
 
   it("registra la anulacion (2 = ANULADA) de la cuota", async () => {

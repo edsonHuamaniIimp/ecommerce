@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@nrivera-iimp/ui-kit-iimp";
 import { FileUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -21,6 +21,8 @@ export const TIPOS_ARCHIVO_LABELS: Record<string, string> = {
 interface Props {
   /** Numero de cuotas de la reserva: acota el input de cuota. */
   cuotas: number;
+  /** Cuota preseleccionada (p. ej. la cuota desde la que se abrio el panel). */
+  cuotaInicial?: number;
   /** Recibe el archivo listo (valida link y cuota obligatoria antes). */
   onAgregar: (archivo: ArchivoIImpInputDTO) => void;
   botonLabel?: string;
@@ -37,10 +39,12 @@ interface Props {
  * de una cuenta ya creada. La lista de tipos es dinamica segun los pagos de la
  * cuota elegida: "pago total" es excluyente con "detraccion" y "diferencia".
  */
-export function FormArchivoIImp({ cuotas, onAgregar, botonLabel = "Agregar", tiposPermitidos, archivosRegistrados }: Props) {
+export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = "Agregar", tiposPermitidos, archivosRegistrados }: Props) {
   const permitidos: readonly TipoArchivoIImp[] = tiposPermitidos ?? (Object.values(TIPOS_ARCHIVO_IIMP) as TipoArchivoIImp[]);
   const [tipo, setTipo] = useState<string>(permitidos[0] ?? TIPOS_ARCHIVO_IIMP.OC);
-  const [cuotaNum, setCuotaNum] = useState("1");
+  const [cuotaNum, setCuotaNum] = useState(cuotaInicial ? String(cuotaInicial) : "1");
+  /* Con cuota preseleccionada el input queda bloqueado; el switch habilita su edicion. */
+  const [editarCuota, setEditarCuota] = useState(!cuotaInicial);
   const [link, setLink] = useState("");
   const [nombre, setNombre] = useState("");
   const [subiendo, setSubiendo] = useState(false);
@@ -118,14 +122,28 @@ export function FormArchivoIImp({ cuotas, onAgregar, botonLabel = "Agregar", tip
           </Select>
         </div>
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-muted-foreground">
-            {exigeCuota ? `Cuota (1 a ${Math.max(cuotas, 1)})` : "Cuota (opcional)"}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-muted-foreground">
+              {exigeCuota ? `Cuota (1 a ${Math.max(cuotas, 1)})` : "Cuota (opcional)"}
+            </p>
+            {cuotaInicial ? (
+              <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <Switch
+                  checked={editarCuota}
+                  onCheckedChange={setEditarCuota}
+                  className="h-4 w-7"
+                  aria-label="Habilitar edicion de la cuota"
+                />
+                <span>Editar</span>
+              </label>
+            ) : null}
+          </div>
           <Input
             type="number"
             min="1"
             max={Math.max(cuotas, 1)}
             value={cuotaNum}
+            disabled={!editarCuota}
             onChange={(e) => setCuotaNum(e.target.value)}
           />
         </div>

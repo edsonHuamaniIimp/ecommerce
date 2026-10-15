@@ -3,7 +3,7 @@
 > Guía de integración para el **sistema de facturación (SIE)**.
 > Servicio para registrar, contra una **cuota** de una reserva de stands, el
 > **nombre del documento emitido** (factura/boleta) y su **estado** codificado
-> (`0` PAGADA · `1` PENDIENTE · `2` ANULADA).
+> (`0` PAGADA · `1` PENDIENTE · `2` ANULADA o RECHAZO).
 > **No se envían archivos**: solo el nombre del documento y el estado.
 > **Documento marco del acuerdo (flujo y responsabilidades por lado):** `acuerdo-integracion-facturacion.md`
 

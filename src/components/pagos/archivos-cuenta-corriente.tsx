@@ -20,10 +20,12 @@ interface Props {
   /** Numero de cuotas de la cuenta: valida el rango localmente. */
   cuotas: number;
   standCode?: string;
+  /** Cuota desde la que se abrio el panel: preselecciona el input de cuota del formulario. */
+  cuotaNumero?: number;
 }
 
 /** Documentos (links) de la cuenta corriente del IIMP: OC, HES, detracción y diferencia. */
-export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode }: Props) {
+export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [archivos, setArchivos] = useState<ArchivoCuentaDTO[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -97,6 +99,7 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
 
           <FormArchivoIImp
             cuotas={cuotas}
+            cuotaInicial={cuotaNumero}
             archivosRegistrados={archivos}
             onAgregar={(a) => { void agregar(a); }}
             botonLabel={agregando ? "Agregando..." : "Agregar"}

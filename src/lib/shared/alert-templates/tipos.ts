@@ -11,6 +11,7 @@ export const ALERTA_CLAVES = {
   TURNO_REVISION: "turno-revision",
   REVISION_COMPLETADA: "revision-completada",
   CONTRATO_FIRMADO_SUBIDO: "contrato-firmado-subido",
+  FACTURA_ANULADA_RECHAZADA: "factura-anulada-rechazada",
 } as const;
 
 export type AlertaClave = (typeof ALERTA_CLAVES)[keyof typeof ALERTA_CLAVES];
@@ -24,6 +25,7 @@ export interface AlertaDatosMap {
   "turno-revision": { area: string; stands: string };
   "revision-completada": { stands: string };
   "contrato-firmado-subido": { stands: string };
+  "factura-anulada-rechazada": { cuota: number; documento: string };
 }
 
 export type AlertaDatos = AlertaDatosMap[AlertaClave];

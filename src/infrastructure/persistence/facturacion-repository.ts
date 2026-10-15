@@ -246,7 +246,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         facturacionId: cuota.facturacionId,
         accion: ACCIONES_FACTURACION.DOCUMENTO_IIMP,
         detalle: anulada
-          ? `Documento '${anterior.comprobanteFiscal ?? data.documento}' anulado desde el sistema de facturacion (estado 2)`
+          ? `Documento '${anterior.comprobanteFiscal ?? data.documento}' anulado o rechazado desde el sistema de facturacion (estado 2)`
           : `Documento '${data.documento}' registrado desde el sistema de facturacion (estado ${data.estadoPago})`,
         createdBy,
       },

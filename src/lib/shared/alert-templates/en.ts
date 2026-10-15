@@ -35,4 +35,8 @@ export const PLANTILLAS_ALERTA_EN: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Signed contract uploaded",
     mensaje: `The client uploaded the signed contract for request ${stands}. Review the documents to continue the process.`,
   }),
+  "factura-anulada-rechazada": ({ cuota, documento }) => ({
+    titulo: "Document cancelled or rejected",
+    mensaje: `The billing system cancelled or rejected document '${documento}' for installment ${cuota}. It will be reissued; check the IIMP account statement.`,
+  }),
 };
