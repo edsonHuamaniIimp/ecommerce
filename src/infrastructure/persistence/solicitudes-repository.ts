@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
@@ -179,14 +179,16 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       createdAt: d.createdAt,
     }));
 
-    // Empresa vinculada al usuario solicitante (user_role)
+    // Empresa vinculada y nombre del usuario solicitante (user_role)
     const solicitudUserId = row.userId;
-    if (solicitudUserId && !empresa) {
+    let nombreUsuario: string | null = null;
+    if (solicitudUserId) {
       const userRole = await prisma.userRole.findFirst({
-        where: { userId: solicitudUserId, nombreEmpresa: { not: null } },
-        select: { nombreEmpresa: true },
+        where: { userId: solicitudUserId },
+        select: { nombreEmpresa: true, nombre: true, apellidos: true },
       });
-      if (userRole?.nombreEmpresa) empresa = userRole.nombreEmpresa;
+      if (!empresa && userRole?.nombreEmpresa) empresa = userRole.nombreEmpresa;
+      nombreUsuario = [userRole?.nombre, userRole?.apellidos].filter(Boolean).join(" ") || userRole?.nombre || null;
     }
 
     return {
@@ -200,6 +202,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     empresa,
     email: row.email,
     userId: row.userId,
+    nombreUsuario,
     standApiId,
     bloqueId,
     pabellon,
@@ -429,11 +432,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
 
     const solicitud = await prisma.solicitud.findUnique({ where: { id: reevaluacion.solicitudId }, select: { gessStandId: true } });
     if (solicitud?.gessStandId) {
-      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
+      await this.liberarStandGess(solicitud.gessStandId);
     } else {
       const stands = await prisma.solicitudStand.findMany({ where: { solicitudId: reevaluacion.solicitudId }, select: { gessStandId: true } });
       for (const s of stands) {
-        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
+        await this.liberarStandGess(s.gessStandId);
       }
     }
     await prisma.revision.deleteMany({ where: { solicitudId: reevaluacion.solicitudId } });
@@ -446,13 +449,30 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.solicitud.update({ where: { id: solicitudId }, data: { flgActivo: false } });
 
     if (solicitud.gessStandId) {
-      await prisma.gessStand.update({ where: { id: solicitud.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
+      await this.liberarStandGess(solicitud.gessStandId);
     } else {
       const stands = await prisma.solicitudStand.findMany({ where: { solicitudId }, select: { gessStandId: true } });
       for (const s of stands) {
-        await prisma.gessStand.update({ where: { id: s.gessStandId }, data: { estado: ESTADOS_STAND.DISPONIBLE } });
+        await this.liberarStandGess(s.gessStandId);
       }
     }
+  }
+
+  /**
+   * Devuelve un stand liberado a su estado correcto segun jerarquia: si conserva
+   * snapshot de pre-reserva vuelve a `pre_reservado` (la pre-reserva revive al
+   * caerse la solicitud); si no, a `disponible` como siempre.
+   */
+  private async liberarStandGess(gessStandId: string): Promise<void> {
+    const stand = await prisma.gessStand.findUnique({
+      where: { id: gessStandId },
+      select: { preReservaAt: true, preReservaRazonSocial: true, preReservaTitulo: true },
+    });
+    const conPreReserva = Boolean(stand && (stand.preReservaAt || stand.preReservaRazonSocial || stand.preReservaTitulo));
+    await prisma.gessStand.update({
+      where: { id: gessStandId },
+      data: { estado: conPreReserva ? ESTADOS_STAND.PRE_RESERVADO : ESTADOS_STAND.DISPONIBLE },
+    });
   }
 
   async marcarOrdenPago(solicitudId: string): Promise<void> {
@@ -678,6 +698,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     const evento = eventoId ? await prisma.evento.findUnique({ where: { id: eventoId }, select: { tipoEvento: true, codigoEvento: true } }) : null;
     return {
       iimpContrato: row.iimpContrato ?? null,
+      iimpCuentaCorriente: row.iimpCuentaCorriente ?? null,
       email: row.email ?? null,
       tipoEvento: evento?.tipoEvento ?? null,
       codigoEvento: evento?.codigoEvento ?? null,
@@ -685,5 +706,25 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
       datosFacturacion: (row.datosFacturacion ?? null) as DatosFacturacionSolicitud | null,
     };
+  }
+
+  /** Id de la solicitud ACTIVA cuyo `NumeroSolicitud` del IIMP coincide (el numero es determinista del id). */
+  async findSolicitudIdPorNumeroIImp(numeroSolicitud: string): Promise<string | null> {
+    const limpio = numeroSolicitud.trim();
+    if (!limpio) return null;
+    const resto = limpio.startsWith(IIMP_NUMERO_SOLICITUD_PREFIJO) ? limpio.slice(IIMP_NUMERO_SOLICITUD_PREFIJO.length) : limpio;
+    if (!resto) return null;
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM solicitud WHERE flg_activo = true AND replace(id, '-', '') LIKE ${resto + "%"} LIMIT 1
+    `;
+    return rows[0]?.id ?? null;
+  }
+
+  /** Id de la solicitud ACTIVA registrada en el IIMP con ese contrato. */
+  async findSolicitudIdPorContrato(contrato: string): Promise<string | null> {
+    const limpio = contrato.trim();
+    if (!limpio) return null;
+    const row = await prisma.solicitud.findFirst({ where: { iimpContrato: limpio, flgActivo: true }, select: { id: true } });
+    return row?.id ?? null;
   }
 }

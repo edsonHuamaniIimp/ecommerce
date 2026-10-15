@@ -5,6 +5,7 @@ export const { GET, POST } = createRouter({
   GET: {
     listar: (req) => pagosController.listar(req),
     detalle: (req) => pagosController.detalle(req),
+    archivos: (req) => pagosController.listarArchivos(req),
   },
   POST: {
     "agregar-cuota": (req) => pagosController.agregarCuota(req),
@@ -12,5 +13,7 @@ export const { GET, POST } = createRouter({
     "adjuntar-voucher": (req) => pagosController.adjuntarVoucher(req),
     "eliminar-cuota": (req) => pagosController.eliminarCuota(req),
     "solicitar-factura": (req) => pagosController.solicitarFactura(req),
+    "archivos-agregar": (req) => pagosController.agregarArchivo(req),
+    "archivos-eliminar": (req) => pagosController.eliminarArchivo(req),
   },
 });

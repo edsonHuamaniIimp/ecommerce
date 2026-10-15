@@ -6,11 +6,13 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, FileDown, FileText, LayoutGrid, Paperclip, Pencil, Plus, Rows3, Trash2, Wallet } from "lucide-react";
+import { CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Paperclip, Pencil, Plus, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { Pagination } from "@/components/shared/pagination";
+import { ArchivosCuentaCorriente } from "@/components/pagos/archivos-cuenta-corriente";
+import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -65,7 +67,10 @@ export function MisPagosManager() {
   const inputVoucherRef = useRef<HTMLInputElement>(null);
   const [cuotaVoucher, setCuotaVoucher] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
-  const [solicitandoFacturaId, setSolicitandoFacturaId] = useState<string | null>(null);
+  /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
+  const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
+  /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
+  const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
 
   const puedeGestionar = Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
@@ -183,24 +188,7 @@ export function MisPagosManager() {
     }
   };
 
-  /** "Solicitar factura": registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
-  const solicitarFactura = async (cuotaId: string) => {
-    setSolicitandoFacturaId(cuotaId);
-    try {
-      const resultado = await pagosService.solicitarFactura(cuotaId);
-      const doc = resultado.documento;
-      toast.success(
-        doc
-          ? `Reserva registrada en el IIMP (contrato ${resultado.contrato}). Factura ${doc.serie}-${doc.numero} emitida.`
-          : `Reserva registrada en el IIMP (contrato ${resultado.contrato}).`,
-      );
-      await load(page, perPage);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo solicitar la factura");
-    } finally {
-      setSolicitandoFacturaId(null);
-    }
-  };
+  /** "Registrar reserva": dialogo con documentos por categoria y envio al IIMP (ver EnviarReservaIimp). */
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
@@ -259,6 +247,20 @@ export function MisPagosManager() {
                       <span>Factura {cuota.iimpDocumento.serie}-{cuota.iimpDocumento.numero} emitida el {cuota.iimpDocumento.fechaEmision} (descarga desde el IIMP pendiente)</span>
                     </TooltipContent>
                   </Tooltip>
+                ) : row.iimpContrato ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode })}
+                      >
+                        <Files className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><span>Documentos de la cuenta corriente (OC, HES, detracción)</span></TooltipContent>
+                  </Tooltip>
                 ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -266,14 +268,31 @@ export function MisPagosManager() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        disabled={solicitandoFacturaId === cuota.id}
-                        onClick={() => { void solicitarFactura(cuota.id); }}
+                        onClick={() => setReservaCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode })}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Solicitar factura</span></TooltipContent>
+                    <TooltipContent side="top"><span>Registrar reserva en el IIMP</span></TooltipContent>
                   </Tooltip>
+                )}
+                {cuota.documentoSie && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex h-7 w-7 cursor-default items-center justify-center text-primary">
+                        <FileText className="h-3.5 w-3.5" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <span>Documento notificado por el IIMP: {cuota.documentoSie}{cuota.estado === ESTADOS_CUOTA.PAGADO ? " (pagado)" : " (pendiente de pago)"}</span>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {cuota.documentoSieAnulado && (
+                  <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
+                    <XCircle className="mr-0.5 h-2.5 w-2.5" />
+                    <span>Factura anulada por el IIMP</span>
+                  </Badge>
                 )}
                 {cuota.comprobante && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
                   <span className="text-[10px] text-muted-foreground">Pendiente de confirmacion</span>
@@ -471,6 +490,23 @@ export function MisPagosManager() {
       />
 
       {confirmDialog}
+
+      <EnviarReservaIimp
+        open={reservaCuota !== null}
+        onOpenChange={(v) => { if (!v) setReservaCuota(null); }}
+        cuotaId={reservaCuota?.cuotaId ?? ""}
+        cuotas={reservaCuota?.cuotas ?? 0}
+        standCode={reservaCuota?.standCode}
+        onEnviado={() => { void load(page, perPage); }}
+      />
+
+      <ArchivosCuentaCorriente
+        open={archivosCuota !== null}
+        onOpenChange={(v) => { if (!v) setArchivosCuota(null); }}
+        cuotaId={archivosCuota?.cuotaId ?? ""}
+        cuotas={archivosCuota?.cuotas ?? 0}
+        standCode={archivosCuota?.standCode}
+      />
 
       <Dialog open={dialog !== null} onOpenChange={(v) => { if (!v) setDialog(null); }}>
         <DialogContent className="rounded-xl border-border sm:max-w-sm">

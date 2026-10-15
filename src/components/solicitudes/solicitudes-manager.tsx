@@ -338,7 +338,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
         <CardContent className="space-y-3 pt-4">
 
           {loading ? (
-            <TableSkeleton rows={perPage} columns={7} />
+            <TableSkeleton rows={perPage} columns={9} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm font-medium text-muted-foreground">No hay solicitudes de alquiler pendientes.</p>
@@ -352,6 +352,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     <TableRow className="bg-secondary">
                       <TableHead><span className="text-[10px] uppercase">Stand</span></TableHead>
                       <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Empresa</span></TableHead>
+                      <TableHead className="hidden lg:table-cell"><span className="text-[10px] uppercase">Usuario</span></TableHead>
+                      <TableHead className="hidden lg:table-cell"><span className="text-[10px] uppercase">Correo</span></TableHead>
                       <TableHead className="hidden md:table-cell"><span className="text-[10px] uppercase">Tipo</span></TableHead>
                       <TableHead><span className="text-[10px] uppercase">Revision</span></TableHead>
                       <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Docs</span></TableHead>
@@ -371,6 +373,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                           </TableCell>
                           <TableCell className="hidden max-w-[140px] truncate text-xs text-foreground sm:table-cell" title={row.empresa ?? ""}>
                             {row.empresa ?? "â€”"}
+                          </TableCell>
+                          <TableCell className="hidden max-w-[160px] truncate text-xs text-foreground lg:table-cell" title={row.nombreUsuario ?? row.email ?? ""}>
+                            {row.nombreUsuario ?? "—"}
+                          </TableCell>
+                          <TableCell className="hidden max-w-[200px] truncate text-xs text-muted-foreground lg:table-cell" title={row.email ?? ""}>
+                            {row.email ?? "—"}
                           </TableCell>
                           <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{row.tipoStand ?? "â€”"}</TableCell>
                           <TableCell>

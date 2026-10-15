@@ -184,6 +184,8 @@ export interface SolicitudRow {
   empresa: string | null;
   email: string | null;
   userId: string | null;
+  /** Nombre del usuario solicitante (user_role.nombre + apellidos). */
+  nombreUsuario?: string | null;
   bloqueId: string | null;
   /** Pabellon del stand (segun API externa). */
   pabellon?: string | null;

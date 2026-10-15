@@ -37,6 +37,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/planos/publico",
   "/api/planos/ubicacion",
   "/api/integracion/sgc/webhook",
+  "/api/integracion/factura",
   "/api/cron/sgc-reconciliar",
 ] as const;
 
@@ -862,6 +863,38 @@ export const MAX_STANDS_IIMP = 50;
 /** Porcentaje total (entero) que deben sumar las cuotas enviadas al IIMP. */
 export const CUOTAS_PORCENTAJE_TOTAL = 100;
 
+/** Prefijo del `NumeroSolicitud` (PK de la solicitud en la web) que viaja al IIMP. */
+export const IIMP_NUMERO_SOLICITUD_PREFIJO = "CTRS-";
+
+/** Longitud maxima de `NumeroSolicitud` que acepta el API del IIMP. */
+export const IIMP_NUMERO_SOLICITUD_MAX = 30;
+
+/** Tipos de archivo de la cuenta corriente del IIMP (doc API-RESERVA-STAND-INTEGRACION.md v4, seccion 8). */
+export const TIPOS_ARCHIVO_IIMP = {
+  OC: "OC",
+  HES: "HES",
+  DETRACCION: "DETRACCION",
+  DIFERENCIA: "DIFERENCIA",
+  /** Constancia del pago total (v4): sin cuota = total de la cuenta; con cuota = total de esa cuota. */
+  PAGO_TOTAL: "PAGO_TOTAL",
+  /** Valorizacion / cotizacion del servicio (v5): cuota opcional (sin cuota = de toda la cuenta). */
+  VALORIZACION_COTIZACION: "VALORIZACION_COTIZACION",
+} as const;
+
+export type TipoArchivoIImp = (typeof TIPOS_ARCHIVO_IIMP)[keyof typeof TIPOS_ARCHIVO_IIMP];
+
+/** Tipos de archivo que exigen numero de cuota (pagos de detraccion y de diferencia). */
+export const TIPOS_ARCHIVO_IIMP_CON_CUOTA: TipoArchivoIImp[] = [TIPOS_ARCHIVO_IIMP.DETRACCION, TIPOS_ARCHIVO_IIMP.DIFERENCIA];
+
+/** Maximo de archivos por llamada al API de archivos del IIMP. */
+export const MAX_ARCHIVOS_IIMP_POR_LLAMADA = 20;
+
+/** Longitud maxima del link de un archivo de cuenta corriente (API del IIMP). */
+export const MAX_LINK_ARCHIVO_IIMP = 2048;
+
+/** Longitud maxima del nombre de un archivo de cuenta corriente (API del IIMP). */
+export const MAX_NOMBRE_ARCHIVO_IIMP = 150;
+
 /** Maximo de stands por operacion de pre-reserva/liberacion en lote. */
 export const MAX_PRE_RESERVA_LOTE = 500;
 
@@ -1003,6 +1036,21 @@ export const AUTORES_SISTEMA = {
   SISTEMA: "sistema",
   IIMP: "iimp",
 } as const;
+
+/** Estados de pago que notifica el sistema de facturacion externo (API entrante M2M). */
+export const ESTADOS_PAGO_EXTERNO = {
+  /** El documento quedo con saldo 0 (pago vinculado). */
+  PAGADA: 0,
+  /** El documento se emitio y aun no esta pagado. */
+  PENDIENTE: 1,
+  /** El documento se anulo y la cuota vuelve a pendiente de documento. */
+  ANULADA: 2,
+} as const;
+
+export type EstadoPagoExterno = (typeof ESTADOS_PAGO_EXTERNO)[keyof typeof ESTADOS_PAGO_EXTERNO];
+
+/** Longitud maxima del nombre del documento en la notificacion de facturacion. */
+export const MAX_DOCUMENTO_FACTURACION = 250;
 
 /* ================================================================
    Carga masiva de empresas (Excel / CSV)
@@ -1502,6 +1550,13 @@ export type SgcOutboxOperacion = (typeof SGC_OUTBOX_OPERACION)[keyof typeof SGC_
 
 export const SGC_OUTBOX_MAX_INTENTOS = 6;
 export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
+
+/**
+ * Maximo de expedientes que el cron de reconciliacion consulta por corrida
+ * (limite del SGC: 120 solicitudes/min por clave; guia §1.1). La lista se rota
+ * por `lastSyncedAt` ascendente para no quedarse siempre con los primeros.
+ */
+export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
 
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";

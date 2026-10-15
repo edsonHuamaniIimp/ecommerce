@@ -1,0 +1,76 @@
+@startuml
+title Proceso de reserva y facturacion IIMP - ContratosStands / SIE
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+
+|#DDEBF7|Cliente|
+start
+:Registrar solicitud de stand;
+:Adjuntar la OC y la HES\nde la 1ra cuota (A1);
+
+|#FFF2CC|ContratosStands|
+if (Al menos 1 OC y 1 HES?) then (no)
+  :Bloquear el envio y mostrar\nel requisito faltante (A2);
+  stop
+else (si)
+endif
+:Enviar POST stands/reserva\n(Stands, Cuotas, Archivos);
+
+|#E2EFDA|SIE|
+:Procesar la reserva;
+:Notificar factura emitida\n(documento, estadoPago = 1 PENDIENTE);
+
+|#FFF2CC|ContratosStands|
+:Registrar documento en la cuota\n(un reenvio reemplaza al anterior);
+:Mostrar cuota pendiente de pago;
+
+|#DDEBF7|Cliente|
+if (Aplica detraccion SPOT?) then (no)
+  :Pagar la cuota en un solo pago\n(sin detraccion) (B6);
+else (si)
+  :Elegir el orden de pago\n(detraccion o diferencia primero);
+  split
+    :Pagar la diferencia\n(voucher DIFERENCIA);
+  split again
+    :Pagar la detraccion\n(voucher DETRACCION, hasta 1 mes despues) (B4);
+    note right
+      Detraccion SPOT si la cuota supera
+      S/ 700 (convertir si esta en USD).
+      El orden es libre: primero la
+      detraccion o primero la diferencia.
+      La detraccion puede pagarse hasta
+      1 mes despues del resto (B4).
+    end note
+  end split
+endif
+
+|#E2EFDA|SIE|
+repeat
+  :Registrar pagos recibidos\n(varios vouchers y pagos parciales) (B5);
+  :Notificar el estado de pago de la cuota\n(el plan puede tener hasta 3 cuotas);
+repeat while (pago completo?) is (no) not (si)
+
+|#FFF2CC|ContratosStands|
+if (estadoPago notificado) then (0 PAGADA)
+  :Marcar cuota pagada;
+  if (Quedan cuotas pendientes?) then (no)
+    :Cerrar facturacion y solicitud;
+  else (si)
+    :Mantener la facturacion abierta;
+  endif
+elseif (1 PENDIENTE)
+  :Actualizar documento\nsin cambiar el estado;
+else (2 ANULADA o rechazo)
+  :Limpiar documento de la cuota\n(no revierte el pago);
+  note right
+    C7: la anulacion o rechazo puede
+    notificarse en cualquier momento.
+    C8: ContratosStands tambien puede
+    solicitar el rechazo al SIE
+    (canal por definir, pendiente).
+    Si llega 2 despues de 0, hoy no
+    revierte el pago (por confirmar).
+  end note
+endif
+stop
+@enduml

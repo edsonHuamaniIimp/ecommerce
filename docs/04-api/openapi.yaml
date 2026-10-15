@@ -1367,6 +1367,127 @@ paths:
           description: Reserva ya registrada o stands ya reservados en el IIMP
         "502":
           description: Error o sesion vencida del API del IIMP
+  /pagos/archivos:
+    get:
+      tags: [Facturacion]
+      summary: Documentos (links) de la cuenta corriente del IIMP de la reserva de una cuota
+      parameters:
+        - name: cuotaId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lista de documentos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    item: { type: integer, description: Posicion del archivo en la cuenta corriente }
+                    tipo: { type: string, description: "OC | HES | DETRACCION | DIFERENCIA | PAGO_TOTAL | VALORIZACION_COTIZACION" }
+                    cuota: { type: integer, nullable: true }
+                    link: { type: string }
+                    nombre: { type: string, nullable: true }
+                    fecha: { type: string, description: AAAA-MM-DD }
+        "403":
+          description: Sin acceso a esta cuota
+        "404":
+          description: Cuota o cuenta corriente no encontrada
+        "502":
+          description: Error o sesion vencida del API del IIMP
+  /pagos/archivos-agregar:
+    post:
+      tags: [Facturacion]
+      summary: Agrega un documento a la cuenta corriente del IIMP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cuotaId, tipo, link]
+              properties:
+                cuotaId: { type: string, format: uuid }
+                tipo: { type: string, description: "OC | HES | DETRACCION | DIFERENCIA | PAGO_TOTAL | VALORIZACION_COTIZACION" }
+                cuota: { type: integer, nullable: true, description: Obligatoria para DETRACCION y DIFERENCIA }
+                link: { type: string }
+                nombre: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Documentos actualizados de la cuenta corriente
+        "400":
+          description: Validacion (tipo, cuota, link)
+        "403":
+          description: Sin acceso a esta cuota
+        "502":
+          description: Error o sesion vencida del API del IIMP
+  /pagos/archivos-eliminar:
+    post:
+      tags: [Facturacion]
+      summary: Quita un documento de la cuenta corriente del IIMP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cuotaId, item]
+              properties:
+                cuotaId: { type: string, format: uuid }
+                item: { type: integer, description: Posicion del archivo }
+      responses:
+        "200":
+          description: Documentos actualizados de la cuenta corriente
+        "403":
+          description: Sin acceso a esta cuota
+        "502":
+          description: Error o sesion vencida del API del IIMP
+  /integracion/factura:
+    post:
+      tags: [Integracion]
+      summary: API entrante M2M del sistema de facturacion (SIE) — documento y estado de pago de una cuota
+      description: >
+        Autenticacion por header `x-api-key` (clave compartida; en local/tunel no se exige).
+        Localiza la cuota por `numeroSolicitud` (o `contrato`) + numero de cuota.
+        `estadoPago`: 0 PAGADA, 1 PENDIENTE (incluye pagos parciales), 2 ANULADA o rechazo
+        (limpia el documento de la cuota; no revierte el pago). Cada notificacion reemplaza
+        la anterior (sin Idempotency-Key). Guia completa: docs/05-integraciones/api-facturacion-entrante.md.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cuota, documento, estadoPago]
+              properties:
+                numeroSolicitud: { type: string, description: Uno de numeroSolicitud/contrato }
+                contrato: { type: string, description: Alternativa a numeroSolicitud }
+                cuota: { type: integer, minimum: 1 }
+                documento: { type: string, maxLength: 250, description: Nombre del documento (no el archivo) }
+                estadoPago: { type: integer, enum: [0, 1, 2] }
+      responses:
+        "200":
+          description: Notificacion registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cuotaId: { type: string, format: uuid }
+                  numero: { type: integer }
+                  documento: { type: string }
+                  estadoPago: { type: integer }
+        "400":
+          description: Validacion (numeroSolicitud/contrato, cuota, documento, estadoPago)
+        "401":
+          description: Clave x-api-key ausente o invalida
+        "404":
+          description: Solicitud activa, facturacion o cuota no encontrada
   /sgc/detalle:
     get:
       tags: [SGC]
@@ -1513,6 +1634,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
   parameters:
     EventoId:
       name: eventoId

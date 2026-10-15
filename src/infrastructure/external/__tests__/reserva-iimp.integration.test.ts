@@ -49,7 +49,7 @@ describe.skipIf(!habilitado)("Reserva IIMP contra el ambiente de Pruebas (integr
     expect(Array.isArray(filas)).toBe(true);
   });
 
-  it("reserva real en Pruebas: contrato + cuenta corriente + factura de la 1ra cuota", async (ctx) => {
+  it("reserva real en Pruebas: contrato + cuenta corriente (v2, sin comprobante)", async (ctx) => {
     const filas = await new ListstandClient().fetchStands(TIP_EV_COD, EVEN_COD);
     const libres = filas.filter((f) => f.estado === "LIBRE").map((f) => String(f.stand));
     if (libres.length === 0) {
@@ -59,6 +59,7 @@ describe.skipIf(!habilitado)("Reserva IIMP contra el ambiente de Pruebas (integr
     }
 
     const input: ReservaIimpInput = {
+      numeroSolicitud: `CTRS-TEST-${Date.now()}`,
       tipEvCod: TIP_EV_COD,
       evenCod: EVEN_COD,
       stands: libres.slice(0, 2),
@@ -87,6 +88,7 @@ describe.skipIf(!habilitado)("Reserva IIMP contra el ambiente de Pruebas (integr
     const resultado = await new ReservaIimpClient().reservar(input);
     console.log("[IIMP Pruebas] reserva:", JSON.stringify({
       stands: input.stands,
+      numeroSolicitud: resultado.numeroSolicitud,
       contrato: resultado.contrato,
       cuentaCorriente: resultado.cuentaCorriente,
       cliente: resultado.cliente.codigo,
@@ -96,7 +98,8 @@ describe.skipIf(!habilitado)("Reserva IIMP contra el ambiente de Pruebas (integr
 
     expect(resultado.contrato).toMatch(/^\d{10}$/);
     expect(resultado.cuentaCorriente).toBeGreaterThan(0);
-    expect(resultado.cuotas[0]?.documento).toBeTruthy();
-    expect(resultado.cuotas[1]?.documento ?? null).toBeNull();
+    /* v2: la API ya no emite comprobantes al reservar (se factura cada cuota en su fecha). */
+    expect(resultado.numeroSolicitud).toBe(input.numeroSolicitud);
+    expect(resultado.cuotas.every((c) => c.documento === null)).toBe(true);
   });
 });

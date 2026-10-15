@@ -25,7 +25,8 @@
 - **Matcher:** todas las rutas excepto `_next/static`, `_next/image`, `favicon.ico`, `sitemap.xml`, `robots.txt`.
 - **Rutas pÃºblicas:** `/`, `/auth/login`, `/presala`, `/mapa`, `/403`; prefijos `/api/auth/`, `/api/maestra/`;
   rutas exactas `/api/maestra`, `/api/exhibidoras`, `/api/stands/exhibidora`, `/api/stands/contrato`,
-  `/api/planos/publico`, `/api/eventos/modal-info`; caso especial `GET /api/eventos/listar?presala=1`.
+  `/api/planos/publico`, `/api/eventos/modal-info`, `/api/integracion/factura` (se autentica con
+  `x-api-key` en el controlador); caso especial `GET /api/eventos/listar?presala=1`.
 - **AutenticaciÃ³n:** extrae el token JWT de la cookie `token` y lo verifica con `verifyToken`.
   Sin token o invÃ¡lido â†’ redirect a `/auth/login?returnTo=<ruta>`.
 - **AutorizaciÃ³n:** valida el permiso declarado por prefijo con `hasPermission`; si falta â†’ `/403`.
@@ -181,6 +182,7 @@
 | `/api/exhibidoras` | GET | Lista exhibidoras con bÃºsqueda `q` (API key M2M) |
 | `/api/stands/asignar-montajista` | POST | Asigna/reemplaza/desasigna la empresa montajista de un stand (M2M `x-api-key` o sesiÃ³n con `stands:manage`). Audita en `stand_montajista_historial` |
 | `/api/empresas-montajistas` | GET | CatÃ¡logo de montajistas (`q` = RUC o razÃ³n social; sin `q`, las ya asignadas). Misma auth que el anterior |
+| `/api/integracion/factura` | POST | **API entrante del sistema de facturación (SIE)**: registra el documento y estado de pago de una cuota (`numeroSolicitud` o `contrato` + `cuota` + `documento` + `estadoPago` 0/1/2). Auth `x-api-key`. Detalle: `docs/05-integraciones/api-facturacion-entrante.md` |
 
 > Detalle del contrato de integraciÃ³n con el Sistema de Montaje: `docs/05-integraciones/api-sistema-montaje.md`.
 
@@ -211,7 +213,10 @@ Vista del cliente (`pagos:view`); cada acciÃ³n valida propiedad de la facturac
 | `/api/pagos/actualizar-cuota` | POST | Edita monto/vencimiento (`cuotaId`) |
 | `/api/pagos/adjuntar-voucher` | POST | Adjunta/reemplaza el voucher (`cuotaId`, `comprobante`) sin cambiar estado |
 | `/api/pagos/eliminar-cuota` | POST | Elimina cuota y renumera las restantes |
-| `/api/pagos/solicitar-factura` | POST | Registra la reserva en el IIMP y emite la factura de la 1ra cuota (`cuotaId`); 409 si ya existe contrato IIMP |
+| `/api/pagos/solicitar-factura` | POST | Registra la reserva en el IIMP (`cuotaId`; requiere al menos 1 OC y 1 HES); 409 si ya existe contrato IIMP |
+| `/api/pagos/archivos` | GET | Documentos (links) de la cuenta corriente del IIMP de la reserva de esa cuota (`cuotaId`) |
+| `/api/pagos/archivos-agregar` | POST | Agrega un documento a la cuenta corriente del IIMP (`cuotaId`, `tipo` OC/HES/DETRACCION/DIFERENCIA/PAGO_TOTAL/VALORIZACION_COTIZACION, `cuota?`, `link`, `nombre?`) |
+| `/api/pagos/archivos-eliminar` | POST | Quita un documento de la cuenta corriente del IIMP (`cuotaId`, `item`) |
 
 ### 3.15 Reservas â€” `src/app/api/reservas/[...slug]/route.ts`
 

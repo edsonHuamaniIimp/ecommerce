@@ -52,6 +52,11 @@ No se crean desde la página: se crean al **generar la orden de pago** de una so
 (`solicitudes-repository.ts:378-400`), que pone la solicitud en `pendiente_pago` y crea
 `Facturacion` tipo `manual`, moneda `US$`.
 
+**Automático desde el SGC**: al aprobarse el contrato (webhook `workflow.approved` con
+`finalization=active`, o el **bypass del admin**), se genera la orden de pago sola
+(`orden-pago-automatica.ts` → `marcarOrdenPago`); el botón manual del detalle queda como
+respaldo.
+
 ### 5.3 Pago con Niubiz — DESHABILITADO
 `NIUBIZ_HABILITADO = false`. El código y las páginas se conservan para reactivar:
 - El botón "Pagar ahora / Pagar con Niubizz" en Mis Solicitudes ya **no se muestra** (el helper
@@ -75,13 +80,16 @@ No se crean desde la página: se crean al **generar la orden de pago** de una so
   responde **409** y la UI oculta los botones de configuración); queda "pendiente de confirmacion"
   hasta que el admin registre el pago.
 - El cliente **no** registra pagos ni archiva/elimina facturaciones: eso queda en el flujo admin.
-- **Solicitar factura** (cliente): con la reserva pendiente de pago, un ícono por cuota llama a
-  `POST /api/pagos/solicitar-factura` `{cuotaId}`: registra la reserva en el IIMP (stands
-  `RESERVADO`, contrato + cuenta corriente) y emite la factura/boleta de la 1ra cuota, que queda
-  guardada y visible en la fila (contrato IIMP + cta. cte. en la cabecera). Los datos fiscales
-  salen del **snapshot del paso 1 del wizard** (`solicitud.datos_facturacion`); la empresa
-  vinculada es opcional (enriquece). Boleta a persona natural usa servicio-persona por DNI.
-  No requiere `pagos:manage`; valida propiedad de la cuota. Detalle:
+- **Registrar reserva (antes "Solicitar factura")** (cliente): con la reserva pendiente de pago, un
+  ícono por cuota llama a `POST /api/pagos/solicitar-factura` `{cuotaId}`: registra la reserva en
+  el IIMP (stands `RESERVADO`, contrato + cuenta corriente con `NumeroSolicitud` único). **v2: el
+  IIMP ya no emite comprobantes al reservar**; factura cada cuota en su fecha al contacto de Pagos.
+  Los datos fiscales salen del **snapshot del paso 1 del wizard** (`solicitud.datos_facturacion`);
+  la empresa vinculada es opcional (enriquece). Boleta a persona natural usa servicio-persona por
+  DNI. No requiere `pagos:manage`; valida propiedad de la cuota. Con la reserva registrada, el
+  mismo ícono abre los **documentos de la cuenta corriente** (`GET /api/pagos/archivos`,
+  `POST /api/pagos/archivos-agregar`, `POST /api/pagos/archivos-eliminar`): links de OC, HES,
+  constancia de detracción y de la diferencia. Detalle:
   [integracion-reserva-iimp.md](../05-integraciones/integracion-reserva-iimp.md).
 
 ## 6. Estados

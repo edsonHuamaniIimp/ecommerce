@@ -11,6 +11,10 @@ export interface CuotaPagoDTO {
   estado: string;
   comprobante: string | null;
   comprobanteFiscal: ComprobanteFiscalDTO | null;
+  /** Nombre del documento notificado por el sistema de facturacion del IIMP (sin enlace de descarga). */
+  documentoSie: string | null;
+  /** true si el IIMP notifico la anulacion/rechazo del documento (estado 2). */
+  documentoSieAnulado: boolean;
   /** Documento fiscal emitido por el IIMP (1ra cuota al reservar; resto en su fecha). */
   iimpDocumento: {
     tipoDocumento: string;
@@ -47,11 +51,34 @@ export interface PagosListResult {
   total: number;
 }
 
-/** Resultado de "Solicitar factura": reserva registrada en el IIMP y documento de la 1ra cuota. */
+/** Archivo (link) a registrar en la cuenta corriente del IIMP: OC, HES, detraccion o diferencia. */
+export interface ArchivoIImpInputDTO {
+  tipo: string;
+  /** Obligatoria en DETRACCION y DIFERENCIA; opcional en OC, HES y PAGO_TOTAL. */
+  cuota?: number | null;
+  link: string;
+  nombre?: string | null;
+}
+
+/** Resultado de "Solicitar factura": reserva registrada en el IIMP (cuenta corriente creada). */
 export interface ResultadoSolicitudFacturaDTO {
+  numeroSolicitud: string;
   contrato: string;
   cuentaCorriente: number;
+  /** Legado: el IIMP ya no emite comprobantes al reservar (si algun dia vuelve, viene aqui). */
   documento: CuotaPagoDTO["iimpDocumento"];
+  /** Payload exacto que el servidor envio al IIMP (visible en la respuesta para validacion). */
+  payloadEnviado?: unknown;
+}
+
+/** Archivo (link) registrado en la cuenta corriente del IIMP: OC, HES, detraccion o diferencia. */
+export interface ArchivoCuentaDTO {
+  item: number;
+  tipo: string;
+  cuota: number | null;
+  link: string;
+  nombre: string | null;
+  fecha: string;
 }
 
 /** Fachada cliente de la vista de pagos del exhibidor. */
@@ -78,8 +105,21 @@ export const pagosService = {
   adjuntarVoucher(body: { cuotaId: string; comprobante: string }) {
     return internalApi.post<{ ok: boolean }>("/api/pagos/adjuntar-voucher", body);
   },
-  /** "Solicitar factura": registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
-  solicitarFactura(cuotaId: string) {
-    return internalApi.post<ResultadoSolicitudFacturaDTO>("/api/pagos/solicitar-factura", { cuotaId });
+  /** "Solicitar factura": registra la reserva en el IIMP con sus documentos (el IIMP factura cada cuota en su fecha). */
+  solicitarFactura(cuotaId: string, archivos: ArchivoIImpInputDTO[] = []) {
+    return internalApi.post<ResultadoSolicitudFacturaDTO>("/api/pagos/solicitar-factura", {
+      cuotaId,
+      ...(archivos.length > 0 ? { archivos } : {}),
+    });
+  },
+  /** Archivos (links) de la cuenta corriente del IIMP asociada a la cuota. */
+  listarArchivos(cuotaId: string) {
+    return internalApi.get<ArchivoCuentaDTO[]>(`/api/pagos/archivos?cuotaId=${encodeURIComponent(cuotaId)}`);
+  },
+  agregarArchivo(body: { cuotaId: string; tipo: string; cuota?: number | null; link: string; nombre?: string | null }) {
+    return internalApi.post<ArchivoCuentaDTO[]>("/api/pagos/archivos-agregar", body);
+  },
+  eliminarArchivo(body: { cuotaId: string; item: number }) {
+    return internalApi.post<ArchivoCuentaDTO[]>("/api/pagos/archivos-eliminar", body);
   },
 };

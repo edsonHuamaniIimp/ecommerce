@@ -41,6 +41,7 @@ import { UsuariosApplicationService } from "@/application/usuarios/usuarios-serv
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client";
 import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
+import { ArchivosCuentaCorrienteApplicationService } from "@/application/facturacion-iimp/archivos-cuenta-service";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
@@ -97,7 +98,8 @@ export const services = {
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
-  solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient),
+  solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
+  archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
   contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
   alertas: new AlertasApplicationService(authRepo),

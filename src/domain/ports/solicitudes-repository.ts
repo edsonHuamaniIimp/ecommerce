@@ -64,6 +64,7 @@ export interface ISolicitudesRepository {
   /** Datos para armar el payload de `POST /stands/reserva` del IIMP. */
   datosReservaIImp(solicitudId: string): Promise<{
     iimpContrato: string | null;
+    iimpCuentaCorriente: string | null;
     email: string | null;
     tipoEvento: number | null;
     codigoEvento: number | null;
@@ -72,4 +73,8 @@ export interface ISolicitudesRepository {
     /** Datos comerciales/fiscales del paso 1 del wizard (solicitudes nuevas). */
     datosFacturacion: DatosFacturacionSolicitud | null;
   } | null>;
+  /** Id de la solicitud cuyo `NumeroSolicitud` del IIMP (determinista) coincide. */
+  findSolicitudIdPorNumeroIImp(numeroSolicitud: string): Promise<string | null>;
+  /** Id de la solicitud registrada en el IIMP con ese contrato. */
+  findSolicitudIdPorContrato(contrato: string): Promise<string | null>;
 }

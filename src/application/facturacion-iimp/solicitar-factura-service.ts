@@ -11,6 +11,7 @@ import {
   TIPOS_COMPROBANTE,
   TIPOS_DOCUMENTO_FACTURACION_IIMP,
   TIPOS_DOCUMENTO_PERSONA,
+  TIPOS_ARCHIVO_IIMP,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { ClienteIdent, IFacturacionRepository } from "@/domain/ports/facturacion-repository";
@@ -18,13 +19,19 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
+import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
-import type { IReservaIimpClient, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
+import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
+import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
+import { numeroSolicitudIImp } from "./numero-solicitud";
 
 export interface ResultadoSolicitudFactura {
+  numeroSolicitud: string;
   contrato: string;
   cuentaCorriente: number;
   documento: ReservaIimpDocumento | null;
+  /** Payload exacto enviado al IIMP (validacion/transparencia en la respuesta interna). */
+  payloadEnviado: ReservaIimpInput;
 }
 
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
@@ -49,9 +56,10 @@ export class SolicitarFacturaApplicationService {
     private readonly empresas: IEmpresaRepository,
     private readonly reserva: IReservaIimpClient,
     private readonly personas: IPersonaClient,
+    private readonly consultaDocumento: IConsultaDocumentoClient,
   ) {}
 
-  async solicitar(cuotaId: string, ident: ClienteIdent): Promise<ResultadoSolicitudFactura> {
+  async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = []): Promise<ResultadoSolicitudFactura> {
     const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
     if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
@@ -105,11 +113,31 @@ export class SolicitarFacturaApplicationService {
       return { porcentaje: porcentajes[i] ?? 1, fecha };
     });
 
+    /* Los archivos viajan en la misma reserva: se descartan los que no traen link (v3),
+       se normaliza el link a URL absoluta y se validan con las reglas del IIMP. */
+    const archivosNormalizados = archivos
+      .filter((a) => a.link?.trim())
+      .map((a) => ({ ...a, link: normalizarLinkArchivoIImp(a.link) }));
+    for (const archivo of archivosNormalizados) {
+      validarArchivoIImp(archivo, cuotasPlan.length);
+    }
+
+    /* Requisito del flujo: la 1ra cuota exige al menos una OC y una HES (en las cuotas 2-3
+       son opcionales). Cuentan tambien los documentos generales de la cuenta (sin cuota). */
+    const esDePrimeraCuota = (a: (typeof archivosNormalizados)[number]) => a.cuota == null || a.cuota === 1;
+    const tiposPrimeraCuota = new Set(archivosNormalizados.filter(esDePrimeraCuota).map((a) => a.tipo));
+    if (!tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.OC) || !tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.HES)) {
+      throw new DomainError("La primera cuota requiere adjuntar al menos una OC y una HES", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    const numeroSolicitud = numeroSolicitudIImp(fact.solicitudId);
     const input = await this.armarPayload(snapshot, empresa, {
+      numeroSolicitud,
       tipEvCod: datos.tipoEvento,
       evenCod: datos.codigoEvento,
       stands: datos.stands,
       cuotas,
+      ...(archivosNormalizados.length > 0 ? { archivos: archivosNormalizados } : {}),
     });
 
     const respuesta = await this.reserva.reservar(input);
@@ -127,16 +155,27 @@ export class SolicitarFacturaApplicationService {
       await this.facturacion.guardarDocumentoIImp(fact.id, 1, documento, new Date());
     }
 
-    return { contrato: respuesta.contrato, cuentaCorriente: respuesta.cuentaCorriente, documento };
+    return {
+      numeroSolicitud: respuesta.numeroSolicitud || numeroSolicitud,
+      contrato: respuesta.contrato,
+      cuentaCorriente: respuesta.cuentaCorriente,
+      documento,
+      payloadEnviado: input,
+    };
   }
 
   /** Arma el payload del IIMP desde el snapshot (preferente) y la empresa (enriquecimiento). */
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
-    base: { tipEvCod: number; evenCod: number; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }> },
+    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
   ): Promise<ReservaIimpInput> {
-    const comprobante = snapshot?.tipoComprobante ?? empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA;
+    /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
+     * factura en silencio: si ninguna fuente trae un tipo valido, se rechaza. */
+    const comprobante = (snapshot?.tipoComprobante?.trim() || empresa?.tipoComprobante?.trim() || "").toLowerCase();
+    if (comprobante !== TIPOS_COMPROBANTE.FACTURA && comprobante !== TIPOS_COMPROBANTE.BOLETA) {
+      throw new DomainError("El tipo de comprobante de la solicitud no es valido (factura|boleta)", API_ERROR_CODES.VALIDATION, 400);
+    }
     const esBoleta = comprobante === TIPOS_COMPROBANTE.BOLETA;
     const direccion = snapshot?.direccion?.trim() || empresa?.direccionFiscal?.trim() || "";
     if (!direccion) {
@@ -151,20 +190,31 @@ export class SolicitarFacturaApplicationService {
         throw new DomainError("La boleta requiere DNI de 8 digitos en la solicitud", API_ERROR_CODES.VALIDATION, 400);
       }
       const persona = await this.personas.buscarPorDocumento(dni, TIPOS_DOCUMENTO_PERSONA.DNI).catch(() => null);
-      if (!persona?.nombres || !persona.apellido_paterno) {
-        throw new DomainError(`No se encontraron los datos del DNI ${dni} en el padron de personas`, API_ERROR_CODES.VALIDATION, 400);
+      type TitularBoleta = { nombres: string; apellidoPaterno: string; apellidoMaterno: string | null; correo: string | null };
+      let titular: TitularBoleta | null = persona?.nombres && persona.apellido_paterno
+        ? { nombres: persona.nombres, apellidoPaterno: persona.apellido_paterno, apellidoMaterno: persona.apellido_materno ?? null, correo: persona.correo ?? null }
+        : null;
+      /* Respaldo RENIEC: son datos de facturacion y el DNI puede no existir en el padron interno. */
+      if (!titular) {
+        const reniec = await this.consultaDocumento.consultarDni(dni).catch(() => null);
+        if (reniec?.nombres && reniec.apellidoPaterno) {
+          titular = { nombres: reniec.nombres, apellidoPaterno: reniec.apellidoPaterno, apellidoMaterno: reniec.apellidoMaterno ?? null, correo: null };
+        }
       }
-      const emailPagos = email || persona.correo?.trim() || "";
+      if (!titular) {
+        throw new DomainError(`No se encontraron los datos del DNI ${dni} (padron de personas ni RENIEC)`, API_ERROR_CODES.VALIDATION, 400);
+      }
+      const emailPagos = email || titular.correo?.trim() || "";
       if (!emailPagos) throw new DomainError("La boleta requiere correo de contacto en la solicitud", API_ERROR_CODES.VALIDATION, 400);
-      const nombreContacto = [persona.nombres, persona.apellido_paterno, persona.apellido_materno].filter(Boolean).join(" ");
+      const nombreContacto = [titular.nombres, titular.apellidoPaterno, titular.apellidoMaterno].filter(Boolean).join(" ");
       return {
         ...base,
         tipoFacturacion: FACTURACION_IIMP.BOLETA,
         tipDocFacturacion: TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI,
         numDocFacturacion: dni,
-        apellidoPaternoFact: persona.apellido_paterno,
-        apellidoMaternoFact: persona.apellido_materno ?? null,
-        nombresFact: persona.nombres,
+        apellidoPaternoFact: titular.apellidoPaterno,
+        apellidoMaternoFact: titular.apellidoMaterno,
+        nombresFact: titular.nombres,
         dirFacturacion: direccion,
         telefono,
         friso: nombreContacto,

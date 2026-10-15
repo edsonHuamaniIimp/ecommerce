@@ -6,6 +6,7 @@ import { getSession } from "@/lib/server/auth";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { PagosApplicationService } from "@/application/pagos/pagos-service";
 import type { ClienteIdent } from "@/domain/ports/facturacion-repository";
+import type { ReservaIimpArchivoInput } from "@/domain/ports/reserva-iimp-client";
 
 const service = new PagosApplicationService(facturacionRepo);
 
@@ -78,12 +79,44 @@ export const pagosController = {
     return success({ ok: true });
   },
 
-  /** "Solicitar factura" del cliente: registra la reserva en el IIMP y emite la factura de la 1ra cuota. */
+  /** "Solicitar factura" del cliente: registra la reserva en el IIMP con sus documentos (el IIMP factura cada cuota en su fecha). */
   async solicitarFactura(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    const { cuotaId } = (await request.json()) as { cuotaId: string };
+    const { cuotaId, archivos } = (await request.json()) as { cuotaId: string; archivos?: unknown };
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
-    return success(await services.solicitarFactura.solicitar(cuotaId, ident(session)));
+    const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
+    return success(await services.solicitarFactura.solicitar(cuotaId, ident(session), lista));
+  },
+
+  /** Archivos (links) de la cuenta corriente del IIMP de una cuota propia del cliente. */
+  async listarArchivos(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const cuotaId = new URL(request.url).searchParams.get("cuotaId");
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+    return success(await services.archivosCuenta.listar(cuotaId, ident(session)));
+  },
+
+  async agregarArchivo(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const { cuotaId, tipo, cuota, link, nombre } = (await request.json()) as {
+      cuotaId: string;
+      tipo: string;
+      cuota?: number | null;
+      link: string;
+      nombre?: string | null;
+    };
+    if (!cuotaId || !tipo || !link) return error(API_ERROR_CODES.VALIDATION, "cuotaId, tipo y link requeridos", 400);
+    return success(await services.archivosCuenta.agregar(cuotaId, { tipo, cuota: cuota ?? null, link, nombre: nombre ?? null }, ident(session)));
+  },
+
+  async eliminarArchivo(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const { cuotaId, item } = (await request.json()) as { cuotaId: string; item: number };
+    if (!cuotaId || !item) return error(API_ERROR_CODES.VALIDATION, "cuotaId e item requeridos", 400);
+    return success(await services.archivosCuenta.eliminar(cuotaId, item, ident(session)));
   },
 };

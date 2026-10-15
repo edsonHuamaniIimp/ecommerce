@@ -31,6 +31,10 @@ export interface FacturacionRow {
     estado: string;
     comprobante: string | null;
     comprobanteFiscal: ComprobanteFiscalRow | null;
+    /** Nombre del documento notificado por el sistema de facturacion externo (sin enlace de descarga). */
+    documentoSie: string | null;
+    /** true si el sistema de facturacion notifico la anulacion/rechazo del documento de la cuota (estado 2). */
+    documentoSieAnulado: boolean;
     /** Documento fiscal emitido por el IIMP para la cuota (1ra al reservar; resto en su fecha). */
     iimpDocumento: IimpDocumentoRow | null;
   }>;
@@ -83,6 +87,12 @@ export interface DatosComprobanteFiscal {
   url: string;
 }
 
+/** Notificacion del sistema de facturacion externo: nombre del documento + estado de pago. */
+export interface NotificacionFacturaExterna {
+  documento: string;
+  estadoPago: import("@/lib/shared/constants").EstadoPagoExterno;
+}
+
 export interface IFacturacionRepository {
   listar(params: FacturacionListParams): Promise<FacturacionListResult>;
   /** Facturaciones cuya solicitud pertenece al cliente (userId o email). */
@@ -97,6 +107,10 @@ export interface IFacturacionRepository {
   adjuntarComprobanteFiscal(cuotaId: string, data: DatosComprobanteFiscal, createdBy: string): Promise<void>;
   /** Guarda el documento fiscal emitido por el IIMP en la cuota con ese numero. */
   guardarDocumentoIImp(facturacionId: string, numero: number, documento: unknown, emitidaAt: Date): Promise<void>;
+  /** Facturacion activa (id) de una solicitud. */
+  findFacturacionIdPorSolicitud(solicitudId: string): Promise<string | null>;
+  /** Registra el documento y el estado de pago notificados por el sistema de facturacion. */
+  registrarNotificacionFactura(cuotaId: string, data: NotificacionFacturaExterna, createdBy: string): Promise<void>;
   actualizar(id: string, data: { tipo?: string; modoPago?: string }, createdBy: string): Promise<void>;
   eliminar(id: string, createdBy: string): Promise<void>;
   eliminarCuota(cuotaId: string, createdBy: string): Promise<void>;
