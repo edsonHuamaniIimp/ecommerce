@@ -8,26 +8,7 @@ import {
 import { DomainError } from "@/lib/server/router";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
-
-export interface NotificacionFacturaInput {
-  /** Mismo `NumeroSolicitud` que se envio en la reserva (recomendado por la v3). */
-  numeroSolicitud?: string | null;
-  /** Alternativa: contrato del IIMP de la reserva. */
-  contrato?: string | null;
-  /** Numero de cuota de la cuenta (1..n). */
-  cuota: number;
-  /** Nombre del documento (no el archivo): ej. "F001-1234.pdf". */
-  documento: string;
-  /** Codigo del estado: 0 PAGADA | 1 PENDIENTE | 2 ANULADA. */
-  estadoPago: number;
-}
-
-export interface NotificacionFacturaResultado {
-  cuotaId: string;
-  numero: number;
-  documento: string;
-  estadoPago: EstadoPagoExterno;
-}
+import type { NotificacionFacturaRequestDTO, NotificacionFacturaResponseDTO } from "@/types/dto/facturacion";
 
 /**
  * API entrante (M2M) del sistema de facturacion: registra, contra una cuota de la
@@ -44,7 +25,7 @@ export class NotificacionFacturaApplicationService {
     private readonly facturacion: Pick<IFacturacionRepository, "findFacturacionIdPorSolicitud" | "detalle" | "registrarNotificacionFactura">,
   ) {}
 
-  async registrar(input: NotificacionFacturaInput): Promise<NotificacionFacturaResultado> {
+  async registrar(input: NotificacionFacturaRequestDTO): Promise<NotificacionFacturaResponseDTO> {
     const estadoPago = this.validar(input);
     const documento = input.documento.trim();
 
@@ -70,7 +51,7 @@ export class NotificacionFacturaApplicationService {
     return { cuotaId: cuota.id, numero: cuota.numero, documento, estadoPago };
   }
 
-  private validar(input: NotificacionFacturaInput): EstadoPagoExterno {
+  private validar(input: NotificacionFacturaRequestDTO): EstadoPagoExterno {
     if (!input.numeroSolicitud?.trim() && !input.contrato?.trim()) {
       throw new DomainError("numeroSolicitud o contrato es obligatorio", API_ERROR_CODES.VALIDATION, 400);
     }

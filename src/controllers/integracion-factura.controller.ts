@@ -6,6 +6,7 @@ import { validarIntegracionM2M } from "@/lib/server/integracion-m2m";
 import { SolicitudesPrismaRepository } from "@/infrastructure/persistence/solicitudes-repository";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { NotificacionFacturaApplicationService } from "@/application/facturacion-iimp/notificacion-factura-service";
+import type { NotificacionFacturaRequestDTO } from "@/types/dto/facturacion";
 
 const service = new NotificacionFacturaApplicationService(new SolicitudesPrismaRepository(), facturacionRepo);
 
@@ -29,13 +30,14 @@ export const integracionFacturaController = {
     }
 
     try {
-      const resultado = await service.registrar({
+      const body: NotificacionFacturaRequestDTO = {
         numeroSolicitud: typeof raw.numeroSolicitud === "string" ? raw.numeroSolicitud : null,
         contrato: typeof raw.contrato === "string" ? raw.contrato : null,
         cuota: Number(raw.cuota),
         documento: typeof raw.documento === "string" ? raw.documento : "",
         estadoPago: Number(raw.estadoPago),
-      });
+      };
+      const resultado = await service.registrar(body);
       return success(resultado);
     } catch (err) {
       if (err instanceof DomainError) {
