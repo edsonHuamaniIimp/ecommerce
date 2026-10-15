@@ -466,6 +466,17 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("las plantillas de contrato no conservan restos del formulario de montos (S/. y guiones bajos)", () => {
+    for (const archivo of ["contrato-perumin38-tags.docx", "contrato-perumin38-tags-en.docx"]) {
+      const plantilla = fs.readFileSync(path.join(process.cwd(), "plantillas", archivo));
+      const xml = new PizZip(plantilla).file("word/document.xml")?.asText() ?? "";
+      expect(xml).not.toContain("S/.");
+      expect(xml).not.toMatch(/\{[a-z_]+\}_/);
+      expect(xml).not.toMatch(/_ *\{[a-z_]+\}/);
+      expect(xml).not.toMatch(/US\$\s*\/\s*\{/);
+    }
+  });
+
   it("genera el borrador SIN crear ni persistir la solicitud (wizard, paso Contrato)", async () => {
     const { svc, solicitudes, storage, gess } = build();
     vi.mocked(gess.findById).mockResolvedValue({
