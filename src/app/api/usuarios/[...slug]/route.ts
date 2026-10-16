@@ -12,5 +12,6 @@ export const { GET, POST } = createRouter({
     "crear-cuenta": (req) => usuariosController.crearCuenta(req),
     actualizar: (req) => usuariosController.actualizar(req),
     "enviar-accesos": (req) => usuariosController.enviarAccesos(req),
+    "desactivar-lote": (req) => usuariosController.desactivarLote(req),
   },
 });

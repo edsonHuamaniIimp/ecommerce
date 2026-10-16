@@ -941,6 +941,25 @@ export const ESTADOS_ACCESO_USUARIO = {
   DESHABILITADO: false,
 } as const;
 
+/** Estado de una cuenta dentro de la desactivacion masiva de usuarios (previsualizacion o resultado). */
+export const ESTADOS_DESACTIVACION_LOTE = {
+  DESACTIVADO: "desactivado",
+  POR_DESACTIVAR: "por_desactivar",
+  YA_DESACTIVADO: "ya_desactivado",
+  OMITIDO: "omitido",
+} as const;
+
+export type EstadoDesactivacionLote = (typeof ESTADOS_DESACTIVACION_LOTE)[keyof typeof ESTADOS_DESACTIVACION_LOTE];
+
+/** Motivos por los que una cuenta se omite en la desactivacion masiva. */
+export const MOTIVOS_OMISION_DESACTIVACION = {
+  ADMIN: "Cuenta admin (no se desactiva en lote)",
+  PROPIA: "Es tu propia cuenta",
+} as const;
+
+/** Maximo de filas por lote al desactivar usuarios (una linea = correo del login o RUC de la empresa). */
+export const USUARIOS_LOTE_MAX_FILAS = 200;
+
 /** Filtro de la bandeja de Usuarios por vinculo con empresa (omitido = todos). */
 export const FILTROS_USUARIO_EMPRESA = {
   PORTAL: "portal",

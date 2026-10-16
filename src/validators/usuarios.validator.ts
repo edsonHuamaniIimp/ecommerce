@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FILTROS_USUARIO_EMPRESA, REGEX_EMAIL, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
+import { FILTROS_USUARIO_EMPRESA, REGEX_EMAIL, TIPOS_DOCUMENTO_PERSONA, USUARIOS_LOTE_MAX_FILAS } from "@/lib/shared/constants";
 
 /**
  * Datos de la persona a buscar/crear en servicio-persona + correo del acceso local.
@@ -67,6 +67,18 @@ export const actualizarUsuarioSchema = z
 
 export const enviarAccesosUsuarioSchema = z.object({
   id: z.string().min(1, "id requerido"),
+});
+
+/**
+ * Desactivacion masiva de accesos: cada identificador es el correo del login o el
+ * RUC de la empresa (desactiva sus cuentas). `confirmar=false` previsualiza.
+ */
+export const desactivarUsuariosLoteSchema = z.object({
+  identificadores: z
+    .array(z.string().trim().min(1).max(120))
+    .min(1, "Al menos un identificador")
+    .max(USUARIOS_LOTE_MAX_FILAS, `Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`),
+  confirmar: z.boolean().default(false),
 });
 
 /** Query de la bandeja paginada de usuarios (paginacion/busqueda server-side). */

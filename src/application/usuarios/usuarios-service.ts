@@ -1,4 +1,4 @@
-import { API_ERROR_CODES, IDIOMA_DEFAULT, REGEX_EMAIL, ROLES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, REGEX_RUC, ROLES, type EstadoDesactivacionLote } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
@@ -60,6 +60,24 @@ export interface ResultadoCreacionUsuario {
   /** true = credenciales enviadas por correo; false = fallo el envio; null = no se creo. */
   emailEnviado: boolean | null;
   error: string | null;
+}
+
+/** Cuenta alcanzada por una desactivacion masiva (previsualizacion o resultado). */
+export interface CuentaDesactivacionLote {
+  userId: string;
+  email: string;
+  empresa: string | null;
+  rol: string;
+  estado: EstadoDesactivacionLote;
+  motivo: string | null;
+  /** Identificadores de la lista del lote que alcanzan esta cuenta (correos o RUC). */
+  identificadores: string[];
+}
+
+export interface DesactivarUsuariosLoteResultado {
+  cuentas: CuentaDesactivacionLote[];
+  noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  resumen: { desactivadas: number; porDesactivar: number; yaDesactivadas: number; omitidas: number; noEncontrados: number };
 }
 
 /**
@@ -280,6 +298,113 @@ export class UsuariosApplicationService {
     }
 
     return this.repo.actualizarUsuarioPortal(id, data);
+  }
+
+  /**
+   * Desactivacion masiva de accesos del portal: cada linea es el correo del login o
+   * el RUC de la empresa (desactiva todas sus cuentas). Sin `confirmar` solo
+   * previsualiza. Guardas: nunca la propia cuenta ni cuentas admin (se omiten).
+   */
+  async desactivarLote(identificadores: string[], confirmar: boolean, solicitanteEmail?: string): Promise<DesactivarUsuariosLoteResultado> {
+    const validos: { valor: string; tipo: "correo" | "ruc" }[] = [];
+    const noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[] = [];
+    const vistos = new Set<string>();
+    for (const bruto of identificadores) {
+      const valor = String(bruto ?? "").trim();
+      if (!valor || vistos.has(valor.toLowerCase())) continue;
+      vistos.add(valor.toLowerCase());
+      if (REGEX_EMAIL.test(valor)) {
+        validos.push({ valor: valor.toLowerCase(), tipo: "correo" });
+        continue;
+      }
+      const digitos = valor.replace(/\D/g, "");
+      if (digitos && REGEX_RUC.test(digitos)) validos.push({ valor: digitos, tipo: "ruc" });
+      else noEncontrados.push({ identificador: valor, motivo: "invalido" });
+    }
+
+    const filas = await this.repo.findCuentasPorIdentificadores({
+      correos: validos.filter((v) => v.tipo === "correo").map((v) => v.valor),
+      rucs: validos.filter((v) => v.tipo === "ruc").map((v) => v.valor),
+    });
+
+    /* Una cuenta (userId) puede tener varias filas de rol: se agrupan. */
+    const porCuenta = new Map<string, UsuarioPortalRow[]>();
+    for (const fila of filas) {
+      const actual = porCuenta.get(fila.userId) ?? [];
+      actual.push(fila);
+      porCuenta.set(fila.userId, actual);
+    }
+
+    const solicitante = solicitanteEmail?.trim().toLowerCase() ?? null;
+    const cuentas: CuentaDesactivacionLote[] = [];
+    const userIdsADesactivar: string[] = [];
+
+    for (const [userId, filasCuenta] of porCuenta) {
+      const primera = filasCuenta[0];
+      if (!primera) continue;
+      const email = primera.email.trim().toLowerCase();
+      const ids = validos
+        .filter((v) =>
+          (v.tipo === "correo" && v.valor === email)
+          || (v.tipo === "ruc" && filasCuenta.some((f) =>
+            (f.ruc ?? "").replace(/\D/g, "") === v.valor
+            || (f.empresaRuc ?? "").replace(/\D/g, "") === v.valor)),
+        )
+        .map((v) => v.valor);
+      if (ids.length === 0) continue;
+
+      const esAdmin = filasCuenta.some((f) => f.rol === ROLES.ADMIN);
+      const yaDesactivada = filasCuenta.every((f) => !f.flgActivo);
+      let estado: EstadoDesactivacionLote;
+      let motivo: string | null = null;
+      if (email === solicitante) {
+        estado = ESTADOS_DESACTIVACION_LOTE.OMITIDO;
+        motivo = MOTIVOS_OMISION_DESACTIVACION.PROPIA;
+      } else if (esAdmin) {
+        estado = ESTADOS_DESACTIVACION_LOTE.OMITIDO;
+        motivo = MOTIVOS_OMISION_DESACTIVACION.ADMIN;
+      } else if (yaDesactivada) {
+        estado = ESTADOS_DESACTIVACION_LOTE.YA_DESACTIVADO;
+      } else if (confirmar) {
+        estado = ESTADOS_DESACTIVACION_LOTE.DESACTIVADO;
+        userIdsADesactivar.push(userId);
+      } else {
+        estado = ESTADOS_DESACTIVACION_LOTE.POR_DESACTIVAR;
+      }
+
+      cuentas.push({
+        userId,
+        email,
+        empresa: primera.empresa ?? null,
+        rol: filasCuenta.map((f) => f.rol).join(", "),
+        estado,
+        motivo,
+        identificadores: ids,
+      });
+    }
+
+    /* Identificadores validos que no alcanzaron ninguna cuenta. */
+    for (const v of validos) {
+      if (!cuentas.some((c) => c.identificadores.includes(v.valor))) {
+        noEncontrados.push({ identificador: v.valor, motivo: "no_encontrado" });
+      }
+    }
+
+    if (confirmar && userIdsADesactivar.length > 0) {
+      await this.repo.desactivarCuentasPorUserIds(userIdsADesactivar);
+    }
+
+    return {
+      cuentas,
+      noEncontrados,
+      resumen: {
+        desactivadas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.DESACTIVADO).length,
+        porDesactivar: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.POR_DESACTIVAR).length,
+        yaDesactivadas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.YA_DESACTIVADO).length,
+        omitidas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.OMITIDO).length,
+        noEncontrados: noEncontrados.length,
+      },
+    };
   }
 
   /** Regenera la contrasena temporal y reenvia las credenciales al correo del usuario. */

@@ -102,3 +102,27 @@ export interface ResultadoEnvioAccesosDTO {
   email: string;
   emailEnviado: boolean;
 }
+
+/** Desactivacion masiva de accesos: correos (login) o RUC de la empresa. */
+export interface DesactivarUsuariosLoteDTO {
+  identificadores: string[];
+  /** false/omitido = previsualizacion; true = ejecuta la desactivacion. */
+  confirmar?: boolean;
+}
+
+/** Cuenta alcanzada por la desactivacion masiva (previsualizacion o resultado). */
+export interface CuentaDesactivacionLoteDTO {
+  userId: string;
+  email: string;
+  empresa: string | null;
+  rol: string;
+  estado: "desactivado" | "por_desactivar" | "ya_desactivado" | "omitido";
+  motivo: string | null;
+  identificadores: string[];
+}
+
+export interface ResultadoDesactivacionLoteDTO {
+  cuentas: CuentaDesactivacionLoteDTO[];
+  noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  resumen: { desactivadas: number; porDesactivar: number; yaDesactivadas: number; omitidas: number; noEncontrados: number };
+}

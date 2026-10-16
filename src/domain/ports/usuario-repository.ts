@@ -16,6 +16,8 @@ export interface UsuarioPortalRow {
   /** Codigo SIE de la empresa en la API de entidades (ej. E0000003804). */
   idEmpresa: string | null;
   empresa: string | null;
+  /** RUC de la ficha local de la empresa vinculada, si existe (para cruzarlo con un RUC del lote). */
+  empresaRuc?: string | null;
   /** true = tiene empresa vinculada (Portal del Cliente); false = usuario interno/sin empresa. */
   esPortal: boolean;
   /** Identificador de la persona en servicio-persona (sie_code). */
@@ -52,6 +54,10 @@ export interface IUsuarioRepository {
   findVinculacionPorEmail(email: string): Promise<VinculacionUsuario | null>;
   /** true si OTRA cuenta (userId distinto) ya usa ese correo. */
   existeEmailEnOtraCuenta(email: string, userId: string): Promise<boolean>;
+  /** Cuentas alcanzadas por correos (login) y/o RUC (propio de la fila o de la empresa vinculada). */
+  findCuentasPorIdentificadores(params: { correos: string[]; rucs: string[] }): Promise<UsuarioPortalRow[]>;
+  /** Desactiva (flg_activo=false) TODAS las filas de las cuentas indicadas (userId). */
+  desactivarCuentasPorUserIds(userIds: string[]): Promise<void>;
 }
 
 /** Identificadores externos del usuario para cruzarlo con la fuente. */

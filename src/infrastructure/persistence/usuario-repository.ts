@@ -5,7 +5,7 @@ import type { ActualizarUsuarioPortalData, IUsuarioRepository, UsuarioPortalRow,
 /** Include comun para mapear la fila con rol y empresa local. */
 const includeUsuario = {
   role: { select: { nombre: true } },
-  empresa: { select: { razonSocial: true } },
+  empresa: { select: { razonSocial: true, ruc: true } },
 } as const;
 
 type FilaUsuario = {
@@ -23,7 +23,7 @@ type FilaUsuario = {
   debeCambiarPassword: boolean;
   flgActivo: boolean;
   role: { nombre: string };
-  empresa: { razonSocial: string } | null;
+  empresa: { razonSocial: string; ruc: string } | null;
 };
 
 function aFila(r: FilaUsuario): UsuarioPortalRow {
@@ -40,6 +40,7 @@ function aFila(r: FilaUsuario): UsuarioPortalRow {
     idEmpresa: r.idEmpresa,
     /* Prioriza la empresa local (FK) y cae al nombre guardado al vincular por la API. */
     empresa: r.empresa?.razonSocial ?? r.nombreEmpresa ?? null,
+    empresaRuc: r.empresa?.ruc ?? null,
     esPortal: Boolean(r.empresaId || r.idEmpresa),
     sieCode: r.sieCode,
     debeCambiarPassword: r.debeCambiarPassword,
@@ -136,6 +137,33 @@ export class UsuarioPrismaRepository implements IUsuarioRepository {
 
   async actualizarPasswordUsuarioPortal(id: string, passwordHash: string, debeCambiarPassword: boolean): Promise<void> {
     await prisma.userRole.update({ where: { id }, data: { password: passwordHash, debeCambiarPassword } });
+  }
+
+  async findCuentasPorIdentificadores(params: { correos: string[]; rucs: string[] }): Promise<UsuarioPortalRow[]> {
+    const condiciones: Record<string, unknown>[] = [];
+    if (params.correos.length > 0) {
+      condiciones.push({ email: { in: params.correos, mode: "insensitive" } });
+    }
+    if (params.rucs.length > 0) {
+      /* El RUC puede venir en la fila o en la ficha local de la empresa vinculada. */
+      condiciones.push({ ruc: { in: params.rucs } });
+      condiciones.push({ empresa: { ruc: { in: params.rucs } } });
+    }
+    if (condiciones.length === 0) return [];
+    const rows = await prisma.userRole.findMany({
+      where: { OR: condiciones } as never,
+      include: includeUsuario,
+      orderBy: [{ email: "asc" }],
+    });
+    return rows.map(aFila);
+  }
+
+  async desactivarCuentasPorUserIds(userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    await prisma.userRole.updateMany({
+      where: { userId: { in: userIds } },
+      data: { flgActivo: false },
+    });
   }
 
   async findVinculacionPorEmail(email: string): Promise<VinculacionUsuario | null> {

@@ -5,9 +5,11 @@ import type {
   CrearCuentaUsuarioDTO,
   CrearUsuarioDTO,
   CrearUsuariosLoteDTO,
+  DesactivarUsuariosLoteDTO,
   EnviarAccesosUsuarioDTO,
   PersonaApiDTO,
   ResultadoCreacionUsuarioDTO,
+  ResultadoDesactivacionLoteDTO,
   ResultadoEnvioAccesosDTO,
   ResultadoLoteUsuariosDTO,
   UsuarioPortalDTO,
@@ -53,5 +55,10 @@ export const usuariosService = {
   /** Regenera la credencial temporal y la envia al correo del usuario. */
   enviarAccesos(body: EnviarAccesosUsuarioDTO) {
     return internalApi.post<ResultadoEnvioAccesosDTO>("/api/usuarios/enviar-accesos", body);
+  },
+
+  /** Desactivacion masiva (correo o RUC por linea); confirmar=false solo previsualiza. */
+  desactivarLote(body: DesactivarUsuariosLoteDTO) {
+    return internalApi.post<ResultadoDesactivacionLoteDTO>("/api/usuarios/desactivar-lote", body);
   },
 };

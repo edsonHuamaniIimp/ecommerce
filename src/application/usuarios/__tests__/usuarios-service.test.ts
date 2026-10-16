@@ -6,6 +6,7 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { IPersonaClient, NuevaPersonaApi } from "@/domain/ports/persona-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
+import { ROLES } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
@@ -33,6 +34,8 @@ function fakeRepos() {
     actualizarUsuarioPortal: vi.fn(),
     actualizarPasswordUsuarioPortal: vi.fn(async () => {}),
     existeEmailEnOtraCuenta: vi.fn(async () => false),
+    findCuentasPorIdentificadores: vi.fn(async () => []),
+    desactivarCuentasPorUserIds: vi.fn(async () => {}),
   } as unknown as IUsuarioRepository;
   const authRepo = { existeEmail: vi.fn(async () => false), crearUsuario: vi.fn(async () => {}) } as unknown as IAuthRepository;
   const empresaRepo = {
@@ -380,5 +383,101 @@ describe("UsuariosApplicationService.enviarAccesos", () => {
     const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
 
     await expect(svc.enviarAccesos("u-x")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("UsuariosApplicationService.desactivarLote", () => {
+  function svcCon(filas: import("@/domain/ports/usuario-repository").UsuarioPortalRow[]) {
+    const repos = fakeRepos();
+    vi.mocked(repos.usuarioRepo.findCuentasPorIdentificadores).mockResolvedValue(filas);
+    const svc = new UsuariosApplicationService(repos.usuarioRepo, repos.authRepo, repos.empresaRepo, repos.roleRepo, repos.personaClient);
+    return { svc, ...repos };
+  }
+
+  it("previsualiza un correo encontrado sin ejecutar", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+
+    const r = await svc.desactivarLote(["Juan@Empresa.com"], false, "admin@iimp.org.pe");
+
+    expect(r.cuentas).toHaveLength(1);
+    expect(r.cuentas[0]!).toMatchObject({ email: "juan@empresa.com", estado: "por_desactivar", rol: "cliente" });
+    expect(r.cuentas[0]!.identificadores).toEqual(["juan@empresa.com"]);
+    expect(r.resumen.porDesactivar).toBe(1);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("desactiva la cuenta al confirmar (propagando por userId)", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+
+    const r = await svc.desactivarLote(["juan@empresa.com"], true, "admin@iimp.org.pe");
+
+    expect(r.cuentas[0]!.estado).toBe("desactivado");
+    expect(r.resumen.desactivadas).toBe(1);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|juan@empresa.com"]);
+  });
+
+  it("con un RUC alcanza todas las cuentas de la empresa", async () => {
+    const { svc } = svcCon([
+      usuarioFila({ id: "u1", email: "juan@empresa.com", ruc: "20123456789" }),
+      usuarioFila({ id: "u2", userId: "user|ana@empresa.com", email: "ana@empresa.com", ruc: "20123456789" }),
+    ]);
+
+    const r = await svc.desactivarLote(["20123456789"], false, "admin@iimp.org.pe");
+
+    expect(r.cuentas).toHaveLength(2);
+    expect(r.resumen.porDesactivar).toBe(2);
+    expect(r.noEncontrados).toEqual([]);
+  });
+
+  it("reporta identificadores invalidos y no encontrados", async () => {
+    const { svc } = svcCon([]);
+
+    const r = await svc.desactivarLote(["nadie@x.com", "abc", "20123456789"], false);
+
+    expect(r.noEncontrados).toEqual([
+      { identificador: "abc", motivo: "invalido" },
+      { identificador: "nadie@x.com", motivo: "no_encontrado" },
+      { identificador: "20123456789", motivo: "no_encontrado" },
+    ]);
+    expect(r.resumen.noEncontrados).toBe(3);
+  });
+
+  it("marca ya desactivadas sin volver a ejecutar", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ flgActivo: false })]);
+
+    const r = await svc.desactivarLote(["juan@empresa.com"], true, "admin@iimp.org.pe");
+
+    expect(r.cuentas[0]!.estado).toBe("ya_desactivado");
+    expect(r.resumen.yaDesactivadas).toBe(1);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("omite la propia cuenta del solicitante", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+
+    const r = await svc.desactivarLote(["juan@empresa.com"], true, "JUAN@empresa.com");
+
+    expect(r.cuentas[0]!).toMatchObject({ estado: "omitido", motivo: "Es tu propia cuenta" });
+    expect(r.resumen.omitidas).toBe(1);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("omite cuentas admin en el lote", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ rol: ROLES.ADMIN })]);
+
+    const r = await svc.desactivarLote(["juan@empresa.com"], true, "otro@iimp.org.pe");
+
+    expect(r.cuentas[0]!.estado).toBe("omitido");
+    expect(r.cuentas[0]!.motivo).toContain("admin");
+    expect(usuarioRepo.desactivarCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("deduplica identificadores repetidos", async () => {
+    const { svc } = svcCon([usuarioFila()]);
+
+    const r = await svc.desactivarLote(["juan@empresa.com", "JUAN@empresa.com"], false, "admin@iimp.org.pe");
+
+    expect(r.cuentas).toHaveLength(1);
+    expect(r.cuentas[0]!.identificadores).toEqual(["juan@empresa.com"]);
   });
 });

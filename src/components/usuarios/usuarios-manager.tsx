@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { Pencil, Power, PowerOff, Search, Send, UserPlus, UserSearch, Users } from "lucide-react";
+import { Download, Pencil, Power, PowerOff, Search, Send, Upload, UserPlus, UserSearch, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Pagination } from "@/components/shared/pagination";
@@ -35,13 +35,15 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { usuariosService } from "@/lib/client/api/services/usuarios-service";
 import { rolesService } from "@/lib/client/api/services/roles-service";
 import { EmpresaPicker, type FuenteEmpresa } from "@/components/shared/empresa-picker";
-import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, ESTADOS_DESACTIVACION_LOTE, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL, USUARIOS_LOTE_MAX_FILAS } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import type {
+  CuentaDesactivacionLoteDTO,
   EmpresaAccesoDTO,
   NuevoUsuarioPortalDTO,
   PersonaApiDTO,
   ResultadoCreacionUsuarioDTO,
+  ResultadoDesactivacionLoteDTO,
   UsuarioPortalDTO,
 } from "@/types/dto/usuarios/usuario.dto";
 
@@ -93,6 +95,44 @@ function resultadoTexto(resultado: ResultadoCreacionUsuarioDTO): { texto: string
   return { texto: "Credenciales enviadas por correo", ok: true };
 }
 
+/** Cabeceras tipicas de un CSV de una columna (correo o RUC): se ignoran al importar. */
+const CABECERAS_IDENTIFICADORES = ["correo", "email", "ruc", "identificador", "documento", "correo_o_ruc"];
+
+/** Lineas del textarea/CSV: una columna con correo o RUC; sin cabecera, sin vacios, sin duplicados. */
+function parsearIdentificadores(texto: string): string[] {
+  const vistos = new Set<string>();
+  return texto
+    .split(/\r?\n|,|;/)
+    .map((linea) => linea.trim())
+    .filter((linea) => linea && !CABECERAS_IDENTIFICADORES.includes(linea.toLowerCase()))
+    .filter((linea) => {
+      const clave = linea.toLowerCase();
+      if (vistos.has(clave)) return false;
+      vistos.add(clave);
+      return true;
+    });
+}
+
+/** Descarga la plantilla del CSV de desactivacion masiva (una columna: correo del login o RUC). */
+function descargarPlantillaIdentificadores() {
+  const contenido = `\uFEFFcorreo_o_ruc\njperez@empresa.com\n20123456789\n`;
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = "plantilla-desactivar-usuarios.csv";
+  enlace.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Presentacion de cada estado del lote (previsualizacion/resultado). */
+const ESTADO_LOTE_UI: Record<CuentaDesactivacionLoteDTO["estado"], { texto: string; className: string }> = {
+  [ESTADOS_DESACTIVACION_LOTE.DESACTIVADO]: { texto: "Desactivada", className: "bg-success/15 text-success" },
+  [ESTADOS_DESACTIVACION_LOTE.POR_DESACTIVAR]: { texto: "Se desactivara", className: "bg-warning/15 text-warning" },
+  [ESTADOS_DESACTIVACION_LOTE.YA_DESACTIVADO]: { texto: "Ya estaba desactivada", className: "bg-secondary text-muted-foreground" },
+  [ESTADOS_DESACTIVACION_LOTE.OMITIDO]: { texto: "Omitida", className: "bg-destructive/10 text-destructive" },
+};
+
 export function UsuariosManager() {
   const [usuarios, setUsuarios] = useState<UsuarioPortalDTO[]>([]);
   const [roles, setRoles] = useState<RolOpcion[]>([]);
@@ -105,6 +145,7 @@ export function UsuariosManager() {
   const [cargando, setCargando] = useState(true);
   const [modalIndividual, setModalIndividual] = useState(false);
   const [modalLote, setModalLote] = useState(false);
+  const [modalDesactivarLote, setModalDesactivarLote] = useState(false);
   const [modalBuscar, setModalBuscar] = useState(false);
   const [usuarioEditar, setUsuarioEditar] = useState<UsuarioPortalDTO | null>(null);
   const [enviandoAccesosId, setEnviandoAccesosId] = useState<string | null>(null);
@@ -286,6 +327,15 @@ export function UsuariosManager() {
             <Users className="mr-1 h-3.5 w-3.5" />
             <span>Crear varios</span>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-destructive hover:text-destructive"
+            onClick={() => { setModalDesactivarLote(true); }}
+          >
+            <PowerOff className="mr-1 h-3.5 w-3.5" />
+            <span>Desactivar en lote</span>
+          </Button>
         </div>
       </div>
 
@@ -438,6 +488,12 @@ export function UsuariosManager() {
           onCreado={() => { void cargar(); }}
         />
       )}
+      {modalDesactivarLote && (
+        <DesactivarUsuariosLoteModal
+          onClose={() => { setModalDesactivarLote(false); }}
+          onDesactivados={() => { void cargar(); }}
+        />
+      )}
       {usuarioEditar && (
         <EditarUsuarioModal
           usuario={usuarioEditar}
@@ -447,6 +503,175 @@ export function UsuariosManager() {
       )}
       {confirmDialog}
     </div>
+  );
+}
+
+/**
+ * Desactivacion masiva de accesos: una linea por correo del login o RUC de la
+ * empresa. El servidor resuelve las cuentas (previsualizacion) y solo con la
+ * confirmacion destructiva ejecuta la desactivacion.
+ */
+function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
+  onClose: () => void;
+  onDesactivados: () => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [previsualizando, setPrevisualizando] = useState(false);
+  const [desactivando, setDesactivando] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoDesactivacionLoteDTO | null>(null);
+  const [ejecutado, setEjecutado] = useState(false);
+  const archivoRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
+
+  const identificadores = useMemo(() => parsearIdentificadores(texto), [texto]);
+
+  const importarArchivo = async (file: File | null) => {
+    if (!file) return;
+    const contenido = (await file.text()).replace(/^\uFEFF/, "");
+    setTexto((prev) => (prev.trim() ? `${prev.trimEnd()}\n${contenido}` : contenido));
+  };
+
+  const previsualizar = async () => {
+    setError(null);
+    if (identificadores.length === 0) { setError("Agrega al menos un correo o RUC"); return; }
+    if (identificadores.length > USUARIOS_LOTE_MAX_FILAS) { setError(`Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`); return; }
+    setPrevisualizando(true);
+    try {
+      setResultado(await usuariosService.desactivarLote({ identificadores, confirmar: false }));
+      setEjecutado(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al previsualizar");
+    } finally {
+      setPrevisualizando(false);
+    }
+  };
+
+  const ejecutar = async () => {
+    if (!resultado || resultado.resumen.porDesactivar === 0) return;
+    const ok = await confirm({
+      title: "Desactivar cuentas",
+      description: `Se desactivaran ${resultado.resumen.porDesactivar} cuenta(s): no podran ingresar al portal y su sesion activa se cortara.`,
+      confirmLabel: "Desactivar",
+      destructive: true,
+    });
+    if (!ok) return;
+    setError(null);
+    setDesactivando(true);
+    try {
+      const r = await usuariosService.desactivarLote({ identificadores, confirmar: true });
+      setResultado(r);
+      setEjecutado(true);
+      if (r.resumen.desactivadas > 0) {
+        toast.success(`${r.resumen.desactivadas} cuenta(s) desactivada(s)`);
+        onDesactivados();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al desactivar");
+    } finally {
+      setDesactivando(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
+          <DialogHeader className="shrink-0">
+            <DialogTitle><span>Desactivar cuentas en lote</span></DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-3">
+            {!resultado ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="desactivar-lote" className="text-xs">
+                    <span>Correos (login) o RUC de la empresa, uno por linea</span>
+                  </Label>
+                  <Textarea
+                    id="desactivar-lote"
+                    value={texto}
+                    onChange={(e) => { setTexto(e.target.value); }}
+                    rows={8}
+                    placeholder={"jperez@empresa.com\n20123456789"}
+                    className="text-xs"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      {identificadores.length} fila(s) · un RUC desactiva todas las cuentas de su empresa.
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={descargarPlantillaIdentificadores}>
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        <span>Descargar plantilla</span>
+                      </Button>
+                      <input
+                        ref={archivoRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={(e) => { void importarArchivo(e.target.files?.[0] ?? null); e.target.value = ""; }}
+                      />
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => archivoRef.current?.click()}>
+                        <Upload className="mr-1 h-3.5 w-3.5" />
+                        <span>Importar CSV</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="space-y-1 rounded-lg border border-border p-2">
+                  {resultado.cuentas.length === 0 && (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">Sin cuentas que coincidan con la lista.</p>
+                  )}
+                  {resultado.cuentas.map((cuenta) => (
+                    <div key={cuenta.userId} className="flex items-center justify-between gap-2 rounded px-1 py-1 text-xs">
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium">{cuenta.email}</span>
+                        {cuenta.empresa && <span className="text-muted-foreground"> · {cuenta.empresa}</span>}
+                      </span>
+                      {cuenta.motivo && <span className="shrink-0 text-[10px] text-muted-foreground">{cuenta.motivo}</span>}
+                      <Badge className={`pointer-events-none shrink-0 text-[10px] ${ESTADO_LOTE_UI[cuenta.estado].className}`}>
+                        <span>{ESTADO_LOTE_UI[cuenta.estado].texto}</span>
+                      </Badge>
+                    </div>
+                  ))}
+                  {resultado.noEncontrados.map((fila) => (
+                    <div key={fila.identificador} className="flex items-center justify-between gap-2 rounded px-1 py-1 text-xs">
+                      <span className="min-w-0 flex-1 truncate font-medium">{fila.identificador}</span>
+                      <Badge className={`pointer-events-none shrink-0 text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
+                        <span>{fila.motivo === "invalido" ? "Invalido" : "No encontrado"}</span>
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {resultado.resumen.desactivadas} desactivada(s) · {resultado.resumen.porDesactivar} por desactivar ·{" "}
+                  {resultado.resumen.yaDesactivadas} ya estaban desactivadas · {resultado.resumen.omitidas} omitida(s) ·{" "}
+                  {resultado.resumen.noEncontrados} sin coincidencia.
+                </p>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0">
+            <Button variant="ghost" size="sm" onClick={onClose}><span>{resultado ? "Cerrar" : "Cancelar"}</span></Button>
+            {!resultado ? (
+              <Button size="sm" onClick={() => { void previsualizar(); }} disabled={previsualizando}>
+                <span>{previsualizando ? "Revisando..." : `Previsualizar (${identificadores.length})`}</span>
+              </Button>
+            ) : !ejecutado && resultado.resumen.porDesactivar > 0 ? (
+              <Button variant="destructive" size="sm" onClick={() => { void ejecutar(); }} disabled={desactivando}>
+                <span>{desactivando ? "Desactivando..." : `Desactivar ${resultado.resumen.porDesactivar} cuenta(s)`}</span>
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {confirmDialog}
+    </>
   );
 }
 
