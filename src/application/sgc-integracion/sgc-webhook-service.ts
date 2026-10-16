@@ -9,6 +9,7 @@ import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-int
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
+import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 
 const MAX_ERROR_LENGTH = 500;
 
@@ -32,9 +33,15 @@ export class SgcWebhookApplicationService {
     private readonly auth?: IAuthRepository,
   ) {}
 
-  async procesar(payload: SgcWebhookPayload): Promise<SgcWebhookResultado> {
+  async procesar(payload: SgcWebhookPayload, deliveryId?: string | null): Promise<SgcWebhookResultado> {
     if (!this.config.enabled) return { recibido: true, duplicado: false };
     if (!payload?.eventId || !payload.eventType) return { recibido: false, duplicado: false };
+
+    /* Dedup por entrega (`x-sgc-delivery`): una entrega repetida no reprocesa (runbook §10). */
+    if (deliveryId) {
+      const entregado = await this.repo.findEventoPorDelivery(deliveryId);
+      if (entregado) return { recibido: true, duplicado: true };
+    }
 
     const existente = await this.repo.findEvento(payload.eventId);
     if (existente) return { recibido: true, duplicado: true };
@@ -44,6 +51,7 @@ export class SgcWebhookApplicationService {
       eventType: payload.eventType,
       resourceId: payload.resource?.id ?? null,
       resourceCode: payload.resource?.code ?? null,
+      deliveryId: deliveryId ?? null,
       payload,
     });
 
@@ -105,10 +113,8 @@ export class SgcWebhookApplicationService {
     }
 
     /* Notificacion automatica al cliente: la primera vez que el SGC aprueba (Vigente). */
-    const aprobadoAhora =
-      cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE &&
-      expediente.lifecycleStatus !== SGC_LIFECYCLE_STATUSES.ACTIVE &&
-      expediente.lifecycleStatus !== SGC_LIFECYCLE_STATUSES.FINALIZED;
+    /* Aprobado (Vigente o cerrado): la solicitud pasa a pendiente_pago con su orden (idempotente). */
+    const aprobadoAhora = esAprobadoSgc(cambios.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus);
 
     await this.sgcRepo.actualizarExpediente(expediente.id, cambios);
     if (aprobadoAhora) await this.notificarAprobacion(expediente.solicitudId);

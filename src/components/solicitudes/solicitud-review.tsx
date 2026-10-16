@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
@@ -14,13 +14,15 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
   CATEGORIAS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
+  SGC_SUBSANACION_MODOS,
   ESTADOS_SOLICITUD,
   ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { anexosBloqueantesFaltantes, hayContratoAdminNuevoParaFirmar, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -89,6 +91,7 @@ export function SolicitudReview({
     [REVISION_AREAS.LEGAL]: { accion: row.revisionLegal?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLegal?.comentario ?? "" },
   });
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [regenerandoContrato, setRegenerandoContrato] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
@@ -115,6 +118,20 @@ export function SolicitudReview({
   const isFirst = currentStep === 0;
 
   /** BYPASS SOLO ADMIN: aprueba Legal (SGC) sin esperar al SGC real. */
+  /** Resube el contrato generado desde la plantilla con los datos de la solicitud (correccion SGC). */
+  const regenerarContratoGenerado = async () => {
+    setRegenerandoContrato(true);
+    try {
+      await contratosService.generar({ solicitudId: row.id });
+      toast.success("Contrato regenerado desde la plantilla");
+      onSaved(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo regenerar el contrato");
+    } finally {
+      setRegenerandoContrato(false);
+    }
+  };
+
   const aprobarLegalBypass = async () => {
     const ok = await confirm({
       title: "Aprobar Legal (SGC) — bypass admin",
@@ -451,9 +468,11 @@ export function SolicitudReview({
               tieneContratoAdminNuevo={tieneContratoAdminNuevo}
               tieneAnexos={anexosSolicitud.length > 0}
               requisitosFaltantes={anexosBloqueantesFaltantes(row.docsAdjuntos)}
-              tieneContratoFirmado={row.docsAdjuntos.some(
-                (d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
-              )}
+              tieneContratoFirmado={
+                modoSubsanacionEfectivo(row) === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO
+                  ? hayFirmadoPosteriorAlContratoCorregido(row)
+                  : row.docsAdjuntos.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+              }
               motivo={row.sgcSubsanacionMotivo}
               modo={modoSubsanacionEfectivo(row)}
               onSolicitudChanged={() => onSaved(row)}
@@ -473,12 +492,26 @@ export function SolicitudReview({
                     tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO}
                     titulo={sgcSubsanable ? "Contrato corregido (v1)" : "Contrato (v1)"}
                     archivos={contratoSgc}
-                    ctaVacio={sgcSubsanable ? "Subir contrato corregido (v1)" : "Adjuntar contrato (v1)"}
-                    ctaConArchivos={sgcSubsanable ? "Reemplazar con contrato corregido (v1)" : "Reemplazar contrato (v1)"}
+                    ctaVacio={sgcSubsanable ? "Subir PDF personalizado" : "Adjuntar contrato (v1)"}
+                    ctaConArchivos={sgcSubsanable ? "Reemplazar con PDF personalizado" : "Reemplazar contrato (v1)"}
                     vacioTexto="Aún no hay contrato: ni el firmado por el cliente ni el contrato (v1) del administrador."
                     varios={false}
                     onAttached={() => onSaved(row)}
                   />
+                )}
+                {sgcSubsanable && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5"
+                    disabled={regenerandoContrato}
+                    onClick={() => { void regenerarContratoGenerado(); }}
+                    title="Regenera el contrato desde la plantilla con los datos de la solicitud (el cliente podrá firmarlo digitalmente)"
+                  >
+                    {regenerandoContrato ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+                    Resubir contrato generado (plantilla)
+                  </Button>
                 )}
                 <SgcDocumentoUpload
                   solicitudId={row.id}

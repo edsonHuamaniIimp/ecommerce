@@ -288,7 +288,14 @@ class InMemoryWebhookRepository implements ISgcWebhookRepository {
     return this.eventos.get(eventId) ?? null;
   }
 
-  async registrarEvento(data: { eventId: string; eventType: string; resourceId: string | null; resourceCode: string | null }): Promise<SgcWebhookEventoEntity> {
+  async findEventoPorDelivery(deliveryId: string): Promise<SgcWebhookEventoEntity | null> {
+    for (const e of this.eventos.values()) {
+      if (e.deliveryId === deliveryId) return e;
+    }
+    return null;
+  }
+
+  async registrarEvento(data: { eventId: string; eventType: string; resourceId: string | null; resourceCode: string | null; deliveryId?: string | null }): Promise<SgcWebhookEventoEntity> {
     this.seq += 1;
     const entity: SgcWebhookEventoEntity = {
       id: `wh-${this.seq}`,
@@ -296,6 +303,7 @@ class InMemoryWebhookRepository implements ISgcWebhookRepository {
       eventType: data.eventType,
       resourceId: data.resourceId,
       resourceCode: data.resourceCode,
+      deliveryId: data.deliveryId ?? null,
       procesadoAt: null,
       error: null,
     };
@@ -376,9 +384,13 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
     const expediente = await sgcRepo.findExpedientePorSolicitud(SOLICITUD_ID);
     expect(crearSpy).toHaveBeenCalledTimes(1);
     expect(expediente?.estadoEnvio).toBe(SGC_ESTADO_ENVIO.CREADO);
-    expect(expediente?.code).toBe(STAND_CODE);
+    expect(expediente?.code).toBe(`STAND-${STAND_CODE}-11111111`);
     const contractId = expediente?.contractId ?? "";
     expect(contractId).toBeTruthy();
+
+    /* 3. Envio automatico al SGC: revisar(Asociado) ya subio los anexos (best-effort) */
+    const autoDetalle = await sgc.consultarExpediente(SOLICITUD_ID);
+    expect(autoDetalle?.documents.filter((d) => d.category === SGC_DOCUMENT_CATEGORIES.ANNEX).length).toBeGreaterThanOrEqual(1);
 
     /* 4. Idempotencia: reintentar el disparo no crea otro expediente */
     const reintento = await sgc.crearExpedienteDesdeSolicitud(SOLICITUD_ID);
@@ -394,14 +406,15 @@ describe("Flujo completo SGC (happy path desde la solicitud)", () => {
     expect(contrato?.estado).toBe(SGC_DOCUMENTO_ESTADO.CONFIRMADO);
     expect(contrato?.currentVersionId).toBeTruthy();
 
-    /* 6. Anexos de la solicitud */
-    const anexos = await sgc.subirAnexosDeSolicitud(SOLICITUD_ID);
-    expect(anexos).toHaveLength(1);
-    expect(anexos[0]?.category).toBe(SGC_DOCUMENT_CATEGORIES.ANNEX);
+    /* 6. Anexos: el envio automatico ya los subio -> la re-subida NO duplica */
+    const anexosRepetidos = await sgc.subirAnexosDeSolicitud(SOLICITUD_ID);
+    expect(anexosRepetidos).toHaveLength(0);
+    const anexosEnSgc = (await sgc.consultarExpediente(SOLICITUD_ID))?.documents ?? [];
+    expect(anexosEnSgc.filter((d) => d.category === SGC_DOCUMENT_CATEGORIES.ANNEX)).toHaveLength(1);
 
     /* 7. Detalle para el sidebar (stepper + historial + documentos) */
     const detalle = await sgc.consultarExpediente(SOLICITUD_ID);
-    expect(detalle?.code).toBe(STAND_CODE);
+    expect(detalle?.code).toBe(`STAND-${STAND_CODE}-11111111`);
     expect(detalle?.documents.some((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT)).toBe(true);
 
     /* 8. Webhook: el SGC avanza el flujo */

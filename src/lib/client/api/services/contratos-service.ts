@@ -9,8 +9,8 @@ import type { Idioma } from "@/lib/shared/constants";
 export const contratosService = {
   generar(body: {
     solicitudId: string;
-    /** Cuotas configuradas (1..3): porcentaje + fecha de pago (yyyy-mm-dd). */
-    cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
+    /** Cuotas configuradas (1..3): porcentaje + fecha de pago (yyyy-mm-dd). Si faltan (admin regenerando) se usa el plan persistido. */
+    cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
     /** Idioma del contrato (F3): el que ve el usuario en la UI. */
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */

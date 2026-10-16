@@ -11,6 +11,7 @@ import type {
   SgcPiezaDocumental,
   SgcUrlDescarga,
 } from "@/domain/models/sgc";
+import { SgcApiError } from "@/domain/models/sgc";
 import {
   SGC_APPROVAL_RESULT,
   SGC_DOCUMENT_CATEGORIES,
@@ -30,6 +31,7 @@ import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
+import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 
 export interface SgcIntegracionConfig {
   enabled: boolean;
@@ -93,14 +95,43 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.solicitudRepo.detalle(solicitudId);
       if (!detalle) return existente;
 
-      const input = await this.conCamposDelTipo(mapSolicitudToExpediente(detalle, this.config));
+      const input = await this.conCamposDelTipo(mapSolicitudToExpediente(detalle, this.config), detalle.standCodes.join(", "));
       const registro = existente ?? (await this.crearRegistroConCodigoUnico(solicitudId, input.code));
+      /* Formato de codigo vigente (guia v5): si el registro local quedo con un codigo de una
+       * version anterior (p.ej. solo el numero de stand), se regenera preservando la unicidad
+       * local (P2002 -> sufijo con el id de la solicitud). */
+      let codigo = registro.code;
+      if (codigo !== input.code) {
+        for (const candidato of [input.code, `${input.code.slice(0, 31)}-${solicitudId.slice(0, 8)}`]) {
+          try {
+            await this.repo.actualizarExpediente(registro.id, { code: candidato });
+            codigo = candidato;
+            break;
+          } catch (err) {
+            if ((err as { code?: string }).code !== "P2002") break;
+          }
+        }
+      }
 
       try {
-        const resultado = await this.client.crearExpediente(
-          { ...input, code: registro.code },
-          construirIdempotencyKey(solicitudId),
-        );
+        /* Intencion = solicitud + hash del contenido: un reintento identico reusa la misma
+         * clave; un payload distinto (p.ej. tipo corregido) es una intencion nueva — evita el
+         * 409 "La clave idempotente ya fue usada con otro contenido". */
+        const claveDe = async (p: SgcCrearExpedienteInput) =>
+          `${construirIdempotencyKey(solicitudId)}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(p)))).slice(0, 16)}`;
+        let payload: SgcCrearExpedienteInput = { ...input, code: codigo };
+        let resultado: Awaited<ReturnType<ISgcClient["crearExpediente"]>>;
+        try {
+          resultado = await this.client.crearExpediente(payload, await claveDe(payload));
+        } catch (err) {
+          /* Guia v5: un 409 tambien significa "el code ya pertenece a otro expediente" en el SGC
+           * -> reintento unico con sufijo (clave nueva, porque el payload cambia). */
+          const esCodigoDuplicado = err instanceof SgcApiError && err.status === 409 && /c[oó]digo|code/i.test(err.message);
+          if (!esCodigoDuplicado) throw err;
+          payload = { ...input, code: `${codigo.slice(0, 31)}-${solicitudId.slice(0, 8)}` };
+          resultado = await this.client.crearExpediente(payload, await claveDe(payload));
+          await this.repo.actualizarExpediente(registro.id, { code: payload.code }).catch(() => undefined);
+        }
         return await this.repo.actualizarExpediente(registro.id, {
           contractId: resultado.contractId,
           estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
@@ -123,6 +154,34 @@ export class SgcIntegracionApplicationService {
         err instanceof Error ? (err.stack ?? err.message) : err,
       );
       return null;
+    }
+  }
+
+  /**
+   * Envio automatico completo al SGC (al aprobar Asociado): contrato + anexos + resend a
+   * revision. Best-effort TOTAL: cada paso se captura por separado, un fallo nunca rompe la
+   * aprobacion y el cron (`reintentarErrores`) reintenta lo pendiente. Idempotente: el dedup
+   * por titulo de las piezas evita duplicados si el admin vuelve a pulsar "Enviar al SGC".
+   */
+  async enviarExpedienteAlSgc(solicitudId: string, reenviadoPor: string): Promise<void> {
+    if (!this.config.enabled) return;
+    const expediente = await this.repo.findExpedientePorSolicitud(solicitudId).catch(() => null);
+    if (!expediente?.contractId) return; // la creacion fallo: lo cubre el reintento del cron
+
+    const pasos: Array<[string, () => Promise<unknown>]> = [
+      ["contrato", () => this.subirContratoDeSolicitud(solicitudId)],
+      ["anexos", () => this.subirAnexosDeSolicitud(solicitudId)],
+      ["reenvio", () => this.reenviarCorreccionAlSgc(solicitudId, reenviadoPor)],
+    ];
+    for (const [paso, ejecutar] of pasos) {
+      try {
+        await ejecutar();
+      } catch (err) {
+        console.error(
+          `[SGC] enviarExpedienteAlSgc(${solicitudId}) paso ${paso} fallo:`,
+          err instanceof Error ? (err.stack ?? err.message) : err,
+        );
+      }
     }
   }
 
@@ -152,14 +211,14 @@ export class SgcIntegracionApplicationService {
    * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
    * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
    */
-  private async conCamposDelTipo(input: SgcCrearExpedienteInput): Promise<SgcCrearExpedienteInput> {
+  private async conCamposDelTipo(input: SgcCrearExpedienteInput, numeroStand: string): Promise<SgcCrearExpedienteInput> {
     try {
       const catalogo = await this.client.listarTiposContrato();
       const tipo = catalogo.items.find((t) => t.code === this.config.contractTypeCode);
       const requeridos = (tipo?.fields ?? []).filter((f) => f.required && f.apiSupported);
       if (requeridos.length === 0) return input;
       const fields: Record<string, string | number | boolean> = {};
-      for (const campo of requeridos) fields[campo.key] = valorPorDefectoCampo(campo, input);
+      for (const campo of requeridos) fields[campo.key] = valorPorDefectoCampo(campo, input, numeroStand);
       return { ...input, fields };
     } catch {
       return input;
@@ -184,6 +243,11 @@ export class SgcIntegracionApplicationService {
         lastSyncedAt: new Date(),
         lastError: null,
       });
+      /* Aprobado en el SGC (Vigente o cerrado): la solicitud pasa a pendiente_pago con su
+       * orden (idempotente). Cubre los casos sin webhook (QA esta en sink / webhook perdido). */
+      if (!preservar && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
+        await habilitarOrdenPagoAutomatica(this.solicitudRepo, solicitudId);
+      }
       return preservar ? { ...detalle, lifecycleStatus: expediente.lifecycleStatus } : detalle;
     } catch {
       // Lectura best-effort: si el SGC no responde, el panel muestra el estado local.
@@ -212,6 +276,10 @@ export class SgcIntegracionApplicationService {
           lastSyncedAt: new Date(),
           lastError: null,
         });
+        /* Cron (polling): aprobado sin webhook -> habilita la orden de pago (idempotente). */
+        if (!expediente.bypassAprobado && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
+          await habilitarOrdenPagoAutomatica(this.solicitudRepo, expediente.solicitudId);
+        }
         sincronizados += 1;
       } catch (err) {
         const mensaje = err instanceof Error ? err.message : "Error desconocido al reconciliar";
@@ -600,7 +668,7 @@ export class SgcIntegracionApplicationService {
  * nombre descriptivo del expediente ("Separacion de stand - <codigo>"); el resto, valores
  * neutros. Si el tipo exige datos de negocio especificos, revisar este mapeo.
  */
-function valorPorDefectoCampo(campo: SgcCampoTipo, input: SgcCrearExpedienteInput): string | number | boolean {
+function valorPorDefectoCampo(campo: SgcCampoTipo, input: SgcCrearExpedienteInput, numeroStand: string): string | number | boolean {
   switch (campo.kind) {
     case "integer":
       return 1;
@@ -614,8 +682,11 @@ function valorPorDefectoCampo(campo: SgcCampoTipo, input: SgcCrearExpedienteInpu
       return "noreply@iimp.org.pe";
     case "select":
       return campo.options?.[0] ?? "";
+    case "short-text":
+      /* Guia v5: `input_demo` del tipo = numero de stand (p. ej. "A-042"). */
+      return (numeroStand || input.name).slice(0, 100);
     default:
-      /* short-text / long-text: descripcion del stand */
+      /* long-text: descripcion del stand */
       return input.name.slice(0, 4000);
   }
 }

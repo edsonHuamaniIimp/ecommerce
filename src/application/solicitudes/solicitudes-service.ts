@@ -115,6 +115,9 @@ export class SolicitudesApplicationService {
 
     if (data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
+      /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
+       * "Enviar al SGC para revisión". Best-effort: no rompe la aprobacion si el SGC falla. */
+      await this.sgcIntegracion?.enviarExpedienteAlSgc(data.solicitudId, data.reviewerEmail);
     }
     const nextRole = REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
     if (nextRole) {

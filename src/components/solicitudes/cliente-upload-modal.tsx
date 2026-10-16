@@ -2,10 +2,11 @@
 
 import { useState, useRef } from "react";
 import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, FileText, Upload, X, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, Upload, X, Trash2, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { contratosService } from "@/lib/client/api/services/contratos-service";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -96,6 +97,32 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
     .filter(d => d.userId !== solicitud.userId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  /* Contrato mas reciente del admin/contrato generado por el sistema: habilita la firma digital. */
+  const contratoAdmin = esContrato ? adminDocs.find(d => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null) : null;
+  const puedeFirmarDigital = contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO;
+
+  /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma del perfil. */
+  const handleFirmarDigital = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const firmado = await contratosService.firmar({ solicitudId: solicitud.id });
+      const urlFirmado = firmado.pdfUrl ?? firmado.docxUrl;
+      await solicitudesService.uploadDocumento({
+        solicitudId: solicitud.id,
+        url: urlFirmado,
+        nombre: urlFirmado.split("/").pop() ?? "contrato-firmado",
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        requisito: null,
+      });
+      toast.success("Contrato firmado digitalmente");
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo firmar digitalmente. Carga tu firma en tu perfil e intenta de nuevo.");
+    }
+    setSending(false);
+  };
   const misDocs = (solicitud.docsAdjuntos ?? []).filter(
     d =>
       d.userId === solicitud.userId &&
@@ -113,9 +140,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         </p>
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
           {esContrato ? (
-            <p className="text-[11px] font-semibold text-foreground">
-              Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
-            </p>
+            puedeFirmarDigital ? (
+              <p className="text-[11px] font-semibold text-foreground">
+                Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de tu perfil, o descargarlo, firmarlo y subir tu versión firmada.
+              </p>
+            ) : (
+              <p className="text-[11px] font-semibold text-foreground">
+                Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
+              </p>
+            )
           ) : (
             <p className="text-[11px] text-muted-foreground">
               <span className="font-semibold text-foreground">Obligatorios para la revisión Legal:</span>{" "}
@@ -224,6 +257,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             <Upload className="mr-1 h-3 w-3" />
             {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
           </Button>
+          {esContrato && puedeFirmarDigital && (
+            <Button size="sm" className="ml-2 rounded-full text-xs font-semibold" disabled={uploading || sending} onClick={() => { void handleFirmarDigital(); }}>
+              <PenLine className="mr-1 h-3 w-3" />
+              {sending ? "Firmando..." : "Firmar digitalmente"}
+            </Button>
+          )}
         </div>
 
         {error && (

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, SGC_WEBHOOK_SIGNATURE_HEADER } from "@/lib/shared/constants";
+import { API_ERROR_CODES, SGC_WEBHOOK_SIGNATURE_HEADER, SGC_WEBHOOK_DELIVERY_HEADER } from "@/lib/shared/constants";
 import { getSgcWebhookSecret } from "@/lib/server/sgc-config";
 import { verificarFirmaSgc } from "@/lib/shared/utils/sgc";
 import type { SgcWebhookPayload } from "@/domain/models/sgc";
@@ -25,7 +25,8 @@ export const sgcWebhookController = {
       return error(API_ERROR_CODES.VALIDATION, "Payload invalido", 400);
     }
 
-    const resultado = await services.sgcWebhook.procesar(payload);
+    const deliveryId = request.headers.get(SGC_WEBHOOK_DELIVERY_HEADER);
+    const resultado = await services.sgcWebhook.procesar(payload, deliveryId);
     if (!resultado.recibido) return error(API_ERROR_CODES.VALIDATION, "Evento invalido", 400);
     return success({ ok: true, duplicado: resultado.duplicado });
   },

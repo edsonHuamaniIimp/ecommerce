@@ -49,7 +49,8 @@ export const generarContratoSchema = z.object({
   solicitudId: z.string().uuid("solicitudId invalido"),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
-  cuotas: cuotasContratoSchema,
+  /** Cuotas del plan; si faltan (p.ej. admin regenerando en una correccion SGC) se usa el plan persistido. */
+  cuotas: cuotasContratoSchema.optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
 });

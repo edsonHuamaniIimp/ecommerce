@@ -179,8 +179,9 @@ describe("SgcIntegracionApplicationService.crearExpedienteDesdeSolicitud", () =>
     );
     const result = await svc.crearExpedienteDesdeSolicitud("sol-1");
     expect(client.crearExpediente).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "STAND-1" }),
-      `${SGC_IDEMPOTENCY_PREFIX}/sol-1`,
+      expect.objectContaining({ code: expect.stringMatching(/^STAND-STAND-1-[A-Z0-9-]{1,31}$/) }),
+      /* Intencion = solicitud + hash del contenido (16 hex). */
+      expect.stringMatching(new RegExp(`^${SGC_IDEMPOTENCY_PREFIX}/sol-1/[0-9a-f]{16}$`)),
     );
     expect(repo.actualizarExpediente).toHaveBeenCalledWith(
       "exp-1",

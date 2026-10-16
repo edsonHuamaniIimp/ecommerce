@@ -8,6 +8,7 @@ interface SgcWebhookEventoRow {
   eventType: string;
   resourceId: string | null;
   resourceCode: string | null;
+  deliveryId: string | null;
   procesadoAt: Date | null;
   error: string | null;
 }
@@ -19,6 +20,7 @@ function mapEvento(row: SgcWebhookEventoRow): SgcWebhookEventoEntity {
     eventType: row.eventType,
     resourceId: row.resourceId ?? null,
     resourceCode: row.resourceCode ?? null,
+    deliveryId: row.deliveryId ?? null,
     procesadoAt: row.procesadoAt ?? null,
     error: row.error ?? null,
   };
@@ -30,6 +32,11 @@ export class SgcWebhookPrismaRepository implements ISgcWebhookRepository {
     return row ? mapEvento(row) : null;
   }
 
+  async findEventoPorDelivery(deliveryId: string): Promise<SgcWebhookEventoEntity | null> {
+    const row = await prisma.sgcWebhookEvento.findUnique({ where: { deliveryId } });
+    return row ? mapEvento(row) : null;
+  }
+
   async registrarEvento(data: RegistrarSgcWebhookData): Promise<SgcWebhookEventoEntity> {
     const row = await prisma.sgcWebhookEvento.create({
       data: {
@@ -37,6 +44,7 @@ export class SgcWebhookPrismaRepository implements ISgcWebhookRepository {
         eventType: data.eventType,
         resourceId: data.resourceId,
         resourceCode: data.resourceCode,
+        deliveryId: data.deliveryId ?? null,
         payload: data.payload as never,
       },
     });

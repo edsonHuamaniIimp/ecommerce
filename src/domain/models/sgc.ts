@@ -335,6 +335,8 @@ export interface SgcWebhookEventoEntity {
   eventType: string;
   resourceId: string | null;
   resourceCode: string | null;
+  /** Id de entrega del webhook (`x-sgc-delivery`): dedup por entrega. */
+  deliveryId?: string | null;
   procesadoAt: Date | null;
   error: string | null;
 }

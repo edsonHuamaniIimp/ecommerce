@@ -44,12 +44,12 @@ function detalle(overrides: Partial<SolicitudRow> = {}): SolicitudRow {
 
 describe("construirCodigoExpediente", () => {
   it("deberia usar el standCode cuando hay un solo stand", () => {
-    expect(construirCodigoExpediente(detalle())).toBe("STAND-2026-0042");
+    expect(construirCodigoExpediente(detalle())).toBe("STAND-STAND-2026-0042-ABCDEF12");
   });
 
   it("deberia usar correlativo cuando hay varios stands", () => {
     const d = detalle({ standCodes: ["A", "B"] });
-    expect(construirCodigoExpediente(d)).toBe(`${SGC_CODE_PREFIX}-abcdef12`);
+    expect(construirCodigoExpediente(d)).toBe(`${SGC_CODE_PREFIX}-ABCDEF12`);
   });
 });
 
@@ -57,7 +57,7 @@ describe("mapSolicitudToExpediente", () => {
   it("deberia mapear catalogo, nombre y contraparte", () => {
     const out = mapSolicitudToExpediente(detalle(), { areaCode: "EVENTOS", contractTypeCode: "AUSPICIO" });
     expect(out).toMatchObject({
-      code: "STAND-2026-0042",
+      code: "STAND-STAND-2026-0042-ABCDEF12",
       areaCode: "EVENTOS",
       contractTypeCode: "AUSPICIO",
       counterpartyLegalName: "Expositor S.A.C.",

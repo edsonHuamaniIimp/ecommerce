@@ -732,6 +732,8 @@ model SolicitudDocumento {
   categoria   String?  @db.VarChar(30)
   /// Requisito del anexo que cubre el documento (clave de ANEXOS_REQUERIDOS); null = otro anexo.
   requisito   String?  @db.VarChar(30)
+  /// Origen del documento (`generado` = plantilla del sistema | `personalizado` | null = legacy/subida simple).
+  origen      String?  @db.VarChar(20)
   flgActivo   Boolean  @default(true) @map("flg_activo")
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -1013,6 +1015,8 @@ model SgcWebhookEvento {
   eventType    String    @map("event_type") @db.VarChar(40)
   resourceId   String?   @map("resource_id") @db.VarChar(64)
   resourceCode String?   @map("resource_code") @db.VarChar(50)
+  /// Id de entrega del webhook (`x-sgc-delivery`): dedup por entrega, ademas de `eventId`.
+  deliveryId   String?   @unique @map("delivery_id") @db.VarChar(80)
   payload      Json
   procesadoAt  DateTime? @map("procesado_at")
   error        String?   @db.VarChar(500)

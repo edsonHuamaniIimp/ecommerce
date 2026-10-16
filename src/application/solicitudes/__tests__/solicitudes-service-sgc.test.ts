@@ -105,6 +105,7 @@ function sgcMock(): SgcIntegracionApplicationService {
     { enabled: false, areaCode: "", contractTypeCode: "" },
   );
   vi.spyOn(svc, "crearExpedienteDesdeSolicitud").mockResolvedValue(null);
+  vi.spyOn(svc, "enviarExpedienteAlSgc").mockResolvedValue(undefined);
   return svc;
 }
 

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
@@ -176,6 +176,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       uploadedBy: d.uploadedBy,
       categoria: d.categoria,
       requisito: d.requisito,
+      origen: d.origen,
       createdAt: d.createdAt,
     }));
 
@@ -649,7 +650,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
 
   /**
    * RF-11: un unico contrato generado por el sistema por solicitud (idempotente).
-   * Si ya existe uno vigente lo actualiza; si no, lo crea como `categoria = contrato`.
+   * Si ya existe uno vigente lo actualiza (refrescando `createdAt`: una regeneracion cuenta
+   * como correccion posterior al ultimo firmado del cliente); si no, lo crea como
+   * `categoria = contrato` con `origen = generado`.
    */
   async upsertContratoSistema(solicitudId: string, url: string, nombre: string): Promise<void> {
     const existente = await prisma.solicitudDocumento.findFirst({
@@ -657,11 +660,22 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       select: { id: true },
     });
     if (existente) {
-      await prisma.solicitudDocumento.update({ where: { id: existente.id }, data: { url, nombre } });
+      await prisma.solicitudDocumento.update({
+        where: { id: existente.id },
+        data: { url, nombre, origen: ORIGENES_DOCUMENTO.GENERADO, createdAt: new Date() },
+      });
       return;
     }
     await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: "sistema", userId: null, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO },
+      data: {
+        solicitudId,
+        url,
+        nombre,
+        uploadedBy: "sistema",
+        userId: null,
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+        origen: ORIGENES_DOCUMENTO.GENERADO,
+      },
     });
   }
 

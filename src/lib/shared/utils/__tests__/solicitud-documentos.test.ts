@@ -9,6 +9,7 @@ import {
   esperandoContratoCorregidoSgc,
   faltanAnexosBloqueantes,
   hayContratoAdminNuevoParaFirmar,
+  hayFirmadoPosteriorAlContratoCorregido,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
@@ -104,6 +105,33 @@ describe("hayContratoAdminNuevoParaFirmar", () => {
 
   it("false si no hay contrato del admin", () => {
     expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [firmado] })).toBe(false);
+  });
+});
+
+describe("hayFirmadoPosteriorAlContratoCorregido", () => {
+  const admin = { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, userId: null, createdAt: "2026-09-30T10:00:00Z" };
+  const firmado = { categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO, userId: CLIENTE, createdAt: "2026-09-20T10:00:00Z" };
+
+  it("true si el cliente volvio a firmar despues del contrato corregido", () => {
+    const firmadoNuevo = { ...firmado, createdAt: "2026-10-01T10:00:00Z" };
+    expect(hayFirmadoPosteriorAlContratoCorregido({ ...base, docsAdjuntos: [admin, firmadoNuevo, firmado] })).toBe(true);
+  });
+
+  it("false si el contrato del admin es anterior al unico firmado (original, sin correccion)", () => {
+    const adminOriginal = { ...admin, createdAt: "2026-09-01T10:00:00Z" };
+    expect(hayFirmadoPosteriorAlContratoCorregido({ ...base, docsAdjuntos: [adminOriginal, firmado] })).toBe(false);
+  });
+
+  it("false si solo existe el firmado viejo (anterior a la correccion)", () => {
+    expect(hayFirmadoPosteriorAlContratoCorregido({ ...base, docsAdjuntos: [admin, firmado] })).toBe(false);
+  });
+
+  it("false si el admin aun no subio el contrato corregido", () => {
+    expect(hayFirmadoPosteriorAlContratoCorregido({ ...base, docsAdjuntos: [firmado] })).toBe(false);
+  });
+
+  it("false si el cliente nunca firmo", () => {
+    expect(hayFirmadoPosteriorAlContratoCorregido({ ...base, docsAdjuntos: [admin] })).toBe(false);
   });
 });
 

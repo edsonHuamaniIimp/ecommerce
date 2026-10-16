@@ -1,4 +1,4 @@
-import { BADGE_STYLES, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
 import type { EstadoStand } from "@/lib/shared/constants";
 
 export interface EstadoStandBadge {
@@ -94,4 +94,16 @@ export function esEmpresaDuenaPreReserva(
   const rsStand = normalizarTexto(stand.preReservaRazonSocial);
   const rsViewer = normalizarTexto(viewer.razonSocial);
   return Boolean(rsStand && rsViewer && rsStand === rsViewer);
+}
+
+/**
+ * True si el ciclo del SGC equivale a **aprobado** para habilitar la orden de pago:
+ * `active` (Vigente) o `finalized` (cerrado sin activar el contrato) — en el flujo de
+ * stands la aprobación de Legal/Gerencia es cobrable en ambos casos.
+ */
+export function esAprobadoSgc(lifecycleStatus: string | null | undefined): boolean {
+  return (
+    lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+    lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+  );
 }

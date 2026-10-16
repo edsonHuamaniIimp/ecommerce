@@ -8,13 +8,27 @@ export interface SgcCatalogoExpediente {
 }
 
 /**
- * Codigo de negocio del expediente. Una solicitud de un solo stand usa su
- * `standCode`; una de varios stands usa un correlativo derivado del id.
+ * Codigo de negocio del expediente (guia v5): identifica al **expediente completo**,
+ * debe ser **globalmente unico** en el SGC, de 3-40 caracteres, empezar con letra o
+ * numero y admitir letras, numeros, punto, barra, guion y guion bajo (se normaliza a
+ * mayusculas). Formato: `STAND-<codigo de stand>-<id8 de la solicitud>`; el id garantiza
+ * la unicidad global (una reserva multiple usa solo `STAND-<id8>`).
  */
 export function construirCodigoExpediente(detalle: SolicitudRow): string {
+  const sufijo = detalle.id.slice(0, 8).toUpperCase();
+  const normalizar = (valor: string) =>
+    valor
+      .toUpperCase()
+      .replace(/[^A-Z0-9._/-]/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "");
   const unico = detalle.standCodes[0];
-  if (detalle.standCodes.length === 1 && unico) return unico;
-  return `${SGC_CODE_PREFIX}-${detalle.id.slice(0, 8)}`;
+  const base =
+    detalle.standCodes.length === 1 && unico
+      ? `${SGC_CODE_PREFIX}-${normalizar(unico)}`
+      : SGC_CODE_PREFIX;
+  const maxBase = 40 - sufijo.length - 1;
+  return `${base.slice(0, maxBase)}-${sufijo}`;
 }
 
 /** Mapea una solicitud local al cuerpo de creacion de expediente del SGC. */

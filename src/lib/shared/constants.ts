@@ -1563,6 +1563,8 @@ export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
 
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
+/** Prefijo de la Idempotency-Key en los POST documentales (reserve/complete), guia v5. */
+export const SGC_IDEMPOTENCY_DOC_PREFIX = "stands/documento";
 /** Prefijo de la Idempotency-Key al reabrir el tramite tras subsanar (POST /resend). */
 export const SGC_IDEMPOTENCY_RESEND_PREFIX = "stands/resend";
 export const SGC_WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -1591,6 +1593,13 @@ export const TIPOS_DOCUMENTO_SOLICITUD = {
   ANEXO: "anexo",
 } as const;
 export type TipoDocumentoSolicitud = (typeof TIPOS_DOCUMENTO_SOLICITUD)[keyof typeof TIPOS_DOCUMENTO_SOLICITUD];
+
+/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano. */
+export const ORIGENES_DOCUMENTO = {
+  GENERADO: "generado",
+  PERSONALIZADO: "personalizado",
+} as const;
+export type OrigenDocumento = (typeof ORIGENES_DOCUMENTO)[keyof typeof ORIGENES_DOCUMENTO];
 
 /** Tipos de alerta de la campana de notificaciones. */
 export const ALERTA_TIPOS = {

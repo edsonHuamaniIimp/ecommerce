@@ -101,6 +101,37 @@ export function hayContratoAdminNuevoParaFirmar(s: SolicitudDocumentosGate): boo
 }
 
 /**
+ * True si el cliente ya volvio a firmar **despues** del contrato corregido del administrador
+ * (subsanacion con modo `nuevo_contrato`): el firmado anterior a la correccion quedo
+ * observado por el SGC y no cuenta para reenviar.
+ */
+export function hayFirmadoPosteriorAlContratoCorregido(s: SolicitudDocumentosGate): boolean {
+  const docs = s.docsAdjuntos ?? [];
+  const contratoAdmin = docs
+    .filter(
+      (d) =>
+        d.userId === null &&
+        (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null || d.categoria === undefined),
+    )
+    .sort(porFechaDesc)[0];
+  if (!contratoAdmin) return false;
+
+  const firmados = docs
+    .filter((d) => d.userId === s.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+    .sort(porFechaDesc);
+  const firmado = firmados[0];
+  const firmadoAnterior = firmados[1];
+  if (!firmado) return false;
+
+  /* La correccion debe ser posterior al firmado ANTERIOR: si el contrato del admin mas
+   * nuevo es anterior al unico firmado, es el contrato original — todavia no hay una
+   * version corregida que el cliente pueda volver a firmar. */
+  if (!firmadoAnterior || !(fechaDoc(contratoAdmin) > fechaDoc(firmadoAnterior))) return false;
+
+  return fechaDoc(firmado) > fechaDoc(contratoAdmin);
+}
+
+/**
  * Ventana de **contrato de reserva**: el admin ya subio el contrato
  * (documento con `userId` null) y la solicitud sigue pendiente. El cliente
  * descarga el contrato y sube su version firmada + anexos (envio inicial del

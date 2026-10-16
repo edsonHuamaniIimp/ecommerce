@@ -5,9 +5,13 @@ export function sgcAplica(estadoEnvio: string | null): boolean {
   return estadoEnvio !== null;
 }
 
-/** True si el SGC ya aprobó el trámite (contrato pasó a Vigencia). */
+/** True si el SGC ya aprobó el trámite: Vigente (`active`) o cerrado sin activar
+ * (`finalized`) — para stands, la aprobación de Legal/Gerencia es cobrable en ambos. */
 export function sgcAprobado(lifecycleStatus: string | null): boolean {
-  return lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE;
+  return (
+    lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+    lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+  );
 }
 
 /**

@@ -17,7 +17,8 @@ import type {
   SgcUrlDescarga,
   SgcVersionResuelta,
 } from "@/domain/models/sgc";
-import { HTTP_METHODS, SGC_API_PATHS, SGC_APPROVAL_RESULT } from "@/lib/shared/constants";
+import { HTTP_METHODS, SGC_API_PATHS, SGC_APPROVAL_RESULT, SGC_IDEMPOTENCY_PREFIX, SGC_IDEMPOTENCY_DOC_PREFIX } from "@/lib/shared/constants";
+import { sha256Hex } from "@/lib/shared/utils/sgc";
 import type { HttpMethod } from "@/lib/shared/constants";
 
 export interface SgcClientConfig {
@@ -114,9 +115,15 @@ export class SgcClient implements ISgcClient {
     return this.request<SgcTemplate>(HTTP_METHODS.GET, SGC_API_PATHS.TEMPLATE(code));
   }
 
-  reservarSubida(contractId: string, input: SgcReservarSubidaInput): Promise<SgcReservarSubidaResult> {
+  async reservarSubida(contractId: string, input: SgcReservarSubidaInput): Promise<SgcReservarSubidaResult> {
+    /* Idempotency-Key = hash del payload COMPLETO (incluye title/fileName): un reintento
+     * identico recupera el mismo ticket y dos archivos con el mismo contenido pero distinto
+     * payload (p.ej. anexos clonados) son intenciones distintas — evita el 409 por clave
+     * reutilizada con otro contenido. */
+    const idempotencyKey = `${SGC_IDEMPOTENCY_DOC_PREFIX}/${contractId}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(input)))).slice(0, 16)}`;
     return this.request<SgcReservarSubidaResult>(HTTP_METHODS.POST, SGC_API_PATHS.CONTRACT_DOCUMENTS(contractId), {
       body: input,
+      idempotencyKey,
     });
   }
 
@@ -139,7 +146,11 @@ export class SgcClient implements ISgcClient {
   async confirmarSubida(versionId: string): Promise<SgcConfirmarSubidaResult> {
     const res = await fetch(this.url(SGC_API_PATHS.DOCUMENT_VERSION_COMPLETE(versionId)), {
       method: HTTP_METHODS.POST,
-      headers: { Authorization: `Bearer ${this.cfg.apiKey}` },
+      headers: {
+        Authorization: `Bearer ${this.cfg.apiKey}`,
+        /* Clave estable por version reservada (guia v5: stands/documento/<versionId>/complete). */
+        "Idempotency-Key": `${SGC_IDEMPOTENCY_DOC_PREFIX}/${versionId}/complete`,
+      },
       cache: "no-store",
     });
     if (res.status === 422) {

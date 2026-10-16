@@ -77,6 +77,7 @@ function webhookRepoMock(
 ): ISgcWebhookRepository {
   return {
     findEvento: vi.fn().mockResolvedValue(existente),
+    findEventoPorDelivery: vi.fn().mockResolvedValue(null),
     registrarEvento: vi
       .fn()
       .mockResolvedValue({
@@ -153,6 +154,23 @@ describe("SgcWebhookApplicationService.procesar", () => {
     expect(repo.registrarEvento).not.toHaveBeenCalled();
     expect(sgcRepo.actualizarExpediente).not.toHaveBeenCalled();
   });
+
+  it("no reprocesa una entrega repetida (dedup por x-sgc-delivery)", async () => {
+    const repo = webhookRepoMock();
+    vi.mocked(repo.findEventoPorDelivery).mockResolvedValue({
+      id: "w2",
+      eventId: "evt-0",
+      eventType: "workflow.advanced",
+      resourceId: "contract-1",
+      resourceCode: "STAND-1",
+      procesadoAt: new Date(),
+      error: null,
+    });
+    const sgcRepo = sgcRepoMock();
+    const r = await build(repo, sgcRepo).procesar(payload(), "del-1");
+    expect(r.duplicado).toBe(true);
+    expect(repo.registrarEvento).not.toHaveBeenCalled();
+  });
   it("deberia marcar Vigente cuando la aprobacion finaliza activa", async () => {
     const repo = webhookRepoMock();
     const sgcRepo = sgcRepoMock();
@@ -227,7 +245,7 @@ describe("SgcWebhookApplicationService.procesar", () => {
 
     expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
   });
-  it("deberia no generar orden de pago cuando la aprobacion cierra sin activar el contrato", async () => {
+  it("deberia generar la orden de pago tambien cuando la aprobacion cierra sin activar el contrato", async () => {
     const repo = webhookRepoMock();
     const sgcRepo = sgcRepoMock();
     const solicitudes = {
@@ -240,7 +258,7 @@ describe("SgcWebhookApplicationService.procesar", () => {
       payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "finalized" } }),
     );
 
-    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
   });
   it("deberia no repetir la orden de pago si el expediente ya estaba Vigente", async () => {
     const repo = webhookRepoMock();
