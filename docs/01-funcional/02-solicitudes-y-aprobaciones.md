@@ -38,11 +38,11 @@ Pipeline local: **Asociado → Legal (SGC)**. "Asociado" **unifica Logística + 
 
 1. **Creación** (desde el plano): se crea la revisión `pendiente` del nivel local (Asociado) y se alerta a los revisores (`reserva-service.ts:84-95`).
 2. **Asociado** responde (`POST /api/solicitudes/revisar` con `{solicitudId, area, estado, comentario?}`):
-   - Aprueba → se **crea el expediente en el SGC** (`solicitudes-service.ts:113-115`) y se alerta al admin ("Revisión completada").
+   - Aprueba → se **crea el expediente en el SGC y se envía automáticamente** (contrato + anexos → revisión, `solicitudes-service.ts` → `enviarExpedienteAlSgc`) y se alerta al admin ("Revisión completada"). Best-effort: si el SGC falla, el cron reintenta.
    - Rechaza → se alerta al admin; no se crea expediente SGC.
-3. **Legal (SGC)**: se ejecuta en el sistema externo; el webhook actualiza la correlación local (ver [08-integraciones.md](./08-integraciones.md)).
+3. **Legal (SGC)**: se ejecuta en el sistema externo; el webhook actualiza la correlación local (ver [08-integraciones.md](./08-integraciones.md)). Al **aprobar** (contrato Vigente o cerrado) la solicitud pasa **automáticamente a `pendiente_pago`** con su orden/facturación (webhook, sincronización al abrir el detalle o cron; idempotente). Si el SGC **rechaza**, el admin declara la indicación y el modo (contrato nuevo o el mismo): con contrato corregido **generado** el cliente puede **firmar digitalmente** desde Mis solicitudes, con un **PDF personalizado** descarga y adjunta su firmado; luego el admin reenvía al SGC.
 4. **Estado de la solicitud** se calcula según las revisiones (ver §5).
-5. **Orden de pago**: con todo aprobado, "Generar orden de pago" pasa la solicitud a `pendiente_pago` y crea `Facturacion` (`solicitudes-repository.ts:378-400`).
+5. **Orden de pago**: "Generar orden de pago" (o el pase automático desde el SGC) deja la solicitud en `pendiente_pago` y crea `Facturacion` (`solicitudes-repository.ts:378-400`). El **Bypass admin** mantiene la aprobación manual de Legal (SGC) sin esperar al SGC.
 6. **Pago**: al confirmarse todas las cuotas, la solicitud pasa a `pagado` (ver [04-facturacion.md](./04-facturacion.md)).
 
 Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`solicitud-review.tsx:153-161`). El stepper muestra un paso extra **"Legal (SGC)"** no clickeable.

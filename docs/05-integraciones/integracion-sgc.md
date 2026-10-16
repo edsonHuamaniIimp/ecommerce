@@ -541,3 +541,43 @@ flowchart TD
   cliente puede volver a firmar el vigente de inmediato. Se persiste en
   `sgc_expediente.subsanacion_modo` y en la ronda (`sgc_subsanacion.modo`) y se limpia al
   reenviar al SGC.
+
+## Actualización guía v5 y correcciones (2026-10-16)
+
+- **Guía v5** (`APIS_USE_HOOKS (5).md` + `API_HOOK_SCENARIOS (1).md`):
+  - `code` del expediente ahora se construye `STAND-<standCode normalizado>-<solicitudId8>`
+    (3–40 chars, **único global**; si el SGC responde 409 por código duplicado se reintenta una vez
+    con sufijo y se persiste el código final). Registros locales con formato viejo se regeneran
+    al re-sincronizar.
+  - `fields.input_demo` (campo obligatorio del tipo, short-text) se completa con el **número de
+    stand** de la solicitud.
+  - **Idempotency-Key en todos los POST de negocio** derivada del payload: creación
+    `stands/reserva/<solicitudId>/<hash16>`, documentos `stands/documento/<contractId>/<hash16>`,
+    complete `stands/documento/<versionId>/complete`. Un reintento idéntico reusa la clave; un
+    payload distinto (p. ej. anexos con contenido distinto) genera clave nueva → evita el 409
+    "clave usada con otro contenido".
+- **Webhooks**: dedup adicional por header **`x-sgc-delivery`** (columna `delivery_id` en
+  `sgc_webhook_evento`, migración `20261015120000_add_sgc_webhook_delivery`): un mismo delivery
+  reenviado por el SGC no se procesa dos veces (independiente del `eventId`).
+- **Pase a `pendiente_pago`**: cuando el SGC aprueba el trámite (lifecycle **`active`** o
+  **`finalized`**) la solicitud pasa a `pendiente_pago` con su orden y facturación automáticamente,
+  por tres vías idempotentes: webhook `workflow.approved`, sincronización al consultar el detalle
+  (sync on-read) y cron de reconciliación. El botón **Bypass admin** se mantiene intacto
+  (aprobación manual sin esperar al SGC; con bypass el sync/cron no revierten nada).
+- **Envío automático al aprobar Asociado**: `solicitudes-service.revisar()` llama a
+  `SgcIntegracionApplicationService.enviarExpedienteAlSgc` (expediente + contrato + anexos +
+  resend a revisión) en best-effort: si el SGC falla no rompe la aprobación y el cron
+  (`reintentarErrores`) reintenta; el botón manual "Enviar al SGC para revisión" sigue operativo
+  y no duplica (dedup por título).
+- **Corrección por rechazo (2 opciones del admin)**: en "Contrato corregido (v1)" el admin puede
+  **"Resubir contrato generado (plantilla)"** (regenera con `POST /api/contratos/generar` usando el
+  plan persistido; `cuotas` ahora es opcional) o **"Subir PDF personalizado"**. El contrato
+  regenerado se marca **`solicitud_documento.origen = generado`** y refresca su fecha (cuenta como
+  corrección posterior al último firmado); el PDF subido queda sin marca (personalizado/legacy).
+  Migración `20261016194653_add_solicitud_documento_origen`.
+- **Firma del cliente según origen**: en el modal "Subir contrato firmado" (Mis solicitudes), si el
+  contrato corregido más reciente es **generado** el cliente puede **"Firmar digitalmente"** (firma
+  del perfil; el servidor regenera de la plantilla y estampa la firma) o descargar y subir su
+  firmado; si es **personalizado** solo descarga y adjunta. En modo `nuevo_contrato` el reenvío
+  exige un **firmado posterior al contrato corregido** del admin
+  (`hayFirmadoPosteriorAlContratoCorregido`).
