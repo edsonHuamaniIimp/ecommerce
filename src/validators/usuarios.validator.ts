@@ -70,8 +70,9 @@ export const enviarAccesosUsuarioSchema = z.object({
 });
 
 /**
- * Desactivacion masiva de accesos: cada identificador es el correo del login o el
- * RUC de la empresa (desactiva sus cuentas). `confirmar=false` previsualiza.
+ * Desactivacion masiva de accesos: cada identificador es el correo del login, el
+ * RUC o el RUT de la empresa (desactiva sus cuentas). `confirmar=false` previsualiza.
+ * `reactivarEn` (ISO) programa la reactivacion automatica.
  */
 export const desactivarUsuariosLoteSchema = z.object({
   identificadores: z
@@ -79,6 +80,21 @@ export const desactivarUsuariosLoteSchema = z.object({
     .min(1, "Al menos un identificador")
     .max(USUARIOS_LOTE_MAX_FILAS, `Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`),
   confirmar: z.boolean().default(false),
+  reactivarEn: z.string().datetime("Fecha de reactivacion invalida (ISO)").nullish(),
+});
+
+/**
+ * Habilitacion masiva: programa la fecha/hora en que las cuentas desactivadas de la
+ * lista (misma plantilla: correo, RUC o RUT) volveran a estar activas. `confirmar=false`
+ * previsualiza.
+ */
+export const programarActivacionLoteSchema = z.object({
+  identificadores: z
+    .array(z.string().trim().min(1).max(120))
+    .min(1, "Al menos un identificador")
+    .max(USUARIOS_LOTE_MAX_FILAS, `Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`),
+  confirmar: z.boolean().default(false),
+  activarEn: z.string().datetime("Fecha de activacion invalida (ISO)"),
 });
 
 /** Query de la bandeja paginada de usuarios (paginacion/busqueda server-side). */

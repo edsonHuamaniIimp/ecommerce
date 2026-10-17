@@ -951,6 +951,16 @@ export const ESTADOS_DESACTIVACION_LOTE = {
 
 export type EstadoDesactivacionLote = (typeof ESTADOS_DESACTIVACION_LOTE)[keyof typeof ESTADOS_DESACTIVACION_LOTE];
 
+/** Estado de una cuenta dentro de la habilitacion masiva (programar su activacion). */
+export const ESTADOS_ACTIVACION_LOTE = {
+  PROGRAMADO: "programado",
+  POR_PROGRAMAR: "por_programar",
+  YA_ACTIVA: "ya_activa",
+  OMITIDO: "omitido",
+} as const;
+
+export type EstadoActivacionLote = (typeof ESTADOS_ACTIVACION_LOTE)[keyof typeof ESTADOS_ACTIVACION_LOTE];
+
 /** Motivos por los que una cuenta se omite en la desactivacion masiva. */
 export const MOTIVOS_OMISION_DESACTIVACION = {
   ADMIN: "Cuenta admin (no se desactiva en lote)",

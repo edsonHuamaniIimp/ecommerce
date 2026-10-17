@@ -4,7 +4,7 @@ import { success, error } from "@/lib/server/api-response";
 import { paginatedResponse } from "@/lib/server/pagination";
 import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { crearUsuarioSchema, crearUsuariosLoteSchema, crearCuentaUsuarioSchema, actualizarUsuarioSchema, enviarAccesosUsuarioSchema, usuariosListarSchema, desactivarUsuariosLoteSchema } from "@/validators/usuarios.validator";
+import { crearUsuarioSchema, crearUsuariosLoteSchema, crearCuentaUsuarioSchema, actualizarUsuarioSchema, enviarAccesosUsuarioSchema, usuariosListarSchema, desactivarUsuariosLoteSchema, programarActivacionLoteSchema } from "@/validators/usuarios.validator";
 
 /** Solo admin (o rol con el permiso dedicado de usuarios) puede gestionar usuarios del portal. */
 async function autorizarGestionUsuarios(): Promise<NextResponse | null> {
@@ -98,12 +98,21 @@ export const usuariosController = {
     return success(await services.usuarios.enviarAccesos(body.id));
   },
 
-  /** POST /api/usuarios/desactivar-lote — { identificadores: (correo|RUC)[], confirmar? }. */
+  /** POST /api/usuarios/desactivar-lote — { identificadores: (correo|RUC|RUT)[], confirmar?, reactivarEn? }. */
   async desactivarLote(request: Request): Promise<NextResponse> {
     const noAutorizado = await autorizarGestionUsuarios();
     if (noAutorizado) return noAutorizado;
     const body = desactivarUsuariosLoteSchema.parse(await request.json());
     const session = await getSession();
-    return success(await services.usuarios.desactivarLote(body.identificadores, body.confirmar, session?.email));
+    return success(await services.usuarios.desactivarLote(body.identificadores, body.confirmar, session?.email, body.reactivarEn ?? null));
+  },
+
+  /** POST /api/usuarios/programar-activacion — { identificadores: (correo|RUC|RUT)[], confirmar?, activarEn }. */
+  async programarActivacionLote(request: Request): Promise<NextResponse> {
+    const noAutorizado = await autorizarGestionUsuarios();
+    if (noAutorizado) return noAutorizado;
+    const body = programarActivacionLoteSchema.parse(await request.json());
+    const session = await getSession();
+    return success(await services.usuarios.programarActivacionLote(body.identificadores, body.confirmar, session?.email, body.activarEn));
   },
 };

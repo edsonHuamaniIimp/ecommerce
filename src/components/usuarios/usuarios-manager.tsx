@@ -35,14 +35,17 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { usuariosService } from "@/lib/client/api/services/usuarios-service";
 import { rolesService } from "@/lib/client/api/services/roles-service";
 import { EmpresaPicker, type FuenteEmpresa } from "@/components/shared/empresa-picker";
-import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, ESTADOS_DESACTIVACION_LOTE, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL, USUARIOS_LOTE_MAX_FILAS } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, ESTADOS_ACTIVACION_LOTE, ESTADOS_DESACTIVACION_LOTE, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL, USUARIOS_LOTE_MAX_FILAS } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type {
+  CuentaActivacionLoteDTO,
   CuentaDesactivacionLoteDTO,
   EmpresaAccesoDTO,
   NuevoUsuarioPortalDTO,
   PersonaApiDTO,
+  ResultadoActivacionLoteDTO,
   ResultadoCreacionUsuarioDTO,
   ResultadoDesactivacionLoteDTO,
   UsuarioPortalDTO,
@@ -134,6 +137,14 @@ const ESTADO_LOTE_UI: Record<CuentaDesactivacionLoteDTO["estado"], { texto: stri
   [ESTADOS_DESACTIVACION_LOTE.OMITIDO]: { texto: "Omitida", className: "bg-destructive/10 text-destructive" },
 };
 
+/** Presentacion de cada estado de la habilitacion masiva (previsualizacion/resultado). */
+const ESTADO_ACTIVACION_UI: Record<CuentaActivacionLoteDTO["estado"], { texto: string; className: string }> = {
+  [ESTADOS_ACTIVACION_LOTE.PROGRAMADO]: { texto: "Programada", className: "bg-success/15 text-success" },
+  [ESTADOS_ACTIVACION_LOTE.POR_PROGRAMAR]: { texto: "Se programara", className: "bg-warning/15 text-warning" },
+  [ESTADOS_ACTIVACION_LOTE.YA_ACTIVA]: { texto: "Ya estaba activa", className: "bg-secondary text-muted-foreground" },
+  [ESTADOS_ACTIVACION_LOTE.OMITIDO]: { texto: "Omitida", className: "bg-destructive/10 text-destructive" },
+};
+
 export function UsuariosManager() {
   const [usuarios, setUsuarios] = useState<UsuarioPortalDTO[]>([]);
   const [roles, setRoles] = useState<RolOpcion[]>([]);
@@ -147,6 +158,7 @@ export function UsuariosManager() {
   const [modalIndividual, setModalIndividual] = useState(false);
   const [modalLote, setModalLote] = useState(false);
   const [modalDesactivarLote, setModalDesactivarLote] = useState(false);
+  const [modalHabilitarLote, setModalHabilitarLote] = useState(false);
   const [modalBuscar, setModalBuscar] = useState(false);
   const [usuarioEditar, setUsuarioEditar] = useState<UsuarioPortalDTO | null>(null);
   const [enviandoAccesosId, setEnviandoAccesosId] = useState<string | null>(null);
@@ -337,6 +349,15 @@ export function UsuariosManager() {
             <PowerOff className="mr-1 h-3.5 w-3.5" />
             <span>Desactivar en lote</span>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-success hover:text-success"
+            onClick={() => { setModalHabilitarLote(true); }}
+          >
+            <Power className="mr-1 h-3.5 w-3.5" />
+            <span>Habilitar en lote</span>
+          </Button>
         </div>
       </div>
 
@@ -393,7 +414,14 @@ export function UsuariosManager() {
                     {u.flgActivo ? (
                       <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.SUCCESS}`}><span>Activo</span></Badge>
                     ) : (
-                      <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}><span>Deshabilitado</span></Badge>
+                      <>
+                        <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}><span>Deshabilitado</span></Badge>
+                        {u.reactivarEn && (
+                          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                            reactiva {dateUtils.formatDateTime(u.reactivarEn)}
+                          </span>
+                        )}
+                      </>
                     )}
                   </TableCell>
                   <TableCell>
@@ -495,6 +523,12 @@ export function UsuariosManager() {
           onDesactivados={() => { void cargar(); }}
         />
       )}
+      {modalHabilitarLote && (
+        <ProgramarActivacionLoteModal
+          onClose={() => { setModalHabilitarLote(false); }}
+          onProgramados={() => { void cargar(); }}
+        />
+      )}
       {usuarioEditar && (
         <EditarUsuarioModal
           usuario={usuarioEditar}
@@ -522,10 +556,27 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
   const [desactivando, setDesactivando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoDesactivacionLoteDTO | null>(null);
   const [ejecutado, setEjecutado] = useState(false);
+  const [reactivarEn, setReactivarEn] = useState("");
   const archivoRef = useRef<HTMLInputElement>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const identificadores = useMemo(() => parsearIdentificadores(texto), [texto]);
+
+  /** ISO de la reactivacion programada ("" = sin programar) o null si es invalida. */
+  const reactivarIso = (): string | null => {
+    if (!reactivarEn) return null;
+    const d = new Date(reactivarEn);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  };
+
+  /** Error de la fecha de reactivacion programada (null = ok). */
+  const errorReactivacion = (): string | null => {
+    if (!reactivarEn) return null;
+    const d = new Date(reactivarEn);
+    if (Number.isNaN(d.getTime())) return "Fecha de reactivacion invalida";
+    if (d.getTime() <= Date.now()) return "La fecha de reactivacion debe ser futura";
+    return null;
+  };
 
   const importarArchivo = async (file: File | null) => {
     if (!file) return;
@@ -535,11 +586,13 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
 
   const previsualizar = async () => {
     setError(null);
-    if (identificadores.length === 0) { setError("Agrega al menos un correo o RUC"); return; }
+    if (identificadores.length === 0) { setError("Agrega al menos un correo, RUC o RUT"); return; }
     if (identificadores.length > USUARIOS_LOTE_MAX_FILAS) { setError(`Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`); return; }
+    const errFecha = errorReactivacion();
+    if (errFecha) { setError(errFecha); return; }
     setPrevisualizando(true);
     try {
-      setResultado(await usuariosService.desactivarLote({ identificadores, confirmar: false }));
+      setResultado(await usuariosService.desactivarLote({ identificadores, confirmar: false, reactivarEn: reactivarIso() }));
       setEjecutado(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al previsualizar");
@@ -550,9 +603,11 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
 
   const ejecutar = async () => {
     if (!resultado || resultado.resumen.porDesactivar === 0) return;
+    const programada = reactivarIso();
     const ok = await confirm({
       title: "Desactivar cuentas",
-      description: `Se desactivaran ${resultado.resumen.porDesactivar} cuenta(s): no podran ingresar al portal y su sesion activa se cortara.`,
+      description: `Se desactivaran ${resultado.resumen.porDesactivar} cuenta(s): no podran ingresar al portal y su sesion activa se cortara.`
+        + (programada ? ` Se reactivaran automaticamente el ${dateUtils.formatDateTime(programada)}.` : ""),
       confirmLabel: "Desactivar",
       destructive: true,
     });
@@ -560,7 +615,7 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
     setError(null);
     setDesactivando(true);
     try {
-      const r = await usuariosService.desactivarLote({ identificadores, confirmar: true });
+      const r = await usuariosService.desactivarLote({ identificadores, confirmar: true, reactivarEn: programada });
       setResultado(r);
       setEjecutado(true);
       if (r.resumen.desactivadas > 0) {
@@ -619,6 +674,21 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
                     </div>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <Label htmlFor="desactivar-reactivar" className="text-xs">
+                    <span>Reactivar automaticamente (opcional)</span>
+                  </Label>
+                  <Input
+                    id="desactivar-reactivar"
+                    type="datetime-local"
+                    value={reactivarEn}
+                    onChange={(e) => { setReactivarEn(e.target.value); }}
+                    className="h-8 w-full text-xs"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Dia y hora en que las cuentas desactivadas volveran a estar activas (sin accion manual).
+                  </p>
+                </div>
                 {error && <p className="text-xs text-destructive">{error}</p>}
               </>
             ) : (
@@ -658,6 +728,11 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
                   {resultado.resumen.yaDesactivadas} ya estaban desactivadas · {resultado.resumen.omitidas} omitida(s) ·{" "}
                   {resultado.resumen.noEncontrados} sin coincidencia.
                 </p>
+                {resultado.reactivarEn && (
+                  <p className="text-[11px] font-medium text-primary">
+                    Reactivacion programada: {dateUtils.formatDateTime(resultado.reactivarEn)}
+                  </p>
+                )}
                 {error && <p className="text-xs text-destructive">{error}</p>}
               </div>
             )}
@@ -671,6 +746,214 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
             ) : !ejecutado && resultado.resumen.porDesactivar > 0 ? (
               <Button variant="destructive" size="sm" onClick={() => { void ejecutar(); }} disabled={desactivando}>
                 <span>{desactivando ? "Desactivando..." : `Desactivar ${resultado.resumen.porDesactivar} cuenta(s)`}</span>
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {confirmDialog}
+    </>
+  );
+}
+
+/**
+ * Habilitacion masiva: misma lista/plantilla que la desactivacion (correo, RUC o RUT),
+ * pero en vez de desactivar programa la fecha/hora en que cada cuenta desactivada
+ * volvera a estar activa; las cuentas activas se reportan y no se tocan.
+ */
+function ProgramarActivacionLoteModal({ onClose, onProgramados }: {
+  onClose: () => void;
+  onProgramados: () => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [activarEn, setActivarEn] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [previsualizando, setPrevisualizando] = useState(false);
+  const [programando, setProgramando] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoActivacionLoteDTO | null>(null);
+  const [ejecutado, setEjecutado] = useState(false);
+  const archivoRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
+
+  const identificadores = useMemo(() => parsearIdentificadores(texto), [texto]);
+
+  const activarIso = (): string => new Date(activarEn).toISOString();
+
+  /** Error de la fecha de activacion (null = ok). */
+  const errorFecha = (): string | null => {
+    if (!activarEn) return "Elige la fecha y hora de activacion";
+    const d = new Date(activarEn);
+    if (Number.isNaN(d.getTime())) return "Fecha de activacion invalida";
+    if (d.getTime() <= Date.now()) return "La fecha de activacion debe ser futura";
+    return null;
+  };
+
+  const importarArchivo = async (file: File | null) => {
+    if (!file) return;
+    const contenido = (await file.text()).replace(/^\uFEFF/, "");
+    setTexto((prev) => (prev.trim() ? `${prev.trimEnd()}\n${contenido}` : contenido));
+  };
+
+  const previsualizar = async () => {
+    setError(null);
+    if (identificadores.length === 0) { setError("Agrega al menos un correo, RUC o RUT"); return; }
+    if (identificadores.length > USUARIOS_LOTE_MAX_FILAS) { setError(`Maximo ${USUARIOS_LOTE_MAX_FILAS} filas por lote`); return; }
+    const errFecha = errorFecha();
+    if (errFecha) { setError(errFecha); return; }
+    setPrevisualizando(true);
+    try {
+      setResultado(await usuariosService.programarActivacionLote({ identificadores, confirmar: false, activarEn: activarIso() }));
+      setEjecutado(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al previsualizar");
+    } finally {
+      setPrevisualizando(false);
+    }
+  };
+
+  const ejecutar = async () => {
+    if (!resultado || resultado.resumen.porProgramar === 0) return;
+    const ok = await confirm({
+      title: "Programar activacion",
+      description: `Se programara la activacion de ${resultado.resumen.porProgramar} cuenta(s) para el ${dateUtils.formatDateTime(activarIso())}. Seguiran desactivadas hasta esa fecha y hora.`,
+      confirmLabel: "Programar",
+    });
+    if (!ok) return;
+    setError(null);
+    setProgramando(true);
+    try {
+      const r = await usuariosService.programarActivacionLote({ identificadores, confirmar: true, activarEn: activarIso() });
+      setResultado(r);
+      setEjecutado(true);
+      if (r.resumen.programadas > 0) {
+        toast.success(`${r.resumen.programadas} cuenta(s) programada(s) para su activacion`);
+        onProgramados();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al programar");
+    } finally {
+      setProgramando(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
+          <DialogHeader className="shrink-0">
+            <DialogTitle><span>Habilitar cuentas en lote</span></DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-3">
+            {!resultado ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="activar-lote" className="text-xs">
+                    <span>Correos (login), RUC o RUT de la empresa, uno por linea</span>
+                  </Label>
+                  <Textarea
+                    id="activar-lote"
+                    value={texto}
+                    onChange={(e) => { setTexto(e.target.value); }}
+                    rows={7}
+                    placeholder={"jperez@empresa.com\n20123456789\nFR48305461063"}
+                    className="text-xs"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      {identificadores.length} fila(s) · misma plantilla que la desactivacion en lote.
+                    </p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={descargarPlantillaIdentificadores}>
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        <span>Descargar plantilla</span>
+                      </Button>
+                      <input
+                        ref={archivoRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={(e) => { void importarArchivo(e.target.files?.[0] ?? null); e.target.value = ""; }}
+                      />
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => archivoRef.current?.click()}>
+                        <Upload className="mr-1 h-3.5 w-3.5" />
+                        <span>Importar CSV</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="activar-fecha" className="text-xs">
+                    <span>Activar el (dia y hora) *</span>
+                  </Label>
+                  <Input
+                    id="activar-fecha"
+                    type="datetime-local"
+                    value={activarEn}
+                    onChange={(e) => { setActivarEn(e.target.value); }}
+                    className="h-8 w-full text-xs"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Las cuentas desactivadas de la lista volveran a estar activas a esa fecha y hora
+                    (las cuentas activas se omiten).
+                  </p>
+                </div>
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <div className="space-y-1 rounded-lg border border-border p-2">
+                  {resultado.cuentas.length === 0 && (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">Sin cuentas que coincidan con la lista.</p>
+                  )}
+                  {resultado.cuentas.map((cuenta) => (
+                    <div key={cuenta.userId} className="flex items-center justify-between gap-2 rounded px-1 py-1 text-xs">
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium">{cuenta.email}</span>
+                        {cuenta.empresa && <span className="text-muted-foreground"> · {cuenta.empresa}</span>}
+                        {cuenta.tipoDocumento && (
+                          <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                            {etiquetaTipoDocumentoEmpresa(cuenta.tipoDocumento)}
+                          </span>
+                        )}
+                      </span>
+                      {cuenta.motivo && <span className="shrink-0 text-[10px] text-muted-foreground">{cuenta.motivo}</span>}
+                      <Badge className={`pointer-events-none shrink-0 text-[10px] ${ESTADO_ACTIVACION_UI[cuenta.estado].className}`}>
+                        <span>{ESTADO_ACTIVACION_UI[cuenta.estado].texto}</span>
+                      </Badge>
+                    </div>
+                  ))}
+                  {resultado.noEncontrados.map((fila) => (
+                    <div key={fila.identificador} className="flex items-center justify-between gap-2 rounded px-1 py-1 text-xs">
+                      <span className="min-w-0 flex-1 truncate font-medium">{fila.identificador}</span>
+                      <Badge className={`pointer-events-none shrink-0 text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
+                        <span>{fila.motivo === "invalido" ? "Invalido" : "No encontrado"}</span>
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {resultado.resumen.programadas} programada(s) · {resultado.resumen.porProgramar} por programar ·{" "}
+                  {resultado.resumen.yaActivas} ya estaban activas · {resultado.resumen.omitidas} omitida(s) ·{" "}
+                  {resultado.resumen.noEncontrados} sin coincidencia.
+                </p>
+                {ejecutado && (
+                  <p className="text-[11px] font-medium text-primary">
+                    Activacion programada: {dateUtils.formatDateTime(resultado.activarEn)}
+                  </p>
+                )}
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="shrink-0">
+            <Button variant="ghost" size="sm" onClick={onClose}><span>{resultado ? "Cerrar" : "Cancelar"}</span></Button>
+            {!resultado ? (
+              <Button size="sm" onClick={() => { void previsualizar(); }} disabled={previsualizando}>
+                <span>{previsualizando ? "Revisando..." : `Previsualizar (${identificadores.length})`}</span>
+              </Button>
+            ) : !ejecutado && resultado.resumen.porProgramar > 0 ? (
+              <Button size="sm" onClick={() => { void ejecutar(); }} disabled={programando}>
+                <span>{programando ? "Programando..." : `Programar ${resultado.resumen.porProgramar} cuenta(s)`}</span>
               </Button>
             ) : null}
           </DialogFooter>

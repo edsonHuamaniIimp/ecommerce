@@ -13,5 +13,6 @@ export const { GET, POST } = createRouter({
     actualizar: (req) => usuariosController.actualizar(req),
     "enviar-accesos": (req) => usuariosController.enviarAccesos(req),
     "desactivar-lote": (req) => usuariosController.desactivarLote(req),
+    "programar-activacion": (req) => usuariosController.programarActivacionLote(req),
   },
 });

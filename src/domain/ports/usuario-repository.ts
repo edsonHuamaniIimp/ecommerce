@@ -27,6 +27,8 @@ export interface UsuarioPortalRow {
   debeCambiarPassword: boolean;
   /** Acceso habilitado (flg_activo): false = deshabilitado, no puede ingresar. */
   flgActivo: boolean;
+  /** Reactivacion programada (desactivacion masiva): fecha/hora en que vuelve a estar activa; null = sin programar. */
+  reactivarEn?: Date | null;
 }
 
 /** Parametros de la bandeja paginada de usuarios (paginacion/busqueda server-side). */
@@ -58,8 +60,10 @@ export interface IUsuarioRepository {
   existeEmailEnOtraCuenta(email: string, userId: string): Promise<boolean>;
   /** Cuentas alcanzadas por correos (login) y/o documentos de empresa (RUC o RUT de la fila o de la empresa vinculada). */
   findCuentasPorIdentificadores(params: { correos: string[]; documentos: string[] }): Promise<UsuarioPortalRow[]>;
-  /** Desactiva (flg_activo=false) TODAS las filas de las cuentas indicadas (userId). */
-  desactivarCuentasPorUserIds(userIds: string[]): Promise<void>;
+  /** Desactiva (flg_activo=false) TODAS las filas de las cuentas indicadas (userId); `reactivarEn` programa su reactivacion. */
+  desactivarCuentasPorUserIds(userIds: string[], reactivarEn?: Date | null): Promise<void>;
+  /** Programa la activacion de las cuentas indicadas (mantiene flg_activo=false; `reactivarEn` = fecha/hora de activacion). */
+  programarActivacionCuentasPorUserIds(userIds: string[], activarEn: Date): Promise<void>;
 }
 
 /** Identificadores externos del usuario para cruzarlo con la fuente. */

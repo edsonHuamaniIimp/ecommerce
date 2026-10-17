@@ -15,14 +15,14 @@ export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
     return prisma.userRole.findMany({
       where: { email },
-      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, flgActivo: true, role: { select: { nombre: true, permisos: true } } },
+      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, flgActivo: true, reactivarEn: true, role: { select: { nombre: true, permisos: true } } },
     });
   }
 
   async findByRuc(ruc: string) {
     return prisma.userRole.findMany({
       where: { ruc },
-      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, flgActivo: true, role: { select: { nombre: true, permisos: true } } },
+      select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, flgActivo: true, reactivarEn: true, role: { select: { nombre: true, permisos: true } } },
     });
   }
 
@@ -227,6 +227,15 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
     await prisma.userRole.updateMany({ where: { email }, data: { debeCambiarPassword: requerido } });
+  }
+
+  /** Reactiva las cuentas cuya reactivacion programada ya vencio (desactivacion masiva). */
+  async reactivarCuentasProgramadas(): Promise<number> {
+    const resultado = await prisma.userRole.updateMany({
+      where: { flgActivo: false, reactivarEn: { lte: new Date() } },
+      data: { flgActivo: true, reactivarEn: null },
+    });
+    return resultado.count;
   }
 
   async estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null> {

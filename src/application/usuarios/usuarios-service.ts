@@ -1,4 +1,4 @@
-import { API_ERROR_CODES, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, ROLES, type EstadoDesactivacionLote } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_ACTIVACION_LOTE, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, ROLES, type EstadoActivacionLote, type EstadoDesactivacionLote } from "@/lib/shared/constants";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { DomainError } from "@/lib/server/router";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -80,7 +80,31 @@ export interface CuentaDesactivacionLote {
 export interface DesactivarUsuariosLoteResultado {
   cuentas: CuentaDesactivacionLote[];
   noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  /** Reactivacion programada aplicada (ISO); null = desactivacion sin fecha. */
+  reactivarEn: string | null;
   resumen: { desactivadas: number; porDesactivar: number; yaDesactivadas: number; omitidas: number; noEncontrados: number };
+}
+
+/** Cuenta alcanzada por una habilitacion masiva (previsualizacion o resultado). */
+export interface CuentaActivacionLote {
+  userId: string;
+  email: string;
+  empresa: string | null;
+  /** Tipo de documento de la empresa (TIPOS_DOCUMENTO_EMPRESA); null si no aplica. */
+  tipoDocumento: string | null;
+  rol: string;
+  estado: EstadoActivacionLote;
+  motivo: string | null;
+  /** Identificadores de la lista del lote que alcanzan esta cuenta (correos, RUC o RUT). */
+  identificadores: string[];
+}
+
+export interface ProgramarActivacionLoteResultado {
+  cuentas: CuentaActivacionLote[];
+  noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  /** Fecha/hora de activacion programada (ISO). */
+  activarEn: string;
+  resumen: { programadas: number; porProgramar: number; yaActivas: number; omitidas: number; noEncontrados: number };
 }
 
 /**
@@ -98,7 +122,9 @@ export class UsuariosApplicationService {
   ) {}
 
   /** Bandeja paginada de usuarios (paginacion/busqueda/filtro server-side). */
-  listar(params: UsuariosPaginationParams) {
+  async listar(params: UsuariosPaginationParams) {
+    /* Reactiva lo programado que ya vencio para que la bandeja refleje el estado real. */
+    await this.authRepo.reactivarCuentasProgramadas().catch(() => {});
     return this.repo.listarUsuariosPortal(params);
   }
 
@@ -304,12 +330,14 @@ export class UsuariosApplicationService {
   }
 
   /**
-   * Desactivacion masiva de accesos del portal: cada linea es el correo del login
-   * o el documento de la empresa (RUC o RUT: desactiva todas sus cuentas). Sin
-   * `confirmar` solo previsualiza. Guardas: nunca la propia cuenta ni cuentas
-   * admin (se omiten).
+   * Clasifica y resuelve los identificadores de un lote (correo del login o documento
+   * de empresa RUC/RUT) y agrupa las cuentas alcanzadas por userId.
    */
-  async desactivarLote(identificadores: string[], confirmar: boolean, solicitanteEmail?: string): Promise<DesactivarUsuariosLoteResultado> {
+  private async resolverCuentasDeLote(identificadores: string[]): Promise<{
+    validos: { valor: string; tipo: "correo" | "documento" }[];
+    noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+    porCuenta: Map<string, UsuarioPortalRow[]>;
+  }> {
     const validos: { valor: string; tipo: "correo" | "documento" }[] = [];
     const noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[] = [];
     const vistos = new Set<string>();
@@ -343,7 +371,65 @@ export class UsuariosApplicationService {
       actual.push(fila);
       porCuenta.set(fila.userId, actual);
     }
+    return { validos, noEncontrados, porCuenta };
+  }
 
+  /** Identificadores validos del lote que alcanzan una cuenta (correo exacto o su documento). */
+  private identificadoresDeCuenta(
+    validos: { valor: string; tipo: "correo" | "documento" }[],
+    filasCuenta: UsuarioPortalRow[],
+  ): string[] {
+    return validos
+      .filter((v) =>
+        (v.tipo === "correo" && v.valor === filasCuenta[0]?.email.trim().toLowerCase())
+        || (v.tipo === "documento" && filasCuenta.some((f) =>
+          normalizarDocumentoEmpresa(f.ruc) === v.valor
+          || normalizarDocumentoEmpresa(f.empresaRuc) === v.valor)),
+      )
+      .map((v) => v.valor);
+  }
+
+  /** Agrega a `noEncontrados` los identificadores validos que no alcanzaron ninguna cuenta. */
+  private completarNoEncontrados(
+    validos: { valor: string }[],
+    cuentas: { identificadores: string[] }[],
+    noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[],
+  ): void {
+    for (const v of validos) {
+      if (!cuentas.some((c) => c.identificadores.includes(v.valor))) {
+        noEncontrados.push({ identificador: v.valor, motivo: "no_encontrado" });
+      }
+    }
+  }
+
+  /** Fecha futura de un lote (reactivacion/activacion) o error de validacion. */
+  private parsearFechaFutura(iso: string | null | undefined, etiqueta: string): Date {
+    const fecha = new Date(iso ?? "");
+    if (Number.isNaN(fecha.getTime())) {
+      throw new DomainError(`Fecha de ${etiqueta} invalida`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (fecha.getTime() <= Date.now()) {
+      throw new DomainError(`La fecha de ${etiqueta} debe ser futura`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    return fecha;
+  }
+
+  /**
+   * Desactivacion masiva de accesos del portal: cada linea es el correo del login
+   * o el documento de la empresa (RUC o RUT: desactiva todas sus cuentas). Sin
+   * `confirmar` solo previsualiza. `reactivarEnIso` (opcional) programa la
+   * reactivacion automatica a esa fecha/hora. Guardas: nunca la propia cuenta ni
+   * cuentas admin (se omiten).
+   */
+  async desactivarLote(
+    identificadores: string[],
+    confirmar: boolean,
+    solicitanteEmail?: string,
+    reactivarEnIso?: string | null,
+  ): Promise<DesactivarUsuariosLoteResultado> {
+    const reactivarEn = reactivarEnIso ? this.parsearFechaFutura(reactivarEnIso, "reactivacion") : null;
+
+    const { validos, noEncontrados, porCuenta } = await this.resolverCuentasDeLote(identificadores);
     const solicitante = solicitanteEmail?.trim().toLowerCase() ?? null;
     const cuentas: CuentaDesactivacionLote[] = [];
     const userIdsADesactivar: string[] = [];
@@ -352,14 +438,7 @@ export class UsuariosApplicationService {
       const primera = filasCuenta[0];
       if (!primera) continue;
       const email = primera.email.trim().toLowerCase();
-      const ids = validos
-        .filter((v) =>
-          (v.tipo === "correo" && v.valor === email)
-          || (v.tipo === "documento" && filasCuenta.some((f) =>
-            normalizarDocumentoEmpresa(f.ruc) === v.valor
-            || normalizarDocumentoEmpresa(f.empresaRuc) === v.valor)),
-        )
-        .map((v) => v.valor);
+      const ids = this.identificadoresDeCuenta(validos, filasCuenta);
       if (ids.length === 0) continue;
 
       const esAdmin = filasCuenta.some((f) => f.rol === ROLES.ADMIN);
@@ -393,25 +472,99 @@ export class UsuariosApplicationService {
       });
     }
 
-    /* Identificadores validos que no alcanzaron ninguna cuenta. */
-    for (const v of validos) {
-      if (!cuentas.some((c) => c.identificadores.includes(v.valor))) {
-        noEncontrados.push({ identificador: v.valor, motivo: "no_encontrado" });
-      }
-    }
+    this.completarNoEncontrados(validos, cuentas, noEncontrados);
 
     if (confirmar && userIdsADesactivar.length > 0) {
-      await this.repo.desactivarCuentasPorUserIds(userIdsADesactivar);
+      await this.repo.desactivarCuentasPorUserIds(userIdsADesactivar, reactivarEn);
     }
 
     return {
       cuentas,
       noEncontrados,
+      reactivarEn: reactivarEn ? reactivarEn.toISOString() : null,
       resumen: {
         desactivadas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.DESACTIVADO).length,
         porDesactivar: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.POR_DESACTIVAR).length,
         yaDesactivadas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.YA_DESACTIVADO).length,
         omitidas: cuentas.filter((c) => c.estado === ESTADOS_DESACTIVACION_LOTE.OMITIDO).length,
+        noEncontrados: noEncontrados.length,
+      },
+    };
+  }
+
+  /**
+   * Habilitacion masiva: programa la fecha/hora de activacion de las cuentas
+   * desactivadas alcanzadas (misma lista/plantilla que la desactivacion). No
+   * desactiva: las cuentas activas se reportan como `ya_activa`. Sin `confirmar`
+   * solo previsualiza. Guardas: nunca la propia cuenta ni cuentas admin (se omiten).
+   */
+  async programarActivacionLote(
+    identificadores: string[],
+    confirmar: boolean,
+    solicitanteEmail: string | undefined,
+    activarEnIso: string,
+  ): Promise<ProgramarActivacionLoteResultado> {
+    const activarEn = this.parsearFechaFutura(activarEnIso, "activacion");
+
+    const { validos, noEncontrados, porCuenta } = await this.resolverCuentasDeLote(identificadores);
+    const solicitante = solicitanteEmail?.trim().toLowerCase() ?? null;
+    const cuentas: CuentaActivacionLote[] = [];
+    const userIdsAProgramar: string[] = [];
+
+    for (const [userId, filasCuenta] of porCuenta) {
+      const primera = filasCuenta[0];
+      if (!primera) continue;
+      const email = primera.email.trim().toLowerCase();
+      const ids = this.identificadoresDeCuenta(validos, filasCuenta);
+      if (ids.length === 0) continue;
+
+      const esAdmin = filasCuenta.some((f) => f.rol === ROLES.ADMIN);
+      const activa = filasCuenta.some((f) => f.flgActivo);
+      let estado: EstadoActivacionLote;
+      let motivo: string | null = null;
+      if (email === solicitante) {
+        estado = ESTADOS_ACTIVACION_LOTE.OMITIDO;
+        motivo = MOTIVOS_OMISION_DESACTIVACION.PROPIA;
+      } else if (esAdmin) {
+        estado = ESTADOS_ACTIVACION_LOTE.OMITIDO;
+        motivo = MOTIVOS_OMISION_DESACTIVACION.ADMIN;
+      } else if (activa) {
+        estado = ESTADOS_ACTIVACION_LOTE.YA_ACTIVA;
+        motivo = "Ya esta activa: no se programa";
+      } else if (confirmar) {
+        estado = ESTADOS_ACTIVACION_LOTE.PROGRAMADO;
+        userIdsAProgramar.push(userId);
+      } else {
+        estado = ESTADOS_ACTIVACION_LOTE.POR_PROGRAMAR;
+      }
+
+      cuentas.push({
+        userId,
+        email,
+        empresa: primera.empresa ?? null,
+        tipoDocumento: primera.empresaTipoDocumento ?? null,
+        rol: filasCuenta.map((f) => f.rol).join(", "),
+        estado,
+        motivo,
+        identificadores: ids,
+      });
+    }
+
+    this.completarNoEncontrados(validos, cuentas, noEncontrados);
+
+    if (confirmar && userIdsAProgramar.length > 0) {
+      await this.repo.programarActivacionCuentasPorUserIds(userIdsAProgramar, activarEn);
+    }
+
+    return {
+      cuentas,
+      noEncontrados,
+      activarEn: activarEn.toISOString(),
+      resumen: {
+        programadas: cuentas.filter((c) => c.estado === ESTADOS_ACTIVACION_LOTE.PROGRAMADO).length,
+        porProgramar: cuentas.filter((c) => c.estado === ESTADOS_ACTIVACION_LOTE.POR_PROGRAMAR).length,
+        yaActivas: cuentas.filter((c) => c.estado === ESTADOS_ACTIVACION_LOTE.YA_ACTIVA).length,
+        omitidas: cuentas.filter((c) => c.estado === ESTADOS_ACTIVACION_LOTE.OMITIDO).length,
         noEncontrados: noEncontrados.length,
       },
     };

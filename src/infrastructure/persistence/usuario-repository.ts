@@ -22,6 +22,7 @@ type FilaUsuario = {
   sieCode: string | null;
   debeCambiarPassword: boolean;
   flgActivo: boolean;
+  reactivarEn: Date | null;
   role: { nombre: string };
   empresa: { razonSocial: string; ruc: string; tipoDocumento: string } | null;
 };
@@ -46,6 +47,7 @@ function aFila(r: FilaUsuario): UsuarioPortalRow {
     sieCode: r.sieCode,
     debeCambiarPassword: r.debeCambiarPassword,
     flgActivo: r.flgActivo,
+    reactivarEn: r.reactivarEn ?? null,
   };
 }
 
@@ -116,7 +118,8 @@ export class UsuarioPrismaRepository implements IUsuarioRepository {
         where: { userId: actual.userId },
         data: {
           ...(data.email !== undefined ? { email: data.email, userId: `user|${data.email}` } : {}),
-          ...(data.flgActivo !== undefined ? { flgActivo: data.flgActivo } : {}),
+          /* Habilitar/deshabilitar manualmente limpia cualquier reactivacion programada. */
+          ...(data.flgActivo !== undefined ? { flgActivo: data.flgActivo, reactivarEn: null } : {}),
         },
       });
     }
@@ -159,11 +162,20 @@ export class UsuarioPrismaRepository implements IUsuarioRepository {
     return rows.map(aFila);
   }
 
-  async desactivarCuentasPorUserIds(userIds: string[]): Promise<void> {
+  async desactivarCuentasPorUserIds(userIds: string[], reactivarEn?: Date | null): Promise<void> {
     if (userIds.length === 0) return;
     await prisma.userRole.updateMany({
       where: { userId: { in: userIds } },
-      data: { flgActivo: false },
+      data: { flgActivo: false, reactivarEn: reactivarEn ?? null },
+    });
+  }
+
+  async programarActivacionCuentasPorUserIds(userIds: string[], activarEn: Date): Promise<void> {
+    if (userIds.length === 0) return;
+    /* Solo programa la fecha: el estado (flg_activo) no cambia; el barrido las activa al vencer. */
+    await prisma.userRole.updateMany({
+      where: { userId: { in: userIds } },
+      data: { reactivarEn: activarEn },
     });
   }
 

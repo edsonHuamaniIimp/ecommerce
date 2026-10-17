@@ -8,6 +8,8 @@ import type {
   DesactivarUsuariosLoteDTO,
   EnviarAccesosUsuarioDTO,
   PersonaApiDTO,
+  ProgramarActivacionLoteDTO,
+  ResultadoActivacionLoteDTO,
   ResultadoCreacionUsuarioDTO,
   ResultadoDesactivacionLoteDTO,
   ResultadoEnvioAccesosDTO,
@@ -57,8 +59,13 @@ export const usuariosService = {
     return internalApi.post<ResultadoEnvioAccesosDTO>("/api/usuarios/enviar-accesos", body);
   },
 
-  /** Desactivacion masiva (correo o RUC por linea); confirmar=false solo previsualiza. */
+  /** Desactivacion masiva (correo, RUC o RUT por linea); confirmar=false solo previsualiza. */
   desactivarLote(body: DesactivarUsuariosLoteDTO) {
     return internalApi.post<ResultadoDesactivacionLoteDTO>("/api/usuarios/desactivar-lote", body);
+  },
+
+  /** Habilitacion masiva: programa la fecha/hora de activacion (misma lista que la desactivacion). */
+  programarActivacionLote(body: ProgramarActivacionLoteDTO) {
+    return internalApi.post<ResultadoActivacionLoteDTO>("/api/usuarios/programar-activacion", body);
   },
 };

@@ -19,6 +19,8 @@ export interface UsuarioPortalDTO {
   debeCambiarPassword: boolean;
   /** Acceso habilitado (flg_activo): false = deshabilitado, no puede ingresar. */
   flgActivo: boolean;
+  /** Reactivacion programada (desactivacion masiva): fecha ISO en que vuelve a estar activa; null = sin programar. */
+  reactivarEn: string | null;
 }
 
 /** Empresa elegida desde la API de entidades (codigo SIE + razon social). */
@@ -103,11 +105,13 @@ export interface ResultadoEnvioAccesosDTO {
   emailEnviado: boolean;
 }
 
-/** Desactivacion masiva de accesos: correos (login) o RUC de la empresa. */
+/** Desactivacion masiva de accesos: correos (login), RUC o RUT de la empresa. */
 export interface DesactivarUsuariosLoteDTO {
   identificadores: string[];
   /** false/omitido = previsualizacion; true = ejecuta la desactivacion. */
   confirmar?: boolean;
+  /** ISO opcional: fecha/hora en que las cuentas desactivadas se reactivan automaticamente. */
+  reactivarEn?: string | null;
 }
 
 /** Cuenta alcanzada por la desactivacion masiva (previsualizacion o resultado). */
@@ -126,5 +130,37 @@ export interface CuentaDesactivacionLoteDTO {
 export interface ResultadoDesactivacionLoteDTO {
   cuentas: CuentaDesactivacionLoteDTO[];
   noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  /** Reactivacion programada aplicada (ISO); null = desactivacion sin fecha. */
+  reactivarEn: string | null;
   resumen: { desactivadas: number; porDesactivar: number; yaDesactivadas: number; omitidas: number; noEncontrados: number };
+}
+
+/** Habilitacion masiva: programa la activacion de cuentas desactivadas (correos, RUC o RUT). */
+export interface ProgramarActivacionLoteDTO {
+  identificadores: string[];
+  /** false/omitido = previsualizacion; true = programa la activacion. */
+  confirmar?: boolean;
+  /** ISO: fecha/hora en que las cuentas volveran a estar activas. */
+  activarEn: string;
+}
+
+/** Cuenta alcanzada por la habilitacion masiva (previsualizacion o resultado). */
+export interface CuentaActivacionLoteDTO {
+  userId: string;
+  email: string;
+  empresa: string | null;
+  /** Tipo de documento de la empresa (TIPOS_DOCUMENTO_EMPRESA); null si no aplica. */
+  tipoDocumento: string | null;
+  rol: string;
+  estado: "programado" | "por_programar" | "ya_activa" | "omitido";
+  motivo: string | null;
+  identificadores: string[];
+}
+
+export interface ResultadoActivacionLoteDTO {
+  cuentas: CuentaActivacionLoteDTO[];
+  noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[];
+  /** Fecha/hora de activacion programada (ISO). */
+  activarEn: string;
+  resumen: { programadas: number; porProgramar: number; yaActivas: number; omitidas: number; noEncontrados: number };
 }

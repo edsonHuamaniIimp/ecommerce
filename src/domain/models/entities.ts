@@ -120,6 +120,8 @@ export interface UserRoleEntity {
   debeCambiarPassword?: boolean;
   /** Acceso habilitado (flg_activo): false = deshabilitado por backoffice. */
   flgActivo?: boolean;
+  /** Reactivacion programada (desactivacion masiva): fecha/hora en que vuelve a estar activa. */
+  reactivarEn?: Date | null;
 }
 
 export interface AuthUser {

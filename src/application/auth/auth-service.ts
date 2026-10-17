@@ -11,6 +11,7 @@ import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC } from "@/lib/shared/constants";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { getAppUrl } from "@/lib/server/app-url";
 import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
@@ -145,6 +146,8 @@ export class AuthApplicationService {
   }
 
   async login(dto: LoginRequestDTO): Promise<LoginResult> {
+    /* Cuentas con reactivacion programada vencida vuelven a estar activas antes de validar. */
+    await this.repo.reactivarCuentasProgramadas().catch(() => {});
     /*
      * El identificador puede ser correo, RUC (11 digitos) o el documento de una
      * empresa extranjera (RUT alfanumerico): los dos ultimos se buscan por documento.
@@ -170,7 +173,13 @@ export class AuthApplicationService {
     }
     /* Cuenta deshabilitada por backoffice: sin login y con sesion activa cortada. */
     if (principal.flgActivo === false) {
-      return { error: "Cuenta deshabilitada. Contacta al administrador.", status: 403 } as const;
+      const hasta = principal.reactivarEn ? dateUtils.formatDateTime(principal.reactivarEn) : null;
+      return {
+        error: hasta
+          ? `Cuenta deshabilitada hasta el ${hasta}. Contacta al administrador.`
+          : "Cuenta deshabilitada. Contacta al administrador.",
+        status: 403,
+      } as const;
     }
     /* La sesion y el resto del flujo usan el correo REAL de la cuenta (no el identificador). */
     const email = principal.email.trim().toLowerCase();

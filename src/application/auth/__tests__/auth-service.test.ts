@@ -48,6 +48,7 @@ function filaLogin(overrides: Record<string, unknown> = {}) {
     empresaId: null,
     debeCambiarPassword: false,
     flgActivo: true,
+    reactivarEn: null,
     role: { nombre: "cliente", permisos: [] },
     ...overrides,
   };
@@ -57,6 +58,7 @@ function repoFake(filas: ReturnType<typeof filaLogin>[]) {
   return {
     findByEmail: vi.fn(async () => filas),
     findByRuc: vi.fn(async () => filas),
+    reactivarCuentasProgramadas: vi.fn(async () => 0),
     findEventoById: vi.fn(async () => null),
     findPerfilByEmail: vi.fn(async () => null),
     estadoEmpresaPortal: vi.fn(async () => null),
@@ -123,5 +125,27 @@ describe("AuthApplicationService.login (identificador por documento)", () => {
 
     expect(repo.findByRuc).toHaveBeenCalledWith("20601234567");
     expect(repo.findByEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthApplicationService.login (reactivacion programada)", () => {
+  it("reactiva las cuentas programadas vencidas antes de validar el login", async () => {
+    const repo = repoFake([filaLogin()]);
+    const svc = servicioCon(repo);
+
+    await svc.login({ email: "juan@empresa.com", password: "Secreta123" });
+
+    expect(repo.reactivarCuentasProgramadas).toHaveBeenCalled();
+  });
+
+  it("informa hasta cuando estara deshabilitada la cuenta con reactivacion futura", async () => {
+    const futura = new Date(Date.now() + 86_400_000);
+    const repo = repoFake([filaLogin({ flgActivo: false, reactivarEn: futura })]);
+    const svc = servicioCon(repo);
+
+    const r = await svc.login({ email: "juan@empresa.com", password: "Secreta123" });
+
+    expect(r).toMatchObject({ status: 403 });
+    if ("error" in r) expect(r.error).toContain("hasta el");
   });
 });

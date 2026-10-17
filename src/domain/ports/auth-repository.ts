@@ -87,6 +87,11 @@ export interface IAuthRepository {
   renombrarEvento(eventoId: string, padreNombre: string | null, anio: string | null): Promise<void>;
   /** Marca/limpia la exigencia de cambio de contrasena (credencial temporal). */
   marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void>;
+  /**
+   * Reactiva las cuentas cuya reactivacion programada ya vencio (flg_activo=false y
+   * reactivar_en <= ahora) y limpia la fecha. Devuelve cuantas filas reactivo.
+   */
+  reactivarCuentasProgramadas(): Promise<number>;
   /** Estado de la empresa del Portal vinculada al usuario (null si no tiene empresa). */
   estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null>;
   /** Guarda el idioma preferido del usuario (es | en). */

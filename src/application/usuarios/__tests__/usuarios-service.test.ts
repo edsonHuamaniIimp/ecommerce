@@ -36,8 +36,13 @@ function fakeRepos() {
     existeEmailEnOtraCuenta: vi.fn(async () => false),
     findCuentasPorIdentificadores: vi.fn(async () => []),
     desactivarCuentasPorUserIds: vi.fn(async () => {}),
+    programarActivacionCuentasPorUserIds: vi.fn(async () => {}),
   } as unknown as IUsuarioRepository;
-  const authRepo = { existeEmail: vi.fn(async () => false), crearUsuario: vi.fn(async () => {}) } as unknown as IAuthRepository;
+  const authRepo = {
+    existeEmail: vi.fn(async () => false),
+    crearUsuario: vi.fn(async () => {}),
+    reactivarCuentasProgramadas: vi.fn(async () => 0),
+  } as unknown as IAuthRepository;
   const empresaRepo = {
     findById: vi.fn(async () => null),
     findByRuc: vi.fn(async () => null),
@@ -413,7 +418,7 @@ describe("UsuariosApplicationService.desactivarLote", () => {
 
     expect(r.cuentas[0]!.estado).toBe("desactivado");
     expect(r.resumen.desactivadas).toBe(1);
-    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|juan@empresa.com"]);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|juan@empresa.com"], null);
   });
 
   it("con un RUC alcanza todas las cuentas de la empresa", async () => {
@@ -461,7 +466,7 @@ describe("UsuariosApplicationService.desactivarLote", () => {
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
     });
     expect(r.cuentas[0]!.identificadores).toEqual(["FR48305461063"]);
-    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|acceso-fr48305461063@acceso.iimp"]);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|acceso-fr48305461063@acceso.iimp"], null);
   });
 
   it("un RUT numerico alcanza la cuenta por el RUC de su empresa vinculada", async () => {
@@ -472,6 +477,29 @@ describe("UsuariosApplicationService.desactivarLote", () => {
     expect(r.cuentas).toHaveLength(1);
     expect(r.cuentas[0]!.estado).toBe("por_desactivar");
     expect(r.cuentas[0]!.identificadores).toEqual(["903200006"]);
+  });
+
+  it("programa la reactivacion de las cuentas desactivadas", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+    const futura = new Date(Date.now() + 3_600_000);
+
+    const r = await svc.desactivarLote(["juan@empresa.com"], true, "admin@iimp.org.pe", futura.toISOString());
+
+    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|juan@empresa.com"], futura);
+    expect(r.reactivarEn).toBe(futura.toISOString());
+    expect(r.cuentas[0]!.estado).toBe("desactivado");
+  });
+
+  it("rechaza una fecha de reactivacion pasada o invalida", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+
+    await expect(
+      svc.desactivarLote(["juan@empresa.com"], true, "admin@iimp.org.pe", new Date(Date.now() - 1000).toISOString()),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc.desactivarLote(["juan@empresa.com"], true, "admin@iimp.org.pe", "no-es-fecha"),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(usuarioRepo.desactivarCuentasPorUserIds).not.toHaveBeenCalled();
   });
 
   it("marca ya desactivadas sin volver a ejecutar", async () => {
@@ -511,5 +539,92 @@ describe("UsuariosApplicationService.desactivarLote", () => {
 
     expect(r.cuentas).toHaveLength(1);
     expect(r.cuentas[0]!.identificadores).toEqual(["juan@empresa.com"]);
+  });
+});
+
+describe("UsuariosApplicationService.programarActivacionLote", () => {
+  function svcCon(filas: import("@/domain/ports/usuario-repository").UsuarioPortalRow[]) {
+    const repos = fakeRepos();
+    vi.mocked(repos.usuarioRepo.findCuentasPorIdentificadores).mockResolvedValue(filas);
+    const svc = new UsuariosApplicationService(repos.usuarioRepo, repos.authRepo, repos.empresaRepo, repos.roleRepo, repos.personaClient);
+    return { svc, ...repos };
+  }
+
+  const futura = () => new Date(Date.now() + 3_600_000);
+
+  it("previsualiza la programacion de una cuenta desactivada sin ejecutar", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ flgActivo: false })]);
+    const fecha = futura();
+
+    const r = await svc.programarActivacionLote(["juan@empresa.com"], false, "admin@iimp.org.pe", fecha.toISOString());
+
+    expect(r.cuentas).toHaveLength(1);
+    expect(r.cuentas[0]!.estado).toBe("por_programar");
+    expect(r.activarEn).toBe(fecha.toISOString());
+    expect(r.resumen.porProgramar).toBe(1);
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("programa la activacion al confirmar (propagando por userId)", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ flgActivo: false })]);
+    const fecha = futura();
+
+    const r = await svc.programarActivacionLote(["juan@empresa.com"], true, "admin@iimp.org.pe", fecha.toISOString());
+
+    expect(r.cuentas[0]!.estado).toBe("programado");
+    expect(r.resumen.programadas).toBe(1);
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).toHaveBeenCalledWith(["user|juan@empresa.com"], fecha);
+  });
+
+  it("reporta las cuentas ya activas sin programarlas", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila()]);
+
+    const r = await svc.programarActivacionLote(["juan@empresa.com"], true, "admin@iimp.org.pe", futura().toISOString());
+
+    expect(r.cuentas[0]!.estado).toBe("ya_activa");
+    expect(r.resumen.yaActivas).toBe(1);
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("con un RUT programa las cuentas de su empresa", async () => {
+    const { svc, usuarioRepo } = svcCon([
+      usuarioFila({
+        email: "acceso-fr48305461063@acceso.iimp",
+        userId: "user|acceso-fr48305461063@acceso.iimp",
+        ruc: "FR48305461063",
+        empresaTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+        flgActivo: false,
+      }),
+    ]);
+    const fecha = futura();
+
+    const r = await svc.programarActivacionLote(["fr48305461063"], true, "admin@iimp.org.pe", fecha.toISOString());
+
+    expect(r.cuentas[0]).toMatchObject({ estado: "programado", tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO });
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).toHaveBeenCalledWith(["user|acceso-fr48305461063@acceso.iimp"], fecha);
+  });
+
+  it("omite la propia cuenta y las admin aunque esten desactivadas", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ flgActivo: false })]);
+
+    const propia = await svc.programarActivacionLote(["juan@empresa.com"], true, "JUAN@empresa.com", futura().toISOString());
+    expect(propia.cuentas[0]!).toMatchObject({ estado: "omitido", motivo: "Es tu propia cuenta" });
+
+    const { svc: svc2 } = svcCon([usuarioFila({ rol: ROLES.ADMIN, flgActivo: false })]);
+    const admin = await svc2.programarActivacionLote(["juan@empresa.com"], true, "otro@iimp.org.pe", futura().toISOString());
+    expect(admin.cuentas[0]!.estado).toBe("omitido");
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).not.toHaveBeenCalled();
+  });
+
+  it("exige una fecha de activacion futura", async () => {
+    const { svc, usuarioRepo } = svcCon([usuarioFila({ flgActivo: false })]);
+
+    await expect(
+      svc.programarActivacionLote(["juan@empresa.com"], true, "admin@iimp.org.pe", new Date(Date.now() - 1000).toISOString()),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc.programarActivacionLote(["juan@empresa.com"], true, "admin@iimp.org.pe", "no-es-fecha"),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(usuarioRepo.programarActivacionCuentasPorUserIds).not.toHaveBeenCalled();
   });
 });
