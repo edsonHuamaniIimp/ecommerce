@@ -30,7 +30,9 @@ export const dateUtils = {
     });
   },
 
-  /** Fecha + hora según el idioma. */
+  /** Fecha + hora según el idioma. La hora se muestra SIEMPRE en zona horaria de Perú
+   *  (America/Lima): el servidor de prod corre en UTC y sin esto los mensajes/emails
+   *  mostraban la hora UTC (p. ej. "01:30 p. m." en vez de "08:30 a. m."). */
   formatDateTime(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
     if (!iso) return SIN_VALOR;
     const d = iso instanceof Date ? iso : new Date(iso);
@@ -41,10 +43,11 @@ export const dateUtils = {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "America/Lima",
     });
   },
 
-  /** Fecha + hora sin anio (para historiales compactos), según el idioma. */
+  /** Fecha + hora sin anio (para historiales compactos), según el idioma (hora de Perú). */
   formatDateTimeShort(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
     if (!iso) return SIN_VALOR;
     const d = iso instanceof Date ? iso : new Date(iso);
@@ -54,6 +57,7 @@ export const dateUtils = {
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "America/Lima",
     });
   },
 
