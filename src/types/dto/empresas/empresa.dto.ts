@@ -1,7 +1,10 @@
 /** Empresa exhibidora registrada por el backoffice (respuesta API). */
 export interface EmpresaDTO {
   id: string;
+  /** Documento de la empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
   ruc: string;
+  /** Tipo de documento (TIPOS_DOCUMENTO_EMPRESA: "6" RUC, "0" no domiciliado/RUT). */
+  tipoDocumento: string;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode: string | null;
   razonSocial: string;
@@ -24,7 +27,7 @@ export interface EmpresaDTO {
   sitioWeb: string | null;
   estado: string;
   cuentaCreada: boolean;
-  /** Correo de acceso de la cuenta vinculada (`acceso-<RUC>@acceso.iimp` si es solo RUC); null si no existe o no se consulto. */
+  /** Correo de acceso de la cuenta vinculada (`acceso-<documento>@acceso.iimp` si es provisional); null si no existe o no se consulto. */
   cuentaEmail: string | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: string | null;

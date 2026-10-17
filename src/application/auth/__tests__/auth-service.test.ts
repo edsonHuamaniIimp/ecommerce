@@ -102,3 +102,26 @@ describe("AuthApplicationService.login (cuenta deshabilitada)", () => {
     expect(r).toMatchObject({ status: 401 });
   });
 });
+
+describe("AuthApplicationService.login (identificador por documento)", () => {
+  it("con un RUT alfanumerico busca la cuenta por documento normalizado", async () => {
+    const repo = repoFake([filaLogin({ email: "acceso-fr48305461063@acceso.iimp" })]);
+    const svc = servicioCon(repo);
+
+    const r = await svc.login({ email: "fr48305461063", password: "Secreta123" });
+
+    expect(repo.findByEmail).not.toHaveBeenCalled();
+    expect(repo.findByRuc).toHaveBeenCalledWith("FR48305461063");
+    expect(r).toMatchObject({ token: "token-fake" });
+  });
+
+  it("con un RUC de 11 digitos busca por RUC tal cual", async () => {
+    const repo = repoFake([filaLogin({ email: "acceso-20601234567@acceso.iimp" })]);
+    const svc = servicioCon(repo);
+
+    await svc.login({ email: "20601234567", password: "Secreta123" });
+
+    expect(repo.findByRuc).toHaveBeenCalledWith("20601234567");
+    expect(repo.findByEmail).not.toHaveBeenCalled();
+  });
+});

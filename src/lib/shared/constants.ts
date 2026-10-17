@@ -1012,6 +1012,9 @@ export const TIPOS_DOCUMENTO_EMPRESA = {
 
 export type TipoDocumentoEmpresa = (typeof TIPOS_DOCUMENTO_EMPRESA)[keyof typeof TIPOS_DOCUMENTO_EMPRESA];
 
+/** Formato del documento de una empresa no domiciliada (RUT/extranjera): alfanumerico hasta 20. */
+export const REGEX_DOCUMENTO_EMPRESA = /^[A-Z0-9]{1,20}$/;
+
 export const TIPOS_DOCUMENTO_EMPRESA_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_EMPRESA.RUC]: "RUC",
   [TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO]: "No domiciliado",
@@ -1088,6 +1091,7 @@ export const ESTADOS_FILA_CARGA = {
 export type EstadoFilaCarga = (typeof ESTADOS_FILA_CARGA)[keyof typeof ESTADOS_FILA_CARGA];
 
 export type CampoPlantillaEmpresa =
+  | "tipoDocumento"
   | "ruc"
   | "razonSocial"
   | "nombreComercial"
@@ -1102,7 +1106,8 @@ export type CampoPlantillaEmpresa =
 
 /** Columnas de la plantilla de carga masiva (orden = columnas del archivo). */
 export const CAMPOS_CARGA_EMPRESA: { campo: CampoPlantillaEmpresa; header: string; requerido: boolean; alias?: string[] }[] = [
-  { campo: "ruc", header: "RUC", requerido: true, alias: ["RUC EMPRESA", "NUMERO DOC", "NUMERO DOCUMENTO", "NUMERO DE DOCUMENTO", "NRO DOC", "N DOCUMENTO", "DOCUMENTO"] },
+  { campo: "tipoDocumento", header: "TIPO DOCUMENTO", requerido: false, alias: ["TIPO DOC", "TIPO"] },
+  { campo: "ruc", header: "RUC/RUT", requerido: true, alias: ["RUC", "RUT", "RUC EMPRESA", "NUMERO DOC", "NUMERO DOCUMENTO", "NUMERO DE DOCUMENTO", "NRO DOC", "N DOCUMENTO", "DOCUMENTO"] },
   { campo: "razonSocial", header: "RAZON SOCIAL", requerido: false, alias: ["RAZON SOCIAL EMPRESA", "EMPRESA"] },
   { campo: "nombreComercial", header: "NOMBRE COMERCIAL", requerido: false },
   { campo: "direccionFiscal", header: "DIRECCION FISCAL", requerido: false, alias: ["DIRECCION"] },

@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, KeyRound, Loade
 import { toast } from "sonner";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { BADGE_STYLES, CARGA_MASIVA_EXTENSIONES, ESTADOS_FILA_CARGA } from "@/lib/shared/constants";
+import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type {
   FilaCargaEmpresaDTO,
   PrevisualizacionCargaEmpresasDTO,
@@ -19,10 +20,14 @@ interface Props {
 }
 
 const EJEMPLO_RUC = "20601234567";
+const EJEMPLO_RUT = "FR48305461063";
 
-/** Descarga la plantilla CSV: solo la columna RUC (el resto se completa desde servicio-persona). */
+/**
+ * Descarga la plantilla CSV: TIPO DOCUMENTO (opcional) + RUC/RUT. El resto de
+ * columnas se completan desde servicio-persona o se editan luego 1x1.
+ */
 function descargarPlantilla() {
-  const csv = `\uFEFFRUC\n${EJEMPLO_RUC}\n`;
+  const csv = `\uFEFFTIPO DOCUMENTO,RUC/RUT\nRUC,${EJEMPLO_RUC}\nRUT,${EJEMPLO_RUT}\n`;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -105,21 +110,33 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
     setImportando(false);
   };
 
-  /** RUCs validos del archivo (los errores quedan fuera). */
-  const rucsValidos = previsualizacion
-    ? Array.from(new Set(
-        previsualizacion.filas
-          .filter((f) => f.estado !== ESTADOS_FILA_CARGA.ERROR)
-          .map((f) => f.ruc.replace(/\D/g, ""))
-          .filter(Boolean),
-      ))
-    : [];
+  /** Documentos validos del archivo SIN cuenta de acceso creada; unicos por tipo+documento. */
+  const documentosValidos = (() => {
+    if (!previsualizacion) return [] as { tipoDocumento: string; documento: string }[];
+    const vistos = new Set<string>();
+    const lista: { tipoDocumento: string; documento: string }[] = [];
+    for (const f of previsualizacion.filas) {
+      if (f.estado === ESTADOS_FILA_CARGA.ERROR || f.tieneCuenta) continue;
+      const documento = f.ruc.trim();
+      if (!documento) continue;
+      const clave = `${f.tipoDocumento}|${documento}`;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      lista.push({ tipoDocumento: f.tipoDocumento, documento });
+    }
+    return lista;
+  })();
+
+  /** Empresas del archivo que ya tienen cuenta de acceso (no se vuelven a crear). */
+  const yaConCuenta = previsualizacion
+    ? previsualizacion.filas.filter((f) => f.estado !== ESTADOS_FILA_CARGA.ERROR && f.tieneCuenta).length
+    : 0;
 
   const crearCuentas = async () => {
-    if (rucsValidos.length === 0) return;
+    if (documentosValidos.length === 0) return;
     setCreandoCuentas(true);
     try {
-      const data = await empresasService.crearCuentas(rucsValidos);
+      const data = await empresasService.crearCuentas(documentosValidos);
       setCuentas(data);
       onSaved();
       if (data.omitidas > 0) {
@@ -142,14 +159,16 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Cuentas de acceso");
     ws.columns = [
-      { header: "RUC", key: "ruc", width: 15 },
+      { header: "TIPO DOC", key: "tipoDocumento", width: 12 },
+      { header: "DOCUMENTO", key: "documento", width: 18 },
       { header: "RAZON SOCIAL", key: "razonSocial", width: 45 },
-      { header: "USUARIO", key: "usuario", width: 15 },
+      { header: "USUARIO", key: "usuario", width: 24 },
       { header: "CONTRASENA TEMPORAL", key: "password", width: 22 },
     ];
     for (const r of creadas) {
       ws.addRow({
-        ruc: r.ruc,
+        tipoDocumento: etiquetaTipoDocumentoEmpresa(r.tipoDocumento),
+        documento: r.ruc,
         razonSocial: r.razonSocial,
         usuario: r.usuario ?? r.ruc,
         password: r.passwordTemporal ?? "",
@@ -181,9 +200,9 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
         <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
           <DialogTitle className="text-base font-semibold">Carga masiva de empresas</DialogTitle>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Solo necesitas la columna <strong>RUC</strong>: el sistema completa la razon social y el contacto
-            desde servicio-persona. Tambien acepta columnas adicionales (razon social, contacto, representante)
-            si ya las tienes; las filas con error no se importan.
+            Necesitas la columna <strong>RUC/RUT</strong> (y opcionalmente <strong>TIPO DOCUMENTO</strong>):
+            el sistema completa la razon social y el contacto desde servicio-persona. Tambien acepta columnas
+            adicionales (razon social, contacto, representante) si ya las tienes; las filas con error no se importan.
           </p>
         </DialogHeader>
 
@@ -207,7 +226,7 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
               >
                 <FileSpreadsheet className="h-6 w-6 text-primary/70" />
                 <span className="text-xs font-semibold text-foreground">
-                  Arrastra tu archivo o selecciona un Excel / CSV con los RUC
+                  Arrastra tu archivo o selecciona un Excel / CSV con los RUC o RUT
                 </span>
                 <span className="text-[11px] text-muted-foreground">
                   Formatos: {CARGA_MASIVA_EXTENSIONES.join(", ")} · maximo 5 MB y 500 filas
@@ -272,7 +291,7 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
                         <TableRow>
                           <TableHead className="w-14 text-[10px] uppercase tracking-wide">Fila</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wide">Razon social</TableHead>
-                          <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">RUC</TableHead>
+                          <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Documento</TableHead>
                           <TableHead className="w-32 text-[10px] uppercase tracking-wide">Estado</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wide">Detalle</TableHead>
                         </TableRow>
@@ -282,7 +301,16 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
                           <TableRow key={fila.numero}>
                             <TableCell className="font-mono text-[11px] text-muted-foreground">{fila.numero}</TableCell>
                             <TableCell className="max-w-[220px] truncate text-xs">{fila.razonSocial || "—"}</TableCell>
-                            <TableCell className="hidden font-mono text-xs md:table-cell">{fila.ruc || "—"}</TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              <span className="flex items-center gap-1.5">
+                                <span className="font-mono text-xs">{fila.ruc || "—"}</span>
+                                {fila.ruc && (
+                                  <Badge className="pointer-events-none bg-secondary text-[9px] text-muted-foreground">
+                                    <span>{etiquetaTipoDocumentoEmpresa(fila.tipoDocumento)}</span>
+                                  </Badge>
+                                )}
+                              </span>
+                            </TableCell>
                             <TableCell><EstadoFilaBadge estado={fila.estado} /></TableCell>
                             <TableCell className="max-w-[320px] text-[11px] text-muted-foreground">
                               {fila.mensajes.length > 0 ? fila.mensajes.join(" · ") : "Datos completos"}
@@ -303,26 +331,40 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
               <p className="mb-2 text-xs font-semibold text-foreground">3. Cuentas de acceso</p>
 
               {!cuentas ? (
-                <>
+                documentosValidos.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Se importaron <strong>{resultado.creadas}</strong> empresa(s)
-                    {resultado.omitidas > 0 ? ` (${resultado.omitidas} omitida(s))` : ""}. ¿Deseas crear ahora las
-                    cuentas de acceso de estas {rucsValidos.length} empresa(s)?
+                    Todas las empresas del archivo ya tienen cuenta de acceso
+                    {yaConCuenta > 0 ? ` (${yaConCuenta})` : ""}. Para regenerar sus credenciales usa
+                    <strong> Reenviar credenciales</strong> en la bandeja de Empresas.
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    La cuenta usa el RUC como usuario y una contrasena temporal que se mostrara una sola vez
-                    (no se envian correos). Al primer ingreso el representante completa sus datos en el perfil.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" className="gap-1.5 text-xs" disabled={creandoCuentas || rucsValidos.length === 0} onClick={() => { void crearCuentas(); }}>
-                      {creandoCuentas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                      <span>{creandoCuentas ? "Creando cuentas..." : `Si, crear ${rucsValidos.length} cuenta(s)`}</span>
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs" disabled={creandoCuentas} onClick={cerrar}>
-                      <span>Ahora no</span>
-                    </Button>
-                  </div>
-                </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Se importaron <strong>{resultado.creadas}</strong> empresa(s)
+                      {resultado.omitidas > 0 ? ` (${resultado.omitidas} omitida(s))` : ""}. ¿Deseas crear ahora las
+                      cuentas de acceso de estas {documentosValidos.length} empresa(s) sin cuenta?
+                    </p>
+                    {yaConCuenta > 0 && (
+                      <p className="mt-1 text-[11px] text-warning">
+                        {yaConCuenta} empresa(s) del archivo ya tienen cuenta de acceso y se omiten
+                        (para esas usa <span className="font-medium">&quot;Reenviar credenciales&quot;</span> en la bandeja).
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      La cuenta usa el documento (RUC o RUT) como usuario y una contrasena temporal que se mostrara
+                      una sola vez (no se envian correos). Al primer ingreso el representante completa sus datos en el perfil.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" className="gap-1.5 text-xs" disabled={creandoCuentas} onClick={() => { void crearCuentas(); }}>
+                        {creandoCuentas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                        <span>{creandoCuentas ? "Creando cuentas..." : `Si, crear ${documentosValidos.length} cuenta(s)`}</span>
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-xs" disabled={creandoCuentas} onClick={cerrar}>
+                        <span>Ahora no</span>
+                      </Button>
+                    </div>
+                  </>
+                )
               ) : (
                 <>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -341,7 +383,7 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                          <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">RUC</TableHead>
+                          <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Documento</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wide">Usuario</TableHead>
                           <TableHead className="text-[10px] uppercase tracking-wide">Contrasena temporal</TableHead>
                           <TableHead className="w-24 text-[10px] uppercase tracking-wide">Estado</TableHead>
@@ -349,9 +391,16 @@ export function EmpresaCargaMasivaModal({ onClose, onSaved }: Props) {
                       </TableHeader>
                       <TableBody>
                         {cuentas.resultados.map((r) => (
-                          <TableRow key={r.ruc}>
+                          <TableRow key={`${r.tipoDocumento}|${r.ruc}`}>
                             <TableCell className="max-w-[220px] truncate text-xs">{r.razonSocial || "—"}</TableCell>
-                            <TableCell className="hidden font-mono text-xs md:table-cell">{r.ruc}</TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              <span className="flex items-center gap-1.5">
+                                <span className="font-mono text-xs">{r.ruc}</span>
+                                <Badge className="pointer-events-none bg-secondary text-[9px] text-muted-foreground">
+                                  <span>{etiquetaTipoDocumentoEmpresa(r.tipoDocumento)}</span>
+                                </Badge>
+                              </span>
+                            </TableCell>
                             <TableCell className="font-mono text-xs">{r.creada ? (r.usuario ?? r.ruc) : "—"}</TableCell>
                             <TableCell className="font-mono text-xs">{r.creada ? (r.passwordTemporal ?? "—") : "—"}</TableCell>
                             <TableCell>

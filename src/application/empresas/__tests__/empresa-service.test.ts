@@ -49,6 +49,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
     const empresa: EmpresaEntity = {
       id: data.id ?? `emp-${++this.seq}`,
       ruc: data.ruc,
+      tipoDocumento: data.tipoDocumento ?? TIPOS_DOCUMENTO_EMPRESA.RUC,
       sieCode: data.sieCode ?? null,
       razonSocial: data.razonSocial,
       logoUrl: data.logoUrl ?? null,
@@ -233,14 +234,27 @@ describe("EmpresaApplicationService.crear", () => {
     });
   });
 
-  it("rechaza RUC que no tiene 11 digitos", async () => {
+  it("rechaza RUC que no tiene 11 digitos (cuando el tipo es RUC)", async () => {
     const service = crearServicio(new FakeEmpresaRepo());
-    await expect(service.crear({ ...INPUT_BASE, ruc: "2060123456" }, null)).rejects.toMatchObject({
-      status: 400,
-    });
-    await expect(service.crear({ ...INPUT_BASE, ruc: "2060123456A" }, null)).rejects.toMatchObject({
-      status: 400,
-    });
+    await expect(
+      service.crear({ ...INPUT_BASE, tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, ruc: "2060123456" }, null),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.crear({ ...INPUT_BASE, tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, ruc: "2060123456A" }, null),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("crea una empresa no domiciliada (RUT) y la persiste con su tipo", async () => {
+    const repo = new FakeEmpresaRepo();
+    const service = crearServicio(repo);
+
+    const creada = await service.crear(
+      { ...INPUT_BASE, ruc: "fr48305461063", tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO },
+      null,
+    );
+
+    expect(creada.ruc).toBe("FR48305461063");
+    expect(creada.tipoDocumento).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
   });
 
   it("rechaza RUC duplicado con 409", async () => {
@@ -511,6 +525,7 @@ describe("EmpresaApplicationService autorizacion (capa de aplicacion)", () => {
 
 const FILA_BASE: FilaCargaEmpresa = {
   numero: 2,
+  tipoDocumento: "",
   ruc: "20601234567",
   razonSocial: "Minera Cordillera S.A.C.",
   nombreComercial: "",
@@ -556,7 +571,7 @@ describe("EmpresaApplicationService.previsualizarCarga", () => {
   it("marca error por razon social vacia y RUC invalido", async () => {
     const service = crearServicio(new FakeEmpresaRepo());
     const { filas, resumen } = await service.previsualizarCarga([
-      { ...FILA_BASE, razonSocial: "  ", ruc: "123" },
+      { ...FILA_BASE, tipoDocumento: "RUC", razonSocial: "  ", ruc: "123" },
     ]);
 
     expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ERROR);
@@ -584,7 +599,18 @@ describe("EmpresaApplicationService.previsualizarCarga", () => {
 
     const { filas } = await service.previsualizarCarga([FILA_BASE]);
     expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ADVERTENCIA);
-    expect(filas[0]?.mensajes.join(" ")).toContain("RUC ya registrado: Existente S.A.C.");
+    expect(filas[0]?.mensajes.join(" ")).toContain("Documento ya registrado: Existente S.A.C.");
+  });
+
+  it("marca tieneCuenta cuando la empresa ya tiene cuenta de acceso (no se ofrece crearla)", async () => {
+    const repo = new FakeEmpresaRepo();
+    repo.seed({ ruc: "20601234567", razonSocial: "Existente S.A.C.", cuentaCreada: true });
+    const service = crearServicio(repo);
+
+    const { filas } = await service.previsualizarCarga([FILA_BASE]);
+
+    expect(filas[0]?.tieneCuenta).toBe(true);
+    expect(filas[0]?.mensajes.join(" ")).toContain("su cuenta de acceso ya existe");
   });
 
   it("solo con RUC: completa razon social y contacto desde servicio-persona", async () => {
@@ -624,6 +650,44 @@ describe("EmpresaApplicationService.previsualizarCarga", () => {
     expect(filas[0]?.mensajes.join(" ")).toContain("Tipo de comprobante invalido");
   });
 
+  it("acepta un RUT no domiciliado (autodetectado) y lo marca con su tipo", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+    const { filas } = await service.previsualizarCarga([
+      { ...FILA_BASE, ruc: "FR48305461063", razonSocial: "RBL REI SAS" },
+    ]);
+
+    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.LISTA);
+    expect(filas[0]?.tipoDocumento).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+    expect(filas[0]?.ruc).toBe("FR48305461063");
+  });
+
+  it("advierte un documento numerico no-RUC sin tipo explicito", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+    const { filas } = await service.previsualizarCarga([{ ...FILA_BASE, ruc: "1234567890" }]);
+
+    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ADVERTENCIA);
+    expect(filas[0]?.mensajes.join(" ")).toContain("se interpreto como RUT/no domiciliado");
+    expect(filas[0]?.tipoDocumento).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+  });
+
+  it("rechaza un tipo de documento desconocido", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+    const { filas } = await service.previsualizarCarga([{ ...FILA_BASE, tipoDocumento: "PAS" }]);
+
+    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.ERROR);
+    expect(filas[0]?.mensajes.join(" ")).toContain("Tipo de documento invalido");
+  });
+
+  it("el tipo explicito RUT fuerza no domiciliado aunque el documento sea numerico", async () => {
+    const service = crearServicio(new FakeEmpresaRepo());
+    const { filas } = await service.previsualizarCarga([
+      { ...FILA_BASE, tipoDocumento: "RUT", ruc: "903200006", razonSocial: "Compania Electro Metalurgica S.A." },
+    ]);
+
+    expect(filas[0]?.estado).toBe(ESTADOS_FILA_CARGA.LISTA);
+    expect(filas[0]?.tipoDocumento).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+  });
+
   it("rechaza archivo sin filas y con mas de 500 filas", async () => {
     const service = crearServicio(new FakeEmpresaRepo());
     await expect(service.previsualizarCarga([])).rejects.toMatchObject({ status: 400 });
@@ -642,7 +706,7 @@ describe("EmpresaApplicationService.importarCarga", () => {
       [
         FILA_BASE,
         { ...FILA_BASE, numero: 3, ruc: "20551122334", razonSocial: "Constructora Andina S.A.", representanteLegalNombre: "" },
-        { ...FILA_BASE, numero: 4, ruc: "20", razonSocial: "RUC Malo S.A.C." },
+        { ...FILA_BASE, numero: 4, tipoDocumento: "RUC", ruc: "20", razonSocial: "RUC Malo S.A.C." },
       ],
       "admin@iimp.org.pe",
     );
@@ -650,6 +714,35 @@ describe("EmpresaApplicationService.importarCarga", () => {
     expect(resultado).toEqual({ creadas: 2, omitidas: 1 });
     expect((await repo.findByRuc("20601234567"))?.razonSocial).toBe("Minera Cordillera S.A.C.");
     expect((await repo.findByRuc("20551122334"))?.creadoPor).toBe("admin@iimp.org.pe");
+  });
+
+  it("importa una empresa con RUT persistiendo su tipo de documento", async () => {
+    const repo = new FakeEmpresaRepo();
+    const service = crearServicio(repo);
+
+    const resultado = await service.importarCarga(
+      [{ ...FILA_BASE, ruc: "FR48305461063", tipoDocumento: "RUT", razonSocial: "RBL REI SAS" }],
+      null,
+    );
+
+    expect(resultado.creadas).toBe(1);
+    const ficha = await repo.findByRuc("FR48305461063");
+    expect(ficha?.tipoDocumento).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+  });
+
+  it("no vuelve a crear ni pisa una empresa ya registrada (se omite con su ficha intacta)", async () => {
+    const repo = new FakeEmpresaRepo();
+    repo.seed({ ruc: "20601234567", razonSocial: "Existente S.A.C." });
+    const service = crearServicio(repo);
+
+    const resultado = await service.importarCarga(
+      [{ ...FILA_BASE, razonSocial: "Nombre Nuevo S.A.C." }],
+      "admin@iimp.org.pe",
+    );
+
+    expect(resultado).toEqual({ creadas: 0, omitidas: 1 });
+    const ficha = await repo.findByRuc("20601234567");
+    expect(ficha?.razonSocial).toBe("Existente S.A.C.");
   });
 });
 
@@ -701,18 +794,39 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     expect(datos.ruc).toBe("20601234567");
   });
 
-  it("crea cuentas en lote por RUC (crearCuentasPorRuc): reporta creadas y omitidas", async () => {
+  it("crea cuentas en lote por documento (crearCuentasPorDocumento): reporta creadas y omitidas", async () => {
     const repo = new FakeEmpresaRepo();
     repo.seed(empresaBase);
     const service = crearServicio(repo);
 
-    const r = await service.crearCuentasPorRuc(["20601234567", "20123456789"]);
+    const r = await service.crearCuentasPorDocumento([
+      { tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, documento: "20601234567" },
+      { tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, documento: "20123456789" },
+    ]);
 
     expect(r.creadas).toBe(1);
     expect(r.omitidas).toBe(1);
     expect(r.resultados[0]?.usuario).toBe("20601234567");
     expect(r.resultados[0]?.passwordTemporal).toBe("TempPass123");
     expect(r.resultados[1]?.error).toContain("No existe la ficha local");
+  });
+
+  it("crea la cuenta de una empresa con RUT (usuario provisional con el documento)", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ...empresaBase, ruc: "FR48305461063", tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO });
+    const auth = fakeAuthRepo();
+    const service = crearServicio(repo, auth);
+
+    const r = await service.crearCuentasPorDocumento([
+      { tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO, documento: "fr48305461063" },
+    ]);
+
+    expect(r.creadas).toBe(1);
+    expect(r.resultados[0]?.usuario).toBe("FR48305461063");
+    const datos = auth.llamadas.creados[0] as Record<string, unknown>;
+    expect(datos.email).toBe("acceso-fr48305461063@acceso.iimp");
+    expect(datos.ruc).toBe("FR48305461063");
+    expect(datos.empresaId).toBe(creada.id);
   });
 
   it("recorta el telefono de la fuente a 20 caracteres (varchar de user_role)", async () => {

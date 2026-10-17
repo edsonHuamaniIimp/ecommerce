@@ -1,8 +1,11 @@
-/** Resultado por empresa de la creacion masiva de cuentas (solo con RUC). */
+/** Resultado por empresa de la creacion masiva de cuentas. */
 export interface ResultadoCuentaEmpresaDTO {
+  /** Documento de la empresa (RUC o RUT). */
   ruc: string;
+  /** Tipo de documento (TIPOS_DOCUMENTO_EMPRESA). */
+  tipoDocumento: string;
   razonSocial: string;
-  /** Usuario de acceso (RUC) si la cuenta se creo. */
+  /** Usuario de acceso (documento) si la cuenta se creo. */
   usuario: string | null;
   /** Contrasena temporal (se muestra una vez al administrador). */
   passwordTemporal: string | null;

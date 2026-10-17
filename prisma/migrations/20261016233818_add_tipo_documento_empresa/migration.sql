@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "empresa" ADD COLUMN     "tipo_documento" VARCHAR(10) NOT NULL DEFAULT '6',
+ALTER COLUMN "ruc" SET DATA TYPE VARCHAR(20);
+
+-- AlterTable
+ALTER TABLE "user_role" ALTER COLUMN "ruc" SET DATA TYPE VARCHAR(20);

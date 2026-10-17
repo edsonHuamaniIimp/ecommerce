@@ -10,6 +10,7 @@ import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC } from "@/lib/shared/constants";
+import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { getAppUrl } from "@/lib/server/app-url";
 import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
 import type { LoginResult } from "@/types/dto/auth/login-result.dto";
@@ -144,10 +145,18 @@ export class AuthApplicationService {
   }
 
   async login(dto: LoginRequestDTO): Promise<LoginResult> {
-    /* El identificador puede ser correo o RUC (11 digitos): se busca por el que corresponda. */
+    /*
+     * El identificador puede ser correo, RUC (11 digitos) o el documento de una
+     * empresa extranjera (RUT alfanumerico): los dos ultimos se buscan por documento.
+     */
     const identificador = dto.email.trim().toLowerCase();
     const esRuc = REGEX_RUC.test(identificador);
-    const userRoles = esRuc ? await this.repo.findByRuc(identificador) : await this.repo.findByEmail(identificador);
+    const esCorreo = identificador.includes("@");
+    const userRoles = esRuc
+      ? await this.repo.findByRuc(identificador)
+      : esCorreo
+        ? await this.repo.findByEmail(identificador)
+        : await this.repo.findByRuc(normalizarDocumentoEmpresa(dto.email));
     /*
      * Con RUC puede haber varias cuentas de la empresa (usuarios): se elige la que
      * valida la contrasena; si ninguna, se reporta la contrasena incorrecta.

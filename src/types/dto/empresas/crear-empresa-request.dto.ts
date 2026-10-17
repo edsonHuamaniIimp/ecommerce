@@ -1,6 +1,9 @@
 /** Alta de empresa (backoffice). */
 export interface CrearEmpresaRequestDTO {
+  /** RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
   ruc: string;
+  /** Tipo de documento; omitido = autodetecta por el documento. */
+  tipoDocumento?: string | null;
   razonSocial: string;
   /** Codigo SIE ya conocido (padron IIMP): evita crear/consultar en servicio-persona. */
   sieCode?: string | null;

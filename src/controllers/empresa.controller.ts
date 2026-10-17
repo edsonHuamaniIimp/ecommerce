@@ -136,6 +136,7 @@ export const empresaController = {
       const leidas = await parsearArchivoEmpresas(archivo.name, await archivo.arrayBuffer());
       const filas = leidas.map((f) => ({
         numero: f.numero,
+        tipoDocumento: f.valores.tipoDocumento ?? "",
         ruc: f.valores.ruc ?? "",
         razonSocial: f.valores.razonSocial ?? "",
         nombreComercial: f.valores.nombreComercial ?? "",
@@ -186,7 +187,7 @@ export const empresaController = {
     return success(resultado);
   },
 
-  /** Crea las cuentas de acceso (solo con RUC) de varias empresas a la vez. */
+  /** Crea las cuentas de acceso de varias empresas a la vez (una fila por documento). */
   async crearCuentasMasivas(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
     services.empresas.autorizarGestion(session.permissions);
@@ -196,7 +197,7 @@ export const empresaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
 
-    const resultado = await services.empresas.crearCuentasPorRuc(parsed.data.rucs);
+    const resultado = await services.empresas.crearCuentasPorDocumento(parsed.data.documentos);
     return success(resultado);
   },
 

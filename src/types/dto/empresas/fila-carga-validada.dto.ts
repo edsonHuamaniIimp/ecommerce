@@ -6,4 +6,6 @@ export interface FilaCargaValidadaDTO extends FilaCargaEmpresaDTO {
   mensajes: string[];
   /** sie_code completado desde servicio-persona al validar. */
   sieCode?: string | null;
+  /** true = la empresa ya existe con su cuenta de acceso creada. */
+  tieneCuenta?: boolean;
 }

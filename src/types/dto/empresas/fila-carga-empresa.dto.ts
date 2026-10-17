@@ -1,6 +1,9 @@
 /** Fila cruda del archivo de carga masiva (texto). */
 export interface FilaCargaEmpresaDTO {
   numero: number;
+  /** Tipo de documento declarado ("" = autodetectar por el documento). */
+  tipoDocumento: string;
+  /** RUC o RUT/no domiciliado tal como viene en el archivo. */
   ruc: string;
   razonSocial: string;
   nombreComercial: string;

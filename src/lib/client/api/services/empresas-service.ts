@@ -63,9 +63,9 @@ export const empresasService = {
     return internalApi.post<ResultadoCredencialesEmpresaDTO>("/api/empresas/crear-cuenta", { id });
   },
 
-  /** Crea las cuentas de acceso (solo con RUC) de varias empresas; una fila por RUC. */
-  crearCuentas(rucs: string[]) {
-    return internalApi.post<ResultadoCreacionCuentasEmpresasDTO>("/api/empresas/crear-cuentas", { rucs });
+  /** Crea las cuentas de acceso de varias empresas; una fila por documento (RUC o RUT). */
+  crearCuentas(documentos: { tipoDocumento: string; documento: string }[]) {
+    return internalApi.post<ResultadoCreacionCuentasEmpresasDTO>("/api/empresas/crear-cuentas", { documentos });
   },
 
   /** Regenera la contrasena temporal y reenvia/entrega las credenciales. */

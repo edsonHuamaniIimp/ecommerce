@@ -158,8 +158,8 @@ model UserRole {
   idioma              String    @default("es") @db.VarChar(5)
   /// Identificador de la persona en servicio-persona (sie_code, ej. P0000012345). La persona vive en la fuente.
   sieCode             String?   @map("sie_code") @db.VarChar(20)
-  /// RUC de la empresa vinculada (copiado de la ficha) para representar la cuenta.
-  ruc                 String?   @db.VarChar(11)
+  /// Documento de la empresa vinculada (RUC o RUT, copiado de la ficha) para representar la cuenta.
+  ruc                 String?   @db.VarChar(20)
 
   role    Role     @relation(fields: [roleId], references: [id])
   empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
@@ -254,8 +254,10 @@ model RegistroPendiente {
 /// Los datos marcados como contractuales alimentan el contrato de alquiler.
 model Empresa {
   id                       String    @id @default(uuid())
-  /// RUC (11 digitos). Identificador de negocio; unico.
-  ruc                      String    @unique @db.VarChar(11)
+  /// Documento de la empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico, hasta 20). Unico.
+  ruc                      String    @unique @db.VarChar(20)
+  /// Tipo de documento de empresa (ver TIPOS_DOCUMENTO_EMPRESA: "6" = RUC, "0" = no domiciliado/RUT).
+  tipoDocumento            String    @default("6") @map("tipo_documento") @db.VarChar(10)
   /// Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). La empresa vive en la fuente.
   sieCode                  String?   @map("sie_code") @db.VarChar(20)
   /// Razon social; usada en el cuerpo del contrato.

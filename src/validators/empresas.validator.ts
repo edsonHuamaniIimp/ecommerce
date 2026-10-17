@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
 const emailOpcional = z
   .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invalido")])
@@ -9,9 +10,11 @@ const emailOpcional = z
 
 const textoOpcional = z.string().trim().max(250).optional().nullable();
 
-/** Alta de empresa (backoffice). */
-export const crearEmpresaSchema = z.object({
-  ruc: z.string().trim().regex(REGEX_RUC, "El RUC debe tener 11 digitos"),
+/** Campos base del alta/edicion de empresa (documento RUC de 11 digitos o RUT alfanumerico hasta 20). */
+const empresaBaseSchema = z.object({
+  ruc: z.string().trim().min(1, "El RUC/RUT es obligatorio").max(20),
+  /** Tipo de documento (6 = RUC, 0 = no domiciliado/RUT); omitido = autodetecta. */
+  tipoDocumento: z.enum([TIPOS_DOCUMENTO_EMPRESA.RUC, TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO]).optional().nullable(),
   razonSocial: z.string().trim().min(2, "La razon social es obligatoria").max(200),
   sieCode: z.string().trim().max(20).optional().nullable(),
   logoUrl: z.string().max(500).optional().nullable(),
@@ -31,10 +34,30 @@ export const crearEmpresaSchema = z.object({
   sitioWeb: z.string().trim().max(200).optional().nullable(),
 });
 
-/** Edicion parcial (solo campos enviados). */
-export const actualizarEmpresaSchema = crearEmpresaSchema.partial().extend({
-  id: z.string().min(1, "id requerido"),
+/** Documento valido segun su tipo (autodetectado si no viene explicito). */
+function documentoEmpresaValido(v: { ruc?: string; tipoDocumento?: string | null | undefined }): boolean {
+  const ruc = String(v.ruc ?? "").trim();
+  if (!ruc) return false;
+  const tipo = resolverTipoDocumentoEmpresa(v.tipoDocumento ?? "", ruc);
+  return tipo !== null && validarDocumentoEmpresa(tipo, ruc) === null;
+}
+
+/** Alta de empresa (backoffice). */
+export const crearEmpresaSchema = empresaBaseSchema.refine(documentoEmpresaValido, {
+  message: "Documento de empresa invalido (RUC de 11 digitos o RUT alfanumerico hasta 20)",
+  path: ["ruc"],
 });
+
+/** Edicion parcial (solo campos enviados); si llega el documento, se valida igual. */
+export const actualizarEmpresaSchema = empresaBaseSchema
+  .partial()
+  .extend({
+    id: z.string().min(1, "id requerido"),
+  })
+  .refine((v) => v.ruc === undefined || documentoEmpresaValido(v), {
+    message: "Documento de empresa invalido (RUC de 11 digitos o RUT alfanumerico hasta 20)",
+    path: ["ruc"],
+  });
 
 /** Activar/desactivar empresa. */
 export const cambiarEstadoEmpresaSchema = z.object({
@@ -50,18 +73,22 @@ export const idEmpresaSchema = z.object({
 /** Crear cuenta del Portal (solo con RUC; ya no recibe correo). */
 export const crearCuentaEmpresaSchema = idEmpresaSchema;
 
-/** Creacion masiva de cuentas de acceso (solo con RUC) para empresas ya registradas. */
+/** Creacion masiva de cuentas de acceso para empresas ya registradas (documento = RUC o RUT). */
 export const crearCuentasEmpresasSchema = z.object({
-  rucs: z
-    .array(z.string().trim().regex(REGEX_RUC, "RUC invalido (11 digitos)"))
-    .min(1, "Al menos un RUC")
-    .max(CARGA_MASIVA_MAX_FILAS, `Maximo ${CARGA_MASIVA_MAX_FILAS} RUCs por lote`),
+  documentos: z
+    .array(z.object({
+      tipoDocumento: z.enum([TIPOS_DOCUMENTO_EMPRESA.RUC, TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO]),
+      documento: z.string().trim().min(1, "documento requerido").max(20),
+    }))
+    .min(1, "Al menos un documento")
+    .max(CARGA_MASIVA_MAX_FILAS, `Maximo ${CARGA_MASIVA_MAX_FILAS} documentos por lote`),
 });
 
 /** Fila de la carga masiva (texto plano del archivo). */
 const filaCargaEmpresaSchema = z.object({
   numero: z.number().int().nonnegative(),
-  ruc: z.string(),
+  tipoDocumento: z.string().max(30),
+  ruc: z.string().max(30),
   razonSocial: z.string(),
   nombreComercial: z.string(),
   direccionFiscal: z.string(),

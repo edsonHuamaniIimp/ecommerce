@@ -7,7 +7,10 @@ import type { EstadoEmpresa, EstadoFilaCarga, TipoComprobante } from "@/lib/shar
  */
 export interface EmpresaEntity {
   id: string;
+  /** Documento de la empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
   ruc: string;
+  /** Tipo de documento (ver TIPOS_DOCUMENTO_EMPRESA: "6" RUC, "0" no domiciliado/RUT). */
+  tipoDocumento: string;
   /** Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). */
   sieCode: string | null;
   razonSocial: string;
@@ -41,7 +44,10 @@ export interface EmpresaEntity {
 
 /** Datos de alta/edicion de una empresa (entrada del backoffice). */
 export interface EmpresaInput {
+  /** RUC o RUT/no domiciliado (se normaliza: mayusculas sin separadores). */
   ruc: string;
+  /** Tipo de documento (RUC/RUT); omitido = autodetecta por el documento. */
+  tipoDocumento?: string | null;
   razonSocial: string;
   /** Codigo SIE ya conocido (padron IIMP): evita crear/consultar en servicio-persona. */
   sieCode?: string | null;
@@ -68,6 +74,8 @@ export interface EmpresaInput {
 /** Datos normalizados que persiste el repositorio al crear. */
 export interface CrearEmpresaData {
   ruc: string;
+  /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
+  tipoDocumento: string;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode: string | null;
   razonSocial: string;
@@ -115,6 +123,9 @@ export interface EmpresasPaginatedResult {
 export interface FilaCargaEmpresa {
   /** Numero de fila del archivo (1 = encabezado; datos desde 2). */
   numero: number;
+  /** Tipo de documento declarado en el archivo ("" = autodetectar por el documento). */
+  tipoDocumento: string;
+  /** RUC o RUT/no domiciliado tal como viene en el archivo (se normaliza al validar). */
   ruc: string;
   razonSocial: string;
   nombreComercial: string;
@@ -134,6 +145,8 @@ export interface FilaCargaValidada extends FilaCargaEmpresa {
   mensajes: string[];
   /** sie_code completado desde servicio-persona al validar (se persiste al importar). */
   sieCode: string | null;
+  /** true = la empresa ya existe en el backoffice con su cuenta de acceso creada. */
+  tieneCuenta?: boolean;
 }
 
 export interface ResumenCargaEmpresas {
@@ -164,11 +177,14 @@ export interface ResultadoCredencialesEmpresa {
   emailEnviado: boolean | null;
 }
 
-/** Resultado por empresa de la creacion masiva de cuentas (solo con RUC). */
+/** Resultado por empresa de la creacion masiva de cuentas. */
 export interface ResultadoCuentaEmpresa {
+  /** Documento de la empresa (RUC o RUT). */
   ruc: string;
+  /** Tipo de documento (TIPOS_DOCUMENTO_EMPRESA). */
+  tipoDocumento: string;
   razonSocial: string;
-  /** Usuario de acceso (RUC) si la cuenta se creo. */
+  /** Usuario de acceso (documento) si la cuenta se creo. */
   usuario: string | null;
   /** Contrasena temporal (se muestra una vez al administrador). */
   passwordTemporal: string | null;

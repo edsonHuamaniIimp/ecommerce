@@ -4,7 +4,8 @@ import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
-import { emailProvisionalPorRuc, esEmailProvisional } from "@/lib/shared/utils/email";
+import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { emailProvisionalPorDocumento, esEmailProvisional } from "@/lib/shared/utils/email";
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
 import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
@@ -206,7 +207,7 @@ export class EmpresaApplicationService {
     if (!tipos.includes(empresa.idTipoDocumento)) {
       throw new DomainError(`Tipo de documento de empresa invalido: ${empresa.idTipoDocumento}. Valores: ${tipos.join(", ")}`, API_ERROR_CODES.VALIDATION, 400);
     }
-    const documento = String(empresa.documento ?? "").trim();
+    const documento = normalizarDocumentoEmpresa(empresa.documento);
     if (empresa.idTipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC && !REGEX_RUC.test(documento)) {
       throw new DomainError("El RUC debe tener 11 digitos", API_ERROR_CODES.VALIDATION, 400);
     }
@@ -348,6 +349,7 @@ export class EmpresaApplicationService {
     }
     ficha = await this.repo.create({
       ruc,
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
       sieCode,
       razonSocial: empresa.nombre,
       logoUrl: empresa.linkLogo ?? null,
@@ -485,22 +487,27 @@ export class EmpresaApplicationService {
     if (!razonSocial || razonSocial.length < LARGO_MIN_RAZON_SOCIAL) {
       throw new DomainError("La razon social es obligatoria", API_ERROR_CODES.VALIDATION, 400);
     }
-    const ruc = limpiar(input.ruc) ?? "";
-    if (!REGEX_RUC.test(ruc)) {
-      throw new DomainError("El RUC debe tener 11 digitos", API_ERROR_CODES.VALIDATION, 400);
+    const ruc = normalizarDocumentoEmpresa(input.ruc);
+    const tipoDocumento = resolverTipoDocumentoEmpresa(input.tipoDocumento, ruc);
+    if (!tipoDocumento) {
+      throw new DomainError(`Tipo de documento de empresa invalido: ${input.tipoDocumento}. Usa RUC o RUT`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    const errorDocumento = validarDocumentoEmpresa(tipoDocumento, ruc);
+    if (errorDocumento) {
+      throw new DomainError(errorDocumento, API_ERROR_CODES.VALIDATION, 400);
     }
     validarEmails(input.emailContacto, input.emailFacturacion);
     const tipoComprobante = validarTipoComprobante(input.tipoComprobante);
 
     const existente = await this.repo.findByRuc(ruc);
     if (existente) {
-      throw new DomainError(`Ya existe una empresa con el RUC ${ruc}`, API_ERROR_CODES.CONFLICT, 409);
+      throw new DomainError(`Ya existe una empresa con el documento ${ruc}`, API_ERROR_CODES.CONFLICT, 409);
     }
 
     /* Criterio: si el padron ya dio el codigo SIE se usa; si no, se asegura en la fuente. */
     const sieCode = limpiar(input.sieCode) ?? (sincronizarFuente ? await this.asegurarEmpresaEnFuenteBestEffort({
       nombre: razonSocial,
-      idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      idTipoDocumento: tipoDocumento,
       documento: ruc,
       direccion: limpiar(input.direccionFiscal) ?? "",
       correo: limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion) ?? "",
@@ -523,6 +530,7 @@ export class EmpresaApplicationService {
 
     const data: CrearEmpresaData = {
       ruc,
+      tipoDocumento,
       sieCode,
       razonSocial,
       logoUrl: limpiar(input.logoUrl),
@@ -578,17 +586,29 @@ export class EmpresaApplicationService {
     }
 
     if (input.ruc !== undefined) {
-      const ruc = limpiar(input.ruc) ?? "";
-      if (!REGEX_RUC.test(ruc)) {
-        throw new DomainError("El RUC debe tener 11 digitos", API_ERROR_CODES.VALIDATION, 400);
+      const ruc = normalizarDocumentoEmpresa(input.ruc);
+      const tipoDocumento = resolverTipoDocumentoEmpresa(input.tipoDocumento ?? actual.tipoDocumento, ruc);
+      if (!tipoDocumento) {
+        throw new DomainError(`Tipo de documento de empresa invalido: ${input.tipoDocumento}. Usa RUC o RUT`, API_ERROR_CODES.VALIDATION, 400);
+      }
+      const errorDocumento = validarDocumentoEmpresa(tipoDocumento, ruc);
+      if (errorDocumento) {
+        throw new DomainError(errorDocumento, API_ERROR_CODES.VALIDATION, 400);
       }
       if (ruc !== actual.ruc) {
         const existente = await this.repo.findByRuc(ruc);
         if (existente && existente.id !== id) {
-          throw new DomainError(`Ya existe una empresa con el RUC ${ruc}`, API_ERROR_CODES.CONFLICT, 409);
+          throw new DomainError(`Ya existe una empresa con el documento ${ruc}`, API_ERROR_CODES.CONFLICT, 409);
         }
       }
       cambios.ruc = ruc;
+      cambios.tipoDocumento = tipoDocumento;
+    } else if (input.tipoDocumento !== undefined && input.tipoDocumento !== null) {
+      const tipoDocumento = resolverTipoDocumentoEmpresa(input.tipoDocumento, actual.ruc);
+      if (!tipoDocumento || validarDocumentoEmpresa(tipoDocumento, actual.ruc)) {
+        throw new DomainError("El tipo de documento no es compatible con el documento registrado", API_ERROR_CODES.VALIDATION, 400);
+      }
+      cambios.tipoDocumento = tipoDocumento;
     }
 
     if (input.emailContacto !== undefined || input.emailFacturacion !== undefined) {
@@ -688,7 +708,7 @@ export class EmpresaApplicationService {
     let correoNuevo: string | null = null;
     const correoRepresentante = limpiar(input.representanteCorreo)?.toLowerCase();
     if (correoRepresentante && empresa.ruc) {
-      const provisional = emailProvisionalPorRuc(empresa.ruc);
+      const provisional = emailProvisionalPorDocumento(empresa.ruc);
       const cuentas = await this.authRepo.findByEmail(provisional).catch(() => []);
       const principal = cuentas[0];
       if (principal && principal.email.trim().toLowerCase() !== correoRepresentante) {
@@ -751,7 +771,7 @@ export class EmpresaApplicationService {
     }
 
     const tiposValidos = Object.values(TIPOS_COMPROBANTE) as string[];
-    const rucsVistos = new Map<string, number>();
+    const documentosVistos = new Map<string, number>();
     const validadas: FilaCargaValidada[] = [];
 
     for (const cruda of filas) {
@@ -760,19 +780,33 @@ export class EmpresaApplicationService {
       let conError = false;
       let conAdvertencia = false;
       let sieCode: string | null = null;
+      let tieneCuenta: boolean | undefined;
 
-      if (!REGEX_RUC.test(fila.ruc)) {
-        mensajes.push("RUC invalido (debe tener 11 digitos)");
+      const tipoDeclarado = fila.tipoDocumento;
+      const tipoDocumento = resolverTipoDocumentoEmpresa(tipoDeclarado, fila.ruc);
+      if (!tipoDocumento) {
+        mensajes.push(`Tipo de documento invalido: ${tipoDeclarado || "(vacio)"} (usa RUC o RUT)`);
         conError = true;
+      } else {
+        fila.tipoDocumento = tipoDocumento;
+        const errorDocumento = validarDocumentoEmpresa(tipoDocumento, fila.ruc);
+        if (errorDocumento) {
+          mensajes.push(errorDocumento);
+          conError = true;
+        } else if (!tipoDeclarado && /^\d+$/.test(fila.ruc) && !REGEX_RUC.test(fila.ruc)) {
+          /* Numero sin tipo explicito: puede ser un RUC mal escrito; se avisa igual. */
+          mensajes.push("Sin tipo de documento: se interpreto como RUT/no domiciliado; verifica el numero");
+          conAdvertencia = true;
+        }
       }
 
       /*
-       * Alta solo con RUC: la razon social y los datos de contacto se completan
-       * desde servicio-persona (la empresa vive en la fuente).
+       * Alta con RUC o RUT: la razon social y los datos de contacto se intentan
+       * completar desde servicio-persona (la empresa vive en la fuente).
        */
-      if (!conError) {
+      if (!conError && tipoDocumento) {
         const fuente = await this.empresaClient
-          .buscarPorDocumento(TIPOS_DOCUMENTO_EMPRESA.RUC, fila.ruc)
+          .buscarPorDocumento(tipoDocumento, fila.ruc)
           .catch(() => null);
         if (fuente) {
           sieCode = fuente.sie_code ?? null;
@@ -806,16 +840,22 @@ export class EmpresaApplicationService {
         conError = true;
       }
 
-      if (REGEX_RUC.test(fila.ruc)) {
-        const filaPrevia = rucsVistos.get(fila.ruc);
+      if (tipoDocumento) {
+        const clave = `${tipoDocumento}|${fila.ruc}`;
+        const filaPrevia = documentosVistos.get(clave);
         if (filaPrevia) {
           mensajes.push(`Duplicado en el archivo (fila ${filaPrevia})`);
           conError = true;
         } else {
-          rucsVistos.set(fila.ruc, fila.numero);
+          documentosVistos.set(clave, fila.numero);
           const existente = await this.repo.findByRuc(fila.ruc);
           if (existente) {
-            mensajes.push(`RUC ya registrado: ${existente.razonSocial} (se reutiliza la ficha y puedes crear su cuenta)`);
+            tieneCuenta = existente.cuentaCreada;
+            mensajes.push(
+              existente.cuentaCreada
+                ? `Documento ya registrado: ${existente.razonSocial} (su cuenta de acceso ya existe: usa "Reenviar credenciales")`
+                : `Documento ya registrado: ${existente.razonSocial} (se reutiliza la ficha y puedes crear su cuenta)`,
+            );
             conAdvertencia = true;
           }
         }
@@ -837,6 +877,7 @@ export class EmpresaApplicationService {
         sieCode,
         estado: conError ? ESTADOS_FILA_CARGA.ERROR : conAdvertencia ? ESTADOS_FILA_CARGA.ADVERTENCIA : ESTADOS_FILA_CARGA.LISTA,
         mensajes,
+        ...(tieneCuenta !== undefined ? { tieneCuenta } : {}),
       });
     }
 
@@ -863,6 +904,7 @@ export class EmpresaApplicationService {
         const ficha = await this.crear(
           {
             ruc: fila.ruc,
+            tipoDocumento: fila.tipoDocumento,
             razonSocial: fila.razonSocial,
             nombreComercial: fila.nombreComercial || null,
             direccionFiscal: fila.direccionFiscal || null,
@@ -904,24 +946,27 @@ export class EmpresaApplicationService {
     return this.crearCuentaParaEmpresa(empresa);
   }
 
-  /** Crea las cuentas (solo con RUC) de varias empresas; una fila por RUC. */
-  async crearCuentasPorRuc(rucs: string[]): Promise<ResultadoCreacionCuentasEmpresas> {
+  /** Crea las cuentas de acceso de varias empresas; una fila por documento (RUC o RUT). */
+  async crearCuentasPorDocumento(documentos: { tipoDocumento: string; documento: string }[]): Promise<ResultadoCreacionCuentasEmpresas> {
     const resultados: ResultadoCuentaEmpresa[] = [];
-    for (const rucCrudo of rucs) {
-      const ruc = String(rucCrudo ?? "").replace(/\D/g, "");
-      if (!REGEX_RUC.test(ruc)) {
-        resultados.push({ ruc, razonSocial: "", usuario: null, passwordTemporal: null, creada: false, error: "RUC invalido" });
+    for (const entrada of documentos) {
+      const documento = normalizarDocumentoEmpresa(entrada.documento);
+      const tipoDocumento = resolverTipoDocumentoEmpresa(entrada.tipoDocumento, documento) ?? TIPOS_DOCUMENTO_EMPRESA.RUC;
+      const errorDocumento = validarDocumentoEmpresa(tipoDocumento, documento);
+      if (errorDocumento) {
+        resultados.push({ ruc: documento, tipoDocumento, razonSocial: "", usuario: null, passwordTemporal: null, creada: false, error: errorDocumento });
         continue;
       }
-      const empresa = await this.repo.findByRuc(ruc).catch(() => null);
+      const empresa = await this.repo.findByRuc(documento).catch(() => null);
       if (!empresa) {
-        resultados.push({ ruc, razonSocial: "", usuario: null, passwordTemporal: null, creada: false, error: "No existe la ficha local de la empresa" });
+        resultados.push({ ruc: documento, tipoDocumento, razonSocial: "", usuario: null, passwordTemporal: null, creada: false, error: "No existe la ficha local de la empresa" });
         continue;
       }
       try {
         const credenciales = await this.crearCuentaParaEmpresa(empresa);
         resultados.push({
-          ruc,
+          ruc: documento,
+          tipoDocumento,
           razonSocial: empresa.razonSocial,
           usuario: credenciales.usuario,
           passwordTemporal: credenciales.passwordTemporal,
@@ -930,7 +975,8 @@ export class EmpresaApplicationService {
         });
       } catch (err) {
         resultados.push({
-          ruc,
+          ruc: documento,
+          tipoDocumento,
           razonSocial: empresa.razonSocial,
           usuario: null,
           passwordTemporal: null,
@@ -951,9 +997,9 @@ export class EmpresaApplicationService {
     if (empresa.cuentaCreada) {
       throw new DomainError("La empresa ya tiene cuenta creada. Usa 'Reenviar credenciales'.", API_ERROR_CODES.CONFLICT, 409);
     }
-    /* Evita recrear cuentas: mismo RUC ya habilitado (rol cliente, 1 cuenta por empresa). */
+    /* Evita recrear cuentas: mismo documento ya habilitado (rol cliente, 1 cuenta por empresa). */
     if (empresa.ruc && await this.authRepo.existeCuentaConRuc(empresa.ruc)) {
-      throw new DomainError(`El RUC ${empresa.ruc} ya tiene una cuenta habilitada`, API_ERROR_CODES.CONFLICT, 409);
+      throw new DomainError(`El documento ${empresa.ruc} ya tiene una cuenta habilitada`, API_ERROR_CODES.CONFLICT, 409);
     }
 
     const rol = await this.roleRepo.findByNombre(ROLES.CLIENTE);
@@ -968,13 +1014,13 @@ export class EmpresaApplicationService {
     let idEmpresa = empresa.sieCode;
     if (!idEmpresa && empresa.ruc) {
       idEmpresa = (await this.empresaClient
-        .buscarPorDocumento(TIPOS_DOCUMENTO_EMPRESA.RUC, empresa.ruc)
+        .buscarPorDocumento(empresa.tipoDocumento, empresa.ruc)
         .catch(() => null))?.sie_code ?? null;
     }
     if (!idEmpresa) {
       idEmpresa = await this.asegurarEmpresaEnFuenteBestEffort({
         nombre: empresa.razonSocial,
-        idTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+        idTipoDocumento: empresa.tipoDocumento,
         documento: empresa.ruc,
         direccion: limpiar(empresa.direccionFiscal) ?? "",
         correo: limpiar(empresa.emailContacto) ?? limpiar(empresa.emailFacturacion) ?? "",
@@ -998,7 +1044,7 @@ export class EmpresaApplicationService {
         )
       : null;
 
-    const usuario = emailProvisionalPorRuc(empresa.ruc);
+    const usuario = emailProvisionalPorDocumento(empresa.ruc);
     if (await this.authRepo.existeEmail(usuario)) {
       throw new DomainError(`La cuenta provisional ${usuario} ya existe`, API_ERROR_CODES.CONFLICT, 409);
     }
@@ -1093,10 +1139,10 @@ export class EmpresaApplicationService {
       throw new DomainError("No se encontro la cuenta de la empresa", API_ERROR_CODES.NOT_FOUND, 404);
     }
     if (esEmailProvisional(principal.email)) {
-      throw new DomainError("La cuenta ya usa el RUC como usuario", API_ERROR_CODES.CONFLICT, 409);
+      throw new DomainError("La cuenta ya usa el documento como usuario", API_ERROR_CODES.CONFLICT, 409);
     }
 
-    const usuario = emailProvisionalPorRuc(empresa.ruc);
+    const usuario = emailProvisionalPorDocumento(empresa.ruc);
     if (await this.authRepo.existeEmail(usuario)) {
       throw new DomainError(`La cuenta provisional ${usuario} ya existe`, API_ERROR_CODES.CONFLICT, 409);
     }
@@ -1130,12 +1176,13 @@ export class EmpresaApplicationService {
   }
 }
 
-/** Normaliza una fila cruda del archivo (RUC sin separadores, textos recortados). */
+/** Normaliza una fila cruda del archivo (documento sin separadores, textos recortados). */
 function normalizarFilaCarga(fila: FilaCargaEmpresa): FilaCargaEmpresa {
   const tipo = (fila.tipoComprobante ?? "").trim().toLowerCase() || TIPOS_COMPROBANTE.FACTURA;
   return {
     numero: fila.numero,
-    ruc: (fila.ruc ?? "").replace(/\D/g, ""),
+    tipoDocumento: (fila.tipoDocumento ?? "").trim(),
+    ruc: normalizarDocumentoEmpresa(fila.ruc),
     razonSocial: (fila.razonSocial ?? "").trim(),
     nombreComercial: (fila.nombreComercial ?? "").trim(),
     direccionFiscal: (fila.direccionFiscal ?? "").trim(),
