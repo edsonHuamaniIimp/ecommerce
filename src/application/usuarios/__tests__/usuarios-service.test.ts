@@ -6,7 +6,7 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { IPersonaClient, NuevaPersonaApi } from "@/domain/ports/persona-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
-import { ROLES } from "@/lib/shared/constants";
+import { ROLES, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
@@ -432,14 +432,46 @@ describe("UsuariosApplicationService.desactivarLote", () => {
   it("reporta identificadores invalidos y no encontrados", async () => {
     const { svc } = svcCon([]);
 
-    const r = await svc.desactivarLote(["nadie@x.com", "abc", "20123456789"], false);
+    const r = await svc.desactivarLote(["nadie@x.com", "abc", "20123456789", "X".repeat(25)], false);
 
     expect(r.noEncontrados).toEqual([
-      { identificador: "abc", motivo: "invalido" },
+      { identificador: "X".repeat(25), motivo: "invalido" },
       { identificador: "nadie@x.com", motivo: "no_encontrado" },
+      { identificador: "ABC", motivo: "no_encontrado" },
       { identificador: "20123456789", motivo: "no_encontrado" },
     ]);
-    expect(r.resumen.noEncontrados).toBe(3);
+    expect(r.resumen.noEncontrados).toBe(4);
+  });
+
+  it("con un RUT alfanumerico alcanza las cuentas de su empresa", async () => {
+    const { svc, usuarioRepo } = svcCon([
+      usuarioFila({
+        email: "acceso-fr48305461063@acceso.iimp",
+        userId: "user|acceso-fr48305461063@acceso.iimp",
+        ruc: "FR48305461063",
+        empresaTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+      }),
+    ]);
+
+    const r = await svc.desactivarLote(["fr48305461063"], true, "admin@iimp.org.pe");
+
+    expect(r.cuentas).toHaveLength(1);
+    expect(r.cuentas[0]).toMatchObject({
+      estado: "desactivado",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+    });
+    expect(r.cuentas[0]!.identificadores).toEqual(["FR48305461063"]);
+    expect(usuarioRepo.desactivarCuentasPorUserIds).toHaveBeenCalledWith(["user|acceso-fr48305461063@acceso.iimp"]);
+  });
+
+  it("un RUT numerico alcanza la cuenta por el RUC de su empresa vinculada", async () => {
+    const { svc } = svcCon([usuarioFila({ ruc: null, empresaRuc: "903200006", empresaTipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO })]);
+
+    const r = await svc.desactivarLote(["903200006"], false, "admin@iimp.org.pe");
+
+    expect(r.cuentas).toHaveLength(1);
+    expect(r.cuentas[0]!.estado).toBe("por_desactivar");
+    expect(r.cuentas[0]!.identificadores).toEqual(["903200006"]);
   });
 
   it("marca ya desactivadas sin volver a ejecutar", async () => {

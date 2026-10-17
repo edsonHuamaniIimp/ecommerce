@@ -37,6 +37,7 @@ import { rolesService } from "@/lib/client/api/services/roles-service";
 import { EmpresaPicker, type FuenteEmpresa } from "@/components/shared/empresa-picker";
 import { BADGE_STYLES, ESTADOS_ACCESO_USUARIO, ESTADOS_DESACTIVACION_LOTE, FILTROS_USUARIO_EMPRESA, PER_PAGE_OPCIONES, REGEX_EMAIL, ROLES, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, UI_SENTINEL, USUARIOS_LOTE_MAX_FILAS } from "@/lib/shared/constants";
 import { normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type {
   CuentaDesactivacionLoteDTO,
   EmpresaAccesoDTO,
@@ -95,8 +96,8 @@ function resultadoTexto(resultado: ResultadoCreacionUsuarioDTO): { texto: string
   return { texto: "Credenciales enviadas por correo", ok: true };
 }
 
-/** Cabeceras tipicas de un CSV de una columna (correo o RUC): se ignoran al importar. */
-const CABECERAS_IDENTIFICADORES = ["correo", "email", "ruc", "identificador", "documento", "correo_o_ruc"];
+/** Cabeceras tipicas de un CSV de una columna (correo, RUC o RUT): se ignoran al importar. */
+const CABECERAS_IDENTIFICADORES = ["correo", "email", "ruc", "rut", "identificador", "documento", "correo_o_ruc", "correo_ruc_o_rut"];
 
 /** Lineas del textarea/CSV: una columna con correo o RUC; sin cabecera, sin vacios, sin duplicados. */
 function parsearIdentificadores(texto: string): string[] {
@@ -113,9 +114,9 @@ function parsearIdentificadores(texto: string): string[] {
     });
 }
 
-/** Descarga la plantilla del CSV de desactivacion masiva (una columna: correo del login o RUC). */
+/** Descarga la plantilla del CSV de desactivacion masiva (una columna: correo del login, RUC o RUT). */
 function descargarPlantillaIdentificadores() {
-  const contenido = `\uFEFFcorreo_o_ruc\njperez@empresa.com\n20123456789\n`;
+  const contenido = `\uFEFFcorreo_ruc_o_rut\njperez@empresa.com\n20123456789\nFR48305461063\n`;
   const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const enlace = document.createElement("a");
@@ -585,19 +586,19 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
               <>
                 <div className="space-y-1">
                   <Label htmlFor="desactivar-lote" className="text-xs">
-                    <span>Correos (login) o RUC de la empresa, uno por linea</span>
+                    <span>Correos (login), RUC o RUT de la empresa, uno por linea</span>
                   </Label>
                   <Textarea
                     id="desactivar-lote"
                     value={texto}
                     onChange={(e) => { setTexto(e.target.value); }}
                     rows={8}
-                    placeholder={"jperez@empresa.com\n20123456789"}
+                    placeholder={"jperez@empresa.com\n20123456789\nFR48305461063"}
                     className="text-xs"
                   />
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] text-muted-foreground">
-                      {identificadores.length} fila(s) · un RUC desactiva todas las cuentas de su empresa.
+                      {identificadores.length} fila(s) · un RUC o RUT desactiva todas las cuentas de su empresa.
                     </p>
                     <div className="flex shrink-0 items-center gap-1.5">
                       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={descargarPlantillaIdentificadores}>
@@ -631,6 +632,11 @@ function DesactivarUsuariosLoteModal({ onClose, onDesactivados }: {
                       <span className="min-w-0 flex-1 truncate">
                         <span className="font-medium">{cuenta.email}</span>
                         {cuenta.empresa && <span className="text-muted-foreground"> · {cuenta.empresa}</span>}
+                        {cuenta.tipoDocumento && (
+                          <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                            {etiquetaTipoDocumentoEmpresa(cuenta.tipoDocumento)}
+                          </span>
+                        )}
                       </span>
                       {cuenta.motivo && <span className="shrink-0 text-[10px] text-muted-foreground">{cuenta.motivo}</span>}
                       <Badge className={`pointer-events-none shrink-0 text-[10px] ${ESTADO_LOTE_UI[cuenta.estado].className}`}>

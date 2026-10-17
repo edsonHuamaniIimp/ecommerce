@@ -1,4 +1,5 @@
-import { API_ERROR_CODES, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, REGEX_RUC, ROLES, type EstadoDesactivacionLote } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, ROLES, type EstadoDesactivacionLote } from "@/lib/shared/constants";
+import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { DomainError } from "@/lib/server/router";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
@@ -67,10 +68,12 @@ export interface CuentaDesactivacionLote {
   userId: string;
   email: string;
   empresa: string | null;
+  /** Tipo de documento de la empresa (TIPOS_DOCUMENTO_EMPRESA); null si no aplica. */
+  tipoDocumento: string | null;
   rol: string;
   estado: EstadoDesactivacionLote;
   motivo: string | null;
-  /** Identificadores de la lista del lote que alcanzan esta cuenta (correos o RUC). */
+  /** Identificadores de la lista del lote que alcanzan esta cuenta (correos, RUC o RUT). */
   identificadores: string[];
 }
 
@@ -301,12 +304,13 @@ export class UsuariosApplicationService {
   }
 
   /**
-   * Desactivacion masiva de accesos del portal: cada linea es el correo del login o
-   * el RUC de la empresa (desactiva todas sus cuentas). Sin `confirmar` solo
-   * previsualiza. Guardas: nunca la propia cuenta ni cuentas admin (se omiten).
+   * Desactivacion masiva de accesos del portal: cada linea es el correo del login
+   * o el documento de la empresa (RUC o RUT: desactiva todas sus cuentas). Sin
+   * `confirmar` solo previsualiza. Guardas: nunca la propia cuenta ni cuentas
+   * admin (se omiten).
    */
   async desactivarLote(identificadores: string[], confirmar: boolean, solicitanteEmail?: string): Promise<DesactivarUsuariosLoteResultado> {
-    const validos: { valor: string; tipo: "correo" | "ruc" }[] = [];
+    const validos: { valor: string; tipo: "correo" | "documento" }[] = [];
     const noEncontrados: { identificador: string; motivo: "no_encontrado" | "invalido" }[] = [];
     const vistos = new Set<string>();
     for (const bruto of identificadores) {
@@ -317,14 +321,19 @@ export class UsuariosApplicationService {
         validos.push({ valor: valor.toLowerCase(), tipo: "correo" });
         continue;
       }
-      const digitos = valor.replace(/\D/g, "");
-      if (digitos && REGEX_RUC.test(digitos)) validos.push({ valor: digitos, tipo: "ruc" });
-      else noEncontrados.push({ identificador: valor, motivo: "invalido" });
+      /* Documento de empresa: RUC (11 digitos) o RUT (alfanumerico hasta 20), normalizado. */
+      const documento = normalizarDocumentoEmpresa(valor);
+      const tipoDocumento = resolverTipoDocumentoEmpresa("", documento);
+      if (tipoDocumento && validarDocumentoEmpresa(tipoDocumento, documento) === null) {
+        validos.push({ valor: documento, tipo: "documento" });
+      } else {
+        noEncontrados.push({ identificador: valor, motivo: "invalido" });
+      }
     }
 
     const filas = await this.repo.findCuentasPorIdentificadores({
       correos: validos.filter((v) => v.tipo === "correo").map((v) => v.valor),
-      rucs: validos.filter((v) => v.tipo === "ruc").map((v) => v.valor),
+      documentos: validos.filter((v) => v.tipo === "documento").map((v) => v.valor),
     });
 
     /* Una cuenta (userId) puede tener varias filas de rol: se agrupan. */
@@ -346,9 +355,9 @@ export class UsuariosApplicationService {
       const ids = validos
         .filter((v) =>
           (v.tipo === "correo" && v.valor === email)
-          || (v.tipo === "ruc" && filasCuenta.some((f) =>
-            (f.ruc ?? "").replace(/\D/g, "") === v.valor
-            || (f.empresaRuc ?? "").replace(/\D/g, "") === v.valor)),
+          || (v.tipo === "documento" && filasCuenta.some((f) =>
+            normalizarDocumentoEmpresa(f.ruc) === v.valor
+            || normalizarDocumentoEmpresa(f.empresaRuc) === v.valor)),
         )
         .map((v) => v.valor);
       if (ids.length === 0) continue;
@@ -376,6 +385,7 @@ export class UsuariosApplicationService {
         userId,
         email,
         empresa: primera.empresa ?? null,
+        tipoDocumento: primera.empresaTipoDocumento ?? null,
         rol: filasCuenta.map((f) => f.rol).join(", "),
         estado,
         motivo,

@@ -115,6 +115,8 @@ export interface CuentaDesactivacionLoteDTO {
   userId: string;
   email: string;
   empresa: string | null;
+  /** Tipo de documento de la empresa (TIPOS_DOCUMENTO_EMPRESA); null si no aplica. */
+  tipoDocumento: string | null;
   rol: string;
   estado: "desactivado" | "por_desactivar" | "ya_desactivado" | "omitido";
   motivo: string | null;
