@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Popover, PopoverContent, PopoverTrigger, Label } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Checkbox, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Popover, PopoverContent, PopoverTrigger, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { Search, ChevronDown, ChevronsUpDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { getPlano, requirePlano } from "@/lib/shared/planos/registry";
@@ -11,6 +11,7 @@ import { planosService } from "@/lib/client/api/services/planos-service";
 import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
+import { calcularPrevisualizacionSync, type PrevisualizacionSyncGess } from "@/lib/shared/utils/gess-sync";
 
 type ApiRow = Record<string, unknown>;
 
@@ -157,6 +158,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
   const [apiSelected, setApiSelected] = useState<Set<number>>(new Set());
   const [apiError, setApiError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  /* Sync completo (actualiza existentes: precios/tipo/empresa; no toca vinculos ni borra). */
+  const [syncPreview, setSyncPreview] = useState<PrevisualizacionSyncGess | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncApplying, setSyncApplying] = useState(false);
 
   const [dbRows, setDbRows] = useState<GessStandRow[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
@@ -286,6 +291,55 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     }
   };
 
+  /** Consulta el API y compara contra la BD para mostrar que datos comerciales cambiarian. */
+  const previsualizarSync = async () => {
+    setSyncLoading(true);
+    setApiError(null);
+    try {
+      const apiList = await gessService.fetchFromApi(tipoEvento, codigoEvento);
+      setApiRows(apiList);
+      setApiSelected(new Set());
+      const preview = calcularPrevisualizacionSync(
+        dbRows.map((row) => ({
+          standApiId: row.standApiId,
+          standCode: row.standCode,
+          tipoStand: row.tipoStand,
+          medidas: row.medidas,
+          empresa: row.empresa,
+          estado: row.estado,
+          bloqueId: row.bloqueId,
+        })),
+        apiList.map((row) => ({
+          id: getId(row),
+          tipo: String(row.tipo ?? ""),
+          precio: String(row.precio ?? ""),
+          moneda: String(row.moneda ?? "USD"),
+          empresa: String(row.company ?? row.empresa ?? row.razon_social ?? ""),
+        })),
+      );
+      setSyncPreview(preview);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo consultar el API de stands");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  /** Aplica el sync completo: actualiza existentes y crea nuevos, sin desvincular ni borrar. */
+  const aplicarSync = async () => {
+    setSyncApplying(true);
+    try {
+      const json = await gessService.sync({ eventoId, tipoEvento, codigoEvento });
+      toast.success(`Datos actualizados: ${json.actualizados} actualizados, ${json.creados} nuevos`);
+      setSyncPreview(null);
+      await Promise.all([loadDb(), fetchApi()]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo sincronizar los datos");
+    } finally {
+      setSyncApplying(false);
+    }
+  };
+
   const loadDb = useCallback(async () => {
     setDbLoading(true);
     setDbError(null);
@@ -358,6 +412,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={fetchApi} disabled={apiLoading}>
                   <span>{apiLoading ? "Cargando..." : "Cargar datos del API"}</span>
+                </Button>
+                <Button variant="outline" onClick={() => { void previsualizarSync(); }} disabled={syncLoading || apiLoading || dbLoading}>
+                  <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${syncLoading ? "animate-spin" : ""}`} />
+                  <span>{syncLoading ? "Consultando API..." : "Sincronizar datos existentes"}</span>
                 </Button>
               </div>
               {apiRows.length > 0 && (
@@ -548,6 +606,101 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
           </CardContent>
         </Card>
       </TabsContent>
+
+      <Dialog open={syncPreview !== null} onOpenChange={(open) => { if (!open && !syncApplying) setSyncPreview(null); }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle><span>Sincronizar datos comerciales</span></DialogTitle>
+          </DialogHeader>
+          {syncPreview && (
+            <div className="space-y-3 text-xs">
+              <p className="text-muted-foreground">
+                Compara la BD con el API y actualiza precios, tipo y empresa de los stands existentes.
+                <strong> No desvincula bloques, no borra stands ni modifica contratos ya generados.</strong>
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">API</p>
+                  <p className="text-sm font-semibold">{syncPreview.totalApi}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">En BD</p>
+                  <p className="text-sm font-semibold">{syncPreview.totalBd}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Vinculados</p>
+                  <p className="text-sm font-semibold">{syncPreview.vinculados}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Sin cambios</p>
+                  <p className="text-sm font-semibold">{syncPreview.sinCambios}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Precios</p>
+                  <p className="text-sm font-semibold text-primary">{syncPreview.precios.length}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Tipos</p>
+                  <p className="text-sm font-semibold">{syncPreview.tipos.length}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Empresas</p>
+                  <p className="text-sm font-semibold">{syncPreview.empresas.length}</p>
+                </div>
+                <div className="rounded-lg border p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Nuevos en API</p>
+                  <p className="text-sm font-semibold">{syncPreview.nuevosApi}</p>
+                </div>
+              </div>
+              {syncPreview.soloBd > 0 && (
+                <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] text-warning">
+                  <span>
+                    {syncPreview.soloBd} stand(s) existen en BD pero ya no en el API. No se eliminan; revisalos en la bandeja de stands.
+                  </span>
+                </p>
+              )}
+              {syncPreview.precios.length > 0 && (
+                <div>
+                  <p className="mb-1 font-medium">Precios a actualizar ({syncPreview.precios.length})</p>
+                  <div className="max-h-48 overflow-y-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px]"><span>Stand</span></TableHead>
+                          <TableHead className="text-[10px]"><span>Antes</span></TableHead>
+                          <TableHead className="text-[10px]"><span>Despues</span></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {syncPreview.precios.slice(0, 20).map((cambio) => (
+                          <TableRow key={`${cambio.standCode}-${cambio.despues}`}>
+                            <TableCell className="font-mono text-xs">{cambio.standCode}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{cambio.antes ?? "-"}</TableCell>
+                            <TableCell className="text-xs font-medium text-primary">{cambio.despues ?? "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {syncPreview.precios.length > 20 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">y {syncPreview.precios.length - 20} stand(s) mas...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setSyncPreview(null)} disabled={syncApplying}>
+              <span>Cancelar</span>
+            </Button>
+            <Button size="sm" onClick={() => { void aplicarSync(); }} disabled={syncApplying || !syncPreview}>
+              <span>{syncApplying ? "Aplicando..." : "Aplicar actualización"}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
