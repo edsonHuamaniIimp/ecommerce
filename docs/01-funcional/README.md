@@ -21,6 +21,7 @@ endpoints, flujos, estados, reglas de negocio y limitaciones observadas.
 | 6 | Eventos, datos del evento y stands | [06-eventos-datos-y-stands.md](./06-eventos-datos-y-stands.md) | `/dashboard/eventos`, `/dashboard/datos-evento`, `/dashboard/stands`, `/dashboard/vinculacion` | `events:manage`, `eventos:datos`, `stands:manage`, `stands:vinculacion` |
 | 7 | Administración (roles, usuarios, perfil) | [07-administracion.md](./07-administracion.md) | `/dashboard/roles`, `/dashboard/perfil` | `roles:manage` |
 | 8 | Integraciones externas y autenticación | [08-integraciones.md](./08-integraciones.md) | — | varias |
+| 9 | Debida Diligencia (DD) | [11-debida-diligencia.md](./11-debida-diligencia.md) | `/dashboard/debida-diligencia`, `/dashboard/debida-diligencia/formulario`, `/dashboard/debida-diligencia/bandeja`, `/dashboard/debida-diligencia/reputacion` | `dd:formulario`, `dd:revision`, `dd:reputacion`, `dd:panel`, `dd:ver` |
 
 > **Novedades de esta iteración:** `/presala` muestra **solo la selección de eventos**; el
 > protocolo de reserva y la asistencia al exhibidor pasaron a un **modal informativo
@@ -41,6 +42,8 @@ Roles definidos en `src/lib/shared/constants.ts:195-201`:
 | `legal` | Revisa solicitudes (área Legal) | `dashboard:view`, `stands:plano`, `solicitudes:review:legal`, `auspicios:view` |
 | `comunicacion` | Rol legacy (ya no revisa solicitudes) | `dashboard:view`, `stands:plano`, `auspicios:view` |
 | `cliente` | Empresa exhibidora: reserva, consulta sus solicitudes y configura su plan de pagos | `eventos:datos`, `solicitudes:view`, `stands:plano`, `read:reservas`, `write:reservas`, `pagos:view`, `pagos:manage` |
+
+> **Módulo DD:** `logistica` agrega `dd:ver`, `dd:panel` y `dd:revision`; `comunicacion` agrega `dd:ver` y `dd:reputacion`; `legal` agrega `dd:ver`; `cliente` agrega `dd:formulario`. Ver [11-debida-diligencia.md](./11-debida-diligencia.md).
 
 Matriz completa en `ROLES_PERMISSIONS` (`src/lib/shared/constants.ts:205-235`) y catálogo de
 permisos en `ALL_PERMISSIONS` (`:237-273`). El permiso viaja en el JWT; el rol `admin`

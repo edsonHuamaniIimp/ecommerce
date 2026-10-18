@@ -14,6 +14,7 @@ interface RoleRow {
   nombre: Rol;
   descripcion: string | null;
   permisos: string[];
+  modulos: string[];
   usuarios: { id: string; userId: string; email: string }[];
   count: number;
 }

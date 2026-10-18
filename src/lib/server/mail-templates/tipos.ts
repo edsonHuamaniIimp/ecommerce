@@ -66,6 +66,23 @@ export interface DatosPlantilla {
     tipo: string;
     numero: string;
   };
+  /** Debida Diligencia: expediente recibido y en revision. */
+  "dd-recibida": { codigo: string; razonSocial: string };
+  /** Debida Diligencia: expediente observado (correcciones solicitadas). */
+  "dd-observada": { codigo: string; razonSocial: string; observaciones: string[] };
+  /** Debida Diligencia: expediente aprobado. */
+  "dd-aprobada": { codigo: string; razonSocial: string; fechaVencimiento: string };
+  /** Debida Diligencia: expediente rechazado. */
+  "dd-rechazada": { codigo: string; razonSocial: string; motivo: string };
+  /** Debida Diligencia: expediente derivado a revision legal. */
+  "dd-legal-revision": { codigo: string; razonSocial: string; motivo: string };
+  /** Solicitud de reserva observada: el cliente debe reemplazar documentos y reenviar. */
+  "documentos-observados": {
+    standCodes: string;
+    documentos: string[];
+    justificacion: string;
+    url: string;
+  };
 }
 
 export type PlantillaEmailKind = keyof DatosPlantilla;

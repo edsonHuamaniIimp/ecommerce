@@ -101,7 +101,32 @@ export interface RoleEntity {
   nombre: string;
   descripcion: string | null;
   permisos: string[];
+  modulos?: string[];
   usuarios: UserRoleEntity[];
+  count?: number;
+}
+
+export interface RoleUserRow {
+  id: string;
+  userId: string;
+  email: string;
+  roleId: string;
+  roleNombre: string;
+}
+
+export interface RoleUsersParams {
+  page: number;
+  perPage: number;
+  search?: string;
+  roleId?: string;
+}
+
+export interface RoleUsersResult {
+  data: RoleUserRow[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export interface UserRoleEntity {
@@ -217,7 +242,7 @@ export interface SolicitudRow {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: Date }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
   updatedAt: Date;
   revisiones: RevisionEntity[];
   reevaluaciones: ReevaluacionEntity[];

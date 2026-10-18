@@ -49,6 +49,10 @@ import { ContratoApplicationService } from "@/application/contratos/contrato-ser
 import { AlertasApplicationService } from "@/application/alertas/alertas-service";
 import { ConfiguracionPrismaRepository } from "@/infrastructure/persistence/configuracion-repository";
 import { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
+import { DebidaDiligenciaPrismaRepository } from "@/infrastructure/persistence/debida-diligencia-repository";
+import { DebidaDiligenciaApplicationService } from "@/application/debida-diligencia/debida-diligencia-service";
+import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
+import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
 
 const eventoRepo = new EventoPrismaRepository();
@@ -61,6 +65,9 @@ const planoRepo = new PlanoPrismaRepository();
 const empresaRepo = new EmpresaPrismaRepository();
 const usuarioRepo = new UsuarioPrismaRepository();
 const configuracionRepo = new ConfiguracionPrismaRepository();
+const debidaDiligenciaRepo = new DebidaDiligenciaPrismaRepository();
+const debidaDiligenciaNotificacion = new DebidaDiligenciaNotificacion();
+const debidaDiligenciaDocumentoValidator = new DebidaDiligenciaDocumentoValidator();
 const kbServiciosClient = new KbServiciosClient();
 const planogessClient = new ListstandClient();
 const personaClient = new PersonaApiClient();
@@ -105,6 +112,7 @@ export const services = {
   alertas: new AlertasApplicationService(authRepo),
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
   configuracion: new ConfiguracionApplicationService(configuracionRepo),
+  debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator),
   gessRepo,
   roleRepo,
 };

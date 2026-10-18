@@ -45,6 +45,7 @@ orden de lectura recomendado.
 | [06-eventos-datos-y-stands.md](./01-funcional/06-eventos-datos-y-stands.md) | Eventos, datos del evento, stands/GESS/vinculación |
 | [07-administracion.md](./01-funcional/07-administracion.md) | Roles, permisos, usuarios, perfil y auth |
 | [08-integraciones.md](./01-funcional/08-integraciones.md) | SGC, Sistema de Montaje, entidades, RENIEC/SUNAT, KBServicios |
+| [11-debida-diligencia.md](./01-funcional/11-debida-diligencia.md) | Debida Diligencia: wizard, revisión de Logística, revisión reputacional, panel, estados y diagrama de actividades |
 
 ### 02 — Despliegue
 | Documento | Contenido |

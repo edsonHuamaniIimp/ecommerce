@@ -1,6 +1,6 @@
-import { INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
-import { PIE_EN, envoltura, esc, fila } from "../i18n";
+import { PIE_EN, envoltura, esc, fila, listaHtml } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
 
 /** Plantillas de correo en ingles (misma estructura y marca que espanol). */
@@ -403,4 +403,113 @@ export const plantillasEn: PlantillasEmail = {
       ),
     };
   },
+
+  "dd-recibida": ({ codigo, razonSocial }) => ({
+    subject: `Due diligence received (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence received",
+      `
+        <p>The due diligence for <strong>${esc(razonSocial)}</strong> was received.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+          ${fila("Status", "Under Logistics review")}
+        </table>
+        <p style="font-size:13px;color:#475569">Logistics will review the documents. If there are findings, you will receive an email at this contact and may correct and request a new evaluation.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.BASE}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my due diligence</a>
+        </div>
+      `,
+      PIE_EN,
+    ),
+  }),
+
+  "dd-observada": ({ codigo, razonSocial, observaciones }) => ({
+    subject: `Due diligence with findings (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence requires corrections",
+      `
+        <p>The due diligence for <strong>${esc(razonSocial)}</strong> requires corrections before continuing.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+        </table>
+        <p style="font-size:13px;color:#475569"><strong>Findings:</strong></p>
+        ${listaHtml(observaciones.map(esc))}
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.BASE}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Correct and request a new evaluation</a>
+        </div>
+      `,
+      PIE_EN,
+    ),
+  }),
+
+  "dd-aprobada": ({ codigo, razonSocial, fechaVencimiento }) => ({
+    subject: `Due diligence approved (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence approved",
+      `
+        <p>The due diligence for <strong>${esc(razonSocial)}</strong> was approved.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+          ${fila("Valid until", fechaVencimiento ? esc(fechaVencimiento) : "6 months")}
+        </table>
+        <p style="font-size:13px;color:#475569">Approval is valid for 6 months. You must renew the information before it expires.</p>
+      `,
+      PIE_EN,
+    ),
+  }),
+
+  "dd-rechazada": ({ codigo, razonSocial, motivo }) => ({
+    subject: `Due diligence rejected (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence rejected",
+      `
+        <p>The due diligence for <strong>${esc(razonSocial)}</strong> could not be approved.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+        </table>
+        ${motivo ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Reason:</strong> ${esc(motivo)}</p>` : ""}
+        <p style="font-size:13px;color:#475569">The final rejection is communicated through a legal report. Contact the IIMP Help Desk for more information.</p>
+      `,
+      PIE_EN,
+    ),
+  }),
+
+  "dd-legal-revision": ({ codigo, razonSocial, motivo }) => ({
+    subject: `Due diligence referred to Legal (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence referred to Legal",
+      `
+        <p>The due diligence for <strong>${esc(razonSocial)}</strong> was referred to Legal for review and final decision.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+        </table>
+        ${motivo ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Logistics reason:</strong> ${esc(motivo)}</p>` : ""}
+        <p style="font-size:13px;color:#475569">Access the module to review the request, attach the legal report and record the decision.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.LEGAL}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review in Legal</a>
+        </div>
+      `,
+      PIE_EN,
+    ),
+  }),
+
+  "documentos-observados": ({ standCodes, documentos, justificacion, url }) => ({
+    subject: `Documents observed - request ${standCodes} - IIMP`,
+    html: envoltura(
+      "Documents observed",
+      `
+        <p>The reviewing area observed documents of your request for stand <strong>${esc(standCodes)}</strong>.</p>
+        <p style="font-size:13px;color:#475569"><strong>Observed documents:</strong></p>
+        <ul style="font-size:13px;color:#475569;padding-left:18px">
+          ${documentos.map((d) => `<li style="margin-bottom:6px">${esc(d)}</li>`).join("")}
+        </ul>
+        <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Justification:</strong> ${esc(justificacion)}</p>
+        <p style="font-size:13px;color:#475569">Upload the new version of the observed documents and resubmit your request for review from "My requests".</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review my request</a>
+        </div>
+      `,
+      PIE_EN,
+    ),
+  }),
 };

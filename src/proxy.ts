@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getTokenFromRequest, verifyToken, hasPermission, estadoAcceso } from "@/lib/server/auth";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS } from "@/lib/shared/constants";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS, DD_RUTAS } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
@@ -29,6 +29,12 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/usuarios", permission: PERMISSIONS.USUARIOS_MANAGE },
   { path: "/dashboard/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
   { path: "/dashboard/configuracion", permission: PERMISSIONS.PORTAL_MANAGE },
+  /* Debida Diligencia: permisos propios del modulo (dd:*). */
+  { path: DD_RUTAS.BANDEJA, permission: PERMISSIONS.DD_REVISION },
+  { path: DD_RUTAS.LEGAL, permission: PERMISSIONS.DD_LEGAL },
+  { path: DD_RUTAS.REPUTACION, permission: PERMISSIONS.DD_REPUTACION },
+  { path: DD_RUTAS.FORMULARIO, permission: PERMISSIONS.DD_FORMULARIO },
+  { path: DD_RUTAS.BASE },
   /* Empresas (Portal del Cliente). El prefijo exacto de montajistas va primero para no
      quedar capturado por `/api/empresas` (catalogo SIE usado tambien por clientes). */
   { path: "/api/empresas-montajistas" },

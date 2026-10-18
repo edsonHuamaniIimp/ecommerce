@@ -33,6 +33,8 @@ tags:
     description: Consumo (proxy) de empresas/personas
   - name: Usuarios
     description: Accesos del Portal del Cliente (backoffice) contra servicio-persona
+  - name: DebidaDiligencia
+    description: Formulario, revision de Logistica, revision reputacional de Comunicaciones y panel del modulo
   - name: SGC
     description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
 security:
@@ -1629,6 +1631,358 @@ paths:
           description: Recibido
         "401":
           description: Firma inválida
+  /debida-diligencia/mi-expediente:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Expediente de la empresa del usuario autenticado
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMiExpedienteResponse"
+  /debida-diligencia/guardar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Guarda el wizard de debida diligencia (borrador o correccion)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdGuardarRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/enviar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Envia el expediente a revision de Logistica
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/clientes:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Clientes con evaluacion DD, resultado institucional y vigencia
+      description: |
+        Devuelve las evaluaciones del evento de la sesion. El resultado se calcula
+        a partir del workflow: APTO, APTO CON OBSERVACIONES, NO APTO o PENDIENTE.
+        El estado de evaluacion es VIGENTE o REQUIERE NUEVA EVALUACION.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: ruc
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            type: string
+            enum: [borrador, pendiente, en_revision, observada, aprobada, rechazada]
+        - name: resultado
+          in: query
+          schema:
+            type: string
+            enum: [apto, apto_con_observaciones, no_apto, pendiente]
+        - name: estadoEvaluacion
+          in: query
+          schema:
+            type: string
+            enum: [vigente, requiere_nueva_evaluacion]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdClientesResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Sin permiso dd:ver
+  /debida-diligencia/bandeja:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Bandeja paginada de Logistica
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdBandejaResponse"
+  /debida-diligencia/detalle:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Detalle de un expediente
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/revisar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Resolucion de Logistica (aprobar, observar o rechazar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdRevisarRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/legal/bandeja:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Bandeja de expedientes derivados a Legal
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdBandejaResponse"
+  /debida-diligencia/legal/resolver:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Decision final de Legal con informe adjunto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdLegalResolverRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/legal/informe:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Carga del informe legal en PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      nombre:
+                        type: string
+                      size:
+                        type: integer
+                      mimeType:
+                        type: string
+  /debida-diligencia/panel:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Panel del modulo con KPIs, vigencias y matriz de empresas
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdPanelResponse"
+  /debida-diligencia/matriz:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Matriz paginada de empresas del panel
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            type: string
+        - name: vinculo
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMatrizResponse"
+  /debida-diligencia/reputacion/listar:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Bandeja de revision reputacional (Comunicaciones)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdReputacionResponse"
+  /debida-diligencia/reputacion/resolver:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Guarda el resultado de la revision reputacional
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdReputacionResolverRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+  /debida-diligencia/declaracion-jurada:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Descarga el formato vigente de la declaracion jurada (PDF)
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
 components:
   securitySchemes:
     bearerAuth:
@@ -1666,6 +2020,764 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
   schemas:
+    DdEmpresa:
+      type: object
+      properties:
+        id:
+          type: string
+        ruc:
+          type: string
+        razonSocial:
+          type: string
+        nombreComercial:
+          type: string
+          nullable: true
+        sitioWeb:
+          type: string
+          nullable: true
+        emailContacto:
+          type: string
+          nullable: true
+        representanteLegalNombre:
+          type: string
+          nullable: true
+        representanteLegalDni:
+          type: string
+          nullable: true
+        representanteCorreo:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+    DdEvento:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        anio:
+          type: string
+    DdBeneficiario:
+      type: object
+      properties:
+        id:
+          type: string
+        orden:
+          type: integer
+        nombre:
+          type: string
+        documento:
+          type: string
+        nacionalidad:
+          type: string
+        porcentaje:
+          type: number
+    DdDocumento:
+      type: object
+      properties:
+        id:
+          type: string
+        tipo:
+          type: string
+        nombre:
+          type: string
+        url:
+          type: string
+        estado:
+          type: string
+        observacion:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        versiones:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              version:
+                type: integer
+              nombre:
+                type: string
+              url:
+                type: string
+              creadoPor:
+                type: string
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
+    DdObservacion:
+      type: object
+      properties:
+        id:
+          type: string
+        area:
+          type: string
+        documentoTipo:
+          type: string
+          nullable: true
+        texto:
+          type: string
+        estado:
+          type: string
+        creadoPor:
+          type: string
+        fechaResolucion:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    DdExpediente:
+      type: object
+      properties:
+        id:
+          type: string
+        empresaId:
+          type: string
+        eventoId:
+          type: string
+        codigo:
+          type: string
+        estado:
+          type: string
+        tipoRelacionComercial:
+          type: string
+          nullable: true
+        actividadEconomica:
+          type: string
+          nullable: true
+        actividadEconomicaOtro:
+          type: string
+          nullable: true
+        paisConstitucion:
+          type: string
+          nullable: true
+        sitioWeb:
+          type: string
+          nullable: true
+        emailRepresentante:
+          type: string
+          nullable: true
+        aceptaDatos:
+          type: boolean
+        aceptaVerificacion:
+          type: boolean
+        declaraVerdad:
+          type: boolean
+        representanteNombre:
+          type: string
+          nullable: true
+        representanteTipoDocumento:
+          type: string
+          nullable: true
+        representanteDocumento:
+          type: string
+          nullable: true
+        representanteNacionalidad:
+          type: string
+          nullable: true
+        fechaEnvio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaRevision:
+          type: string
+          format: date-time
+          nullable: true
+        fechaAprobacion:
+          type: string
+          format: date-time
+          nullable: true
+        fechaVencimiento:
+          type: string
+          format: date-time
+          nullable: true
+        fechaRechazo:
+          type: string
+          format: date-time
+          nullable: true
+        revisadoPor:
+          type: string
+          nullable: true
+        motivoRechazo:
+          type: string
+          nullable: true
+        fechaDerivacionLegal:
+          type: string
+          format: date-time
+          nullable: true
+        derivadoLegalPor:
+          type: string
+          nullable: true
+        fechaLegal:
+          type: string
+          format: date-time
+          nullable: true
+        legalRevisor:
+          type: string
+          nullable: true
+        decisionLegal:
+          type: string
+          nullable: true
+        motivoLegal:
+          type: string
+          nullable: true
+        informeLegalNombre:
+          type: string
+          nullable: true
+        informeLegalUrl:
+          type: string
+          nullable: true
+        creadoPor:
+          type: string
+        actualizadoPor:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        empresa:
+          $ref: "#/components/schemas/DdEmpresa"
+        evento:
+          $ref: "#/components/schemas/DdEvento"
+        beneficiarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/DdBeneficiario"
+        documentos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DdDocumento"
+        observaciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/DdObservacion"
+        reputacion:
+          type: array
+          items:
+            $ref: "#/components/schemas/DdReputacionCaso"
+    DdReputacionCaso:
+      type: object
+      properties:
+        id:
+          type: string
+        nombreARevisar:
+          type: string
+        sitioWeb:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        resultado:
+          type: string
+          nullable: true
+        comentario:
+          type: string
+          nullable: true
+        derivadoPor:
+          type: string
+        fechaDerivacion:
+          type: string
+          format: date-time
+        revisor:
+          type: string
+          nullable: true
+        fechaCierre:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DdExpedienteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DdExpediente"
+    DdMiExpedienteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            expediente:
+              type: object
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/DdExpediente"
+            empresa:
+              type: object
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/DdEmpresa"
+    DdGuardarRequest:
+      type: object
+      properties:
+        tipoRelacionComercial:
+          type: string
+          nullable: true
+        actividadEconomica:
+          type: string
+          nullable: true
+        actividadEconomicaOtro:
+          type: string
+          nullable: true
+        paisConstitucion:
+          type: string
+          nullable: true
+        sitioWeb:
+          type: string
+          nullable: true
+        emailRepresentante:
+          type: string
+          nullable: true
+        aceptaDatos:
+          type: boolean
+        aceptaVerificacion:
+          type: boolean
+        declaraVerdad:
+          type: boolean
+        representanteNombre:
+          type: string
+          nullable: true
+        representanteTipoDocumento:
+          type: string
+          nullable: true
+        representanteDocumento:
+          type: string
+          nullable: true
+        representanteNacionalidad:
+          type: string
+          nullable: true
+        beneficiarios:
+          type: array
+          items:
+            type: object
+            properties:
+              nombre:
+                type: string
+              documento:
+                type: string
+              nacionalidad:
+                type: string
+              porcentaje:
+                type: number
+        documentos:
+          type: array
+          items:
+            type: object
+            properties:
+              tipo:
+                type: string
+              nombre:
+                type: string
+              url:
+                type: string
+              estado:
+                type: string
+    DdRevisarRequest:
+      type: object
+      required: [expedienteId, accion]
+      properties:
+        expedienteId:
+          type: string
+        accion:
+          type: string
+          enum: [aprobar, observar, rechazar]
+        motivo:
+          type: string
+          nullable: true
+        documentosObservados:
+          type: array
+          items:
+            type: string
+        observaciones:
+          type: array
+          items:
+            type: object
+            properties:
+              documentoTipo:
+                type: string
+                nullable: true
+              texto:
+                type: string
+        derivarComunicaciones:
+          type: boolean
+    DdLegalResolverRequest:
+      type: object
+      required: [expedienteId, decision]
+      description: |
+        El informe legal es obligatorio cuando la decision es rechazar y opcional
+        cuando es aprobar. Aprobar devuelve el expediente a Logistica en estado
+        en_revision para la decision final; rechazar finaliza el expediente.
+      properties:
+        expedienteId:
+          type: string
+        decision:
+          type: string
+          enum: [aprobar, rechazar]
+        motivo:
+          type: string
+          nullable: true
+        informeLegalNombre:
+          type: string
+          nullable: true
+        informeLegalUrl:
+          type: string
+          nullable: true
+    DdBandejaRow:
+      type: object
+      properties:
+        id:
+          type: string
+        codigo:
+          type: string
+        estado:
+          type: string
+        tipoRelacionComercial:
+          type: string
+          nullable: true
+        empresa:
+          $ref: "#/components/schemas/DdEmpresa"
+        documentoCargados:
+          type: integer
+        documentoTotal:
+          type: integer
+        fechaEnvio:
+          type: string
+          format: date-time
+          nullable: true
+        fechaAprobacion:
+          type: string
+          format: date-time
+          nullable: true
+        fechaVencimiento:
+          type: string
+          format: date-time
+          nullable: true
+        revisadoPor:
+          type: string
+          nullable: true
+        motivoRechazo:
+          type: string
+          nullable: true
+        observacionesAbiertas:
+          type: integer
+        reputacionCasos:
+          type: integer
+        reputacionEstado:
+          type: string
+          nullable: true
+        reputacionPendientes:
+          type: integer
+        reputacionSinHallazgos:
+          type: integer
+        reputacionConHallazgos:
+          type: integer
+        reputacionRequiereInformacion:
+          type: integer
+    DdClienteEvaluacion:
+      type: object
+      properties:
+        expediente:
+          $ref: "#/components/schemas/DdExpediente"
+        resultado:
+          type: string
+          enum: [apto, apto_con_observaciones, no_apto, pendiente]
+        resultadoLabel:
+          type: string
+        estadoEvaluacion:
+          type: string
+          nullable: true
+          enum: [vigente, requiere_nueva_evaluacion]
+        estadoEvaluacionLabel:
+          type: string
+          nullable: true
+        vigente:
+          type: boolean
+        diasVigenciaRestantes:
+          type: integer
+          nullable: true
+        aptoParaContratar:
+          type: boolean
+        alcance:
+          type: string
+          nullable: true
+          enum: [general, vinculo_especifico]
+        observacionesAbiertas:
+          type: integer
+    DdClientesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdClienteEvaluacion"
+            pagination:
+              type: object
+              properties:
+                page:
+                  type: integer
+                perPage:
+                  type: integer
+                total:
+                  type: integer
+                totalPages:
+                  type: integer
+            resumen:
+              type: object
+              properties:
+                total:
+                  type: integer
+                pendientes:
+                  type: integer
+                aptos:
+                  type: integer
+                aptosConObservaciones:
+                  type: integer
+                noAptos:
+                  type: integer
+                vigentes:
+                  type: integer
+                requierenNuevaEvaluacion:
+                  type: integer
+    DdBandejaResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdBandejaRow"
+            total:
+              type: integer
+            page:
+              type: integer
+            perPage:
+              type: integer
+            totalPages:
+              type: integer
+            resumen:
+              type: object
+              properties:
+                total:
+                  type: integer
+                pendientes:
+                  type: integer
+                enRevision:
+                  type: integer
+                observadas:
+                  type: integer
+                aprobadas:
+                  type: integer
+                rechazadas:
+                  type: integer
+    DdPanelResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            kpis:
+              type: object
+              properties:
+                total:
+                  type: integer
+                aprobadasVigentes:
+                  type: integer
+                porVencer:
+                  type: integer
+                enRevision:
+                  type: integer
+                observadas:
+                  type: integer
+                rechazadas:
+                  type: integer
+                pendientes:
+                  type: integer
+                empresasRegistradas:
+                  type: integer
+            porVinculo:
+              type: array
+              items:
+                type: object
+                properties:
+                  vinculo:
+                    type: string
+                  label:
+                    type: string
+                  total:
+                    type: integer
+                  aprobadas:
+                    type: integer
+                  observadas:
+                    type: integer
+                  pendientes:
+                    type: integer
+            vigencia:
+              type: object
+              properties:
+                vigentes:
+                  type: integer
+                porVencer:
+                  type: integer
+                vencidas:
+                  type: integer
+                total:
+                  type: integer
+    DdMatrizResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdMatrizRow"
+            total:
+              type: integer
+            page:
+              type: integer
+            perPage:
+              type: integer
+            totalPages:
+              type: integer
+    DdMatrizRow:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa:
+          $ref: "#/components/schemas/DdEmpresa"
+        codigo:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          nullable: true
+        tipoRelacionComercial:
+          type: string
+          nullable: true
+        fechaAprobacion:
+          type: string
+          format: date-time
+          nullable: true
+        fechaVencimiento:
+          type: string
+          format: date-time
+          nullable: true
+        revisadoPor:
+          type: string
+          nullable: true
+    DdReputacionRow:
+      type: object
+      properties:
+        id:
+          type: string
+        expedienteId:
+          type: string
+        codigo:
+          type: string
+        empresa:
+          type: object
+          properties:
+            razonSocial:
+              type: string
+        nombreARevisar:
+          type: string
+        sitioWeb:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        resultado:
+          type: string
+          nullable: true
+        comentario:
+          type: string
+          nullable: true
+        derivadoPor:
+          type: string
+        fechaDerivacion:
+          type: string
+          format: date-time
+        revisor:
+          type: string
+          nullable: true
+        fechaCierre:
+          type: string
+          format: date-time
+          nullable: true
+        observacionesAbiertas:
+          type: integer
+    DdReputacionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdReputacionRow"
+            total:
+              type: integer
+            page:
+              type: integer
+            perPage:
+              type: integer
+            totalPages:
+              type: integer
+    DdReputacionResolverRequest:
+      type: object
+      required: [id, resultado]
+      properties:
+        id:
+          type: string
+        resultado:
+          type: string
+          enum: [sin_hallazgos, con_hallazgos, requiere_informacion]
+        comentario:
+          type: string
+          nullable: true
+        cerrar:
+          type: boolean
+        notificar:
+          type: boolean
     Vertical:
       type: string
       enum: [proexplo, wmc, gess, perumin]

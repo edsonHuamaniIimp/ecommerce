@@ -40,12 +40,13 @@ model Evento {
   flgVisible    Boolean   @default(true) @map("flg_visible")
   plano         String    @default("gess") @db.VarChar(50)
 
-  eventoPadre EventoPadre         @relation(fields: [eventoPadreId], references: [id])
-  tiposStand  TipoStand[]
-  stands      Stand[]
-  gessStands  GessStand[]
-  reservas    Reserva[]
-  plantillas  ContratoPlantilla[]
+  eventoPadre        EventoPadre         @relation(fields: [eventoPadreId], references: [id])
+  tiposStand         TipoStand[]
+  stands             Stand[]
+  gessStands         GessStand[]
+  reservas           Reserva[]
+  plantillas         ContratoPlantilla[]
+  debidasDiligencias DebidaDiligencia[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -112,6 +113,8 @@ model Role {
   nombre      String   @unique @db.VarChar(50)
   descripcion String?  @db.VarChar(200)
   permisos    String[] @default([])
+  /// Secciones/modulos habilitados para configurar permisos del rol.
+  modulos     String[] @default([])
 
   usuarios UserRole[]
 
@@ -309,7 +312,8 @@ model Empresa {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  usuarios UserRole[]
+  usuarios           UserRole[]
+  debidasDiligencias DebidaDiligencia[]
 
   @@index([razonSocial])
   @@index([sieCode])
@@ -925,35 +929,35 @@ model PlanoFurniture {
  */
 
 model SgcExpediente {
-  id                String    @id @default(uuid())
-  solicitudId       String    @unique @map("solicitud_id")
-  code              String    @unique @db.VarChar(50)
-  contractId        String?   @unique @map("contract_id") @db.VarChar(64)
-  estadoEnvio       String    @default("pendiente") @map("estado_envio") @db.VarChar(20)
-  stage             String?   @db.VarChar(40)
-  lifecycleStatus   String?   @map("lifecycle_status") @db.VarChar(20)
-  version           Int?
-  areaCode          String    @map("area_code") @db.VarChar(40)
-  contractTypeCode  String    @map("contract_type_code") @db.VarChar(40)
+  id                       String    @id @default(uuid())
+  solicitudId              String    @unique @map("solicitud_id")
+  code                     String    @unique @db.VarChar(50)
+  contractId               String?   @unique @map("contract_id") @db.VarChar(64)
+  estadoEnvio              String    @default("pendiente") @map("estado_envio") @db.VarChar(20)
+  stage                    String?   @db.VarChar(40)
+  lifecycleStatus          String?   @map("lifecycle_status") @db.VarChar(20)
+  version                  Int?
+  areaCode                 String    @map("area_code") @db.VarChar(40)
+  contractTypeCode         String    @map("contract_type_code") @db.VarChar(40)
   /// Motivo (libre) de la corrección declarado por el admin cuando el SGC devuelve el
   /// trámite. Puede repetirse N veces (una por cada devolución); se limpia al reenviar.
-  subsanacionMotivo String?   @map("subsanacion_motivo") @db.VarChar(500)
+  subsanacionMotivo        String?   @map("subsanacion_motivo") @db.VarChar(500)
   /// Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
-  subsanacionModo   String?   @map("subsanacion_modo") @db.VarChar(20)
-  lastSyncedAt      DateTime? @map("last_synced_at")
-  lastError         String?   @map("last_error") @db.VarChar(500)
+  subsanacionModo          String?   @map("subsanacion_modo") @db.VarChar(20)
+  lastSyncedAt             DateTime? @map("last_synced_at")
+  lastError                String?   @map("last_error") @db.VarChar(500)
   /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
-  bypassAprobado    Boolean   @default(false) @map("bypass_aprobado")
+  bypassAprobado           Boolean   @default(false) @map("bypass_aprobado")
   /// Ultima devolucion del SGC (`workflow.returned`, guia §8): `true` = exige version nueva
   /// del principal (vuelve a elaboracion y el cliente puede subsanar); `false` = validacion
   /// interna sobre la misma version (no se pide correccion al cliente).
-  devolucionRequiereCambio Boolean? @map("devolucion_requiere_cambio")
+  devolucionRequiereCambio Boolean?  @map("devolucion_requiere_cambio")
   /// Motivo (libre) de la ultima devolucion, tal como llega en `data.reason` del webhook.
-  devolucionMotivo         String?  @map("devolucion_motivo") @db.VarChar(500)
+  devolucionMotivo         String?   @map("devolucion_motivo") @db.VarChar(500)
   /// Etapa destino de la devolucion (`null` = origen).
-  devolucionDestinoStepId  String?  @map("devolucion_destino_step_id") @db.VarChar(64)
+  devolucionDestinoStepId  String?   @map("devolucion_destino_step_id") @db.VarChar(64)
   /// Estrategia de la devolucion: `return-to-sender` | `restart-forward`.
-  devolucionEstrategia     String?  @map("devolucion_estrategia") @db.VarChar(30)
+  devolucionEstrategia     String?   @map("devolucion_estrategia") @db.VarChar(30)
 
   solicitud     Solicitud        @relation(fields: [solicitudId], references: [id])
   documentos    SgcDocumento[]
@@ -1084,4 +1088,193 @@ model PortalConfig {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("portal_config")
+}
+
+/**
+ * ================================================================
+ * 7. DEBIDA DILIGENCIA (DD)
+ * Modulo con reglas propias: formulario de 4 pasos, revision de
+ * Logistica, revision reputacional de Comunicaciones y vigencia de
+ * 6 meses. Las tablas llevan el prefijo `debida_diligencia_` para
+ * distinguirlas del resto de modulos del sistema.
+ * ================================================================
+ */
+
+/// Expediente de debida diligencia de una empresa en un evento.
+model DebidaDiligencia {
+  id        String @id @default(uuid())
+  empresaId String @map("empresa_id")
+  eventoId  String @map("evento_id")
+  /// Codigo visible del expediente (ej. DD-2026-0142).
+  codigo    String @unique @db.VarChar(30)
+  /// Estado del workflow (ver DD_ESTADOS): borrador | pendiente | en_revision | observada | aprobada | rechazada.
+  estado    String @default("borrador") @db.VarChar(20)
+
+  /// Tipo de relacion comercial con el IIMP (ver DD_VINCULOS).
+  tipoRelacionComercial  String? @map("tipo_relacion_comercial") @db.VarChar(40)
+  /// Actividad economica principal (catalogo DD_ACTIVIDADES_ECONOMICAS).
+  actividadEconomica     String? @map("actividad_economica") @db.VarChar(120)
+  /// Detalle cuando la actividad economica es "Otro".
+  actividadEconomicaOtro String? @map("actividad_economica_otro") @db.VarChar(200)
+  /// Pais de constitucion de la empresa (por defecto Peru).
+  paisConstitucion       String? @map("pais_constitucion") @db.VarChar(80)
+  sitioWeb               String? @map("sitio_web") @db.VarChar(200)
+  emailRepresentante     String? @map("email_representante") @db.VarChar(200)
+
+  /// Consentimiento de tratamiento de datos personales y derechos ARCO.
+  aceptaDatos        Boolean @default(false) @map("acepta_datos")
+  /// Consentimiento de debida diligencia reforzada.
+  aceptaVerificacion Boolean @default(false) @map("acepta_verificacion")
+  /// Declaracion jurada de veracidad y compromiso de actualizacion.
+  declaraVerdad      Boolean @default(false) @map("declara_verdad")
+
+  representanteNombre        String? @map("representante_nombre") @db.VarChar(200)
+  representanteTipoDocumento String? @map("representante_tipo_documento") @db.VarChar(30)
+  representanteDocumento     String? @map("representante_documento") @db.VarChar(20)
+  representanteNacionalidad  String? @map("representante_nacionalidad") @db.VarChar(80)
+
+  fechaEnvio       DateTime? @map("fecha_envio")
+  fechaRevision    DateTime? @map("fecha_revision")
+  fechaAprobacion  DateTime? @map("fecha_aprobacion")
+  fechaVencimiento DateTime? @map("fecha_vencimiento")
+  fechaRechazo     DateTime? @map("fecha_rechazo")
+  revisadoPor      String?   @map("revisado_por") @db.VarChar(200)
+  motivoRechazo    String?   @map("motivo_rechazo") @db.VarChar(1000)
+
+  fechaDerivacionLegal DateTime? @map("fecha_derivacion_legal")
+  derivadoLegalPor     String?   @map("derivado_legal_por") @db.VarChar(200)
+  fechaLegal           DateTime? @map("fecha_legal")
+  legalRevisor         String?   @map("legal_revisor") @db.VarChar(200)
+  decisionLegal        String?   @map("decision_legal") @db.VarChar(20)
+  motivoLegal          String?   @map("motivo_legal") @db.VarChar(2000)
+  informeLegalNombre   String?   @map("informe_legal_nombre") @db.VarChar(250)
+  informeLegalUrl      String?   @map("informe_legal_url") @db.VarChar(500)
+
+  creadoPor        String    @map("creado_por") @db.VarChar(200)
+  actualizadoPor   String?   @map("actualizado_por") @db.VarChar(200)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  empresa       Empresa                        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  evento        Evento                         @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  beneficiarios DebidaDiligenciaBeneficiario[]
+  documentos    DebidaDiligenciaDocumento[]
+  observaciones DebidaDiligenciaObservacion[]
+  reputacion    DebidaDiligenciaReputacion[]
+
+  @@unique([empresaId, eventoId])
+  @@index([eventoId, estado])
+  @@index([fechaVencimiento])
+  @@index([codigo])
+  @@map("debida_diligencia")
+}
+
+/// Beneficiario final con 10% o mas de participacion.
+model DebidaDiligenciaBeneficiario {
+  id           String  @id @default(uuid())
+  expedienteId String  @map("expediente_id")
+  orden        Int     @default(0)
+  nombre       String  @db.VarChar(200)
+  documento    String  @db.VarChar(30)
+  nacionalidad String  @db.VarChar(80)
+  porcentaje   Decimal @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+
+  @@index([expedienteId])
+  @@map("debida_diligencia_beneficiario")
+}
+
+/// Documento de sustento del expediente (4 obligatorios).
+model DebidaDiligenciaDocumento {
+  id           String  @id @default(uuid())
+  expedienteId String  @map("expediente_id")
+  /// Tipo de documento (ver DD_DOCUMENTOS).
+  tipo         String  @db.VarChar(40)
+  nombre       String  @db.VarChar(250)
+  url          String  @db.VarChar(500)
+  /// Estado del documento (ver DD_DOCUMENTO_ESTADOS).
+  estado       String  @default("cargado") @db.VarChar(20)
+  observacion  String? @db.VarChar(1000)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  versiones  DebidaDiligenciaDocumentoVersion[]
+
+  @@unique([expedienteId, tipo])
+  @@index([expedienteId])
+  @@map("debida_diligencia_documento")
+}
+
+/// Historial de archivos cargados para un documento de debida diligencia.
+model DebidaDiligenciaDocumentoVersion {
+  id          String   @id @default(uuid())
+  documentoId String   @map("documento_id")
+  version     Int
+  nombre      String   @db.VarChar(250)
+  url         String   @db.VarChar(500)
+  creadoPor   String?  @map("creado_por") @db.VarChar(200)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  documento DebidaDiligenciaDocumento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  @@unique([documentoId, version])
+  @@index([documentoId])
+  @@map("debida_diligencia_documento_version")
+}
+
+/// Observacion emitida por Logistica/Legal/Comunicaciones sobre el expediente.
+model DebidaDiligenciaObservacion {
+  id              String    @id @default(uuid())
+  expedienteId    String    @map("expediente_id")
+  /// Area que emite la observacion (ver DD_OBSERVACION_AREAS).
+  area            String    @db.VarChar(30)
+  /// Tipo de documento observado (null = observacion general).
+  documentoTipo   String?   @map("documento_tipo") @db.VarChar(40)
+  texto           String    @db.VarChar(1000)
+  /// abierta | resuelta
+  estado          String    @default("abierta") @db.VarChar(20)
+  creadoPor       String    @map("creado_por") @db.VarChar(200)
+  fechaResolucion DateTime? @map("fecha_resolucion")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+
+  @@index([expedienteId, estado])
+  @@map("debida_diligencia_observacion")
+}
+
+/// Caso de revision reputacional derivado por Logistica a Comunicaciones.
+model DebidaDiligenciaReputacion {
+  id              String    @id @default(uuid())
+  expedienteId    String    @map("expediente_id")
+  /// Nombre o razon social a evaluar (empresa, representante o beneficiario).
+  nombreARevisar  String    @map("nombre_a_revisar") @db.VarChar(200)
+  sitioWeb        String?   @map("sitio_web") @db.VarChar(200)
+  /// Estado del caso (ver DD_REPUTACION_ESTADOS).
+  estado          String    @default("por_revisar") @db.VarChar(30)
+  /// Resultado de la revision (ver DD_REPUTACION_RESULTADOS); null mientras no se resuelve.
+  resultado       String?   @db.VarChar(30)
+  comentario      String?   @db.VarChar(1500)
+  derivadoPor     String    @map("derivado_por") @db.VarChar(200)
+  fechaDerivacion DateTime  @default(now()) @map("fecha_derivacion")
+  revisor         String?   @db.VarChar(200)
+  fechaCierre     DateTime? @map("fecha_cierre")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+
+  @@unique([expedienteId, nombreARevisar])
+  @@index([expedienteId])
+  @@index([estado])
+  @@map("debida_diligencia_reputacion")
 }

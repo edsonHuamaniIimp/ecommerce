@@ -1,6 +1,6 @@
-import { INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
-import { PIE_ES, envoltura, esc, fila } from "../i18n";
+import { PIE_ES, envoltura, esc, fila, listaHtml } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
 
 /** Plantillas de correo en espanol (idioma por defecto). */
@@ -403,4 +403,113 @@ export const plantillasEs: PlantillasEmail = {
       ),
     };
   },
+
+  "dd-recibida": ({ codigo, razonSocial }) => ({
+    subject: `Debida diligencia recibida (${codigo}) - IIMP`,
+    html: envoltura(
+      "Debida diligencia recibida",
+      `
+        <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> fue recibida correctamente.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Expediente", esc(codigo))}
+          ${fila("Estado", "En revisión por Logística")}
+        </table>
+        <p style="font-size:13px;color:#475569">Logística revisará los documentos. Si hay observaciones, recibirás un correo en este mismo contacto y podrás corregir y solicitar una nueva evaluación.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.BASE}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver mi debida diligencia</a>
+        </div>
+      `,
+      PIE_ES,
+    ),
+  }),
+
+  "dd-observada": ({ codigo, razonSocial, observaciones }) => ({
+    subject: `Debida diligencia observada (${codigo}) - IIMP`,
+    html: envoltura(
+      "Debida diligencia observada",
+      `
+        <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> requiere correcciones antes de continuar.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Expediente", esc(codigo))}
+        </table>
+        <p style="font-size:13px;color:#475569"><strong>Observaciones:</strong></p>
+        ${listaHtml(observaciones.map(esc))}
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.BASE}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Corregir y solicitar nueva evaluación</a>
+        </div>
+      `,
+      PIE_ES,
+    ),
+  }),
+
+  "dd-aprobada": ({ codigo, razonSocial, fechaVencimiento }) => ({
+    subject: `Debida diligencia aprobada (${codigo}) - IIMP`,
+    html: envoltura(
+      "Debida diligencia aprobada",
+      `
+        <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> fue aprobada.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Expediente", esc(codigo))}
+          ${fila("Vigencia", fechaVencimiento ? esc(fechaVencimiento) : "6 meses")}
+        </table>
+        <p style="font-size:13px;color:#475569">La aprobación tiene una vigencia de 6 meses. Antes del vencimiento deberás renovar la información.</p>
+      `,
+      PIE_ES,
+    ),
+  }),
+
+  "dd-rechazada": ({ codigo, razonSocial, motivo }) => ({
+    subject: `Debida diligencia rechazada (${codigo}) - IIMP`,
+    html: envoltura(
+      "Debida diligencia rechazada",
+      `
+        <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> no pudo ser aprobada.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Expediente", esc(codigo))}
+        </table>
+        ${motivo ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Motivo:</strong> ${esc(motivo)}</p>` : ""}
+        <p style="font-size:13px;color:#475569">El rechazo definitivo se comunica mediante informe legal. Contacta a la Mesa de Ayuda del IIMP si necesitas más información.</p>
+      `,
+      PIE_ES,
+    ),
+  }),
+
+  "dd-legal-revision": ({ codigo, razonSocial, motivo }) => ({
+    subject: `Debida diligencia derivada a Legal (${codigo}) - IIMP`,
+    html: envoltura(
+      "Debida diligencia derivada a Legal",
+      `
+        <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> fue derivada a Legal para su revisión y decisión final.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("Expediente", esc(codigo))}
+        </table>
+        ${motivo ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Motivo de Logística:</strong> ${esc(motivo)}</p>` : ""}
+        <p style="font-size:13px;color:#475569">Ingresa al módulo para revisar la solicitud, adjuntar el informe legal y registrar la decisión.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.LEGAL}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar en Legal</a>
+        </div>
+      `,
+      PIE_ES,
+    ),
+  }),
+
+  "documentos-observados": ({ standCodes, documentos, justificacion, url }) => ({
+    subject: `Documentos observados - solicitud ${standCodes} - IIMP`,
+    html: envoltura(
+      "Documentos observados",
+      `
+        <p>El area revisor observo documentos de tu solicitud para el stand <strong>${esc(standCodes)}</strong>.</p>
+        <p style="font-size:13px;color:#475569"><strong>Documentos observados:</strong></p>
+        <ul style="font-size:13px;color:#475569;padding-left:18px">
+          ${documentos.map((d) => `<li style="margin-bottom:6px">${esc(d)}</li>`).join("")}
+        </ul>
+        <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Justificacion:</strong> ${esc(justificacion)}</p>
+        <p style="font-size:13px;color:#475569">Sube la nueva version de los documentos observados y reenvia tu solicitud a revision desde "Mis solicitudes".</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar mi solicitud</a>
+        </div>
+      `,
+      PIE_ES,
+    ),
+  }),
 };

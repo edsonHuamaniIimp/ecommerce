@@ -7,6 +7,14 @@ export function fila(etiqueta: string, valor: string): string {
   return `<tr><td style="padding:8px;border-bottom:1px solid #e2e8f0;color:#64748b">${etiqueta}</td><td style="padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600">${valor}</td></tr>`;
 }
 
+/** Lista HTML a partir de items ya seguros (funcion pura reutilizable). */
+export function listaHtml(items: readonly string[], opciones?: { ordenada?: boolean; vacio?: string }): string {
+  if (items.length === 0) return opciones?.vacio ?? "";
+  const etiqueta = opciones?.ordenada ? "ol" : "ul";
+  const elementos = items.map((item) => `<li style="margin-bottom:6px">${item}</li>`).join("");
+  return `<${etiqueta} style="font-size:13px;color:#475569;padding-left:18px">${elementos}</${etiqueta}>`;
+}
+
 /** Envoltura institucional base (IIMP navy) con pie localizado. */
 export function envoltura(titulo: string, contenido: string, pie: string): string {
   return `

@@ -48,6 +48,17 @@ const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
     tipo: "factura",
     numero: "F001-1234",
   },
+  "dd-recibida": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C." },
+  "dd-observada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", observaciones: ["Vigencia de poderes vencida."] },
+  "dd-aprobada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", fechaVencimiento: "2026-11-12" },
+  "dd-rechazada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
+  "dd-legal-revision": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
+  "documentos-observados": {
+    standCodes: "197",
+    documentos: ["Vigencia de Poder (o equivalente, en caso de empresa extranjera)"],
+    justificacion: "El documento esta vencido.",
+    url: "https://ejemplo.pe/dashboard/mis-solicitudes?solicitud=sol-1",
+  },
 };
 
 const KINDS = Object.keys(DATOS) as (keyof DatosPlantilla)[];

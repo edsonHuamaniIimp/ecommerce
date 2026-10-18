@@ -3,17 +3,9 @@ import 'server-only';
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { DomainError } from "@/domain/errors/domain-error";
 
-export class DomainError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly status: number = 400,
-  ) {
-    super(message);
-    this.name = "DomainError";
-  }
-}
+export { DomainError } from "@/domain/errors/domain-error";
 
 type RouteFn = (req: Request) => Promise<NextResponse> | NextResponse;
 type RouteMap = Record<string, RouteFn>;

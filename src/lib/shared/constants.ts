@@ -431,12 +431,18 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "pagos:view",
     "pagos:manage",
     "portal:manage",
+    "dd:ver",
+    "dd:formulario",
+    "dd:revision",
+    "dd:legal",
+    "dd:reputacion",
+    "dd:panel",
   ],
   [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion"],
-  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal"],
-  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion"],
-  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:panel", "dd:revision"],
+  [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"],
+  [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"],
+  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
 };
 
 export const ALL_PERMISSIONS = [
@@ -485,6 +491,13 @@ export const ALL_PERMISSIONS = [
   { key: "events:create", label: "Crear eventos", descripcion: "Crear nuevas versiones de eventos", section: "eventos" },
   { key: "events:edit", label: "Editar eventos", descripcion: "Modificar fechas e informacion de eventos", section: "eventos" },
   { key: "events:toggle", label: "Activar/Cerrar eventos", descripcion: "Alternar estado activo/cerrado de versiones", section: "eventos" },
+  // Modulo Debida Diligencia (reglas y permisos propios del modulo)
+  { key: "dd:ver", label: "Ver Debida Diligencia", descripcion: "Acceder al modulo de Debida Diligencia", section: "debida_diligencia" },
+  { key: "dd:formulario", label: "Completar mi debida diligencia", descripcion: "Completar el formulario de debida diligencia de la empresa", section: "debida_diligencia" },
+  { key: "dd:revision", label: "Bandeja de Debida Diligencia", descripcion: "Revisar documentos y resolver expedientes de debida diligencia (Logistica)", section: "debida_diligencia" },
+  { key: "dd:legal", label: "Revisión legal de Debida Diligencia", descripcion: "Revisar expedientes derivados a Legal, adjuntar informe y resolver (Legal)", section: "debida_diligencia" },
+  { key: "dd:reputacion", label: "Revision reputacional", descripcion: "Evaluar imagen y reputacion de los nombres derivados por Logistica (Comunicaciones)", section: "debida_diligencia" },
+  { key: "dd:panel", label: "Panel de Debida Diligencia", descripcion: "Ver KPIs, vigencias y matriz de empresas del modulo", section: "debida_diligencia" },
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
@@ -529,6 +542,13 @@ export const PERMISSIONS = {
   EMPRESAS_VIEW: "empresas:view",
   EMPRESAS_MANAGE: "empresas:manage",
   PORTAL_MANAGE: "portal:manage",
+  /* Modulo Debida Diligencia: permisos propios, separados del resto de modulos. */
+  DD_VER: "dd:ver",
+  DD_FORMULARIO: "dd:formulario",
+  DD_REVISION: "dd:revision",
+  DD_LEGAL: "dd:legal",
+  DD_REPUTACION: "dd:reputacion",
+  DD_PANEL: "dd:panel",
 } as const satisfies Record<string, Permission>;
 
 export const PERMISSION_SECTIONS = {
@@ -543,7 +563,11 @@ export const PERMISSION_SECTIONS = {
   EVENTOS: "eventos",
   ADMIN: "admin",
   EMPRESAS: "empresas",
+  DEBIDA_DILIGENCIA: "debida_diligencia",
 } as const;
+
+export const ROLES_USUARIOS_PER_PAGE_DEFAULT = 10;
+export const ROLES_USUARIOS_PER_PAGE_MAX = 100;
 
 export const PERMISSION_SECTION_LABELS: Record<string, string> = {
   [PERMISSION_SECTIONS.SISTEMA]: "Sistema",
@@ -557,6 +581,7 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
   [PERMISSION_SECTIONS.EVENTOS]: "Eventos",
   [PERMISSION_SECTIONS.ADMIN]: "Administracion",
   [PERMISSION_SECTIONS.EMPRESAS]: "Empresas",
+  [PERMISSION_SECTIONS.DEBIDA_DILIGENCIA]: "Debida Diligencia",
 };
 
 /* ================================================================
@@ -653,9 +678,47 @@ export const RESULTADOS_APROBACION = {
   PENDIENTE: "pendiente",
   APROBADO: "aprobado",
   RECHAZADO: "rechazado",
+  /** El Asociado observo documentos (no rechaza): el cliente reemplaza y reenvia. */
+  OBSERVADO: "observado",
 } as const;
 
 export type ResultadoAprobacion = (typeof RESULTADOS_APROBACION)[keyof typeof RESULTADOS_APROBACION];
+
+export const RESULTADOS_APROBACION_LABELS: Record<ResultadoAprobacion, string> = {
+  [RESULTADOS_APROBACION.PENDIENTE]: "Pendiente",
+  [RESULTADOS_APROBACION.APROBADO]: "Aprobado",
+  [RESULTADOS_APROBACION.RECHAZADO]: "Rechazado",
+  [RESULTADOS_APROBACION.OBSERVADO]: "Observado",
+};
+
+/** Estado de un documento de la solicitud (baja logica por estado; nunca se borra fisicamente). */
+export const ESTADOS_DOCUMENTO_SOLICITUD = {
+  ACTIVO: "activo",
+  /** Observado por el revisor: el cliente debe subir una nueva version. */
+  OBSERVADO: "observado",
+  /** Version anterior reemplazada por una nueva del mismo requisito/categoria. */
+  REEMPLAZADO: "reemplazado",
+  /** Baja logica manual (no se muestra como documento vigente). */
+  BAJA: "baja",
+} as const;
+
+export type EstadoDocumentoSolicitud = (typeof ESTADOS_DOCUMENTO_SOLICITUD)[keyof typeof ESTADOS_DOCUMENTO_SOLICITUD];
+
+/** Etiquetas por defecto de los estados de documento (la maestra puede sobreescribirlas). */
+export const ESTADOS_DOCUMENTO_SOLICITUD_LABELS: Record<EstadoDocumentoSolicitud, string> = {
+  [ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO]: "Activo",
+  [ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]: "Observado",
+  [ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]: "Reemplazado",
+  [ESTADOS_DOCUMENTO_SOLICITUD.BAJA]: "Baja",
+};
+
+/** item_id de cada estado en la maestra `documento_estado`. */
+export const ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID: Record<string, number> = {
+  [ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO]: 1,
+  [ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]: 2,
+  [ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]: 3,
+  [ESTADOS_DOCUMENTO_SOLICITUD.BAJA]: 4,
+};
 
 /* ================================================================
    Estados de solicitud (pipeline de revision)
@@ -665,11 +728,57 @@ export const ESTADOS_SOLICITUD = {
   EN_PROCESO: "en_proceso",
   APROBADO: "aprobado",
   RECHAZADO: "rechazado",
+  /** El revisor Asociado observo documentos: el cliente debe reemplazarlos y reenviar. */
+  OBSERVADO: "observado",
   PENDIENTE_PAGO: "pendiente_pago",
   PAGADO: "pagado",
 } as const;
 
 export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[keyof typeof ESTADOS_SOLICITUD];
+
+/** Etiquetas por defecto de los estados de solicitud (la maestra puede sobreescribirlas). */
+export const ESTADOS_SOLICITUD_LABELS: Record<EstadoSolicitud, string> = {
+  [ESTADOS_SOLICITUD.PENDIENTE]: "Pendiente",
+  [ESTADOS_SOLICITUD.EN_PROCESO]: "En proceso",
+  [ESTADOS_SOLICITUD.APROBADO]: "Aprobado",
+  [ESTADOS_SOLICITUD.RECHAZADO]: "Rechazado",
+  [ESTADOS_SOLICITUD.OBSERVADO]: "Observado",
+  [ESTADOS_SOLICITUD.PENDIENTE_PAGO]: "Pendiente Pago",
+  [ESTADOS_SOLICITUD.PAGADO]: "Pagado",
+};
+
+/** Filtro por situacion del expediente SGC en la bandeja de solicitudes. */
+export const SOLICITUDES_FILTRO_SGC = {
+  CON: "con",
+  SIN: "sin",
+  OBSERVADO: "observado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type SolicitudesFiltroSgc = (typeof SOLICITUDES_FILTRO_SGC)[keyof typeof SOLICITUDES_FILTRO_SGC];
+
+export const SOLICITUDES_FILTRO_SGC_LABELS: Record<SolicitudesFiltroSgc, string> = {
+  [SOLICITUDES_FILTRO_SGC.CON]: "Con expediente SGC",
+  [SOLICITUDES_FILTRO_SGC.SIN]: "Sin expediente SGC",
+  [SOLICITUDES_FILTRO_SGC.OBSERVADO]: "Observado por SGC",
+  [SOLICITUDES_FILTRO_SGC.RECHAZADO]: "Rechazado por SGC",
+};
+
+/** Orden de la bandeja de solicitudes. */
+export const SOLICITUDES_ORDEN = {
+  RECIENTES: "recientes",
+  ANTIGUOS: "antiguos",
+} as const;
+
+export type SolicitudesOrden = (typeof SOLICITUDES_ORDEN)[keyof typeof SOLICITUDES_ORDEN];
+
+export const SOLICITUDES_ORDEN_LABELS: Record<SolicitudesOrden, string> = {
+  [SOLICITUDES_ORDEN.RECIENTES]: "Mas recientes primero",
+  [SOLICITUDES_ORDEN.ANTIGUOS]: "Mas antiguas primero",
+};
+
+/** Limite de filas para exportar la bandeja filtrada (CSV/Excel). */
+export const SOLICITUDES_EXPORT_MAX_FILAS = 2000;
 
 export const ESTADOS_SOLICITUD_MAESTRA_ID: Record<string, number> = {
   [ESTADOS_SOLICITUD.PENDIENTE]: 1,
@@ -678,6 +787,7 @@ export const ESTADOS_SOLICITUD_MAESTRA_ID: Record<string, number> = {
   [ESTADOS_SOLICITUD.RECHAZADO]: 4,
   [ESTADOS_SOLICITUD.PENDIENTE_PAGO]: 5,
   [ESTADOS_SOLICITUD.PAGADO]: 6,
+  [ESTADOS_SOLICITUD.OBSERVADO]: 7,
 };
 
 /* ================================================================
@@ -687,6 +797,7 @@ export const ESTADOS_REVISION = {
   PENDIENTE: "pendiente",
   APROBADO: "aprobado",
   RECHAZADO: "rechazado",
+  OBSERVADO: "observado",
 } as const;
 
 export type EstadoRevision = (typeof ESTADOS_REVISION)[keyof typeof ESTADOS_REVISION];
@@ -978,6 +1089,401 @@ export const FILTROS_USUARIO_EMPRESA = {
 
 export type FiltroUsuarioEmpresa = (typeof FILTROS_USUARIO_EMPRESA)[keyof typeof FILTROS_USUARIO_EMPRESA];
 
+/* ================================================================
+   Debida Diligencia (DD)
+   Modulo con reglas propias: vigencia de 6 meses, formulario de 4
+   pasos, revision de Logistica, revision reputacional de
+   Comunicaciones y panel/matriz del modulo. Los permisos `dd:*`
+   mantienen el modulo separado del resto del sistema.
+   ================================================================ */
+
+/** Vigencia de una debida diligencia aprobada (meses). */
+export const DD_VIGENCIA_MESES = 6;
+
+/** Dias de anticipacion para marcar una debida diligencia "por vencer". */
+export const DD_DIAS_POR_VENCER = 30;
+
+/** Maximo de registros por pagina en las bandejas del modulo. */
+export const DD_PER_PAGE_MAX = 100;
+
+/** Registros por pagina por defecto en las bandejas del modulo. */
+export const DD_PER_PAGE_DEFAULT = 10;
+
+/** Cantidad de bytes en un megabyte (para limites de archivos). */
+export const BYTES_POR_MB = 1024 * 1024;
+
+/** Prefijo y digitos del codigo visible del expediente (DD-AAAA-NNNN). */
+export const DD_CODIGO_PREFIJO = "DD";
+export const DD_CODIGO_DIGITOS = 4;
+
+/** Maximo de beneficiarios finales declarables. */
+export const DD_MAX_BENEFICIARIOS = 20;
+
+/** Maximo de observaciones por revision. */
+export const DD_MAX_OBSERVACIONES = 20;
+
+/** Porcentaje maximo de participacion de un beneficiario. */
+export const DD_PORCENTAJE_MAX = 100;
+
+/** País de constitución por defecto en el formulario. */
+export const DD_PAIS_DEFAULT = "Perú";
+
+/** Valor del filtro "todas" en las bandejas del modulo. */
+export const DD_FILTRO_TODAS = "todas";
+
+/** Valor del filtro calculado de vigencias proximas a vencer. */
+export const DD_FILTRO_POR_VENCER = "por_vencer";
+
+/** Rutas propias del modulo Debida Diligencia. */
+export const DD_RUTAS = {
+  BASE: "/dashboard/debida-diligencia",
+  FORMULARIO: "/dashboard/debida-diligencia/formulario",
+  BANDEJA: "/dashboard/debida-diligencia/bandeja",
+  LEGAL: "/dashboard/debida-diligencia/legal",
+  REPUTACION: "/dashboard/debida-diligencia/reputacion",
+} as const;
+
+/** Etiqueta para empresas sin expediente de debida diligencia. */
+export const DD_ESTADO_SIN_INICIAR_LABEL = "Sin iniciar";
+
+/** Valor del filtro de empresas sin expediente. */
+export const DD_FILTRO_SIN_INICIAR = "sin_iniciar";
+
+/** Maximo de empresas por pagina en la matriz/exportacion del panel. */
+export const DD_MATRIZ_PER_PAGE_MAX = 500;
+
+/** Mensajes de validacion reutilizados por frontend y backend. */
+export const DD_MENSAJES = {
+  CONSENT_DATOS: "Debe aceptar el tratamiento de datos personales y derechos ARCO.",
+  CONSENT_VERIFICACION: "Debe aceptar la debida diligencia reforzada.",
+  DECLARACION_VERACIDAD: "Debe aceptar la declaración jurada de veracidad.",
+  ACTIVIDAD_OTRO: "Indique cuál es la actividad económica.",
+  DOCUMENTOS_OBLIGATORIOS: "Cargue los cuatro documentos obligatorios.",
+} as const;
+
+export const DD_ESTADOS = {
+  BORRADOR: "borrador",
+  PENDIENTE: "pendiente",
+  EN_REVISION: "en_revision",
+  EN_LEGAL: "en_legal",
+  OBSERVADA: "observada",
+  APROBADA: "aprobada",
+  RECHAZADA: "rechazada",
+} as const;
+
+export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
+
+export const DD_ESTADO_LABELS: Record<string, string> = {
+  [DD_ESTADOS.BORRADOR]: "Borrador",
+  [DD_ESTADOS.PENDIENTE]: "Pendiente",
+  [DD_ESTADOS.EN_REVISION]: "En revisión",
+  [DD_ESTADOS.EN_LEGAL]: "En revisión legal",
+  [DD_ESTADOS.OBSERVADA]: "Observada",
+  [DD_ESTADOS.APROBADA]: "Aprobada",
+  [DD_ESTADOS.RECHAZADA]: "Rechazada",
+};
+
+/** Resultado de la evaluacion de debida diligencia (correo institucional). */
+export const DD_RESULTADOS = {
+  APTO: "apto",
+  APTO_CON_OBSERVACIONES: "apto_con_observaciones",
+  NO_APTO: "no_apto",
+  PENDIENTE: "pendiente",
+} as const;
+
+export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
+
+/** Decision final de Legal sobre un expediente derivado. */
+export const DD_ACCIONES_LEGAL = {
+  APROBAR: "aprobar",
+  RECHAZAR: "rechazar",
+} as const;
+
+export type DdAccionLegal = (typeof DD_ACCIONES_LEGAL)[keyof typeof DD_ACCIONES_LEGAL];
+
+export const DD_RESULTADO_LABELS: Record<DdResultado, string> = {
+  [DD_RESULTADOS.APTO]: "APTO",
+  [DD_RESULTADOS.APTO_CON_OBSERVACIONES]: "APTO CON OBSERVACIONES",
+  [DD_RESULTADOS.NO_APTO]: "NO APTO",
+  [DD_RESULTADOS.PENDIENTE]: "PENDIENTE",
+};
+
+/** Estado de vigencia de una evaluacion concluida. */
+export const DD_ESTADOS_EVALUACION = {
+  VIGENTE: "vigente",
+  REQUIERE_NUEVA_EVALUACION: "requiere_nueva_evaluacion",
+} as const;
+
+export type DdEstadoEvaluacion = (typeof DD_ESTADOS_EVALUACION)[keyof typeof DD_ESTADOS_EVALUACION];
+
+export const DD_ESTADO_EVALUACION_LABELS: Record<DdEstadoEvaluacion, string> = {
+  [DD_ESTADOS_EVALUACION.VIGENTE]: "VIGENTE",
+  [DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION]: "REQUIERE NUEVA EVALUACIÓN",
+};
+
+/** Pasos del formulario de Debida Diligencia (misma fuente para stepper y wizard). */
+export const DD_PASOS: { numero: number; label: string; corto: string }[] = [
+  { numero: 1, label: "Consentimientos", corto: "Consentimientos" },
+  { numero: 2, label: "Empresa", corto: "Empresa" },
+  { numero: 3, label: "Representante y beneficiarios", corto: "Representante" },
+  { numero: 4, label: "Documentos", corto: "Documentos" },
+];
+
+/** Filtros de la bandeja de Logística (mismo orden visual del mockup). */
+export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
+  { value: DD_FILTRO_TODAS, label: "Todas" },
+  { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
+  { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
+  { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
+  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
+  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
+];
+
+/** Filtros de estado de la matriz del panel (incluye empresas sin expediente). */
+export const DD_MATRIZ_ESTADO_FILTROS: { value: string; label: string }[] = [
+  { value: DD_FILTRO_TODAS, label: "Todos" },
+  { value: DD_FILTRO_SIN_INICIAR, label: "Sin iniciar" },
+  { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
+  { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
+  { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
+  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
+  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
+];
+
+export const DD_VINCULOS = {
+  AUSPICIADOR: "auspiciador",
+  EXHIBIDOR: "exhibidor",
+  ASOCIADO_ADHERENTE: "asociado_adherente",
+  MEDIA_PARTNER: "media_partner",
+  PROVEEDOR: "proveedor",
+  ALQUILERES: "alquileres",
+  OTRO: "otro",
+} as const;
+
+export type DdVinculo = (typeof DD_VINCULOS)[keyof typeof DD_VINCULOS];
+
+export const DD_VINCULO_LABELS: Record<string, string> = {
+  [DD_VINCULOS.AUSPICIADOR]: "Auspiciador",
+  [DD_VINCULOS.EXHIBIDOR]: "Exhibidor",
+  [DD_VINCULOS.ASOCIADO_ADHERENTE]: "Asociado Adherente",
+  [DD_VINCULOS.MEDIA_PARTNER]: "Media Partner",
+  [DD_VINCULOS.PROVEEDOR]: "Proveedor",
+  [DD_VINCULOS.ALQUILERES]: "Alquileres",
+  [DD_VINCULOS.OTRO]: "Otro",
+};
+
+/** Catalogo de actividad economica del formulario vigente. */
+export const DD_ACTIVIDADES_ECONOMICAS = [
+  "Combustibles, gases y productos químicos",
+  "Productos y materiales semiacabados",
+  "Productos y equipos manufacturados",
+  "Alimentos, bebidas y consumibles",
+  "Producción de energía y servicios públicos",
+  "Electrónica y telecomunicaciones",
+  "Papel y embalajes",
+  "Productos terminados",
+  "Servicios",
+  "Servicios de construcción",
+  "Ingeniería y servicios asociados",
+  "Mantenimiento, reparación y gestión de instalaciones",
+  "Servicios de consultoría",
+  "Servicios ferroviarios",
+  "Servicios de extracción y refinamiento de recursos",
+  "Servicios de transporte, almacenamiento y logística",
+  "Servicios llave en mano",
+  "Servicios públicos y asociados",
+  "Gestión de residuos y limpieza",
+  "Servicios de salud, seguridad y protección",
+  "Servicios de telecomunicaciones",
+  "Productos de Ocio",
+  "Otro",
+] as const;
+
+/** Valor del catalogo que habilita el campo "indicar cuál". */
+export const DD_ACTIVIDAD_OTRO = "Otro";
+
+export type DdActividadEconomica = (typeof DD_ACTIVIDADES_ECONOMICAS)[number];
+
+export const DD_TIPOS_DOCUMENTO_REPRESENTANTE = {
+  DNI: "DNI",
+  CARNE_EXTRANJERIA: "Carnet de extranjería",
+  PASAPORTE: "Pasaporte",
+} as const;
+
+export type DdTipoDocumentoRepresentante =
+  (typeof DD_TIPOS_DOCUMENTO_REPRESENTANTE)[keyof typeof DD_TIPOS_DOCUMENTO_REPRESENTANTE];
+
+export const DD_DOCUMENTOS = {
+  FICHA_RUC: "ficha_ruc",
+  PODERES: "poderes",
+  IDENTIDAD_REPRESENTANTE: "identidad_representante",
+  DECLARACION_JURADA: "declaracion_jurada",
+} as const;
+
+export type DdDocumentoTipo = (typeof DD_DOCUMENTOS)[keyof typeof DD_DOCUMENTOS];
+
+/** Documentos obligatorios del expediente (mismo orden del formulario). */
+export const DD_DOCUMENTOS_REQUERIDOS: {
+  tipo: DdDocumentoTipo;
+  titulo: string;
+  ayuda: string;
+  permiteFormato: boolean;
+}[] = [
+  {
+    tipo: DD_DOCUMENTOS.FICHA_RUC,
+    titulo: "Ficha RUC o identificación fiscal",
+    ayuda: "Antigüedad menor a 3 meses.",
+    permiteFormato: false,
+  },
+  {
+    tipo: DD_DOCUMENTOS.PODERES,
+    titulo: "Vigencia de poderes del representante legal",
+    ayuda: "Antigüedad menor a 3 meses.",
+    permiteFormato: false,
+  },
+  {
+    tipo: DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE,
+    titulo: "Documento de identidad del representante legal",
+    ayuda: "Ambos lados en un solo documento.",
+    permiteFormato: false,
+  },
+  {
+    tipo: DD_DOCUMENTOS.DECLARACION_JURADA,
+    titulo: "Declaración jurada de compromiso de actualización de información",
+    ayuda: "Descargue el formato vigente y fírmelo antes de cargarlo.",
+    permiteFormato: true,
+  },
+];
+
+/** Extensiones admitidas para los documentos del expediente. */
+export const DD_DOCUMENTO_EXTENSIONES = ["pdf", "jpg", "jpeg", "png"] as const;
+
+/** Valor de `accept` del input de archivo de documentos DD. */
+export const DD_DOCUMENTO_ACCEPT = DD_DOCUMENTO_EXTENSIONES.map((e) => `.${e}`).join(",");
+
+/** Tamaño máximo de cada documento del expediente (10 MB). */
+export const DD_DOCUMENTO_MAX_BYTES = 10 * BYTES_POR_MB;
+
+export const DD_DOCUMENTO_ESTADOS = {
+  PENDIENTE: "pendiente",
+  CARGADO: "cargado",
+  OBSERVADO: "observado",
+  APROBADO: "aprobado",
+  RECHAZADO: "rechazado",
+} as const;
+
+export type DdDocumentoEstado = (typeof DD_DOCUMENTO_ESTADOS)[keyof typeof DD_DOCUMENTO_ESTADOS];
+
+export const DD_DOCUMENTO_ESTADO_LABELS: Record<string, string> = {
+  [DD_DOCUMENTO_ESTADOS.PENDIENTE]: "Pendiente",
+  [DD_DOCUMENTO_ESTADOS.CARGADO]: "Cargado",
+  [DD_DOCUMENTO_ESTADOS.OBSERVADO]: "Observado",
+  [DD_DOCUMENTO_ESTADOS.APROBADO]: "Aprobado",
+  [DD_DOCUMENTO_ESTADOS.RECHAZADO]: "Rechazado",
+};
+
+export const DD_OBSERVACION_AREAS = {
+  LOGISTICA: "logistica",
+  LEGAL: "legal",
+  COMUNICACION: "comunicacion",
+} as const;
+
+export type DdObservacionArea = (typeof DD_OBSERVACION_AREAS)[keyof typeof DD_OBSERVACION_AREAS];
+
+export const DD_OBSERVACION_AREA_LABELS: Record<string, string> = {
+  [DD_OBSERVACION_AREAS.LOGISTICA]: "Logística",
+  [DD_OBSERVACION_AREAS.LEGAL]: "Legal",
+  [DD_OBSERVACION_AREAS.COMUNICACION]: "Comunicaciones",
+};
+
+export const DD_OBSERVACION_ESTADOS = {
+  ABIERTA: "abierta",
+  RESUELTA: "resuelta",
+} as const;
+
+/** Acciones que puede tomar Logística al revisar un expediente. */
+export const DD_ACCIONES_REVISION = {
+  APROBAR: "aprobar",
+  OBSERVAR: "observar",
+  RECHAZAR: "rechazar",
+} as const;
+
+export type DdAccionRevision = (typeof DD_ACCIONES_REVISION)[keyof typeof DD_ACCIONES_REVISION];
+
+export const DD_REPUTACION_ESTADOS = {
+  POR_REVISAR: "por_revisar",
+  EN_ANALISIS: "en_analisis",
+  SIN_HALLAZGOS: "sin_hallazgos",
+  CON_HALLAZGOS: "con_hallazgos",
+  REQUIERE_INFORMACION: "requiere_informacion",
+  CERRADA: "cerrada",
+} as const;
+
+export type DdReputacionEstado = (typeof DD_REPUTACION_ESTADOS)[keyof typeof DD_REPUTACION_ESTADOS];
+
+export const DD_REPUTACION_ESTADO_LABELS: Record<string, string> = {
+  [DD_REPUTACION_ESTADOS.POR_REVISAR]: "Por revisar",
+  [DD_REPUTACION_ESTADOS.EN_ANALISIS]: "En análisis",
+  [DD_REPUTACION_ESTADOS.SIN_HALLAZGOS]: "Sin hallazgos",
+  [DD_REPUTACION_ESTADOS.CON_HALLAZGOS]: "Con hallazgos",
+  [DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION]: "Requiere información",
+  [DD_REPUTACION_ESTADOS.CERRADA]: "Cerrada",
+};
+
+export const DD_REPUTACION_RESULTADOS = {
+  SIN_HALLAZGOS: "sin_hallazgos",
+  CON_HALLAZGOS: "con_hallazgos",
+  REQUIERE_INFORMACION: "requiere_informacion",
+} as const;
+
+export type DdReputacionResultado =
+  (typeof DD_REPUTACION_RESULTADOS)[keyof typeof DD_REPUTACION_RESULTADOS];
+
+export const DD_REPUTACION_RESULTADO_LABELS: Record<string, string> = {
+  [DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS]: "Sin hallazgos",
+  [DD_REPUTACION_RESULTADOS.CON_HALLAZGOS]: "Con hallazgos",
+  [DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION]: "Requiere información adicional",
+};
+
+/** Origen del nombre derivado a revision reputacional. */
+export const DD_REPUTACION_TIPOS = {
+  EMPRESA: "empresa",
+  REPRESENTANTE: "representante",
+  BENEFICIARIO: "beneficiario",
+  NOMBRE: "nombre",
+} as const;
+
+export type DdReputacionTipo = (typeof DD_REPUTACION_TIPOS)[keyof typeof DD_REPUTACION_TIPOS];
+
+export const DD_REPUTACION_TIPO_LABELS: Record<DdReputacionTipo, string> = {
+  [DD_REPUTACION_TIPOS.EMPRESA]: "Empresa",
+  [DD_REPUTACION_TIPOS.REPRESENTANTE]: "Representante legal",
+  [DD_REPUTACION_TIPOS.BENEFICIARIO]: "Beneficiario final",
+  [DD_REPUTACION_TIPOS.NOMBRE]: "Nombre derivado",
+};
+
+/** Mapeo unico resultado -> estado persistido del caso reputacional. */
+export const DD_REPUTACION_RESULTADO_A_ESTADO: Record<DdReputacionResultado, DdReputacionEstado> = {
+  [DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS]: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS,
+  [DD_REPUTACION_RESULTADOS.CON_HALLAZGOS]: DD_REPUTACION_ESTADOS.CON_HALLAZGOS,
+  [DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION]: DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION,
+};
+
+/** Filtros de la bandeja de revision reputacional (mismo orden visual del mockup). */
+export const DD_REPUTACION_FILTROS: { value: string; label: string }[] = [
+  { value: DD_FILTRO_TODAS, label: "Todas" },
+  { value: DD_REPUTACION_ESTADOS.POR_REVISAR, label: "Por revisar" },
+  { value: DD_REPUTACION_ESTADOS.EN_ANALISIS, label: "En análisis" },
+  { value: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, label: "Sin hallazgos" },
+  { value: DD_REPUTACION_ESTADOS.CON_HALLAZGOS, label: "Con hallazgos" },
+  { value: DD_REPUTACION_ESTADOS.CERRADA, label: "Cerradas" },
+];
+
+/** Porcentaje minimo de participacion para declarar un beneficiario final. */
+export const DD_PORCENTAJE_PARTICIPACION_MIN = 10;
+
 /** Opciones de registros por pagina en bandejas con paginacion server-side. */
 export const PER_PAGE_OPCIONES = [10, 15, 50] as const;
 
@@ -995,6 +1501,9 @@ export const REGEX_DNI = /^\d{8}$/;
 
 /** Correo electronico simple (validacion de formularios). */
 export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Nacionalidad: solo letras, espacios, apóstrofes, puntos y guiones. */
+export const REGEX_NACIONALIDAD = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.'-]+$/;
 
 /** Fecha ISO sin hora (AAAA-MM-DD) que exige el IIMP en el plan de cuotas. */
 export const REGEX_FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -1256,6 +1765,7 @@ export const MAESTRA_TABLAS = {
   FACTURACION_ESTADO: "facturacion_estado",
   FACTURACION_TIPO: "facturacion_tipo",
   CUOTA_ESTADO: "cuota_estado",
+  DOCUMENTO_ESTADO: "documento_estado",
 } as const;
 
 export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
@@ -1640,6 +2150,9 @@ export const ALERTA_TIPOS = {
   REVISION_PENDIENTE: "revision_pendiente",
   RESERVA_MULTIPLE: "reserva_multiple",
   CONTRATO_FIRMADO: "contrato_firmado",
+  DOCUMENTOS_OBSERVADOS: "documentos_observados",
+  DD_REPUTACION: "debida_diligencia_reputacion",
+  DD_LEGAL: "debida_diligencia_legal",
 } as const;
 
 /** Modos de la notificacion manual al cliente desde la bandeja de solicitudes. */

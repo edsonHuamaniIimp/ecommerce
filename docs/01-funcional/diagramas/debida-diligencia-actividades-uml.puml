@@ -1,0 +1,102 @@
+@startuml
+title Debida Diligencia - Diagrama de actividades (swimlanes)
+
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityBorderColor #1B365D
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActivityDiamondBorderColor #1B365D
+skinparam ArrowColor #1B365D
+skinparam NoteBackgroundColor #FEF9EE
+skinparam NoteBorderColor #B8860B
+
+|#DDEBF7|Cliente / Portal del Expositor|
+start
+:Ingresar al portal;
+|#FFF2CC|Sistema DD|
+:Verificar cuenta y evento;
+if (¿Empresa vinculada?) then (no)
+  |#DDEBF7|Cliente / Portal del Expositor|
+  :Completar perfil de empresa;
+  |#FFF2CC|Sistema DD|
+  :Revalidar vínculo;
+else (sí)
+endif
+:Recuperar o crear expediente;
+
+|#DDEBF7|Cliente / Portal del Expositor|
+:Completar wizard de 4 pasos;
+:Enviar a revisión;
+|#FFF2CC|Sistema DD|
+:Validar reglas de envío;
+if (¿Validación OK?) then (no)
+  |#DDEBF7|Cliente / Portal del Expositor|
+  :Corregir datos o documentos;
+  :Reenviar;
+  |#FFF2CC|Sistema DD|
+  :Volver a validar;
+else (sí)
+endif
+:Estado EN_REVISION y fecha de envío;
+:Enviar correo al representante;
+
+|#E2EFDA|Logística|
+fork
+  repeat
+    :Revisar expediente y documentos;
+    if (Decisión) then (aprobar)
+      :Aprobar documentos;
+      |#FFF2CC|Sistema DD|
+      :Calcular vigencia +6 meses;
+      :Enviar correo de aprobación;
+      |#DDEBF7|Cliente / Portal del Expositor|
+      :Consultar estado aprobado;
+      stop
+    elseif (observar)
+      :Registrar observaciones y documentos observados;
+      |#FFF2CC|Sistema DD|
+      :Enviar correo con observaciones;
+      |#DDEBF7|Cliente / Portal del Expositor|
+      :Corregir documentos;
+      :Solicitar nueva evaluación;
+      |#FFF2CC|Sistema DD|
+      :Estado EN_REVISION;
+      |#E2EFDA|Logística|
+    else (rechazar)
+      :Registrar motivo del rechazo;
+      |#FFF2CC|Sistema DD|
+      :Estado RECHAZADA y observación de Legal;
+      :Enviar correo de rechazo;
+      |#DDEBF7|Cliente / Portal del Expositor|
+      :Recibir informe legal;
+      stop
+    endif
+  repeat while (¿Requiere corrección?) is (sí) not (no)
+  stop
+fork again
+  if (¿Derivar nombres?) then (sí)
+    |#FFF2CC|Sistema DD|
+    :Crear casos reputacionales;
+    |#FCE4D6|Comunicaciones|
+    :Evaluar nombre y sitio web;
+    if (Resultado) then (sin hallazgos)
+      :Registrar sin hallazgos;
+    elseif (con hallazgos)
+      :Registrar con hallazgos;
+    else (requiere información)
+      :Registrar requiere información;
+    endif
+    if (¿Cerrar caso?) then (sí)
+      :Cerrar caso;
+      |#FFF2CC|Sistema DD|
+      :Enviar alerta a Logística;
+    else (no)
+      |#FCE4D6|Comunicaciones|
+      :Volver a evaluar;
+    endif
+  else (no)
+  endif
+end fork
+stop
+@enduml

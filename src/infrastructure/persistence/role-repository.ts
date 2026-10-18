@@ -4,10 +4,66 @@ import type { IRoleRepository } from "@/domain/ports/role-repository";
 export class RolePrismaRepository implements IRoleRepository {
   async findAll() {
     const rows = await prisma.role.findMany({
-      include: { usuarios: { select: { id: true, userId: true, email: true, roleId: true } } },
+      include: { _count: { select: { usuarios: true } } },
       orderBy: { nombre: "asc" },
     });
-    return rows;
+    return rows.map(({ _count, ...row }) => ({
+      ...row,
+      usuarios: [],
+      count: _count.usuarios,
+    }));
+  }
+
+  async findAllUsuarios(params: {
+    page: number;
+    perPage: number;
+    search?: string;
+    roleId?: string;
+  }) {
+    const where: {
+      roleId?: string;
+      OR?: Array<
+        | { email: { contains: string; mode: "insensitive" } }
+        | { role: { nombre: { contains: string; mode: "insensitive" } } }
+      >;
+    } = {};
+    if (params.roleId) where.roleId = params.roleId;
+    if (params.search?.trim()) {
+      const q = params.search.trim();
+      where.OR = [
+        { email: { contains: q, mode: "insensitive" } },
+        { role: { nombre: { contains: q, mode: "insensitive" } } },
+      ];
+    }
+    const [rows, total] = await Promise.all([
+      prisma.userRole.findMany({
+        where,
+        select: {
+          id: true,
+          userId: true,
+          email: true,
+          roleId: true,
+          role: { select: { nombre: true } },
+        },
+        orderBy: { email: "asc" },
+        skip: (params.page - 1) * params.perPage,
+        take: params.perPage,
+      }),
+      prisma.userRole.count({ where }),
+    ]);
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        email: row.email,
+        roleId: row.roleId,
+        roleNombre: row.role.nombre,
+      })),
+      total,
+      page: params.page,
+      perPage: params.perPage,
+      totalPages: Math.ceil(total / params.perPage),
+    };
   }
 
   async findById(id: string) {
@@ -36,6 +92,14 @@ export class RolePrismaRepository implements IRoleRepository {
 
   async updatePermisos(id: string, permisos: string[]) {
     const row = await prisma.role.update({ where: { id }, data: { permisos } });
+    return { ...row, usuarios: [] };
+  }
+
+  async updateModulos(id: string, modulos: string[], permisos: string[]) {
+    const row = await prisma.role.update({
+      where: { id },
+      data: { modulos, permisos },
+    });
     return { ...row, usuarios: [] };
   }
 }
