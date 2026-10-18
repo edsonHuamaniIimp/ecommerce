@@ -28,6 +28,8 @@ interface Props {
   subiendoRequisito: string | null;
   onAddRequisito: (requisito: string, file: File) => Promise<void>;
   onRemoveRequisito: (requisito: string) => void;
+  /** Stand(s) de esta reserva (ej. "197, 198"), para verificar el contrato firmado. */
+  standsLabel: string;
 }
 
 /**
@@ -50,6 +52,7 @@ export function StepContrato({
   subiendoRequisito,
   onAddRequisito,
   onRemoveRequisito,
+  standsLabel,
 }: Props) {
   const firmadoRef = useRef<HTMLInputElement>(null);
   /** Requisito cuyo modal de carga (drag & drop) esta abierto; null = cerrado. */
@@ -145,6 +148,11 @@ export function StepContrato({
         <div className="flex items-center gap-2 border-b border-border bg-secondary px-3 py-2">
           <PenLine className="h-3.5 w-3.5 text-primary" />
           <span className="text-[10px] font-semibold tracking-wider text-primary uppercase">Contrato firmado</span>
+          {standsLabel && (
+            <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              Stand(s): {standsLabel}
+            </span>
+          )}
         </div>
         <div className="space-y-2 px-3 py-3">
           {/* Firma digital: estampa la imagen de firma del Perfil en el contrato. */}
@@ -203,9 +211,14 @@ export function StepContrato({
           {contratoFirmadoUrl && (
             <a href={contratoFirmadoUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[11px] font-medium text-success hover:underline">
               <FileText className="h-3.5 w-3.5" />
-              <span>Contrato firmado adjunto</span>
+              <span>Contrato firmado adjunto: {stringUtils.nombreArchivo(contratoFirmadoUrl)}</span>
             </a>
           )}
+          <p className="text-[11px] text-muted-foreground">
+            Verifica que el PDF firmado corresponda a este contrato (stand{standsLabel.includes(",") ? "s" : ""}{" "}
+            <span className="font-medium text-foreground">{standsLabel}</span>). No reutilices el firmado de otra reserva:
+            el sistema lo rechaza si ya fue adjuntado a otra solicitud.
+          </p>
         </div>
       </div>
 

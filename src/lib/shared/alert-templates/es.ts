@@ -34,4 +34,8 @@ export const PLANTILLAS_ALERTA_ES: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Documento anulado o rechazado",
     mensaje: `El sistema de facturacion anulo o rechazo el documento '${documento}' de la cuota ${cuota}. Se reemitira; revisa la cuenta corriente del IIMP.`,
   }),
+  "documentos-observados": ({ stands, total }) => ({
+    titulo: "Documentos observados",
+    mensaje: `El area revisor observo ${total} documento(s) de la solicitud ${stands}. Reemplaza las nuevas versiones y reenvia la solicitud a revision.`,
+  }),
 };

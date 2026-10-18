@@ -206,9 +206,52 @@ export class AuthPrismaRepository implements IAuthRepository {
    * con el mismo userId y se reescribe `user|<email>` para que el login siga resolviendo.
    */
   async actualizarEmailCuenta(userId: string, email: string): Promise<void> {
-    await prisma.userRole.updateMany({
-      where: { userId },
-      data: { email, userId: `user|${email}` },
+    const nuevoUserId = `user|${email}`;
+    /*
+     * El userId es el identificador de dueno de solicitudes y documentos
+     * (`user|<email>`). Al adoptar un correo real (cuenta provisional), se migran
+     * las referencias historicas en la MISMA transaccion: ninguna solicitud ni
+     * documento queda huerfano. Solo se actualizan identificadores/contacto;
+     * nunca se elimina ni se toca `flg_activo`.
+     */
+    await prisma.$transaction(async (tx) => {
+      const cuenta = await tx.userRole.findFirst({
+        where: { userId },
+        select: { email: true },
+      });
+      const emailAnterior = cuenta?.email ?? null;
+
+      const solicitudes = await tx.solicitud.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      const solicitudIds = solicitudes.map((s) => s.id);
+
+      await tx.userRole.updateMany({
+        where: { userId },
+        data: { email, userId: nuevoUserId },
+      });
+
+      await tx.solicitud.updateMany({
+        where: { userId },
+        data: {
+          userId: nuevoUserId,
+          ...(emailAnterior ? { email } : {}),
+        },
+      });
+
+      await tx.solicitudDocumento.updateMany({
+        where: { userId },
+        data: { userId: nuevoUserId },
+      });
+
+      /* Auditoria visible (uploadedBy): solo documentos de estas solicitudes. */
+      if (emailAnterior && solicitudIds.length > 0) {
+        await tx.solicitudDocumento.updateMany({
+          where: { solicitudId: { in: solicitudIds }, uploadedBy: emailAnterior },
+          data: { uploadedBy: email },
+        });
+      }
     });
   }
 

@@ -1,4 +1,4 @@
-import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 
 interface RevisionLike {
@@ -15,6 +15,8 @@ interface DocumentoLike {
   userId?: string | null;
   requisito?: string | null;
   createdAt?: string | Date | null;
+  /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
+  estado?: string | null;
 }
 
 /** Campos de la solicitud necesarios para decidir si el cliente puede subir documentos. */
@@ -209,13 +211,21 @@ export function requiereDocsReevaluacion(s: SolicitudDocumentosGate): boolean {
  * Anexos requeridos que aun no tienen un archivo adjunto (se identifica por el
  * `requisito` de cada documento). Devuelve las claves faltantes de `ANEXOS_REQUERIDOS`.
  */
+/**
+ * True si el documento cuenta como vigente (sin estado = legacy/activo; los
+ * observados/reemplazados/dados de baja no cubren el requisito).
+ */
+function documentoVigente(d: DocumentoLike): boolean {
+  return !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+}
+
 export function anexosRequeridosFaltantes(
   docs: DocumentoLike[] | null | undefined,
   requeridos: { key: string }[] = ANEXOS_REQUERIDOS,
 ): string[] {
   const presentes = new Set(
     (docs ?? [])
-      .filter((d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+      .filter((d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && documentoVigente(d))
       .map((d) => d.requisito)
       .filter((r): r is string => Boolean(r)),
   );
@@ -237,16 +247,26 @@ export function faltanAnexosBloqueantes(docs: DocumentoLike[] | null | undefined
 }
 
 /**
+ * Ventana de **observacion local**: el revisor Asociado observo documentos; el
+ * cliente puede subir nuevas versiones de los documentos observados.
+ */
+export function enVentanaObservacionLocal(s: SolicitudDocumentosGate): boolean {
+  return s.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO;
+}
+
+/**
  * Regla unica (server + cliente) para que un usuario **cliente** adjunte documentos:
  *  - contrato de reserva (el admin ya subio el contrato), o
  *  - ventana Legal (SGC) mientras no se enviaron documentos al SGC, o
- *  - preparando una re-evaluacion.
+ *  - preparando una re-evaluacion, o
+ *  - solicitud observada por el Asociado (reemplazo de documentos).
  */
 export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean {
   return (
     enVentanaContratoReserva(s) ||
     enVentanaLegalSgc(s) ||
     enVentanaSubsanacionSgc(s) ||
-    requiereDocsReevaluacion(s)
+    requiereDocsReevaluacion(s) ||
+    enVentanaObservacionLocal(s)
   );
 }

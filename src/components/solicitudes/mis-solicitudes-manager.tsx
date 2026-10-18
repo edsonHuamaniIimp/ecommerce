@@ -4,9 +4,10 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2 } from "lucide-react";
+import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, AlertCircle, PenLine } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useConfirm } from "@/hooks/use-confirm";
 import { Pagination } from "@/components/shared/pagination";
 import { useSearchParams } from "next/navigation";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
@@ -14,6 +15,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
+import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { MontajistaAsignada } from "./montajista-asignada";
 import { EstadoSolicitudBadge } from "./estado-solicitud-badge";
 import { useSesion } from "@/hooks/use-sesion";
@@ -21,10 +23,10 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, ANEXOS_REQUERIDOS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -43,6 +45,10 @@ function puedeSolicitarReevaluacion(row: SolicitudRow) {
   return true;
 }
 function faltanDocumentosMultiStand(row: SolicitudRow) { return requiereDocsReevaluacion(row); }
+/** En ventana de contrato de reserva: faltan anexos obligatorios (Vigencia/DNI). */
+function faltanAnexosReserva(row: SolicitudRow) {
+  return enVentanaContratoReserva(row) && anexosBloqueantesFaltantes(row.docsAdjuntos).length > 0;
+}
 
 /** Documento del administrador mas reciente (contrato vigente para descargar). */
 function adminDocReciente(row: SolicitudRow) {
@@ -111,6 +117,7 @@ function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado:
 function claseEstadoArea(estado: string): string {
   if (estado === RESULTADOS_APROBACION.APROBADO) return BADGE_STYLES.SUCCESS;
   if (estado === RESULTADOS_APROBACION.RECHAZADO) return BADGE_STYLES.DESTRUCTIVE;
+  if (estado === RESULTADOS_APROBACION.OBSERVADO) return BADGE_STYLES.WARNING;
   return BADGE_STYLES.WARNING;
 }
 
@@ -179,6 +186,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
+  const documentoEstadoLabels = useMaestraLabels(
+    MAESTRA_TABLAS.DOCUMENTO_ESTADO,
+    ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
+    ESTADOS_DOCUMENTO_SOLICITUD_LABELS,
+  );
   const [modifying, setModifying] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [modificarOpen, setModificarOpen] = useState(false);
@@ -189,6 +201,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   /** RF-08: preview del recorte del pabellon con el stand destacado. */
   const [recorteBloque, setRecorteBloque] = useState<{ solicitudId: string; bloqueIds: string[]; etiqueta: string } | null>(null);
   const [guardandoRecorte, setGuardandoRecorte] = useState(false);
+  const [reenviandoObservacion, setReenviandoObservacion] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
   const recorteRef = useRef<RecortePlanoHandle | null>(null);
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
@@ -249,6 +263,28 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
     setClienteUploadRow(data);
     setClienteUploadModo(modo);
     setClienteUploadOpen(true);
+  };
+
+  /** Reenvio tras observacion local: el backend valida que cada observado tenga reemplazo. */
+  const handleReenviarObservacion = async (row: SolicitudRow) => {
+    const ok = await confirm({
+      title: "Reenviar solicitud a revision",
+      description:
+        "Se validaran las nuevas versiones de los documentos observados y la solicitud volvera a la revision del area Asociado. ¿Continuar?",
+      confirmLabel: "Reenviar",
+    });
+    if (!ok) return;
+    setReenviandoObservacion(true);
+    try {
+      await solicitudesService.reenviarObservacion({ solicitudId: row.id });
+      toast.success("Solicitud reenviada a revision");
+      await openDetail(row.id);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo reenviar la solicitud");
+    } finally {
+      setReenviandoObservacion(false);
+    }
   };
 
   const load = useCallback(async (p?: number, s?: string, pp?: number) => {
@@ -354,7 +390,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <span className="text-xs text-muted-foreground">{row.tipoStand ?? "-"}</span>
                         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                           <CalendarDays className="h-3.5 w-3.5" />
-                          {dateUtils.formatDateTime(row.updatedAt)}
+                          {dateUtils.formatDateTime(row.createdAt)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -416,19 +452,21 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         </div>
                       )}
 
-                      {(tieneReevaluacionPendiente(row) || faltanDocumentosMultiStand(row)) && (
+                      {(tieneReevaluacionPendiente(row) || faltanDocumentosMultiStand(row) || faltanAnexosReserva(row)) && (
                         <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
                           <span className="font-semibold">Accion requerida: </span>
                           {tieneReevaluacionPendiente(row)
                             ? "Tienes una re-evaluacion pendiente de revision."
-                            : "Faltan documentos por adjuntar para continuar con tu solicitud."}
+                            : faltanAnexosReserva(row)
+                              ? "Faltan anexos obligatorios (Vigencia de Poderes y DNI). Adjuntalos para continuar."
+                              : "Faltan documentos por adjuntar para continuar con tu solicitud."}
                         </p>
                       )}
 
                       <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                           <Paperclip className="h-3.5 w-3.5" />
-                          {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
+                          {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                         </span>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                           {puedePagarNiubizz(row) && (
@@ -445,7 +483,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
-                              <span>Subir contrato firmado</span>
+                              <span>Subir contrato y documentos</span>
                             </Button>
                           )}
                           {enVentanaLegalSgc(row) && (
@@ -505,9 +543,9 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
-                          {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
+                          {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                         </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground md:table-cell">{dateUtils.formatDateTime(row.updatedAt)}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {row.flgActivo === false && (
@@ -590,7 +628,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
           {detailRow && (
             <>
               {/* Resumen */}
-              <ModalSection title="Informacion general" meta={dateUtils.formatDateTime(detailRow.updatedAt)}>
+              <ModalSection title="Informacion general" meta={dateUtils.formatDateTime(detailRow.createdAt)}>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Stand</span>
@@ -765,17 +803,25 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-gold" />
                                   <a href={doc.url} target="_blank" className="text-amber-800 hover:text-amber-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
+                                  )}
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
+                                  )}
                                   <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setDeleteConfirm(doc.id);
-                                    }}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
+                                  {(!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
+                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setDeleteConfirm(doc.id);
+                                      }}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -789,17 +835,25 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
                                   <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
+                                  )}
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
+                                  )}
                                   <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setDeleteConfirm(doc.id);
-                                    }}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
+                                  {(!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
+                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setDeleteConfirm(doc.id);
+                                      }}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -810,6 +864,84 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   })()}
                 </ModalSection>
               ) : null}
+
+              {/* Solicitud observada por Asociado: reemplazar documentos y reenviar */}
+              {detailRow.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && detailRow.flgActivo !== false && (() => {
+                const docs = detailRow.docsAdjuntos ?? [];
+                const observados = docs.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+                /* Reenvio solo cuando TODOS los observados tienen una version nueva vigente. */
+                const pendientesReemplazo = observados.filter(
+                  (obs) =>
+                    !docs.some(
+                      (d) =>
+                        (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+                        (d.categoria ?? null) === (obs.categoria ?? null) &&
+                        (d.requisito ?? null) === (obs.requisito ?? null) &&
+                        new Date(d.createdAt).getTime() > new Date(obs.createdAt).getTime(),
+                    ),
+                );
+                return (
+                  <ModalSection title="Accion requerida">
+                    <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-warning">Documentos observados</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
+                            El area revisora observo documentos de tu solicitud. Sube una nueva version de cada documento
+                            observado y reenvia la solicitud a revision.
+                          </p>
+                          {observados.length > 0 && (
+                            <ul className="mt-1.5 space-y-1">
+                              {observados.map((d) => (
+                                <li key={d.id} className="text-[11px] text-foreground">
+                                  <span className="font-medium">{ANEXOS_REQUERIDOS.find((a) => a.key === d.requisito)?.label ?? d.nombre}</span>
+                                  {d.motivoObservacion && <span className="text-muted-foreground"> – {d.motivoObservacion}</span>}
+                                  {d.userId === null && (
+                                    <span className="block text-[10px] text-muted-foreground">
+                                      La nueva version de este documento la sube el administrador.
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        {observados.some((d) => d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && d.userId !== null) && (
+                          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                            <Upload className="h-3.5 w-3.5" />
+                            <span>Subir nueva version</span>
+                          </Button>
+                        )}
+                        {observados.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) && (
+                          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                            <PenLine className="h-3.5 w-3.5" />
+                            <span>Firmar y subir contrato</span>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs"
+                          disabled={reenviandoObservacion || observados.length === 0 || pendientesReemplazo.length > 0}
+                          onClick={() => { void handleReenviarObservacion(detailRow); }}
+                        >
+                          {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                          <span>
+                            {reenviandoObservacion
+                              ? "Reenviando..."
+                              : pendientesReemplazo.length > 0
+                                ? `Falta subir ${pendientesReemplazo.length} documento(s)`
+                                : "Reenviar a revision"}
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                  </ModalSection>
+                );
+              })()}
 
               {/* Esperando Contrato */}
               {detailRow.standCodes?.length > 1 && detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && (detailRow.docsAdjuntosCount ?? 0) === 0 && detailRow.flgActivo !== false && (
@@ -1196,6 +1328,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
           </DialogContent>
         </Dialog>
       )}
+      {confirmDialog}
     </>
   );
 }

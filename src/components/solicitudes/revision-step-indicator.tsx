@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Check, Scale, X } from "lucide-react";
+import { AlertCircle, Check, Scale, X } from "lucide-react";
 import { REVISION_AREA_ORDER, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, RESULTADOS_APROBACION, type ResultadoAprobacion, type RevisionArea } from "@/lib/shared/constants";
 
 interface Props {
@@ -42,7 +42,8 @@ export function RevisionStepIndicator({
         const isCurrent = currentStep === idx;
         const isDone = estado === RESULTADOS_APROBACION.APROBADO;
         const isRejected = estado === RESULTADOS_APROBACION.RECHAZADO;
-        const isActive = isDone || isRejected;
+        const isObserved = estado === RESULTADOS_APROBACION.OBSERVADO;
+        const isActive = isDone || isRejected || isObserved;
         const canClick = stepCanGo(idx);
         return (
           <Fragment key={area}>
@@ -61,6 +62,8 @@ export function RevisionStepIndicator({
                     ? "bg-success text-success-foreground ring-success/30"
                     : isRejected
                     ? "bg-destructive text-destructive-foreground ring-destructive/30"
+                    : isObserved
+                    ? "bg-warning text-foreground ring-warning/30"
                     : isCurrent
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/30 ring-primary"
                     : isActive
@@ -68,7 +71,7 @@ export function RevisionStepIndicator({
                     : "bg-secondary text-muted-foreground ring-transparent"
                 }`}
               >
-                {isDone ? <Check className="h-4 w-4" /> : isRejected ? <X className="h-4 w-4" /> : idx + 1}
+                {isDone ? <Check className="h-4 w-4" /> : isRejected ? <X className="h-4 w-4" /> : isObserved ? <AlertCircle className="h-4 w-4" /> : idx + 1}
               </span>
               <span
                 className={`text-xs transition-colors duration-300 ${

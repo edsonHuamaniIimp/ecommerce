@@ -1,11 +1,21 @@
 import { z } from "zod";
-import { MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
   page: z.coerce.number().int().min(1).default(1),
-  per_page: z.coerce.number().int().min(1).max(50).default(10),
-  search: z.string().optional(),
+  /* 500 permite la exportacion completa (CSV/Excel) en pocas llamadas. */
+  per_page: z.coerce.number().int().min(1).max(500).default(10),
+  search: z.string().max(200).optional(),
+  estado: z.enum(Object.values(ESTADOS_SOLICITUD) as [string, ...string[]]).optional(),
+  empresa: z.string().max(200).optional(),
+  standCode: z.string().max(50).optional(),
+  areaPendiente: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]).optional(),
+  sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),
+  docsObservados: z.enum(["true", "false"]).optional(),
+  desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  orden: z.enum(Object.values(SOLICITUDES_ORDEN) as [string, ...string[]]).default(SOLICITUDES_ORDEN.RECIENTES),
 });
 
 export const solicitudesDetalleSchema = z.object({
@@ -17,6 +27,13 @@ export const solicitudesRevisarSchema = z.object({
   area: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]),
   estado: z.enum(Object.values(RESULTADOS_APROBACION) as [string, ...string[]]),
   comentario: z.string().max(2000).optional(),
+  /** Documentos (IDs) observados por el Asociado; obligatorio si estado = observado. */
+  documentosObservados: z.array(z.string().uuid()).max(50).optional(),
+});
+
+/** Reenvio del cliente tras una observacion local (Asociado). */
+export const solicitudesReenviarObservacionSchema = z.object({
+  solicitudId: z.string().uuid(),
 });
 
 /** Notificacion manual del resultado al cliente desde la bandeja. */

@@ -21,4 +21,15 @@ export const archivoUtils = {
     const ext = archivoUtils.extensionDeArchivo(nombre);
     return Boolean(ext) && permitidas.includes(ext);
   },
+
+  /** Descarga un Blob en el navegador con el nombre indicado (no-op en SSR). */
+  descargarBlob(blob: Blob, nombre: string): void {
+    if (typeof window === "undefined") return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nombre;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

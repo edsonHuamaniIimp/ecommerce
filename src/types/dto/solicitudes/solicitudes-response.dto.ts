@@ -58,11 +58,12 @@ export interface SolicitudDTO {
   documentos: string[];
   imagenes: string[];
   updatedAt: string;
+  createdAt: string;
   docsAdjuntosCount: number;
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: string }>;
+    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: string; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: string | null }>;
   revisiones: RevisionDTO[];
   reevaluaciones: ReevaluacionDTO[];
   revisionAsociado: RevisionDTO | null;

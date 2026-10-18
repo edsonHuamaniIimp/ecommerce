@@ -743,12 +743,23 @@ model SolicitudDocumento {
   requisito   String?  @db.VarChar(30)
   /// Origen del documento (`generado` = plantilla del sistema | `personalizado` | null = legacy/subida simple).
   origen      String?  @db.VarChar(20)
+  /// SHA-256 del archivo firmado: impide reutilizar el mismo firmado en otra solicitud.
+  sha256      String?  @db.VarChar(64)
+  /// Estado logico del documento (ver ESTADOS_DOCUMENTO_SOLICITUD): activo | observado | reemplazado | baja.
+  estado      String   @default("activo") @db.VarChar(20)
+  /// Justificacion de la observacion del revisor (estado = observado).
+  motivoObservacion String? @map("motivo_observacion") @db.VarChar(1000)
+  /// Revisor que observo el documento (email).
+  observadoPor String? @map("observado_por") @db.VarChar(200)
+  observadoAt DateTime? @map("observado_at")
   flgActivo   Boolean  @default(true) @map("flg_activo")
   createdAt   DateTime @default(now()) @map("created_at")
 
   solicitud Solicitud @relation(fields: [solicitudId], references: [id], name: "SolicitudDocs")
 
   @@index([solicitudId])
+  @@index([sha256])
+  @@index([solicitudId, estado])
   @@map("solicitud_documento")
 }
 

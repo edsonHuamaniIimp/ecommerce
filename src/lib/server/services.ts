@@ -101,7 +101,7 @@ export const services = {
   sgc: sgcIntegracion,
   sgcWebhook,
   sgcOutbox,
-  solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion),
+  solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion, getStorage()),
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),

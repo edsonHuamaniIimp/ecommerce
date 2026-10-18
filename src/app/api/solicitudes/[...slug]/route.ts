@@ -9,6 +9,7 @@ export const { GET, POST } = createRouter({
   },
   POST: {
     revisar: (req) => solicitudesController.revisar(req),
+    "reenviar-observacion": (req) => solicitudesController.reenviarObservacion(req),
     notificar: (req) => solicitudesController.notificar(req),
     modificar: (req) => solicitudesController.modificar(req),
     reevaluar: (req) => solicitudesController.reevaluar(req),

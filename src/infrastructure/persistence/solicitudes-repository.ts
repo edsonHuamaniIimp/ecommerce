@@ -3,11 +3,13 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
+import { nombreCompleto } from "@/lib/shared/utils/nombre";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 
@@ -54,6 +56,8 @@ function computeEstadoSolicitud(revisiones: RevisionEntity[]): string {
   if (revisiones.length === 0) return ESTADOS_SOLICITUD.PENDIENTE;
   const todasPendientes = revisiones.every((r) => r.estado === ESTADOS_REVISION.PENDIENTE);
   if (todasPendientes) return ESTADOS_SOLICITUD.PENDIENTE;
+  /* Observacion local: el flujo se detiene hasta que el cliente reemplace y reenvie. */
+  if (revisiones.some((r) => r.estado === ESTADOS_REVISION.OBSERVADO)) return ESTADOS_SOLICITUD.OBSERVADO;
   const algunaRespondio = revisiones.some((r) => r.estado !== ESTADOS_REVISION.PENDIENTE);
   const todasRespondieron = areasRevisionLocal(revisiones).every((area) => {
     const rev = revisiones.find((r) => r.area === area);
@@ -177,6 +181,10 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       categoria: d.categoria,
       requisito: d.requisito,
       origen: d.origen,
+      estado: d.estado,
+      motivoObservacion: d.motivoObservacion,
+      observadoPor: d.observadoPor,
+      observadoAt: d.observadoAt,
       createdAt: d.createdAt,
     }));
 
@@ -189,7 +197,24 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
         select: { nombreEmpresa: true, nombre: true, apellidos: true },
       });
       if (!empresa && userRole?.nombreEmpresa) empresa = userRole.nombreEmpresa;
-      nombreUsuario = [userRole?.nombre, userRole?.apellidos].filter(Boolean).join(" ") || userRole?.nombre || null;
+      nombreUsuario = nombreCompleto(userRole?.nombre, userRole?.apellidos);
+    }
+
+    /*
+     * Cuentas provisionales (`acceso-<ruc>@acceso.iimp`): si el usuario ya no existe
+     * en user_role o el stand no trae empresa, se resuelve la ficha por el documento
+     * embebido en el correo (razon social y representante legal).
+     */
+    if (!empresa || !nombreUsuario) {
+      const documento = documentoDesdeEmailProvisional(row.email);
+      if (documento) {
+        const empresaProvisional = await prisma.empresa.findFirst({
+          where: { ruc: documento },
+          select: { razonSocial: true, representanteLegalNombre: true },
+        });
+        if (!empresa && empresaProvisional?.razonSocial) empresa = empresaProvisional.razonSocial;
+        if (!nombreUsuario) nombreUsuario = empresaProvisional?.representanteLegalNombre ?? null;
+      }
     }
 
     return {
@@ -229,6 +254,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     docsAdminCount: docsList.filter((d) => d.userId === null).length,
     docsAdjuntos: docsList,
     updatedAt: row.updatedAt,
+    createdAt: row.createdAt,
     revisiones,
     reevaluaciones,
     revisionAsociado: revisiones.find((r) => r.area === REVISION_AREAS.ASOCIADO) ?? null,
@@ -246,35 +272,156 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   };
 }
 
+/** Inicio/fin del dia en hora de Peru (UTC-5, sin horario de verano). */
+function inicioDiaLima(fecha: string): Date {
+  return new Date(`${fecha}T00:00:00.000-05:00`);
+}
+
+function finDiaLima(fecha: string): Date {
+  return new Date(`${fecha}T23:59:59.999-05:00`);
+}
+
 export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
     /* Excluye las bajas logicas (`flgActivo = false`) en TODOS los listados. */
-    const where: Record<string, unknown> = { flgActivo: true };
+    const and: Record<string, unknown>[] = [{ flgActivo: true }];
     if (params.eventoId) {
-      where.OR = [
-        { gessStand: { eventoId: params.eventoId } },
-        { stands: { some: { gessStand: { eventoId: params.eventoId } } } },
-      ];
+      and.push({
+        OR: [
+          { gessStand: { eventoId: params.eventoId } },
+          { stands: { some: { gessStand: { eventoId: params.eventoId } } } },
+        ],
+      });
     }
     if (params.userId) {
-      where.userId = params.userId;
+      and.push({ userId: params.userId });
+    }
+    if (params.search) {
+      const q = params.search;
+      /* La empresa/usuario puede venir de user_role (fallback cuando el stand no la trae). */
+      const usuarios = await prisma.userRole.findMany({
+        where: {
+          OR: [
+            { nombreEmpresa: { contains: q, mode: "insensitive" } },
+            { nombre: { contains: q, mode: "insensitive" } },
+            { apellidos: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: { userId: true },
+        take: 500,
+      });
+      const userIds = usuarios.map((u) => u.userId);
+      and.push({
+        OR: [
+          { email: { contains: q, mode: "insensitive" } },
+          { iimpContrato: { contains: q, mode: "insensitive" } },
+          { iimpClienteCodigo: { contains: q, mode: "insensitive" } },
+          ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+          { gessStand: { is: { OR: [{ empresa: { contains: q, mode: "insensitive" } }, { standCode: { contains: q, mode: "insensitive" } }] } } },
+          { stands: { some: { gessStand: { OR: [{ empresa: { contains: q, mode: "insensitive" } }, { standCode: { contains: q, mode: "insensitive" } }] } } } },
+        ],
+      });
+    }
+    if (params.empresa) {
+      const q = params.empresa;
+      const usuarios = await prisma.userRole.findMany({
+        where: { nombreEmpresa: { contains: q, mode: "insensitive" } },
+        select: { userId: true },
+        take: 500,
+      });
+      const userIds = usuarios.map((u) => u.userId);
+      and.push({
+        OR: [
+          ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+          { gessStand: { is: { empresa: { contains: q, mode: "insensitive" } } } },
+          { stands: { some: { gessStand: { empresa: { contains: q, mode: "insensitive" } } } } },
+        ],
+      });
+    }
+    if (params.standCode) {
+      const q = params.standCode;
+      and.push({
+        OR: [
+          { gessStand: { is: { standCode: { contains: q, mode: "insensitive" } } } },
+          { stands: { some: { gessStand: { standCode: { contains: q, mode: "insensitive" } } } } },
+        ],
+      });
+    }
+    if (params.areaPendiente) {
+      and.push({ revisiones: { some: { area: params.areaPendiente, estado: ESTADOS_REVISION.PENDIENTE } } });
+    }
+    if (params.docsObservados) {
+      and.push({ docsAdjuntos: { some: { flgActivo: true, estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO } } });
+    }
+    if (params.sgc === SOLICITUDES_FILTRO_SGC.CON) {
+      and.push({ sgcExpediente: { isNot: null } });
+    } else if (params.sgc === SOLICITUDES_FILTRO_SGC.SIN) {
+      and.push({ sgcExpediente: { is: null } });
+    } else if (params.sgc === SOLICITUDES_FILTRO_SGC.OBSERVADO) {
+      and.push({ sgcExpediente: { is: { lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED } } });
+    } else if (params.sgc === SOLICITUDES_FILTRO_SGC.RECHAZADO) {
+      and.push({ sgcExpediente: { is: { lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED } } });
+    }
+    if (params.desde || params.hasta) {
+      and.push({
+        createdAt: {
+          ...(params.desde ? { gte: inicioDiaLima(params.desde) } : {}),
+          ...(params.hasta ? { lte: finDiaLima(params.hasta) } : {}),
+        },
+      });
+    }
+    const where = { AND: and };
+    const orderBy = { updatedAt: params.orden === "antiguos" ? ("asc" as const) : ("desc" as const) };
+    const skip = (params.page - 1) * params.perPage;
+    const include = {
+      gessStand: true,
+      revisiones: true,
+      reevaluaciones: { orderBy: { createdAt: "desc" as const } },
+      docsAdjuntos: { where: { flgActivo: true } },
+      facturaciones: { where: { flgActivo: true } },
+      sgcExpediente: { include: { _count: { select: { documentos: true } } } },
+      _count: { select: { docsAdjuntos: { where: { flgActivo: true } } } },
+    } satisfies Prisma.SolicitudInclude;
+
+    /*
+     * El estado es calculado (revisiones), no una columna: si se filtra por estado se
+     * resuelven primero los IDs que cumplen y luego se hidrata solo la pagina pedida.
+     */
+    if (params.estado) {
+      const lite = await prisma.solicitud.findMany({
+        where: where as never,
+        select: { id: true, estado: true, revisiones: { select: { area: true, estado: true } } },
+        orderBy,
+      });
+      const ids = lite
+        .filter((r) => (r.estado || computeEstadoSolicitud(r.revisiones as unknown as RevisionEntity[])) === params.estado)
+        .map((r) => r.id);
+      const total = ids.length;
+      const pageIds = ids.slice(skip, skip + params.perPage);
+      const rows = pageIds.length
+        ? await prisma.solicitud.findMany({ where: { id: { in: pageIds } }, include })
+        : [];
+      const rowsById = new Map(rows.map((r) => [r.id, r]));
+      const data = await Promise.all(
+        pageIds.map((id) => rowsById.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r)).map((r) => mapRow(r)),
+      );
+      return {
+        data,
+        total,
+        page: params.page,
+        perPage: params.perPage,
+        totalPages: Math.ceil(total / params.perPage),
+      };
     }
 
     const [total, rows] = await Promise.all([
       prisma.solicitud.count({ where: where as never }),
       prisma.solicitud.findMany({
         where: where as never,
-        include: {
-          gessStand: true,
-          revisiones: true,
-          reevaluaciones: { orderBy: { createdAt: "desc" } },
-          docsAdjuntos: { where: { flgActivo: true } },
-          facturaciones: { where: { flgActivo: true } },
-          sgcExpediente: { include: { _count: { select: { documentos: true } } } },
-          _count: { select: { docsAdjuntos: { where: { flgActivo: true } } } },
-        },
-        orderBy: { updatedAt: "desc" },
-        skip: (params.page - 1) * params.perPage,
+        include,
+        orderBy,
+        skip,
         take: params.perPage,
       }),
     ]);
@@ -565,9 +712,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null, requisito: requisito ?? null },
+      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null, requisito: requisito ?? null, sha256: sha256 ?? null },
     });
     return { ...doc };
   }
@@ -575,6 +722,57 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async findDocumento(docId: string) {
     const doc = await prisma.solicitudDocumento.findUnique({ where: { id: docId }, select: { id: true, userId: true } });
     return doc ?? null;
+  }
+
+  async findDocumentoPorHashEnOtraSolicitud(sha256: string, solicitudId: string) {
+    const doc = await prisma.solicitudDocumento.findFirst({
+      where: { sha256, flgActivo: true, solicitudId: { not: solicitudId } },
+      select: { solicitudId: true },
+    });
+    return doc ?? null;
+  }
+
+  /** Marca documentos como observados (baja logica por estado, con motivo y auditoria). */
+  async observarDocumentos(solicitudId: string, docIds: string[], motivo: string, observadoPor: string): Promise<number> {
+    const r = await prisma.solicitudDocumento.updateMany({
+      where: {
+        solicitudId,
+        id: { in: docIds },
+        flgActivo: true,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+      },
+      data: {
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
+        motivoObservacion: motivo,
+        observadoPor,
+        observadoAt: new Date(),
+      },
+    });
+    return r.count;
+  }
+
+  /** Marca como reemplazados los documentos ACTIVOS del cliente con la misma categoria/requisito. */
+  async marcarDocumentosReemplazados(solicitudId: string, userId: string, categoria: string | null, requisito: string | null): Promise<void> {
+    await prisma.solicitudDocumento.updateMany({
+      where: {
+        solicitudId,
+        userId,
+        flgActivo: true,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        categoria: categoria ?? null,
+        requisito: requisito ?? null,
+      },
+      data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+    });
+  }
+
+  /** Marca como reemplazados (historial) los documentos indicados. */
+  async marcarDocumentosReemplazadosPorIds(solicitudId: string, docIds: string[]): Promise<void> {
+    if (docIds.length === 0) return;
+    await prisma.solicitudDocumento.updateMany({
+      where: { solicitudId, id: { in: docIds }, flgActivo: true },
+      data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+    });
   }
 
   async eliminarDocumento(docId: string) {

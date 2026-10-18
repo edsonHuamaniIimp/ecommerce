@@ -7,6 +7,22 @@ export interface SolicitudesListParams {
   perPage: number;
   search?: string;
   userId?: string;
+  /** Estado calculado de la solicitud (ESTADOS_SOLICITUD). */
+  estado?: string;
+  /** Filtro por empresa (contiene, case-insensitive). */
+  empresa?: string;
+  /** Filtro por codigo de stand (contiene, case-insensitive). */
+  standCode?: string;
+  /** Area de revision con estado pendiente (REVISION_AREAS). */
+  areaPendiente?: string;
+  /** Situacion del expediente SGC. */
+  sgc?: "con" | "sin" | "observado" | "rechazado";
+  /** Solo solicitudes con documentos observados por el revisor. */
+  docsObservados?: boolean;
+  /** Rango por fecha de creacion (YYYY-MM-DD, hora Lima). */
+  desde?: string;
+  hasta?: string;
+  orden?: "recientes" | "antiguos";
 }
 
 export interface SolicitudesPaginatedResult {
@@ -37,8 +53,16 @@ export interface ISolicitudesRepository {
   darDeBajaSolicitud(solicitudId: string): Promise<void>;
   marcarOrdenPago(solicitudId: string): Promise<void>;
   obtenerHistorial(solicitudId: string): Promise<{ revisiones: RevisionEntity[]; historial: RevisionHistorialEntity[] }>;
-  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null): Promise<Record<string, unknown>>;
+  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>>;
   findDocumento(docId: string): Promise<{ id: string; userId: string | null } | null>;
+  /** SHA-256 de un contrato firmado ya adjunto a OTRA solicitud (anti-reutilizacion). */
+  findDocumentoPorHashEnOtraSolicitud(sha256: string, solicitudId: string): Promise<{ solicitudId: string } | null>;
+  /** Marca documentos como observados (baja logica por estado, con motivo y auditoria); devuelve cuantos marco. */
+  observarDocumentos(solicitudId: string, docIds: string[], motivo: string, observadoPor: string): Promise<number>;
+  /** Marca como reemplazados los documentos ACTIVOS del cliente con la misma categoria/requisito (nueva version). */
+  marcarDocumentosReemplazados(solicitudId: string, userId: string, categoria: string | null, requisito: string | null): Promise<void>;
+  /** Marca como reemplazados (historial) los documentos indicados (reenvio tras observacion). */
+  marcarDocumentosReemplazadosPorIds(solicitudId: string, docIds: string[]): Promise<void>;
   eliminarDocumento(docId: string): Promise<void>;
   crearAlertaRevision(data: { rol: string; solicitudId: string; clave: AlertaClave; datos: AlertaDatos }): Promise<void>;
   crearAlertaRol(data: { rol: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url: string }): Promise<void>;

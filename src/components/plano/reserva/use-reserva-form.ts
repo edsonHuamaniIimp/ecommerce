@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
@@ -114,6 +114,16 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
   const currentKey = standIdsKey(selectedIds);
+  /*
+   * Guard anti-cruce entre reservas: las respuestas de generar/firmar/subir
+   * borrador se descartan si mientras estaban en vuelo cambio la seleccion de
+   * stands o se disparo una peticion mas nueva (evita mostrar/adjuntar un
+   * contrato de otra seleccion).
+   */
+  const contratoSeqRef = useRef(0);
+  const keyVigenteRef = useRef(currentKey);
+  useEffect(() => { keyVigenteRef.current = currentKey; }, [currentKey]);
+  const esRespuestaVigente = (seq: number, key: string) => seq === contratoSeqRef.current && key === keyVigenteRef.current;
   /** Los 3 documentos requeridos (Ficha RUC, Vigencia de Poder, DNI/Pasaporte) estan adjuntos. */
   const anexosCompletos = ANEXOS_REQUERIDOS.every((a) => Boolean(docsRequisitos[a.key]));
 
@@ -286,6 +296,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       setSubmitError("No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.");
       return false;
     }
+    const seq = ++contratoSeqRef.current;
+    const key = currentKey;
     setGenerandoContrato(true);
     setSubmitError(null);
     try {
@@ -295,28 +307,38 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         idioma: idiomaODefecto(leerIdiomaCookie()),
         contrato: contratoPayload(),
       });
+      /* Respuesta obsoleta (cambio la seleccion o hay otra generacion en curso): se ignora. */
+      if (!esRespuestaVigente(seq, key)) return false;
       setContrato({ solicitudId: "", docxUrl: data.docxUrl, pdfUrl: data.pdfUrl });
       setContratoFirmadoUrl(null);
       setFirmaDigitalAplicada(false);
       return true;
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "No se pudo generar el contrato. Intenta de nuevo.");
+      if (esRespuestaVigente(seq, key)) {
+        setSubmitError(err instanceof Error ? err.message : "No se pudo generar el contrato. Intenta de nuevo.");
+      }
       return false;
     } finally {
-      setGenerandoContrato(false);
+      if (esRespuestaVigente(seq, key)) setGenerandoContrato(false);
     }
-  }, [cuotasConfig, standIdsSeleccionados, contratoPayload]);
+  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey]);
 
-  /** Paso 4: sube el contrato firmado por el cliente. */
+  /** Paso 4: sube el contrato firmado por el cliente (descargado y firmado manualmente). */
   const subirContratoFirmado = async (file: File) => {
+    const key = currentKey;
     setSubiendoFirmado(true);
     try {
-      setContratoFirmadoUrl(await uploadService.subir(file));
+      const url = await uploadService.subir(file);
+      if (key !== keyVigenteRef.current) return;
+      setContratoFirmadoUrl(url);
       setFirmaDigitalAplicada(false);
     } catch {
-      setSubmitError("No se pudo subir el contrato firmado. Intenta de nuevo.");
+      if (key === keyVigenteRef.current) {
+        setSubmitError("No se pudo subir el contrato firmado. Intenta de nuevo.");
+      }
+    } finally {
+      if (key === keyVigenteRef.current) setSubiendoFirmado(false);
     }
-    setSubiendoFirmado(false);
   };
 
   /**
@@ -333,6 +355,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       setSubmitError("No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.");
       return false;
     }
+    const seq = ++contratoSeqRef.current;
+    const key = currentKey;
     setFirmandoDigital(true);
     setSubmitError(null);
     try {
@@ -342,16 +366,19 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         idioma: idiomaODefecto(leerIdiomaCookie()),
         contrato: contratoPayload(),
       });
+      if (!esRespuestaVigente(seq, key)) return false;
       setContratoFirmadoUrl(data.pdfUrl ?? data.docxUrl);
       setFirmaDigitalAplicada(true);
       return true;
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "No se pudo firmar digitalmente el contrato.");
+      if (esRespuestaVigente(seq, key)) {
+        setSubmitError(err instanceof Error ? err.message : "No se pudo firmar digitalmente el contrato.");
+      }
       return false;
     } finally {
-      setFirmandoDigital(false);
+      if (esRespuestaVigente(seq, key)) setFirmandoDigital(false);
     }
-  }, [contrato, cuotasConfig, standIdsSeleccionados, contratoPayload]);
+  }, [contrato, cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey]);
 
   /**
    * Paso 4 (Confirmar): recien aqui se crea la solicitud (reserva), se adjunta el contrato
@@ -368,6 +395,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     try {
       const solicitudId = contrato.solicitudId || (await crearReserva());
       if (!solicitudId) return "No se pudo crear la solicitud.";
+      /* Retry-safe: si un intento previo creo la solicitud, reutilizarla (evita duplicados). */
+      if (!contrato.solicitudId) setContrato((prev) => (prev ? { ...prev, solicitudId } : prev));
 
       /* Contrato definitivo adjunto a la solicitud (recalculado en el servidor). */
       await contratosService.generar({

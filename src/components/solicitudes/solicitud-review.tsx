@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
@@ -16,9 +16,14 @@ import {
   SGC_LIFECYCLE_STATUSES,
   SGC_SUBSANACION_MODOS,
   ESTADOS_SOLICITUD,
+  ESTADOS_DOCUMENTO_SOLICITUD,
+  ESTADOS_DOCUMENTO_SOLICITUD_LABELS,
+  ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
+  MAESTRA_TABLAS,
   ANEXOS_REQUERIDOS,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
+import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
@@ -86,6 +91,11 @@ export function SolicitudReview({
   onOrdenPago?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(0);
+  const documentoEstadoLabels = useMaestraLabels(
+    MAESTRA_TABLAS.DOCUMENTO_ESTADO,
+    ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
+    ESTADOS_DOCUMENTO_SOLICITUD_LABELS,
+  );
   const [reviewState, setReviewState] = useState<Record<string, { accion: string; comentario: string }>>({
     [REVISION_AREAS.ASOCIADO]: { accion: row.revisionAsociado?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionAsociado?.comentario ?? "" },
     [REVISION_AREAS.LEGAL]: { accion: row.revisionLegal?.estado ?? RESULTADOS_APROBACION.PENDIENTE, comentario: row.revisionLegal?.comentario ?? "" },
@@ -95,6 +105,9 @@ export function SolicitudReview({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
+  /** Documentos (IDs) marcados para observar en el paso Asociado. */
+  const [docsObservar, setDocsObservar] = useState<string[]>([]);
+  const [confirmObservar, setConfirmObservar] = useState(false);
   const [editing, setEditing] = useState(false);
   const [aprobandoBypass, setAprobandoBypass] = useState(false);
   /** Documento en vista previa (modal en la misma vista). */
@@ -193,6 +206,7 @@ export function SolicitudReview({
   const goToStep = (step: number) => {
     setEditing(false);
     setSubmitError(null);
+    setDocsObservar([]);
     setCurrentStep(step);
   };
 
@@ -209,6 +223,16 @@ export function SolicitudReview({
       setValidationErrors((prev) => ({ ...prev, [area]: "La justificacion es obligatoria para rechazar" }));
       return;
     }
+    if (accion === RESULTADOS_APROBACION.OBSERVADO) {
+      if (!state.comentario.trim()) {
+        setValidationErrors((prev) => ({ ...prev, [area]: "La justificacion es obligatoria para observar" }));
+        return;
+      }
+      if (docsObservar.length === 0) {
+        setValidationErrors((prev) => ({ ...prev, [area]: "Marca al menos un documento para observar" }));
+        return;
+      }
+    }
 
     setValidationErrors((prev) => ({ ...prev, [area]: "" }));
     setSubmitting(area);
@@ -219,6 +243,7 @@ export function SolicitudReview({
         area,
         estado: accion,
         comentario: state.comentario || undefined,
+        ...(accion === RESULTADOS_APROBACION.OBSERVADO ? { documentosObservados: docsObservar } : {}),
       });
       const updated = { ...row };
       const idx = updated.revisiones.findIndex((r) => r.area === area);
@@ -243,10 +268,24 @@ export function SolicitudReview({
       updated.revisionLegal = updated.revisiones.find((r) => r.area === REVISION_AREAS.LEGAL) ?? null;
       onSaved(updated);
       setEditing(false);
+      setDocsObservar([]);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Error al guardar la revision");
     }
     setSubmitting(null);
+  };
+
+  const handleObservar = () => {
+    const state = reviewState[currentArea];
+    if (!state || !state.comentario.trim()) {
+      setValidationErrors((prev) => ({ ...prev, [currentArea]: "La justificacion es obligatoria para observar" }));
+      return;
+    }
+    if (docsObservar.length === 0) {
+      setValidationErrors((prev) => ({ ...prev, [currentArea]: "Marca al menos un documento para observar" }));
+      return;
+    }
+    setConfirmObservar(true);
   };
 
   const handleRechazar = () => {
@@ -284,7 +323,16 @@ export function SolicitudReview({
     const prevRev = getRevision(row, prevArea);
     return prevRev !== null && prevRev.estado !== RESULTADOS_APROBACION.PENDIENTE;
   };
-  const canAdvance = currentRev !== null && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE;
+  /** Se puede observar mientras el paso Asociado esta editable. */
+  const puedeObservar =
+    currentArea === REVISION_AREAS.ASOCIADO &&
+    (!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) &&
+    canReview;
+  const toggleObservar = (docId: string) => {
+    setDocsObservar((prev) => (prev.includes(docId) ? prev.filter((x) => x !== docId) : [...prev, docId]));
+  };
+
+  const canAdvance = currentRev !== null && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE && currentRev.estado !== RESULTADOS_APROBACION.OBSERVADO;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -330,7 +378,7 @@ export function SolicitudReview({
 
         {/* Client documents */}
         {(() => {
-          const docs: Array<{ url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null }> = [];
+          const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null }> = [];
 
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
@@ -338,10 +386,10 @@ export function SolicitudReview({
             docs.push({ url, nombre: stringUtils.nombreArchivo(url), origen: "solicitud", categoria: row.documentosCategorias?.[url] });
           }
 
-          // Multi-stand: client's docsAdjuntos
-          const clienteDocs = (row.docsAdjuntos ?? []).filter(d => d.userId === row.userId);
-          for (const d of clienteDocs) {
-            docs.push({ url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito });
+          // Docs del flujo nuevo (cliente y administrador): todos son observables
+          const adjuntos = row.docsAdjuntos ?? [];
+          for (const d of adjuntos) {
+            docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion });
           }
 
           // Re-evaluacion documents
@@ -386,10 +434,34 @@ export function SolicitudReview({
                         {requisitoLabel && (
                           <p className="truncate text-[10px] text-muted-foreground">{requisitoLabel}</p>
                         )}
+                        {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                          <p className="truncate text-[10px] text-warning">
+                            Observado{doc.motivoObservacion ? `: ${doc.motivoObservacion}` : ""}
+                          </p>
+                        )}
+                        {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                          <p className="truncate text-[10px] text-muted-foreground">Reemplazado por una version nueva</p>
+                        )}
                       </div>
                       <Badge className={`pointer-events-none shrink-0 text-[9px] ${esContrato ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
                         <span>{etiqueta}</span>
                       </Badge>
+                      {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                        <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
+                          <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span>
+                        </Badge>
+                      )}
+                      {puedeObservar && doc.id && (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
+                        <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-warning/40 px-2 py-0.5 text-[10px] font-medium text-warning">
+                          <input
+                            type="checkbox"
+                            checked={docsObservar.includes(doc.id)}
+                            onChange={() => toggleObservar(doc.id as string)}
+                            className="h-3 w-3 accent-amber-500"
+                          />
+                          <span>Observar</span>
+                        </label>
+                      )}
                       <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
                       <div className="flex shrink-0 items-center gap-0.5">
                         <Button
@@ -559,12 +631,16 @@ export function SolicitudReview({
               ? BADGE_STYLES.SUCCESS
               : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO
                 ? BADGE_STYLES.DESTRUCTIVE
-                : BADGE_STYLES.WARNING
+                : currentRev?.estado === RESULTADOS_APROBACION.OBSERVADO
+                  ? BADGE_STYLES.WARNING
+                  : BADGE_STYLES.WARNING
           }`}>
             {currentRev?.estado === RESULTADOS_APROBACION.APROBADO ? (
               <><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" /> Aprobado</>
             ) : currentRev?.estado === RESULTADOS_APROBACION.RECHAZADO ? (
               <><XCircle className="mr-0.5 h-2.5 w-2.5" /> Rechazado</>
+            ) : currentRev?.estado === RESULTADOS_APROBACION.OBSERVADO ? (
+              <><AlertCircle className="mr-0.5 h-2.5 w-2.5" /> Observado</>
             ) : (
               <><Clock className="mr-0.5 h-2.5 w-2.5" /> Pendiente</>
             )}
@@ -662,6 +738,18 @@ export function SolicitudReview({
                 <XCircle className="h-3.5 w-3.5" />
                 <span>{submitting === currentArea ? "..." : "Rechazar"}</span>
               </Button>
+              {currentArea === REVISION_AREAS.ASOCIADO && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!!submitting}
+                  className="gap-1.5 border-warning/40 text-xs font-medium text-warning hover:bg-warning/10"
+                  onClick={handleObservar}
+                >
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>{submitting === currentArea ? "..." : `Observar${docsObservar.length > 0 ? ` (${docsObservar.length})` : ""}`}</span>
+                </Button>
+              )}
               <Button
                 size="sm"
                 disabled={!!submitting}
@@ -759,6 +847,40 @@ export function SolicitudReview({
           </div>
         </div>
       </div>
+
+      {/* Confirmation dialog for observation */}
+      <Dialog open={confirmObservar} onOpenChange={() => setConfirmObservar(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold"><span>Confirmar observacion</span></DialogTitle>
+          </DialogHeader>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Se observaran <strong className="text-foreground">{docsObservar.length}</strong> documento(s) del area{" "}
+            <strong className="text-foreground">Asociado</strong>. La solicitud pasara a <strong className="text-foreground">Observado</strong> y
+            el cliente sera notificado para subir las nuevas versiones. Los documentos observados no se eliminan.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setConfirmObservar(false)}
+            >
+              <span>Cancelar</span>
+            </Button>
+            <Button
+              size="sm"
+              className="border-warning/40 bg-warning text-xs font-medium text-foreground hover:bg-warning/90"
+              onClick={() => {
+                setConfirmObservar(false);
+                handleReview(currentArea, RESULTADOS_APROBACION.OBSERVADO);
+              }}
+            >
+              <span>Si, observar</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation dialog for rejection */}
       <Dialog open={!!confirmReject} onOpenChange={() => setConfirmReject(null)}>

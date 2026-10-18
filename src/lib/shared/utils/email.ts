@@ -13,3 +13,13 @@ export function emailProvisionalPorDocumento(documento: string): string {
 export function esEmailProvisional(email?: string | null): boolean {
   return (email ?? "").trim().toLowerCase().endsWith(`@${EMAIL_PROVISIONAL_DOMINIO}`);
 }
+
+/**
+ * Inverso de `emailProvisionalPorDocumento`: devuelve el documento (RUC/RUT) cuando
+ * el correo es una cuenta provisional; null si no lo es.
+ */
+export function documentoDesdeEmailProvisional(email?: string | null): string | null {
+  const match = /^acceso-([a-z0-9]+)@acceso\.iimp$/i.exec(String(email ?? "").trim());
+  const documento = match?.[1];
+  return documento ? documento.toUpperCase() : null;
+}

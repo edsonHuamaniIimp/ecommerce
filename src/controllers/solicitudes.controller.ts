@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
+import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 
@@ -27,6 +28,15 @@ export const solicitudesController = {
       page: url.searchParams.get("page") ?? "1",
       per_page: url.searchParams.get("per_page") ?? "10",
       search: url.searchParams.get("search") ?? undefined,
+      estado: url.searchParams.get("estado") ?? undefined,
+      empresa: url.searchParams.get("empresa") ?? undefined,
+      standCode: url.searchParams.get("standCode") ?? undefined,
+      areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
+      sgc: url.searchParams.get("sgc") ?? undefined,
+      docsObservados: url.searchParams.get("docsObservados") ?? undefined,
+      desde: url.searchParams.get("desde") ?? undefined,
+      hasta: url.searchParams.get("hasta") ?? undefined,
+      orden: url.searchParams.get("orden") ?? undefined,
     });
     /* Scoping de dueno: el cliente solo ve sus solicitudes; el staff puede filtrar. */
     const userId = puedeVerTodas(session) ? (url.searchParams.get("userId") ?? undefined) : session.sub;
@@ -36,6 +46,15 @@ export const solicitudesController = {
       perPage: parsed.per_page,
       search: parsed.search,
       userId,
+      estado: parsed.estado,
+      empresa: parsed.empresa,
+      standCode: parsed.standCode,
+      areaPendiente: parsed.areaPendiente,
+      sgc: parsed.sgc as SolicitudesFiltroSgc | undefined,
+      docsObservados: parsed.docsObservados === "true",
+      desde: parsed.desde,
+      hasta: parsed.hasta,
+      orden: parsed.orden as SolicitudesOrden,
     });
     return success(result);
   },
@@ -67,6 +86,18 @@ export const solicitudesController = {
     }
 
     return success(await services.solicitudes.revisar({ ...body, reviewerEmail: session.email }));
+  },
+
+  /** POST /api/solicitudes/reenviar-observacion — el cliente reenvia tras observar documentos. */
+  async reenviarObservacion(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const parsed = solicitudesReenviarObservacionSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    await services.solicitudes.reenviarObservacion(parsed.data.solicitudId, session.sub, session.email);
+    return success({ ok: true });
   },
 
   /** @request SolicitudesNotificarRequestDTO */

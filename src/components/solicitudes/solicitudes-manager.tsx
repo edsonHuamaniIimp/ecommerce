@@ -3,17 +3,19 @@
 import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard } from "lucide-react";
+import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
+import type { SolicitudesListFiltros } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { SolicitudReview } from "./solicitud-review";
@@ -24,6 +26,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-ii
 import { useSearchParams } from "next/navigation";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
+import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -37,6 +40,65 @@ function necesitaDocs(row: SolicitudRow) { return esMultiStand(row) && (!tieneDo
 function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row) && !necesitaDocs(row); }
 function adminDebeSubirContrato(row: SolicitudRow) { return esMultiStand(row) && estaPendiente(row) && !tieneDocsAdmin(row); }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
+
+/** Columnas de la exportacion avanzada (CSV/Excel) de la bandeja filtrada. */
+const SOLICITUDES_EXPORT_COLUMNAS = [
+  "Stand(s)",
+  "Bloque",
+  "Empresa",
+  "Usuario",
+  "Correo",
+  "Tipo stand",
+  "Precio USD",
+  "Estado",
+  "Revision Asociado",
+  "Revision Legal",
+  "SGC envio",
+  "SGC estado",
+  "Docs totales",
+  "Docs observados",
+  "Creada",
+  "Actualizada",
+] as const;
+
+function filaExportacion(row: SolicitudRow, estadoLabels: Record<string, string>): Array<string | number> {
+  const estadoRev = (area: string) => {
+    const rev = row.revisiones?.find((r) => r.area === area);
+    const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
+    return RESULTADOS_APROBACION_LABELS[estado as keyof typeof RESULTADOS_APROBACION_LABELS] ?? estado;
+  };
+  const estado = row.estadoSolicitud as keyof typeof ESTADOS_SOLICITUD_LABELS;
+  return [
+    row.standCodes?.length ? row.standCodes.join(", ") : row.standCode,
+    row.bloqueId ?? "",
+    row.empresa ?? "",
+    row.nombreUsuario ?? "",
+    row.email ?? "",
+    row.tipoStand ?? "",
+    row.precio ?? 0,
+    estadoLabels[row.estadoSolicitud] ?? ESTADOS_SOLICITUD_LABELS[estado] ?? row.estadoSolicitud,
+    estadoRev(REVISION_AREAS.ASOCIADO),
+    estadoRev(REVISION_AREAS.LEGAL),
+    row.sgcEstadoEnvio ?? "",
+    row.sgcLifecycleStatus ?? "",
+    (row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0),
+    (row.docsAdjuntos ?? []).filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO).length,
+    dateUtils.formatDateTime(row.createdAt),
+    dateUtils.formatDateTime(row.updatedAt),
+  ];
+}
+
+function nombreArchivoExport(extension: "csv" | "xlsx"): string {
+  const ahora = new Date();
+  const dos = (n: number) => String(n).padStart(2, "0");
+  const marca = `${ahora.getFullYear()}${dos(ahora.getMonth() + 1)}${dos(ahora.getDate())}-${dos(ahora.getHours())}${dos(ahora.getMinutes())}`;
+  return `solicitudes-${marca}.${extension}`;
+}
+
+function csvCelda(valor: string | number): string {
+  const texto = String(valor ?? "");
+  return `"${texto.replace(/"/g, '""')}"`;
+}
 
 function DetailSection({ id, title, open, onToggle, children }: { id: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) {
   return (
@@ -73,6 +135,9 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const [filters, setFilters] = useState<SolicitudesListFiltros>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
@@ -98,13 +163,22 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [hasViewPerm, setHasViewPerm] = useState(false);
   const [solicitudEstadoLabels, setSolicitudEstadoLabels] = useState<Record<string, string>>({});
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
+  const documentoEstadoLabels = useMaestraLabels(
+    MAESTRA_TABLAS.DOCUMENTO_ESTADO,
+    ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
+    ESTADOS_DOCUMENTO_SOLICITUD_LABELS,
+  );
 
   const pageRef = useRef(page);
   const perPageRef = useRef(perPage);
+  const filtersRef = useRef<SolicitudesListFiltros>(filters);
+  const firstSearchRef = useRef(true);
+  const loadSeqRef = useRef(0);
   const reviewOpenRef = useRef(reviewOpen);
   const autoOpenIdRef = useRef(autoOpenId);
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { perPageRef.current = perPage; }, [perPage]);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
   useEffect(() => { reviewOpenRef.current = reviewOpen; }, [reviewOpen]);
   useEffect(() => { autoOpenIdRef.current = autoOpenId; }, [autoOpenId]);
 
@@ -141,10 +215,20 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     })();
   }, []);
 
-  const load = useCallback(async (p?: number, s?: string, pp?: number) => {
+  const load = useCallback(async (p?: number, s?: string, pp?: number, f?: SolicitudesListFiltros) => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     try {
-      const data = await solicitudesService.listar(eventoId, p ?? pageRef.current, pp ?? perPageRef.current, s);
+      const data = await solicitudesService.listar(
+        eventoId,
+        p ?? pageRef.current,
+        pp ?? perPageRef.current,
+        s,
+        undefined,
+        f ?? filtersRef.current,
+      );
+      /* Descarta respuestas viejas cuando busqueda/filtros cambian rapido. */
+      if (seq !== loadSeqRef.current) return;
       setRows(data.data?.filter((r) => r.flgActivo !== false) ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
 
@@ -156,13 +240,93 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
         next.searchParams.delete("id");
         window.history.replaceState({}, "", next.toString());
       }
-    } catch { /* ignore */ }
-    setLoading(false);
+    } catch { /* ignore */ } finally {
+      if (seq === loadSeqRef.current) setLoading(false);
+    }
   }, [eventoId]);
 
   useEffect(() => {
     (async () => { await load(); })();
   }, [load]);
+
+  /* Busqueda con debounce (400 ms); el primer render no dispara una segunda carga. */
+  useEffect(() => {
+    if (firstSearchRef.current) { firstSearchRef.current = false; return; }
+    const timer = setTimeout(() => {
+      setPage(1);
+      void load(1, search, perPageRef.current, filtersRef.current);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, load]);
+
+  const aplicarFiltros = (next: SolicitudesListFiltros) => {
+    setFilters(next);
+    setPage(1);
+    void load(1, search, perPage, next);
+  };
+
+  const limpiarFiltros = () => aplicarFiltros({});
+
+  const filtrosActivos = [
+    filters.estado,
+    filters.areaPendiente,
+    filters.sgc,
+    filters.docsObservados ? "observados" : undefined,
+    filters.desde,
+    filters.hasta,
+    filters.orden && filters.orden !== SOLICITUDES_ORDEN.RECIENTES ? filters.orden : undefined,
+  ].filter(Boolean).length;
+
+  const handleExport = async (formato: "csv" | "xlsx") => {
+    setExporting(formato);
+    try {
+      const filas: SolicitudRow[] = [];
+      const perPageExport = 200;
+      let pageExport = 1;
+      while (filas.length < SOLICITUDES_EXPORT_MAX_FILAS) {
+        const data = await solicitudesService.listar(eventoId, pageExport, perPageExport, search, undefined, filters);
+        const lote = (data.data ?? []).filter((r) => r.flgActivo !== false);
+        filas.push(...lote);
+        if (lote.length === 0 || pageExport >= data.totalPages) break;
+        pageExport += 1;
+      }
+      const seleccion = filas.slice(0, SOLICITUDES_EXPORT_MAX_FILAS);
+      if (seleccion.length === 0) {
+        toast.error("No hay solicitudes para exportar con los filtros actuales");
+        return;
+      }
+      const datos = seleccion.map((row) => filaExportacion(row, solicitudEstadoLabels));
+
+      if (formato === "csv") {
+        const contenido = [SOLICITUDES_EXPORT_COLUMNAS.map(csvCelda).join(",")]
+          .concat(datos.map((fila) => fila.map(csvCelda).join(",")))
+          .join("\r\n");
+        const blob = new Blob([`\uFEFF${contenido}`], { type: "text/csv;charset=utf-8" });
+        archivoUtils.descargarBlob(blob, nombreArchivoExport("csv"));
+      } else {
+        const ExcelJS = (await import("exceljs")).default;
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("Solicitudes");
+        ws.columns = SOLICITUDES_EXPORT_COLUMNAS.map((titulo) => ({
+          header: titulo,
+          key: titulo,
+          width: Math.max(14, titulo.length + 4),
+        }));
+        ws.addRows(datos);
+        ws.getRow(1).font = { bold: true };
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer as ArrayBuffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        archivoUtils.descargarBlob(blob, nombreArchivoExport("xlsx"));
+      }
+      toast.success(`${seleccion.length} solicitud(es) exportadas`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo exportar la bandeja");
+    } finally {
+      setExporting(null);
+    }
+  };
 
   useAlertaNavigate("/dashboard/solicitudes", (row) => {
     if (typeof row.id !== "string" || typeof row.standCode !== "string") return;
@@ -305,25 +469,64 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                 {pagination.total} {pagination.total === 1 ? "activa" : "activas"}
               </span>
+              {filtrosActivos > 0 && (
+                <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}>
+                  <span>{filtrosActivos} filtro(s)</span>
+                </Badge>
+              )}
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 w-8 shrink-0 p-0" onClick={() => load(page, search, perPage)} disabled={loading}>
-                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><span>Recargar</span></TooltipContent>
-            </Tooltip>
+            <div className="flex items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs" disabled={exporting !== null || loading}>
+                    <Download className={`h-3.5 w-3.5 ${exporting ? "animate-pulse" : ""}`} />
+                    <span>{exporting ? "Exportando..." : "Exportar"}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel><span>Bandeja filtrada ({pagination.total})</span></DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={exporting !== null} onSelect={() => { void handleExport("xlsx"); }}>
+                    <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                    <span>Excel (.xlsx)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={exporting !== null} onSelect={() => { void handleExport("csv"); }}>
+                    <FileText className="mr-2 h-3.5 w-3.5" />
+                    <span>CSV (.csv)</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 w-8 shrink-0 p-0" onClick={() => load(page, search, perPage, filters)} disabled={loading}>
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><span>Recargar</span></TooltipContent>
+              </Tooltip>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative w-full sm:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Buscar por empresa o codigo de stand..." value={search} onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(1, e.currentTarget.value, perPage); } }}
+              <Input placeholder="Buscar por empresa, stand, correo o contrato..." value={search} onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); load(1, e.currentTarget.value, perPage, filters); } }}
                 className="h-8 border-border bg-secondary pl-8 text-xs placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary" />
             </div>
-            <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); load(1, search, Number(v)); }}>
+            <Button
+              variant={filtersOpen ? "default" : "outline"}
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+              onClick={() => setFiltersOpen((v) => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filtros</span>
+              {filtrosActivos > 0 && (
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-bold">{filtrosActivos}</span>
+              )}
+            </Button>
+            <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); load(1, search, Number(v), filters); }}>
               <SelectTrigger className="h-8 w-[70px] shrink-0 border-border text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -334,6 +537,101 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               </SelectContent>
             </Select>
           </div>
+
+          {filtersOpen && (
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-estado">Estado</label>
+                <Select
+                  value={filters.estado ?? "todos"}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, estado: v === "todos" ? undefined : v })}
+                >
+                  <SelectTrigger id="filtro-estado" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Todos los estados</span></SelectItem>
+                    {Object.values(ESTADOS_SOLICITUD).map((estado) => (
+                      <SelectItem key={estado} value={estado}><span>{solicitudEstadoLabels[estado] ?? ESTADOS_SOLICITUD_LABELS[estado]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-area">Revision pendiente</label>
+                <Select
+                  value={filters.areaPendiente ?? "todas"}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, areaPendiente: v === "todas" ? undefined : v })}
+                >
+                  <SelectTrigger id="filtro-area" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas"><span>Cualquier area</span></SelectItem>
+                    {Object.values(REVISION_AREAS).map((area) => (
+                      <SelectItem key={area} value={area}><span>{REVISION_AREA_LABELS[area]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-sgc">Expediente SGC</label>
+                <Select
+                  value={filters.sgc ?? "todos"}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, sgc: v === "todos" ? undefined : v })}
+                >
+                  <SelectTrigger id="filtro-sgc" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Cualquier estado SGC</span></SelectItem>
+                    {Object.values(SOLICITUDES_FILTRO_SGC).map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{SOLICITUDES_FILTRO_SGC_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-observados">Documentos</label>
+                <Select
+                  value={filters.docsObservados ? "observados" : "todos"}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, docsObservados: v === "observados" ? true : undefined })}
+                >
+                  <SelectTrigger id="filtro-observados" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Todos los documentos</span></SelectItem>
+                    <SelectItem value="observados"><span>Solo con documentos observados</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-desde">Creada desde</label>
+                <Input id="filtro-desde" type="date" value={filters.desde ?? ""}
+                  onChange={(e) => aplicarFiltros({ ...filters, desde: e.target.value || undefined })}
+                  className="h-8 border-border bg-background text-xs" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-hasta">Creada hasta</label>
+                <Input id="filtro-hasta" type="date" value={filters.hasta ?? ""}
+                  onChange={(e) => aplicarFiltros({ ...filters, hasta: e.target.value || undefined })}
+                  className="h-8 border-border bg-background text-xs" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-orden">Orden</label>
+                <Select
+                  value={filters.orden ?? SOLICITUDES_ORDEN.RECIENTES}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, orden: v })}
+                >
+                  <SelectTrigger id="filtro-orden" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.values(SOLICITUDES_ORDEN).map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{SOLICITUDES_ORDEN_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={limpiarFiltros} disabled={filtrosActivos === 0}>
+                  <X className="h-3.5 w-3.5" />
+                  <span>Limpiar filtros</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-3 pt-4">
 
@@ -341,8 +639,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
             <TableSkeleton rows={perPage} columns={9} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-sm font-medium text-muted-foreground">No hay solicitudes de alquiler pendientes.</p>
-              <p className="mt-1 text-xs text-muted-foreground">Cuando un expositor solicite una reserva, aparecera aqui para su revision.</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                {filtrosActivos > 0 || search ? "No hay solicitudes que coincidan con los filtros." : "No hay solicitudes de alquiler pendientes."}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {filtrosActivos > 0 || search ? "Ajusta o limpia los filtros para ver mas resultados." : "Cuando un expositor solicite una reserva, aparecera aqui para su revision."}
+              </p>
             </div>
           ) : (
             <>
@@ -402,6 +704,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
                                </Badge>
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO ? (
+                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                 <AlertCircle className="mr-0.5 h-2.5 w-2.5" />
+                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.OBSERVADO] ?? "Observado"}
+                               </Badge>
                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
@@ -415,10 +722,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                              )}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs">
-                            {esMultiStand(row) ? `${row.docsAdjuntosCount ?? 0} doc(s)` : `${(row.documentos as string[])?.length ?? 0} doc(s)`}
+                            {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                            {dateUtils.formatDateTime(row.updatedAt)}
+                            {dateUtils.formatDateTime(row.createdAt)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex gap-0.5 justify-end">
@@ -524,7 +831,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               </div>
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados â€” pagina {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados {"\u2014"} página {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination
                   page={pagination.page}
@@ -568,7 +875,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       {solicitudEstadoLabels[detailRow.estadoSolicitud] ?? detailRow.estadoSolicitud}
                     </Badge>
                   </div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Fecha solicitud:</span> <span>{dateUtils.formatDateTime(detailRow.updatedAt)}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Fecha solicitud:</span> <span>{dateUtils.formatDateTime(detailRow.createdAt)}</span></div>
                 </div>
               </DetailSection>
 
@@ -591,9 +898,9 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 </DetailSection>
               )}
 
-              {/* Documentos */}
-              {((!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0) || (detailRow.standCodes && detailRow.standCodes.length > 1 && detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0) ? (
-                <DetailSection id="docs" title={`Documentos (${detailRow.standCodes?.length > 1 ? (detailRow.docsAdjuntosCount ?? 0) : (detailRow.documentos as string[]).length})`} open={accordionOpen === "docs"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
+              {/* Documentos (legacy JSON + adjuntos del flujo nuevo, single y multi) */}
+              {((detailRow.docsAdjuntosCount ?? 0) + ((detailRow.documentos as string[])?.length ?? 0)) > 0 ? (
+                <DetailSection id="docs" title={`Documentos (${(detailRow.docsAdjuntosCount ?? 0) + ((detailRow.documentos as string[])?.length ?? 0)})`} open={accordionOpen === "docs"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                   {/* Single-stand */}
                   {(!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0 && (
                     <div className="space-y-0.5 rounded-md border p-2">
@@ -606,8 +913,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       ))}
                     </div>
                   )}
-                  {/* Multi-stand */}
-                  {detailRow.standCodes && detailRow.standCodes.length > 1 && detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0 && (() => {
+                  {/* Adjuntos del flujo nuevo (single y multi) */}
+                  {detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0 && (() => {
                     const adminDocs = detailRow.docsAdjuntos.filter(doc => doc.userId !== detailRow.userId);
                     const clienteDocs = detailRow.docsAdjuntos.filter(doc => doc.userId === detailRow.userId);
                     return (
@@ -620,6 +927,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
                                   <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
+                                  )}
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
+                                  )}
                                   <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
@@ -637,6 +950,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
                                   <a href={doc.url} target="_blank" className="text-success hover:text-green-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
+                                  )}
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
+                                  )}
                                   <span className="text-[10px] text-muted-foreground shrink-0">{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
@@ -721,8 +1040,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     return (
                       <div key={area} className="flex items-center justify-between rounded bg-muted/30 px-2 py-1 text-xs">
                         <span className="font-medium">{REVISION_AREA_LABELS[area]}</span>
-                        <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? BADGE_STYLES.SUCCESS : estado === RESULTADOS_APROBACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
-                          {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : "Pendiente"}
+                        <Badge className={`text-[10px] pointer-events-none ${estado === RESULTADOS_APROBACION.APROBADO ? BADGE_STYLES.SUCCESS : estado === RESULTADOS_APROBACION.RECHAZADO ? BADGE_STYLES.DESTRUCTIVE : estado === RESULTADOS_APROBACION.OBSERVADO ? BADGE_STYLES.WARNING : BADGE_STYLES.WARNING}`} title={estado === RESULTADOS_APROBACION.OBSERVADO ? (rev?.comentario ?? undefined) : undefined}>
+                          {estado === RESULTADOS_APROBACION.APROBADO ? "Aprobado" : estado === RESULTADOS_APROBACION.RECHAZADO ? "Rechazado" : estado === RESULTADOS_APROBACION.OBSERVADO ? "Observado" : "Pendiente"}
                         </Badge>
                       </div>
                     );

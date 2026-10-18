@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import {
   anexosBloqueantesFaltantes,
   anexosRequeridosFaltantes,
@@ -234,6 +234,12 @@ describe("puedeClienteSubirDocumentos", () => {
       puedeClienteSubirDocumentos({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.APROBADO, sgcEstadoEnvio: null, sgcDocumentosEnviados: true }),
     ).toBe(false);
   });
+
+  it("permite subir versiones nuevas cuando la solicitud esta Observada", () => {
+    expect(
+      puedeClienteSubirDocumentos({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO, sgcEstadoEnvio: null }),
+    ).toBe(true);
+  });
 });
 
 describe("anexos requeridos (RF-13)", () => {
@@ -263,6 +269,15 @@ describe("anexos requeridos (RF-13)", () => {
   it("solo vigencia-poder y dni-representante bloquean (ficha-ruc no)", () => {
     expect(anexosBloqueantesFaltantes([doc("ficha-ruc")])).toEqual(["vigencia-poder", "dni-representante"]);
     expect(faltanAnexosBloqueantes([doc("ficha-ruc")])).toBe(true);
+  });
+
+  it("ignora documentos observados o reemplazados (deben subirse de nuevo)", () => {
+    const docs = [
+      { ...doc("ficha-ruc"), estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO },
+      { ...doc("vigencia-poder"), estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+      { ...doc("dni-representante"), estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO },
+    ];
+    expect(anexosRequeridosFaltantes(docs)).toEqual(["ficha-ruc", "vigencia-poder"]);
   });
 
   it("sin faltantes bloqueantes no bloquea el envio a Legal", () => {

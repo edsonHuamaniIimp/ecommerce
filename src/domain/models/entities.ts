@@ -244,6 +244,7 @@ export interface SolicitudRow {
   docsAdminCount: number;
   docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
   updatedAt: Date;
+  createdAt: Date;
   revisiones: RevisionEntity[];
   reevaluaciones: ReevaluacionEntity[];
   revisionAsociado: RevisionEntity | null;

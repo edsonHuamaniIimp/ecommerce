@@ -1,6 +1,8 @@
 import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { createHash } from "node:crypto";
+import type { StorageAdapter } from "@/lib/server/storage";
+import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -18,6 +20,7 @@ export class SolicitudesApplicationService {
   constructor(
     repo: ISolicitudesRepository,
     private readonly sgcIntegracion?: SgcIntegracionApplicationService,
+    private readonly storage?: StorageAdapter,
   ) {
     this.repo = repo;
   }
@@ -100,6 +103,8 @@ export class SolicitudesApplicationService {
     area: string;
     estado: string;
     comentario?: string;
+    /** Documentos (IDs) que el Asociado observa; solo aplica a estado "observado". */
+    documentosObservados?: string[];
     reviewerEmail: string;
   }): Promise<RevisionEntity> {
     if (!Object.values(REVISION_AREAS).includes(data.area as never)) {
@@ -108,6 +113,74 @@ export class SolicitudesApplicationService {
     if (!Object.values(RESULTADOS_APROBACION).includes(data.estado as never)) {
       throw new Error(`Estado invalido: ${data.estado}`);
     }
+
+    /*
+     * Observacion de documentos (solo Asociado): exige justificacion y al menos un
+     * documento vigente; los documentos pasan a estado `observado` (baja logica por
+     * estado, nunca se eliminan), la solicitud queda `observado` y el cliente recibe
+     * alerta + correo con el detalle.
+     */
+    if (data.estado === RESULTADOS_APROBACION.OBSERVADO) {
+      if (data.area !== SGC_TRIGGER_REVISION_AREA) {
+        throw new DomainError("Solo el area Asociado puede observar documentos", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const motivo = String(data.comentario ?? "").trim();
+      if (!motivo) {
+        throw new DomainError("La justificacion es obligatoria para observar documentos", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const docIds = [...new Set(data.documentosObservados ?? [])];
+      if (docIds.length === 0) {
+        throw new DomainError("Selecciona al menos un documento para observar", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const detalle = await this.repo.detalle(data.solicitudId);
+      if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+      const vigentes = detalle.docsAdjuntos.filter(
+        (d) => docIds.includes(d.id) && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+      );
+      if (vigentes.length !== docIds.length) {
+        throw new DomainError("Algun documento seleccionado no existe o ya no esta vigente", API_ERROR_CODES.CONFLICT, 409);
+      }
+      const marcados = await this.repo.observarDocumentos(data.solicitudId, docIds, motivo, data.reviewerEmail);
+      if (marcados !== docIds.length) {
+        throw new DomainError("No se pudieron observar todos los documentos (recarga e intenta de nuevo)", API_ERROR_CODES.CONFLICT, 409);
+      }
+
+      const revision = await this.repo.crearOActualizarRevision({ ...data, comentario: motivo });
+
+      /* Notificacion al cliente: campana + correo con el detalle de la observacion. */
+      const etiquetaDoc = (docId: string): string => {
+        const doc = detalle.docsAdjuntos.find((d) => d.id === docId);
+        if (!doc) return docId;
+        return ANEXOS_REQUERIDOS.find((a) => a.key === doc.requisito)?.label ?? doc.nombre;
+      };
+      const documentos = docIds.map(etiquetaDoc);
+      if (detalle.userId) {
+        await this.repo.crearAlertaReserva({
+          userId: detalle.userId,
+          tipo: ALERTA_TIPOS.DOCUMENTOS_OBSERVADOS,
+          clave: ALERTA_CLAVES.DOCUMENTOS_OBSERVADOS,
+          datos: { stands: detalle.standCode, total: docIds.length },
+          url: `/dashboard/mis-solicitudes?solicitud=${data.solicitudId}`,
+        }).catch(() => {});
+      }
+      if (detalle.email) {
+        await enviarEmailPlantilla({
+          to: detalle.email,
+          plantilla: "documentos-observados",
+          idioma: null,
+          datos: {
+            standCodes: detalle.standCode,
+            documentos,
+            justificacion: motivo,
+            url: `${getAppUrl()}/dashboard/mis-solicitudes?solicitud=${data.solicitudId}`,
+          },
+        }).catch(() => false);
+      }
+
+      /* La observacion detiene el flujo: no se alerta al siguiente revisor. */
+      return revision;
+    }
+
     const revision = await this.repo.crearOActualizarRevision(data);
 
     // Only send alerts when transitioning FROM pendiente (first review)
@@ -149,6 +222,62 @@ export class SolicitudesApplicationService {
     for (const area of REVISION_AREA_ORDER) {
       await this.repo.crearRevisionInicial(solicitudId, area);
     }
+  }
+
+  /**
+   * Reenvio tras una observacion local (cliente): exige que TODOS los documentos
+   * observados tengan una nueva version vigente del mismo requisito/categoria y,
+   * si es asi, los pasa a `reemplazado` (historial), reinicia la revision del
+   * Asociado a pendiente y alerta a los revisores. No elimina nada.
+   */
+  async reenviarObservacion(solicitudId: string, userSub: string, userEmail: string): Promise<void> {
+    const detalle = await this.repo.detalle(solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (detalle.userId !== userSub) {
+      throw new DomainError("No puedes reenviar una solicitud ajena", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
+      throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const observados = detalle.docsAdjuntos.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+    if (observados.length === 0) {
+      throw new DomainError("No hay documentos observados pendientes de reemplazo", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const etiquetaDoc = (doc: (typeof observados)[number]): string =>
+      ANEXOS_REQUERIDOS.find((a) => a.key === doc.requisito)?.label ?? doc.nombre;
+    const faltantes: string[] = [];
+    for (const obs of observados) {
+      const reemplazo = detalle.docsAdjuntos.some((d) =>
+        (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+        (d.categoria ?? null) === (obs.categoria ?? null) &&
+        (d.requisito ?? null) === (obs.requisito ?? null) &&
+        new Date(d.createdAt).getTime() > new Date(obs.createdAt).getTime());
+      if (!reemplazo) faltantes.push(etiquetaDoc(obs));
+    }
+    if (faltantes.length > 0) {
+      throw new DomainError(`Faltan las nuevas versiones de: ${faltantes.join(", ")}`, API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    /* Historial: los observados ya reemplazados no vuelven a contar como vigentes. */
+    await this.repo.marcarDocumentosReemplazadosPorIds(solicitudId, observados.map((d) => d.id));
+
+    /* Vuelve a la cola de revision del Asociado (queda registrado en el historial). */
+    await this.repo.crearOActualizarRevision({
+      solicitudId,
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.PENDIENTE,
+      comentario: undefined,
+      reviewerEmail: userEmail,
+    });
+
+    await this.repo.crearAlertaRevision({
+      rol: ROLES.ASOCIADO,
+      solicitudId,
+      clave: ALERTA_CLAVES.TURNO_REVISION,
+      datos: { area: REVISION_AREAS.ASOCIADO, stands: detalle.standCode },
+    }).catch(() => {});
   }
 
   async uploadDocumento(params: {
@@ -233,12 +362,42 @@ export class SolicitudesApplicationService {
       userId = isAdmin ? null : params.userSub;
     }
 
+    /*
+     * Un contrato firmado debe ser el de ESTA solicitud: se rechaza reutilizar el
+     * mismo archivo (mismo SHA-256) ya adjuntado como firmado en otra solicitud
+     * (evita cruzar reservas). Solo aplica a archivos servidos por /uploads.
+     */
+    let sha256Firmado: string | null = null;
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && this.storage && params.url.startsWith("/uploads/")) {
+      const archivo = await this.storage.read(params.url.replace(/^\/uploads\//, "")).catch(() => null);
+      if (archivo) {
+        sha256Firmado = createHash("sha256").update(archivo.bytes).digest("hex");
+        const enOtra = await this.repo.findDocumentoPorHashEnOtraSolicitud(sha256Firmado, params.solicitudId);
+        if (enOtra) {
+          throw new DomainError(
+            "Este archivo firmado ya fue adjuntado a otra solicitud. Descarga el contrato de ESTA solicitud, firmalo y subelo.",
+            API_ERROR_CODES.CONFLICT,
+            409,
+          );
+        }
+      }
+    }
+
+    /*
+     * Nueva version del cliente: la version vigente del mismo requisito/categoria
+     * pasa a `reemplazado` (historial). Nunca se elimina fisicamente.
+     */
+    if (!isAdmin && categoria) {
+      await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
+    }
+
     const doc = await this.repo.crearDocumentoAdjunto(
       params.solicitudId, params.url, params.nombre,
       userId,
       params.userEmail,
       categoria,
       requisito,
+      sha256Firmado,
     );
 
     /*

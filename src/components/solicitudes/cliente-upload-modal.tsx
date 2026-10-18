@@ -6,7 +6,7 @@ import { CheckCircle2, FileText, Upload, X, Trash2, PenLine } from "lucide-react
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -36,7 +36,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
   const handleUpload = async (file: File) => {
     /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
-    if (!esContrato) {
+    if (requisitoRef.current || !esContrato) {
       const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
       if (!archivoUtils.extensionPermitida(file.name, permitidas)) {
         setError(`Formato no permitido. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
@@ -50,8 +50,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
-      const requisito = esContrato ? null : requisitoRef.current;
-      setPendientes(prev => [...prev, { url, requisito }]);
+      setPendientes(prev => [...prev, { url, requisito: requisitoRef.current }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
@@ -62,7 +61,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     requisitoRef.current = requisito;
     const input = fileRef.current;
     if (!input) return;
-    const extensiones = esContrato ? ANEXOS_OTROS_EXTENSIONES : extensionesPermitidasAnexo(requisito);
+    const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
     input.accept = extensiones.map((extension) => `.${extension}`).join(",");
     input.click();
   };
@@ -77,15 +76,20 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setError(null);
     try {
       for (const p of pendientes) {
+        const esFirmado = esContrato && !p.requisito;
         await solicitudesService.uploadDocumento({
           solicitudId: solicitud.id,
           url: p.url,
           nombre: p.url.split("/").pop() ?? "documento",
-          tipo: esContrato ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
-          requisito: esContrato ? null : p.requisito,
+          tipo: esFirmado ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+          requisito: p.requisito,
         });
       }
-      toast.success(esContrato ? "Contrato firmado enviado correctamente" : "Documentos enviados correctamente");
+      toast.success(
+        pendientes.some((p) => esContrato && !p.requisito)
+          ? "Contrato firmado y documentos enviados correctamente"
+          : "Documentos enviados correctamente",
+      );
       onSaved();
       onClose();
     } catch (e) {
@@ -123,12 +127,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     }
     setSending(false);
   };
-  const misDocs = (solicitud.docsAdjuntos ?? []).filter(
-    d =>
-      d.userId === solicitud.userId &&
-      (esContrato ? d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO),
-  );
-  const otrosDocs = misDocs.filter(d => !d.requisito);
+  /* Documentos del cliente: anexos y contrato firmado (el modo define cual se muestra). */
+  const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId);
+  const firmados = misDocs.filter(d => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+  const anexos = misDocs.filter(d => d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+  const otrosDocs = (esContrato ? firmados : anexos)
+    .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
+  /** Contrato firmado observado por el revisor: se debe subir una nueva version. */
+  const firmadoObservado = esContrato
+    ? firmados.find(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO)
+    : null;
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 
   return (
@@ -140,7 +148,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         </p>
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
           {esContrato ? (
-            puedeFirmarDigital ? (
+            firmadoObservado ? (
+              <p className="text-[11px] font-semibold text-warning">
+                Tu contrato firmado fue observado{firmadoObservado.motivoObservacion ? `: ${firmadoObservado.motivoObservacion}` : "."}{" "}
+                Descarga el contrato vigente, firmalo de nuevo y sube la version corregida.
+              </p>
+            ) : puedeFirmarDigital ? (
               <p className="text-[11px] font-semibold text-foreground">
                 Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de tu perfil, o descargarlo, firmarlo y subir tu versión firmada.
               </p>
@@ -177,12 +190,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </div>
         )}
 
-        {!esContrato && (
+        {(
           <div>
-            <Label className="text-xs mb-1 block">Documentos requeridos</Label>
+            <Label className="text-xs mb-1 block">{esContrato ? "Documentos requeridos (anexos del contrato)" : "Documentos requeridos"}</Label>
             <div className="space-y-1">
               {ANEXOS_REQUERIDOS.map((a) => {
-                const existente = misDocs.find(d => d.requisito === a.key);
+                const existente = anexos.find(d => d.requisito === a.key && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
+                const observado = anexos.find(d => d.requisito === a.key && d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
                 const idxPendiente = pendientes.findIndex(p => p.requisito === a.key);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
@@ -194,6 +208,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                       {a.label}
                       {ANEXOS_BLOQUEANTES.includes(a.key) && (
                         <span className="ml-1 text-[10px] font-semibold text-red-500">obligatorio</span>
+                      )}
+                      {!existente && observado && (
+                        <span className="block text-[10px] text-warning">
+                          Observado{observado.motivoObservacion ? `: ${observado.motivoObservacion}` : ""} — sube una nueva version
+                        </span>
                       )}
                     </span>
                     {existente ? (
@@ -277,7 +296,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </Button>
           <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
             disabled={sending || pendientes.length === 0} onClick={handleEnviar}>
-            {sending ? "Enviando..." : esContrato ? "Enviar contrato firmado" : "Enviar documentos"}
+            {sending ? "Enviando..." : "Enviar documentos"}
           </Button>
         </div>
       </div>

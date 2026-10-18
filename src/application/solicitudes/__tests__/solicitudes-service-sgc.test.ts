@@ -47,6 +47,10 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     obtenerHistorial: vi.fn(),
     crearDocumentoAdjunto: vi.fn(),
     findDocumento: vi.fn(),
+    findDocumentoPorHashEnOtraSolicitud: vi.fn().mockResolvedValue(null),
+    observarDocumentos: vi.fn(),
+    marcarDocumentosReemplazados: vi.fn(),
+    marcarDocumentosReemplazadosPorIds: vi.fn(),
     eliminarDocumento: vi.fn(),
     crearAlertaRevision: vi.fn().mockResolvedValue(undefined),
     crearAlertaRol: vi.fn().mockResolvedValue(undefined),
@@ -207,7 +211,7 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
-      "sol-1", "/uploads/firmado.pdf", "firmado.pdf", "user-1", "cliente@iimp.org.pe", "contrato_firmado", null,
+      "sol-1", "/uploads/firmado.pdf", "firmado.pdf", "user-1", "cliente@iimp.org.pe", "contrato_firmado", null, null,
     );
     expect(repo.crearAlertaRol).toHaveBeenCalledWith(expect.objectContaining({
       rol: ROLES.ADMIN,
@@ -310,5 +314,58 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
+  });
+
+  it("rechaza reutilizar en otra solicitud el mismo archivo de contrato firmado (hash)", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    vi.mocked(repo.findDocumentoPorHashEnOtraSolicitud).mockResolvedValue({ solicitudId: "otra-sol" });
+    const storage = {
+      read: vi.fn(async () => ({ bytes: Buffer.from("pdf-firmado"), contentType: "application/pdf" })),
+    } as unknown as import("@/lib/server/storage").StorageAdapter;
+    const svc = new SolicitudesApplicationService(repo, sgcMock(), storage);
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/firmado.pdf",
+        nombre: "firmado.pdf",
+        userSub: "user-1",
+        userEmail: "cliente@iimp.org.pe",
+        userPermissions: [],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      }),
+    ).rejects.toThrow(/otra solicitud/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("adjunta el contrato firmado propio y persiste su sha256", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand());
+    const storage = {
+      read: vi.fn(async () => ({ bytes: Buffer.from("pdf-firmado"), contentType: "application/pdf" })),
+    } as unknown as import("@/lib/server/storage").StorageAdapter;
+    const svc = new SolicitudesApplicationService(repo, sgcMock(), storage);
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/firmado.pdf",
+      nombre: "firmado.pdf",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
+      "sol-1",
+      "/uploads/firmado.pdf",
+      "firmado.pdf",
+      "user-1",
+      "cliente@iimp.org.pe",
+      TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      null,
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+    );
   });
 });

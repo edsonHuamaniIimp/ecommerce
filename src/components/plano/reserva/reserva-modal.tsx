@@ -175,6 +175,7 @@ export function ReservaModal(props: Props) {
                   subiendoRequisito={subiendoRequisito}
                   onAddRequisito={onAddRequisito}
                   onRemoveRequisito={onRemoveRequisito}
+                  standsLabel={selectedLabels}
                 />
               )}
               {step === RESERVA_STEPS.CONFIRMACION && (

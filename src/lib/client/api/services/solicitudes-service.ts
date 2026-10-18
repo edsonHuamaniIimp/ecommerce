@@ -15,11 +15,42 @@ interface RevisionSalidaDTO {
   updatedAt: string;
 }
 
+/** Filtros avanzados de la bandeja de solicitudes (server-side). */
+export interface SolicitudesListFiltros {
+  estado?: string;
+  empresa?: string;
+  standCode?: string;
+  areaPendiente?: string;
+  sgc?: string;
+  docsObservados?: boolean;
+  desde?: string;
+  hasta?: string;
+  orden?: string;
+}
+
 export const solicitudesService = {
-  listar(eventoId: string, page: number, perPage: number, search?: string, userId?: string) {
+  listar(
+    eventoId: string,
+    page: number,
+    perPage: number,
+    search?: string,
+    userId?: string,
+    filtros?: SolicitudesListFiltros,
+  ) {
     const qs = new URLSearchParams({ eventoId, page: String(page), per_page: String(perPage) });
     if (search) qs.set("search", search);
     if (userId) qs.set("userId", userId);
+    if (filtros) {
+      if (filtros.estado) qs.set("estado", filtros.estado);
+      if (filtros.empresa) qs.set("empresa", filtros.empresa);
+      if (filtros.standCode) qs.set("standCode", filtros.standCode);
+      if (filtros.areaPendiente) qs.set("areaPendiente", filtros.areaPendiente);
+      if (filtros.sgc) qs.set("sgc", filtros.sgc);
+      if (filtros.docsObservados) qs.set("docsObservados", "true");
+      if (filtros.desde) qs.set("desde", filtros.desde);
+      if (filtros.hasta) qs.set("hasta", filtros.hasta);
+      if (filtros.orden) qs.set("orden", filtros.orden);
+    }
     return internalApi.get<SolicitudesPaginatedDTO>(`/api/solicitudes/listar?${qs.toString()}`);
   },
 
@@ -27,8 +58,13 @@ export const solicitudesService = {
     return internalApi.get<SolicitudDTO>(`/api/solicitudes/detalle?id=${id}`);
   },
 
-  revisar(body: { solicitudId: string; area: string; estado: string; comentario?: string }) {
+  revisar(body: { solicitudId: string; area: string; estado: string; comentario?: string; documentosObservados?: string[] }) {
     return internalApi.post<RevisionSalidaDTO>(`/api/solicitudes/revisar`, body);
+  },
+
+  /** Reenvio del cliente tras la observacion local: valida reemplazos y vuelve a revision. */
+  reenviarObservacion(body: { solicitudId: string }) {
+    return internalApi.post<{ ok: boolean }>(`/api/solicitudes/reenviar-observacion`, body);
   },
 
   notificar(body: { solicitudId: string; to: string; modo: "automatico" | "personalizado"; mensaje?: string }) {
