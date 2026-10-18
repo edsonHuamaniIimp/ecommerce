@@ -103,7 +103,7 @@ export function EmpresasManager() {
   const crearCuenta = async (empresa: EmpresaDTO) => {
     const ok = await confirm({
       title: "Crear cuenta de acceso",
-      description: `Se creara la cuenta de "${empresa.razonSocial}" usando su RUC como usuario. Se mostrara la contrasena temporal para que la entregues al representante; al primer ingreso el sistema le pedira cambiarla y completar sus datos (DNI, correo, celular, direccion) en el perfil.`,
+      description: `Se creara la cuenta de "${empresa.razonSocial}" usando su documento (RUC/RUT) como usuario. Se mostrara la contrasena temporal para que la entregues al representante; al primer ingreso el sistema le pedira cambiarla y completar sus datos (DNI, correo, celular, direccion) en el perfil.`,
       confirmLabel: "Crear cuenta",
     });
     if (!ok) return;
@@ -123,8 +123,8 @@ export function EmpresasManager() {
    */
   const revertirCuenta = async (empresa: EmpresaDTO) => {
     const ok = await confirm({
-      title: "Revertir a cuenta RUC",
-      description: `Se convertira la cuenta de "${empresa.razonSocial}" a usuario = RUC: el correo de acceso pasara a acceso-${empresa.ruc}@acceso.iimp y se generara una nueva contrasena temporal (la anterior dejara de funcionar). No se envia correo; la contrasena se muestra una vez.`,
+      title: "Revertir a cuenta RUC/RUT",
+      description: `Se convertira la cuenta de "${empresa.razonSocial}" a usuario = documento (RUC/RUT): el correo de acceso pasara a acceso-${empresa.ruc}@acceso.iimp y se generara una nueva contrasena temporal (la anterior dejara de funcionar). No se envia correo; la contrasena se muestra una vez.`,
       confirmLabel: "Revertir",
       destructive: true,
     });
@@ -195,7 +195,7 @@ export function EmpresasManager() {
               {pagination.total}
             </span>
               <span className="text-[11px] text-muted-foreground">
-                La llave crea la cuenta de acceso (usuario = RUC) en empresas sin representante legal. No se envian correos: los datos se completan en el primer ingreso.
+                La llave crea la cuenta de acceso (usuario = RUC/RUT) en empresas sin representante legal. No se envian correos: los datos se completan en el primer ingreso.
               </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -233,7 +233,7 @@ export function EmpresasManager() {
           <div className="relative w-full sm:flex-1">
             <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por razon social o RUC..."
+              placeholder="Buscar por razon social o RUC/RUT..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); void load(1, e.currentTarget.value, perPage, estado); } }}
@@ -283,7 +283,7 @@ export function EmpresasManager() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-[10px] uppercase tracking-wide">Razon social</TableHead>
-                    <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">RUC</TableHead>
+                    <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">RUC / RUT</TableHead>
                     <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Contacto</TableHead>
                     <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Comprobante</TableHead>
                     <TableHead className="text-[10px] uppercase tracking-wide">Cuenta</TableHead>
@@ -366,7 +366,7 @@ export function EmpresasManager() {
                                     <KeyRound className="h-3.5 w-3.5" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC)</span></TooltipContent>
+                                <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC/RUT)</span></TooltipContent>
                               </Tooltip>
                             ) : null
                           ) : (
@@ -383,7 +383,7 @@ export function EmpresasManager() {
                                       <RotateCcw className="h-3.5 w-3.5" />
                                     </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent side="top"><span>Revertir a cuenta RUC (usuario = RUC)</span></TooltipContent>
+                                  <TooltipContent side="top"><span>Revertir a cuenta RUC/RUT (usuario = documento)</span></TooltipContent>
                                 </Tooltip>
                               ) : null}
                               {empresa.cuentaEmail && esEmailProvisional(empresa.cuentaEmail) ? (
@@ -497,7 +497,7 @@ export function EmpresasManager() {
             </DialogHeader>
             <div className="space-y-3 py-2">
               <div className="space-y-1">
-                <Label className="text-xs"><span>Usuario (RUC)</span></Label>
+                <Label className="text-xs"><span>Usuario (RUC/RUT)</span></Label>
                 <Input value={credenciales.usuario} readOnly className="h-8 font-mono text-xs" />
               </div>
               <div className="space-y-1">
@@ -506,7 +506,7 @@ export function EmpresasManager() {
               </div>
               <p className="text-[11px] text-muted-foreground">
                 <span>
-                  El representante ingresa con su RUC y esta contrasena; el sistema le pedira cambiarla y
+                  El representante ingresa con su RUC/RUT y esta contrasena; el sistema le pedira cambiarla y
                   completar sus datos (DNI, correo, celular, direccion) en el perfil.
                 </span>
               </p>

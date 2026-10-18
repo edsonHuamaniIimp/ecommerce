@@ -9,6 +9,7 @@ import { entidadesService, type EmpresaEntidadDTO } from "@/lib/client/api/servi
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { etiquetaTipoDocumentoEmpresa, normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
 import { RepresentanteLegalModal } from "./representante-legal-modal";
 
@@ -102,12 +103,18 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const [resultadosFuente, setResultadosFuente] = useState<EmpresaFuenteDTO[] | null>(null);
   const [sieCodeFuente, setSieCodeFuente] = useState<string | null>(null);
   const [avisoConsulta, setAvisoConsulta] = useState<string | null>(null);
+  const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   /* Empresa encontrada: se muestra su informacion y "Modificar informacion" abre el formulario. */
   const [mostrarFormulario, setMostrarFormulario] = useState(empresa !== null);
   /* Representante legal: modal adicional (dato del contrato). */
   const [repModalOpen, setRepModalOpen] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const esEdicion = empresa !== null;
+  /* Documento de empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
+  const documentoEmpresa = normalizarDocumentoEmpresa(form.ruc);
+  const tipoDocumentoEmpresa = documentoEmpresa ? resolverTipoDocumentoEmpresa(null, documentoEmpresa) : null;
+  const documentoEmpresaValido =
+    tipoDocumentoEmpresa !== null && validarDocumentoEmpresa(tipoDocumentoEmpresa, documentoEmpresa) === null;
 
   const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,6 +133,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const setCampo = (campo: keyof FormState, valor: string) => {
     setForm((prev) => ({ ...prev, [campo]: valor }));
     setErrores((prev) => ({ ...prev, [campo]: undefined }));
+    setErrorGeneral(null);
     if (campo === "ruc" || campo === "razonSocial") {
       setConsultado(false);
       setDuplicadaLocal(null);
@@ -139,10 +147,14 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
 
   /** Prellena (solo campos vacios) con los datos de la empresa encontrada en la fuente. */
   const aplicarDatosFuente = (fuente: EmpresaFuenteDTO) => {
+    const docFuente = normalizarDocumentoEmpresa(fuente.documento);
+    const tipoFuente = docFuente ? resolverTipoDocumentoEmpresa(fuente.idTipoDocumento, docFuente) : null;
+    const docFuenteValido =
+      tipoFuente !== null && validarDocumentoEmpresa(tipoFuente, docFuente) === null;
     setForm((prev) => ({
       ...prev,
-      /* El RUC hallado se copia al campo para poder enriquecer con SUNAT. */
-      ruc: prev.ruc.trim() || (REGEX_RUC.test(fuente.documento) ? fuente.documento : prev.ruc),
+      /* El documento hallado (RUC o RUT) se copia para poder enriquecer con SUNAT. */
+      ruc: prev.ruc.trim() || (docFuenteValido ? docFuente : prev.ruc),
       razonSocial: prev.razonSocial.trim() || fuente.nombre,
       direccionFiscal: prev.direccionFiscal.trim() || (fuente.direccion ?? ""),
       telefono: prev.telefono.trim() || (fuente.telefono ?? ""),
@@ -152,9 +164,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
 
   /** Completa lo que el padron no trae: servicio-persona (correo/telefono/direccion) y SUNAT (direccion). */
   const enriquecerConFuentes = async (documento?: string) => {
-    const ruc = (REGEX_RUC.test(form.ruc.trim()) ? form.ruc.trim() : "") || (documento && REGEX_RUC.test(documento) ? documento : "");
-    if (ruc) {
-      const fuente = await empresasService.buscarFuente(ruc).catch(() => null);
+    const docFuente = normalizarDocumentoEmpresa(form.ruc) || normalizarDocumentoEmpresa(documento);
+    if (docFuente) {
+      const fuente = await empresasService.buscarFuente(docFuente).catch(() => null);
       const hallada = fuente?.[0];
       if (hallada) {
         setForm((prev) => ({
@@ -165,13 +177,16 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           emailContacto: prev.emailContacto.trim() || (hallada.correo ?? ""),
         }));
       }
-      const r = await sunatService.consultarRuc(ruc).catch(() => null);
-      if (r) {
-        setForm((prev) => ({
-          ...prev,
-          razonSocial: prev.razonSocial.trim() || r.razonSocial || prev.razonSocial,
-          direccionFiscal: prev.direccionFiscal.trim() || r.direccion || prev.direccionFiscal,
-        }));
+      /* SUNAT solo aplica a RUC peruano. */
+      if (REGEX_RUC.test(docFuente)) {
+        const r = await sunatService.consultarRuc(docFuente).catch(() => null);
+        if (r) {
+          setForm((prev) => ({
+            ...prev,
+            razonSocial: prev.razonSocial.trim() || r.razonSocial || prev.razonSocial,
+            direccionFiscal: prev.direccionFiscal.trim() || r.direccion || prev.direccionFiscal,
+          }));
+        }
       }
     }
   };
@@ -193,11 +208,12 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
    * servicio-persona (best-effort: puede no estar accesible). Se elige con "Usar".
    */
   const consultar = async () => {
-    const ruc = form.ruc.trim();
+    const documento = normalizarDocumentoEmpresa(form.ruc);
     const nombre = form.razonSocial.trim();
-    const esRucValido = REGEX_RUC.test(ruc);
-    if (!esRucValido && nombre.length < 3) {
-      setErrores((prev) => ({ ...prev, ruc: "Ingresa el RUC (11 digitos) o al menos 3 letras de la razon social" }));
+    const esDocumentoValido =
+      documento.length >= 6 && documentoEmpresaValido;
+    if (!esDocumentoValido && nombre.length < 3) {
+      setErrores((prev) => ({ ...prev, ruc: "Ingresa el RUC/RUT o al menos 3 letras de la razon social" }));
       return;
     }
     setConsultando(true);
@@ -208,9 +224,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     setAvisoConsulta(null);
     setMostrarFormulario(false);
     try {
-      if (esRucValido) {
-        const pagina = await empresasService.listar({ page: 1, perPage: 10, search: ruc });
-        setDuplicadaLocal((pagina.data ?? []).find((e) => e.ruc === ruc) ?? null);
+      if (esDocumentoValido) {
+        const pagina = await empresasService.listar({ page: 1, perPage: 10, search: documento });
+        setDuplicadaLocal((pagina.data ?? []).find((e) => normalizarDocumentoEmpresa(e.ruc) === documento) ?? null);
       }
 
       const coincidencias: EmpresaFuenteDTO[] = [];
@@ -225,24 +241,24 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
       /* Padron IIMP (API de entidades): por RUC exacto y/o por razon social. */
       const delPadron: EmpresaFuenteDTO[] = [];
       try {
-        if (esRucValido) agregarPadron(delPadron, await entidadesService.buscarEmpresas(ruc));
+        if (esDocumentoValido) agregarPadron(delPadron, await entidadesService.buscarEmpresas(documento));
         if (nombre.length >= 3) agregarPadron(delPadron, await entidadesService.buscarEmpresas(nombre));
       } catch {
         /* padron no disponible: seguimos con servicio-persona */
       }
 
       let exacta: EmpresaFuenteDTO | null = null;
-      if (esRucValido) {
-        exacta = delPadron.find((e) => e.documento === ruc) ?? null;
+      if (esDocumentoValido) {
+        exacta = delPadron.find((e) => normalizarDocumentoEmpresa(e.documento) === documento) ?? null;
       }
       if (!exacta) agregar(delPadron);
 
       /* Fuente servicio-persona (best-effort, sin bloquear la consulta). */
       try {
-        if (!exacta && esRucValido) {
-          const porRuc = await empresasService.buscarFuente(ruc);
-          exacta = porRuc.find((e) => e.documento === ruc) ?? null;
-          if (!exacta) agregar(porRuc);
+        if (!exacta && esDocumentoValido) {
+          const porDocumento = await empresasService.buscarFuente(documento);
+          exacta = porDocumento.find((e) => normalizarDocumentoEmpresa(e.documento) === documento) ?? null;
+          if (!exacta) agregar(porDocumento);
         }
         if (!exacta && nombre.length >= 3) {
           agregar(await empresasService.buscarFuente(nombre));
@@ -277,7 +293,11 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const validar = (): boolean => {
     const nuevos: Partial<Record<keyof FormState, string>> = {};
     if (!form.razonSocial.trim()) nuevos.razonSocial = "La razon social es obligatoria";
-    if (!REGEX_RUC.test(form.ruc.trim())) nuevos.ruc = "El RUC debe tener 11 digitos";
+    if (!documentoEmpresaValido) {
+      nuevos.ruc = tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC
+        ? "El RUC debe tener 11 digitos"
+        : "Ingresa un RUC (11 digitos) o RUT/documento extranjero (hasta 20)";
+    }
     if (form.emailContacto.trim() && !REGEX_EMAIL.test(form.emailContacto.trim())) {
       nuevos.emailContacto = "Correo invalido";
     }
@@ -289,21 +309,30 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!validar()) return;
+    setErrorGeneral(null);
+    if (!validar()) {
+      setErrorGeneral("Completa los datos obligatorios: revisa los campos marcados en el formulario.");
+      /* En la vista resumida los errores no son visibles: abre el formulario. */
+      setMostrarFormulario(true);
+      return;
+    }
     if (!esEdicion) {
       if (!consultado) {
-        setErrores((prev) => ({ ...prev, ruc: "Consulta el RUC antes de registrar" }));
+        setErrorGeneral("Consulta el documento (RUC/RUT) antes de registrar.");
+        setMostrarFormulario(true);
         return;
       }
       if (duplicadaLocal) {
-        setErrores((prev) => ({ ...prev, ruc: `Ya existe una empresa con este RUC: ${duplicadaLocal.razonSocial}` }));
+        setErrorGeneral(`Ya existe una empresa con este documento: ${duplicadaLocal.razonSocial}`);
+        setMostrarFormulario(true);
         return;
       }
     }
     setEnviando(true);
     try {
       const payload = {
-        ruc: form.ruc.trim(),
+        ruc: documentoEmpresa,
+        tipoDocumento: tipoDocumentoEmpresa,
         razonSocial: form.razonSocial.trim(),
         sieCode: sieCodeFuente,
         logoUrl: form.logoUrl || null,
@@ -405,7 +434,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Empresa encontrada</p>
                   <p className="truncate text-sm font-semibold text-foreground">{encontradaFuente.nombre}</p>
                   <p className="font-mono text-[11px] text-muted-foreground">
-                    {REGEX_RUC.test(form.ruc.trim()) ? `RUC ${form.ruc.trim()}` : (encontradaFuente.documento || "—")}
+                    {documentoEmpresa ? `${etiquetaTipoDocumentoEmpresa(tipoDocumentoEmpresa)} ${documentoEmpresa}` : (encontradaFuente.documento || "—")}
                     {" · "}SIE {encontradaFuente.sieCode || "—"}
                   </p>
                 </div>
@@ -434,14 +463,14 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Razon social" requerido valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} error={errores.razonSocial} placeholder="Minera Cordillera S.A.C." />
             <div>
-              <Label className="text-xs">RUC <span className="text-destructive">*</span></Label>
+              <Label className="text-xs">RUC / RUT <span className="text-destructive">*</span></Label>
               <div className="mt-1 flex gap-2">
                 <Input
                   value={form.ruc}
                   onChange={(e) => { setCampo("ruc", e.target.value); }}
-                  onBlur={() => { if (!esEdicion && (REGEX_RUC.test(form.ruc.trim()) || form.razonSocial.trim().length >= 3)) void consultar(); }}
+                  onBlur={() => { if (!esEdicion && ((documentoEmpresaValido && documentoEmpresa.length >= 6) || form.razonSocial.trim().length >= 3)) void consultar(); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void consultar(); } }}
-                  placeholder="20601234567"
+                  placeholder="20601234567 o 965744207"
                   className={`h-9 font-mono text-sm ${errores.ruc ? "border-destructive" : ""}`}
                 />
                 <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 text-xs" disabled={consultando} onClick={() => { void consultar(); }}>
@@ -450,7 +479,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
                 </Button>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                <span>Consulta por RUC (exacto) o razon social (prefijo) antes de registrar.</span>
+                <span>Consulta por RUC/RUT (exacto) o razon social (prefijo) antes de registrar.</span>
               </p>
               {errores.ruc && <p className="mt-1 text-[11px] text-destructive"><span>{errores.ruc}</span></p>}
               {!esEdicion && duplicadaLocal && (
@@ -554,6 +583,12 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             </>
           )}
         </div>
+
+        {errorGeneral && (
+          <p className="shrink-0 border-t border-destructive/30 pt-2 text-xs text-destructive">
+            <span>{errorGeneral}</span>
+          </p>
+        )}
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border pt-3">
           <Button variant="outline" size="sm" className="rounded-full px-4 text-xs" onClick={onClose} disabled={enviando}>
