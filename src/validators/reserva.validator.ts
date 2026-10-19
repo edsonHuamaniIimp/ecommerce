@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const reservaRequestSchema = z.object({
   standIds: z.array(z.string()).min(1),
+  /** Hold creado al abrir el wizard. */
+  holdId: z.string().uuid().optional(),
   documentos: z.array(z.string()).optional(),
   datos: z.object({
     razonSocial: z.string(),

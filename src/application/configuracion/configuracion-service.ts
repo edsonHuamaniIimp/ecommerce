@@ -9,6 +9,7 @@ const PORTAL_VACIO: PortalConfigEntity = {
   contactoEmail: null,
   manualUrl: null,
   reglamentoUrl: null,
+  holdReservaMinutos: 25,
   updatedBy: null,
   updatedAt: null,
 };
@@ -19,6 +20,7 @@ export interface PortalConfigInput {
   contactoEmail?: string | null;
   manualUrl?: string | null;
   reglamentoUrl?: string | null;
+  holdReservaMinutos?: number;
 }
 
 /** Texto limpio (trim) o null si queda vacio. */
@@ -43,6 +45,15 @@ function url(valor: string | null | undefined, campo: string): string | null {
     throw new DomainError(`URL invalida en ${campo}: debe iniciar con http:// o https://`, API_ERROR_CODES.VALIDATION, 400);
   }
   return limpio;
+}
+
+/** Duracion del hold en minutos: entero entre 1 y 120. */
+function minutosHold(valor: number | undefined): number {
+  const minutos = valor ?? 25;
+  if (!Number.isInteger(minutos) || minutos < 1 || minutos > 120) {
+    throw new DomainError("Los minutos de bloqueo deben ser un entero entre 1 y 120", API_ERROR_CODES.VALIDATION, 400);
+  }
+  return minutos;
 }
 
 /**
@@ -71,6 +82,7 @@ export class ConfiguracionApplicationService {
       contactoEmail: correo(input.contactoEmail, "Contacto"),
       manualUrl: url(input.manualUrl, "Manual del Exhibidor"),
       reglamentoUrl: url(input.reglamentoUrl, "Reglamento de Stands"),
+      holdReservaMinutos: minutosHold(input.holdReservaMinutos),
       updatedBy: limpiar(actualizadoPor),
     });
   }

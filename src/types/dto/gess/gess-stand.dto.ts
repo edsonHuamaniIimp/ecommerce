@@ -17,6 +17,9 @@ export interface GessStandDTO {
   bloqueId: string | null;
   email?: string | null;
   userId?: string | null;
+  /** Bloqueo temporal del wizard (no es una reserva). */
+  holdId?: string | null;
+  holdExpiresAt?: string | null;
   documentos: unknown;
   imagenes: unknown;
   /** Categoria por url de imagen: { "<url>": "<categoria>" }. */

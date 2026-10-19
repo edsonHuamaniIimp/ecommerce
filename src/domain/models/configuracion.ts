@@ -8,6 +8,8 @@ export interface PortalConfigEntity {
   manualUrl: string | null;
   /** URL del Reglamento de Stands. */
   reglamentoUrl: string | null;
+  /** Minutos que un stand queda bloqueado mientras el cliente completa el wizard. */
+  holdReservaMinutos: number;
   updatedBy: string | null;
   updatedAt: Date | null;
 }
@@ -18,5 +20,6 @@ export interface ActualizarPortalConfigData {
   contactoEmail: string | null;
   manualUrl: string | null;
   reglamentoUrl: string | null;
+  holdReservaMinutos: number;
   updatedBy: string | null;
 }

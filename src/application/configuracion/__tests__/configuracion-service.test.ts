@@ -54,8 +54,20 @@ describe("ConfiguracionApplicationService", () => {
       contactoEmail: "c@iimp.org.pe",
       manualUrl: null,
       reglamentoUrl: null,
+      holdReservaMinutos: 25,
       updatedBy: "admin@iimp.org.pe",
     });
+  });
+
+  it("guarda los minutos de bloqueo configurados y valida el rango", async () => {
+    const { repo, guardados } = fakeRepo();
+    const service = new ConfiguracionApplicationService(repo);
+
+    await service.actualizarPortal({ holdReservaMinutos: 40 }, "admin@iimp.org.pe");
+
+    expect(guardados[0]).toEqual(expect.objectContaining({ holdReservaMinutos: 40 }));
+    await expect(service.actualizarPortal({ holdReservaMinutos: 0 }, null)).rejects.toMatchObject({ status: 400 });
+    await expect(service.actualizarPortal({ holdReservaMinutos: 121 }, null)).rejects.toMatchObject({ status: 400 });
   });
 
   it("rechaza correos invalidos y URLs sin http(s)", async () => {

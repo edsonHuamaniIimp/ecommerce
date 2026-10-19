@@ -1,6 +1,9 @@
 import type { IGessRepository } from "@/domain/ports/gess-repository";
+import { randomUUID } from "node:crypto";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type { StandEventPublisher } from "@/domain/ports/stand-events";
+import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
@@ -8,6 +11,7 @@ import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
+import { DomainError } from "@/lib/server/router";
 
 const BLOQUEADOS: string[] = [ESTADOS_STAND.EN_EVALUACION, ESTADOS_STAND.RESERVADO, ESTADOS_STAND_LEGACY.RESERVADO, ESTADOS_STAND_LEGACY.EN_EVALUACION];
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "ext_analistaprogramador3@iimp.org.pe";
@@ -17,7 +21,71 @@ export class ReservaApplicationService {
     private readonly gessRepo: IGessRepository,
     private readonly solicitudesRepo: ISolicitudesRepository | undefined,
     private readonly authRepo: IAuthRepository,
+    private readonly standEvents?: StandEventPublisher,
+    private readonly configuracionRepo?: IConfiguracionRepository,
   ) {}
+
+  /** Duracion configurada del hold; 25 minutos si no hay configuracion. */
+  private async minutosHold(): Promise<number> {
+    if (!this.configuracionRepo) return 25;
+    try {
+      return (await this.configuracionRepo.obtenerPortal())?.holdReservaMinutos ?? 25;
+    } catch {
+      return 25;
+    }
+  }
+
+  /** Bloquea temporalmente los stands al abrir el wizard (todo o nada). */
+  async crearHold(
+    standIds: string[],
+    eventoId: string,
+    userSub: string,
+    _userEmail: string | undefined,
+    minutos?: number,
+  ): Promise<{ holdId: string; expiresAt: string; reservaEnMinutos: number }> {
+    if (!userSub) throw new DomainError("Inicia sesion para reservar", "UNAUTHORIZED", 401);
+    if (!eventoId) throw new DomainError("Evento requerido para bloquear stands", "VALIDATION", 400);
+    const duracion = minutos ?? await this.minutosHold();
+    const holdId = randomUUID();
+    const expiresAt = new Date(Date.now() + duracion * 60 * 1000);
+    const resultado = await this.gessRepo.crearHold({ standIds, eventoId, holdId, userId: userSub, expiresAt });
+    if (!resultado.ok) {
+      throw new DomainError(
+        `Los stands ya estan en proceso o reservados: ${resultado.conflictos.join(", ")}`,
+        "CONFLICT",
+        409,
+      );
+    }
+    if (this.standEvents) {
+      const detalle = await Promise.all([...new Set(standIds)].map((id) => this.gessRepo.findById(id)));
+      const stands = detalle.filter((s): s is NonNullable<typeof s> => s !== null);
+      await this.standEvents.standHold({
+        eventoId,
+        holdId,
+        standIds: stands.map((s) => s.id),
+        standCodes: stands.map((s) => s.standCode),
+        expiresAt: expiresAt.toISOString(),
+      }).catch(() => {});
+    }
+    return { holdId, expiresAt: expiresAt.toISOString(), reservaEnMinutos: duracion };
+  }
+
+  /** Libera un hold propio (al cerrar el wizard). */
+  async liberarHold(holdId: string, userSub: string): Promise<number> {
+    const stands = await this.gessRepo.liberarHold(holdId, userSub);
+    if (stands.length > 0 && this.standEvents) {
+      const eventoId = stands[0]?.eventoId;
+      if (eventoId) {
+        await this.standEvents.standReleased({
+          eventoId,
+          holdId,
+          standIds: stands.map((s) => s.id),
+          standCodes: stands.map((s) => s.standCode),
+        }).catch(() => {});
+      }
+    }
+    return stands.length;
+  }
 
   async crear(request: {
     standIds: string[];
@@ -36,6 +104,8 @@ export class ReservaApplicationService {
     userSub?: string;
     /** Evento de la sesion: los stands deben pertenecer a el. */
     eventoId?: string;
+    /** Hold creado al abrir el wizard; se convierte en reserva. */
+    holdId?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
@@ -50,6 +120,7 @@ export class ReservaApplicationService {
     const perfil = request.userEmail
       ? await this.authRepo.findPerfilByEmail(request.userEmail).catch(() => null)
       : null;
+    const ahora = new Date();
     const viewer: EmpresaViewer = {
       ruc: perfil?.empresa?.ruc ?? null,
       razonSocial: perfil?.empresa?.razonSocial ?? perfil?.nombreEmpresa ?? null,
@@ -68,6 +139,10 @@ export class ReservaApplicationService {
       if (eventoComun === null) eventoComun = stand.eventoId;
       if (stand.eventoId !== eventoComun) {
         conflicted.push(`${stand.standCode} no pertenece al evento actual`);
+        continue;
+      }
+      if (stand.holdExpiresAt && stand.holdExpiresAt > ahora && stand.holdUserId !== request.userSub) {
+        conflicted.push(`${stand.standCode} esta en proceso por otra empresa`);
         continue;
       }
       if (stand.estado && BLOQUEADOS.includes(stand.estado)) {
@@ -89,6 +164,14 @@ export class ReservaApplicationService {
     }
 
     // Fase 2: aplicar los cambios solo si todo paso la validacion.
+    if (request.holdId) {
+      const holdValido = request.userSub
+        ? await this.gessRepo.validarHold(idsUnicos, request.holdId, request.userSub)
+        : false;
+      if (!holdValido) {
+        return { ok: false, message: "El bloqueo temporal expiro. Vuelve a seleccionar los stands.", conflicted: standCodes };
+      }
+    }
     const createdStandIds: string[] = [];
     for (const { dbId } of validos) {
       await this.gessRepo.update(dbId, {
@@ -96,8 +179,19 @@ export class ReservaApplicationService {
         email: contactEmail ?? null,
         userId: request.userSub ?? null,
         documentos: request.documentos,
+        holdId: null,
+        holdUserId: null,
+        holdExpiresAt: null,
       } as never);
       createdStandIds.push(dbId);
+    }
+
+    if (eventoComun && this.standEvents) {
+      await this.standEvents.standReservado({
+        eventoId: eventoComun,
+        standIds: createdStandIds,
+        standCodes,
+      }).catch(() => {});
     }
 
     let solicitudId: string | undefined;

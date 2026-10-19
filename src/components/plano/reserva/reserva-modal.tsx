@@ -2,7 +2,7 @@
 
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
 import { ChevronRight, ChevronLeft, Building2, X, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RESERVA_STEPS } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -20,6 +20,8 @@ import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Vencimiento del hold creado al abrir el wizard. */
+  holdExpiresAt?: string | null;
   autenticado: boolean;
   sesionCargando: boolean;
   onAuthenticated: () => void | Promise<unknown>;
@@ -73,6 +75,40 @@ interface Props {
 const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.CUOTAS, RESERVA_STEPS.CONTRATO, RESERVA_STEPS.CONFIRMACION] as const;
 
 /** Titulo y subtitulo del encabezado segun el paso actual. */
+function HoldCountdown({ expiresAt, count }: { expiresAt: string | null; count: number }) {
+  const [restante, setRestante] = useState(() => Math.max(0, Math.floor((new Date(expiresAt ?? 0).getTime() - Date.now()) / 1000)));
+  const varios = count > 1;
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const actualizar = () => setRestante(Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)));
+    actualizar();
+    const timer = setInterval(actualizar, 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  if (!expiresAt) return null;
+  const minutos = Math.floor(restante / 60);
+  const segundos = String(restante % 60).padStart(2, "0");
+  const vencido = restante <= 0;
+  const critico = restante <= 300 && !vencido;
+  return (
+    <div className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-[11px] font-semibold ${vencido ? "border-destructive/30 bg-destructive/10 text-destructive" : critico ? "border-warning/30 bg-warning/10 text-warning" : "border-success/30 bg-success/10 text-success"}`}>
+      <div className="flex flex-col gap-0.5">
+        <span>{vencido ? (varios ? "El bloqueo expiró. Vuelve a seleccionar los stands." : "El bloqueo expiró. Vuelve a seleccionar el stand.") : (varios ? "Stands bloqueados para ti" : "Stand bloqueado para ti")}</span>
+        {!vencido && (
+          <span className="font-normal opacity-80">
+            {varios
+              ? "Nadie más podrá reservar estos stands mientras el contador esté activo."
+              : "Nadie más podrá reservar este stand mientras el contador esté activo."}
+          </span>
+        )}
+      </div>
+      {!vencido && <span className="ml-auto shrink-0 font-mono">{minutos}:{segundos}</span>}
+    </div>
+  );
+}
+
 function encabezado(step: ReservaStep): string {
   if (step === RESERVA_STEPS.DATOS) return "Completa los datos comerciales y de facturacion para formalizar tu solicitud.";
   if (step === RESERVA_STEPS.CUOTAS) return "Elige la modalidad de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
@@ -82,7 +118,7 @@ function encabezado(step: ReservaStep): string {
 
 export function ReservaModal(props: Props) {
   const {
-    open, onOpenChange, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
+    open, onOpenChange, holdExpiresAt, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
     formDatos, onDatosChange, docsRequisitos, subiendoRequisito, submitting, submitError,
     selectedCount, singleStand, selectedLabels, selectedItems,
     onAddRequisito, onRemoveRequisito, onSubmit,
@@ -126,10 +162,18 @@ export function ReservaModal(props: Props) {
             </Button>
           </div>
 
-          <h2 className="text-base font-bold tracking-tight text-primary">Proceso de Reserva de Stands</h2>
+          <h2 className="text-base font-bold tracking-tight text-primary">
+            {singleStand ? "Proceso de Reserva de Stand" : "Proceso de Reserva de Stands"}
+          </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {autenticado ? encabezado(step) : "Identificate para continuar con tu reserva."}
           </p>
+
+          {holdExpiresAt && (
+            <div className="mt-3">
+              <HoldCountdown expiresAt={holdExpiresAt} count={selectedCount} />
+            </div>
+          )}
 
           {autenticado && (
             <div className="mt-4">
@@ -188,6 +232,7 @@ export function ReservaModal(props: Props) {
                 <StepConfirmacion
                   datos={formDatos}
                   selectedLabels={selectedLabels}
+                  selectedCount={selectedCount}
                   docsCount={Object.keys(docsRequisitos).length + (firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada) ? 1 : 0)}
               cuotasPago={cuotasPago}
               confirmado={confirmado}

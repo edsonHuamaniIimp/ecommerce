@@ -11,6 +11,7 @@ import type { CuotaConfig } from "./use-reserva-form";
 interface Props {
   datos: FormDatos;
   selectedLabels: string;
+  selectedCount: number;
   docsCount: number;
   /** Cuotas de la modalidad elegida (porcentaje + fecha). */
   cuotasPago: CuotaConfig[];
@@ -45,14 +46,15 @@ function CardResumen({ titulo, icono, badge, children }: { titulo: string; icono
   );
 }
 
-export function StepConfirmacion({ datos, selectedLabels, docsCount, cuotasPago, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
+export function StepConfirmacion({ datos, selectedLabels, selectedCount, docsCount, cuotasPago, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
   const [termsOpen, setTermsOpen] = useState(false);
   const esFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
   const comprobante = esFactura ? "Factura" : datos.tipoComprobante === TIPOS_COMPROBANTE.BOLETA ? "Boleta" : "-";
+  const variosStands = selectedCount > 1;
 
   return (
     <div className="flex flex-col gap-3 pt-3">
-      <CardResumen titulo="Stands seleccionados" icono={<Building2 className="h-3.5 w-3.5" />}>
+      <CardResumen titulo={variosStands ? "Stands seleccionados" : "Stand seleccionado"} icono={<Building2 className="h-3.5 w-3.5" />}>
         <div className="px-3 py-2">
           <p className="text-xs text-foreground">{selectedLabels || "-"}</p>
         </div>
@@ -147,7 +149,7 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, cuotasPago,
             >
               <span>terminos y condiciones</span>
             </Button>{" "}
-            del IIMP. Entiendo que al enviar esta solicitud, el stand quedara reservado y sujeto al proceso de revision.
+            del IIMP. Entiendo que al enviar esta solicitud, {variosStands ? "los stands quedarán reservados" : "el stand quedará reservado"} y sujeto{variosStands ? "s" : ""} al proceso de revisión.
           </span>
         </Label>
       </div>
@@ -155,8 +157,8 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, cuotasPago,
       <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-[11px] text-warning">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          <span className="font-semibold">Nota importante:</span> al enviar la solicitud, tus stands quedaran sujetos al
-          proceso de revision hasta que el Comite Comercial del IIMP emita el contrato marco.
+          <span className="font-semibold">Nota importante:</span> al enviar la solicitud, {variosStands ? "tus stands quedarán sujetos" : "tu stand quedará sujeto"} al
+          proceso de revisión hasta que el Comité Comercial del IIMP emita el contrato marco.
         </span>
       </div>
 

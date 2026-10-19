@@ -38,6 +38,9 @@ function mockRepo(): IGessRepository {
     datosEmpresaPorStands: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    crearHold: vi.fn(),
+    liberarHold: vi.fn(),
+    validarHold: vi.fn(),
     countByEvento: vi.fn(),
   };
 }

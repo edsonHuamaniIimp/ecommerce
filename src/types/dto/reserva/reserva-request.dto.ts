@@ -12,6 +12,8 @@ export interface DatosFacturacionRequestDTO {
 
 export interface ReservaRequestDTO {
   standIds: string[];
+  /** Hold temporal creado al abrir el wizard. */
+  holdId?: string;
   documentos?: string[];
   datos?: DatosFacturacionRequestDTO;
 }

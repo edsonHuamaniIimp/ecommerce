@@ -26,6 +26,7 @@ import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } fro
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
 import { toast } from "sonner";
@@ -236,6 +237,57 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     usePlanoCarrito.getState().registrarPlano(planoId, parentCodigo ?? null);
   }, [planoId, parentCodigo]);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
+  const [holdReserva, setHoldReserva] = useState<{ holdId: string; expiresAt: string } | null>(null);
+  /** Ref sincrona para ignorar el evento Pusher de nuestro propio hold. */
+  const holdReservaRef = useRef<{ holdId: string; expiresAt: string } | null>(null);
+  /** Stands del hold que esta en vuelo: su evento puede llegar antes que la respuesta HTTP. */
+  const holdSolicitudRef = useRef<string[] | null>(null);
+
+  useStandEvents(eventoId, {
+    onReserved: (event) => {
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode)) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.RESERVADO, reserved: true });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+    onHeld: (event) => {
+      const esPropio = event.holdId === holdReservaRef.current?.holdId;
+      const enSolicitud = holdSolicitudRef.current?.some((id) => event.standIds.includes(id)) ?? false;
+      if (esPropio || enSolicitud) return;
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode)) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.EN_PROCESO, reserved: true });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+    onReleased: (event) => {
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (info.estado === ESTADOS_STAND.EN_PROCESO && (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode))) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.DISPONIBLE, reserved: false });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+  });
+
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number; standCode: string; filtro: string; grupos: { categoria: CategoriaImagen; urls: string[] }[]; todas: string[] } | null>(null);
   const [dataReady, setDataReady] = useState(false);
   const [detailModal, setDetailModal] = useState<GessInfoFull | null>(null);
@@ -451,13 +503,31 @@ map.set(String(bloqueId), {
         router.push("/dashboard/perfil");
         return false;
       }
+      if (sesionReserva?.authenticated) {
+        const standIds = idsGlobales
+          .map((id) => linkedMap.get(id)?.dbId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0);
+        if (standIds.length > 0) {
+          holdSolicitudRef.current = standIds;
+          try {
+            const hold = await gessService.hold(standIds);
+            holdReservaRef.current = hold;
+            setHoldReserva(hold);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.");
+            return false;
+          } finally {
+            holdSolicitudRef.current = null;
+          }
+        }
+      }
       setReservaOpen(true);
       setReservaStep(0);
       return true;
     } finally {
       setVerificandoPerfil(false);
     }
-  }, [router, setReservaOpen, setReservaStep]);
+  }, [router, setReservaOpen, setReservaStep, sesionReserva?.authenticated, idsGlobales, linkedMap]);
 
   useEffect(() => {
     if (!openReserva || !dataReady) return;
@@ -500,6 +570,15 @@ map.set(String(bloqueId), {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openReserva, dataReady, planoId, router]);
+
+  const handleReservaOpenChange = useCallback((open: boolean) => {
+    if (!open && holdReserva && !submitting) {
+      void gessService.liberarHold(holdReserva.holdId).catch(() => {});
+      holdReservaRef.current = null;
+      setHoldReserva(null);
+    }
+    handleOpenChange(open);
+  }, [handleOpenChange, holdReserva, submitting]);
 
   const handleSelect = (id: string) => {
     const info = linkedMap.get(id);
@@ -753,7 +832,7 @@ map.set(String(bloqueId), {
               item={it}
               selected={idsPlano.includes(it.id)}
               reserved={reserved}
-              hoverText={reserved ? (info?.empresa?.trim() || "Reservado") : null}
+              hoverText={reserved ? (info?.estado === ESTADOS_STAND.EN_PROCESO ? "En proceso de reserva, reintente luego." : (info?.empresa?.trim() || "Reservado")) : null}
               logoUrl={reserved ? (info?.empresaLogo ?? null) : null}
               topLabel={info?.standCode ? String(info.standCode).trim() || null : null}
               onHover={setHoverStand}
@@ -1098,7 +1177,8 @@ map.set(String(bloqueId), {
 
       <ReservaModal
         open={reservaOpen}
-        onOpenChange={handleOpenChange}
+        onOpenChange={handleReservaOpenChange}
+        holdExpiresAt={holdReserva?.expiresAt ?? null}
         autenticado={sesionReserva?.authenticated === true}
         sesionCargando={sesionCargando}
         onAuthenticated={async () => {
@@ -1152,8 +1232,10 @@ map.set(String(bloqueId), {
         firmaDigitalAplicada={firmaDigitalAplicada}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {
-          const result = await handleSubmit();
+          const result = await handleSubmit(holdReserva?.holdId);
           if (result === true) {
+            holdReservaRef.current = null;
+            setHoldReserva(null);
             const enviados = [...idsGlobales];
             const esMultiple = selectedCount > 1;
             if (esMultiple) {

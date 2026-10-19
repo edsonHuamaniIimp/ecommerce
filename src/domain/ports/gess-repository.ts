@@ -32,5 +32,17 @@ export interface IGessRepository {
   datosEmpresaPorStands(standIds: string[]): Promise<Map<string, DatosReservaStand>>;
   create(data: Partial<GessStandEntity>): Promise<GessStandEntity>;
   update(id: string, data: Partial<GessStandEntity>): Promise<GessStandEntity>;
+  /** Bloquea temporalmente stands disponibles. Todo o nada. */
+  crearHold(data: {
+    standIds: string[];
+    eventoId: string;
+    holdId: string;
+    userId: string;
+    expiresAt: Date;
+  }): Promise<{ ok: boolean; conflictos: string[] }>;
+  /** Libera un hold propio y devuelve los stands liberados. */
+  liberarHold(holdId: string, userId: string): Promise<Array<{ id: string; standCode: string; eventoId: string }>>;
+  /** True si todos los stands siguen bloqueados por este hold y usuario. */
+  validarHold(standIds: string[], holdId: string, userId: string): Promise<boolean>;
   countByEvento(eventoId: string): Promise<number>;
 }

@@ -54,6 +54,7 @@ import { DebidaDiligenciaApplicationService } from "@/application/debida-diligen
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
+import { PusherStandEventPublisher } from "@/infrastructure/external/pusher-stand-events";
 
 const eventoRepo = new EventoPrismaRepository();
 const gessRepo = new GessPrismaRepository();
@@ -86,12 +87,13 @@ const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgc
 const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo);
 const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
+const standEvents = new PusherStandEventPublisher();
 
 export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
-  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo),
+  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo, standEvents, configuracionRepo),
   prellenadoReserva: new PrellenadoReservaApplicationService(usuarioRepo, personaClient, empresaClient),
   auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo, personaClient),
   dashboard: new DashboardApplicationService(gessRepo),

@@ -79,6 +79,8 @@ export function getAppEnv(): AppEnv {
    ================================================================ */
 export const ESTADOS_STAND = {
   DISPONIBLE: "disponible",
+  /** Bloqueo temporal del cliente mientras completa el wizard. */
+  EN_PROCESO: "en_proceso",
   EN_EVALUACION: "en_evaluacion",
   RESERVADO: "reservado",
   /** Bloqueo con empresa (sin solicitud ni contrato); en UI se comporta como reservado. */

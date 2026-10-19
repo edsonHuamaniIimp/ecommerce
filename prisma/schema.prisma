@@ -373,6 +373,10 @@ model GessStand {
   bloqueId              String?   @map("bloque_id") @db.VarChar(50)
   email                 String?   @db.VarChar(200)
   userId                String?   @map("user_id") @db.VarChar(100)
+  /// Bloqueo temporal mientras el cliente completa el wizard (no es una reserva).
+  holdId                String?   @map("hold_id") @db.VarChar(64)
+  holdUserId            String?   @map("hold_user_id") @db.VarChar(100)
+  holdExpiresAt         DateTime? @map("hold_expires_at")
   documentos            Json?     @default("[]")
   imagenes              Json?     @default("[]")
   /// Categoria por imagen: { "<url>": "<categoria>" } (ver CATEGORIAS_IMAGEN).
@@ -409,6 +413,8 @@ model GessStand {
   @@unique([eventoId, bloqueId])
   @@index([eventoId])
   @@index([bloqueId])
+  @@index([holdId])
+  @@index([holdExpiresAt])
   @@map("gess_stand")
 }
 
@@ -1098,6 +1104,8 @@ model PortalConfig {
   manualUrl      String?  @map("manual_url") @db.VarChar(500)
   /// URL del Reglamento de Stands.
   reglamentoUrl  String?  @map("reglamento_url") @db.VarChar(500)
+  /// Minutos que un stand queda bloqueado mientras el cliente completa el wizard.
+  holdReservaMinutos Int  @default(25) @map("hold_reserva_minutos")
   updatedBy      String?  @map("updated_by") @db.VarChar(200)
   updatedAt      DateTime @updatedAt @map("updated_at")
 

@@ -17,6 +17,8 @@ export const actualizarPortalConfigSchema = z.object({
   contactoEmail: emailOpcional,
   manualUrl: urlOpcional,
   reglamentoUrl: urlOpcional,
+  /** Duracion del bloqueo temporal al abrir el wizard de reserva. */
+  holdReservaMinutos: z.number().int().min(1).max(120).default(25),
 });
 
 export type ActualizarPortalConfigInput = z.infer<typeof actualizarPortalConfigSchema>;

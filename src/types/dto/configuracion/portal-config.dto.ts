@@ -4,4 +4,6 @@ export interface PortalConfigDTO {
   contactoEmail: string | null;
   manualUrl: string | null;
   reglamentoUrl: string | null;
+  /** Minutos de bloqueo del stand al abrir el wizard de reserva. */
+  holdReservaMinutos: number;
 }

@@ -14,6 +14,7 @@ export default function ConfiguracionPortalPage() {
   const [contactoEmail, setContactoEmail] = useState("");
   const [manualUrl, setManualUrl] = useState("");
   const [reglamentoUrl, setReglamentoUrl] = useState("");
+  const [holdReservaMinutos, setHoldReservaMinutos] = useState("25");
 
   useEffect(() => {
     let activo = true;
@@ -25,6 +26,7 @@ export default function ConfiguracionPortalPage() {
         setContactoEmail(config.contactoEmail ?? "");
         setManualUrl(config.manualUrl ?? "");
         setReglamentoUrl(config.reglamentoUrl ?? "");
+        setHoldReservaMinutos(String(config.holdReservaMinutos ?? 25));
       } catch {
         if (activo) toast.error("No se pudo cargar la configuracion");
       } finally {
@@ -37,11 +39,18 @@ export default function ConfiguracionPortalPage() {
   const guardar = async () => {
     setGuardando(true);
     try {
+      const minutos = Number.parseInt(holdReservaMinutos, 10);
+      if (!Number.isInteger(minutos) || minutos < 1 || minutos > 120) {
+        toast.error("Los minutos de bloqueo deben estar entre 1 y 120");
+        setGuardando(false);
+        return;
+      }
       await configuracionService.actualizarPortal({
         mesaAyudaEmail: mesaAyudaEmail.trim() || null,
         contactoEmail: contactoEmail.trim() || null,
         manualUrl: manualUrl.trim() || null,
         reglamentoUrl: reglamentoUrl.trim() || null,
+        holdReservaMinutos: minutos,
       });
       toast.success("Configuracion del portal guardada");
     } catch (e) {
@@ -52,7 +61,7 @@ export default function ConfiguracionPortalPage() {
 
   return (
     <main className="flex-1 py-6">
-      <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-7xl space-y-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Configuracion del portal</h1>
           <p className="text-sm text-muted-foreground">
@@ -113,6 +122,21 @@ export default function ConfiguracionPortalPage() {
                       className="text-xs"
                     />
                   </div>
+                </div>
+                <div className="max-w-xs space-y-1.5">
+                  <Label htmlFor="hold-minutos"><span>Minutos de bloqueo del stand</span></Label>
+                  <Input
+                    id="hold-minutos"
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={holdReservaMinutos}
+                    onChange={(e) => setHoldReservaMinutos(e.target.value)}
+                    className="text-xs"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Tiempo que el stand queda bloqueado mientras el cliente completa la reserva (1 a 120 minutos).
+                  </p>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Los correos se abren como mailto; las URLs se abren en una pestaña nueva.

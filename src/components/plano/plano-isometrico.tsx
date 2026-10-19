@@ -19,6 +19,7 @@ import { textosReserva } from "@/lib/shared/textos/reserva";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
 import { toast } from "sonner";
@@ -59,6 +60,49 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   const furniture=useMemo(()=>plano.buildFurniture(),[plano]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
+
+  useStandEvents(eventoId, {
+    onReserved: (event) => {
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode)) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.RESERVADO, reserved: true });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+    onHeld: (event) => {
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode)) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.EN_PROCESO, reserved: true });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+    onReleased: (event) => {
+      setLinkedMap((prev) => {
+        let cambio = false;
+        const next = new Map(prev);
+        for (const [bloqueId, info] of next) {
+          if (info.estado === ESTADOS_STAND.EN_PROCESO && (event.standIds.includes(info.dbId) || event.standCodes.includes(info.standCode))) {
+            next.set(bloqueId, { ...info, estado: ESTADOS_STAND.DISPONIBLE, reserved: false });
+            cambio = true;
+          }
+        }
+        return cambio ? next : prev;
+      });
+    },
+  });
+
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const [dataReady, setDataReady] = useState(false);
   const [detailModal, setDetailModal] = useState<GessInfoFull | null>(null);

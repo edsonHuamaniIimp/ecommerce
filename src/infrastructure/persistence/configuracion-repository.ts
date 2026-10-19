@@ -10,6 +10,7 @@ type FilaPortalConfig = {
   contactoEmail: string | null;
   manualUrl: string | null;
   reglamentoUrl: string | null;
+  holdReservaMinutos: number;
   updatedBy: string | null;
   updatedAt: Date;
 };
@@ -20,6 +21,7 @@ function aEntidad(row: FilaPortalConfig): PortalConfigEntity {
     contactoEmail: row.contactoEmail,
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
+    holdReservaMinutos: row.holdReservaMinutos,
     updatedBy: row.updatedBy,
     updatedAt: row.updatedAt,
   };

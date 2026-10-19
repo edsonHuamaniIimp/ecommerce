@@ -8,6 +8,7 @@ export interface EstadoStandBadge {
 
 const BADGES: Record<string, EstadoStandBadge> = {
   [ESTADOS_STAND.DISPONIBLE]: { texto: "Disponible", clase: BADGE_STYLES.SUCCESS },
+  [ESTADOS_STAND.EN_PROCESO]: { texto: "En proceso", clase: BADGE_STYLES.WARNING },
   [ESTADOS_STAND.EN_EVALUACION]: { texto: "En evaluacion", clase: BADGE_STYLES.WARNING },
   [ESTADOS_STAND.RESERVADO]: { texto: "Reservado", clase: BADGE_STYLES.NEUTRAL },
   /* Mismo comportamiento visual que reservado; la vista de Pre-reservas los lista aparte. */

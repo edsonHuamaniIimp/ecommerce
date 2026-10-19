@@ -149,3 +149,72 @@ describe("ReservaApplicationService — validacion de evento", () => {
     expect(res.conflicted).toContain("A-1 esta pre-reservado para otra empresa");
   });
 });
+
+describe("ReservaApplicationService - hold temporal", () => {
+  it("publica el evento de bloqueo cuando el hold se crea completo", async () => {
+    const repo = {
+      crearHold: vi.fn(async () => ({ ok: true, conflictos: [] })),
+      findById: vi.fn(async (id: string) => ({ id, standCode: "A-1", eventoId: "evt-1" })),
+    } as unknown as IGessRepository;
+    const standEvents = {
+      standReservado: vi.fn(),
+      standHold: vi.fn(async () => {}),
+      standReleased: vi.fn(),
+    };
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso(), standEvents);
+
+    const hold = await svc.crearHold(["g1"], "evt-1", "user-1", undefined);
+
+    expect(hold.holdId).toBeTruthy();
+    expect(hold.expiresAt).toBeTruthy();
+    expect(standEvents.standHold).toHaveBeenCalledWith(expect.objectContaining({
+      eventoId: "evt-1",
+      standIds: ["g1"],
+      standCodes: ["A-1"],
+    }));
+  });
+
+  it("usa los minutos configurados desde /dashboard/configuracion", async () => {
+    const repo = {
+      crearHold: vi.fn(async () => ({ ok: true, conflictos: [] })),
+      findById: vi.fn(async (id: string) => ({ id, standCode: "A-1", eventoId: "evt-1" })),
+    } as unknown as IGessRepository;
+    const standEvents = { standReservado: vi.fn(), standHold: vi.fn(async () => {}), standReleased: vi.fn() };
+    const configuracionRepo = { obtenerPortal: vi.fn(async () => ({ holdReservaMinutos: 10 })) } as never;
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso(), standEvents, configuracionRepo);
+
+    const hold = await svc.crearHold(["g1"], "evt-1", "user-1", undefined);
+
+    expect(hold.reservaEnMinutos).toBe(10);
+    const minutosRestantes = (new Date(hold.expiresAt).getTime() - Date.now()) / 60_000;
+    expect(minutosRestantes).toBeGreaterThan(9.5);
+    expect(minutosRestantes).toBeLessThanOrEqual(10);
+  });
+
+  it("no publica evento ni devuelve hold cuando otro cliente bloqueo el stand", async () => {
+    const repo = {
+      crearHold: vi.fn(async () => ({ ok: false, conflictos: ["A-1"] })),
+    } as unknown as IGessRepository;
+    const standEvents = {
+      standReservado: vi.fn(),
+      standHold: vi.fn(),
+      standReleased: vi.fn(),
+    };
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso(), standEvents);
+
+    await expect(svc.crearHold(["g1"], "evt-1", "user-1", undefined)).rejects.toThrow("A-1");
+    expect(standEvents.standHold).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la reserva final si el hold ya expiro", async () => {
+    const { repo, update } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    (repo as unknown as { validarHold: () => Promise<boolean> }).validarHold = vi.fn(async () => false);
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso());
+
+    const res = await svc.crear({ standIds: ["g1"], eventoId: "evt-1", holdId: "hold-1", userSub: "user-1" });
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain("expiro");
+    expect(update).not.toHaveBeenCalled();
+  });
+});

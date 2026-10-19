@@ -7,6 +7,7 @@ const COLORS: Record<EstadoStand, string> = {
   [ESTADOS_STAND.RESERVADO]: "#16a34a",
   /* Misma apariencia que reservado (bloqueo con empresa). */
   [ESTADOS_STAND.PRE_RESERVADO]: "#16a34a",
+  [ESTADOS_STAND.EN_PROCESO]: "#f59e0b",
   [ESTADOS_STAND.EN_EVALUACION]: "#cbd5e1",
   [ESTADOS_STAND.DISPONIBLE]: "#ffffff",
 };
@@ -67,7 +68,7 @@ export function PlanoStands({ stands, selectedIds, onToggle }: PlanoStandsProps)
 
       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <LegendItem color={COLORS.disponible} border label="Disponible" />
-        <LegendItem color={COLORS.en_evaluacion} label="En evaluación" />
+        <LegendItem color={COLORS.en_evaluacion} label="En evaluaciÃ³n" />
         <LegendItem color={COLORS.reservado} label="Reservado" />
         <span className="flex items-center gap-1.5">
           <span

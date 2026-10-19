@@ -54,6 +54,14 @@ export const gessService = {
   tipoImagenEliminar(tipo: string) {
     return internalApi.delete<{ ok: boolean }>(`/api/gess/tipos-imagen?tipo=${encodeURIComponent(tipo)}`);
   },
+  /** Bloquea temporalmente los stands al abrir el wizard. */
+  hold(standIds: string[]) {
+    return internalApi.post<{ holdId: string; expiresAt: string; reservaEnMinutos: number }>("/api/reservas/hold", { standIds });
+  },
+  /** Libera el hold al cerrar el wizard. */
+  liberarHold(holdId: string) {
+    return internalApi.post<{ liberados: number }>("/api/reservas/liberar-hold", { holdId });
+  },
   /** Enviar solicitud de reserva */
   reservar(body: ReservaRequestDTO) {
     return internalApi.post<ReservaResponseDTO>("/api/reservas/crear", body);

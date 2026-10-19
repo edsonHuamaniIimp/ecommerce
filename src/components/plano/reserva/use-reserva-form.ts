@@ -277,7 +277,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   };
 
   /** Crea la reserva (bloquea los stands) y devuelve el id de la solicitud ("" si falla). */
-  const crearReserva = useCallback(async (): Promise<string> => {
+  const crearReserva = useCallback(async (holdId?: string): Promise<string> => {
     const standIds = selectedIds
       .map((id) => linkedMap.get(id)?.dbId)
       .filter((id): id is string => typeof id === "string" && id.length > 0);
@@ -287,6 +287,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     }
     const result = await gessService.reservar({
       standIds,
+      ...(holdId ? { holdId } : {}),
       datos: {
         razonSocial: formDatos.razonSocial || formDatos.numeroDocumento,
         tipoDocumento: formDatos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA ? TIPOS_DOCUMENTO.RUC : (formDatos.tipoDocumento || TIPOS_DOCUMENTO.DNI),
@@ -396,7 +397,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
    * Paso 4 (Confirmar): recien aqui se crea la solicitud (reserva), se adjunta el contrato
    * real, los anexos y el contrato firmado (digital regenerado o el subido por el cliente).
    */
-  const handleSubmit = async (): Promise<boolean | string> => {
+  const handleSubmit = async (holdId?: string): Promise<boolean | string> => {
     if (!contrato) {
       const msg = "Primero configura las cuotas y genera el contrato.";
       setSubmitError(msg);
@@ -405,7 +406,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const solicitudId = contrato.solicitudId || (await crearReserva());
+      const solicitudId = contrato.solicitudId || (await crearReserva(holdId));
       if (!solicitudId) return "No se pudo crear la solicitud.";
       /* Retry-safe: si un intento previo creo la solicitud, reutilizarla (evita duplicados). */
       if (!contrato.solicitudId) setContrato((prev) => (prev ? { ...prev, solicitudId } : prev));

@@ -84,6 +84,10 @@ export interface GessStandEntity {
   bloqueId: string | null;
   email: string | null;
   userId: string | null;
+  /** Bloqueo temporal mientras el cliente completa el wizard. */
+  holdId?: string | null;
+  holdUserId?: string | null;
+  holdExpiresAt?: Date | null;
   rawData: unknown;
   /** Pre-reserva (bloqueo con empresa o titulo, sin solicitud): snapshot y autor. */
   preReservaRazonSocial?: string | null;

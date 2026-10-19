@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/server/db";
 import type { IGessRepository, GessPaginationParams, GessPaginatedResult, DatosReservaStand } from "@/domain/ports/gess-repository";
 import type { GessStandEntity } from "@/domain/models/entities";
+import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 export class GessPrismaRepository implements IGessRepository {
   async findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult> {
@@ -122,6 +123,76 @@ export class GessPrismaRepository implements IGessRepository {
   async update(id: string, data: Partial<GessStandEntity>) {
     const row = await prisma.gessStand.update({ where: { id }, data: data as never });
     return row;
+  }
+
+  async crearHold(data: { standIds: string[]; eventoId: string; holdId: string; userId: string; expiresAt: Date }): Promise<{ ok: boolean; conflictos: string[] }> {
+    const ids = [...new Set(data.standIds.filter(Boolean))];
+    if (ids.length === 0) return { ok: false, conflictos: ["Sin stands"] };
+    const ahora = new Date();
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const filas = await tx.gessStand.findMany({
+          where: { id: { in: ids }, eventoId: data.eventoId },
+          select: { id: true, standCode: true, estado: true, holdExpiresAt: true, holdUserId: true },
+        });
+        const porId = new Map(filas.map((f) => [f.id, f]));
+        const conflictos = ids.flatMap((id) => {
+          const fila = porId.get(id);
+          if (!fila || fila.estado !== ESTADOS_STAND.DISPONIBLE) return [fila?.standCode ?? id];
+          if (fila.holdExpiresAt && fila.holdExpiresAt > ahora && fila.holdUserId !== data.userId) return [fila.standCode];
+          return [];
+        });
+        if (conflictos.length > 0) return { ok: false, conflictos };
+
+        const actualizados = await tx.gessStand.updateMany({
+          where: {
+            id: { in: ids },
+            eventoId: data.eventoId,
+            estado: ESTADOS_STAND.DISPONIBLE,
+            OR: [{ holdExpiresAt: null }, { holdExpiresAt: { lt: ahora } }, { holdUserId: data.userId }],
+          },
+          data: {
+            holdId: data.holdId,
+            holdUserId: data.userId,
+            holdExpiresAt: data.expiresAt,
+          },
+        });
+        if (actualizados.count !== ids.length) throw new Error("HOLD_RACE");
+        return { ok: true, conflictos: [] };
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "HOLD_RACE") {
+        return { ok: false, conflictos: ids };
+      }
+      throw error;
+    }
+  }
+
+  async liberarHold(holdId: string, userId: string): Promise<Array<{ id: string; standCode: string; eventoId: string }>> {
+    const filas = await prisma.gessStand.findMany({
+      where: { holdId, holdUserId: userId },
+      select: { id: true, standCode: true, eventoId: true },
+    });
+    if (filas.length === 0) return [];
+    await prisma.gessStand.updateMany({
+      where: { holdId, holdUserId: userId },
+      data: { holdId: null, holdUserId: null, holdExpiresAt: null },
+    });
+    return filas;
+  }
+
+  async validarHold(standIds: string[], holdId: string, userId: string): Promise<boolean> {
+    const ids = [...new Set(standIds.filter(Boolean))];
+    if (ids.length === 0) return false;
+    const total = await prisma.gessStand.count({
+      where: {
+        id: { in: ids },
+        holdId,
+        holdUserId: userId,
+        holdExpiresAt: { gt: new Date() },
+      },
+    });
+    return total === ids.length;
   }
 
   async countByEvento(eventoId: string) {
