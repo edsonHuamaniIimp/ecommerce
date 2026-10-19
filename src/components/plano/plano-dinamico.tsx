@@ -10,10 +10,11 @@ import { gessService } from "@/lib/client/api/services/gess-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { calcularImportes } from "@/lib/shared/utils/importes";
 import { areaDesdeTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { leyendaPlano } from "@/lib/shared/utils/leyenda-plano";
 import { stringUtils } from "@/lib/shared/utils/string";
@@ -562,6 +563,8 @@ map.set(String(bloqueId), {
     ),
     [entradasCarrito, linkedMap],
   );
+  /** El carrito muestra el mismo desglose neto + IGV que el contrato. */
+  const importesCarrito = useMemo(() => calcularImportes(totalCarritoPrecio), [totalCarritoPrecio]);
   // Plano macro al que se puede volver desde este pabellon (padre registrado o macro global).
   const macroDestino = parentsCarrito[planoId] ?? (macroCodigo && macroCodigo !== planoId ? macroCodigo : null);
   const contenidoPanel = (
@@ -658,13 +661,23 @@ map.set(String(bloqueId), {
           </div>
 
           <div className="space-y-2.5 border-t border-border bg-secondary px-4 py-3.5">
-            <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="font-semibold text-primary">Total</span>
-              <div className="text-right">
-                <p className="text-base leading-tight font-extrabold text-gold">{precioTexto(totalCarritoPrecio)}</p>
-                <p className="text-[10px] font-medium text-muted-foreground">
-                  {totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}
-                </p>
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">Valor venta (neto)</span>
+                <span className="font-semibold text-foreground">{precioTexto(importesCarrito.valorVenta)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="text-muted-foreground">IGV ({Number((IGV_PORCENTAJE * 100).toFixed(2))}%)</span>
+                <span className="font-semibold text-foreground">{precioTexto(importesCarrito.igv)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2 border-t border-border pt-2 text-sm">
+                <span className="font-semibold text-primary">Total a pagar</span>
+                <div className="text-right">
+                  <p className="text-base leading-tight font-extrabold text-gold">{precioTexto(importesCarrito.total)}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">
+                    {totalCarritoCount} {totalCarritoCount === 1 ? "stand" : "stands"}
+                  </p>
+                </div>
               </div>
             </div>
             {macroDestino && (
