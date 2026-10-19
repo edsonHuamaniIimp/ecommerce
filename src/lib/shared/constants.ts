@@ -2322,3 +2322,15 @@ export const SGC_LIFECYCLE_LABELS: Record<string, string> = {
   [SGC_LIFECYCLE_STATUSES.OBSERVED]: "Observado",
   [SGC_LIFECYCLE_STATUSES.REJECTED]: "Rechazado",
 };
+
+/** Tipo de documento en el registro externo de Debida Diligencia. */
+export const DD_TIPOS_DOCUMENTO_EMPRESA = {
+  RUC: "RUC",
+  RUT: "RUT",
+  DNI: "DNI",
+  EXTRANJERO: "EXTRANJERO",
+  OTRO: "OTRO",
+} as const;
+
+export type DdTipoDocumentoEmpresa =
+  (typeof DD_TIPOS_DOCUMENTO_EMPRESA)[keyof typeof DD_TIPOS_DOCUMENTO_EMPRESA];

@@ -3,6 +3,9 @@ import type {
   DdBandejaResult,
   DdClientesParams,
   DdClientesRawResult,
+  DdEmpresaEstadoImportData,
+  DdEmpresasParams,
+  DdEmpresasRawResult,
   DdEmpresaResumen,
   DdExpedienteEntity,
   DdGuardarData,
@@ -89,6 +92,8 @@ export interface IDebidaDiligenciaRepository {
   listarMatriz(params: DdMatrizParams): Promise<DdMatrizResult>;
   /** Clientes con evaluacion de debida diligencia, filtrables por resultado y vigencia. */
   listarClientes(params: DdClientesParams): Promise<DdClientesRawResult>;
+  listarEmpresasEstados(params: DdEmpresasParams): Promise<DdEmpresasRawResult>;
+  upsertEmpresasEstados(rows: DdEmpresaEstadoImportData[]): Promise<{ importados: number; actualizados: number }>;
   /** Crea los casos reputacionales que aun no existan. */
   crearCasosReputacion(expedienteId: string, casos: DdReputacionCreacion[]): Promise<void>;
   /** Bandeja paginada de revision reputacional. */

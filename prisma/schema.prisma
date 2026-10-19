@@ -1289,3 +1289,33 @@ model DebidaDiligenciaReputacion {
   @@index([estado])
   @@map("debida_diligencia_reputacion")
 }
+
+/// Estado consolidado de Debida Diligencia para la lista oficial de empresas.
+/// Es independiente del expediente del portal: sirve para consulta externa y
+/// control de acceso a la plataforma de reservas.
+model DebidaDiligenciaEmpresaEstado {
+  id               String   @id @default(uuid())
+  /// RUC, DNI o identificador extranjero normalizado.
+  documento        String   @unique @db.VarChar(50)
+  razonSocial      String   @map("razon_social") @db.VarChar(250)
+  /// RUC | DNI | EXTRANJERO | OTRO
+  tipoDocumento    String   @map("tipo_documento") @db.VarChar(20)
+  motivoEvaluacion String?  @map("motivo_evaluacion") @db.VarChar(250)
+  eventoProyecto   String?  @map("evento_proyecto") @db.VarChar(120)
+  /// Resultado normalizado: apto | apto_con_observaciones | no_apto | pendiente.
+  resultado        String   @db.VarChar(30)
+  /// Texto original del resultado recibido (APTO, EN REVISIÓN, etc.).
+  estadoOrigen     String   @map("estado_origen") @db.VarChar(80)
+  fechaIngreso     DateTime? @map("fecha_ingreso")
+  fechaRevision    DateTime? @map("fecha_revision")
+  fechaVencimiento DateTime? @map("fecha_vencimiento")
+  origen           String   @default("excel_dd") @db.VarChar(40)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([resultado])
+  @@index([fechaVencimiento])
+  @@index([razonSocial])
+  @@map("debida_diligencia_empresa_estado")
+}

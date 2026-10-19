@@ -2,6 +2,7 @@ import type {
   DdBandejaResult,
   DdClientesResult,
   DdEmpresaResumen,
+  DdEmpresasResult,
   DdExpedienteEntity,
   DdMatrizResult,
   DdMatrizRow,
@@ -13,6 +14,7 @@ import type {
   DdBandejaRowDTO,
   DdClientesResponseDTO,
   DdEmpresaDTO,
+  DdEmpresasResponseDTO,
   DdExpedienteDTO,
   DdMatrizResponseDTO,
   DdMatrizRowDTO,
@@ -23,6 +25,7 @@ import type {
 import {
   DD_ESTADO_EVALUACION_LABELS,
   DD_RESULTADO_LABELS,
+  DD_TIPOS_DOCUMENTO_EMPRESA,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -159,6 +162,52 @@ export function mapDdClientesToDTO(resultado: DdClientesResult): DdClientesRespo
       alcance: item.alcance,
       observacionesAbiertas: item.observacionesAbiertas,
     })),
+    pagination: {
+      page: resultado.page,
+      perPage: resultado.perPage,
+      total: resultado.total,
+      totalPages: resultado.totalPages,
+    },
+    resumen: resultado.resumen,
+  };
+}
+
+export function mapDdEmpresasToDTO(resultado: DdEmpresasResult): DdEmpresasResponseDTO {
+  return {
+    items: resultado.data.map((item) => {
+      const empresa = item.empresa;
+      const tipoPersona =
+        empresa.tipoDocumento === DD_TIPOS_DOCUMENTO_EMPRESA.RUC
+          ? "PERSONA_JURIDICA"
+          : empresa.tipoDocumento === DD_TIPOS_DOCUMENTO_EMPRESA.DNI
+            ? "PERSONA_NATURAL"
+            : "EXTRANJERO";
+      return {
+        id: empresa.id,
+        documento: empresa.documento,
+        razonSocial: empresa.razonSocial,
+        tipoDocumento: empresa.tipoDocumento,
+        tipoPersona,
+        motivoEvaluacion: empresa.motivoEvaluacion,
+        eventoProyecto: empresa.eventoProyecto,
+        resultado: item.empresa.resultado,
+        resultadoLabel: DD_RESULTADO_LABELS[item.empresa.resultado],
+        estadoOrigen: empresa.estadoOrigen,
+        estadoEvaluacion: item.estadoEvaluacion,
+        estadoEvaluacionLabel: item.estadoEvaluacion
+          ? DD_ESTADO_EVALUACION_LABELS[item.estadoEvaluacion]
+          : null,
+        vigente: item.vigente,
+        fechaIngreso: fecha(empresa.fechaIngreso),
+        fechaRevision: fecha(empresa.fechaRevision),
+        fechaVencimiento: fecha(empresa.fechaVencimiento),
+        diasVigenciaRestantes: item.diasVigenciaRestantes,
+        puedeReservar: item.puedeReservar,
+        puedeAvanzar: item.puedeAvanzar,
+        mensaje: item.mensaje,
+        origen: empresa.origen,
+      };
+    }),
     pagination: {
       page: resultado.page,
       perPage: resultado.perPage,

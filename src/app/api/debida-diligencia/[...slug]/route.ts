@@ -7,6 +7,7 @@ export const { GET, POST } = createRouter({
     bandeja: (req) => debidaDiligenciaController.bandeja(req),
     "legal/bandeja": (req) => debidaDiligenciaController.bandejaLegal(req),
     clientes: (req) => debidaDiligenciaController.clientes(req),
+    empresas: (req) => debidaDiligenciaController.empresas(req),
     detalle: (req) => debidaDiligenciaController.detalle(req),
     panel: () => debidaDiligenciaController.panel(),
     matriz: (req) => debidaDiligenciaController.matriz(req),

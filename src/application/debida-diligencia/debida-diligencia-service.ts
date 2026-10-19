@@ -7,7 +7,10 @@ import type {
   DdBandejaResult,
   DdClientesParams,
   DdClientesResult,
+  DdEmpresaEstadoImportData,
   DdEmpresaResumen,
+  DdEmpresasParams,
+  DdEmpresasResult,
   DdExpedienteEntity,
   DdGuardarData,
   DdLegalResolucionData,
@@ -34,6 +37,7 @@ import {
   DD_ESTADOS_EVALUACION,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
+  DD_RESULTADOS,
   DD_MATRIZ_PER_PAGE_MAX,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_PER_PAGE_MAX,
@@ -384,6 +388,70 @@ export class DebidaDiligenciaApplicationService {
         };
       }),
     };
+  }
+
+  /** Lista consolidada de empresas y su estado externo de DD. */
+  async empresas(
+    params: Omit<DdEmpresasParams, "page" | "perPage"> & { page: number; perPage: number },
+    session: DdSession,
+  ): Promise<DdEmpresasResult> {
+    this.exigirPermiso(session, PERMISSIONS.DD_VER);
+    const resultado = await this.repo.listarEmpresasEstados({
+      ...params,
+      page: Math.max(1, params.page),
+      perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
+    });
+    const ahora = dateUtils.now();
+
+    return {
+      ...resultado,
+      data: resultado.data.map((empresa) => {
+        const fechaVencimiento =
+          empresa.fechaVencimiento ??
+          (empresa.fechaRevision ? ddUtils.sumarMeses(empresa.fechaRevision) : null);
+        const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(
+          empresa.resultado,
+          fechaVencimiento,
+          ahora,
+        );
+        const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+        const puedeAvanzar =
+          vigente &&
+          (empresa.resultado === DD_RESULTADOS.APTO ||
+            empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES);
+        const mensaje =
+          empresa.resultado === DD_RESULTADOS.NO_APTO
+            ? "No habilitada para establecer vínculos con el IIMP."
+            : empresa.resultado === DD_RESULTADOS.PENDIENTE
+              ? "Debida diligencia pendiente de validación."
+              : estadoEvaluacion === DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION
+                ? "La evaluación requiere una nueva evaluación."
+                : empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES
+                  ? "Apta con observaciones para el vínculo evaluado."
+                  : "Debida diligencia vigente.";
+
+        return {
+          empresa: { ...empresa, fechaVencimiento },
+          estadoEvaluacion,
+          vigente,
+          diasVigenciaRestantes: fechaVencimiento
+            ? Math.max(0, dateUtils.diffInDays(ahora, fechaVencimiento) ?? 0)
+            : null,
+          puedeReservar: empresa.resultado !== DD_RESULTADOS.NO_APTO,
+          puedeAvanzar,
+          mensaje,
+        };
+      }),
+    };
+  }
+
+  /** Importa o actualiza el registro externo de empresas. */
+  async importarEmpresas(
+    rows: DdEmpresaEstadoImportData[],
+    session: DdSession,
+  ): Promise<{ importados: number; actualizados: number }> {
+    this.exigirPermiso(session, PERMISSIONS.DD_VER);
+    return this.repo.upsertEmpresasEstados(rows);
   }
 
   /** Detalle de un expediente (staff o empresa duena). */

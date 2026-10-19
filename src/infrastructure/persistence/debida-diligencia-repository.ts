@@ -9,6 +9,10 @@ import type {
   DdClientesParams,
   DdClientesRawResult,
   DdDocumentoEntity,
+  DdEmpresaEstadoEntity,
+  DdEmpresaEstadoImportData,
+  DdEmpresasParams,
+  DdEmpresasRawResult,
   DdEmpresaResumen,
   DdExpedienteEntity,
   DdGuardarData,
@@ -926,6 +930,157 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         vigentes,
         requierenNuevaEvaluacion,
       },
+    };
+  }
+
+  async listarEmpresasEstados(params: DdEmpresasParams): Promise<DdEmpresasRawResult> {
+    const ahora = dateUtils.now();
+    const and: Prisma.DebidaDiligenciaEmpresaEstadoWhereInput[] = [];
+
+    if (params.search?.trim()) {
+      const q = params.search.trim();
+      and.push({
+        OR: [
+          { razonSocial: { contains: q, mode: "insensitive" } },
+          { documento: { contains: q, mode: "insensitive" } },
+        ],
+      });
+    }
+    if (params.documento?.trim()) {
+      and.push({ documento: params.documento.trim() });
+    }
+    if (params.resultado) {
+      and.push({ resultado: params.resultado });
+    }
+    if (params.evento?.trim()) {
+      and.push({ eventoProyecto: { contains: params.evento.trim(), mode: "insensitive" } });
+    }
+    if (params.estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE) {
+      and.push({
+        resultado: { in: [DD_RESULTADOS.APTO, DD_RESULTADOS.APTO_CON_OBSERVACIONES] },
+        fechaVencimiento: { gt: ahora },
+      });
+    } else if (params.estadoEvaluacion === DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION) {
+      and.push({
+        OR: [
+          {
+            resultado: { in: [DD_RESULTADOS.APTO, DD_RESULTADOS.APTO_CON_OBSERVACIONES] },
+            fechaVencimiento: { lte: ahora },
+          },
+          {
+            resultado: { in: [DD_RESULTADOS.APTO, DD_RESULTADOS.APTO_CON_OBSERVACIONES] },
+            fechaVencimiento: null,
+          },
+        ],
+      });
+    }
+    const where: Prisma.DebidaDiligenciaEmpresaEstadoWhereInput =
+      and.length > 0 ? { AND: and } : {};
+
+    const [rows, total, grupos, vigentes, vencidas] = await Promise.all([
+      prisma.debidaDiligenciaEmpresaEstado.findMany({
+        where,
+        orderBy: { razonSocial: "asc" },
+        skip: (params.page - 1) * params.perPage,
+        take: params.perPage,
+      }),
+      prisma.debidaDiligenciaEmpresaEstado.count({ where }),
+      prisma.debidaDiligenciaEmpresaEstado.groupBy({
+        by: ["resultado"],
+        _count: { _all: true },
+      }),
+      prisma.debidaDiligenciaEmpresaEstado.count({
+        where: {
+          resultado: { in: [DD_RESULTADOS.APTO, DD_RESULTADOS.APTO_CON_OBSERVACIONES] },
+          fechaVencimiento: { gt: ahora },
+        },
+      }),
+      prisma.debidaDiligenciaEmpresaEstado.count({
+        where: {
+          resultado: { in: [DD_RESULTADOS.APTO, DD_RESULTADOS.APTO_CON_OBSERVACIONES] },
+          OR: [{ fechaVencimiento: { lte: ahora } }, { fechaVencimiento: null }],
+        },
+      }),
+    ]);
+
+    const porResultado = new Map(grupos.map((grupo) => [grupo.resultado, grupo._count._all]));
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        documento: row.documento,
+        razonSocial: row.razonSocial,
+        tipoDocumento: row.tipoDocumento as DdEmpresaEstadoEntity["tipoDocumento"],
+        motivoEvaluacion: row.motivoEvaluacion ?? null,
+        eventoProyecto: row.eventoProyecto ?? null,
+        resultado: row.resultado as DdEmpresaEstadoEntity["resultado"],
+        estadoOrigen: row.estadoOrigen,
+        fechaIngreso: row.fechaIngreso ?? null,
+        fechaRevision: row.fechaRevision ?? null,
+        fechaVencimiento: row.fechaVencimiento ?? null,
+        origen: row.origen,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+      total,
+      page: params.page,
+      perPage: params.perPage,
+      totalPages: Math.ceil(total / params.perPage),
+      resumen: {
+        total: grupos.reduce((acc, grupo) => acc + grupo._count._all, 0),
+        aptos: porResultado.get(DD_RESULTADOS.APTO) ?? 0,
+        aptosConObservaciones: porResultado.get(DD_RESULTADOS.APTO_CON_OBSERVACIONES) ?? 0,
+        pendientes: porResultado.get(DD_RESULTADOS.PENDIENTE) ?? 0,
+        noAptos: porResultado.get(DD_RESULTADOS.NO_APTO) ?? 0,
+        vigentes,
+        requierenNuevaEvaluacion: vencidas,
+      },
+    };
+  }
+
+  async upsertEmpresasEstados(
+    rows: DdEmpresaEstadoImportData[],
+  ): Promise<{ importados: number; actualizados: number }> {
+    if (rows.length === 0) return { importados: 0, actualizados: 0 };
+    const existentes = await prisma.debidaDiligenciaEmpresaEstado.findMany({
+      where: { documento: { in: rows.map((row) => row.documento) } },
+      select: { documento: true },
+    });
+    const documentosExistentes = new Set(existentes.map((row) => row.documento));
+    await prisma.$transaction(
+      rows.map((row) =>
+        prisma.debidaDiligenciaEmpresaEstado.upsert({
+          where: { documento: row.documento },
+          update: {
+            razonSocial: row.razonSocial,
+            tipoDocumento: row.tipoDocumento,
+            motivoEvaluacion: row.motivoEvaluacion,
+            eventoProyecto: row.eventoProyecto,
+            resultado: row.resultado,
+            estadoOrigen: row.estadoOrigen,
+            fechaIngreso: row.fechaIngreso,
+            fechaRevision: row.fechaRevision,
+            fechaVencimiento: row.fechaVencimiento,
+            origen: "excel_dd",
+          },
+          create: {
+            documento: row.documento,
+            razonSocial: row.razonSocial,
+            tipoDocumento: row.tipoDocumento,
+            motivoEvaluacion: row.motivoEvaluacion,
+            eventoProyecto: row.eventoProyecto,
+            resultado: row.resultado,
+            estadoOrigen: row.estadoOrigen,
+            fechaIngreso: row.fechaIngreso,
+            fechaRevision: row.fechaRevision,
+            fechaVencimiento: row.fechaVencimiento,
+            origen: "excel_dd",
+          },
+        }),
+      ),
+    );
+    return {
+      importados: rows.length - documentosExistentes.size,
+      actualizados: documentosExistentes.size,
     };
   }
 

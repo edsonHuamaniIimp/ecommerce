@@ -8,6 +8,7 @@ import {
   mapDdBandejaToDTO,
   mapDdClientesToDTO,
   mapDdEmpresaToDTO,
+  mapDdEmpresasToDTO,
   mapDdExpedienteToDTO,
   mapDdMatrizToDTO,
   mapDdPanelToDTO,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/shared/mappers/debida-diligencia";
 import {
   ddClientesQuerySchema,
+  ddEmpresasQuerySchema,
   ddGuardarSchema,
   ddLegalResolverSchema,
   ddMatrizQuerySchema,
@@ -109,6 +111,26 @@ export const debidaDiligenciaController = {
     }
     const expediente = await services.debidaDiligencia.resolverLegal(parsed.data, session);
     return success(mapDdExpedienteToDTO(expediente));
+  },
+
+  /** Empresas con su estado consolidado de DD. */
+  async empresas(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const params = new URL(request.url).searchParams;
+    const parsed = ddEmpresasQuerySchema.safeParse({
+      page: params.get("page") ?? undefined,
+      perPage: params.get("perPage") ?? undefined,
+      search: params.get("search") ?? undefined,
+      documento: params.get("documento") ?? undefined,
+      resultado: params.get("resultado") ?? undefined,
+      estadoEvaluacion: params.get("estadoEvaluacion") ?? undefined,
+      evento: params.get("evento") ?? undefined,
+    });
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const resultado = await services.debidaDiligencia.empresas(parsed.data, session);
+    return success(mapDdEmpresasToDTO(resultado));
   },
 
   /** Clientes con evaluacion DD, resultados y vigencia. */

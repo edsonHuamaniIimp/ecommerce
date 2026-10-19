@@ -189,6 +189,17 @@ export const ddMatrizQuerySchema = z.object({
   vinculo: z.string().trim().max(40).optional(),
 });
 
+/** Consulta de empresas con estado externo de debida diligencia. */
+export const ddEmpresasQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(100).default(DD_PER_PAGE_DEFAULT),
+  search: z.string().trim().max(200).optional(),
+  documento: z.string().trim().max(50).optional(),
+  resultado: z.enum(valores(DD_RESULTADOS)).optional(),
+  estadoEvaluacion: z.enum(valores(DD_ESTADOS_EVALUACION)).optional(),
+  evento: z.string().trim().max(120).optional(),
+});
+
 /** Consulta de clientes con evaluacion de debida diligencia. */
 export const ddClientesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

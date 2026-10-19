@@ -5,6 +5,7 @@ import type {
   DdBandejaQueryDTO,
   DdBandejaResponseDTO,
   DdDocumentoUploadResponseDTO,
+  DdEmpresasImportResponseDTO,
   DdExpedienteDTO,
   DdGuardarRequestDTO,
   DdInformeLegalUploadResponseDTO,
@@ -43,6 +44,15 @@ export const debidaDiligenciaService = {
   detalle(id: string) {
     return internalApi.get<DdExpedienteDTO>(
       `/api/debida-diligencia/detalle?id=${encodeURIComponent(id)}`,
+    );
+  },
+
+  importarEmpresas(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return internalApi.postForm<DdEmpresasImportResponseDTO>(
+      "/api/debida-diligencia/empresas/importar",
+      formData,
     );
   },
 

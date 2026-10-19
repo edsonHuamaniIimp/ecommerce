@@ -9,6 +9,7 @@ import type {
   DdReputacionEstado,
   DdReputacionResultado,
   DdResultado,
+  DdTipoDocumentoEmpresa,
   DdVinculo,
 } from "@/lib/shared/constants";
 
@@ -327,6 +328,84 @@ export interface DdClientesResult {
   perPage: number;
   totalPages: number;
   resumen: DdClientesResumen;
+}
+
+export interface DdEmpresaEstadoEntity {
+  id: string;
+  documento: string;
+  razonSocial: string;
+  tipoDocumento: DdTipoDocumentoEmpresa;
+  motivoEvaluacion: string | null;
+  eventoProyecto: string | null;
+  resultado: DdResultado;
+  estadoOrigen: string;
+  fechaIngreso: Date | null;
+  fechaRevision: Date | null;
+  fechaVencimiento: Date | null;
+  origen: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DdEmpresaEstadoImportData {
+  documento: string;
+  razonSocial: string;
+  tipoDocumento: DdTipoDocumentoEmpresa;
+  motivoEvaluacion: string | null;
+  eventoProyecto: string | null;
+  resultado: DdResultado;
+  estadoOrigen: string;
+  fechaIngreso: Date | null;
+  fechaRevision: Date | null;
+  fechaVencimiento: Date | null;
+}
+
+export interface DdEmpresasParams {
+  page: number;
+  perPage: number;
+  search?: string;
+  documento?: string;
+  resultado?: DdResultado;
+  estadoEvaluacion?: DdEstadoEvaluacion;
+  evento?: string;
+}
+
+export interface DdEmpresaEstadoItem {
+  empresa: DdEmpresaEstadoEntity;
+  estadoEvaluacion: DdEstadoEvaluacion | null;
+  vigente: boolean;
+  diasVigenciaRestantes: number | null;
+  puedeReservar: boolean;
+  puedeAvanzar: boolean;
+  mensaje: string;
+}
+
+export interface DdEmpresasResumen {
+  total: number;
+  aptos: number;
+  aptosConObservaciones: number;
+  pendientes: number;
+  noAptos: number;
+  vigentes: number;
+  requierenNuevaEvaluacion: number;
+}
+
+export interface DdEmpresasRawResult {
+  data: DdEmpresaEstadoEntity[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+  resumen: DdEmpresasResumen;
+}
+
+export interface DdEmpresasResult {
+  data: DdEmpresaEstadoItem[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
+  resumen: DdEmpresasResumen;
 }
 
 export interface DdGuardarData {

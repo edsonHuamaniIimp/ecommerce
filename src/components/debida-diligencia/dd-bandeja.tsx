@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -28,6 +28,7 @@ import { StatsCard } from "@/components/dashboard/stats-card";
 import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
+import { DdImportModal } from "./dd-import-modal";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
   BADGE_STYLES,
@@ -59,6 +60,7 @@ export function DdBandeja() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const refs = useRef({ page, perPage, search, estado });
   useEffect(() => { refs.current = { page, perPage, search, estado }; }, [page, perPage, search, estado]);
@@ -109,17 +111,29 @@ export function DdBandeja() {
             Revisa documentos, resuelve observaciones y deriva nombres a Comunicaciones.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 text-xs"
-          disabled={loading}
-          onClick={() => recargar()}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          <span>Recargar</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setImportOpen(true)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>Importación masiva</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={loading}
+            onClick={() => recargar()}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>Recargar</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -318,6 +332,12 @@ export function DdBandeja() {
           )}
         </CardContent>
       </Card>
+
+      <DdImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => void recargar()}
+      />
 
       {revisando ? (
         <DdRevisionModal

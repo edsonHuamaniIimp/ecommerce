@@ -18,6 +18,15 @@ export type {
   DdClientesResponseDTO,
   DdClientesResumenDTO,
 } from "./dd-clientes.dto";
+export type {
+  DdEmpresaEstadoDTO,
+  DdEmpresasResponseDTO,
+  DdEmpresasResumenDTO,
+} from "./dd-empresas.dto";
+export type {
+  DdEmpresaImportErrorDTO,
+  DdEmpresasImportResponseDTO,
+} from "./dd-empresas-import-response.dto";
 export type { DdRevisarRequestDTO } from "./dd-revisar-request.dto";
 export type { DdBandejaQueryDTO } from "./dd-bandeja-query.dto";
 export type { DdBandejaResponseDTO, DdBandejaResumenDTO, DdBandejaRowDTO } from "./dd-bandeja-response.dto";

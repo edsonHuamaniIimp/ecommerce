@@ -185,6 +185,26 @@ export const ddUtils = {
     return null;
   },
 
+  /** Vigencia de una evaluacion externa (APTO / APTO CON OBSERVACIONES). */
+  estadoEvaluacionExterna(
+    resultado: DdResultado,
+    fechaVencimiento: Date | string | null | undefined,
+    ahora: Date = dateUtils.now(),
+  ): DdEstadoEvaluacion | null {
+    if (
+      resultado !== DD_RESULTADOS.APTO &&
+      resultado !== DD_RESULTADOS.APTO_CON_OBSERVACIONES
+    ) {
+      return null;
+    }
+    if (!fechaVencimiento || !dateUtils.isValid(fechaVencimiento)) {
+      return DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION;
+    }
+    return dateUtils.isBefore(ahora, fechaVencimiento)
+      ? DD_ESTADOS_EVALUACION.VIGENTE
+      : DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION;
+  },
+
   /** Dias restantes de vigencia (0 si ya vencio; null si no esta aprobada). */
   diasVigenciaRestantes(
     estado: string,
