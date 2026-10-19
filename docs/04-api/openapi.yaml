@@ -1724,6 +1724,100 @@ paths:
           description: No autorizado
         "403":
           description: Sin permiso dd:ver
+  /debida-diligencia/empresas:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Empresas con estado consolidado de Debida Diligencia
+      description: |
+        Registro oficial de empresas con su resultado DD y vigencia. Las empresas
+        pendientes pueden reservar, pero solo las APTAS y VIGENTES pueden avanzar.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: documento
+          in: query
+          schema:
+            type: string
+        - name: resultado
+          in: query
+          schema:
+            type: string
+            enum: [apto, apto_con_observaciones, no_apto, pendiente]
+        - name: estadoEvaluacion
+          in: query
+          schema:
+            type: string
+            enum: [vigente, requiere_nueva_evaluacion]
+        - name: evento
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdEmpresasResponse"
+  /debida-diligencia/empresas/importar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Importacion masiva de empresas DD
+      description: Recibe XLSX o CSV con RUC (11 digitos) o RUT/identificador extranjero.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Importacion procesada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      importados:
+                        type: integer
+                      actualizados:
+                        type: integer
+                      omitidos:
+                        type: integer
+                      errores:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            fila:
+                              type: integer
+                            documento:
+                              type: string
+                            mensaje:
+                              type: string
   /debida-diligencia/bandeja:
     get:
       tags: [DebidaDiligencia]
@@ -1819,7 +1913,7 @@ paths:
   /debida-diligencia/legal/resolver:
     post:
       tags: [DebidaDiligencia]
-      summary: Decision final de Legal con informe adjunto
+      summary: Decision de Legal (aprobar devuelve a Logistica; rechazar finaliza)
       requestBody:
         required: true
         content:
