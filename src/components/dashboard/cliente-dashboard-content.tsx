@@ -2,8 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@nrivera-iimp/ui-kit-iimp";
-import { ArrowRight, Building2, CheckCircle, ClipboardList, Map, Wallet } from "lucide-react";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@nrivera-iimp/ui-kit-iimp";
+import { AlertCircle, ArrowRight, Building2, CheckCircle, ClipboardList, Map, Wallet } from "lucide-react";
 import { StatsCard } from "./stats-card";
 import { PaginaDashboard } from "./pagina-dashboard";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -11,9 +30,10 @@ import { EstadoSolicitudBadge } from "@/components/solicitudes/estado-solicitud-
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { pagosService, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
-import { ESTADOS_CUOTA, ESTADOS_SOLICITUD, MONEDAS } from "@/lib/shared/constants";
+import { DD_RUTAS, ESTADOS_CUOTA, ESTADOS_SOLICITUD, MONEDAS } from "@/lib/shared/constants";
 import type { SessionDTO } from "@/types/dto/auth/session.dto";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -34,10 +54,23 @@ export function ClienteDashboardContent({ session, cargando }: Props) {
   const [solicitudes, setSolicitudes] = useState<{ items: SolicitudDTO[]; total: number } | null>(null);
   const [pagos, setPagos] = useState<PagoRowDTO[] | null>(null);
   const [perfil, setPerfil] = useState<{ saludo: string; empresa: string | null } | null>(null);
+  const [ddIniciada, setDdIniciada] = useState<boolean | null>(null);
+  const [ddEmpresa, setDdEmpresa] = useState<string | null>(null);
+  const [ddModalCerrado, setDdModalCerrado] = useState(false);
 
   useEffect(() => {
     if (!eventoId || !userId) return;
     let activo = true;
+    debidaDiligenciaService
+      .miExpediente()
+      .then((r) => {
+        if (!activo) return;
+        setDdIniciada(Boolean(r.expediente));
+        setDdEmpresa(r.empresa?.razonSocial ?? null);
+      })
+      .catch(() => {
+        if (activo) setDdIniciada(null);
+      });
     solicitudesService
       .listar(eventoId, 1, 100, undefined, userId)
       .then((r) => { if (activo) setSolicitudes({ items: r.data ?? [], total: r.total ?? 0 }); })
@@ -185,6 +218,45 @@ export function ClienteDashboardContent({ session, cargando }: Props) {
           </>
         )}
       </div>
+
+      <Dialog
+        open={ddIniciada === false && !ddModalCerrado}
+        onOpenChange={(open) => {
+          if (!open) setDdModalCerrado(true);
+        }}
+      >
+        <DialogContent className="border-destructive/40 sm:max-w-md">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-destructive">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <span>Debida diligencia pendiente</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="space-y-2">
+              <span className="block text-sm font-semibold">
+                {ddEmpresa ? `${ddEmpresa} aún no ha pasado por Debida Diligencia.` : "La empresa vinculada a tu cuenta aún no ha pasado por Debida Diligencia."}
+              </span>
+              <span className="block text-xs leading-relaxed">
+                Podrás realizar reservas, pero no podrás avanzar en tu proceso de revisión hasta que la evaluación de tu empresa esté APTA.
+              </span>
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setDdModalCerrado(true)}>
+              Entendido
+            </Button>
+            <Button asChild>
+              <Link href={ddEmpresa ? DD_RUTAS.FORMULARIO : "/dashboard/perfil"} onClick={() => setDdModalCerrado(true)}>
+                <span>{ddEmpresa ? "Iniciar debida diligencia" : "Completar mi perfil"}</span>
+              </Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PaginaDashboard>
   );
 }

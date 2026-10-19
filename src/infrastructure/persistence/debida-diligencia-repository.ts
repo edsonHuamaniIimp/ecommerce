@@ -250,6 +250,14 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     return row ? mapEmpresa(row) : null;
   }
 
+  async findEmpresaIdPorRazonSocial(razonSocial: string): Promise<string | null> {
+    const row = await prisma.empresa.findFirst({
+      where: { razonSocial: { equals: razonSocial.trim(), mode: "insensitive" } },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  }
+
   async siguienteCodigo(anio: string): Promise<string> {
     const prefijo = `${DD_CODIGO_PREFIJO}-${anio}-`;
     const ultimo = await prisma.debidaDiligencia.findFirst({

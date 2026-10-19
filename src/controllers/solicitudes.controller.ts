@@ -7,6 +7,7 @@ import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 
 /** True si el usuario puede ver/operar solicitudes de terceros (staff/admin). */
 function puedeVerTodas(session: { permissions: string[] }): boolean {
@@ -73,16 +74,59 @@ export const solicitudesController = {
     return success(row);
   },
 
+  /** Estado de DD de la empresa de la solicitud (para bloquear su revision). */
+  async ddEstado(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const url = new URL(request.url);
+    const { id } = solicitudesDetalleSchema.parse({ id: url.searchParams.get("id") ?? "" });
+    const row = await services.solicitudes.detalle(id);
+    if (!row) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
+    if (!puedeVerTodas(session) && row.userId && row.userId !== session.sub) {
+      return error(API_ERROR_CODES.FORBIDDEN, "No puedes ver solicitudes de otro usuario", 403);
+    }
+    if (!session.eventoId) {
+      return error(API_ERROR_CODES.VALIDATION, "Selecciona un evento activo para continuar", 400);
+    }
+
+    const evaluacion = await services.debidaDiligencia.evaluacionDeUsuario(
+      row.email,
+      session.eventoId,
+      row.empresa,
+    );
+    return success(mapDdEvaluacionSolicitudToDTO(row.id, evaluacion));
+  },
+
   async revisar(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     const body = solicitudesRevisarSchema.parse(await request.json());
 
-    /* Permiso por area (el admin pasa por admin:full) — validacion en el borde HTTP. */
+    /* Permiso por area (el admin pasa por admin:full) - validacion en el borde HTTP. */
     const permisoArea = REVISION_AREA_PERMISSIONS[body.area as keyof typeof REVISION_AREA_PERMISSIONS];
     if (!permisoArea) return error(API_ERROR_CODES.VALIDATION, "Area desconocida", 400);
     if (!session.permissions.includes(permisoArea) && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para revisar esta area", 403);
+    }
+
+    /* Bloqueo de negocio: sin DD APTA y vigente no se puede revisar la solicitud. */
+    const solicitud = await services.solicitudes.detalle(body.solicitudId);
+    if (!solicitud) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
+    if (!session.eventoId) {
+      return error(API_ERROR_CODES.VALIDATION, "Selecciona un evento activo para continuar", 400);
+    }
+    const evaluacionDd = await services.debidaDiligencia.evaluacionDeUsuario(
+      solicitud.email,
+      session.eventoId,
+      solicitud.empresa,
+    );
+    if (!evaluacionDd.aptoParaContratar) {
+      return error(
+        API_ERROR_CODES.CONFLICT,
+        evaluacionDd.mensaje ?? "La empresa no cuenta con una Debida Diligencia APTA y vigente",
+        409,
+      );
     }
 
     return success(await services.solicitudes.revisar({ ...body, reviewerEmail: session.email }));

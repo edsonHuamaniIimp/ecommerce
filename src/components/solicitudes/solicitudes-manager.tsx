@@ -1101,6 +1101,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
             </div>
           ) : reviewRow ? (
             <SolicitudReview
+              key={reviewRow.id}
               row={reviewRow}
               userPermissions={userPermissions}
               onSaved={handleReviewSaved}

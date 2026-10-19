@@ -120,6 +120,18 @@ export interface DdExpedienteEntity {
   reputacion: DdReputacionCasoEntity[];
 }
 
+/** Evaluacion de DD de la empresa de una solicitud, para bloquear su revision. */
+export interface DdEvaluacionEmpresa {
+  empresa: DdEmpresaResumen | null;
+  expediente: DdExpedienteEntity | null;
+  resultado: DdResultado;
+  estadoEvaluacion: DdEstadoEvaluacion | null;
+  vigente: boolean;
+  aptoParaContratar: boolean;
+  observacionesAbiertas: number;
+  mensaje: string | null;
+}
+
 export interface DdReputacionCasoEntity {
   id: string;
   nombreARevisar: string;

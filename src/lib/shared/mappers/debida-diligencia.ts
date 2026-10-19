@@ -2,6 +2,7 @@ import type {
   DdBandejaResult,
   DdClientesResult,
   DdEmpresaResumen,
+  DdEvaluacionEmpresa,
   DdEmpresasResult,
   DdExpedienteEntity,
   DdMatrizResult,
@@ -9,6 +10,7 @@ import type {
   DdPanelData,
   DdReputacionResult,
 } from "@/domain/models/debida-diligencia";
+import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import type {
   DdBandejaResponseDTO,
   DdBandejaRowDTO,
@@ -169,6 +171,25 @@ export function mapDdClientesToDTO(resultado: DdClientesResult): DdClientesRespo
       totalPages: resultado.totalPages,
     },
     resumen: resultado.resumen,
+  };
+}
+
+export function mapDdEvaluacionSolicitudToDTO(
+  solicitudId: string,
+  evaluacion: DdEvaluacionEmpresa,
+): SolicitudDdEstadoDTO {
+  return {
+    solicitudId,
+    empresaId: evaluacion.empresa?.id ?? null,
+    empresaRazonSocial: evaluacion.empresa?.razonSocial ?? null,
+    expedienteId: evaluacion.expediente?.id ?? null,
+    codigo: evaluacion.expediente?.codigo ?? null,
+    estado: evaluacion.expediente?.estado ?? null,
+    resultado: evaluacion.resultado,
+    estadoEvaluacion: evaluacion.estadoEvaluacion,
+    vigente: evaluacion.vigente,
+    aptoParaContratar: evaluacion.aptoParaContratar,
+    mensaje: evaluacion.mensaje,
   };
 }
 

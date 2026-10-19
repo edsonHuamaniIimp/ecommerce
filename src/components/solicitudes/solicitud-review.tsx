@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { useEffect, useState } from "react";
+import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
@@ -32,6 +32,7 @@ import { sgcService } from "@/lib/client/api/services/sgc-service";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
+import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { RevisionStepIndicator } from "./revision-step-indicator";
 import { MontajistaAsignada } from "./montajista-asignada";
 import { useSesion } from "@/hooks/use-sesion";
@@ -115,6 +116,22 @@ export function SolicitudReview({
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   const { confirm, confirmDialog } = useConfirm();
   const { session } = useSesion();
+  const [ddEstado, setDdEstado] = useState<SolicitudDdEstadoDTO | null>(null);
+  const [ddCargando, setDdCargando] = useState(true);
+
+  useEffect(() => {
+    let activo = true;
+    solicitudesService
+      .ddEstado(row.id)
+      .then((estado) => { if (activo) setDdEstado(estado); })
+      .catch(() => { if (activo) setDdEstado(null); })
+      .finally(() => { if (activo) setDdCargando(false); });
+    return () => { activo = false; };
+  }, [row.id]);
+
+  const ddBloqueado = !ddCargando && (!ddEstado || !ddEstado.aptoParaContratar);
+  const ddAccionesBloqueadas = ddCargando || ddBloqueado;
+  const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
   const areas = areasRevisionLocal(row.revisiones);
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
@@ -147,6 +164,7 @@ export function SolicitudReview({
   };
 
   const aprobarLegalBypass = async () => {
+    if (ddAccionesBloqueadas) return;
     const ok = await confirm({
       title: "Aprobar Legal (SGC) — bypass admin",
       description:
@@ -211,6 +229,7 @@ export function SolicitudReview({
   const anexosSolicitud = [...anexosMap.values()];
 
   const goToStep = (step: number) => {
+    if (ddAccionesBloqueadas) return;
     setEditing(false);
     setSubmitError(null);
     setDocsObservar([]);
@@ -223,6 +242,7 @@ export function SolicitudReview({
   };
 
   const handleReview = async (area: string, accion: string) => {
+    if (ddAccionesBloqueadas) return;
     const state = reviewState[area];
     if (!state) return;
 
@@ -283,6 +303,7 @@ export function SolicitudReview({
   };
 
   const handleObservar = () => {
+    if (ddAccionesBloqueadas) return;
     const state = reviewState[currentArea];
     if (!state || !state.comentario.trim()) {
       setValidationErrors((prev) => ({ ...prev, [currentArea]: "La justificacion es obligatoria para observar" }));
@@ -296,6 +317,7 @@ export function SolicitudReview({
   };
 
   const handleRechazar = () => {
+    if (ddAccionesBloqueadas) return;
     const state = reviewState[currentArea];
     if (!state || !state.comentario.trim()) {
       setValidationErrors((prev) => ({ ...prev, [currentArea]: "La justificacion es obligatoria para rechazar" }));
@@ -319,10 +341,11 @@ export function SolicitudReview({
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
   // Con el contrato ya enviado al SGC no se ofrece reemplazarlo hasta que lo devuelva/rechace.
   const puedeReemplazarContrato = !row.sgcDocumentosEnviados || sgcSubsanable;
-  const puedeOrdenPago = todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
+  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
+    if (ddAccionesBloqueadas) return step === currentStep;
     if (mostrarSgc && step === sgcStepIndex) return todasAprobadas;
     if (step === 0) return true;
     const prevArea = stepAreas[step - 1];
@@ -332,6 +355,7 @@ export function SolicitudReview({
   };
   /** Se puede observar mientras el paso Asociado esta editable. */
   const puedeObservar =
+    !ddAccionesBloqueadas &&
     currentArea === REVISION_AREAS.ASOCIADO &&
     (!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) &&
     canReview;
@@ -339,7 +363,11 @@ export function SolicitudReview({
     setDocsObservar((prev) => (prev.includes(docId) ? prev.filter((x) => x !== docId) : [...prev, docId]));
   };
 
-  const canAdvance = currentRev !== null && currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE && currentRev.estado !== RESULTADOS_APROBACION.OBSERVADO;
+  const canAdvance =
+    !ddAccionesBloqueadas &&
+    currentRev !== null &&
+    currentRev.estado !== RESULTADOS_APROBACION.PENDIENTE &&
+    currentRev.estado !== RESULTADOS_APROBACION.OBSERVADO;
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -388,6 +416,16 @@ export function SolicitudReview({
 
       {/* ===== BODY ===== */}
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        {!ddCargando && ddBloqueado && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <span className="block text-xs font-semibold">Revisión bloqueada por Debida Diligencia</span>
+              <span className="mt-1 block text-xs leading-relaxed">{ddMensaje}</span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Client documents */}
         {(() => {
           const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null; userId?: string | null }> = [];
@@ -628,7 +666,7 @@ export function SolicitudReview({
         )}
 
         {/* Integracion SGC — revision Legal delegada (ultimo paso) */}
-        {esPasoSgc && (
+        {esPasoSgc && !ddAccionesBloqueadas && (
           <div className="space-y-3 rounded-lg border border-border bg-secondary/40 p-4">
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Revision Legal (SGC)</h4>
             <SgcExpedientePanel
@@ -771,7 +809,7 @@ export function SolicitudReview({
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap">{currentRev.comentario}</p>
               </div>
             )}
-            {canReview && (
+            {canReview && !ddBloqueado && (
               <Button
                 variant="outline"
                 size="sm"
@@ -791,7 +829,7 @@ export function SolicitudReview({
         )}
 
         {/* Pending or editing — show form */}
-        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && !ddBloqueado && (
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Comentario / Justificacion</Label>
@@ -824,7 +862,7 @@ export function SolicitudReview({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!!submitting || docsObservar.length > 0}
+                disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
                 title={docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
                 className="gap-1.5 border-destructive/40 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive disabled:border-border disabled:text-muted-foreground"
                 onClick={handleRechazar}
@@ -847,7 +885,7 @@ export function SolicitudReview({
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={!!submitting}
+                    disabled={ddAccionesBloqueadas || !!submitting}
                     className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
                     onClick={handleObservar}
                   >
@@ -857,7 +895,7 @@ export function SolicitudReview({
                 )}
                 <Button
                   size="sm"
-                  disabled={!!submitting || docsObservar.length > 0}
+                  disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
                   title={docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
                   className="gap-1.5 text-xs font-semibold"
                   onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
@@ -912,7 +950,7 @@ export function SolicitudReview({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!!submitting}
+                disabled={ddAccionesBloqueadas || !!submitting}
                 className="gap-1.5 text-xs font-medium"
                 onClick={() => goToStep(Math.max(0, currentStep - 1))}
               >
@@ -925,7 +963,7 @@ export function SolicitudReview({
             {!isLast && (
               <Button
                 size="sm"
-                disabled={!canAdvance}
+                disabled={ddAccionesBloqueadas || !canAdvance}
                 className="gap-1.5 text-xs font-semibold"
                 onClick={() => goToStep(Math.min(totalSteps - 1, currentStep + 1))}
               >

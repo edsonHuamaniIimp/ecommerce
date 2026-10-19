@@ -9,6 +9,7 @@ import type {
   DdClientesResult,
   DdEmpresaEstadoImportData,
   DdEmpresaResumen,
+  DdEvaluacionEmpresa,
   DdEmpresasParams,
   DdEmpresasResult,
   DdExpedienteEntity,
@@ -387,6 +388,91 @@ export class DebidaDiligenciaApplicationService {
           observacionesAbiertas,
         };
       }),
+    };
+  }
+
+  /**
+   * Evaluacion de DD de la empresa vinculada a la cuenta de una solicitud.
+   * La usan las revisiones de Solicitudes para bloquear el flujo cuando la
+   * empresa no tiene una DD APTA y vigente.
+   */
+  async evaluacionDeUsuario(
+    email: string | null,
+    eventoId: string,
+    razonSocial?: string | null,
+  ): Promise<DdEvaluacionEmpresa> {
+    const empresaId =
+      (email ? await this.authRepo.findEmpresaIdDeUsuario(email) : null) ??
+      (razonSocial ? await this.repo.findEmpresaIdPorRazonSocial(razonSocial) : null);
+    if (!empresaId) return this.evaluacionDeEmpresa(null, null);
+
+    const [expediente, empresa] = await Promise.all([
+      this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
+      this.repo.findEmpresaResumen(empresaId),
+    ]);
+    return this.evaluacionDeEmpresa(expediente, empresa);
+  }
+
+  /** Calcula el resultado institucional de una empresa a partir de su expediente. */
+  private evaluacionDeEmpresa(
+    expediente: DdExpedienteEntity | null,
+    empresa: DdEmpresaResumen | null,
+  ): DdEvaluacionEmpresa {
+    if (!expediente) {
+      return {
+        empresa,
+        expediente: null,
+        resultado: DD_RESULTADOS.PENDIENTE,
+        estadoEvaluacion: null,
+        vigente: false,
+        aptoParaContratar: false,
+        observacionesAbiertas: 0,
+        mensaje:
+          "La empresa no ha pasado por Debida Diligencia. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.",
+      };
+    }
+
+    const observacionesAbiertas = expediente.observaciones.filter((observacion) => {
+      if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
+      if (!observacion.documentoTipo) return true;
+      const documento = expediente.documentos.find((item) => item.tipo === observacion.documentoTipo);
+      return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
+    }).length;
+    const resultado = ddUtils.resultadoEvaluacion(expediente.estado, observacionesAbiertas);
+    const estadoEvaluacion = ddUtils.estadoEvaluacion(expediente.estado, expediente.fechaVencimiento);
+    const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+    const aptoParaContratar = ddUtils.aptoParaContratar(
+      resultado,
+      estadoEvaluacion,
+      expediente.declaraVerdad,
+    );
+
+    let mensaje: string | null = null;
+    if (!aptoParaContratar) {
+      if (expediente.estado === DD_ESTADOS.RECHAZADA) {
+        mensaje =
+          "La Debida Diligencia de la empresa fue rechazada. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.";
+      } else if (expediente.estado === DD_ESTADOS.APROBADA) {
+        mensaje =
+          "La Debida Diligencia de la empresa está vencida o no tiene la declaración de veracidad vigente. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.";
+      } else if (expediente.estado === DD_ESTADOS.OBSERVADA) {
+        mensaje =
+          "La Debida Diligencia de la empresa está observada. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.";
+      } else {
+        mensaje =
+          "La Debida Diligencia de la empresa aún está en proceso. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.";
+      }
+    }
+
+    return {
+      empresa,
+      expediente,
+      resultado,
+      estadoEvaluacion,
+      vigente,
+      aptoParaContratar,
+      observacionesAbiertas,
+      mensaje,
     };
   }
 

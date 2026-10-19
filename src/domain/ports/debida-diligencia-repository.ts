@@ -51,6 +51,8 @@ export interface IDebidaDiligenciaRepository {
   findExpedientePorId(id: string): Promise<DdExpedienteEntity | null>;
   /** Empresa resumida para el formulario y las bandejas. */
   findEmpresaResumen(empresaId: string): Promise<DdEmpresaResumen | null>;
+  /** Empresa por razon social exacta (fallback para solicitudes historicas). */
+  findEmpresaIdPorRazonSocial(razonSocial: string): Promise<string | null>;
   /** Siguiente correlativo visible del expediente (DD-AAAA-NNNN). */
   siguienteCodigo(anio: string): Promise<string>;
   /** Crea el expediente en borrador. */

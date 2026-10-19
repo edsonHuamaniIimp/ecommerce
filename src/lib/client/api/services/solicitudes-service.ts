@@ -2,6 +2,7 @@ import 'client-only';
 
 import { internalApi } from "./internal-api";
 import type { SolicitudesPaginatedDTO, SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
+import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 
 interface RevisionSalidaDTO {
   id: string;
@@ -55,7 +56,13 @@ export const solicitudesService = {
   },
 
   detalle(id: string) {
-    return internalApi.get<SolicitudDTO>(`/api/solicitudes/detalle?id=${id}`);
+    return internalApi.get<SolicitudDTO>(`/api/solicitudes/detalle?id=${encodeURIComponent(id)}`);
+  },
+
+  ddEstado(id: string) {
+    return internalApi.get<SolicitudDdEstadoDTO>(
+      `/api/solicitudes/dd-estado?id=${encodeURIComponent(id)}`,
+    );
   },
 
   revisar(body: { solicitudId: string; area: string; estado: string; comentario?: string; documentosObservados?: string[] }) {
