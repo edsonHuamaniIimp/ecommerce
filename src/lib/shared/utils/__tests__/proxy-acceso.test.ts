@@ -25,6 +25,11 @@ describe("reglas de permiso simple", () => {
     expect(tieneAccesoRuta({ permission: PERMISSIONS.EMPRESAS_VIEW }, [PERMISSIONS.EMPRESAS_VIEW])).toBe(true);
   });
 
+  it("permite admin:full en cualquier ruta protegida", () => {
+    expect(tieneAccesoRuta({ permission: PERMISSIONS.USUARIOS_MANAGE }, [PERMISSIONS.ADMIN_FULL])).toBe(true);
+    expect(tieneAccesoRuta({ anyOf: API_SOLICITUDES_PERMISOS }, [PERMISSIONS.ADMIN_FULL])).toBe(true);
+  });
+
   it("sin permiso ni anyOf, cualquier sesion autenticada pasa", () => {
     expect(tieneAccesoRuta({}, [])).toBe(true);
   });
