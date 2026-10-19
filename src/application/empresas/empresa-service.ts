@@ -8,6 +8,7 @@ import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocume
 import { emailProvisionalPorDocumento, esEmailProvisional } from "@/lib/shared/utils/email";
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
 import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
+import { configCuotasValida, normalizarConfigCuotas, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { EmpresaApi, IEmpresaClient } from "@/domain/ports/empresa-client";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
@@ -474,6 +475,24 @@ export class EmpresaApplicationService {
     const empresa = await this.repo.findById(id);
     if (!empresa) throw new DomainError("Empresa no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     return empresa;
+  }
+
+  /**
+   * Configura el cronograma personalizado de cuotas de una empresa (Modalidad 4).
+   * `null` elimina la configuracion y devuelve la empresa al cronograma estandar.
+   * Las fechas deben ser futuras, estar en orden y coincidir con la cantidad.
+   */
+  async configurarCuotas(id: string, config: ConfigCuotasEmpresa | null): Promise<EmpresaEntity> {
+    await this.obtener(id);
+    if (config !== null && !configCuotasValida(config)) {
+      throw new DomainError(
+        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas futuras, validas y en orden ascendente.",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const normalizada = config ? normalizarConfigCuotas(config) : null;
+    return this.repo.update(id, { configCuotas: normalizada });
   }
 
   /**

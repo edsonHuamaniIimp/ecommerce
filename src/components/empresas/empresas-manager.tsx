@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { BadgeCheck, Building2, CloudUpload, KeyRound, Loader2, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
+import { BadgeCheck, Building2, CalendarCog, CloudUpload, KeyRound, Loader2, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -15,6 +15,7 @@ import type { EmpresaDTO } from "@/types/dto/empresas";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
 import { RegistrarEmpresaFuenteModal } from "./registrar-empresa-fuente-modal";
+import { ConfigurarCuotasEmpresaModal } from "./configurar-cuotas-empresa-modal";
 
 function EstadoEmpresaBadge({ estado }: { estado: string }) {
   const activa = estado === ESTADOS_EMPRESA.ACTIVA;
@@ -39,6 +40,7 @@ export function EmpresasManager() {
   const [cargaOpen, setCargaOpen] = useState(false);
   const [fuenteOpen, setFuenteOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
+  const [cuotasEmpresa, setCuotasEmpresa] = useState<EmpresaDTO | null>(null);
   /* Credenciales generadas: se muestran una vez (no se envian correos). */
   const [credenciales, setCredenciales] = useState<{ razonSocial: string; usuario: string; passwordTemporal: string } | null>(null);
   /** Empresa cuyo representante se esta sincronizando con servicio-persona (bloquea su icono). */
@@ -422,6 +424,19 @@ export function EmpresasManager() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className={`h-7 w-7 p-0 ${empresa.configCuotas ? "text-primary" : "text-muted-foreground"}`}
+                                onClick={() => setCuotasEmpresa(empresa)}
+                              >
+                                <CalendarCog className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top"><span>Configurar fechas de pago (Modalidad 4)</span></TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="h-7 w-7 p-0"
                                 onClick={() => { setEditando(empresa); setFormOpen(true); }}
                               >
@@ -484,6 +499,13 @@ export function EmpresasManager() {
         <RegistrarEmpresaFuenteModal
           onClose={() => setFuenteOpen(false)}
           onRegistrado={() => void load()}
+        />
+      )}
+      {cuotasEmpresa && (
+        <ConfigurarCuotasEmpresaModal
+          empresa={cuotasEmpresa}
+          onClose={() => setCuotasEmpresa(null)}
+          onSaved={() => void load()}
         />
       )}
       {credenciales && (

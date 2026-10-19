@@ -20,6 +20,8 @@ export interface PerfilResult {
     representanteDireccion: string | null;
     /** Partida electronica del representante (ficha: partidaElectronica). */
     representantePartida: string | null;
+    /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
+    configCuotas: { maxCuotas: number; fechas: string[] } | null;
   } | null;
   /** true = el usuario tiene empresa y le faltan datos obligatorios del representante legal. */
   representanteIncompleto: boolean;

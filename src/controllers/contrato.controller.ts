@@ -18,6 +18,7 @@ export const contratoController = {
 
     const resultado = await services.contrato.generar({
       ...parsed.data,
+      userEmail: session.email,
       userSub: session.sub,
       userPermissions: session.permissions,
     });
@@ -36,6 +37,7 @@ export const contratoController = {
 
     const resultado = await services.contrato.firmar({
       ...parsed.data,
+      userEmail: session.email,
       userSub: session.sub,
       userPermissions: session.permissions,
     });

@@ -21,11 +21,11 @@ import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
-import { fechasCuotasValidas, planCuotasConFechas, porcentajesValidos } from "@/lib/shared/utils/cuotas";
+import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
 import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
@@ -94,6 +94,8 @@ export interface GenerarContratoInput {
   firmaExhibidorBase64?: string;
   /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
   contrato?: DatosContrato;
+  /** Correo de la sesion: resuelve la empresa/config aunque el correo de contacto sea otro. */
+  userEmail?: string;
   userSub: string;
   userPermissions: string[];
   /** Al firmar se genera el PDF firmado pero NO se reemplaza el contrato del admin. */
@@ -105,6 +107,8 @@ export interface FirmarContratoInput {
   idioma?: Idioma;
   /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
   contrato?: DatosContrato;
+  /** Correo de la sesion: resuelve el perfil/empresa del firmante. */
+  userEmail?: string;
   userSub: string;
   userPermissions: string[];
 }
@@ -178,11 +182,14 @@ export class ContratoApplicationService {
     }
 
     /* Datos de la empresa del cliente (cuenta → empresa del Portal). */
-    const empresaId = detalle.email ? await this.auth.findEmpresaIdDeUsuario(detalle.email) : null;
+    /* Datos de la empresa del cliente (cuenta -> empresa del Portal). Se usa el correo
+     * de la sesion: el correo de contacto de la solicitud puede ser distinto. */
+    const emailPropietario = input.userEmail ?? detalle.email;
+    const empresaId = emailPropietario ? await this.auth.findEmpresaIdDeUsuario(emailPropietario) : null;
     const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
 
     /* Idioma del contrato: el elegido por quien lo genera (UI) o el del cliente (perfil/cookie). */
-    const idioma: Idioma = input.idioma ?? (await resolverIdiomaDestinatario(this.auth, detalle.email ?? null));
+    const idioma: Idioma = input.idioma ?? (await resolverIdiomaDestinatario(this.auth, emailPropietario ?? null));
 
     /* Modulos (stands) + recortes por pabellon (el recorte se genera en el servidor).
      * El contrato usa el CODIGO COMERCIAL del stand (standCode); el bloqueId del plano
@@ -203,9 +210,20 @@ export class ContratoApplicationService {
     const { modulos, gruposPabellon } = await this.construirModulos(refs);
 
     /* Importes y cuotas: los MONTOS nunca vienen del cliente (precio del stand en BD). */
+    const cuotasPersistidas = detalle.planCuotas?.cuotas.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fechaVencimiento ?? "" }));
+    const usandoPlanPersistido = !input.cuotas || input.cuotas.length === 0;
+    const cuotasSolicitadas = usandoPlanPersistido ? cuotasPersistidas : input.cuotas;
+    const configCuotasEmpresa = empresa?.configCuotas
+      ?? (emailPropietario ? (await this.auth.findPerfilByEmail(emailPropietario).catch(() => null))?.empresa?.configCuotas : null)
+      ?? null;
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
       detalle.precio ?? 0,
-      input.cuotas ?? detalle.planCuotas?.cuotas.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fechaVencimiento ?? "" })),
+      cuotasSolicitadas,
+      {
+        permitirPersonalizado: isAdmin || usandoPlanPersistido,
+        configCuotas: configCuotasEmpresa,
+        modalidadPersistida: usandoPlanPersistido ? detalle.planCuotas?.modalidad : undefined,
+      },
     );
 
     /* Snapshot del plan: fuente de verdad para regenerar el contrato y para Facturacion. */
@@ -264,7 +282,12 @@ export class ContratoApplicationService {
       stands.map((s) => ({ bloqueId: s.bloqueId ?? s.standCode, codigoComercial: s.standCode, tipoStand: s.tipoStand, pabellon: null })),
     );
     const neto = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
-    const { importes, plan, porcentajes, modalidad } = this.calcularPlan(neto, input.cuotas);
+    const configCuotasEmpresa = empresa?.configCuotas
+      ?? (await this.auth.findPerfilByEmail(input.email).catch(() => null))?.empresa?.configCuotas
+      ?? null;
+    const { importes, plan, porcentajes, modalidad } = this.calcularPlan(neto, input.cuotas, {
+      configCuotas: configCuotasEmpresa,
+    });
 
     const codigos = stands.map((s) => s.standCode).join("-").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
     const base = `contrato-borrador-${codigos || "stands"}-${Date.now()}`;
@@ -300,6 +323,11 @@ export class ContratoApplicationService {
   private calcularPlan(
     neto: number,
     cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>,
+    opciones?: {
+      permitirPersonalizado?: boolean;
+      configCuotas?: ConfigCuotasEmpresa | null;
+      modalidadPersistida?: string;
+    },
   ): {
     importes: ReturnType<typeof calcularImportes>;
     plan: ReturnType<typeof planCuotasConFechas>;
@@ -315,19 +343,59 @@ export class ContratoApplicationService {
     if (porcentajes.length === 0) {
       throw new DomainError("Configura las cuotas de pago antes de generar el contrato.", API_ERROR_CODES.VALIDATION, 400);
     }
-    if (porcentajes.length > MAX_CUOTAS_PAGO || !porcentajesValidos(porcentajes)) {
-      throw new DomainError("Configuracion de cuotas invalida (1 a 3 cuotas que suman 100%).", API_ERROR_CODES.VALIDATION, 400);
+
+    const programadas = (cuotas ?? []).map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fechaVencimiento }));
+    const permitirPersonalizado = opciones?.permitirPersonalizado === true;
+    const configCuotas = opciones?.configCuotas ?? null;
+    const usaConfigEmpresa = !permitirPersonalizado && configCuotasValida(configCuotas);
+    /*
+     * En modo personalizado (admin o snapshot persistido) el maximo no es 3: el plan
+     * persistido de una empresa puede tener hasta 9 cuotas. Nunca se acepta mas que
+     * el limite del IIMP.
+     */
+    const maxCuotas = permitirPersonalizado
+      ? Math.min(
+          MAX_CUOTAS_PERSONALIZADAS,
+          Math.max(MAX_CUOTAS_PAGO, cuotas?.length ?? 0, configCuotas?.maxCuotas ?? 0),
+        )
+      : usaConfigEmpresa
+        ? (configCuotas?.maxCuotas ?? MAX_CUOTAS_PAGO)
+        : MAX_CUOTAS_PAGO;
+
+    if (porcentajes.length > maxCuotas || !porcentajesValidos(porcentajes, maxCuotas)) {
+      throw new DomainError(
+        `Configuracion de cuotas invalida (maximo ${maxCuotas} cuotas que suman 100%).`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
-    if (!fechasCuotasValidas(fechas)) {
-      throw new DomainError("Las fechas de pago no pueden ser pasadas y deben ir en orden cronologico.", API_ERROR_CODES.VALIDATION, 400);
+
+    if (!permitirPersonalizado) {
+      if (usaConfigEmpresa) {
+        if (!cuotasCoincidenConfig(programadas, configCuotas)) {
+          throw new DomainError(
+            "El cronograma no coincide con las cuotas y fechas configuradas por el IIMP para tu empresa.",
+            API_ERROR_CODES.VALIDATION,
+            400,
+          );
+        }
+      } else if (!cronogramaValido(programadas)) {
+        throw new DomainError(
+          "Selecciona una modalidad de pago valida: 1 cuota (100%), 2 cuotas (50/50) o 3 cuotas (40/30/30), con las fechas vigentes del cronograma.",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+    } else if (!fechasCuotasEstructuralmenteValidas(fechas)) {
+      throw new DomainError("Las fechas del cronograma no son validas o no estan en orden.", API_ERROR_CODES.VALIDATION, 400);
     }
+
     const plan = planCuotasConFechas(importes.total, porcentajes, fechas);
     if (plan.some((c) => c.monto < CUOTA_MONTO_MINIMO)) {
       throw new DomainError(`Cada cuota debe ser de al menos US$ ${CUOTA_MONTO_MINIMO.toFixed(2)}.`, API_ERROR_CODES.VALIDATION, 400);
     }
-    const esCompleto = porcentajes.length === 1;
-    const esMitad = porcentajes.length === 2 && porcentajes[0] === 50 && porcentajes[1] === 50;
-    const modalidad = esCompleto ? MODOS_PAGO.COMPLETO : esMitad ? MODOS_PAGO.CUOTAS : MODOS_PAGO.PERSONALIZADO;
+    const modalidad = opciones?.modalidadPersistida
+      ?? (usaConfigEmpresa ? MODOS_PAGO.PERSONALIZADO : modalidadDeCuotas(porcentajes));
     return { importes, plan, porcentajes, modalidad };
   }
 
@@ -403,6 +471,7 @@ export class ContratoApplicationService {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
+    const esTresCuotas = params.modalidad === MODOS_PAGO.TRES_CUOTAS;
     const esPersonalizado = params.modalidad === MODOS_PAGO.PERSONALIZADO;
     const fechaCorta = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "");
 
@@ -492,7 +561,9 @@ export class ContratoApplicationService {
       sel_modalidad_1: esCompleto ? "X" : "",
       monto_modalidad_1: esCompleto ? monto(importes.total) : "",
       sel_modalidad_2: esMitad ? "X" : "",
-      sel_modalidad_3: esPersonalizado ? "X" : "",
+      sel_modalidad_3: esTresCuotas ? "X" : "",
+      sel_modalidad_4: esPersonalizado ? "X" : "",
+      modalidad_pago: etiquetaModalidad(params.modalidad),
       cuotas_contrato: plan.map((c) => ({
         numero: c.numero,
         porcentaje: c.porcentaje,
@@ -588,7 +659,8 @@ export class ContratoApplicationService {
       }
     }
 
-    const perfil = detalle.email ? await this.auth.findPerfilByEmail(detalle.email) : null;
+    const emailFirmante = input.userEmail ?? detalle.email;
+    const perfil = emailFirmante ? await this.auth.findPerfilByEmail(emailFirmante) : null;
     if (!perfil?.firmaUrl) {
       throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
     }
@@ -601,6 +673,7 @@ export class ContratoApplicationService {
       idioma: input.idioma,
       firmaExhibidorBase64: png.toString("base64"),
       contrato: input.contrato,
+      userEmail: input.userEmail,
       userSub: input.userSub,
       userPermissions: input.userPermissions,
       registrarContrato: false,

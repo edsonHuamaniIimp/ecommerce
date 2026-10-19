@@ -417,7 +417,7 @@ map.set(String(bloqueId), {
     reset: resetForm,
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
-    cuotasConfig, setCuotasConfig,
+    cuotasConfig, setCuotasConfig, configCuotas,
     contratoDatos, setContratoDatos,
     contrato,
     generandoContrato,
@@ -427,7 +427,7 @@ map.set(String(bloqueId), {
     subirContratoFirmado,
     firmaPerfilUrl,
     subirFirmaPerfil,
-    firmandoDigital,
+    firmaDigitalAplicada,
     firmarDigitalmente,
   } = useReservaForm(idsGlobales, linkedMap);
 
@@ -1123,6 +1123,7 @@ map.set(String(bloqueId), {
           onConfirmadoChange={setConfirmado}
           aceptaRepresentante={aceptaRepresentante}
           onAceptaRepresentanteChange={setAceptaRepresentante}
+      configCuotas={configCuotas}
       cuotasPago={cuotasConfig}
       onCuotasPagoChange={setCuotasConfig}
       contratoDatos={contratoDatos}
@@ -1135,7 +1136,7 @@ map.set(String(bloqueId), {
         onSubirFirmado={(file) => { void subirContratoFirmado(file); }}
         firmaPerfilUrl={firmaPerfilUrl}
         onSubirFirmaPerfil={subirFirmaPerfil}
-        firmandoDigital={firmandoDigital}
+        firmaDigitalAplicada={firmaDigitalAplicada}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {
           const result = await handleSubmit();

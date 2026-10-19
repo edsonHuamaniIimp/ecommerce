@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { CalendarClock, CheckCircle2, CreditCard, FileSignature, FileText, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import { Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
-import { BADGE_STYLES, CUOTAS_DIAS_MIN_ENTRE, MAX_CUOTAS_PAGO, MONEDAS, VALIDACIONES } from "@/lib/shared/constants";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarClock, CheckCircle2, CreditCard, FileSignature, FileText, ShieldCheck } from "lucide-react";
+import { Input, Label } from "@nrivera-iimp/ui-kit-iimp";
+import { BADGE_STYLES, MODALIDADES_CUOTAS, MONEDAS, PORCENTAJES_POR_MODALIDAD, VALIDACIONES, type ModalidadCuotas } from "@/lib/shared/constants";
 import { calcularImportes } from "@/lib/shared/utils/importes";
-import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, planCuotasConFechas, porcentajesValidos, sumarDias } from "@/lib/shared/utils/cuotas";
+import { configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
@@ -16,7 +16,9 @@ import type { CuotaConfig } from "./use-reserva-form";
 interface Props {
   /** Precios netos (USD) de los stands seleccionados. */
   precios: number[];
-  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..3, suman 100%). */
+  /** Cronograma personalizado de la empresa (Modalidad 4), si existe. */
+  configCuotas: ConfigCuotasEmpresa | null;
+  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..N, hasta 9). */
   cuotas: CuotaConfig[];
   onCuotasChange: (cuotas: CuotaConfig[]) => void;
   /** Datos del exhibidor que van al cuerpo del contrato. */
@@ -26,29 +28,21 @@ interface Props {
   contrato: { docxUrl: string; pdfUrl: string | null } | null;
 }
 
-function Preset({ label, activo, onClick }: { label: string; activo: boolean; onClick: () => void }) {
-  return (
-    <Button
-      type="button"
-      variant={activo ? "default" : "outline"}
-      size="sm"
-      className="h-7 rounded-full px-3 text-[11px] font-semibold"
-      onClick={onClick}
-    >
-      <span>{label}</span>
-    </Button>
-  );
-}
+const OPCIONES: Array<{ cantidad: ModalidadCuotas; etiqueta: string; detalle: string }> = [
+  { cantidad: MODALIDADES_CUOTAS.UNA, etiqueta: "1 cuota", detalle: "100% del total" },
+  { cantidad: MODALIDADES_CUOTAS.DOS, etiqueta: "2 cuotas", detalle: "50% / 50%" },
+  { cantidad: MODALIDADES_CUOTAS.TRES, etiqueta: "3 cuotas", detalle: "40% / 30% / 30%" },
+];
 
 /**
- * Paso 2: el cliente configura sus cuotas de pago (hasta 3): porcentajes que suman 100%
- * y **fechas de pago** (no pasadas y en orden). Al continuar se genera el contrato.
+ * Paso 2: el cliente elige una modalidad de pago fija. Las fechas y porcentajes
+ * los determina el cronograma del contrato; no se editan a mano.
  */
-export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato }: Props) {
+export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato }: Props) {
   const neto = precios.reduce((s, p) => s + p, 0);
   const importes = calcularImportes(neto);
   const moneda = MONEDAS.USD;
-  const hoy = dateUtils.todayInputValue();
+  const hoy = dateUtils.todayLimaInputValue();
   const contratoOk = datosContratoValidos(contratoDatos);
   /* Lookups del API: RUC (SUNAT) y DNI del representante (RENIEC). */
   const [repValidado, setRepValidado] = useState(false);
@@ -95,68 +89,69 @@ export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onCo
       });
   }, [contratoDatos]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const opciones = useMemo(
+    () =>
+      OPCIONES.map((opcion) => ({
+        ...opcion,
+        porcentajes: [...PORCENTAJES_POR_MODALIDAD[opcion.cantidad]],
+        fechas: cronogramaPredeterminado(opcion.cantidad, hoy),
+      })),
+    [hoy],
+  );
+
+  const personalizado = configCuotasValida(configCuotas, hoy);
+  const seleccionada = opciones.find((opcion) =>
+    opcion.fechas &&
+    cuotas.length === opcion.fechas.length &&
+    cuotas.every((cuota, i) => cuota.porcentaje === opcion.porcentajes[i] && cuota.fecha === opcion.fechas?.[i]),
+  );
+
   const porcentajes = cuotas.map((c) => c.porcentaje);
   const fechas = cuotas.map((c) => c.fecha);
   const plan = planCuotasConFechas(importes.total, porcentajes, fechas);
-  const suma = Math.round(porcentajes.reduce((s, p) => s + p, 0) * 100) / 100;
-  const sumaOk = porcentajesValidos(porcentajes);
-  const fechasOk = fechasCuotasValidas(fechas) && fechasCuotasEnRango(fechas);
-  const valido = sumaOk && fechasOk;
-  const esPreset1 = cuotas.length === 1 && cuotas[0]?.porcentaje === 100;
-  const esPreset2 = cuotas.length === 2 && cuotas[0]?.porcentaje === 50 && cuotas[1]?.porcentaje === 50;
+  const programadas = cuotas.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha }));
+  const valido = cuotas.length > 0 && (personalizado
+    ? cuotasCoincidenConfig(programadas, configCuotas, hoy)
+    : cronogramaValido(programadas, hoy));
 
-  /** Maximo permitido para una cuota: lo que resta para llegar a 100% (sin exceder). */
-  const maxPorCuota = (idx: number) => {
-    const otros = Math.round((suma - (cuotas[idx]?.porcentaje ?? 0)) * 100) / 100;
-    return Math.max(0, Math.round((100 - otros) * 100) / 100);
-  };
-
-  /** Minimo permitido para la fecha de una cuota: hoy (1ra) o la anterior + separacion minima. */
-  const minFechaCuota = (idx: number): string => {
-    const previa = idx > 0 ? cuotas[idx - 1]?.fecha : null;
-    if (!previa) return hoy;
-    return sumarDias(new Date(`${previa}T00:00:00`), CUOTAS_DIAS_MIN_ENTRE);
-  };
+  /* Si el cronograma de fechas quedo obsoleto (p. ej. cambio el dia), reaplicarlo.
+     En modalidad personalizada no se pisan los porcentajes mientras el cliente edita. */
+  useEffect(() => {
+    if (valido) return;
+    if (personalizado) {
+      if (!configCuotas) return;
+      const fechasOk = cuotas.length === configCuotas.maxCuotas
+        && cuotas.every((cuota, i) => cuota.fecha === configCuotas.fechas[i]);
+      if (fechasOk) return;
+      const config = cuotasPersonalizadasIniciales(configCuotas, hoy);
+      if (config) onCuotasChange(config);
+      return;
+    }
+    const primera = opciones.find((opcion) => opcion.fechas);
+    if (!primera) return;
+    const config = cuotasPredeterminadas(primera.cantidad, hoy);
+    if (config) onCuotasChange(config);
+  }, [valido, hoy, opciones, onCuotasChange, personalizado, configCuotas, cuotas]);
 
   const setPorcentaje = (idx: number, valor: number) => {
-    const maximo = maxPorCuota(idx);
-    const numero = Number.isFinite(valor) ? valor : 0;
-    const saneado = Math.min(Math.max(numero, 0), maximo);
-    onCuotasChange(cuotas.map((c, i) => (i === idx ? { ...c, porcentaje: Math.round(saneado * 100) / 100 } : c)));
+    const numero = Number.isFinite(valor) ? Math.max(0, Math.min(100, valor)) : 0;
+    onCuotasChange(cuotas.map((cuota, i) => (i === idx ? { ...cuota, porcentaje: Math.round(numero * 100) / 100 } : cuota)));
   };
 
-  const setFecha = (idx: number, valor: string) => {
-    onCuotasChange(cuotas.map((c, i) => (i === idx ? { ...c, fecha: valor } : c)));
+  const aplicarModalidad = (cantidad: ModalidadCuotas) => {
+    const config = cuotasPredeterminadas(cantidad, hoy);
+    if (config) onCuotasChange(config);
   };
 
-  const agregarCuota = () => {
-    if (cuotas.length >= MAX_CUOTAS_PAGO) return;
-    const restante = Math.max(0, Math.round((100 - suma) * 100) / 100);
-    if (restante < 0.01) return; // sin porcentaje disponible: no se puede agregar
-    onCuotasChange([...cuotas, { porcentaje: restante, fecha: fechaMaximaCuota(cuotas.length) }]);
-  };
-
-  const quitarCuota = (idx: number) => {
-    if (cuotas.length <= 1) return;
-    onCuotasChange(cuotas.filter((_, i) => i !== idx));
-  };
-
-  const aplicarPreset = (porcentajesPreset: number[]) => {
-    onCuotasChange(
-      porcentajesPreset.map((porcentaje, i) => ({
-        porcentaje,
-        fecha: cuotas[i]?.fecha ?? fechaMaximaCuota(i),
-      })),
-    );
-  };
+  const fechaVisible = (fecha: string) => dateUtils.format(fecha, { idioma: "es" });
 
   return (
     <div className="flex flex-col gap-3 pt-3">
       <div className="flex items-start gap-3 rounded-xl border border-info/30 bg-info/10 px-3.5 py-3">
         <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-info" />
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Configura tus cuotas (hasta {MAX_CUOTAS_PAGO}): porcentajes que suman 100% y sus
-          fechas de pago. El contrato incluira este cronograma.
+          Elige la modalidad de pago. El porcentaje y las fechas de cada cuota se toman del
+          cronograma del contrato y no se editan manualmente.
         </p>
       </div>
 
@@ -181,104 +176,133 @@ export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onCo
         </div>
       </div>
 
-      {/* Configurador de cuotas */}
+      {/* Cronograma personalizado de la empresa (Modalidad 4) */}
+      {personalizado && configCuotas && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
+            <span className="flex items-center gap-2 text-[10px] font-semibold tracking-wider text-primary uppercase">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Cronograma configurado por el IIMP
+            </span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              Modalidad 4
+            </span>
+          </div>
+          <div className="space-y-3 px-3 py-3">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Estas son las cuotas y fechas asignadas a tu empresa. Puedes ajustar el
+              porcentaje de cada cuota; la suma debe ser 100%.
+            </p>
+            <div className="overflow-hidden rounded-lg border border-border">
+              <div className="grid grid-cols-[auto_1fr_auto] gap-2 border-b border-border bg-secondary/60 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                <span>Cuota</span>
+                <span>Vencimiento</span>
+                <span className="text-right">Porcentaje / monto</span>
+              </div>
+              {plan.map((cuota, i) => (
+                <div key={cuota.numero} className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/60 px-3 py-2 text-xs last:border-b-0">
+                  <span className="font-semibold text-foreground">{cuota.numero}</span>
+                  <span className="text-muted-foreground">{fechaVisible(cuota.fechaVencimiento ?? "")}</span>
+                  <span className="flex items-center justify-end gap-1.5">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={String(cuota.porcentaje)}
+                      onChange={(e) => setPorcentaje(i, Number(e.target.value))}
+                      className="h-7 w-[68px] text-center text-xs"
+                    />
+                    <span className="text-muted-foreground">%</span>
+                    <span className="w-20 text-right font-semibold text-foreground">
+                      {numberUtils.monto(cuota.monto, moneda, { decimales: 2 })}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className={porcentajesValidos(porcentajes, configCuotas?.maxCuotas) ? "text-success" : "text-warning"}>
+                Suma: {Math.round(porcentajes.reduce((s, p) => s + p, 0) * 100) / 100}% de 100%
+              </span>
+              {!porcentajesValidos(porcentajes, configCuotas?.maxCuotas) && <span className="text-warning">Ajusta los porcentajes para continuar.</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modalidades fijas */}
+      {!personalizado && (
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
           <span className="flex items-center gap-2 text-[10px] font-semibold tracking-wider text-primary uppercase">
             <CalendarClock className="h-3.5 w-3.5" />
-            Configuracion de cuotas
+            Modalidad de pago
           </span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sumaOk ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
-            {suma}% de 100%
-          </span>
+          {seleccionada && (
+            <span className="rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">
+              {seleccionada.etiqueta}
+            </span>
+          )}
         </div>
         <div className="space-y-3 px-3 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">Rapidos:</span>
-            <Preset label="100% (1 cuota)" activo={esPreset1} onClick={() => aplicarPreset([100])} />
-            <Preset label="50% + 50% (2 cuotas)" activo={esPreset2} onClick={() => aplicarPreset([50, 50])} />
-          </div>
-
-          <div className="space-y-1.5">
-            {cuotas.map((cuota, idx) => {
-              const monto = plan[idx]?.monto ?? 0;
+          <div className="grid gap-2 sm:grid-cols-3">
+            {opciones.map((opcion) => {
+              const activa = seleccionada?.cantidad === opcion.cantidad;
               return (
-                <div key={idx} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-card text-[10px] font-bold text-foreground">
-                    {idx + 1}
+                <button
+                  key={opcion.cantidad}
+                  type="button"
+                  aria-pressed={activa}
+                  disabled={!opcion.fechas}
+                  onClick={() => aplicarModalidad(opcion.cantidad)}
+                  className={`rounded-lg border px-3 py-3 text-left transition-colors ${
+                    activa
+                      ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                      : "border-border bg-secondary/40 hover:border-primary/50"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <span className="block text-xs font-bold text-foreground">{opcion.etiqueta}</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">{opcion.detalle}</span>
+                  <span className="mt-2 block text-[10px] leading-snug text-muted-foreground">
+                    {opcion.fechas ? opcion.fechas.map(fechaVisible).join(" · ") : "Cronograma vencido"}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      max={maxPorCuota(idx)}
-                      step="1"
-                      value={String(cuota.porcentaje)}
-                      onChange={(e) => setPorcentaje(idx, Number(e.target.value))}
-                      className="h-7 w-[64px] text-center text-xs"
-                    />
-                    <span className="text-muted-foreground">%</span>
-                  </span>
-                  <Input
-                    type="date"
-                    min={minFechaCuota(idx)}
-                    max={fechaMaximaCuota(idx)}
-                    value={cuota.fecha}
-                    onChange={(e) => setFecha(idx, e.target.value)}
-                    className="h-7 w-[136px] text-xs"
-                  />
-                  <span className="font-semibold text-foreground">
-                    {numberUtils.monto(monto, moneda, { decimales: 2 })}
-                  </span>
-                  {cuotas.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto h-6 w-6 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      title="Quitar cuota"
-                      onClick={() => quitarCuota(idx)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
+                </button>
               );
             })}
           </div>
 
-          {cuotas.length < MAX_CUOTAS_PAGO && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-full text-xs"
-              disabled={suma >= 100}
-              title={suma >= 100 ? "Ya distribuiste el 100%; reduce una cuota para agregar otra" : undefined}
-              onClick={agregarCuota}
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              <span>Agregar cuota ({cuotas.length + 1} de {MAX_CUOTAS_PAGO})</span>
-            </Button>
+          {opciones.every((opcion) => !opcion.fechas) && (
+            <p className="text-[11px] font-medium text-destructive">
+              El cronograma de pagos ya venció. Contacta a Facturación del IIMP.
+            </p>
           )}
 
-          {!sumaOk && (
-            <p className="text-[11px] font-medium text-warning">
-              Ajusta los porcentajes: deben ser mayores a 0 y sumar exactamente 100%.
-            </p>
+          {seleccionada && (
+            <div className="overflow-hidden rounded-lg border border-border">
+              <div className="grid grid-cols-[auto_1fr_1fr] gap-2 border-b border-border bg-secondary/60 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                <span>Cuota</span>
+                <span>Vencimiento</span>
+                <span className="text-right">Monto</span>
+              </div>
+              {plan.map((cuota) => (
+                <div key={cuota.numero} className="grid grid-cols-[auto_1fr_1fr] items-center gap-2 border-b border-border/60 px-3 py-2 text-xs last:border-b-0">
+                  <span className="font-semibold text-foreground">{cuota.numero}. {cuota.porcentaje}%</span>
+                  <span className="text-muted-foreground">{fechaVisible(cuota.fechaVencimiento ?? "")}</span>
+                  <span className="text-right font-semibold text-foreground">
+                    {numberUtils.monto(cuota.monto, moneda, { decimales: 2 })}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-          {sumaOk && !fechasOk && (
-            <p className="text-[11px] font-medium text-warning">
-              Revisa las fechas: no pueden ser anteriores a hoy, cada cuota debe ser <strong>posterior</strong> a la
-              anterior (minimo {CUOTAS_DIAS_MIN_ENTRE} dia{CUOTAS_DIAS_MIN_ENTRE === 1 ? "" : "s"}) y cada cuota tiene
-              un maximo (1ra: 1 mes, 2da: 2 meses, 3ra: 3 meses desde la solicitud; tope 15/07/2027).
-            </p>
-          )}
+
           <p className="text-[10px] text-muted-foreground">
-            Las fechas se confirman con Facturacion del IIMP al momento del pago.
+            Las fechas son las pactadas en el Anexo 2. El cronograma se traslada automáticamente al contrato.
           </p>
         </div>
       </div>
+      )}
 
       {/* Datos del exhibidor para el cuerpo del contrato */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -293,14 +317,14 @@ export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onCo
         </div>
         <div className="space-y-2.5 px-3 py-3">
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Estos datos apareceran en el contrato de exhibicion (parte &ldquo;EL EXHIBIDOR&rdquo;). Revisalos y completalos tal
+            Estos datos aparecerán en el contrato de exhibición (parte &ldquo;EL EXHIBIDOR&rdquo;). Revísalos y complétalos tal
             como figuran en tu ficha RUC y en el poder del representante legal. Ya cargamos lo que ingresaste en el
-            paso 1; puedes corregirlo aqui.
+            paso 1; puedes corregirlo aquí.
           </p>
           <div className="space-y-1">
-            <Label htmlFor="contratoRazonSocial" className="text-[11px] font-medium text-muted-foreground"><span>Razon social / nombre del exhibidor *</span></Label>
+            <Label htmlFor="contratoRazonSocial" className="text-[11px] font-medium text-muted-foreground"><span>Razón social / nombre del exhibidor *</span></Label>
             <Input id="contratoRazonSocial" className="h-9 text-sm" maxLength={200} value={contratoDatos.razonSocial}
-              onChange={(e) => setContratoCampo("razonSocial", e.target.value)} placeholder="Ej. Corporacion Minera S.A.C." />
+              onChange={(e) => setContratoCampo("razonSocial", e.target.value)} placeholder="Ej. Corporación Minera S.A.C." />
           </div>
           <div className="grid gap-2.5 sm:grid-cols-2">
             <div className="space-y-1">
@@ -350,14 +374,14 @@ export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onCo
                 onChange={(e) => setContratoCampo("representante", e.target.value)} placeholder="Jorge Quispe Ramos" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="contratoPartida" className="text-[11px] font-medium text-muted-foreground"><span>Partida electronica (opcional)</span></Label>
+              <Label htmlFor="contratoPartida" className="text-[11px] font-medium text-muted-foreground"><span>Partida electrónica (opcional)</span></Label>
               <Input id="contratoPartida" className="h-9 font-mono text-sm" maxLength={50} value={contratoDatos.partidaElectronica}
                 onChange={(e) => setContratoCampo("partidaElectronica", e.target.value)} placeholder="11014857" />
             </div>
           </div>
           {!contratoOk && (
             <p className="text-[11px] font-medium text-warning">
-              Completa razon social, RUC, domicilio, representante y su DNI para poder generar el contrato.
+              Completa razón social, RUC, domicilio, representante y su DNI para poder generar el contrato.
             </p>
           )}
         </div>
@@ -367,16 +391,19 @@ export function StepPagos({ precios, cuotas, onCuotasChange, contratoDatos, onCo
         <div className="flex items-start gap-2.5 rounded-xl border border-success/30 bg-success/10 px-3.5 py-3">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-success" />
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Contrato generado con esta configuracion. Puedes descargarlo y firmarlo en el siguiente paso.
-            {valido ? "" : " Ojo: ajusta las cuotas y vuelve a generar el contrato."}
+            Contrato generado con esta configuración. Puedes descargarlo y firmarlo en el siguiente paso.
           </p>
         </div>
       )}
 
-      {valido && (
+      {valido && (personalizado || seleccionada) && (
         <p className="flex items-center gap-1.5 text-[11px] text-success">
           <CheckCircle2 className="h-3.5 w-3.5" />
-          <span>Configuracion de cuotas lista ({cuotas.length} cuota{cuotas.length === 1 ? "" : "s"}).</span>
+          <span>
+            {personalizado
+              ? `Cronograma personalizado: ${cuotas.length} cuota${cuotas.length === 1 ? "" : "s"}.`
+              : `${seleccionada?.etiqueta}: ${seleccionada?.detalle}.`} Cronograma listo.
+          </span>
         </p>
       )}
     </div>

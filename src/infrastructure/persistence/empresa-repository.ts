@@ -9,6 +9,7 @@ import type {
   EmpresasPaginatedResult,
 } from "@/domain/models/empresa";
 import type { EstadoEmpresa, TipoComprobante } from "@/lib/shared/constants";
+import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
 interface EmpresaRow {
   id: string;
@@ -29,6 +30,7 @@ interface EmpresaRow {
   representanteDireccion: string | null;
   representanteSieCode: string | null;
   partidaElectronica: string | null;
+  configCuotas: unknown | null;
   tipoComprobante: string;
   sitioWeb: string | null;
   estado: string;
@@ -68,6 +70,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     representanteDireccion: row.representanteDireccion ?? null,
     representanteSieCode: row.representanteSieCode ?? null,
     partidaElectronica: row.partidaElectronica ?? null,
+    configCuotas: (row.configCuotas as ConfigCuotasEmpresa | null) ?? null,
     tipoComprobante: row.tipoComprobante as TipoComprobante,
     sitioWeb: row.sitioWeb ?? null,
     estado: row.estado as EstadoEmpresa,

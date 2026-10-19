@@ -277,7 +277,7 @@ export interface PlanCuotasItem {
 
 /** Plan de cuotas configurado al reservar: fuente de verdad para el contrato y Facturacion. */
 export interface PlanCuotasSolicitud {
-  /** `completo` | `cuotas` | `personalizado` (ver MODOS_PAGO). */
+  /** `completo` | `cuotas` | `tres_cuotas` | `personalizado` (ver MODOS_PAGO). */
   modalidad: string;
   cuotas: PlanCuotasItem[];
 }

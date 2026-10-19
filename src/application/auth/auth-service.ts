@@ -390,6 +390,7 @@ export class AuthApplicationService {
       representanteCelular: ficha.representanteCelular,
       representanteDireccion: ficha.representanteDireccion,
       representantePartida: ficha.partidaElectronica,
+      configCuotas: ficha.configCuotas,
     } : null;
     const representanteIncompleto = Boolean(
       empresa && (!empresa.representanteLegalDni || !empresa.representanteCorreo || !empresa.representanteCelular || !empresa.representanteDireccion),

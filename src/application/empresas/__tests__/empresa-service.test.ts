@@ -65,6 +65,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       representanteDireccion: data.representanteDireccion ?? null,
       representanteSieCode: data.representanteSieCode ?? null,
       partidaElectronica: data.partidaElectronica ?? null,
+      configCuotas: data.configCuotas ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
       estado: data.estado ?? ESTADOS_EMPRESA.ACTIVA,
@@ -459,6 +460,37 @@ describe("EmpresaApplicationService.actualizar", () => {
     const service = crearServicio(repo);
 
     await expect(service.actualizar(dos.id, { ruc: "20601234567" })).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe("EmpresaApplicationService.configurarCuotas", () => {
+  it("guarda y elimina el cronograma personalizado", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
+    const service = crearServicio(repo);
+    const config = { maxCuotas: 2, fechas: ["2099-01-15", "2099-06-15"] };
+
+    const conConfig = await service.configurarCuotas(creada.id, config);
+    expect(conConfig.configCuotas).toEqual(config);
+
+    const sinConfig = await service.configurarCuotas(creada.id, null);
+    expect(sinConfig.configCuotas).toBeNull();
+  });
+
+  it("rechaza cantidades o fechas invalidas", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
+    const service = crearServicio(repo);
+
+    await expect(
+      service.configurarCuotas(creada.id, { maxCuotas: 2, fechas: ["2099-01-15"] }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.configurarCuotas(creada.id, { maxCuotas: 2, fechas: ["2099-06-15", "2099-01-15"] }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.configurarCuotas(creada.id, { maxCuotas: 1, fechas: ["2020-01-15"] }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 });
 

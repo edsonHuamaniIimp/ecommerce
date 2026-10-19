@@ -9,7 +9,8 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { isStepDatosCompleto, isValidTelefono, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
-import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, porcentajesValidos } from "@/lib/shared/utils/cuotas";
+import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
 import { ANEXOS_REQUERIDOS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
@@ -29,13 +30,30 @@ export interface CuotaConfig {
   fecha: string;
 }
 
-/** True si las cuotas configuradas son validas: porcentajes suman 100%, fechas validas y en rango. */
-export function cuotasConfigValidas(cuotas: CuotaConfig[]): boolean {
-  return (
-    porcentajesValidos(cuotas.map((c) => c.porcentaje)) &&
-    fechasCuotasValidas(cuotas.map((c) => c.fecha)) &&
-    fechasCuotasEnRango(cuotas.map((c) => c.fecha))
-  );
+/** True si las cuotas son una modalidad estandar vigente o el cronograma de la empresa. */
+export function cuotasConfigValidas(
+  cuotas: CuotaConfig[],
+  configCuotas?: ConfigCuotasEmpresa | null,
+  hoyISO: string = dateUtils.todayLimaInputValue(),
+): boolean {
+  const programadas = cuotas.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha }));
+  if (configCuotasValida(configCuotas, hoyISO)) {
+    return cuotasCoincidenConfig(programadas, configCuotas, hoyISO);
+  }
+  return cronogramaValido(programadas, hoyISO);
+}
+
+/** True si el contrato ya tiene firma manual o digital pendiente de aplicar al enviar. */
+export function firmaReservaLista(
+  contratoFirmadoUrl: string | null,
+  firmaDigitalAplicada: boolean,
+): boolean {
+  return Boolean(contratoFirmadoUrl) || firmaDigitalAplicada;
+}
+
+/** Cuotas iniciales: cronograma de la empresa o 1 cuota estandar. */
+function cuotasIniciales(configCuotas?: ConfigCuotasEmpresa | null): CuotaConfig[] {
+  return cuotasPersonalizadasIniciales(configCuotas) ?? cuotasPredeterminadas(1) ?? [];
 }
 
 function standIdsKey(ids: string[]): string {
@@ -94,8 +112,10 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [aceptaRepresentante, setAceptaRepresentante] = useState(false);
 
   /* Paso 3: cuotas + contrato. */
-  /** Cuotas configuradas por el cliente: porcentaje + fecha de pago (1..3). */
-  const [cuotasConfig, setCuotasConfig] = useState<CuotaConfig[]>([{ porcentaje: 100, fecha: fechaMaximaCuota(0) }]);
+  /** Configuracion personalizada de cuotas de la empresa (Modalidad 4), si existe. */
+  const [configCuotas, setConfigCuotas] = useState<ConfigCuotasEmpresa | null>(null);
+  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..N, hasta 9). */
+  const [cuotasConfig, setCuotasConfig] = useState<CuotaConfig[]>(() => cuotasIniciales());
   /** Datos del exhibidor que van al cuerpo del contrato (paso Cuotas). */
   const [contratoDatos, setContratoDatos] = useState<DatosContratoForm>(emptyContratoDatos);
   /** Representante legal de la empresa del perfil (precarga del contrato). */
@@ -107,9 +127,16 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [subiendoFirmado, setSubiendoFirmado] = useState(false);
   /* Firma digital del perfil (RF-12): permite firmar sin subir el documento. */
   const [firmaPerfilUrl, setFirmaPerfilUrl] = useState<string | null>(null);
-  const [firmandoDigital, setFirmandoDigital] = useState(false);
-  /** La firma vigente es la digital del perfil (se regenera al crear la solicitud). */
+  /** La firma digital se aplicara al generar el contrato definitivo al enviar. */
   const [firmaDigitalAplicada, setFirmaDigitalAplicada] = useState(false);
+
+  /** Cambiar modalidad invalida el contrato borrador y la firma previos. */
+  const actualizarCuotas = useCallback((cuotas: CuotaConfig[]) => {
+    setCuotasConfig(cuotas);
+    setContrato(null);
+    setContratoFirmadoUrl(null);
+    setFirmaDigitalAplicada(false);
+  }, []);
 
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
@@ -139,11 +166,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   const stepDone = useCallback((step: number): boolean => {
     if (step === 0) return isStepDatosCompleto(formDatos);
-    if (step === 1) return cuotasConfigValidas(cuotasConfig) && datosContratoValidos(contratoEfectivo);
-    if (step === 2) return Boolean(contrato) && anexosCompletos && Boolean(contratoFirmadoUrl);
-    if (step === 3) return Boolean(contrato) && confirmado && aceptaRepresentante && Boolean(contratoFirmadoUrl);
+    if (step === 1) return cuotasConfigValidas(cuotasConfig, configCuotas) && datosContratoValidos(contratoEfectivo);
+    if (step === 2) return Boolean(contrato) && anexosCompletos && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada);
+    if (step === 3) return Boolean(contrato) && confirmado && aceptaRepresentante && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada);
     return false;
-  }, [formDatos, anexosCompletos, cuotasConfig, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl]);
+  }, [formDatos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -165,6 +192,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       ]);
       setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
       setRepresentantePerfil(perfil?.empresa?.representanteLegalNombre ?? "");
+      const config = perfil?.empresa?.configCuotas ?? null;
+      setConfigCuotas(config);
+      setCuotasConfig(cuotasIniciales(config));
       const base = draft ? { ...emptyDatos(), ...draft.datos } : emptyDatos();
       setFormDatos(prefillEmpresa(base, perfil?.empresa ?? null));
       if (draft) {
@@ -181,6 +211,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       setContratoDatos(emptyContratoDatos());
       setContrato(null);
       setContratoFirmadoUrl(null);
+      setFirmaDigitalAplicada(false);
     })();
   }, [reservaOpen, currentKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -342,43 +373,24 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   };
 
   /**
-   * Firma digital (RF-12): estampa la firma del perfil en el contrato BORRADOR y lo deja
-   * listo como contrato firmado. Al enviar la solicitud se regenera firmado sobre esta.
+   * Firma digital (RF-12): solo valida que el perfil tenga firma y marca la intencion.
+   * El contrato definitivo firmado se genera UNA sola vez al enviar la solicitud; no
+   * se genera un borrador firmado que luego se descarta.
    */
-  const firmarDigitalmente = useCallback(async (): Promise<boolean> => {
+  const firmarDigitalmente = useCallback((): boolean => {
     if (!contrato) {
       setSubmitError("Primero configura las cuotas y genera el contrato.");
       return false;
     }
-    const standIds = standIdsSeleccionados();
-    if (standIds.length === 0) {
-      setSubmitError("No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.");
+    if (!firmaPerfilUrl) {
+      setSubmitError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.");
       return false;
     }
-    const seq = ++contratoSeqRef.current;
-    const key = currentKey;
-    setFirmandoDigital(true);
     setSubmitError(null);
-    try {
-      const data = await contratosService.firmarBorrador({
-        standIds,
-        cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
-        idioma: idiomaODefecto(leerIdiomaCookie()),
-        contrato: contratoPayload(),
-      });
-      if (!esRespuestaVigente(seq, key)) return false;
-      setContratoFirmadoUrl(data.pdfUrl ?? data.docxUrl);
-      setFirmaDigitalAplicada(true);
-      return true;
-    } catch (err) {
-      if (esRespuestaVigente(seq, key)) {
-        setSubmitError(err instanceof Error ? err.message : "No se pudo firmar digitalmente el contrato.");
-      }
-      return false;
-    } finally {
-      if (esRespuestaVigente(seq, key)) setFirmandoDigital(false);
-    }
-  }, [contrato, cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey]);
+    setContratoFirmadoUrl(null);
+    setFirmaDigitalAplicada(true);
+    return true;
+  }, [contrato, firmaPerfilUrl]);
 
   /**
    * Paso 4 (Confirmar): recien aqui se crea la solicitud (reserva), se adjunta el contrato
@@ -398,13 +410,19 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       /* Retry-safe: si un intento previo creo la solicitud, reutilizarla (evita duplicados). */
       if (!contrato.solicitudId) setContrato((prev) => (prev ? { ...prev, solicitudId } : prev));
 
-      /* Contrato definitivo adjunto a la solicitud (recalculado en el servidor). */
-      await contratosService.generar({
-        solicitudId,
-        cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
-        idioma: idiomaODefecto(leerIdiomaCookie()),
-        contrato: contratoPayload(),
-      });
+      /*
+       * Si el contrato ya se genero en un intento anterior, no se vuelve a llamar
+       * `generar`: la solicitud ya no esta en estado `pendiente` y el backend
+       * bloquearia el reintento. `firmar` regenera internamente con el snapshot.
+       */
+      if (!contrato.solicitudId) {
+        await contratosService.generar({
+          solicitudId,
+          cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
+          idioma: idiomaODefecto(leerIdiomaCookie()),
+          contrato: contratoPayload(),
+        });
+      }
 
       /* Si la firma vigente es la digital, se regenera firmada sobre la solicitud. */
       let firmadoUrl = contratoFirmadoUrl;
@@ -452,7 +470,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     setReservaStep(0);
     setConfirmado(false);
     setAceptaRepresentante(false);
-    setCuotasConfig([{ porcentaje: 100, fecha: fechaMaximaCuota(0) }]);
+    setCuotasConfig(cuotasIniciales());
+    setConfigCuotas(null);
     setContratoDatos(emptyContratoDatos());
     setRepresentantePerfil("");
     setContrato(null);
@@ -480,7 +499,8 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     reset,
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
-    cuotasConfig, setCuotasConfig,
+    cuotasConfig, setCuotasConfig: actualizarCuotas,
+    configCuotas,
     contratoDatos: contratoEfectivo, setContratoDatos,
     contratoValido: datosContratoValidos(contratoEfectivo),
     contrato,
@@ -491,7 +511,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     subirContratoFirmado,
     firmaPerfilUrl,
     subirFirmaPerfil,
-    firmandoDigital,
     firmarDigitalmente,
+    firmaDigitalAplicada,
   };
 }

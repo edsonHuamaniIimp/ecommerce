@@ -162,3 +162,11 @@ $dst.Dispose()
 $src.Dispose()
 
 Write-Output "OK: $Destino generado. Tags: {razon_social} ... {planos}/{%imagen_plano}; fila Anexo 1 con loop {#modulos}; modalidades con {sel_modalidad_N}."
+
+# La Modalidad 3 oficial (40/30/30), la Modalidad 4 personalizada y el cronograma unico
+# se aplican sobre la plantilla etiquetada para no depender de este script base.
+if ($Destino -eq "plantillas\contrato-perumin38-tags.docx") {
+  $raiz = Split-Path -Parent $PSScriptRoot
+  & node (Join-Path $raiz "scripts\actualizar-contrato-cronograma.mjs")
+  & node (Join-Path $raiz "scripts\aplicar-negritas-modalidades.mjs")
+}

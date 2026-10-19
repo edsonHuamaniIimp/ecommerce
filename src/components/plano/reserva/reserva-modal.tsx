@@ -14,6 +14,8 @@ import { StepPagos } from "./step-pagos";
 import { ReservaAuthForm } from "./reserva-auth-form";
 import type { DatosContratoForm, FormDatos } from "./interfaces";
 import type { CuotaConfig } from "./use-reserva-form";
+import { firmaReservaLista } from "./use-reserva-form";
+import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
 interface Props {
   open: boolean;
@@ -45,7 +47,9 @@ interface Props {
   /** Declaracion del solicitante como representante legal de la empresa. */
   aceptaRepresentante: boolean;
   onAceptaRepresentanteChange: (v: boolean) => void;
-  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..3). */
+  /** Configuracion personalizada de la empresa (Modalidad 4), si existe. */
+  configCuotas: ConfigCuotasEmpresa | null;
+  /** Cuotas configuradas por el cliente: porcentaje + fecha (1..N, hasta 9). */
   cuotasPago: CuotaConfig[];
   onCuotasPagoChange: (cuotas: CuotaConfig[]) => void;
   /** Datos del exhibidor para el cuerpo del contrato (paso Cuotas). */
@@ -61,7 +65,8 @@ interface Props {
   firmaPerfilUrl: string | null;
   /** Sube la firma del usuario sin salir del wizard; queda asignada a su perfil. */
   onSubirFirmaPerfil: (file: File) => Promise<void>;
-  firmandoDigital: boolean;
+  /** La firma digital se aplicara al generar el contrato definitivo al enviar. */
+  firmaDigitalAplicada: boolean;
   onFirmarDigital: () => void;
 }
 
@@ -70,7 +75,7 @@ const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.CUOTAS, RESERVA_STEPS.CONTRATO
 /** Titulo y subtitulo del encabezado segun el paso actual. */
 function encabezado(step: ReservaStep): string {
   if (step === RESERVA_STEPS.DATOS) return "Completa los datos comerciales y de facturacion para formalizar tu solicitud.";
-  if (step === RESERVA_STEPS.CUOTAS) return "Configura tus cuotas de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
+  if (step === RESERVA_STEPS.CUOTAS) return "Elige la modalidad de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
   if (step === RESERVA_STEPS.CONTRATO) return "Descarga el contrato, firmalo (digital o manualmente) y adjunta los 3 documentos requeridos.";
   return "Revisa el resumen y envia tu solicitud al proceso de revision.";
 }
@@ -83,9 +88,9 @@ export function ReservaModal(props: Props) {
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
     aceptaRepresentante, onAceptaRepresentanteChange,
-    cuotasPago, onCuotasPagoChange, contratoDatos, onContratoDatosChange, contrato, generandoContrato, onGenerarContrato,
+    configCuotas, cuotasPago, onCuotasPagoChange, contratoDatos, onContratoDatosChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
-    firmaPerfilUrl, onSubirFirmaPerfil, firmandoDigital, onFirmarDigital,
+    firmaPerfilUrl, onSubirFirmaPerfil, firmaDigitalAplicada, onFirmarDigital,
   } = props;
 
   const isLast = step === RESERVA_STEPS.CONFIRMACION;
@@ -152,6 +157,7 @@ export function ReservaModal(props: Props) {
               {step === RESERVA_STEPS.CUOTAS && (
                 <StepPagos
                   precios={selectedItems.map((s) => s.precio ?? 0)}
+                  configCuotas={configCuotas}
                   cuotas={cuotasPago}
                   onCuotasChange={onCuotasPagoChange}
                   contratoDatos={contratoDatos}
@@ -167,7 +173,7 @@ export function ReservaModal(props: Props) {
                   onSubirFirmado={onSubirFirmado}
                   firmaPerfilUrl={firmaPerfilUrl}
                   onSubirFirmaPerfil={onSubirFirmaPerfil}
-                  firmandoDigital={firmandoDigital}
+                  firmaDigitalAplicada={firmaDigitalAplicada}
                   onFirmarDigital={onFirmarDigital}
                   generandoContrato={generandoContrato}
                   onGenerarContrato={onGenerarContrato}
@@ -182,7 +188,8 @@ export function ReservaModal(props: Props) {
                 <StepConfirmacion
                   datos={formDatos}
                   selectedLabels={selectedLabels}
-                  docsCount={Object.keys(docsRequisitos).length + (contratoFirmadoUrl ? 1 : 0)}
+                  docsCount={Object.keys(docsRequisitos).length + (firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada) ? 1 : 0)}
+              cuotasPago={cuotasPago}
               confirmado={confirmado}
               onConfirmadoChange={onConfirmadoChange}
               aceptaRepresentante={aceptaRepresentante}

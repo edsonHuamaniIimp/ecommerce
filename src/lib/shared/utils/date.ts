@@ -209,6 +209,21 @@ export const dateUtils = {
     return aInputValue(new Date());
   },
 
+  /**
+   * Fecha de hoy en Peru (`America/Lima`) como `YYYY-MM-DD`. El servidor ECS corre en
+   * UTC; usar esta funcion para reglas de calendario y no cruzar el dia por zona horaria.
+   */
+  todayLimaInputValue(): string {
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "";
+    return `${valor("year")}-${valor("month")}-${valor("day")}`;
+  },
+
   extractYear(iso: string): number {
     return new Date(iso).getFullYear();
   },

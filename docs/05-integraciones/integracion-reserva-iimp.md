@@ -81,7 +81,7 @@ vinculada es opcional y solo enriquece):
 | `Friso` | `empresa.nombreComercial` o razón social |
 | `Contactos.Contrato` | `datos_facturacion.contacto` (respaldo: representante legal); cargo `IIMP_CARGO_REPRESENTANTE` |
 | `Contactos.Pagos` | Mismo nombre + `datos_facturacion.email` (respaldo: `empresa.emailFacturacion`/`emailContacto`) |
-| `Cuotas` | Plan del contrato: `Porcentaje` entero (redondeo; la última absorbe hasta sumar 100) y `Fecha` `AAAA-MM-DD` |
+| `Cuotas` | Plan del contrato: `Porcentaje` entero (redondeo; la última absorbe hasta sumar 100) y `Fecha` `AAAA-MM-DD`. En reservas nuevas las fechas salen del cronograma estándar o del cronograma personalizado configurado por el administrador para la empresa; el servidor valida el plan y no acepta fechas libres. |
 | `Archivos` (opcional) | Links absolutos http(s) (el backend convierte `/uploads/*` con `APP_URL`): OC, HES, detracción y diferencia; los elementos sin link se ignoran (v3). También se agregan después con `/api/pagos/archivos-agregar` |
 
 El snapshot se guarda al crear la solicitud (`solicitud.datos_facturacion`) con lo que el

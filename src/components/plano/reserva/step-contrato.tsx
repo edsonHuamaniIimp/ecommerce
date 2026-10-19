@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, FileText, Loader2, PenLine, Upload, X } from "lucide-react";
+import { CheckCircle2, Download, FileText, Loader2, PenLine, Upload, X } from "lucide-react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { toast } from "sonner";
 import { ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_MAX_BYTES, CONTRATO_FIRMADO_EXTENSIONES, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, extensionesPermitidasAnexo } from "@/lib/shared/constants";
@@ -18,7 +18,8 @@ interface Props {
   firmaPerfilUrl: string | null;
   /** Sube la firma del usuario sin salir del wizard; queda asignada a su perfil. */
   onSubirFirmaPerfil: (file: File) => Promise<void>;
-  firmandoDigital: boolean;
+  /** La firma digital se aplicara al generar el contrato definitivo al enviar. */
+  firmaDigitalAplicada: boolean;
   onFirmarDigital: () => void;
   /** Genera el contrato (borrador) si aun no existe (defensivo). */
   generandoContrato: boolean;
@@ -44,7 +45,7 @@ export function StepContrato({
   onSubirFirmado,
   firmaPerfilUrl,
   onSubirFirmaPerfil,
-  firmandoDigital,
+  firmaDigitalAplicada,
   onFirmarDigital,
   generandoContrato,
   onGenerarContrato,
@@ -104,8 +105,9 @@ export function StepContrato({
             <>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
                 Este contrato (borrador) ya incluye tus datos, los stands, los precios y el cronograma de pagos
-                elegido. Descárgalo, fírmalo (digital o manualmente) y súbelo firmado. La solicitud de reserva
-                se crea recién al confirmar el paso final.
+                elegido. Descárgalo y fírmalo manualmente, o usa la firma digital de tu perfil (se aplicará al
+                generar el contrato definitivo cuando envíes la solicitud). La solicitud de reserva se crea recién
+                al confirmar el paso final.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-full text-xs" asChild>
@@ -155,17 +157,23 @@ export function StepContrato({
           )}
         </div>
         <div className="space-y-2 px-3 py-3">
-          {/* Firma digital: estampa la imagen de firma del Perfil en el contrato. */}
+          {/* Firma digital: se aplica al generar el contrato definitivo al enviar. */}
           <Button
             type="button"
             size="sm"
             className="h-9 w-full gap-1.5 rounded-full text-xs"
-            disabled={firmandoDigital || !contrato || !firmaPerfilUrl}
+            disabled={firmaDigitalAplicada || !contrato || !firmaPerfilUrl}
             onClick={onFirmarDigital}
           >
-            {firmandoDigital ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
-            <span>{firmandoDigital ? "Firmando..." : "Firmar digitalmente"}</span>
+            {firmaDigitalAplicada ? <CheckCircle2 className="h-3.5 w-3.5" /> : <PenLine className="h-3.5 w-3.5" />}
+            <span>{firmaDigitalAplicada ? "Firma digital lista" : "Firmar digitalmente"}</span>
           </Button>
+          {firmaDigitalAplicada && (
+            <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-success">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>Firma digital seleccionada. El contrato firmado se generara al enviar la solicitud.</span>
+            </p>
+          )}
           {!firmaPerfilUrl && (
             <>
               <p className="text-[11px] text-muted-foreground">

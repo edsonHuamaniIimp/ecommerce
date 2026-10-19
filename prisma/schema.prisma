@@ -294,6 +294,9 @@ model Empresa {
   representanteSieCode     String?   @map("representante_sie_code") @db.VarChar(20)
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
   partidaElectronica       String?   @map("partida_electronica") @db.VarChar(50)
+  /// Configuracion personalizada de cuotas definida por el administrador:
+  /// { maxCuotas: 1..3, fechas: ["yyyy-mm-dd", ...] }. null = cronograma estandar.
+  configCuotas             Json?     @map("config_cuotas")
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).
   tipoComprobante          String    @default("factura") @map("tipo_comprobante") @db.VarChar(20)
   /// Sitio web (opcional).

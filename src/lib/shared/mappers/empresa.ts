@@ -25,6 +25,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     representanteDireccion: entity.representanteDireccion,
     representanteSieCode: entity.representanteSieCode ?? null,
     partidaElectronica: entity.partidaElectronica,
+    configCuotas: entity.configCuotas,
     tipoComprobante: entity.tipoComprobante,
     sitioWeb: entity.sitioWeb,
     estado: entity.estado,

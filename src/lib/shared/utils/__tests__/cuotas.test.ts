@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, planCuotas, planCuotasConFechas, planCuotasPorModalidad, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
+import { configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
 const BASE = new Date("2026-10-03T00:00:00");
@@ -109,6 +109,12 @@ describe("porcentajesValidos", () => {
     expect(porcentajesValidos([0, 100])).toBe(false);
     expect(porcentajesValidos([10, 10, 10, 70])).toBe(false);
   });
+
+  it("acepta hasta 9 cuotas cuando la configuracion personalizada lo permite", () => {
+    expect(porcentajesValidos([10, 10, 10, 10, 10, 10, 10, 10, 20], 9)).toBe(true);
+    expect(porcentajesValidos([10, 10, 10, 10, 10, 10, 10, 10, 10, 10], 9)).toBe(false);
+    expect(porcentajesValidos([10, 10, 10, 10, 10, 10, 10, 10, 20])).toBe(false);
+  });
 });
 
 describe("planCuotasPorModalidad", () => {
@@ -133,5 +139,93 @@ describe("planCuotasPorModalidad", () => {
     expect(suma).toBe(2001);
     expect(plan[0]?.monto).toBe(1000.5);
     expect(plan[1]?.monto).toBe(1000.5);
+  });
+});
+
+describe("cronograma fijo PERUMIN 38", () => {
+  it("asigna la modalidad de 1 cuota segun la fecha de reserva", () => {
+    expect(cronogramaPredeterminado(1, "2026-10-19")).toEqual(["2026-11-15"]);
+    expect(cronogramaPredeterminado(1, "2026-11-15")).toEqual(["2027-06-15"]);
+    expect(cronogramaPredeterminado(1, "2027-06-15")).toBeNull();
+  });
+
+  it("asigna la modalidad de 2 cuotas y salta el hito vencido", () => {
+    expect(cronogramaPredeterminado(2, "2026-10-19")).toEqual(["2026-11-15", "2027-06-15"]);
+    expect(cronogramaPredeterminado(2, "2026-11-15")).toEqual(["2027-01-15", "2027-06-15"]);
+    expect(cronogramaPredeterminado(2, "2027-01-15")).toEqual(["2027-03-15", "2027-06-15"]);
+    expect(cronogramaPredeterminado(2, "2027-03-15")).toBeNull();
+  });
+
+  it("asigna la modalidad de 3 cuotas solo mientras sus fechas sean futuras", () => {
+    expect(cronogramaPredeterminado(3, "2026-10-19")).toEqual(["2026-11-15", "2027-02-15", "2027-06-15"]);
+    expect(cronogramaPredeterminado(3, "2026-11-15")).toEqual(["2027-01-15", "2027-03-15", "2027-06-15"]);
+    expect(cronogramaPredeterminado(3, "2027-01-15")).toBeNull();
+    expect(cronogramaPredeterminado(3, "2027-02-01")).toBeNull();
+  });
+
+  it("calcula 40/30/30 y redondea la ultima cuota", () => {
+    const plan = planPagoPredeterminado(2360, 3, "2026-10-19");
+    expect(plan?.map((c) => c.porcentaje)).toEqual([40, 30, 30]);
+    expect(plan?.map((c) => c.monto)).toEqual([944, 708, 708]);
+    expect(plan?.map((c) => c.fechaVencimiento)).toEqual(["2026-11-15", "2027-02-15", "2027-06-15"]);
+  });
+
+  it("rechaza planes con porcentajes o fechas libres", () => {
+    const validas = cuotasPredeterminadas(3, "2026-10-19") ?? [];
+    expect(cronogramaValido(validas.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })), "2026-10-19")).toBe(true);
+    expect(cronogramaValido([
+      { porcentaje: 30, fechaVencimiento: "2026-11-15" },
+      { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 40, fechaVencimiento: "2027-06-15" },
+    ], "2026-10-19")).toBe(false);
+    expect(cronogramaValido([
+      { porcentaje: 40, fechaVencimiento: "2026-11-16" },
+      { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 30, fechaVencimiento: "2027-06-15" },
+    ], "2026-10-19")).toBe(false);
+  });
+
+  it("clasifica las modalidades contractuales", () => {
+    expect(modalidadDeCuotas([100])).toBe(MODOS_PAGO.COMPLETO);
+    expect(modalidadDeCuotas([50, 50])).toBe(MODOS_PAGO.CUOTAS);
+    expect(modalidadDeCuotas([40, 30, 30])).toBe(MODOS_PAGO.TRES_CUOTAS);
+    expect(modalidadDeCuotas([25, 35, 40])).toBe(MODOS_PAGO.PERSONALIZADO);
+  });
+});
+
+describe("configuracion personalizada de cuotas por empresa", () => {
+  const CONFIG = { maxCuotas: 3, fechas: ["2026-11-15", "2027-02-15", "2027-06-15"] };
+
+  it("valida cantidad, formato, futuro y orden", () => {
+    expect(configCuotasValida(CONFIG, "2026-10-19")).toBe(true);
+    expect(configCuotasValida({ maxCuotas: 4, fechas: ["2026-11-15", "2027-01-15", "2027-03-15", "2027-06-15"] }, "2026-10-19")).toBe(true);
+    expect(configCuotasValida({ maxCuotas: 9, fechas: ["2026-11-15", "2026-12-15", "2027-01-15", "2027-02-15", "2027-03-15", "2027-04-15", "2027-05-15", "2027-06-15", "2027-07-15"] }, "2026-10-19")).toBe(true);
+    expect(configCuotasValida({ maxCuotas: 10, fechas: Array.from({ length: 10 }, (_, i) => `2027-${String(i + 1).padStart(2, "0")}-15`) }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ maxCuotas: 2, fechas: ["2026-11-15"] }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ maxCuotas: 2, fechas: ["2026-11-15", "2026-11-14"] }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ maxCuotas: 1, fechas: ["2026-10-19"] }, "2026-10-19")).toBe(false);
+  });
+
+  it("genera porcentajes equitativos y acepta cualquier distribucion valida", () => {
+    expect(porcentajesEquitativos(3)).toEqual([33.33, 33.33, 33.34]);
+    expect(porcentajesEquitativos(2)).toEqual([50, 50]);
+    expect(cuotasCoincidenConfig([
+      { porcentaje: 50, fechaVencimiento: "2026-11-15" },
+      { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 20, fechaVencimiento: "2027-06-15" },
+    ], CONFIG, "2026-10-19")).toBe(true);
+    expect(cuotasCoincidenConfig([
+      { porcentaje: 50, fechaVencimiento: "2026-11-16" },
+      { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 20, fechaVencimiento: "2027-06-15" },
+    ], CONFIG, "2026-10-19")).toBe(false);
+  });
+
+  it("inicializa las cuotas con las fechas configuradas", () => {
+    expect(cuotasPersonalizadasIniciales(CONFIG, "2026-10-19")).toEqual([
+      { porcentaje: 33.33, fecha: "2026-11-15" },
+      { porcentaje: 33.33, fecha: "2027-02-15" },
+      { porcentaje: 33.34, fecha: "2027-06-15" },
+    ]);
   });
 });

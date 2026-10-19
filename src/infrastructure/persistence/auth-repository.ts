@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/server/db";
 import { esHash, hashPassword } from "@/lib/server/utils/password";
 import { dateUtils } from "@/lib/shared/utils/date";
+import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
 /** Blindaje: cualquier contrasena que llegue en texto plano se hashea antes de persistir. */
 function hashearSiHaceFalta(password: string): string {
@@ -134,14 +135,22 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async findPerfilByEmail(email: string) {
-    return prisma.userRole.findFirst({
+    const row = await prisma.userRole.findFirst({
       where: { email },
       select: {
         email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
-        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true } },
+        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
       },
     });
+    if (!row) return null;
+    return {
+      ...row,
+      idioma: row.idioma ?? null,
+      empresa: row.empresa
+        ? { ...row.empresa, configCuotas: (row.empresa.configCuotas as ConfigCuotasEmpresa | null) ?? null }
+        : null,
+    };
   }
 
   /** Empresa del Portal (PK) vinculada a la cuenta (para el contrato). */

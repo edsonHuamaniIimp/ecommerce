@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, REGEX_EMAIL, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, MAX_CUOTAS_PERSONALIZADAS, REGEX_EMAIL, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
@@ -69,6 +69,23 @@ export const cambiarEstadoEmpresaSchema = z.object({
 export const idEmpresaSchema = z.object({
   id: z.string().min(1, "id requerido"),
 });
+
+/** Configuracion personalizada de cuotas por empresa (Modalidad 4). */
+export const configurarCuotasEmpresaSchema = z.object({
+  id: z.string().min(1, "id requerido"),
+  configCuotas: z.object({
+    maxCuotas: z.number().int().min(1, "Minimo 1 cuota").max(MAX_CUOTAS_PERSONALIZADAS, `Maximo ${MAX_CUOTAS_PERSONALIZADAS} cuotas`),
+    fechas: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha invalida (yyyy-mm-dd)")).min(1).max(MAX_CUOTAS_PERSONALIZADAS),
+  }).nullable(),
+}).refine(
+  (v) => {
+    const config = v.configCuotas;
+    if (!config) return true;
+    return config.fechas.length === config.maxCuotas
+      && config.fechas.every((fecha, i) => i === 0 || fecha > (config.fechas[i - 1] ?? ""));
+  },
+  { message: "La cantidad de fechas debe coincidir con las cuotas y estar en orden ascendente", path: ["configCuotas"] },
+);
 
 /** Crear cuenta del Portal (solo con RUC; ya no recibe correo). */
 export const crearCuentaEmpresaSchema = idEmpresaSchema;

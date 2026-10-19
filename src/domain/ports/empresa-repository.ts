@@ -4,6 +4,7 @@ import type {
   EmpresasListParams,
   EmpresasPaginatedResult,
 } from "@/domain/models/empresa";
+import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
 /** Datos parciales para actualizar una empresa (solo los campos presentes). */
 export interface ActualizarEmpresaData {
@@ -27,6 +28,8 @@ export interface ActualizarEmpresaData {
   /** Codigo SIE del representante en servicio-persona (se guarda al sincronizar). */
   representanteSieCode?: string | null;
   partidaElectronica?: string | null;
+  /** Configuracion personalizada de cuotas (null = volver al cronograma estandar). */
+  configCuotas?: ConfigCuotasEmpresa | null;
   tipoComprobante?: string;
   sitioWeb?: string | null;
   estado?: string;

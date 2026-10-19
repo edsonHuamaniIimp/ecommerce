@@ -16,6 +16,7 @@ endpoints, flujos, estados, reglas de negocio y limitaciones observadas.
 | 1 | Portal público, plano y reserva | [01-publico-y-reservas.md](./01-publico-y-reservas.md) | `/`, `/presala`, `/plano`, `/mapa`, `/plano-grid` | público + `stands:plano` |
 | 2 | Solicitudes de alquiler y aprobaciones | [02-solicitudes-y-aprobaciones.md](./02-solicitudes-y-aprobaciones.md) | `/dashboard/solicitudes`, `/dashboard/mis-solicitudes`, `/dashboard/reservas` | `solicitudes:view` |
 | 2.1 | Observacion de documentos (Asociado) | [12-observacion-documentos.md](./12-observacion-documentos.md) | `/dashboard/solicitudes`, `/dashboard/mis-solicitudes` | `solicitudes:review:asociado`, `mis-reservas:view` |
+| 2.2 | Cuotas y cronograma del contrato | [13-cuotas-y-contrato.md](./13-cuotas-y-contrato.md) | `/mapa`, `/dashboard/empresas` | `empresas:manage` (configuracion) |
 | 3 | Auspicios | [03-auspicios.md](./03-auspicios.md) | `/dashboard/auspicios` | `auspicios:view` |
 | 4 | Facturación y pagos | [04-facturacion.md](./04-facturacion.md) | `/dashboard/facturacion` (admin), `/dashboard/mis-pagos` (cliente) | `facturacion:view` / `pagos:view`, `pagos:manage` |
 | 5 | Laboratorio 3D (planos) | [05-laboratorio-3d.md](./05-laboratorio-3d.md) | `/dashboard/laboratorio` | `laboratorio:view` / `laboratorio:manage` |

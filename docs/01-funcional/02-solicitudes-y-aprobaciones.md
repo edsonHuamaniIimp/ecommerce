@@ -71,6 +71,11 @@ Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`
 - El ciclo puede repetirse N veces. Solo la **iteración actual** permite dar de baja documentos; las versiones anteriores quedan como historial y nunca se envían al SGC.
 - Detalle completo: [12-observacion-documentos.md](./12-observacion-documentos.md).
 
+El contrato de exhibición imprime el cronograma fijo elegido en el wizard (1 cuota 100%,
+2 cuotas 50/50 o 3 cuotas 40/30/30) y usa la Modalidad 4 cuando la empresa tiene un
+cronograma personalizado configurado por el administrador (el cliente solo edita los
+porcentajes). Ver [`13-cuotas-y-contrato.md`](./13-cuotas-y-contrato.md).
+
 ## 5. Estados y transiciones
 
 `ESTADOS_SOLICITUD` (`constants.ts:423-432`). El estado se **calcula al vuelo** desde las revisiones, salvo `pendiente_pago` y `pagado` que se persisten (`solicitudes-repository.ts:47-62,153`).

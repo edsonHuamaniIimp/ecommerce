@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import PizZip from "pizzip";
@@ -12,6 +12,26 @@ import type { StorageAdapter } from "@/lib/server/storage";
 import type { SolicitudRow, RevisionEntity, ReevaluacionEntity } from "@/domain/models/entities";
 import type { EmpresaEntity } from "@/domain/models/empresa";
 import { PERMISSIONS, MODOS_PAGO, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { cuotasPredeterminadas } from "@/lib/shared/utils/cuotas";
+import { dateUtils } from "@/lib/shared/utils/date";
+
+const HOY = "2026-10-19";
+
+/** Cuotas validas de una modalidad fija para la fecha congelada de los tests. */
+function cuotasFijas(cantidad: 1 | 2 | 3): Array<{ porcentaje: number; fechaVencimiento: string }> {
+  return (cuotasPredeterminadas(cantidad, HOY) ?? []).map((c) => ({
+    porcentaje: c.porcentaje,
+    fechaVencimiento: c.fecha,
+  }));
+}
+
+beforeEach(() => {
+  vi.spyOn(dateUtils, "todayLimaInputValue").mockReturnValue(HOY);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 /*
  * Los tests asumen "sin conversor PDF" (solo DOCX). En Windows el fallback con MS Word
@@ -86,6 +106,7 @@ function empresaEntity(): EmpresaEntity {
     representanteLegalNombre: "JORGE QUISPE RAMOS",
     representanteLegalDni: "45871233",
     partidaElectronica: "11014857",
+    configCuotas: null,
     tipoComprobante: TIPOS_COMPROBANTE.FACTURA,
     sitioWeb: null,
     estado: "activa",
@@ -98,7 +119,7 @@ function empresaEntity(): EmpresaEntity {
   } as unknown as EmpresaEntity;
 }
 
-function build(overrides: { detalle?: Partial<SolicitudRow> } = {}) {
+function build(overrides: { detalle?: Partial<SolicitudRow>; empresa?: Partial<EmpresaEntity> } = {}) {
   const detalle = { ...solicitudRow(), ...overrides.detalle } as SolicitudRow;
 
   const solicitudes = {
@@ -107,7 +128,8 @@ function build(overrides: { detalle?: Partial<SolicitudRow> } = {}) {
     guardarPlanCuotas: vi.fn().mockResolvedValue(undefined),
     upsertContratoSistema: vi.fn().mockResolvedValue(undefined),
   } as unknown as ISolicitudesRepository;
-  const empresas = { findById: vi.fn().mockResolvedValue(empresaEntity()) } as unknown as IEmpresaRepository;
+  const empresa = { ...empresaEntity(), ...overrides.empresa };
+  const empresas = { findById: vi.fn().mockResolvedValue(empresa) } as unknown as IEmpresaRepository;
   const planos = {
     ubicacionDeBloque: vi.fn().mockResolvedValue({
       plano: { id: "p1", codigo: "gess", nombre: "Pabellon GESS", tipo: "simple" },
@@ -147,7 +169,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     const resultado = await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 50, fechaVencimiento: "2099-01-01" }, { porcentaje: 50, fechaVencimiento: "2099-02-01" }],
+      cuotas: cuotasFijas(2),
       userSub: "user-1",
       userPermissions: [],
     });
@@ -162,6 +184,10 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("360.00"); // IGV 18% de 2000
     expect(texto).toContain("2,360.00"); // total con factura
     expect(texto).toContain("Modalidad 2 X:");
+    expect(texto).toContain("Cuota 1: 50% del total");
+    expect(texto).toContain("Cuota 2: 50% del total");
+    expect(texto).toContain("15/11/2026");
+    expect(texto).toContain("15/06/2027");
     expect(texto).toContain("11014857"); // partida electronica
     /* Imagen del Anexo 1 generada en el servidor (sharp) + caption con version/fecha. */
     const zip = new PizZip(buffer);
@@ -186,7 +212,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+      cuotas: cuotasFijas(1),
       userSub: "user-1",
       userPermissions: [],
     });
@@ -194,15 +220,17 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
     const texto = textoDocx(buffer);
     expect(texto).toContain("Modalidad 1 X:");
+    expect(texto).toContain("Cuota 1: 100% del total");
+    expect(texto).toContain("15/11/2026");
     expect(texto).toContain("360.00");
   });
 
-  it("con cuotas personalizadas marca la Modalidad 3 e imprime el cronograma", async () => {
+  it("con la modalidad de tres cuotas marca la Modalidad 3 e imprime el cronograma 40/30/30", async () => {
     const { svc, storage } = build();
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 30, fechaVencimiento: "2099-01-01" }, { porcentaje: 30, fechaVencimiento: "2099-02-01" }, { porcentaje: 40, fechaVencimiento: "2099-03-01" }],
+      cuotas: cuotasFijas(3),
       userSub: "user-1",
       userPermissions: [],
     });
@@ -210,8 +238,123 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
     const texto = textoDocx(buffer);
     expect(texto).toContain("Modalidad 3 X:");
-    expect(texto).toContain("Cuota 1: 30% del total");
-    expect(texto).toContain("Cuota 3: 40% del total");
+    expect(texto).toContain("Cuota 1: 40% del total");
+    expect(texto).toContain("Cuota 3: 30% del total");
+  });
+
+  it("usa la Modalidad 4 con el cronograma configurado por el administrador", async () => {
+    const configCuotas = {
+      maxCuotas: 3,
+      fechas: ["2026-11-15", "2027-02-15", "2027-06-15"],
+    };
+    const { svc, storage, solicitudes } = build({ empresa: { configCuotas } });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: [
+        { porcentaje: 50, fechaVencimiento: "2026-11-15" },
+        { porcentaje: 25, fechaVencimiento: "2027-02-15" },
+        { porcentaje: 25, fechaVencimiento: "2027-06-15" },
+      ],
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("Modalidad 4 X:");
+    expect(texto).toContain("Cuota 1: 50% del total");
+    expect(texto).toContain("Cuota 2: 25% del total");
+    expect(texto).toContain("15/02/2027");
+    expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ modalidad: MODOS_PAGO.PERSONALIZADO }),
+    );
+  });
+
+  it("acepta N cuotas en el cronograma personalizado (ejemplo: 4)", async () => {
+    const fechas = ["2026-11-15", "2027-01-15", "2027-03-15", "2027-06-15"];
+    const { svc, storage } = build({ empresa: { configCuotas: { maxCuotas: 4, fechas } } });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: fechas.map((fechaVencimiento) => ({ porcentaje: 25, fechaVencimiento })),
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("Modalidad 4 X:");
+    expect(texto).toContain("Cuota 4: 25% del total");
+    expect(texto).toContain("15/06/2027");
+  });
+
+  it("resuelve la configuracion desde el correo de sesion cuando el contacto es distinto", async () => {
+    const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];
+    const { svc, storage, auth } = build({
+      detalle: { email: "contacto-distinto@empresa.pe" },
+      empresa: { configCuotas: { maxCuotas: 4, fechas } },
+    });
+    vi.mocked(auth.findEmpresaIdDeUsuario).mockImplementation(async (email) =>
+      email === "sesion@yura.pe" ? "emp-1" : null,
+    );
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: fechas.map((fechaVencimiento) => ({ porcentaje: 25, fechaVencimiento })),
+      userEmail: "sesion@yura.pe",
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    expect(storage.upload).toHaveBeenCalled();
+    const texto = textoDocx(vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer);
+    expect(texto).toContain("Modalidad 4 X:");
+    expect(texto).toContain("Cuota 4: 25% del total");
+  });
+
+  it("rechaza un plan distinto al cronograma configurado para la empresa", async () => {
+    const { svc, storage } = build({
+      empresa: { configCuotas: { maxCuotas: 2, fechas: ["2026-11-20", "2027-06-15"] } },
+    });
+
+    await expect(
+      svc.generar({
+        solicitudId: "11111111-1111-4111-8111-111111111111",
+        cuotas: cuotasFijas(2),
+        userSub: "user-1",
+        userPermissions: [],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it("regenera un contrato personalizado desde el snapshot y conserva la Modalidad 4", async () => {
+    const plan = {
+      modalidad: MODOS_PAGO.PERSONALIZADO,
+      cuotas: [
+        { numero: 1, porcentaje: 40, monto: 944, fechaVencimiento: "2026-11-15" },
+        { numero: 2, porcentaje: 30, monto: 708, fechaVencimiento: "2027-02-15" },
+        { numero: 3, porcentaje: 30, monto: 708, fechaVencimiento: "2027-06-15" },
+      ],
+    };
+    const { svc, storage } = build({
+      detalle: { planCuotas: plan } as never,
+      empresa: { configCuotas: { maxCuotas: 3, fechas: ["2026-11-15", "2027-02-15", "2027-06-15"] } },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("Modalidad 4 X:");
+    expect(texto).toContain("Cuota 1: 40% del total");
+    expect(texto).toContain("15/06/2027");
   });
 
   it("rechaza a un usuario ajeno sin permisos", async () => {
@@ -220,7 +363,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     await expect(
       svc.generar({
         solicitudId: "11111111-1111-4111-8111-111111111111",
-        cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+        cuotas: cuotasFijas(1),
         userSub: "intruso",
         userPermissions: [],
       }),
@@ -233,7 +376,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+      cuotas: cuotasFijas(1),
       userSub: "admin",
       userPermissions: [PERMISSIONS.ADMIN_FULL],
     });
@@ -249,7 +392,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     await expect(
       svc.generar({
         solicitudId: "11111111-1111-4111-8111-111111111111",
-        cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+        cuotas: cuotasFijas(1),
         userSub: "user-1",
         userPermissions: [],
       }),
@@ -303,7 +446,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     });
 
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
-    expect(textoDocx(buffer)).toContain("Modalidad 3 X:");
+    expect(textoDocx(buffer)).toContain("Modalidad 4 X:");
     expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
       "11111111-1111-4111-8111-111111111111",
       expect.objectContaining({ modalidad: MODOS_PAGO.PERSONALIZADO }),
@@ -316,7 +459,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     await expect(
       svc.generar({
         solicitudId: "11111111-1111-4111-8111-111111111111",
-        cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+        cuotas: cuotasFijas(1),
         userSub: "user-1",
         userPermissions: [],
       }),
@@ -329,7 +472,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 50, fechaVencimiento: "2099-01-01" }, { porcentaje: 50, fechaVencimiento: "2099-02-01" }],
+      cuotas: cuotasFijas(2),
       userSub: "admin",
       userPermissions: [PERMISSIONS.ADMIN_FULL],
     });
@@ -337,12 +480,13 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(storage.upload).toHaveBeenCalledTimes(1);
   });
 
-  it("persiste el plan con las fechas configuradas por el cliente", async () => {
+  it("persiste el plan con las fechas fijas de la modalidad elegida", async () => {
     const { svc, solicitudes } = build();
+    const cuotas = cuotasFijas(2);
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 50, fechaVencimiento: "2099-01-10" }, { porcentaje: 50, fechaVencimiento: "2099-02-10" }],
+      cuotas,
       userSub: "user-1",
       userPermissions: [],
     });
@@ -351,8 +495,8 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
       "11111111-1111-4111-8111-111111111111",
       expect.objectContaining({
         cuotas: [
-          expect.objectContaining({ numero: 1, porcentaje: 50, fechaVencimiento: "2099-01-10" }),
-          expect.objectContaining({ numero: 2, porcentaje: 50, fechaVencimiento: "2099-02-10" }),
+          expect.objectContaining({ numero: 1, porcentaje: 50, fechaVencimiento: cuotas[0]?.fechaVencimiento }),
+          expect.objectContaining({ numero: 2, porcentaje: 50, fechaVencimiento: cuotas[1]?.fechaVencimiento }),
         ],
       }),
     );
@@ -387,7 +531,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+      cuotas: cuotasFijas(1),
       idioma: "en",
       userSub: "user-1",
       userPermissions: [],
@@ -404,7 +548,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     await svc.generar({
       solicitudId: "11111111-1111-4111-8111-111111111111",
-      cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+      cuotas: cuotasFijas(1),
       userSub: "user-1",
       userPermissions: [],
     });
@@ -463,6 +607,40 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const xmlPlantilla = new PizZip(plantilla).file("word/document.xml")?.asText() ?? "";
     const contarAnclas = (texto: string) => (texto.match(/<wp:anchor/g) ?? []).length;
     expect(contarAnclas(xml)).toBe(contarAnclas(xmlPlantilla));
+    vi.unstubAllGlobals();
+  });
+
+  it("firma digitalmente un contrato con 4 cuotas persistidas sin revalidar contra el maximo estandar", async () => {
+    const PNG_1PX = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];
+    const { svc, storage, auth } = build({
+      detalle: {
+        planCuotas: {
+          modalidad: MODOS_PAGO.PERSONALIZADO,
+          cuotas: fechas.map((fechaVencimiento, i) => ({
+            numero: i + 1,
+            porcentaje: 25,
+            monto: 590,
+            fechaVencimiento,
+          })),
+        },
+      } as never,
+      empresa: { configCuotas: { maxCuotas: 4, fechas } },
+    });
+    vi.mocked(auth.findPerfilByEmail).mockResolvedValue({ firmaUrl: "https://cdn.test/firma.png" } as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => PNG_1PX }));
+
+    const firmado = await svc.firmar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    expect(firmado.docxUrl).toContain(".docx");
+    expect(storage.upload).toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
@@ -599,7 +777,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     const out = await svc.generarBorrador({
       standIds: ["g1"],
-      cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+      cuotas: cuotasFijas(1),
       email: "contacto@minera.pe",
     });
 
@@ -615,9 +793,39 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     await expect(
       svc.firmarBorrador({
         standIds: ["g1"],
-        cuotas: [{ porcentaje: 100, fechaVencimiento: "2099-01-01" }],
+        cuotas: cuotasFijas(1),
         email: "contacto@minera.pe",
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("genera el borrador con 4 cuotas configuradas por la empresa (caso YURA)", async () => {
+    const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];
+    const { svc, storage, gess } = build({
+      empresa: { configCuotas: { maxCuotas: 4, fechas } },
+    });
+    vi.mocked(gess.findById).mockResolvedValue({
+      id: "g1",
+      eventoId: "ev-1",
+      standApiId: "INT-IZQ-A1",
+      standCode: "INT-IZQ-A1",
+      tipoStand: "ESTANDAR_01",
+      medidas: null,
+      estado: "disponible",
+      empresa: null,
+      bloqueId: "INT-IZQ-A1",
+    } as never);
+
+    await svc.generarBorrador({
+      standIds: ["g1"],
+      cuotas: fechas.map((fechaVencimiento) => ({ porcentaje: 25, fechaVencimiento })),
+      email: "contacto@minera.pe",
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("Modalidad 4 X:");
+    expect(texto).toContain("Cuota 4: 25% del total");
+    expect(texto).toContain("30/04/2027");
   });
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PAGO, type Idioma } from "@/lib/shared/constants";
-import { fechasCuotasEnRango, fechasCuotasValidas } from "@/lib/shared/utils/cuotas";
+import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PERSONALIZADAS, type Idioma } from "@/lib/shared/constants";
+import { fechasCuotasEstructuralmenteValidas } from "@/lib/shared/utils/cuotas";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 const fechaISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,16 +17,16 @@ const cuotaSchema = z.object({
 const cuotasContratoSchema = z
   .array(cuotaSchema)
   .min(1, "Configura al menos una cuota")
-  .max(MAX_CUOTAS_PAGO, `Maximo ${MAX_CUOTAS_PAGO} cuotas`)
+  .max(MAX_CUOTAS_PERSONALIZADAS, `Maximo ${MAX_CUOTAS_PERSONALIZADAS} cuotas`)
   .refine(
     (cuotas) => Math.abs(cuotas.reduce((s, c) => s + c.porcentaje, 0) - 100) < CUOTAS_SUMA_TOLERANCIA,
     { message: "Las cuotas deben sumar 100%" },
   )
-  .refine((cuotas) => fechasCuotasValidas(cuotas.map((c) => c.fechaVencimiento)), {
-    message: "Las fechas no pueden ser pasadas y deben ir en orden",
+  .refine((cuotas) => fechasCuotasEstructuralmenteValidas(cuotas.map((c) => c.fechaVencimiento)), {
+    message: "Las fechas deben ser validas y estar en orden ascendente",
   })
-  .refine((cuotas) => fechasCuotasEnRango(cuotas.map((c) => c.fechaVencimiento)), {
-    message: "Las cuotas superan el maximo permitido (1ra: 1 mes, 2da: 2 meses, 3ra: 3 meses desde la solicitud; tope 15/07/2027)",
+  .refine((cuotas) => cuotas.every((c) => c.fechaVencimiento > dateUtils.todayLimaInputValue()), {
+    message: "Las fechas de pago deben ser futuras",
   });
 
 /** Datos del exhibidor para el cuerpo del contrato (paso Cuotas del wizard). */

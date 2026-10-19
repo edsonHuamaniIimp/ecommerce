@@ -942,17 +942,50 @@ export const PRECIO_STAND_DEFAULT = 2000;
 export const MODOS_PAGO = {
   COMPLETO: "completo",
   CUOTAS: "cuotas",
-  /** Plan configurado libremente por el cliente (Modalidad 3 del contrato). */
+  /** Modalidad 3: tres cuotas fijas 40/30/30. */
+  TRES_CUOTAS: "tres_cuotas",
+  /** Modalidad 4: plan configurado libremente (legacy/administrado). */
   PERSONALIZADO: "personalizado",
 } as const;
 
 export type ModoPago = (typeof MODOS_PAGO)[keyof typeof MODOS_PAGO];
 
+/** Cantidad de cuotas de las modalidades que ofrece el wizard. */
+export const MODALIDADES_CUOTAS = {
+  UNA: 1,
+  DOS: 2,
+  TRES: 3,
+} as const;
+
+export type ModalidadCuotas = (typeof MODALIDADES_CUOTAS)[keyof typeof MODALIDADES_CUOTAS];
+
+/** Porcentajes fijos por modalidad del wizard. */
+export const PORCENTAJES_POR_MODALIDAD: Record<ModalidadCuotas, readonly number[]> = {
+  [MODALIDADES_CUOTAS.UNA]: [100],
+  [MODALIDADES_CUOTAS.DOS]: [50, 50],
+  [MODALIDADES_CUOTAS.TRES]: [40, 30, 30],
+};
+
+/**
+ * Hitos del cronograma PERUMIN 38 (fechas ISO, hora Lima). Las cuotas nuevas se
+ * asignan al primer cronograma cuyas fechas sean estrictamente posteriores a la reserva.
+ */
+export const HITOS_CUOTAS = {
+  PRIMERA_2026: "2026-11-15",
+  PRIMERA_2027: "2027-01-15",
+  SEGUNDA_2026: "2027-02-15",
+  SEGUNDA_2027: "2027-03-15",
+  ULTIMA: "2027-06-15",
+} as const;
+
 /** Porcentaje de IGV aplicado a las facturas (18%). */
 export const IGV_PORCENTAJE = 0.18;
 
-/** Maximo de cuotas que el cliente puede configurar al reservar. */
+/** Maximo de cuotas del plan contractual (1..3). */
 export const MAX_CUOTAS_PAGO = 3;
+
+/** Maximo de cuotas para un cronograma personalizado por empresa (limite del IIMP). */
+export const MAX_CUOTAS_PERSONALIZADAS = 9;
 
 /** Tolerancia al validar que los porcentajes de las cuotas suman 100%. */
 export const CUOTAS_SUMA_TOLERANCIA = 0.01;

@@ -11,6 +11,7 @@ import {
   buscarEmpresaFuenteSchema,
   buscarPersonaFuenteSchema,
   cambiarEstadoEmpresaSchema,
+  configurarCuotasEmpresaSchema,
   crearCuentaEmpresaSchema,
   crearCuentasEmpresasSchema,
   crearEmpresaSchema,
@@ -88,6 +89,19 @@ export const empresaController = {
     }
     const { id, ...cambios } = parsed.data;
     const empresa = await services.empresas.actualizar(id, cambios);
+    return success(mapEmpresaToDTO(empresa));
+  },
+
+  /** Configura el cronograma personalizado de cuotas (Modalidad 4) o lo elimina. */
+  async configurarCuotas(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const parsed = configurarCuotasEmpresaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const empresa = await services.empresas.configurarCuotas(parsed.data.id, parsed.data.configCuotas);
     return success(mapEmpresaToDTO(empresa));
   },
 

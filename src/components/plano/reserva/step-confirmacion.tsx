@@ -4,12 +4,16 @@ import { useState } from "react";
 import { Building2, FileText, Info, ShieldCheck, User } from "lucide-react";
 import { Button, Checkbox, Dialog, DialogContent, DialogHeader, DialogTitle, Label } from "@nrivera-iimp/ui-kit-iimp";
 import { BADGE_STYLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { FormDatos } from "./interfaces";
+import type { CuotaConfig } from "./use-reserva-form";
 
 interface Props {
   datos: FormDatos;
   selectedLabels: string;
   docsCount: number;
+  /** Cuotas de la modalidad elegida (porcentaje + fecha). */
+  cuotasPago: CuotaConfig[];
   confirmado: boolean;
   onConfirmadoChange: (v: boolean) => void;
   /** Declaracion del solicitante como representante legal de la empresa. */
@@ -41,7 +45,7 @@ function CardResumen({ titulo, icono, badge, children }: { titulo: string; icono
   );
 }
 
-export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
+export function StepConfirmacion({ datos, selectedLabels, docsCount, cuotasPago, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
   const [termsOpen, setTermsOpen] = useState(false);
   const esFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
   const comprobante = esFactura ? "Factura" : datos.tipoComprobante === TIPOS_COMPROBANTE.BOLETA ? "Boleta" : "-";
@@ -71,6 +75,24 @@ export function StepConfirmacion({ datos, selectedLabels, docsCount, confirmado,
         <Row label="Representante" value={datos.contacto || "-"} />
         <Row label="Telefono" value={datos.telefono || "-"} />
         <Row label="Correo electronico" value={datos.email || "-"} />
+      </CardResumen>
+
+      <CardResumen
+        titulo="Plan de pagos"
+        icono={<FileText className="h-3.5 w-3.5" />}
+        badge={
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.SUCCESS}`}>
+            {cuotasPago.length} cuota{cuotasPago.length === 1 ? "" : "s"}
+          </span>
+        }
+      >
+        {cuotasPago.map((cuota, i) => (
+          <Row
+            key={`${i}-${cuota.fecha}`}
+            label={`Cuota ${i + 1}`}
+            value={`${cuota.porcentaje}% · ${dateUtils.format(cuota.fecha, { idioma: "es" })}`}
+          />
+        ))}
       </CardResumen>
 
       {docsCount > 0 && (

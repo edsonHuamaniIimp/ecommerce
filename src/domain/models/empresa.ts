@@ -1,4 +1,5 @@
 import type { EstadoEmpresa, EstadoFilaCarga, TipoComprobante } from "@/lib/shared/constants";
+import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
 /**
  * Empresa exhibidora registrada por el backoffice.
@@ -29,6 +30,8 @@ export interface EmpresaEntity {
   /** Codigo SIE de la persona del representante en servicio-persona (null = aun solo local). */
   representanteSieCode: string | null;
   partidaElectronica: string | null;
+  /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
+  configCuotas: ConfigCuotasEmpresa | null;
   tipoComprobante: TipoComprobante;
   sitioWeb: string | null;
   estado: EstadoEmpresa;

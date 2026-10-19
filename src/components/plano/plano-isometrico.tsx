@@ -159,7 +159,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     reset: resetForm,
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
-    cuotasConfig, setCuotasConfig,
+    cuotasConfig, setCuotasConfig, configCuotas,
     contratoDatos, setContratoDatos,
     contrato,
     generandoContrato,
@@ -169,7 +169,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     subirContratoFirmado,
     firmaPerfilUrl,
     subirFirmaPerfil,
-    firmandoDigital,
+    firmaDigitalAplicada,
     firmarDigitalmente,
   } = useReservaForm(selectedIds, linkedMap);
 
@@ -495,6 +495,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             onConfirmadoChange={setConfirmado}
             aceptaRepresentante={aceptaRepresentante}
             onAceptaRepresentanteChange={setAceptaRepresentante}
+      configCuotas={configCuotas}
       cuotasPago={cuotasConfig}
       onCuotasPagoChange={setCuotasConfig}
       contratoDatos={contratoDatos}
@@ -507,7 +508,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         onSubirFirmado={(file) => { void subirContratoFirmado(file); }}
         firmaPerfilUrl={firmaPerfilUrl}
         onSubirFirmaPerfil={subirFirmaPerfil}
-        firmandoDigital={firmandoDigital}
+        firmaDigitalAplicada={firmaDigitalAplicada}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
         onSubmit={async () => {
           const result = await handleSubmit();

@@ -42,6 +42,11 @@ export const empresasService = {
     return internalApi.post<EmpresaDTO>("/api/empresas/actualizar", body);
   },
 
+  /** Configura el cronograma personalizado de cuotas (Modalidad 4); null = estandar. */
+  configurarCuotas(id: string, configCuotas: { maxCuotas: number; fechas: string[] } | null) {
+    return internalApi.post<EmpresaDTO>("/api/empresas/configurar-cuotas", { id, configCuotas });
+  },
+
   cambiarEstado(id: string, estado: string) {
     return internalApi.post<EmpresaDTO>("/api/empresas/estado", { id, estado });
   },

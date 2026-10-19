@@ -23,6 +23,8 @@ export interface EmpresaDTO {
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
   partidaElectronica: string | null;
+  /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
+  configCuotas: { maxCuotas: number; fechas: string[] } | null;
   tipoComprobante: string;
   sitioWeb: string | null;
   estado: string;
