@@ -6,6 +6,7 @@ import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERM
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -135,10 +136,17 @@ export class SolicitudesApplicationService {
       const detalle = await this.repo.detalle(data.solicitudId);
       if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
       const vigentes = detalle.docsAdjuntos.filter(
-        (d) => docIds.includes(d.id) && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+        (d) =>
+          docIds.includes(d.id) &&
+          d.userId !== null &&
+          (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
       );
       if (vigentes.length !== docIds.length) {
-        throw new DomainError("Algun documento seleccionado no existe o ya no esta vigente", API_ERROR_CODES.CONFLICT, 409);
+        throw new DomainError(
+          "Solo puedes observar documentos vigentes subidos por el cliente",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
       }
       const marcados = await this.repo.observarDocumentos(data.solicitudId, docIds, motivo, data.reviewerEmail);
       if (marcados !== docIds.length) {
@@ -146,6 +154,11 @@ export class SolicitudesApplicationService {
       }
 
       const revision = await this.repo.crearOActualizarRevision({ ...data, comentario: motivo });
+
+      /*
+       * La observacion aplica solo a documentos del cliente; el contrato del
+       * administrador es solo lectura para el revisor.
+       */
 
       /* Notificacion al cliente: campana + correo con el detalle de la observacion. */
       const etiquetaDoc = (docId: string): string => {
@@ -240,7 +253,18 @@ export class SolicitudesApplicationService {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
     }
 
-    const observados = detalle.docsAdjuntos.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+    /*
+     * Normalmente los observados siguen en estado `observado`. Si el contrato
+     * observado fue regenerado automaticamente, el documento original ya paso a
+     * `reemplazado` (conservando el motivo): se usa como referencia del ciclo para
+     * poder validar la firma y reenviar.
+     */
+    const observadosActuales = detalle.docsAdjuntos.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+    const observados = observadosActuales.length > 0
+      ? observadosActuales
+      : detalle.docsAdjuntos.filter(
+          (d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && Boolean(d.motivoObservacion),
+        );
     if (observados.length === 0) {
       throw new DomainError("No hay documentos observados pendientes de reemplazo", API_ERROR_CODES.CONFLICT, 409);
     }
@@ -253,9 +277,37 @@ export class SolicitudesApplicationService {
         (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
         (d.categoria ?? null) === (obs.categoria ?? null) &&
         (d.requisito ?? null) === (obs.requisito ?? null) &&
-        new Date(d.createdAt).getTime() > new Date(obs.createdAt).getTime());
+        dateUtils.isAfter(d.createdAt, obs.createdAt));
       if (!reemplazo) faltantes.push(etiquetaDoc(obs));
     }
+
+    /*
+     * Si se observo el contrato del administrador, ademas de existir la version
+     * corregida, el cliente debe firmarla: el reenvio exige un `contrato_firmado`
+     * vigente posterior a ese contrato corregido.
+     */
+    const contratoAdminObservado = observados.some(
+      (d) => d.userId === null && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+    );
+    if (contratoAdminObservado) {
+      const ordenDesc = (a: { createdAt: Date }, b: { createdAt: Date }) =>
+        (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0);
+      const adminVigente = detalle.docsAdjuntos
+        .filter((d) => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+          d.userId === null && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO)
+        .sort(ordenDesc)[0];
+      if (adminVigente) {
+        const firmadoVigente = detalle.docsAdjuntos
+          .filter((d) => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+            d.userId === userSub && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+          .sort(ordenDesc)[0];
+        const firmadoOk = firmadoVigente
+          ? dateUtils.isAfter(firmadoVigente.createdAt, adminVigente.createdAt)
+          : false;
+        if (!firmadoOk) faltantes.push("Contrato firmado (version corregida)");
+      }
+    }
+
     if (faltantes.length > 0) {
       throw new DomainError(`Faltan las nuevas versiones de: ${faltantes.join(", ")}`, API_ERROR_CODES.CONFLICT, 409);
     }
@@ -451,8 +503,32 @@ export class SolicitudesApplicationService {
   }): Promise<void> {
     const doc = await this.repo.findDocumento(params.docId);
     if (!doc) throw new DomainError("Documento no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
-    if (doc.userId !== params.userSub && !params.userPermissions.includes(PERMISSIONS.ADMIN_FULL)) {
+    const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+    if (doc.userId !== params.userSub && !isAdmin) {
       throw new DomainError("Solo puedes eliminar tus propios documentos", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    /*
+     * El cliente solo puede eliminar documentos de la iteracion actual (subidos
+     * despues del ultimo cambio de revision). Las versiones de iteraciones pasadas
+     * son historial y no se eliminan.
+     */
+    if (!isAdmin) {
+      if (!doc.flgActivo || (doc.estado && doc.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO)) {
+        throw new DomainError("Este documento ya no es la version vigente", API_ERROR_CODES.CONFLICT, 409);
+      }
+      const detalle = await this.repo.detalle(doc.solicitudId);
+      const ultimaRevision = (detalle?.revisiones ?? []).reduce<string | Date | null>(
+        (ultima, r) => (!ultima || dateUtils.isAfter(r.updatedAt, ultima) ? r.updatedAt : ultima),
+        null,
+      );
+      if (ultimaRevision && !dateUtils.isAfter(doc.createdAt, ultimaRevision)) {
+        throw new DomainError(
+          "Solo puedes eliminar el documento subido en la iteracion actual; las versiones anteriores son historial.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
     }
     await this.repo.eliminarDocumento(params.docId);
   }

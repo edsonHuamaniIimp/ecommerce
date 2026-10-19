@@ -15,11 +15,15 @@ del cliente, notificación y orden de pago. La unidad de datos es `Solicitud`, c
 
 | Permiso | Constante | Quién |
 |---|---|---|
-| `solicitudes:view` | `SOLICITUDES_VIEW` | todos los roles |
+| `solicitudes:view` | `SOLICITUDES_VIEW` | staff: admin, asociado, legal (bandeja) |
+| `mis-reservas:view` | `MIS_RESERVAS_VIEW` | cliente (sus propias solicitudes; el proxy acepta este permiso para `/api/solicitudes`) |
 | `solicitudes:review:asociado` | `SOLICITUDES_REVIEW_ASOCIADO` | admin, asociado (nivel "Asociado", previo a Legal; RF-14/15) |
 | `solicitudes:review:legal` | `SOLICITUDES_REVIEW_LEGAL` | admin, legal (legacy) |
 | `solicitudes:notify` | `SOLICITUDES_NOTIFY` | admin |
 | `solicitudes:upload` | `SOLICITUDES_UPLOAD` | admin |
+
+La observación de documentos se detalla en
+[12-observacion-documentos.md](./12-observacion-documentos.md).
 
 ## 3. Pantallas
 
@@ -59,6 +63,14 @@ Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`
 
 `POST /api/solicitudes/notificar` exige `solicitudes:notify` + `hasDBPermission` y **bloquea con 409 si alguna área local sigue pendiente** (`solicitudes.controller.ts:48-85`). Construye el correo con `buildRevisionEmail` (modo automático o personalizado).
 
+### 4.3 Observación de documentos (Asociado)
+
+- El revisor **Asociado** puede observar uno o varios documentos **vigentes subidos por el cliente**, con justificación obligatoria. El contrato del administrador es solo lectura y no se observa.
+- La solicitud pasa a `observado`; el cliente ve el motivo y subsana desde Mis solicitudes subiendo nuevas versiones o firmando el contrato corregido.
+- `POST /api/solicitudes/reenviar-observacion` exige que **todos** los observados tengan reemplazo vigente y, si se observó el firmado, uno posterior al contrato vigente del administrador.
+- El ciclo puede repetirse N veces. Solo la **iteración actual** permite dar de baja documentos; las versiones anteriores quedan como historial y nunca se envían al SGC.
+- Detalle completo: [12-observacion-documentos.md](./12-observacion-documentos.md).
+
 ## 5. Estados y transiciones
 
 `ESTADOS_SOLICITUD` (`constants.ts:423-432`). El estado se **calcula al vuelo** desde las revisiones, salvo `pendiente_pago` y `pagado` que se persisten (`solicitudes-repository.ts:47-62,153`).
@@ -68,12 +80,18 @@ Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`
 | `disponible` (stand) | `en_evaluacion` | Crear solicitud | Cliente |
 | `pendiente` | `en_proceso` | Primera revisión | Área |
 | `en_proceso` | `aprobado` | Todas aprueban | Áreas |
+| `en_proceso` | `observado` | Asociado observa documentos del cliente | Asociado |
+| `observado` | `en_proceso` | Cliente reenvía tras subsanar | Cliente |
 | `en_proceso` | `rechazado` | Alguna rechaza | Áreas |
 | `rechazado` | `pendiente` (reset) | Re-evaluación aprobada | Admin |
 | `rechazado` | `disponible` (stand) | Re-evaluación rechazada | Admin |
 | `rechazado` | baja lógica | Dar de baja | Admin |
 | `aprobado` | `pendiente_pago` | Generar orden de pago | Admin |
 | `pendiente_pago` | `pagado` | Confirmación de pago | Facturación |
+
+Estados de documento (`solicitud_documento.estado`): `activo`, `observado`, `reemplazado`
+y `baja`. Solo `activo` cuenta para la revisión y para el envío al SGC; los estados son
+lógicos y nunca eliminan el archivo ni la fila.
 
 ## 6. Endpoints
 
@@ -82,7 +100,8 @@ Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`
 | `GET` | `/api/solicitudes/listar` | Lista paginada (`eventoId`, `page`, `per_page`, `search`, `userId`) |
 | `GET` | `/api/solicitudes/detalle?id=` | Detalle |
 | `GET` | `/api/solicitudes/historial?id=` | Historial de revisiones |
-| `POST` | `/api/solicitudes/revisar` | Registrar revisión de área |
+| `POST` | `/api/solicitudes/revisar` | Registrar revisión de área; body incluye `documentosObservados[]` si `estado=observado` |
+| `POST` | `/api/solicitudes/reenviar-observacion` | Cliente reenvía la solicitud tras subsanar |
 | `POST` | `/api/solicitudes/notificar` | Correo al cliente (`solicitudes:notify` + BD) |
 | `POST` | `/api/solicitudes/reevaluar` | Crear re-evaluación |
 | `POST` | `/api/solicitudes/atender-reevaluacion` | Aprobar/rechazar re-evaluación |
@@ -103,9 +122,11 @@ Alertas (campana): `GET /api/alertas/listar`, `POST /api/alertas/marcar-leida`, 
 
 ## 8. Limitaciones y observaciones
 
-- **Permisos de revisión solo en UI**: `POST /api/solicitudes/revisar` solo exige sesión (`solicitudes.controller.ts:41-46`), no `solicitudes:review:*`. Corroborado por `../07-seguridad` (run 1).
-- **Sin scoping de dueño**: `detalle`/`historial` no validan propietario; un `cliente` con `solicitudes:view` podría leer solicitudes ajenas.
-- **`orden-pago`, `reevaluar` y `upload-doc` sin permiso específico** (solo sesión).
+- **Permisos de revisión validados en el borde HTTP**: `POST /api/solicitudes/revisar` exige el permiso del área (`REVISION_AREA_PERMISSIONS`) o `admin:full`.
+- **Scoping de dueño implementado**: `listar`, `detalle` e `historial` limitan al cliente a sus solicitudes; `upload-doc`, `eliminar-doc` y `reenviar-observacion` validan titularidad en el servicio. Staff con `solicitudes:gestion`/`notify`/`admin:full` puede ver todas.
+- **`reevaluar` valida titular** y `orden-pago` exige `facturacion:view`, `solicitudes:notify` o `admin:full`.
+- **Contrato del admin no observable**: la observación aplica solo a documentos del cliente (`user_id` no nulo); las correcciones del contrato las hace el admin.
+- **Documentos legacy del JSON `solicitud.documentos`** no tienen ID de fila y no se pueden observar individualmente; se conservan por compatibilidad.
 - **Dashboard desconectado del pipeline**: `dashboard/page.tsx:49,53` pasa `reservas={[]}`; la card "Flujo de Aprobaciones" usa el modelo legacy `Reserva`/`Aprobacion` y siempre sale vacía.
 - **Notificación no automática al aprobar**: el endpoint lo permite, pero la UI solo muestra el botón en estado `rechazado` (`solicitudes-manager.tsx:443`).
 - **`POST /api/solicitudes/modificar` sin uso** en el frontend (legacy).

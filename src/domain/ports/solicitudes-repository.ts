@@ -54,7 +54,7 @@ export interface ISolicitudesRepository {
   marcarOrdenPago(solicitudId: string): Promise<void>;
   obtenerHistorial(solicitudId: string): Promise<{ revisiones: RevisionEntity[]; historial: RevisionHistorialEntity[] }>;
   crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>>;
-  findDocumento(docId: string): Promise<{ id: string; userId: string | null } | null>;
+  findDocumento(docId: string): Promise<{ id: string; userId: string | null; solicitudId: string; createdAt: Date; estado: string | null; flgActivo: boolean } | null>;
   /** SHA-256 de un contrato firmado ya adjunto a OTRA solicitud (anti-reutilizacion). */
   findDocumentoPorHashEnOtraSolicitud(sha256: string, solicitudId: string): Promise<{ solicitudId: string } | null>;
   /** Marca documentos como observados (baja logica por estado, con motivo y auditoria); devuelve cuantos marco. */

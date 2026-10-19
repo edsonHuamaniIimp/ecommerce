@@ -242,7 +242,7 @@ export interface SolicitudRow {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
   updatedAt: Date;
   createdAt: Date;
   revisiones: RevisionEntity[];

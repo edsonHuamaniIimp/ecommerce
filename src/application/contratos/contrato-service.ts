@@ -21,7 +21,7 @@ import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MODOS_PAGO, PERMISSIONS, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -30,6 +30,8 @@ import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
 import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
+import { dateUtils } from "@/lib/shared/utils/date";
+import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
 
 /** Limite de espera de la conversion DOCX -> PDF (LibreOffice/Word headless). */
 const CONVERSION_PDF_TIMEOUT_MS = 90_000;
@@ -94,6 +96,8 @@ export interface GenerarContratoInput {
   contrato?: DatosContrato;
   userSub: string;
   userPermissions: string[];
+  /** Al firmar se genera el PDF firmado pero NO se reemplaza el contrato del admin. */
+  registrarContrato?: boolean;
 }
 
 export interface FirmarContratoInput {
@@ -167,8 +171,9 @@ export class ContratoApplicationService {
     if (!isAdmin && detalle.userId !== input.userSub) {
       throw new DomainError("No puedes generar el contrato de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
     }
-    /* El cliente solo puede (re)generar mientras la solicitud esta pendiente; despues, solo admin. */
-    if (!isAdmin && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) {
+    /* El cliente puede (re)generar mientras la solicitud este en una ventana habilitada
+     * (pendiente, observada, Legal/SGC o subsanacion); despues, solo admin. */
+    if (!isAdmin && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes regenerar el contrato.", API_ERROR_CODES.CONFLICT, 409);
     }
 
@@ -222,13 +227,20 @@ export class ContratoApplicationService {
       base,
     });
 
-    const urlContrato = generado.pdfUrl ?? generado.docxUrl;
-    const etiquetaContrato = idioma === IDIOMAS.EN ? "Exhibition contract" : "Contrato de exhibicion";
-    await this.solicitudes.upsertContratoSistema(
-      input.solicitudId,
-      urlContrato,
-      `${etiquetaContrato} (${porcentajes.map((c) => `${c}%`).join(" / ")}).${generado.pdfUrl ? "pdf" : "docx"}`,
-    );
+    /*
+     * El contrato del administrador se registra al generarlo. Al FIRMAR solo se
+     * produce el archivo firmado: el contrato vigente (version nueva) no se
+     * sobrescribe; el caller lo adjunta como `contrato_firmado`.
+     */
+    if (input.registrarContrato !== false) {
+      const urlContrato = generado.pdfUrl ?? generado.docxUrl;
+      const etiquetaContrato = idioma === IDIOMAS.EN ? "Exhibition contract" : "Contrato de exhibicion";
+      await this.solicitudes.upsertContratoSistema(
+        input.solicitudId,
+        urlContrato,
+        `${etiquetaContrato} (${porcentajes.map((c) => `${c}%`).join(" / ")}).${generado.pdfUrl ? "pdf" : "docx"}`,
+      );
+    }
 
     return generado;
   }
@@ -394,7 +406,7 @@ export class ContratoApplicationService {
     const esPersonalizado = params.modalidad === MODOS_PAGO.PERSONALIZADO;
     const fechaCorta = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "");
 
-    const hoy = new Date();
+    const hoy = dateUtils.now();
     const fechaFirma = `${String(hoy.getDate()).padStart(2, "0")}/${String(hoy.getMonth() + 1).padStart(2, "0")}/${hoy.getFullYear()}`;
 
     /* Copy insertado en el contrato: en ingles no debe filtrarse espanol. */
@@ -537,8 +549,43 @@ export class ContratoApplicationService {
     if (!isAdmin && detalle.userId !== input.userSub) {
       throw new DomainError("No puedes firmar el contrato de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
     }
-    if (!isAdmin && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) {
+    if (!isAdmin && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes firmar el contrato.", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    /*
+     * La firma digital solo aplica a contratos generados por el sistema (misma
+     * plantilla/datos). Si el admin subio un PDF corregido como archivo, el cliente
+     * debe descargarlo, firmarlo y subir su version.
+     */
+    if (!isAdmin) {
+      const contratoVigente = detalle.docsAdjuntos
+        .filter((d) => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+          d.userId === null && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO)
+        .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+      if (contratoVigente && contratoVigente.origen !== ORIGENES_DOCUMENTO.GENERADO) {
+        throw new DomainError(
+          "El contrato corregido fue subido como archivo: descargalo, firmalo y sube tu version firmada.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      /*
+       * Si ya existe una firma manual vigente de la version actual, no se permite
+       * firmar digitalmente otra vez: el cliente debe eliminar esa firma primero.
+       */
+      const firmadoVigente = detalle.docsAdjuntos
+        .filter((d) => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+          d.userId === input.userSub && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+        .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+      if (contratoVigente && firmadoVigente &&
+        dateUtils.isSameOrAfter(firmadoVigente.createdAt, contratoVigente.createdAt)) {
+        throw new DomainError(
+          "Ya tienes un contrato firmado vigente para esta version. Elimina esa firma si deseas firmar digitalmente.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
     }
 
     const perfil = detalle.email ? await this.auth.findPerfilByEmail(detalle.email) : null;
@@ -556,6 +603,7 @@ export class ContratoApplicationService {
       contrato: input.contrato,
       userSub: input.userSub,
       userPermissions: input.userPermissions,
+      registrarContrato: false,
     });
     return { docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl, nombre: generado.nombre };
   }

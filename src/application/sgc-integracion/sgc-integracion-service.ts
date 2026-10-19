@@ -23,6 +23,7 @@ import {
   SGC_SUBSANACION_MOTIVO,
   SGC_LIFECYCLE_STATUSES,
   CATEGORIAS_DOCUMENTO,
+  ESTADOS_DOCUMENTO_SOLICITUD,
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
@@ -32,6 +33,7 @@ import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 export interface SgcIntegracionConfig {
   enabled: boolean;
@@ -515,10 +517,9 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return null;
 
-    /* Contrato firmado mas reciente del cliente (o, en su defecto, el contrato disponible). */
-    const firmado = [...detalle.docsAdjuntos]
-      .filter((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
+    const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (d) =>
+      this.documentoVigente(d) && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
     const pieza = firmado
       ? { url: firmado.url, nombre: firmado.nombre }
       : this.seleccionarContrato(detalle);
@@ -579,7 +580,7 @@ export class SgcIntegracionApplicationService {
     const contratoClave = contrato?.nombre || contratoUrl;
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos
-        .filter((d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+        .filter((d) => this.documentoVigente(d) && d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
         .map((d) => ({ url: d.url, nombre: d.nombre })),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
@@ -621,17 +622,34 @@ export class SgcIntegracionApplicationService {
     return resultados;
   }
 
+  /** Documento vigente: sin estado (legacy) o `activo`; excluye observados/reemplazados. */
+  private documentoVigente(d: SolicitudRow["docsAdjuntos"][number]): boolean {
+    return !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+  }
+
+  /** Ultima version (por fecha de subida) que cumple el predicado. */
+  private ultimoDocumento<T extends SolicitudRow["docsAdjuntos"][number]>(
+    docs: T[],
+    predicate: (d: T) => boolean,
+  ): T | undefined {
+    return [...docs]
+      .filter(predicate)
+      .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  }
+
   /**
    * Documento que representa el contrato para el SGC, por prioridad:
-   *  1. Contrato firmado por el cliente (`categoria = contrato_firmado`).
-   *  2. Contrato v1 del administrador (`userId === null`).
+   *  1. Ultimo contrato firmado vigente del cliente (`categoria = contrato_firmado`).
+   *  2. Ultimo contrato vigente del administrador (`userId === null`).
    *  3. Columna legacy `documentos` (compatibilidad).
-   * Si no hay ninguno, no se envia contrato.
+   * Solo se envian versiones vigentes; las observadas/reemplazadas son historial.
    */
   private seleccionarContrato(detalle: SolicitudRow): DocumentoUrl | null {
-    const firmado = detalle.docsAdjuntos.find((doc) => doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+    const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (doc) =>
+      this.documentoVigente(doc) && doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
     if (firmado) return { url: firmado.url, nombre: firmado.nombre };
-    const admin = detalle.docsAdjuntos.find((doc) => doc.userId === null);
+    const admin = this.ultimoDocumento(detalle.docsAdjuntos, (doc) =>
+      this.documentoVigente(doc) && doc.userId === null);
     if (admin) return { url: admin.url, nombre: admin.nombre };
     // Legacy: si el admin categorizo un documento como "contrato", se usa ese;
     // si no, se mantiene el primero (comportamiento previo).

@@ -450,3 +450,218 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
   });
 });
+
+describe("reenviarObservacion con contrato del administrador observado", () => {
+  const baseDocs = [
+    {
+      id: "contrato-obs",
+      nombre: "Contrato v1.pdf",
+      url: "/uploads/contrato-v1.pdf",
+      userId: null,
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+      requisito: null,
+      estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
+      createdAt: "2026-10-16T10:00:00.000Z",
+    },
+    {
+      id: "contrato-nuevo",
+      nombre: "Contrato v2.pdf",
+      url: "/uploads/contrato-v2.pdf",
+      userId: null,
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+      requisito: null,
+      estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+      createdAt: "2026-10-17T10:00:00.000Z",
+    },
+  ];
+
+  it("exige firmar la version corregida del contrato", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({
+        revisiones: [],
+        reevaluaciones: [],
+        standCodes: ["A-1"],
+        docsAdjuntos: [
+          ...baseDocs,
+          {
+            id: "firmado-viejo",
+            nombre: "firmado.pdf",
+            url: "/uploads/firmado.pdf",
+            userId: "user-1",
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            requisito: null,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+            createdAt: "2026-10-16T12:00:00.000Z",
+          },
+        ],
+      }) as unknown as SolicitudRow,
+    );
+    const service = svc(repo);
+
+    await expect(service.reenviarObservacion(ID, "user-1", "cliente@example.com")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("Contrato firmado"),
+    });
+    expect(repo.marcarDocumentosReemplazadosPorIds).not.toHaveBeenCalled();
+  });
+
+  it("permite reenviar si el cliente firmo despues del contrato corregido", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({
+        revisiones: [],
+        reevaluaciones: [],
+        standCodes: ["A-1"],
+        docsAdjuntos: [
+          ...baseDocs,
+          {
+            id: "firmado-nuevo",
+            nombre: "firmado-v2.pdf",
+            url: "/uploads/firmado-v2.pdf",
+            userId: "user-1",
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            requisito: null,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+            createdAt: "2026-10-17T12:00:00.000Z",
+          },
+        ],
+      }) as unknown as SolicitudRow,
+    );
+    vi.mocked(repo.crearAlertaRevision).mockResolvedValue(undefined as never);
+    const service = svc(repo);
+
+    await service.reenviarObservacion(ID, "user-1", "cliente@example.com");
+
+    expect(repo.marcarDocumentosReemplazadosPorIds).toHaveBeenCalledWith(ID, ["contrato-obs"]);
+    expect(repo.crearOActualizarRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.PENDIENTE }),
+    );
+  });
+});
+
+describe("reenviarObservacion cuando el contrato observado ya fue regenerado", () => {
+  it("permite reenviar con la version corregida ya firmada", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({
+        revisiones: [],
+        reevaluaciones: [],
+        standCodes: ["A-1"],
+        docsAdjuntos: [
+          {
+            id: "contrato-observado",
+            nombre: "Contrato v1.pdf",
+            url: "/uploads/contrato-v1.pdf",
+            userId: null,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+            requisito: null,
+            motivoObservacion: "contrato errado",
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO,
+            createdAt: "2026-10-16T10:00:00.000Z",
+          },
+          {
+            id: "contrato-corregido",
+            nombre: "Contrato v2.pdf",
+            url: "/uploads/contrato-v2.pdf",
+            userId: null,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+            requisito: null,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+            createdAt: "2026-10-17T10:00:00.000Z",
+          },
+          {
+            id: "firmado-corregido",
+            nombre: "firmado-v2.pdf",
+            url: "/uploads/firmado-v2.pdf",
+            userId: "user-1",
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            requisito: null,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+            createdAt: "2026-10-17T12:00:00.000Z",
+          },
+        ],
+      }) as unknown as SolicitudRow,
+    );
+    vi.mocked(repo.crearAlertaRevision).mockResolvedValue(undefined as never);
+    const service = svc(repo);
+
+    await service.reenviarObservacion(ID, "user-1", "cliente@example.com");
+
+    expect(repo.marcarDocumentosReemplazadosPorIds).toHaveBeenCalledWith(ID, ["contrato-observado"]);
+    expect(repo.crearOActualizarRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.PENDIENTE }),
+    );
+  });
+});
+
+describe("eliminarDocumento: solo la iteracion actual", () => {
+  const doc = {
+    id: "doc-1",
+    userId: "user-1",
+    solicitudId: ID,
+    createdAt: new Date("2026-10-19T00:00:00.000Z"),
+    estado: "activo",
+    flgActivo: true,
+  };
+
+  it("bloquea documentos subidos antes de la ultima revision", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.findDocumento).mockResolvedValue(doc);
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({ revisiones: [{ updatedAt: "2026-10-19T01:00:00.000Z" }] }) as unknown as SolicitudRow,
+    );
+    const service = svc(repo);
+
+    await expect(
+      service.eliminarDocumento({ docId: "doc-1", userSub: "user-1", userPermissions: [] }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.eliminarDocumento).not.toHaveBeenCalled();
+  });
+
+  it("permite eliminar el documento subido despues de la ultima revision", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.findDocumento).mockResolvedValue(doc);
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({ revisiones: [{ updatedAt: "2026-10-18T23:00:00.000Z" }] }) as unknown as SolicitudRow,
+    );
+    const service = svc(repo);
+
+    await service.eliminarDocumento({ docId: "doc-1", userSub: "user-1", userPermissions: [] });
+
+    expect(repo.eliminarDocumento).toHaveBeenCalledWith("doc-1");
+  });
+});
+
+describe("revisar: solo documentos del cliente", () => {
+  it("rechaza observar el contrato del administrador", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleObservado({
+        docsAdjuntos: [{
+          id: "contrato-admin",
+          nombre: "contrato.pdf",
+          url: "/uploads/contrato.pdf",
+          userId: null,
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: "2026-10-19T00:00:00.000Z",
+        }],
+      }) as unknown as SolicitudRow,
+    );
+    const service = svc(repo);
+
+    await expect(
+      service.revisar({
+        solicitudId: ID,
+        area: REVISION_AREAS.ASOCIADO,
+        estado: RESULTADOS_APROBACION.OBSERVADO,
+        comentario: "contrato errado",
+        documentosObservados: ["contrato-admin"],
+        reviewerEmail: "rev@iimp.org",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.observarDocumentos).not.toHaveBeenCalled();
+  });
+});

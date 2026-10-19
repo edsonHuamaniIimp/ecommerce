@@ -1,12 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getTokenFromRequest, verifyToken, hasPermission, estadoAcceso } from "@/lib/server/auth";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS, DD_RUTAS } from "@/lib/shared/constants";
+import { getTokenFromRequest, verifyToken, estadoAcceso } from "@/lib/server/auth";
+import { tieneAccesoRuta } from "@/lib/shared/utils/proxy-acceso";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS, DD_RUTAS, API_SOLICITUDES_PERMISOS } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
   path: string;
   /** Permiso requerido. Si se omite, cualquier rol autenticado accede. */
   permission?: string;
+  /** Alternativa: basta con tener UNO de estos permisos (APIs compartidas staff/cliente). */
+  anyOf?: readonly string[];
 }
 
 const PROTECTED: ProtectedRoute[] = [
@@ -46,7 +49,8 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/eventos/crear", permission: PERMISSIONS.EVENTS_CREATE },
   { path: "/api/eventos/actualizar", permission: PERMISSIONS.EVENTS_EDIT },
   { path: "/api/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
-  { path: "/api/solicitudes", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  /* API compartida: staff (gestion) y cliente (sus propias solicitudes). El controller aplica scoping/permisos. */
+  { path: "/api/solicitudes", anyOf: API_SOLICITUDES_PERMISOS },
   { path: "/api/sgc", permission: PERMISSIONS.SOLICITUDES_VIEW },
   { path: "/api/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
   { path: "/api/entidades" },
@@ -103,7 +107,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/auth/validar-datos", request.url));
       }
 
-      if (route.permission && !hasPermission(payload, route.permission)) {
+      if (!tieneAccesoRuta(route, payload.permissions)) {
         return NextResponse.redirect(new URL("/403", request.url));
       }
 

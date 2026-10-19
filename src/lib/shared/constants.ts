@@ -551,6 +551,16 @@ export const PERMISSIONS = {
   DD_PANEL: "dd:panel",
 } as const satisfies Record<string, Permission>;
 
+/**
+ * Permisos que habilitan `/api/solicitudes` (API compartida):
+ * staff con `solicitudes:view` o cliente con `mis-reservas:view`. El controller
+ * aplica el scoping de dueno; este arreglo solo controla el paso por el proxy.
+ */
+export const API_SOLICITUDES_PERMISOS = [
+  PERMISSIONS.SOLICITUDES_VIEW,
+  PERMISSIONS.MIS_RESERVAS_VIEW,
+] as const;
+
 export const PERMISSION_SECTIONS = {
   SISTEMA: "sistema",
   DASHBOARD: "dashboard",

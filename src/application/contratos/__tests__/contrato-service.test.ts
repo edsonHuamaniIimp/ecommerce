@@ -466,6 +466,112 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     vi.unstubAllGlobals();
   });
 
+  it("permite firmar digitalmente cuando la solicitud esta observada", async () => {
+    const PNG_1PX = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const { svc, storage, auth, solicitudes } = build({
+      detalle: {
+        estadoSolicitud: "observado",
+        planCuotas: {
+          modalidad: "personalizado",
+          cuotas: [{ numero: 1, porcentaje: 100, monto: 2360, fechaVencimiento: "2099-01-01" }],
+        },
+      } as never,
+    });
+    vi.mocked(auth.findPerfilByEmail).mockResolvedValue({ firmaUrl: "https://cdn.test/firma.png" } as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => PNG_1PX }));
+
+    const firmado = await svc.firmar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    expect(firmado.docxUrl).toContain(".docx");
+    expect(storage.upload).toHaveBeenCalled();
+    /* La firma no debe sobrescribir la version corregida del admin. */
+    expect(solicitudes.upsertContratoSistema).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("no permite firmar digitalmente si el contrato corregido fue subido como archivo", async () => {
+    const { svc } = build({
+      detalle: {
+        estadoSolicitud: "observado",
+        docsAdjuntos: [{
+          id: "contrato-1",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "admin@iimp.org.pe",
+          categoria: "contrato",
+          requisito: null,
+          origen: "personalizado",
+          estado: "activo",
+          createdAt: new Date("2026-10-19T00:00:00Z"),
+        }],
+      } as never,
+    });
+
+    await expect(
+      svc.firmar({
+        solicitudId: "11111111-1111-4111-8111-111111111111",
+        userSub: "user-1",
+        userPermissions: [],
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("subido como archivo"),
+    });
+  });
+
+  it("no permite firmar digitalmente si ya existe una firma manual vigente", async () => {
+    const { svc } = build({
+      detalle: {
+        estadoSolicitud: "observado",
+        docsAdjuntos: [
+          {
+            id: "contrato-1",
+            url: "/uploads/contrato.pdf",
+            nombre: "contrato.pdf",
+            userId: null,
+            uploadedBy: "sistema",
+            categoria: "contrato",
+            requisito: null,
+            origen: "generado",
+            estado: "activo",
+            createdAt: new Date("2026-10-19T00:00:00Z"),
+          },
+          {
+            id: "firmado-1",
+            url: "/uploads/firmado.pdf",
+            nombre: "firmado.pdf",
+            userId: "user-1",
+            uploadedBy: "user-1",
+            categoria: "contrato_firmado",
+            requisito: null,
+            origen: null,
+            estado: "activo",
+            createdAt: new Date("2026-10-19T01:00:00Z"),
+          },
+        ],
+      } as never,
+    });
+
+    await expect(
+      svc.firmar({
+        solicitudId: "11111111-1111-4111-8111-111111111111",
+        userSub: "user-1",
+        userPermissions: [],
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("firmado vigente"),
+    });
+  });
+
   it("las plantillas de contrato no conservan restos del formulario de montos (S/. y guiones bajos)", () => {
     for (const archivo of ["contrato-perumin38-tags.docx", "contrato-perumin38-tags-en.docx"]) {
       const plantilla = fs.readFileSync(path.join(process.cwd(), "plantillas", archivo));

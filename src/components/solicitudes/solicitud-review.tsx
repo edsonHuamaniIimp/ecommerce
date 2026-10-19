@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
   REVISION_AREA_LABELS,
@@ -107,6 +107,7 @@ export function SolicitudReview({
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
   /** Documentos (IDs) marcados para observar en el paso Asociado. */
   const [docsObservar, setDocsObservar] = useState<string[]>([]);
+  const [versionesAbiertas, setVersionesAbiertas] = useState<Record<string, boolean>>({});
   const [confirmObservar, setConfirmObservar] = useState(false);
   const [editing, setEditing] = useState(false);
   const [aprobandoBypass, setAprobandoBypass] = useState(false);
@@ -192,6 +193,12 @@ export function SolicitudReview({
   const contratoUrl = contratoSgc[0]?.url;
   /* El admin ya adjunto un contrato posterior al ultimo firmado del cliente (subsanacion). */
   const tieneContratoAdminNuevo = hayContratoAdminNuevoParaFirmar(row);
+  const contratoAdminObservado = row.docsAdjuntos.some(
+    (d) =>
+      d.userId === null &&
+      d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
+      d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
+  );
 
   /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
      excluyendo el que ya se usa como contrato. */
@@ -376,9 +383,14 @@ export function SolicitudReview({
           onGoSgc={() => goToStep(sgcStepIndex)}
         />
 
+
+      </div>
+
+      {/* ===== BODY ===== */}
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {/* Client documents */}
         {(() => {
-          const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null }> = [];
+          const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null; userId?: string | null }> = [];
 
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
@@ -389,7 +401,7 @@ export function SolicitudReview({
           // Docs del flujo nuevo (cliente y administrador): todos son observables
           const adjuntos = row.docsAdjuntos ?? [];
           for (const d of adjuntos) {
-            docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion });
+            docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion, userId: d.userId });
           }
 
           // Re-evaluacion documents
@@ -404,101 +416,191 @@ export function SolicitudReview({
           const seen = new Set<string>();
           const unique = docs.filter(d => { if (seen.has(d.url)) return false; seen.add(d.url); return true; });
 
+          /*
+           * Agrupa por documento logico (requisito/categoria): la version vigente
+           * arriba y las anteriores (observadas/reemplazadas) en historial. La
+           * iteracion observar -> subsanar -> reenviar puede repetirse N veces.
+           */
+          const grupoDe = (d: (typeof unique)[number]): string => {
+            if (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) return "contrato-admin";
+            if (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return "contrato-firmado";
+            if (d.requisito) return `requisito:${d.requisito}`;
+            if (d.categoria) return `categoria:${d.categoria}`;
+            return `documento:${d.url}`;
+          };
+          const porGrupo = new Map<string, typeof unique>();
+          for (const d of unique) {
+            const key = grupoDe(d);
+            const bucket = porGrupo.get(key);
+            if (bucket) bucket.push(d);
+            else porGrupo.set(key, [d]);
+          }
+          const fechaMs = (d: (typeof unique)[number]) => dateUtils.toMs(d.fecha) ?? 0;
+          const grupos = [...porGrupo.entries()]
+            .map(([key, versiones]) => {
+              const ordenadas = [...versiones].sort((a, b) => fechaMs(b) - fechaMs(a));
+              const actual = ordenadas.find((d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) ?? ordenadas[0]!;
+              const anteriores = ordenadas.filter((d) => d.url !== actual.url);
+              const etiqueta = key === "contrato-admin"
+                ? "Contrato (administrador)"
+                : key === "contrato-firmado"
+                  ? "Contrato firmado (cliente)"
+                  : etiquetaRequisito(actual.requisito) ?? actual.nombre;
+              return { key, actual, anteriores, etiqueta, fecha: fechaMs(ordenadas[0]!) };
+            })
+            .sort((a, b) => {
+              const orden = (k: string) => k === "contrato-admin" ? 0 : k === "contrato-firmado" ? 1 : 2;
+              return orden(a.key) - orden(b.key) || b.fecha - a.fecha;
+            });
+
           if (unique.length === 0) return null;
+
+          const accionesDoc = (doc: (typeof unique)[number]) => (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                title="Vista previa"
+                onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Descargar" asChild>
+                <a href={doc.url} download={doc.nombre}>
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Abrir en otra pestana" asChild>
+                <a href={doc.url} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </Button>
+            </div>
+          );
 
           return (
             <div className="border-t border-border pt-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Documentos adjuntos</h4>
-                <span className="text-[11px] text-muted-foreground">{unique.length} archivo(s)</span>
+                <span className="text-[11px] text-muted-foreground">{grupos.length} documento(s) · {unique.length} archivo(s)</span>
               </div>
-              <div className="space-y-1">
-                {unique.map((doc, i) => {
-                  const esContrato = doc.url === contratoUrl || doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
-                  const requisitoLabel = etiquetaRequisito(doc.requisito);
-                  const etiqueta = esContrato
-                    ? "Contrato"
-                    : doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO
-                      ? "Documento adjunto"
-                      : doc.origen === "reevaluacion"
-                        ? "Re-evaluacion"
-                        : "Documento adjunto";
+              {isAdmin && contratoAdminObservado && (
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                  <p className="text-[11px] text-foreground">
+                    El contrato fue observado. Genera la version corregida para que el cliente la firme.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
+                    disabled={regenerandoContrato}
+                    onClick={() => { void regenerarContratoGenerado(); }}
+                  >
+                    {regenerandoContrato ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    <span>Regenerar contrato (plantilla)</span>
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-2">
+                {grupos.map((grupo) => {
+                  const actual = grupo.actual;
+                  const abierto = Boolean(versionesAbiertas[grupo.key]);
+                  const actualActivo = !actual.estado || actual.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
                   return (
                     <div
-                      key={i}
-                      className="group flex items-center gap-2 rounded-lg border border-border bg-secondary px-2.5 py-2 text-xs transition-colors hover:border-success/30 hover:bg-success/10"
+                      key={grupo.key}
+                      className={`overflow-hidden rounded-xl border ${
+                        grupo.key === "contrato-admin"
+                          ? "border-info/40 bg-info/5"
+                          : grupo.key === "contrato-firmado"
+                            ? "border-success/40 bg-success/5"
+                            : "border-border/70 bg-secondary/40"
+                      }`}
                     >
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-success" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-foreground group-hover:text-success">{doc.nombre}</p>
-                        {requisitoLabel && (
-                          <p className="truncate text-[10px] text-muted-foreground">{requisitoLabel}</p>
-                        )}
-                        {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
-                          <p className="truncate text-[10px] text-warning">
-                            Observado{doc.motivoObservacion ? `: ${doc.motivoObservacion}` : ""}
+                      <div className="flex flex-wrap items-center gap-2.5 px-3 py-2.5 text-xs sm:flex-nowrap">
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-foreground">{grupo.etiqueta}</p>
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {grupo.key === "contrato-admin" && "Emitido por el IIMP · "}
+                            {grupo.key === "contrato-firmado" && "Firmado por el cliente · "}
+                            {actual.nombre}
                           </p>
+                          {actual.motivoObservacion && actual.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                            <p className="truncate text-[10px] text-warning">Observado: {actual.motivoObservacion}</p>
+                          )}
+                        </div>
+                        {actualActivo && (
+                          <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
+                            <span>Actual</span>
+                          </Badge>
                         )}
-                        {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
-                          <p className="truncate text-[10px] text-muted-foreground">Reemplazado por una version nueva</p>
+                        {actual.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                          <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
+                            <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span>
+                          </Badge>
                         )}
+                        {actual.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                          <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
+                            <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span>
+                          </Badge>
+                        )}
+                        {puedeObservar && actual.id && actualActivo && Boolean(actual.userId) && (
+                          <label className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${docsObservar.includes(actual.id) ? "border-primary bg-primary/10 text-primary" : "border-primary/40 text-primary hover:bg-primary/5"}`}>
+                            <input
+                              type="checkbox"
+                              checked={docsObservar.includes(actual.id)}
+                              onChange={() => toggleObservar(actual.id as string)}
+                              className="h-3 w-3 accent-primary"
+                            />
+                            <span>Observar</span>
+                          </label>
+                        )}
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{actual.fecha ? dateUtils.formatDateTime(actual.fecha) : "-"}</span>
+                        {accionesDoc(actual)}
                       </div>
-                      <Badge className={`pointer-events-none shrink-0 text-[9px] ${esContrato ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
-                        <span>{etiqueta}</span>
-                      </Badge>
-                      {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
-                        <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
-                          <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span>
-                        </Badge>
+                      {grupo.anteriores.length > 0 && (
+                        <>
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between border-t border-border/60 bg-muted/30 px-3 py-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            onClick={() => setVersionesAbiertas((prev) => ({ ...prev, [grupo.key]: !prev[grupo.key] }))}
+                          >
+                            <span>{abierto ? "Ocultar" : "Ver"} versiones anteriores ({grupo.anteriores.length})</span>
+                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${abierto ? "rotate-180" : ""}`} />
+                          </button>
+                          {abierto && (
+                            <div className="divide-y divide-border/60">
+                              {grupo.anteriores.map((doc) => (
+                                <div key={doc.url} className="flex flex-wrap items-center gap-2.5 px-3 py-2 text-[11px] sm:flex-nowrap">
+                                  <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-muted-foreground">{doc.nombre}</p>
+                                    {doc.motivoObservacion && (
+                                      <p className="truncate text-[10px] text-warning">{doc.motivoObservacion}</p>
+                                    )}
+                                  </div>
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                      <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span>
+                                    </Badge>
+                                  )}
+                                  {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
+                                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
+                                      <span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span>
+                                    </Badge>
+                                  )}
+                                  <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "-"}</span>
+                                  {accionesDoc(doc)}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
-                      {puedeObservar && doc.id && (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
-                        <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-warning/40 px-2 py-0.5 text-[10px] font-medium text-warning">
-                          <input
-                            type="checkbox"
-                            checked={docsObservar.includes(doc.id)}
-                            onChange={() => toggleObservar(doc.id as string)}
-                            className="h-3 w-3 accent-amber-500"
-                          />
-                          <span>Observar</span>
-                        </label>
-                      )}
-                      <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "—"}</span>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                          title="Vista previa"
-                          onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                          title="Descargar"
-                          asChild
-                        >
-                          <a href={doc.url} download={doc.nombre}>
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                          title="Abrir en otra pestaña"
-                          asChild
-                        >
-                          <a href={doc.url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                      </div>
                     </div>
                   );
                 })}
@@ -506,10 +608,6 @@ export function SolicitudReview({
             </div>
           );
         })()}
-      </div>
-
-      {/* ===== BODY ===== */}
-      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {submitError && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {submitError}
@@ -717,48 +815,57 @@ export function SolicitudReview({
                 <p className="mt-1 text-[11px] text-destructive font-medium">{validationErrors[currentArea]}</p>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {editing && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs font-medium"
-                  onClick={() => setEditing(false)}
-                >
-                  <span>Cancelar</span>
-                </Button>
-              )}
+            {docsObservar.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Tienes {docsObservar.length} documento(s) marcados para observar. Desmarca para aprobar o rechazar.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
-                variant="destructive"
-                disabled={!!submitting}
-                className="gap-1.5 text-xs font-medium"
+                variant="outline"
+                disabled={!!submitting || docsObservar.length > 0}
+                title={docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
+                className="gap-1.5 border-destructive/40 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive disabled:border-border disabled:text-muted-foreground"
                 onClick={handleRechazar}
               >
                 <XCircle className="h-3.5 w-3.5" />
                 <span>{submitting === currentArea ? "..." : "Rechazar"}</span>
               </Button>
-              {currentArea === REVISION_AREAS.ASOCIADO && (
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {editing && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs font-medium"
+                    onClick={() => setEditing(false)}
+                  >
+                    <span>Cancelar</span>
+                  </Button>
+                )}
+                {currentArea === REVISION_AREAS.ASOCIADO && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!!submitting}
+                    className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
+                    onClick={handleObservar}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>{submitting === currentArea ? "..." : `Observar${docsObservar.length > 0 ? ` (${docsObservar.length})` : ""}`}</span>
+                  </Button>
+                )}
                 <Button
                   size="sm"
-                  variant="outline"
-                  disabled={!!submitting}
-                  className="gap-1.5 border-warning/40 text-xs font-medium text-warning hover:bg-warning/10"
-                  onClick={handleObservar}
+                  disabled={!!submitting || docsObservar.length > 0}
+                  title={docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
+                  className="gap-1.5 text-xs font-semibold"
+                  onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
                 >
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  <span>{submitting === currentArea ? "..." : `Observar${docsObservar.length > 0 ? ` (${docsObservar.length})` : ""}`}</span>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>{submitting === currentArea ? "..." : "Aprobar"}</span>
                 </Button>
-              )}
-              <Button
-                size="sm"
-                disabled={!!submitting}
-                className="gap-1.5 text-xs font-semibold"
-                onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{submitting === currentArea ? "..." : "Aprobar"}</span>
-              </Button>
+              </div>
             </div>
           </div>
         )}
@@ -870,7 +977,7 @@ export function SolicitudReview({
             </Button>
             <Button
               size="sm"
-              className="border-warning/40 bg-warning text-xs font-medium text-foreground hover:bg-warning/90"
+              className="text-xs font-medium"
               onClick={() => {
                 setConfirmObservar(false);
                 handleReview(currentArea, RESULTADOS_APROBACION.OBSERVADO);
@@ -908,6 +1015,8 @@ export function SolicitudReview({
               className="text-xs font-medium"
               onClick={() => {
                 if (confirmReject) {
+                  /* Un rechazo no lleva documentos marcados: se limpian. */
+                  setDocsObservar([]);
                   handleReview(confirmReject.area, confirmReject.accion);
                   setConfirmReject(null);
                 }

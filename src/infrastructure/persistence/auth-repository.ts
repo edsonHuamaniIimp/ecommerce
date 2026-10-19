@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/server/db";
 import { esHash, hashPassword } from "@/lib/server/utils/password";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 /** Blindaje: cualquier contrasena que llegue en texto plano se hashea antes de persistir. */
 function hashearSiHaceFalta(password: string): string {
@@ -117,7 +118,7 @@ export class AuthPrismaRepository implements IAuthRepository {
       update: {},
       create: {
         tipoEvento, codigoEvento,
-        anio: String(new Date().getFullYear()),
+        anio: String(dateUtils.currentYear()),
         eventoPadreId: await this.ensureEventoPadre(tipoEvento),
       },
       select: { id: true },
@@ -192,7 +193,7 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async findByResetToken(token: string) {
     return prisma.userRole.findFirst({
-      where: { resetToken: token, resetTokenExpires: { gte: new Date() } },
+      where: { resetToken: token, resetTokenExpires: { gte: dateUtils.now() } },
       select: { id: true },
     });
   }
@@ -245,6 +246,12 @@ export class AuthPrismaRepository implements IAuthRepository {
         data: { userId: nuevoUserId },
       });
 
+      /* Bandeja de notificaciones: las alertas tambien se amarran al userId. */
+      await tx.alerta.updateMany({
+        where: { userId },
+        data: { userId: nuevoUserId },
+      });
+
       /* Auditoria visible (uploadedBy): solo documentos de estas solicitudes. */
       if (emailAnterior && solicitudIds.length > 0) {
         await tx.solicitudDocumento.updateMany({
@@ -275,7 +282,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   /** Reactiva las cuentas cuya reactivacion programada ya vencio (desactivacion masiva). */
   async reactivarCuentasProgramadas(): Promise<number> {
     const resultado = await prisma.userRole.updateMany({
-      where: { flgActivo: false, reactivarEn: { lte: new Date() } },
+      where: { flgActivo: false, reactivarEn: { lte: dateUtils.now() } },
       data: { flgActivo: true, reactivarEn: null },
     });
     return resultado.count;

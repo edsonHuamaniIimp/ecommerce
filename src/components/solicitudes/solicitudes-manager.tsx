@@ -1094,7 +1094,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
       {/* Review dialog */}
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
+        <DialogContent className="sm:max-w-3xl max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
           {loadingDetail ? (
             <div className="flex items-center justify-center py-16">
               <p className="text-sm text-muted-foreground">Cargando solicitud...</p>

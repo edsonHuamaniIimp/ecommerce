@@ -118,6 +118,7 @@ class InMemorySolicitudesRepository {
         { id: "d1", url: "/uploads/anexo-1.pdf", nombre: "anexo-1.pdf", userId: "user-1", uploadedBy: "contacto@expositor.pe", categoria: null, requisito: null, createdAt: new Date() },
       ],
       updatedAt: new Date("2026-09-15T00:00:00.000Z"),
+      createdAt: new Date("2026-09-15T00:00:00.000Z"),
       revisiones: [...this.revisiones.values()],
       reevaluaciones: [],
       revisionAsociado: this.revisiones.get(REVISION_AREAS.ASOCIADO) ?? null,

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, AlertCircle, PenLine } from "lucide-react";
+import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -23,10 +23,10 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, ANEXOS_REQUERIDOS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoReservaPendienteFirma, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -50,11 +50,64 @@ function faltanAnexosReserva(row: SolicitudRow) {
   return enVentanaContratoReserva(row) && anexosBloqueantesFaltantes(row.docsAdjuntos).length > 0;
 }
 
+/** Estado de la subsanacion local: que falta reemplazar/firmar y si ya se puede reenviar. */
+/** Solo se puede eliminar lo subido en la iteracion actual (posterior a la ultima revision). */
+function puedeEliminarDocumentoActual(row: SolicitudRow, doc: SolicitudRow["docsAdjuntos"][number]) {
+  if (doc.estado && doc.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) return false;
+  const ultimaRevision = (row.revisiones ?? []).reduce<string | Date | null>(
+    (ultima, r) => (!ultima || dateUtils.isAfter(r.updatedAt, ultima) ? r.updatedAt : ultima),
+    null,
+  );
+  return !ultimaRevision || dateUtils.isAfter(doc.createdAt, ultimaRevision);
+}
+
+function accionesObservacion(row: SolicitudRow) {
+  const docs = row.docsAdjuntos ?? [];
+  const observados = docs.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+  const activo = (d: { estado?: string | null }) =>
+    !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+  const contratoAdminObservado = observados.some(
+    (d) => d.userId === null && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+  );
+  const adminContratoVigente = docs
+    .filter((d) => activo(d) && d.userId === null && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO)
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  const firmadoVigente = docs
+    .filter((d) => activo(d) && d.userId === row.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  /* El admin ya subio una version corregida que el cliente aun no firma. */
+  const contratoCorregidoPendienteFirma = adminContratoVigente
+    ? (!firmadoVigente || dateUtils.isBefore(firmadoVigente.createdAt, adminContratoVigente.createdAt))
+    : false;
+  const pendientesReemplazo = observados.filter(
+    (obs) =>
+      !docs.some(
+        (d) =>
+          activo(d) &&
+          (d.categoria ?? null) === (obs.categoria ?? null) &&
+          (d.requisito ?? null) === (obs.requisito ?? null) &&
+          dateUtils.isAfter(d.createdAt, obs.createdAt),
+      ),
+  );
+  return {
+    observados,
+    pendientesReemplazo,
+    contratoAdminObservado,
+    adminContratoVigente,
+    contratoCorregidoPendienteFirma,
+    faltaFirmaContrato: contratoCorregidoPendienteFirma,
+    tieneAnexosObservados: observados.some(
+      (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    ),
+    tieneFirmadoObservado: observados.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO),
+  };
+}
+
 /** Documento del administrador mas reciente (contrato vigente para descargar). */
 function adminDocReciente(row: SolicitudRow) {
   return [...(row.docsAdjuntos ?? [])]
     .filter((d) => d.userId === null)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0] ?? null;
 }
 
 /** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
@@ -406,7 +459,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <Dato label="Empresa" valor={row.empresa} />
                         <Dato label="Precio" valor={precioTexto(row.precio)} />
                         <Dato label="Estado del stand" valor={row.estado} />
-                        <Dato label="Documentos" valor={`${(row.documentos as string[])?.length ?? 0}`} />
+                        <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
                         <Dato label="Ubicacion" valor={row.ubicacion} />
                         <Dato label="Tipo" valor={row.tipoStand} />
@@ -463,6 +516,27 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         </p>
                       )}
 
+                      {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                        const a = accionesObservacion(row);
+                        return (
+                          <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+                            <span className="font-semibold">Accion requerida: </span>
+                            {a.contratoCorregidoPendienteFirma
+                              ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
+                              : a.contratoAdminObservado && !a.adminContratoVigente
+                                ? "El contrato fue observado. Espera la version corregida del administrador."
+                                : a.observados.length === 0
+                                  ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
+                                  : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
+                            {row.revisionAsociado?.comentario && (
+                              <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                                {row.revisionAsociado.comentario}
+                              </span>
+                            )}
+                          </p>
+                        );
+                      })()}
+
                       <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                           <Paperclip className="h-3.5 w-3.5" />
@@ -479,7 +553,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Pagar ahora</span>
                             </Button>
                           )}
-                          {enVentanaContratoReserva(row) && (
+                          {contratoReservaPendienteFirma(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
@@ -506,6 +580,46 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Esperando contrato corregido</span>
                             </Badge>
                           )}
+                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                            const a = accionesObservacion(row);
+                            return (
+                              <>
+                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados || a.tieneFirmadoObservado) && (
+                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
+                                    onClick={() => {
+                                      const modo = a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado ? "contrato" : "anexos";
+                                      void openClienteUpload(row, modo);
+                                    }}>
+                                    {a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado
+                                      ? <PenLine className="h-3.5 w-3.5" />
+                                      : <Upload className="h-3.5 w-3.5" />}
+                                    <span>Subsanar observacion</span>
+                                  </Button>
+                                )}
+                                {a.contratoAdminObservado && !a.adminContratoVigente && (
+                                  <Button size="sm" variant="outline" disabled className="w-full justify-center gap-1.5 sm:w-auto">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>Esperando contrato corregido</span>
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline"
+                                  className="w-full justify-center gap-1.5 sm:w-auto"
+                                  disabled={reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  onClick={() => { void handleReenviarObservacion(row); }}>
+                                  {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                  <span>
+                                    {reenviandoObservacion
+                                      ? "Reenviando..."
+                                      : a.faltaFirmaContrato
+                                        ? "Falta firmar contrato"
+                                        : a.pendientesReemplazo.length > 0
+                                          ? `Falta subir ${a.pendientesReemplazo.length}`
+                                          : "Reenviar a revision"}
+                                  </span>
+                                </Button>
+                              </>
+                            );
+                          })()}
                           <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                         </div>
                       </div>
@@ -566,7 +680,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Pagar ahora</span>
                               </Button>
                             )}
-                            {enVentanaContratoReserva(row) && (
+                            {contratoReservaPendienteFirma(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
@@ -593,7 +707,47 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Esperando contrato corregido</span>
                               </Badge>
                             )}
-                            <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
+                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                            const a = accionesObservacion(row);
+                            return (
+                              <>
+                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados || a.tieneFirmadoObservado) && (
+                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
+                                    onClick={() => {
+                                      const modo = a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado ? "contrato" : "anexos";
+                                      void openClienteUpload(row, modo);
+                                    }}>
+                                    {a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado
+                                      ? <PenLine className="h-3.5 w-3.5" />
+                                      : <Upload className="h-3.5 w-3.5" />}
+                                    <span>Subsanar observacion</span>
+                                  </Button>
+                                )}
+                                {a.contratoAdminObservado && !a.adminContratoVigente && (
+                                  <Button size="sm" variant="outline" disabled className="w-full justify-center gap-1.5 sm:w-auto">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>Esperando contrato corregido</span>
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline"
+                                  className="w-full justify-center gap-1.5 sm:w-auto"
+                                  disabled={reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  onClick={() => { void handleReenviarObservacion(row); }}>
+                                  {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                  <span>
+                                    {reenviandoObservacion
+                                      ? "Reenviando..."
+                                      : a.faltaFirmaContrato
+                                        ? "Falta firmar contrato"
+                                        : a.pendientesReemplazo.length > 0
+                                          ? `Falta subir ${a.pendientesReemplazo.length}`
+                                          : "Reenviar a revision"}
+                                  </span>
+                                </Button>
+                              </>
+                            );
+                          })()}
+                          <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                           </div>
                         </TableCell>
                       </TableRow>
@@ -753,7 +907,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
               {/* Documentos */}
               {((!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0) || (detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0) ? (
-                <ModalSection title="Expediente y documentacion" meta={`${detailRow.standCodes?.length > 1 ? (detailRow.docsAdjuntosCount ?? 0) : (detailRow.documentos as string[]).length} documento(s)`}>
+                <ModalSection title="Expediente y documentacion" meta={`${(detailRow.docsAdjuntosCount ?? 0) + ((detailRow.documentos as string[])?.length ?? 0)} documento(s)`}>
                   {detailRow.sgcDocumentosEnviados && (
                     <p className="mb-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-1.5 text-[11px] text-muted-foreground">
                       Documentos ya enviados al SGC. No se pueden modificar.
@@ -774,8 +928,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   {/* Multi-stand */}
                   {detailRow.docsAdjuntos && detailRow.docsAdjuntos.length > 0 && (() => {
                     const adminDocs = detailRow.docsAdjuntos.filter(doc => doc.userId !== detailRow.userId);
-                    const contratoFirmado = detailRow.docsAdjuntos.filter(doc => doc.userId === detailRow.userId && doc.categoria === "contrato_firmado");
-                    const anexosCliente = detailRow.docsAdjuntos.filter(doc => doc.userId === detailRow.userId && doc.categoria !== "contrato_firmado");
+                    const contratoFirmado = detailRow.docsAdjuntos.filter(doc => doc.userId === detailRow.userId && doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+                    const anexosCliente = detailRow.docsAdjuntos.filter(doc => doc.userId === detailRow.userId && doc.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
                     return (
                       <div className="space-y-2">
                         {adminDocs.length > 0 && (
@@ -813,7 +967,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  {(!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
+                                  {puedeEliminarDocumentoActual(detailRow, doc) && (
                                     <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
                                       onClick={(e) => {
                                         e.preventDefault();
@@ -845,7 +999,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  {(!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (
+                                  {puedeEliminarDocumentoActual(detailRow, doc) && (
                                     <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
                                       onClick={(e) => {
                                         e.preventDefault();
@@ -865,84 +1019,6 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                 </ModalSection>
               ) : null}
 
-              {/* Solicitud observada por Asociado: reemplazar documentos y reenviar */}
-              {detailRow.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && detailRow.flgActivo !== false && (() => {
-                const docs = detailRow.docsAdjuntos ?? [];
-                const observados = docs.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
-                /* Reenvio solo cuando TODOS los observados tienen una version nueva vigente. */
-                const pendientesReemplazo = observados.filter(
-                  (obs) =>
-                    !docs.some(
-                      (d) =>
-                        (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
-                        (d.categoria ?? null) === (obs.categoria ?? null) &&
-                        (d.requisito ?? null) === (obs.requisito ?? null) &&
-                        new Date(d.createdAt).getTime() > new Date(obs.createdAt).getTime(),
-                    ),
-                );
-                return (
-                  <ModalSection title="Accion requerida">
-                    <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-warning">Documentos observados</p>
-                          <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
-                            El area revisora observo documentos de tu solicitud. Sube una nueva version de cada documento
-                            observado y reenvia la solicitud a revision.
-                          </p>
-                          {observados.length > 0 && (
-                            <ul className="mt-1.5 space-y-1">
-                              {observados.map((d) => (
-                                <li key={d.id} className="text-[11px] text-foreground">
-                                  <span className="font-medium">{ANEXOS_REQUERIDOS.find((a) => a.key === d.requisito)?.label ?? d.nombre}</span>
-                                  {d.motivoObservacion && <span className="text-muted-foreground"> – {d.motivoObservacion}</span>}
-                                  {d.userId === null && (
-                                    <span className="block text-[10px] text-muted-foreground">
-                                      La nueva version de este documento la sube el administrador.
-                                    </span>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        {observados.some((d) => d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && d.userId !== null) && (
-                          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
-                            <Upload className="h-3.5 w-3.5" />
-                            <span>Subir nueva version</span>
-                          </Button>
-                        )}
-                        {observados.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) && (
-                          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
-                            <PenLine className="h-3.5 w-3.5" />
-                            <span>Firmar y subir contrato</span>
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 text-xs"
-                          disabled={reenviandoObservacion || observados.length === 0 || pendientesReemplazo.length > 0}
-                          onClick={() => { void handleReenviarObservacion(detailRow); }}
-                        >
-                          {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                          <span>
-                            {reenviandoObservacion
-                              ? "Reenviando..."
-                              : pendientesReemplazo.length > 0
-                                ? `Falta subir ${pendientesReemplazo.length} documento(s)`
-                                : "Reenviar a revision"}
-                          </span>
-                        </Button>
-                      </div>
-                    </div>
-                  </ModalSection>
-                );
-              })()}
-
               {/* Esperando Contrato */}
               {detailRow.standCodes?.length > 1 && detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && (detailRow.docsAdjuntosCount ?? 0) === 0 && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
@@ -957,14 +1033,14 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Contrato disponible: el cliente debe firmar y subirlo */}
-              {detailRow && enVentanaContratoReserva(detailRow) && detailRow.flgActivo !== false && (
+              {detailRow && contratoReservaPendienteFirma(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/10 p-3">
                     <div className="flex items-start gap-3">
                       <FileText className="mt-0.5 h-4 w-4 shrink-0 text-info" />
                       <div>
                         <p className="text-xs font-semibold text-info">Contrato disponible</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">La administracion subio el contrato de tu solicitud multiple. Descargalo, firmalo y sube el contrato firmado para continuar con el proceso.</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">La administracion subio el contrato de tu solicitud. Descargalo, firmalo y sube el contrato firmado para continuar con el proceso.</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -1240,7 +1316,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
       {/* Cliente upload dialog */}
       <Dialog open={clienteUploadOpen} onOpenChange={setClienteUploadOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
           {clienteUploadRow && (
             <ClienteUploadModal
               solicitud={clienteUploadRow}
@@ -1257,7 +1333,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
       {/* Modificar dialog */}
       <Dialog open={modificarOpen} onOpenChange={setModificarOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
           {detailRow && (
             <ModificarSolicitudModal
               standCode={detailRow.standCode}

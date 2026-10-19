@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Button, Label, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, FileText, Upload, X, Trash2, PenLine } from "lucide-react";
+import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 interface Props {
@@ -19,6 +20,14 @@ interface Props {
 }
 
 /** Archivo elegido aun no enviado: su URL y el requisito que cubre (null = otro anexo). */
+/** Tipo de vista previa segun la extension del archivo. */
+function tipoPreview(url: string): "pdf" | "imagen" | "otro" {
+  const ext = url.split("?")[0]?.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "pdf";
+  if (["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) return "imagen";
+  return "otro";
+}
+
 interface Pendiente {
   url: string;
   requisito: string | null;
@@ -30,6 +39,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
+  /** Corte de la iteracion actual: solo se elimina lo subido despues de la ultima revision. */
+  const ultimaRevision = (solicitud.revisiones ?? []).reduce<string | Date | null>(
+    (ultima, r) => (!ultima || dateUtils.isAfter(r.updatedAt, ultima) ? r.updatedAt : ultima),
+    null,
+  );
+  const puedeEliminarDoc = (doc: { estado?: string | null; createdAt: string | Date }) =>
+    (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+    (!ultimaRevision || dateUtils.isAfter(doc.createdAt, ultimaRevision));
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const requisitoRef = useRef<string | null>(null);
@@ -100,10 +118,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
   const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
     .filter(d => d.userId !== solicitud.userId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0));
   /* Contrato mas reciente del admin/contrato generado por el sistema: habilita la firma digital. */
-  const contratoAdmin = esContrato ? adminDocs.find(d => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null) : null;
-  const puedeFirmarDigital = contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO;
+  const contratoAdmin = esContrato
+    ? adminDocs.find(d => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null))
+    : null;
+
 
   /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma del perfil. */
   const handleFirmarDigital = async () => {
@@ -131,6 +151,33 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId);
   const firmados = misDocs.filter(d => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
   const anexos = misDocs.filter(d => d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+  const firmadoActivo = firmados
+    .filter(d => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO)
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  /* La firma vigente es anterior al contrato corregido: hay que volver a firmar. */
+  const firmadoAnterior = Boolean(
+    contratoAdmin && firmadoActivo &&
+    dateUtils.isBefore(firmadoActivo.createdAt, contratoAdmin.createdAt),
+  );
+  const firmaManualPendiente = pendientes.some(p => !p.requisito);
+  const firmaManualVigente = Boolean(
+    contratoAdmin && firmadoActivo &&
+    dateUtils.isSameOrAfter(firmadoActivo.createdAt, contratoAdmin.createdAt),
+  );
+  /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
+  const puedeFirmarDigital = contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO &&
+    !firmaManualVigente && !firmaManualPendiente;
+  const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
+  const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+  const faltanObs = observadosAnexos.filter((obs) => {
+    const reemplazo = anexos.some((d) =>
+      (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+      (d.categoria ?? null) === (obs.categoria ?? null) &&
+      (d.requisito ?? null) === (obs.requisito ?? null) &&
+      dateUtils.isAfter(d.createdAt, obs.createdAt));
+    const pendiente = pendientes.some((p) => (p.requisito ?? null) === (obs.requisito ?? null));
+    return !reemplazo && !pendiente;
+  });
   const otrosDocs = (esContrato ? firmados : anexos)
     .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
   /** Contrato firmado observado por el revisor: se debe subir una nueva version. */
@@ -153,6 +200,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                 Tu contrato firmado fue observado{firmadoObservado.motivoObservacion ? `: ${firmadoObservado.motivoObservacion}` : "."}{" "}
                 Descarga el contrato vigente, firmalo de nuevo y sube la version corregida.
               </p>
+            ) : (firmaManualVigente || firmaManualPendiente) ? (
+              <p className="text-[11px] font-semibold text-foreground">
+                Ya tienes una firma manual vigente. Si deseas firmar digitalmente, elimina primero esa firma.
+              </p>
             ) : puedeFirmarDigital ? (
               <p className="text-[11px] font-semibold text-foreground">
                 Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de tu perfil, o descargarlo, firmarlo y subir tu versión firmada.
@@ -169,10 +220,63 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             </p>
           )}
         </div>
+        {solicitud.revisionAsociado?.comentario && (
+          <div className="mt-2 rounded-md border border-border bg-muted/40 px-2.5 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Observacion del area revisora
+            </p>
+            <p className="mt-0.5 text-[11px] text-foreground">{solicitud.revisionAsociado.comentario}</p>
+          </div>
+        )}
+        {esContrato && contratoAdmin && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                  Contrato vigente del administrador
+                </p>
+                <Badge className="pointer-events-none text-[9px] bg-primary/10 text-primary border-primary/20">
+                  <span>Version vigente</span>
+                </Badge>
+              </div>
+              <p className="truncate text-[11px] font-medium text-foreground">{contratoAdmin.nombre}</p>
+              <p className="text-[10px] text-muted-foreground">{dateUtils.formatDateTime(contratoAdmin.createdAt)}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
+                title="Vista previa"
+                onClick={() => setPreviewDoc({ url: contratoAdmin.url, nombre: contratoAdmin.nombre })}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+              <a
+                href={contratoAdmin.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+              >
+                <Eye className="h-3 w-3" />
+                <span>Ver</span>
+              </a>
+              <a
+                href={contratoAdmin.url}
+                download
+                className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+              >
+                <Download className="h-3 w-3" />
+                <span>Descargar</span>
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
-        {adminDocs.length > 0 && (
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-5">
+        {!esContrato && adminDocs.length > 0 && (
           <div>
             <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
             <div className="space-y-1 rounded-md border bg-secondary p-2">
@@ -191,16 +295,26 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         )}
 
         {(
-          <div>
-            <Label className="text-xs mb-1 block">{esContrato ? "Documentos requeridos (anexos del contrato)" : "Documentos requeridos"}</Label>
+          <div className="space-y-2 rounded-xl border border-border/70 p-3">
+            <div>
+              <Label className="text-xs">{esContrato ? "Documentos requeridos (anexos del contrato)" : "Documentos requeridos"}</Label>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {esContrato
+                  ? "Anexos que acompanan al contrato firmado; adjunta los que fueron observados."
+                  : "Adjunta los documentos solicitados por el area revisora."}
+              </p>
+            </div>
             <div className="space-y-1">
               {ANEXOS_REQUERIDOS.map((a) => {
                 const existente = anexos.find(d => d.requisito === a.key && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
                 const observado = anexos.find(d => d.requisito === a.key && d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+                const motivoPropio = observado?.motivoObservacion?.trim() && observado.motivoObservacion.trim() !== motivoGeneral
+                  ? observado.motivoObservacion.trim()
+                  : null;
                 const idxPendiente = pendientes.findIndex(p => p.requisito === a.key);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
-                  <div key={a.key} className="flex items-center gap-2 rounded-md border px-2.5 py-2 text-xs">
+                  <div key={a.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${!existente && observado ? "border-warning/50 bg-warning/5" : "border-border/70 bg-background"}`}>
                     {existente
                       ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -211,9 +325,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                       )}
                       {!existente && observado && (
                         <span className="block text-[10px] text-warning">
-                          Observado{observado.motivoObservacion ? `: ${observado.motivoObservacion}` : ""} — sube una nueva version
+                          Observado{motivoPropio ? `: ${motivoPropio}` : ""} — sube una nueva version
                         </span>
                       )}
+                      
                     </span>
                     {existente ? (
                       <a href={existente.url} target="_blank" className="shrink-0 text-primary hover:underline">Ver</a>
@@ -237,19 +352,34 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </div>
         )}
 
-        <div>
-          <Label className="text-xs mb-1 block">{esContrato ? "Tu contrato firmado" : "Otros documentos (opcional)"}</Label>
+        <div className="space-y-2 rounded-xl border border-border/70 p-3">
+          <Label className="text-xs">
+            {esContrato ? (firmadoAnterior ? "Tu firma anterior" : "Tu contrato firmado") : "Otros documentos (opcional)"}
+          </Label>
+          {esContrato && firmadoAnterior && (
+            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+              Firmaste el {dateUtils.formatDateTime(firmadoActivo?.createdAt)}; la version vigente es del{" "}
+              {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Descarga la version vigente y firmala de nuevo.
+            </p>
+          )}
           {otrosDocs.length > 0 && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
               {otrosDocs.map((doc) => (
                 <div key={doc.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
                   <FileText className="h-3 w-3 text-muted-foreground" />
                   <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+                  {firmadoAnterior && doc.id === firmadoActivo?.id && (
+                    <Badge className="pointer-events-none shrink-0 text-[9px] bg-muted text-muted-foreground border-border">
+                      <span>Version anterior</span>
+                    </Badge>
+                  )}
                   {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                  <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
-                    onClick={() => setDeleteConfirm(doc.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  {puedeEliminarDoc(doc) && (
+                    <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
+                      onClick={() => setDeleteConfirm(doc.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -272,16 +402,23 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             if (file) handleUpload(file);
             e.target.value = "";
           }} />
-          <Button variant="outline" size="sm" className="rounded-full text-xs" disabled={uploading} onClick={() => abrirSelector(null)}>
-            <Upload className="mr-1 h-3 w-3" />
-            {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
-          </Button>
-          {esContrato && puedeFirmarDigital && (
-            <Button size="sm" className="ml-2 rounded-full text-xs font-semibold" disabled={uploading || sending} onClick={() => { void handleFirmarDigital(); }}>
-              <PenLine className="mr-1 h-3 w-3" />
-              {sending ? "Firmando..." : "Firmar digitalmente"}
-            </Button>
+          {faltanObs.length > 0 && (
+            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+              Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
+            </p>
           )}
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+            {esContrato && contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO && (
+              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={!puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
+                <PenLine className="mr-1 h-3 w-3" />
+                {sending ? "Firmando..." : "Firmar digitalmente"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="w-full rounded-full text-xs sm:w-auto" disabled={uploading} onClick={() => abrirSelector(null)}>
+              <Upload className="mr-1 h-3 w-3" />
+              {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -295,7 +432,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             Cancelar
           </Button>
           <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
-            disabled={sending || pendientes.length === 0} onClick={handleEnviar}>
+            disabled={sending || pendientes.length === 0 || faltanObs.length > 0}
+            title={faltanObs.length > 0 ? "Reemplaza todos los anexos observados antes de enviar" : undefined}
+            onClick={handleEnviar}>
             {sending ? "Enviando..." : "Enviar documentos"}
           </Button>
         </div>
@@ -318,6 +457,51 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               setDeleteConfirm(null);
             }}>Eliminar</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null); }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-6 text-sm font-semibold"><span>{previewDoc?.nombre ?? ""}</span></DialogTitle>
+          </DialogHeader>
+          {previewDoc && (
+            <div className="space-y-3">
+              {tipoPreview(previewDoc.url) === "pdf" && (
+                <iframe
+                  src={previewDoc.url}
+                  title={previewDoc.nombre}
+                  className="h-[65vh] w-full rounded-lg border border-border bg-white"
+                />
+              )}
+              {tipoPreview(previewDoc.url) === "imagen" && (
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.nombre}
+                  className="mx-auto max-h-[65vh] rounded-lg border border-border object-contain"
+                />
+              )}
+              {tipoPreview(previewDoc.url) === "otro" && (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  Vista previa no disponible para este formato. Descargalo o abrelo en otra pestana.
+                </p>
+              )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" className="text-xs" asChild>
+                  <a href={previewDoc.url} download={previewDoc.nombre}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    <span>Descargar</span>
+                  </a>
+                </Button>
+                <Button size="sm" className="text-xs" asChild>
+                  <a href={previewDoc.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    <span>Abrir en otra pestana</span>
+                  </a>
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

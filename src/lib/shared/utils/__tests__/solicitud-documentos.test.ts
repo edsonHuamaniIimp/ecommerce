@@ -10,6 +10,7 @@ import {
   faltanAnexosBloqueantes,
   hayContratoAdminNuevoParaFirmar,
   hayFirmadoPosteriorAlContratoCorregido,
+  contratoReservaPendienteFirma,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
@@ -288,5 +289,40 @@ describe("anexos requeridos (RF-13)", () => {
 
   it("tolera docs sin requisito (otros anexos)", () => {
     expect(faltanAnexosBloqueantes([doc(null)])).toBe(true);
+  });
+});
+
+describe("contratoReservaPendienteFirma", () => {
+  const admin = {
+    userId: null,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: "2026-10-18T10:00:00.000Z",
+  };
+  const firmado = (createdAt: string) => ({
+    userId: CLIENTE,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt,
+  });
+
+  it("pide firma si el cliente no firmo o firmo una version anterior", () => {
+    expect(contratoReservaPendienteFirma({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE, docsAdjuntos: [admin] })).toBe(true);
+    expect(contratoReservaPendienteFirma({
+      ...base,
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      docsAdjuntos: [admin, firmado("2026-10-17T10:00:00.000Z")],
+    })).toBe(true);
+  });
+
+  it("no pide firma si ya firmo la version vigente o la solicitud no esta pendiente", () => {
+    expect(contratoReservaPendienteFirma({
+      ...base,
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      docsAdjuntos: [admin, firmado("2026-10-19T10:00:00.000Z")],
+    })).toBe(false);
+    expect(contratoReservaPendienteFirma({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO, docsAdjuntos: [admin] })).toBe(false);
   });
 });

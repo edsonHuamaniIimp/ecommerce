@@ -9,6 +9,7 @@ import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { nombreCompleto } from "@/lib/shared/utils/nombre";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
@@ -274,11 +275,11 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
 
 /** Inicio/fin del dia en hora de Peru (UTC-5, sin horario de verano). */
 function inicioDiaLima(fecha: string): Date {
-  return new Date(`${fecha}T00:00:00.000-05:00`);
+  return dateUtils.toDate(`${fecha}T00:00:00.000-05:00`) ?? dateUtils.now();
 }
 
 function finDiaLima(fecha: string): Date {
-  return new Date(`${fecha}T23:59:59.999-05:00`);
+  return dateUtils.toDate(`${fecha}T23:59:59.999-05:00`) ?? dateUtils.now();
 }
 
 export class SolicitudesPrismaRepository implements ISolicitudesRepository {
@@ -652,7 +653,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
       await prisma.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
       for (const cuota of cuotasPlan) {
-        const fecha = cuota.fechaVencimiento ? new Date(`${cuota.fechaVencimiento}T00:00:00`) : null;
+        const fecha = cuota.fechaVencimiento ? dateUtils.toDate(cuota.fechaVencimiento) : null;
         const existente = await prisma.facturacionCuota.findFirst({
           where: { facturacionId: facturacion.id, numero: cuota.numero },
         });
@@ -695,8 +696,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         comentario: r.comentario,
         createdBy: r.createdBy,
         updatedBy: r.updatedBy,
-        createdAt: r.createdAt ?? new Date(),
-        updatedAt: r.updatedAt ?? new Date(),
+        createdAt: r.createdAt ?? dateUtils.now(),
+        updatedAt: r.updatedAt ?? dateUtils.now(),
         fuePrimeraRevision: false,
       })),
       historial: historial.map((h) => ({
@@ -720,7 +721,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   }
 
   async findDocumento(docId: string) {
-    const doc = await prisma.solicitudDocumento.findUnique({ where: { id: docId }, select: { id: true, userId: true } });
+    const doc = await prisma.solicitudDocumento.findUnique({ where: { id: docId }, select: { id: true, userId: true, solicitudId: true, createdAt: true, estado: true, flgActivo: true } });
     return doc ?? null;
   }
 
@@ -745,7 +746,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
         motivoObservacion: motivo,
         observadoPor,
-        observadoAt: new Date(),
+        observadoAt: dateUtils.now(),
       },
     });
     return r.count;
@@ -855,12 +856,36 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async upsertContratoSistema(solicitudId: string, url: string, nombre: string): Promise<void> {
     const existente = await prisma.solicitudDocumento.findFirst({
       where: { solicitudId, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, uploadedBy: "sistema", flgActivo: true },
-      select: { id: true },
+      select: { id: true, estado: true },
+      orderBy: { createdAt: "desc" },
     });
     if (existente) {
+      /*
+       * Si el contrato fue observado (o reemplazado), NO se sobrescribe: se conserva
+       * como historial (`reemplazado`) y se crea una version nueva activa para que
+       * el cliente la firme. Nunca se elimina el contrato anterior.
+       */
+      if (existente.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO || existente.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO) {
+        await prisma.solicitudDocumento.update({
+          where: { id: existente.id },
+          data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+        });
+        await prisma.solicitudDocumento.create({
+          data: {
+            solicitudId,
+            url,
+            nombre,
+            uploadedBy: "sistema",
+            userId: null,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+            origen: ORIGENES_DOCUMENTO.GENERADO,
+          },
+        });
+        return;
+      }
       await prisma.solicitudDocumento.update({
         where: { id: existente.id },
-        data: { url, nombre, origen: ORIGENES_DOCUMENTO.GENERADO, createdAt: new Date() },
+        data: { url, nombre, origen: ORIGENES_DOCUMENTO.GENERADO, createdAt: dateUtils.now() },
       });
       return;
     }

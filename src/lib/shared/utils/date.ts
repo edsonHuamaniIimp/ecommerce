@@ -100,6 +100,26 @@ export const dateUtils = {
     return dias / DIAS_PROMEDIO_MES;
   },
 
+  /** Milisegundos de una fecha; null si es invalida. */
+  toMs(valor: string | Date | null | undefined): number | null {
+    const fecha = aFecha(valor);
+    return fecha ? fecha.getTime() : null;
+  },
+
+  /** true si `fecha` es posterior a `referencia`. */
+  isAfter(fecha: string | Date | null | undefined, referencia: string | Date | null | undefined): boolean {
+    const a = dateUtils.toMs(fecha);
+    const b = dateUtils.toMs(referencia);
+    return a !== null && b !== null && a > b;
+  },
+
+  /** true si `fecha` es igual o posterior a `referencia`. */
+  isSameOrAfter(fecha: string | Date | null | undefined, referencia: string | Date | null | undefined): boolean {
+    const a = dateUtils.toMs(fecha);
+    const b = dateUtils.toMs(referencia);
+    return a !== null && b !== null && a >= b;
+  },
+
   /** true si `fecha` es anterior a `referencia`. */
   isBefore(fecha: string | Date | null | undefined, referencia: string | Date | null | undefined): boolean {
     const a = aFecha(fecha);

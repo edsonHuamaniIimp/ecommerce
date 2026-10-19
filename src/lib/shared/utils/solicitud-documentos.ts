@@ -1,5 +1,6 @@
 import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
+import { dateUtils } from "./date";
 
 interface RevisionLike {
   area: string;
@@ -50,8 +51,7 @@ export interface SolicitudDocumentosGate {
 
 /** Fecha (ms) de un documento; 0 si no es parseable. */
 function fechaDoc(doc: DocumentoLike): number {
-  const ms = doc.createdAt ? new Date(doc.createdAt).getTime() : 0;
-  return Number.isNaN(ms) ? 0 : ms;
+  return dateUtils.toMs(doc.createdAt) ?? 0;
 }
 
 /** Mas reciente primero. */
@@ -99,7 +99,7 @@ export function hayContratoAdminNuevoParaFirmar(s: SolicitudDocumentosGate): boo
     .sort(porFechaDesc)[0];
   if (!contratoAdmin) return false;
 
-  return fechaDoc(contratoAdmin) > fechaDoc(firmado);
+  return dateUtils.isAfter(contratoAdmin.createdAt, firmado.createdAt);
 }
 
 /**
@@ -128,9 +128,9 @@ export function hayFirmadoPosteriorAlContratoCorregido(s: SolicitudDocumentosGat
   /* La correccion debe ser posterior al firmado ANTERIOR: si el contrato del admin mas
    * nuevo es anterior al unico firmado, es el contrato original — todavia no hay una
    * version corregida que el cliente pueda volver a firmar. */
-  if (!firmadoAnterior || !(fechaDoc(contratoAdmin) > fechaDoc(firmadoAnterior))) return false;
+  if (!firmadoAnterior || !dateUtils.isAfter(contratoAdmin.createdAt, firmadoAnterior.createdAt)) return false;
 
-  return fechaDoc(firmado) > fechaDoc(contratoAdmin);
+  return dateUtils.isAfter(firmado.createdAt, contratoAdmin.createdAt);
 }
 
 /**
@@ -269,4 +269,24 @@ export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean
     requiereDocsReevaluacion(s) ||
     enVentanaObservacionLocal(s)
   );
+}
+
+/**
+ * El cliente aun debe firmar el contrato del administrador: hay contrato vigente
+ * mas nuevo que su ultimo firmado (o nunca firmo). Evita volver a pedir la firma
+ * cuando ya subio la version firmada de ese contrato.
+ */
+export function contratoReservaPendienteFirma(s: SolicitudDocumentosGate): boolean {
+  if (s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) return false;
+  const docs = s.docsAdjuntos ?? [];
+  const activo = (d: DocumentoLike) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+  const esContratoAdmin = (d: DocumentoLike) =>
+    d.userId === null &&
+    (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null || d.categoria === undefined);
+  const contratoAdmin = docs.filter((d) => activo(d) && esContratoAdmin(d)).sort(porFechaDesc)[0];
+  if (!contratoAdmin) return false;
+  const firmado = docs
+    .filter((d) => activo(d) && d.userId === s.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+    .sort(porFechaDesc)[0];
+  return !firmado || dateUtils.isBefore(firmado.createdAt, contratoAdmin.createdAt);
 }
