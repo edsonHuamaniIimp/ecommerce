@@ -64,6 +64,8 @@ function esRol(value: unknown): value is Rol {
 function parseJwtPayload(payload: JWTPayload): JwtPayload | null {
   const { sub, email, name } = payload;
   if (typeof sub !== "string" || typeof email !== "string" || typeof name !== "string") return null;
+  /* Identidad estable: los tokens antiguos con sub = "user|<correo>" quedan invalidados. */
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sub)) return null;
 
   const { roles, permissions } = payload;
   if (!Array.isArray(roles)) return null;

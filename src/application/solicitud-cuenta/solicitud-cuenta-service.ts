@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ISolicitudCuentaRepository } from "@/domain/ports/solicitud-cuenta-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -137,7 +138,7 @@ export class SolicitudCuentaApplicationService {
     await this.repo.aprobar(solicitud.id, {
       revisadoPor: revisor,
       usuario: {
-        userId: `user|${solicitud.email}`,
+        userId: randomUUID(),
         email: solicitud.email,
         nombre: solicitud.nombre,
         apellidos: solicitud.apellidos,

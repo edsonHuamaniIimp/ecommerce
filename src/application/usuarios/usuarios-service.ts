@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { API_ERROR_CODES, ESTADOS_ACTIVACION_LOTE, ESTADOS_DESACTIVACION_LOTE, IDIOMA_DEFAULT, MOTIVOS_OMISION_DESACTIVACION, REGEX_EMAIL, ROLES, type EstadoActivacionLote, type EstadoDesactivacionLote } from "@/lib/shared/constants";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { DomainError } from "@/lib/server/router";
@@ -211,7 +212,7 @@ export class UsuariosApplicationService {
     const rol = await this.resolverRol(input.rolId);
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.crearUsuario({
-      userId: `user|${email}`,
+      userId: randomUUID(),
       email,
       password: hashPassword(passwordTemporal),
       /* Solo referencia: la persona vive en servicio-persona. */
@@ -263,7 +264,7 @@ export class UsuariosApplicationService {
     const rol = await this.resolverRol(input.rolId);
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.crearUsuario({
-      userId: `user|${email}`,
+      userId: randomUUID(),
       email,
       password: hashPassword(passwordTemporal),
       nombre: "",

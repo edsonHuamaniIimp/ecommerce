@@ -165,12 +165,15 @@ model UserRole {
   sieCode             String?   @map("sie_code") @db.VarChar(20)
   /// Documento de la empresa vinculada (RUC o RUT, copiado de la ficha) para representar la cuenta.
   ruc                 String?   @db.VarChar(20)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId       String?   @map("initial_user_id") @db.VarChar(100)
 
   role    Role     @relation(fields: [roleId], references: [id])
   empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
 
   @@unique([userId, roleId])
   @@index([userId])
+  @@index([initialUserId])
   @@index([email])
   @@index([empresaId])
   @@index([sieCode])
@@ -373,6 +376,8 @@ model GessStand {
   bloqueId              String?   @map("bloque_id") @db.VarChar(50)
   email                 String?   @db.VarChar(200)
   userId                String?   @map("user_id") @db.VarChar(100)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId         String?   @map("initial_user_id") @db.VarChar(100)
   /// Bloqueo temporal mientras el cliente completa el wizard (no es una reserva).
   holdId                String?   @map("hold_id") @db.VarChar(64)
   holdUserId            String?   @map("hold_user_id") @db.VarChar(100)
@@ -413,6 +418,7 @@ model GessStand {
   @@unique([eventoId, bloqueId])
   @@index([eventoId])
   @@index([bloqueId])
+  @@index([initialUserId])
   @@index([holdId])
   @@index([holdExpiresAt])
   @@map("gess_stand")
@@ -445,6 +451,8 @@ model Solicitud {
   id                  String    @id @default(uuid())
   gessStandId         String?   @map("gess_stand_id")
   userId              String?   @map("user_id") @db.VarChar(100)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId       String?   @map("initial_user_id") @db.VarChar(100)
   email               String?   @db.VarChar(200)
   documentos          Json?     @default("[]")
   /// RF-08: URL de la imagen (PNG) del recorte del pabellon con el stand destacado; se adjunta al contrato.
@@ -474,6 +482,7 @@ model Solicitud {
   sgcExpediente  SgcExpediente?
 
   @@index([gessStandId])
+  @@index([initialUserId])
   @@map("solicitud")
 }
 
@@ -645,6 +654,8 @@ model ErrorLog {
   digest    String?
   url       String?
   userId    String?  @map("user_id") @db.VarChar(100)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId String? @map("initial_user_id") @db.VarChar(100)
   metadata  Json?
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -722,6 +733,8 @@ model FacturacionHistorial {
 model Alerta {
   id          String   @id @default(uuid())
   userId      String   @map("user_id") @db.VarChar(100)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId String? @map("initial_user_id") @db.VarChar(100)
   tipo        String   @db.VarChar(30)
   titulo      String   @db.VarChar(200)
   mensaje     String   @db.VarChar(1000)
@@ -735,6 +748,7 @@ model Alerta {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([userId])
+  @@index([initialUserId])
   @@index([userId, leida])
   @@index([createdAt])
   @@map("alerta")
@@ -747,6 +761,8 @@ model SolicitudDocumento {
   nombre      String   @db.VarChar(200)
   uploadedBy  String?  @map("uploaded_by") @db.VarChar(100)
   userId      String?  @map("user_id") @db.VarChar(100)
+  /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
+  initialUserId String? @map("initial_user_id") @db.VarChar(100)
   categoria   String?  @db.VarChar(30)
   /// Requisito del anexo que cubre el documento (clave de ANEXOS_REQUERIDOS); null = otro anexo.
   requisito   String?  @db.VarChar(30)
@@ -767,6 +783,7 @@ model SolicitudDocumento {
   solicitud Solicitud @relation(fields: [solicitudId], references: [id], name: "SolicitudDocs")
 
   @@index([solicitudId])
+  @@index([initialUserId])
   @@index([sha256])
   @@index([solicitudId, estado])
   @@map("solicitud_documento")

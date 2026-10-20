@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -36,10 +37,12 @@ async function main() {
   for (const tu of USUARIOS_SEED) {
     const role = await prisma.role.findUnique({ where: { nombre: tu.role } });
     if (!role) continue;
+    const existente = await prisma.userRole.findFirst({ where: { email: tu.email }, select: { userId: true } });
+    const userId = existente?.userId ?? randomUUID();
     await prisma.userRole.upsert({
-      where: { userId_roleId: { userId: `user|${tu.email}`, roleId: role.id } },
+      where: { userId_roleId: { userId, roleId: role.id } },
       update: { password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
-      create: { userId: `user|${tu.email}`, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
+      create: { userId, email: tu.email, roleId: role.id, password: tu.password, tipoUsuarioId: 2, nombre: tu.nombre, apellidos: tu.apellidos },
     });
   }
 
