@@ -8,6 +8,60 @@ import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSc
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
+import { requestMetadata } from "@/lib/server/request-metadata";
+
+/** Registra un evento de auditoria sin tocar una solicitud concreta. */
+async function auditarEntidad(
+  request: Request,
+  session: { sub: string },
+  entidad: string,
+  accion: string,
+  mensaje: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  const requestMeta = requestMetadata(request);
+  await services.auditoria
+    .registrar({
+      tipo: "solicitudes",
+      entidad,
+      actor: session.sub,
+      mensaje,
+      ip: requestMeta.ip,
+      userAgent: requestMeta.userAgent,
+      metodo: requestMeta.metodo,
+      ruta: requestMeta.ruta,
+      metadata: { accion, ...metadata },
+    })
+    .catch(() => {});
+}
+
+/** Registra la operacion en el log central y actualiza la auditoria de la fila. */
+async function auditarOperacion(
+  request: Request,
+  session: { sub: string },
+  accion: string,
+  solicitudId: string,
+  mensaje: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  const requestMeta = requestMetadata(request);
+  await services.solicitudes.repo
+    .touchAuditoria(solicitudId, session.sub, requestMeta.ip)
+    .catch(() => {});
+  await services.auditoria
+    .registrar({
+      tipo: "solicitudes",
+      entidad: `solicitud:${solicitudId}`,
+      actor: session.sub,
+      mensaje,
+      ip: requestMeta.ip,
+      userAgent: requestMeta.userAgent,
+      metodo: requestMeta.metodo,
+      ruta: requestMeta.ruta,
+      metadata: { accion, ...metadata },
+    })
+    .catch(() => {});
+}
 
 /** True si el usuario puede ver/operar solicitudes de terceros (staff/admin). */
 function puedeVerTodas(session: { permissions: string[] }): boolean {
@@ -131,7 +185,16 @@ export const solicitudesController = {
       );
     }
 
-    return success(await services.solicitudes.revisar({ ...body, reviewerEmail: session.email }));
+    const revision = await services.solicitudes.revisar({ ...body, reviewerEmail: session.email });
+    await auditarOperacion(
+      request,
+      session,
+      "revisar",
+      body.solicitudId,
+      `Revisión de ${body.area}: ${body.estado}`,
+      { area: body.area, estado: body.estado, revisionId: revision.id, ...(ddBypassAdmin ? { ddBypass: true } : {}) },
+    );
+    return success(revision);
   },
 
   /** POST /api/solicitudes/reenviar-observacion — el cliente reenvia tras observar documentos. */
@@ -143,6 +206,13 @@ export const solicitudesController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     await services.solicitudes.reenviarObservacion(parsed.data.solicitudId, session.sub, session.email);
+    await auditarOperacion(
+      request,
+      session,
+      "reenviar-observacion",
+      parsed.data.solicitudId,
+      "El cliente reenvió la solicitud tras una observación",
+    );
     return success({ ok: true });
   },
 
@@ -160,6 +230,14 @@ export const solicitudesController = {
        y el envio los decide la capa de aplicacion. */
     const idioma = await services.auth.resolverIdiomaUsuario(parsed.data.to);
     await services.solicitudes.notificarCliente({ ...parsed.data, idioma }, session);
+    await auditarOperacion(
+      request,
+      session,
+      "notificar",
+      parsed.data.solicitudId,
+      "Se notificó al cliente",
+      { to: parsed.data.to, modo: parsed.data.modo },
+    );
     return success({ ok: true });
   },
 
@@ -180,6 +258,7 @@ export const solicitudesController = {
     for (const rev of detalle.revisiones) {
       await services.solicitudes.revisar({ solicitudId: raw.solicitudId, area: rev.area, estado: RESULTADOS_APROBACION.PENDIENTE, comentario: undefined, reviewerEmail: session.email });
     }
+    await auditarOperacion(request, session, "modificar", raw.solicitudId, "Se reabrió la solicitud para modificación");
     return success({ ok: true });
   },
 
@@ -202,6 +281,7 @@ export const solicitudesController = {
     const created = await services.solicitudes.repo.crearReevaluacion(
       raw.solicitudId, ESTADOS_REEVALUACION.PENDIENTE, raw.motivo ?? null, raw.documentos ?? [], session.email,
     );
+    await auditarOperacion(request, session, "reevaluar", raw.solicitudId, "Se solicitó una reevaluación", { reevaluacionId: created.id });
     return success(created);
   },
 
@@ -219,6 +299,7 @@ export const solicitudesController = {
     } else {
       await services.solicitudes.repo.atenderReevaluacionRechazo(raw.reevaluacionId, session.email);
     }
+    await auditarEntidad(request, session, `reevaluacion:${raw.reevaluacionId}`, "atender-reevaluacion", `Reevaluación ${raw.accion}`, { accion: raw.accion });
     return success({ ok: true });
   },
 
@@ -231,6 +312,7 @@ export const solicitudesController = {
     const raw = await request.json() as { solicitudId: string };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
     await services.solicitudes.repo.darDeBajaSolicitud(raw.solicitudId);
+    await auditarOperacion(request, session, "baja", raw.solicitudId, "Se dio de baja la solicitud");
     return success({ ok: true });
   },
 
@@ -247,6 +329,7 @@ export const solicitudesController = {
     const raw = await request.json() as { solicitudId: string };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
     await services.solicitudes.repo.marcarOrdenPago(raw.solicitudId);
+    await auditarOperacion(request, session, "orden-pago", raw.solicitudId, "Se generó la orden de pago");
     return success({ ok: true });
   },
 
@@ -321,6 +404,7 @@ export const solicitudesController = {
       tipo: raw.tipo,
       requisito: raw.requisito ?? null,
     });
+    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
     return success(doc);
   },
 
@@ -338,6 +422,7 @@ export const solicitudesController = {
       userSub: session.sub,
       userPermissions: session.permissions,
     });
+    await auditarOperacion(request, session, "recorte-plano", parsed.data.solicitudId, "Se actualizó el recorte del plano");
     return success({ ok: true });
   },
 
@@ -346,7 +431,9 @@ export const solicitudesController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     const raw = await request.json() as { docId: string };
     if (!raw.docId) return error(API_ERROR_CODES.VALIDATION, "docId requerido", 400);
+    const documento = await services.solicitudes.repo.findDocumento(raw.docId);
     await services.solicitudes.eliminarDocumento({ docId: raw.docId, userSub: session.sub, userPermissions: session.permissions });
+    if (documento) await auditarOperacion(request, session, "eliminar-documento", documento.solicitudId, "Se eliminó un documento", { docId: raw.docId });
     return success({ ok: true });
   },
 };

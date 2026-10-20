@@ -4,6 +4,7 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { reservaRequestSchema } from "@/validators/reserva.validator";
 import { getSession } from "@/lib/server/auth";
+import { requestMetadata } from "@/lib/server/request-metadata";
 
 export const reservaController = {
   async crearHold(request: Request): Promise<NextResponse> {
@@ -36,9 +37,24 @@ export const reservaController = {
       userEmail: session?.email,
       userSub: session?.sub,
       eventoId: session?.eventoId,
+      ip: requestMetadata(request).ip,
     });
     if (!result.ok) {
       return error(API_ERROR_CODES.CONFLICT, "Algunos stands ya estan reservados", 409);
+    }
+    if (result.solicitudId) {
+      const meta = requestMetadata(request);
+      await services.auditoria.registrar({
+        tipo: "solicitudes",
+        entidad: `solicitud:${result.solicitudId}`,
+        actor: session?.sub ?? null,
+        mensaje: "Solicitud creada",
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+        metodo: meta.metodo,
+        ruta: meta.ruta,
+        metadata: { accion: "crear" },
+      }).catch(() => {});
     }
     return success({ ok: true, message: result.message, solicitudId: result.solicitudId ?? null });
   },

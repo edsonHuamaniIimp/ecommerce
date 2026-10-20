@@ -462,6 +462,11 @@ model Solicitud {
   iimpReservaAt       DateTime? @map("iimp_reserva_at")
   flgActivo           Boolean   @default(true) @map("flg_activo")
   estado              String?   @db.VarChar(20)
+  /// Auditoria de la ultima creacion/actualizacion de la solicitud.
+  createdBy           String?   @map("created_by") @db.VarChar(200)
+  updatedBy           String?   @map("updated_by") @db.VarChar(200)
+  createdIp           String?   @map("created_ip") @db.VarChar(45)
+  updatedIp           String?   @map("updated_ip") @db.VarChar(45)
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -630,6 +635,10 @@ model AuditLog {
   actor     String?  @db.VarChar(100)
   mensaje   String
   metadata  Json?
+  ip        String?  @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  metodo    String?  @db.VarChar(10)
+  ruta      String?  @db.VarChar(300)
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([tipo])

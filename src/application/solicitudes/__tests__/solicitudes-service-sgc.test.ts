@@ -37,6 +37,7 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     crearOActualizarRevision: vi.fn().mockResolvedValue(revision(area, estado)),
     crearRevisionInicial: vi.fn(),
     crearSolicitud: vi.fn(),
+    touchAuditoria: vi.fn(),
     crearAlertaReserva: vi.fn(),
     crearReevaluacion: vi.fn(),
     tieneReevaluacionPendiente: vi.fn(),
