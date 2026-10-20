@@ -130,7 +130,9 @@ export function SolicitudReview({
   }, [row.id]);
 
   const ddBloqueado = !ddCargando && (!ddEstado || !ddEstado.aptoParaContratar);
-  const ddAccionesBloqueadas = ddCargando || ddBloqueado;
+  const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
+  /* Bypass exclusivo de administradores: sin DD APTA pueden revisar y decidir igualmente. */
+  const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
   const areas = areasRevisionLocal(row.revisiones);
@@ -143,7 +145,6 @@ export function SolicitudReview({
     ...(mostrarSgc ? { [sgcStepIndex]: REVISION_AREA_SGC_STEP } : {}),
   };
   const totalSteps = areas.length + (mostrarSgc ? 1 : 0);
-  const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
   const esPasoSgc = mostrarSgc && currentStep === sgcStepIndex;
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
@@ -422,6 +423,11 @@ export function SolicitudReview({
             <AlertDescription>
               <span className="block text-xs font-semibold">Revisión bloqueada por Debida Diligencia</span>
               <span className="mt-1 block text-xs leading-relaxed">{ddMensaje}</span>
+              {isAdmin && (
+                <span className="mt-1 block text-[11px] font-semibold">
+                  Bypass de administrador habilitado: puedes revisar y decidir igualmente.
+                </span>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -809,7 +815,7 @@ export function SolicitudReview({
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap">{currentRev.comentario}</p>
               </div>
             )}
-            {canReview && !ddBloqueado && (
+            {canReview && (!ddBloqueado || isAdmin) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -829,7 +835,7 @@ export function SolicitudReview({
         )}
 
         {/* Pending or editing — show form */}
-        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && !ddBloqueado && (
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin) && (
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Comentario / Justificacion</Label>

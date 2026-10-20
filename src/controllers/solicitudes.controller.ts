@@ -121,7 +121,9 @@ export const solicitudesController = {
       session.eventoId,
       solicitud.empresa,
     );
-    if (!evaluacionDd.aptoParaContratar) {
+    /* Bypass exclusivo de administradores (admin:full): pueden revisar sin DD APTA. */
+    const ddBypassAdmin = !evaluacionDd.aptoParaContratar && session.permissions.includes(PERMISSIONS.ADMIN_FULL);
+    if (!evaluacionDd.aptoParaContratar && !ddBypassAdmin) {
       return error(
         API_ERROR_CODES.CONFLICT,
         evaluacionDd.mensaje ?? "La empresa no cuenta con una Debida Diligencia APTA y vigente",
