@@ -125,6 +125,9 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     });
   }, [rows, search, pabellon, tipo, estadoFiltro, pabellonDe]);
 
+  /* Reporte: solo stands vinculados a un bloque del plano (excluye sueltos/mock). */
+  const exportables = useMemo(() => filtrados.filter((r) => Boolean(r.bloqueId)), [filtrados]);
+
   const seleccionables = filtrados.filter((r) => ESTADOS_SELECCIONABLES.includes(r.estado ?? ""));
   const seleccionadosDisponibles = filtrados.filter((r) => seleccion.has(r.id) && r.estado === ESTADOS_STAND.DISPONIBLE);
   const seleccionadosPre = filtrados.filter((r) => seleccion.has(r.id) && r.estado === ESTADOS_STAND.PRE_RESERVADO);
@@ -256,8 +259,8 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
 
   /** Exporta la bandeja filtrada (respeta busqueda, pabellon, tipo y estado). */
   const exportar = async (formato: "csv" | "xlsx") => {
-    if (filtrados.length === 0) {
-      toast.error("No hay stands para exportar con los filtros actuales");
+    if (exportables.length === 0) {
+      toast.error("No hay stands vinculados para exportar con los filtros actuales");
       return;
     }
     setExportando(formato);
@@ -276,11 +279,11 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
         { encabezado: "Actualizado", valor: (r) => dateUtils.formatDateTime(r.updatedAt) },
       ];
       if (formato === "csv") {
-        exportarTablaCsv(filtrados, columnas, nombreArchivoExport("pre-reservas", "csv"));
+        exportarTablaCsv(exportables, columnas, nombreArchivoExport("pre-reservas", "csv"));
       } else {
-        await exportarTablaExcel(filtrados, columnas, nombreArchivoExport("pre-reservas", "xlsx"), "Pre-reservas");
+        await exportarTablaExcel(exportables, columnas, nombreArchivoExport("pre-reservas", "xlsx"), "Pre-reservas");
       }
-      toast.success(`${filtrados.length} stand(s) exportado(s)`);
+      toast.success(`${exportables.length} stand(s) vinculado(s) exportado(s)`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
     } finally {
@@ -299,13 +302,13 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={exportando !== null || loading || filtrados.length === 0}>
+                <Button size="sm" variant="outline" disabled={exportando !== null || loading || exportables.length === 0}>
                   <Download className={`h-3.5 w-3.5 ${exportando ? "animate-pulse" : ""}`} />
                   {exportando ? "Exportando..." : "Exportar"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel><span>Pre-reservas filtradas ({filtrados.length})</span></DropdownMenuLabel>
+                <DropdownMenuLabel><span>Solo vinculados ({exportables.length})</span></DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("xlsx"); }}>
                   <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
