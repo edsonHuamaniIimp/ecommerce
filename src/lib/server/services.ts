@@ -92,7 +92,7 @@ const standEvents = new PusherStandEventPublisher();
 export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
-  gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo),
+  gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo, standEvents),
   reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo, standEvents, configuracionRepo),
   prellenadoReserva: new PrellenadoReservaApplicationService(usuarioRepo, personaClient, empresaClient),
   auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo, personaClient),

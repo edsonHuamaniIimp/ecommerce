@@ -33,4 +33,13 @@ export class PusherStandEventPublisher implements StandEventPublisher {
       standCodes: data.standCodes,
     });
   }
+
+  async standPreReservaChanged(data: { eventoId: string; standIds: string[]; standCodes: string[] }): Promise<void> {
+    const pusher = getPusher();
+    if (!pusher) return;
+    await pusher.trigger(canalStandEventos(data.eventoId), "stand-pre-reserva-changed", {
+      standIds: data.standIds,
+      standCodes: data.standCodes,
+    });
+  }
 }

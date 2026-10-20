@@ -125,9 +125,10 @@ export class GessPrismaRepository implements IGessRepository {
     return row;
   }
 
-  async crearHold(data: { standIds: string[]; eventoId: string; holdId: string; userId: string; expiresAt: Date }): Promise<{ ok: boolean; conflictos: string[] }> {
+  async crearHold(data: { standIds: string[]; eventoId: string; holdId: string; userId: string; expiresAt: Date; preReservadosPropios?: string[] }): Promise<{ ok: boolean; conflictos: string[] }> {
     const ids = [...new Set(data.standIds.filter(Boolean))];
     if (ids.length === 0) return { ok: false, conflictos: ["Sin stands"] };
+    const propios = new Set(data.preReservadosPropios ?? []);
     const ahora = new Date();
     try {
       return await prisma.$transaction(async (tx) => {
@@ -138,7 +139,10 @@ export class GessPrismaRepository implements IGessRepository {
         const porId = new Map(filas.map((f) => [f.id, f]));
         const conflictos = ids.flatMap((id) => {
           const fila = porId.get(id);
-          if (!fila || fila.estado !== ESTADOS_STAND.DISPONIBLE) return [fila?.standCode ?? id];
+          if (!fila) return [id];
+          const estadoValido = fila.estado === ESTADOS_STAND.DISPONIBLE
+            || (fila.estado === ESTADOS_STAND.PRE_RESERVADO && propios.has(id));
+          if (!estadoValido) return [fila.standCode];
           if (fila.holdExpiresAt && fila.holdExpiresAt > ahora && fila.holdUserId !== data.userId) return [fila.standCode];
           return [];
         });
@@ -148,8 +152,15 @@ export class GessPrismaRepository implements IGessRepository {
           where: {
             id: { in: ids },
             eventoId: data.eventoId,
-            estado: ESTADOS_STAND.DISPONIBLE,
-            OR: [{ holdExpiresAt: null }, { holdExpiresAt: { lt: ahora } }, { holdUserId: data.userId }],
+            AND: [
+              {
+                OR: [
+                  { estado: ESTADOS_STAND.DISPONIBLE },
+                  { estado: ESTADOS_STAND.PRE_RESERVADO, id: { in: [...propios] } },
+                ],
+              },
+              { OR: [{ holdExpiresAt: null }, { holdExpiresAt: { lt: ahora } }, { holdUserId: data.userId }] },
+            ],
           },
           data: {
             holdId: data.holdId,

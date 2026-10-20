@@ -18,4 +18,10 @@ export interface StandEventPublisher {
     standIds: string[];
     standCodes: string[];
   }): Promise<void>;
+  /** Cambio de pre-reserva: los clientes deben recargar su vista efectiva. */
+  standPreReservaChanged?(data: {
+    eventoId: string;
+    standIds: string[];
+    standCodes: string[];
+  }): Promise<void>;
 }

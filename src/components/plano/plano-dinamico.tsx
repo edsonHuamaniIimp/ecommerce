@@ -237,6 +237,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
     usePlanoCarrito.getState().registrarPlano(planoId, parentCodigo ?? null);
   }, [planoId, parentCodigo]);
   const [linkedMap, setLinkedMap] = useState<Map<string, GessInfoFull>>(new Map());
+  const [standsRefreshKey, setStandsRefreshKey] = useState(0);
   const [holdReserva, setHoldReserva] = useState<{ holdId: string; expiresAt: string } | null>(null);
   /** Ref sincrona para ignorar el evento Pusher de nuestro propio hold. */
   const holdReservaRef = useRef<{ holdId: string; expiresAt: string } | null>(null);
@@ -285,6 +286,9 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         }
         return cambio ? next : prev;
       });
+    },
+    onPreReservaChanged: () => {
+      setStandsRefreshKey((key) => key + 1);
     },
   });
 
@@ -403,7 +407,7 @@ map.set(String(bloqueId), {
       }
     })();
     return () => { cancelled = true; };
-  }, [eventoId, tipoEvento, codigoEvento]);
+  }, [eventoId, tipoEvento, codigoEvento, standsRefreshKey]);
 
   const carritoInfoDe = useCallback((bloqueId: string): CarritoStandInfo => {
     const info = linkedMap.get(bloqueId);

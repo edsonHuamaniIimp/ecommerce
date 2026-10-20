@@ -20,6 +20,7 @@ export interface StandEventHandlers {
   onReserved: (event: StandReservedEvent) => void;
   onHeld?: (event: StandHeldEvent) => void;
   onReleased?: (event: StandReleasedEvent) => void;
+  onPreReservaChanged?: (event: StandReservedEvent) => void;
 }
 
 /**
@@ -53,6 +54,7 @@ export function useStandEvents(eventoId: string | null, handlers: StandEventHand
       canal.bind("stand-reserved", (data: StandReservedEvent) => handlersRef.current.onReserved(data));
       canal.bind("stand-held", (data: StandHeldEvent) => handlersRef.current.onHeld?.(data));
       canal.bind("stand-released", (data: StandReleasedEvent) => handlersRef.current.onReleased?.(data));
+      canal.bind("stand-pre-reserva-changed", (data: StandReservedEvent) => handlersRef.current.onPreReservaChanged?.(data));
     }).catch((error) => {
       console.warn("[pusher] no se pudo inicializar el canal de stands", error);
     });
