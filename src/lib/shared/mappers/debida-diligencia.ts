@@ -1,6 +1,7 @@
 import type {
   DdBandejaResult,
   DdClientesResult,
+  DdEmpresaEstadoEntity,
   DdEmpresaResumen,
   DdEvaluacionEmpresa,
   DdEmpresasResult,
@@ -11,6 +12,7 @@ import type {
   DdReputacionResult,
 } from "@/domain/models/debida-diligencia";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
+import type { DdEstadoExternoDTO } from "@/types/dto/debida-diligencia";
 import type {
   DdBandejaResponseDTO,
   DdBandejaRowDTO,
@@ -26,10 +28,13 @@ import type {
 } from "@/types/dto/debida-diligencia";
 import {
   DD_ESTADO_EVALUACION_LABELS,
+  DD_ESTADOS_EVALUACION,
   DD_RESULTADO_LABELS,
+  DD_RESULTADOS,
   DD_TIPOS_DOCUMENTO_EMPRESA,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 
 function fecha(iso: Date | null | undefined): string | null {
   return iso ? dateUtils.toIso(iso) : null;
@@ -171,6 +176,28 @@ export function mapDdClientesToDTO(resultado: DdClientesResult): DdClientesRespo
       totalPages: resultado.totalPages,
     },
     resumen: resultado.resumen,
+  };
+}
+
+export function mapDdEstadoExternoToDTO(
+  estado: DdEmpresaEstadoEntity | null,
+): DdEstadoExternoDTO | null {
+  if (!estado) return null;
+  const fechaVencimiento =
+    estado.fechaVencimiento ??
+    (estado.fechaRevision ? ddUtils.sumarMeses(estado.fechaRevision) : null);
+  const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(estado.resultado, fechaVencimiento);
+  const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+  return {
+    resultado: estado.resultado,
+    estadoEvaluacion,
+    vigente,
+    aptoParaContratar:
+      vigente &&
+      (estado.resultado === DD_RESULTADOS.APTO ||
+        estado.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES),
+    fechaVencimiento: fechaVencimiento ? dateUtils.toIso(fechaVencimiento) : null,
+    origen: estado.origen,
   };
 }
 

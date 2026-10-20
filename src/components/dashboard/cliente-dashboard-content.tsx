@@ -65,7 +65,7 @@ export function ClienteDashboardContent({ session, cargando }: Props) {
       .miExpediente()
       .then((r) => {
         if (!activo) return;
-        setDdIniciada(Boolean(r.expediente));
+        setDdIniciada(Boolean(r.expediente) || Boolean(r.estadoExterno?.aptoParaContratar));
         setDdEmpresa(r.empresa?.razonSocial ?? null);
       })
       .catch(() => {

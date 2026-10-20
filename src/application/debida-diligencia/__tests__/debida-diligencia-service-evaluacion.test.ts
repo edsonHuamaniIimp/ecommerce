@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DebidaDiligenciaApplicationService } from "../debida-diligencia-service";
-import type { DdEmpresaResumen, DdExpedienteEntity } from "@/domain/models/debida-diligencia";
+import type { DdEmpresaEstadoEntity, DdEmpresaResumen, DdExpedienteEntity } from "@/domain/models/debida-diligencia";
 import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligencia-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
@@ -33,10 +33,15 @@ const EXPEDIENTE_BASE = {
   observaciones: [],
 } as unknown as DdExpedienteEntity;
 
-function crearServicio(expediente: DdExpedienteEntity | null = null, empresaId: string | null = EMPRESA.id) {
+function crearServicio(
+  expediente: DdExpedienteEntity | null = null,
+  empresaId: string | null = EMPRESA.id,
+  estadoExterno: DdEmpresaEstadoEntity | null = null,
+) {
   const repo = {
     findExpedientePorEmpresaEvento: vi.fn().mockResolvedValue(expediente),
     findEmpresaResumen: vi.fn().mockResolvedValue(empresaId ? EMPRESA : null),
+    findEmpresaEstado: vi.fn().mockResolvedValue(estadoExterno),
   } as unknown as IDebidaDiligenciaRepository;
   const authRepo = {
     findEmpresaIdDeUsuario: vi.fn().mockResolvedValue(empresaId),
@@ -81,5 +86,30 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.aptoParaContratar).toBe(true);
     expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
     expect(evaluacion.mensaje).toBeNull();
+  });
+
+  it("usa el APTO externo/manual como bypass aunque no haya expediente interno", async () => {
+    const externo = {
+      id: "ext-1",
+      documento: EMPRESA.ruc,
+      razonSocial: EMPRESA.razonSocial,
+      tipoDocumento: "RUC",
+      motivoEvaluacion: null,
+      eventoProyecto: null,
+      resultado: DD_RESULTADOS.APTO,
+      estadoOrigen: "APTO",
+      fechaIngreso: null,
+      fechaRevision: new Date("2026-10-18"),
+      fechaVencimiento: new Date("2099-01-01"),
+      origen: "manual_apto",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } satisfies DdEmpresaEstadoEntity;
+    const { servicio } = crearServicio(null, EMPRESA.id, externo);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(true);
+    expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
+    expect(evaluacion.expediente).toBeNull();
   });
 });

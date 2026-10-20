@@ -500,6 +500,21 @@ export class EmpresaApplicationService {
    * Con `sincronizarFuente` (default) asegura la empresa y al representante en
    * servicio-persona; la carga masiva lo desactiva (se sincroniza despues 1x1).
    */
+  /**
+   * Alta idempotente para importaciones: crea la empresa solo si el documento
+   * aun no existe y no sincroniza la fuente (la importacion ya trae la razon social).
+   */
+  async crearSiNoExiste(
+    input: EmpresaInput,
+    creadoPor: string | null,
+  ): Promise<{ empresa: EmpresaEntity; creada: boolean }> {
+    const ruc = normalizarDocumentoEmpresa(input.ruc);
+    const existente = await this.repo.findByRuc(ruc);
+    if (existente) return { empresa: existente, creada: false };
+    const empresa = await this.crear(input, creadoPor, { sincronizarFuente: false });
+    return { empresa, creada: true };
+  }
+
   async crear(input: EmpresaInput, creadoPor: string | null, opciones: { sincronizarFuente?: boolean } = {}): Promise<EmpresaEntity> {
     const sincronizarFuente = opciones.sincronizarFuente ?? true;
     const razonSocial = limpiar(input.razonSocial);

@@ -82,6 +82,8 @@ export function MiDebidaDiligencia() {
 
   const expediente = data?.expediente ?? null;
   const empresa = data?.empresa ?? null;
+  const estadoExterno = data?.estadoExterno ?? null;
+  const externoApto = estadoExterno?.aptoParaContratar === true;
   const editable = ddUtils.puedeEditar(expediente?.estado);
   const observacionesAbiertas = (expediente?.observaciones ?? []).filter((observacion) => {
     if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
@@ -163,6 +165,26 @@ export function MiDebidaDiligencia() {
           <Skeleton className="h-64 rounded-xl lg:col-span-2" />
           <Skeleton className="h-64 rounded-xl" />
         </div>
+      ) : !expediente && externoApto ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
+              <ShieldCheck className="h-6 w-6" />
+            </span>
+            <div className="max-w-lg">
+              <h2 className="text-base font-semibold text-foreground">Debida diligencia aprobada</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {empresa?.razonSocial ?? "Tu empresa"} ya cuenta con una evaluación APTA en el registro oficial.
+                La documentación se completará en la siguiente etapa.
+              </p>
+              {estadoExterno?.fechaVencimiento ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Vigente hasta {dateUtils.format(estadoExterno.fechaVencimiento)}.
+                </p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       ) : !expediente ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-4 px-6 py-14 text-center">

@@ -1,3 +1,15 @@
+import type { DdEstadoEvaluacion, DdResultado } from "@/lib/shared/constants";
+
+/** Estado consolidado del registro externo/manual de DD. */
+export interface DdEstadoExternoDTO {
+  resultado: DdResultado;
+  estadoEvaluacion: DdEstadoEvaluacion | null;
+  vigente: boolean;
+  aptoParaContratar: boolean;
+  fechaVencimiento: string | null;
+  origen: string;
+}
+
 /** Datos de la empresa que acompanan al expediente de debida diligencia. */
 export interface DdEmpresaDTO {
   id: string;
@@ -124,4 +136,5 @@ export interface DdExpedienteDTO {
 export interface DdMiExpedienteDTO {
   expediente: DdExpedienteDTO | null;
   empresa: DdEmpresaDTO | null;
+  estadoExterno: DdEstadoExternoDTO | null;
 }

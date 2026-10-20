@@ -55,7 +55,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
 
   const importar = async () => {
     if (!file) {
-      setError("Selecciona un archivo XLSX o CSV.");
+      setError("Selecciona un archivo XLSX, CSV o TXT.");
       return;
     }
     setImporting(true);
@@ -92,7 +92,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             Importación masiva de Debida Diligencia
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Sube la lista oficial en XLSX o CSV. El identificador debe ser RUC de 11 dígitos o RUT/identificador extranjero.
+            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador debe ser RUC de 11 d��gitos o RUT/identificador extranjero.
           </p>
         </DialogHeader>
 
@@ -103,7 +103,10 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               Fecha de ingreso · Fecha de revisión · Razón social · RUC/RUT · Motivo · Evento/proyecto · Resultado DD
             </p>
             <p className="mt-2">
-              Resultados aceptados: APTO, APTO CON OBSERVACIONES, NO APTO, EN REVISIÓN, EN PROCESO o DOCUMENTACIÓN OBSERVADA.
+              Resultados aceptados: APTO, APTO CON OBSERVACIONES, NO APTO, EN REVISION, EN PROCESO o DOCUMENTACION OBSERVADA.
+            </p>
+            <p className="mt-2">
+              Las empresas APTO que no existan en Empresas se crean autom�ticamente. Las dem�s solo actualizan su estado externo.
             </p>
           </div>
 
@@ -125,7 +128,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             <input
               ref={inputRef}
               type="file"
-              accept=".xlsx,.csv"
+              accept=".xlsx,.csv,.txt"
               className="hidden"
               onChange={(e) => {
                 const seleccionado = e.target.files?.[0] ?? null;
@@ -143,9 +146,27 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               <CheckCircle2 className="h-4 w-4 text-success" />
               <AlertDescription className="text-xs">
                 <p>
-                  Nuevos: <strong>{resultado.importados}</strong> · Actualizados:{" "}
-                  <strong>{resultado.actualizados}</strong> · Omitidos: <strong>{resultado.omitidos}</strong>
+                  Nuevos: <strong>{resultado.importados}</strong> �� Actualizados:{" "}
+                  <strong>{resultado.actualizados}</strong> �� Omitidos: <strong>{resultado.omitidos}</strong>
                 </p>
+                <p>
+                  Empresas creadas: <strong>{resultado.empresasCreadas}</strong> �� Ya existentes:{" "}
+                  <strong>{resultado.empresasExistentes}</strong>
+                </p>
+                {resultado.empresasError.length > 0 ? (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-medium text-warning">
+                      {resultado.empresasError.length} empresa(s) no se pudieron crear
+                    </summary>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px]">
+                      {resultado.empresasError.slice(0, 10).map((fila) => (
+                        <li key={fila.documento}>
+                          {fila.documento}: {fila.mensaje}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
                 {resultado.errores.length > 0 ? (
                   <details className="mt-2">
                     <summary className="cursor-pointer font-medium text-warning">

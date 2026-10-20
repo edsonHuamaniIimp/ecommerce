@@ -7,6 +7,7 @@ import type {
   DdBandejaResult,
   DdClientesParams,
   DdClientesResult,
+  DdEmpresaEstadoEntity,
   DdEmpresaEstadoImportData,
   DdEmpresaResumen,
   DdEvaluacionEmpresa,
@@ -60,6 +61,7 @@ export interface DdSession {
 interface DdMiExpedienteResultado {
   expediente: DdExpedienteEntity | null;
   empresa: DdEmpresaResumen | null;
+  estadoExterno: DdEmpresaEstadoEntity | null;
 }
 
 /**
@@ -135,7 +137,11 @@ export class DebidaDiligenciaApplicationService {
       this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
       this.repo.findEmpresaResumen(empresaId),
     ]);
-    return { expediente, empresa };
+    const estadoExterno = await this.repo.findEmpresaEstado(
+      empresa?.ruc ?? null,
+      empresa?.razonSocial ?? null,
+    );
+    return { expediente, empresa, estadoExterno };
   }
 
   /** Guarda el wizard (borrador o correccion de observaciones). */
@@ -404,13 +410,59 @@ export class DebidaDiligenciaApplicationService {
     const empresaId =
       (email ? await this.authRepo.findEmpresaIdDeUsuario(email) : null) ??
       (razonSocial ? await this.repo.findEmpresaIdPorRazonSocial(razonSocial) : null);
-    if (!empresaId) return this.evaluacionDeEmpresa(null, null);
 
-    const [expediente, empresa] = await Promise.all([
-      this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
-      this.repo.findEmpresaResumen(empresaId),
-    ]);
-    return this.evaluacionDeEmpresa(expediente, empresa);
+    const [expediente, empresa] = empresaId
+      ? await Promise.all([
+          this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
+          this.repo.findEmpresaResumen(empresaId),
+        ])
+      : [null, null];
+    const interna = this.evaluacionDeEmpresa(expediente, empresa);
+    if (interna.aptoParaContratar) return interna;
+
+    const externa = await this.repo.findEmpresaEstado(
+      empresa?.ruc ?? null,
+      razonSocial ?? empresa?.razonSocial ?? null,
+    );
+    const evaluacionExterna = this.evaluacionDeEmpresaExterna(externa, empresa);
+    return evaluacionExterna.aptoParaContratar ? evaluacionExterna : interna;
+  }
+
+  /** Evaluacion de la DD manual/externa: cuenta como aprobada si esta APTA y vigente. */
+  private evaluacionDeEmpresaExterna(
+    estado: DdEmpresaEstadoEntity | null,
+    empresa: DdEmpresaResumen | null,
+  ): DdEvaluacionEmpresa {
+    if (!estado) return this.evaluacionDeEmpresa(null, empresa);
+
+    const fechaVencimiento =
+      estado.fechaVencimiento ??
+      (estado.fechaRevision ? ddUtils.sumarMeses(estado.fechaRevision) : null);
+    const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(
+      estado.resultado,
+      fechaVencimiento,
+    );
+    const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+    const aptoParaContratar =
+      vigente &&
+      (estado.resultado === DD_RESULTADOS.APTO ||
+        estado.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES);
+    const mensaje = aptoParaContratar
+      ? null
+      : estado.resultado === DD_RESULTADOS.NO_APTO
+        ? "La empresa no es APTA según el registro externo de Debida Diligencia."
+        : "La empresa aún no cuenta con una Debida Diligencia APTA y vigente en el registro externo.";
+
+    return {
+      empresa,
+      expediente: null,
+      resultado: estado.resultado,
+      estadoEvaluacion,
+      vigente,
+      aptoParaContratar,
+      observacionesAbiertas: 0,
+      mensaje,
+    };
   }
 
   /** Calcula el resultado institucional de una empresa a partir de su expediente. */

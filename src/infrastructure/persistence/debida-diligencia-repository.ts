@@ -258,6 +258,31 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     return row?.id ?? null;
   }
 
+  async findEmpresaEstado(
+    documento: string | null,
+    razonSocial: string | null,
+  ): Promise<DdEmpresaEstadoEntity | null> {
+    const or: Prisma.DebidaDiligenciaEmpresaEstadoWhereInput[] = [];
+    const doc = documento?.trim();
+    if (doc) {
+      or.push({ documento: { equals: doc, mode: "insensitive" } });
+      const normalizado = doc.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      if (normalizado && normalizado !== doc.toUpperCase()) {
+        or.push({ documento: { equals: normalizado, mode: "insensitive" } });
+      }
+    }
+    if (razonSocial?.trim()) {
+      or.push({ razonSocial: { equals: razonSocial.trim(), mode: "insensitive" } });
+    }
+    if (or.length === 0) return null;
+
+    const row = await prisma.debidaDiligenciaEmpresaEstado.findFirst({
+      where: { OR: or },
+      orderBy: { updatedAt: "desc" },
+    });
+    return row as unknown as DdEmpresaEstadoEntity | null;
+  }
+
   async siguienteCodigo(anio: string): Promise<string> {
     const prefijo = `${DD_CODIGO_PREFIJO}-${anio}-`;
     const ultimo = await prisma.debidaDiligencia.findFirst({

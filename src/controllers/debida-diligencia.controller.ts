@@ -9,6 +9,7 @@ import {
   mapDdClientesToDTO,
   mapDdEmpresaToDTO,
   mapDdEmpresasToDTO,
+  mapDdEstadoExternoToDTO,
   mapDdExpedienteToDTO,
   mapDdMatrizToDTO,
   mapDdPanelToDTO,
@@ -46,6 +47,7 @@ export const debidaDiligenciaController = {
     const data: DdMiExpedienteDTO = {
       expediente: resultado.expediente ? mapDdExpedienteToDTO(resultado.expediente) : null,
       empresa: resultado.empresa ? mapDdEmpresaToDTO(resultado.empresa) : null,
+      estadoExterno: mapDdEstadoExternoToDTO(resultado.estadoExterno),
     };
     return success(data);
   },

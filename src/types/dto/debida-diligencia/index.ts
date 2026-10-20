@@ -3,6 +3,7 @@ export type {
   DdDocumentoDTO,
   DdDocumentoVersionDTO,
   DdEmpresaDTO,
+  DdEstadoExternoDTO,
   DdEventoDTO,
   DdExpedienteDTO,
   DdMiExpedienteDTO,

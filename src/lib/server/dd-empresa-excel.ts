@@ -110,6 +110,20 @@ function documentoNormalizado(valor: unknown): string {
     .toUpperCase();
 }
 
+/**
+ * Correcciones puntuales de identificadores truncados por la fuente original.
+ * TEGA Chile venia como `2.03E+11` (notacion cientifica de Excel); su RUT real
+ * fue confirmado por negocio como 202608324489.
+ */
+const DOCUMENTOS_POR_RAZON_SOCIAL = new Map<string, string>([
+  ["TEGA INDUSTRIES CHILE SPA", "202608324489"],
+]);
+
+function documentoConAlias(documento: string, razonSocial: string): string {
+  const alias = DOCUMENTOS_POR_RAZON_SOCIAL.get(normalizar(razonSocial));
+  return alias ?? documento;
+}
+
 function clasificarDocumento(documento: string): DdTipoDocumentoEmpresa | null {
   if (/^\d{11}$/.test(documento)) return DD_TIPOS_DOCUMENTO_EMPRESA.RUC;
   if (/^\d{8}$/.test(documento)) return null;
@@ -216,10 +230,10 @@ export async function parseEmpresasExcel(
   nombreArchivo: string,
 ): Promise<DdEmpresaImportParseResult> {
   const extension = nombreArchivo.split(".").pop()?.toLowerCase() ?? "";
-  if (extension !== "xlsx" && extension !== "csv") {
-    throw new Error("Formato no permitido. Use un archivo XLSX o CSV.");
+  if (extension !== "xlsx" && extension !== "csv" && extension !== "txt") {
+    throw new Error("Formato no permitido. Use un archivo XLSX, CSV o TXT.");
   }
-  const filas = extension === "csv" ? matrizCsv(buffer) : await matrizXlsx(buffer);
+  const filas = extension === "xlsx" ? await matrizXlsx(buffer) : matrizCsv(buffer);
   if (filas.length < 2) throw new Error("El archivo no contiene filas de datos.");
 
   const indices = indicesCabecera(filas);
@@ -229,8 +243,9 @@ export async function parseEmpresasExcel(
 
   for (let numero = 1; numero < filas.length; numero += 1) {
     const fila = filas[numero] ?? [];
-    const documento = documentoNormalizado(fila[indices.documento]);
+    const documentoFuente = documentoNormalizado(fila[indices.documento]);
     const razonSocial = texto(fila[indices.persona]);
+    const documento = documentoFuente ? documentoConAlias(documentoFuente, razonSocial) : "";
     const estadoOrigen = texto(fila[indices.resultado]);
 
     if (!documento && !razonSocial && !estadoOrigen) {

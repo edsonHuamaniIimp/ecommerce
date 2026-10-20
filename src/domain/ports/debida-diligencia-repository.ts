@@ -6,6 +6,7 @@ import type {
   DdEmpresaEstadoImportData,
   DdEmpresasParams,
   DdEmpresasRawResult,
+  DdEmpresaEstadoEntity,
   DdEmpresaResumen,
   DdExpedienteEntity,
   DdGuardarData,
@@ -53,6 +54,11 @@ export interface IDebidaDiligenciaRepository {
   findEmpresaResumen(empresaId: string): Promise<DdEmpresaResumen | null>;
   /** Empresa por razon social exacta (fallback para solicitudes historicas). */
   findEmpresaIdPorRazonSocial(razonSocial: string): Promise<string | null>;
+  /** Estado externo por documento o razon social (bypass de DD manual). */
+  findEmpresaEstado(
+    documento: string | null,
+    razonSocial: string | null,
+  ): Promise<DdEmpresaEstadoEntity | null>;
   /** Siguiente correlativo visible del expediente (DD-AAAA-NNNN). */
   siguienteCodigo(anio: string): Promise<string>;
   /** Crea el expediente en borrador. */

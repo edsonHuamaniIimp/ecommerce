@@ -7,12 +7,13 @@ import { error, success } from "@/lib/server/api-response";
 import {
   API_ERROR_CODES,
   DD_DOCUMENTO_MAX_BYTES,
+  DD_RESULTADOS,
   PERMISSIONS,
   ROLES,
 } from "@/lib/shared/constants";
 import { parseEmpresasExcel } from "@/lib/server/dd-empresa-excel";
 
-/** Importacion masiva de la lista oficial de DD (XLSX o CSV). */
+/** Importacion masiva de la lista oficial de DD (XLSX, CSV o TXT). */
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getSession();
   const autorizado =
@@ -43,8 +44,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (extension !== "xlsx" && extension !== "csv") {
-    return error(API_ERROR_CODES.VALIDATION, "Use un archivo XLSX o CSV.", 400);
+  if (extension !== "xlsx" && extension !== "csv" && extension !== "txt") {
+    return error(API_ERROR_CODES.VALIDATION, "Use un archivo XLSX, CSV o TXT.", 400);
   }
 
   try {
@@ -57,6 +58,36 @@ export async function POST(request: Request): Promise<NextResponse> {
         400,
       );
     }
+    let empresasCreadas = 0;
+    let empresasExistentes = 0;
+    const empresasError: { documento: string; mensaje: string }[] = [];
+    const puedeCrearEmpresas =
+      session.roles.includes(ROLES.ADMIN) ||
+      session.permissions.includes(PERMISSIONS.EMPRESAS_MANAGE);
+
+    if (puedeCrearEmpresas) {
+      for (const row of parsed.rows) {
+        if (row.resultado !== DD_RESULTADOS.APTO) continue;
+        try {
+          const { creada } = await services.empresas.crearSiNoExiste(
+            {
+              ruc: row.documento,
+              tipoDocumento: row.tipoDocumento,
+              razonSocial: row.razonSocial,
+            },
+            session.email,
+          );
+          if (creada) empresasCreadas += 1;
+          else empresasExistentes += 1;
+        } catch (e) {
+          empresasError.push({
+            documento: row.documento,
+            mensaje: e instanceof Error ? e.message : "No se pudo crear la empresa",
+          });
+        }
+      }
+    }
+
     const resultado = await services.debidaDiligencia.importarEmpresas(
       parsed.rows.map((row) => ({
         documento: row.documento,
@@ -79,6 +110,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     return success({
       ...resultado,
+      empresasCreadas,
+      empresasExistentes,
+      empresasError,
       omitidos: parsed.omitidos,
       errores: parsed.errors,
     });
