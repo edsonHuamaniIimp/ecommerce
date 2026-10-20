@@ -10,6 +10,11 @@ export interface PortalConfigEntity {
   reglamentoUrl: string | null;
   /** Minutos que un stand queda bloqueado mientras el cliente completa el wizard. */
   holdReservaMinutos: number;
+  /** Aviso global de mantenimiento para los usuarios del portal. */
+  mantenimientoActivo: boolean;
+  mantenimientoInicio: Date | null;
+  mantenimientoFin: Date | null;
+  mantenimientoPermiteCerrar: boolean;
   updatedBy: string | null;
   updatedAt: Date | null;
 }
@@ -21,5 +26,9 @@ export interface ActualizarPortalConfigData {
   manualUrl: string | null;
   reglamentoUrl: string | null;
   holdReservaMinutos: number;
+  mantenimientoActivo: boolean;
+  mantenimientoInicio: Date | null;
+  mantenimientoFin: Date | null;
+  mantenimientoPermiteCerrar: boolean;
   updatedBy: string | null;
 }

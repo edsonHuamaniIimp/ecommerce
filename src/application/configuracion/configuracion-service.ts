@@ -2,6 +2,7 @@ import { API_ERROR_CODES, PERMISSIONS, REGEX_EMAIL } from "@/lib/shared/constant
 import { DomainError } from "@/lib/server/router";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { PortalConfigEntity } from "@/domain/models/configuracion";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 /** Configuracion sin guardar: el portal oculta los enlaces vacios. */
 const PORTAL_VACIO: PortalConfigEntity = {
@@ -10,6 +11,10 @@ const PORTAL_VACIO: PortalConfigEntity = {
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
+  mantenimientoActivo: false,
+  mantenimientoInicio: null,
+  mantenimientoFin: null,
+  mantenimientoPermiteCerrar: false,
   updatedBy: null,
   updatedAt: null,
 };
@@ -21,6 +26,10 @@ export interface PortalConfigInput {
   manualUrl?: string | null;
   reglamentoUrl?: string | null;
   holdReservaMinutos?: number;
+  mantenimientoActivo?: boolean;
+  mantenimientoInicio?: string | null;
+  mantenimientoFin?: string | null;
+  mantenimientoPermiteCerrar?: boolean;
 }
 
 /** Texto limpio (trim) o null si queda vacio. */
@@ -75,14 +84,36 @@ export class ConfiguracionApplicationService {
     return (await this.repo.obtenerPortal()) ?? PORTAL_VACIO;
   }
 
-  /** Guarda la configuracion validando correos y URLs. */
+  /** Guarda la configuracion validando correos, URLs y la ventana de mantenimiento. */
   async actualizarPortal(input: PortalConfigInput, actualizadoPor: string | null): Promise<PortalConfigEntity> {
+    const mantenimientoInicio = dateUtils.toDate(input.mantenimientoInicio);
+    const mantenimientoFin = dateUtils.toDate(input.mantenimientoFin);
+    const mantenimientoActivo = input.mantenimientoActivo ?? false;
+    if (mantenimientoActivo && (!mantenimientoInicio || !mantenimientoFin)) {
+      throw new DomainError(
+        "El modo mantenimiento requiere fecha de inicio y fin",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    if (mantenimientoInicio && mantenimientoFin && !dateUtils.isBefore(mantenimientoInicio, mantenimientoFin)) {
+      throw new DomainError(
+        "La fecha de fin debe ser posterior a la de inicio",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+
     return this.repo.guardarPortal({
       mesaAyudaEmail: correo(input.mesaAyudaEmail, "Mesa de Ayuda"),
       contactoEmail: correo(input.contactoEmail, "Contacto"),
       manualUrl: url(input.manualUrl, "Manual del Exhibidor"),
       reglamentoUrl: url(input.reglamentoUrl, "Reglamento de Stands"),
       holdReservaMinutos: minutosHold(input.holdReservaMinutos),
+      mantenimientoActivo,
+      mantenimientoInicio,
+      mantenimientoFin,
+      mantenimientoPermiteCerrar: input.mantenimientoPermiteCerrar ?? false,
       updatedBy: limpiar(actualizadoPor),
     });
   }

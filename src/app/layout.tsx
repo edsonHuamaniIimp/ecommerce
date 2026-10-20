@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { GoogleTranslateScript } from "@/components/shared/google-translate-script";
+import { MaintenanceGate } from "@/components/layout/maintenance-gate";
 import { IDIOMA_COOKIE } from "@/lib/shared/constants";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 
@@ -36,7 +37,10 @@ export default async function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <MaintenanceGate />
+        </Providers>
         <GoogleTranslateScript />
       </body>
     </html>

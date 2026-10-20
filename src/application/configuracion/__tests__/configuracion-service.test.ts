@@ -55,8 +55,33 @@ describe("ConfiguracionApplicationService", () => {
       manualUrl: null,
       reglamentoUrl: null,
       holdReservaMinutos: 25,
+      mantenimientoActivo: false,
+      mantenimientoInicio: null,
+      mantenimientoFin: null,
+      mantenimientoPermiteCerrar: false,
       updatedBy: "admin@iimp.org.pe",
     });
+  });
+
+  it("exige inicio y fin cuando el mantenimiento esta activo", async () => {
+    const service = new ConfiguracionApplicationService(fakeRepo().repo);
+    await expect(
+      service.actualizarPortal({ mantenimientoActivo: true }, null),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rechaza una ventana de mantenimiento con fin anterior al inicio", async () => {
+    const service = new ConfiguracionApplicationService(fakeRepo().repo);
+    await expect(
+      service.actualizarPortal(
+        {
+          mantenimientoActivo: true,
+          mantenimientoInicio: "2026-10-20T12:00:00.000Z",
+          mantenimientoFin: "2026-10-20T10:00:00.000Z",
+        },
+        null,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it("guarda los minutos de bloqueo configurados y valida el rango", async () => {

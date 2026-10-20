@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Skeleton, Switch } from "@nrivera-iimp/ui-kit-iimp";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { configuracionService } from "@/lib/client/api/services/configuracion-service";
+import { dateUtils } from "@/lib/shared/utils/date";
 
 /** Configuracion publica del portal: enlaces y contactos del login/presala. */
 export default function ConfiguracionPortalPage() {
@@ -15,6 +16,10 @@ export default function ConfiguracionPortalPage() {
   const [manualUrl, setManualUrl] = useState("");
   const [reglamentoUrl, setReglamentoUrl] = useState("");
   const [holdReservaMinutos, setHoldReservaMinutos] = useState("25");
+  const [mantenimientoActivo, setMantenimientoActivo] = useState(false);
+  const [mantenimientoInicio, setMantenimientoInicio] = useState("");
+  const [mantenimientoFin, setMantenimientoFin] = useState("");
+  const [mantenimientoPermiteCerrar, setMantenimientoPermiteCerrar] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -27,6 +32,10 @@ export default function ConfiguracionPortalPage() {
         setManualUrl(config.manualUrl ?? "");
         setReglamentoUrl(config.reglamentoUrl ?? "");
         setHoldReservaMinutos(String(config.holdReservaMinutos ?? 25));
+        setMantenimientoActivo(Boolean(config.mantenimientoActivo));
+        setMantenimientoInicio(dateUtils.toLimaDateTimeInput(config.mantenimientoInicio));
+        setMantenimientoFin(dateUtils.toLimaDateTimeInput(config.mantenimientoFin));
+        setMantenimientoPermiteCerrar(Boolean(config.mantenimientoPermiteCerrar));
       } catch {
         if (activo) toast.error("No se pudo cargar la configuracion");
       } finally {
@@ -45,12 +54,28 @@ export default function ConfiguracionPortalPage() {
         setGuardando(false);
         return;
       }
+      if (mantenimientoActivo) {
+        if (!mantenimientoInicio || !mantenimientoFin) {
+          toast.error("Indica la fecha de inicio y fin del mantenimiento");
+          setGuardando(false);
+          return;
+        }
+        if (!dateUtils.isBefore(mantenimientoInicio, mantenimientoFin)) {
+          toast.error("La fecha de fin debe ser posterior a la de inicio");
+          setGuardando(false);
+          return;
+        }
+      }
       await configuracionService.actualizarPortal({
         mesaAyudaEmail: mesaAyudaEmail.trim() || null,
         contactoEmail: contactoEmail.trim() || null,
         manualUrl: manualUrl.trim() || null,
         reglamentoUrl: reglamentoUrl.trim() || null,
         holdReservaMinutos: minutos,
+        mantenimientoActivo,
+        mantenimientoInicio: dateUtils.fromLimaDateTimeInput(mantenimientoInicio),
+        mantenimientoFin: dateUtils.fromLimaDateTimeInput(mantenimientoFin),
+        mantenimientoPermiteCerrar,
       });
       toast.success("Configuracion del portal guardada");
     } catch (e) {
@@ -136,6 +161,61 @@ export default function ConfiguracionPortalPage() {
                   />
                   <p className="text-[11px] text-muted-foreground">
                     Tiempo que el stand queda bloqueado mientras el cliente completa la reserva (1 a 120 minutos).
+                  </p>
+                </div>
+                <div className="space-y-4 rounded-xl border border-border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <Label htmlFor="mantenimiento-activo" className="flex items-center gap-2">
+                        <span>Modo mantenimiento</span>
+                      </Label>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Muestra un aviso a los usuarios durante la ventana configurada. Los administradores pueden seguir usando el sistema.
+                      </p>
+                    </div>
+                    <Switch
+                      id="mantenimiento-activo"
+                      checked={mantenimientoActivo}
+                      onCheckedChange={setMantenimientoActivo}
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mantenimiento-inicio"><span>Inicio</span></Label>
+                      <Input
+                        id="mantenimiento-inicio"
+                        type="datetime-local"
+                        value={mantenimientoInicio}
+                        onChange={(e) => setMantenimientoInicio(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mantenimiento-fin"><span>Fin</span></Label>
+                      <Input
+                        id="mantenimiento-fin"
+                        type="datetime-local"
+                        value={mantenimientoFin}
+                        onChange={(e) => setMantenimientoFin(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                    <div>
+                      <Label htmlFor="mantenimiento-permite-cerrar"><span>Permitir cerrar el aviso</span></Label>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Si está desactivado, los usuarios no podrán cerrar el aviso hasta que termine la ventana.
+                      </p>
+                    </div>
+                    <Switch
+                      id="mantenimiento-permite-cerrar"
+                      checked={mantenimientoPermiteCerrar}
+                      onCheckedChange={setMantenimientoPermiteCerrar}
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Si el modo está activo, la ventana debe tener inicio y fin. El aviso aparece en la plataforma durante ese rango.
                   </p>
                 </div>
                 <p className="text-[11px] text-muted-foreground">

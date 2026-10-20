@@ -6,4 +6,9 @@ export interface PortalConfigDTO {
   reglamentoUrl: string | null;
   /** Minutos de bloqueo del stand al abrir el wizard de reserva. */
   holdReservaMinutos: number;
+  /** Aviso global de mantenimiento para los usuarios del portal. */
+  mantenimientoActivo: boolean;
+  mantenimientoInicio: string | null;
+  mantenimientoFin: string | null;
+  mantenimientoPermiteCerrar: boolean;
 }

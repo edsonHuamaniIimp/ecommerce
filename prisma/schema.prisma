@@ -1106,6 +1106,12 @@ model PortalConfig {
   reglamentoUrl  String?  @map("reglamento_url") @db.VarChar(500)
   /// Minutos que un stand queda bloqueado mientras el cliente completa el wizard.
   holdReservaMinutos Int  @default(25) @map("hold_reserva_minutos")
+  /// Aviso global de mantenimiento para los usuarios del portal.
+  mantenimientoActivo Boolean @default(false) @map("mantenimiento_activo")
+  mantenimientoInicio DateTime? @map("mantenimiento_inicio")
+  mantenimientoFin    DateTime? @map("mantenimiento_fin")
+  /// true = el usuario puede cerrar el aviso; false = bloqueo hasta el fin.
+  mantenimientoPermiteCerrar Boolean @default(false) @map("mantenimiento_permite_cerrar")
   updatedBy      String?  @map("updated_by") @db.VarChar(200)
   updatedAt      DateTime @updatedAt @map("updated_at")
 

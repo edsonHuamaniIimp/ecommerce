@@ -180,7 +180,38 @@ export const dateUtils = {
     });
   },
 
-  /** Fecha + hora sin anio (para historiales compactos), según el idioma (hora de Perú). */
+  /** Rango de fechas en lenguaje natural y hora de Peru (America/Lima). */
+  formatDateTimeRangeLima(
+    inicioValor: string | Date | null | undefined,
+    finValor: string | Date | null | undefined,
+  ): string | null {
+    const inicio = aFecha(inicioValor);
+    const fin = aFecha(finValor);
+    if (!inicio || !fin) return null;
+
+    const fecha = new Intl.DateTimeFormat("es-PE", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "America/Lima",
+    });
+    const hora = new Intl.DateTimeFormat("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "America/Lima",
+    });
+    const mismoDia =
+      inicio.toLocaleDateString("en-CA", { timeZone: "America/Lima" }) ===
+      fin.toLocaleDateString("en-CA", { timeZone: "America/Lima" });
+
+    if (mismoDia) {
+      return `${fecha.format(inicio)}, de ${hora.format(inicio)} a ${hora.format(fin)}`;
+    }
+    return `Del ${fecha.format(inicio)}, ${hora.format(inicio)} al ${fecha.format(fin)}, ${hora.format(fin)}`;
+  },
+
+  /** Fecha + hora sin anio (para historiales compactos), segǧn el idioma (hora de Perǧ). */
   formatDateTimeShort(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
     if (!iso) return SIN_VALOR;
     const d = aFecha(iso);
@@ -197,6 +228,38 @@ export const dateUtils = {
   toInputValue(iso: string | null | undefined): string {
     if (!iso) return "";
     return iso.slice(0, 10);
+  },
+
+  /**
+   * Valor `YYYY-MM-DDTHH:mm` para un `<input type="datetime-local">`, siempre
+   * expresado en hora de Peru (America/Lima), sin depender de la zona del navegador.
+   */
+  toLimaDateTimeInput(iso: string | Date | null | undefined): string {
+    const fecha = aFecha(iso);
+    if (!fecha) return "";
+    const partes = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(fecha);
+    const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+      partes.find((parte) => parte.type === tipo)?.value ?? "";
+    return `${valor("year")}-${valor("month")}-${valor("day")}T${valor("hour")}:${valor("minute")}`;
+  },
+
+  /**
+   * Convierte un `datetime-local` interpretado como hora de Peru a ISO UTC.
+   * Peru no tiene horario de verano: se fija el offset -05:00.
+   */
+  fromLimaDateTimeInput(valor: string | null | undefined): string | null {
+    if (!valor) return null;
+    const conSegundos = /T\d{2}:\d{2}$/.test(valor) ? `${valor}:00` : valor;
+    const fecha = new Date(`${conSegundos}-05:00`);
+    return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString();
   },
 
   /** Valor `YYYY-MM-DD` para un `<input type="date">` de una fecha (hora local). */

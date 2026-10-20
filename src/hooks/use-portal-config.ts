@@ -11,6 +11,10 @@ export const PORTAL_CONFIG_VACIO: PortalConfigDTO = {
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
+  mantenimientoActivo: false,
+  mantenimientoInicio: null,
+  mantenimientoFin: null,
+  mantenimientoPermiteCerrar: false,
 };
 
 /* Cache en memoria del modulo: header, footer y tarjetas comparten una sola peticion. */

@@ -45,3 +45,19 @@ describe("dateUtils.inputValue", () => {
     expect(dateUtils.inputValue(new Date(2026, 0, 31))).toBe("2026-01-31");
   });
 });
+
+describe("dateUtils datetime-local en hora Lima", () => {
+  it("convierte ISO UTC a la hora de Peru", () => {
+    expect(dateUtils.toLimaDateTimeInput("2026-10-20T01:05:00.000Z")).toBe("2026-10-19T20:05");
+  });
+
+  it("convierte un datetime-local de Peru a ISO UTC", () => {
+    expect(dateUtils.fromLimaDateTimeInput("2026-10-19T20:05")).toBe("2026-10-20T01:05:00.000Z");
+  });
+
+  it("formatea un rango en hora Lima", () => {
+    expect(
+      dateUtils.formatDateTimeRangeLima("2026-10-20T01:05:00.000Z", "2026-10-20T01:30:00.000Z"),
+    ).toContain("8:05");
+  });
+});
