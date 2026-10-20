@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Dialog, DialogContent, DialogFooter,
-  DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger,
+  DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger, Input, Label, Select, SelectContent, SelectItem, SelectTrigger,
   SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tabs, TabsList, TabsTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { Bookmark, CheckSquare, Image as ImageIcon, Loader2, Pencil, RotateCcw, Search, Square, Upload } from "lucide-react";
+import { Bookmark, CheckSquare, Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Pencil, RotateCcw, Search, Square, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { EmpresaPicker } from "@/components/shared/empresa-picker";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -16,6 +17,8 @@ import { planosService } from "@/lib/client/api/services/planos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ESTADOS_STAND, MAX_PRE_RESERVA_LOTE, UI_SENTINEL } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
+import { dateUtils } from "@/lib/shared/utils/date";
+import { exportarTablaCsv, exportarTablaExcel, nombreArchivoExport, type ColumnaExportacion } from "@/lib/shared/utils/export-tabla";
 import type { GessStandDTO } from "@/types/dto/gess";
 import type { EmpresaAccesoDTO } from "@/types/dto/usuarios/usuario.dto";
 
@@ -57,6 +60,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
   const logoRef = useRef<HTMLInputElement>(null);
   const [nota, setNota] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +124,9 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
       return `${r.standCode} ${r.empresa ?? ""} ${r.tipoStand ?? ""} ${pabellonDe(r)}`.toLowerCase().includes(q);
     });
   }, [rows, search, pabellon, tipo, estadoFiltro, pabellonDe]);
+
+  /* Reporte: solo stands vinculados a un bloque del plano (excluye sueltos/mock). */
+  const exportables = useMemo(() => filtrados.filter((r) => Boolean(r.bloqueId)), [filtrados]);
 
   const seleccionables = filtrados.filter((r) => ESTADOS_SELECCIONABLES.includes(r.estado ?? ""));
   const seleccionadosDisponibles = filtrados.filter((r) => seleccion.has(r.id) && r.estado === ESTADOS_STAND.DISPONIBLE);
@@ -250,6 +257,40 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     }
   };
 
+  /** Exporta la bandeja filtrada (respeta busqueda, pabellon, tipo y estado). */
+  const exportar = async (formato: "csv" | "xlsx") => {
+    if (exportables.length === 0) {
+      toast.error("No hay stands vinculados para exportar con los filtros actuales");
+      return;
+    }
+    setExportando(formato);
+    try {
+      const columnas: ColumnaExportacion<GessStandDTO>[] = [
+        { encabezado: "Stand", valor: (r) => r.standCode },
+        { encabezado: "Pabellon", valor: (r) => pabellonDe(r) },
+        { encabezado: "Tipo", valor: (r) => r.tipoStand ?? "" },
+        { encabezado: "Estado", valor: (r) => estadoStandBadge(r.estado)?.texto ?? r.estado ?? "" },
+        { encabezado: "Empresa / Titulo", valor: (r) => r.empresa ?? r.preReservaRazonSocial ?? r.preReservaTitulo ?? "" },
+        { encabezado: "RUC", valor: (r) => r.preReservaRuc ?? "" },
+        { encabezado: "SIE", valor: (r) => r.preReservaSie ?? "" },
+        { encabezado: "Nota", valor: (r) => (r.estado === ESTADOS_STAND.PRE_RESERVADO ? (r.preReservaNota ?? "") : "") },
+        { encabezado: "Pre-reservado por", valor: (r) => r.preReservaPor ?? "" },
+        { encabezado: "Fecha pre-reserva", valor: (r) => (r.preReservaAt ? dateUtils.formatDateTime(r.preReservaAt) : "") },
+        { encabezado: "Actualizado", valor: (r) => dateUtils.formatDateTime(r.updatedAt) },
+      ];
+      if (formato === "csv") {
+        exportarTablaCsv(exportables, columnas, nombreArchivoExport("pre-reservas", "csv"));
+      } else {
+        await exportarTablaExcel(exportables, columnas, nombreArchivoExport("pre-reservas", "xlsx"), "Pre-reservas");
+      }
+      toast.success(`${exportables.length} stand(s) vinculado(s) exportado(s)`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
+    } finally {
+      setExportando(null);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="gap-3">
@@ -259,6 +300,26 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
             Pre-reservas del evento
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={exportando !== null || loading || exportables.length === 0}>
+                  <Download className={`h-3.5 w-3.5 ${exportando ? "animate-pulse" : ""}`} />
+                  {exportando ? "Exportando..." : "Exportar"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel><span>Solo vinculados ({exportables.length})</span></DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("xlsx"); }}>
+                  <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                  <span>Excel (.xlsx)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("csv"); }}>
+                  <FileText className="mr-2 h-3.5 w-3.5" />
+                  <span>CSV (.csv)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               size="sm"
               disabled={seleccionadosDisponibles.length === 0}

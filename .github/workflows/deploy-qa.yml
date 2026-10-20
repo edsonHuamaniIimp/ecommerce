@@ -79,7 +79,6 @@ jobs:
   build-image:
     name: Build imagen QA -> ECR
     runs-on: ubuntu-24.04
-    needs: ci
     environment: qa
     steps:
       - name: Checkout
@@ -121,7 +120,9 @@ jobs:
   deploy-qa:
     name: CD QA - Deploy EC2 por SSM
     runs-on: ubuntu-24.04
-    needs: build-image
+    needs: [ci, build-image]
+    # El deploy espera a CI y build; si cualquiera falla, no se despliega.
+    if: needs.ci.result == 'success' && needs.build-image.result == 'success'
     environment: qa
     steps:
       - name: Configurar credenciales AWS

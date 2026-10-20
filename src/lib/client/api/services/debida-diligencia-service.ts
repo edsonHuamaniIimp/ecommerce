@@ -6,6 +6,7 @@ import type {
   DdBandejaResponseDTO,
   DdDocumentoUploadResponseDTO,
   DdEmpresasImportResponseDTO,
+  DdEmpresasResponseDTO,
   DdExpedienteDTO,
   DdGuardarRequestDTO,
   DdInformeLegalUploadResponseDTO,
@@ -54,6 +55,31 @@ export const debidaDiligenciaService = {
       "/api/debida-diligencia/empresas/importar",
       formData,
     );
+  },
+
+  empresas(params: { page?: number; perPage?: number; search?: string; resultado?: string; estadoEvaluacion?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.perPage) qs.set("perPage", String(params.perPage));
+    if (params.search) qs.set("search", params.search);
+    if (params.resultado) qs.set("resultado", params.resultado);
+    if (params.estadoEvaluacion) qs.set("estadoEvaluacion", params.estadoEvaluacion);
+    const sufijo = qs.toString() ? `?${qs.toString()}` : "";
+    return internalApi.get<DdEmpresasResponseDTO>(`/api/debida-diligencia/empresas${sufijo}`);
+  },
+
+  /** Todas las empresas del registro externo, recorriendo su paginacion. */
+  async empresasTodas(params: { search?: string; resultado?: string; estadoEvaluacion?: string } = {}) {
+    const perPage = 100;
+    const items: DdEmpresasResponseDTO["items"] = [];
+    let page = 1;
+    while (true) {
+      const respuesta = await this.empresas({ ...params, page, perPage });
+      items.push(...respuesta.items);
+      if (page >= respuesta.pagination.totalPages) break;
+      page += 1;
+    }
+    return items;
   },
 
   bandeja(params: DdBandejaQueryDTO = {}) {

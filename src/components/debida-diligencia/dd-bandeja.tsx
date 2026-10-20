@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
+import type { DdBandejaResponseDTO, DdBandejaRowDTO, DdEmpresaEstadoDTO } from "@/types/dto/debida-diligencia";
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { DdImportModal } from "./dd-import-modal";
@@ -37,6 +37,9 @@ import {
   DD_PER_PAGE_DEFAULT,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
+  DD_RESULTADOS,
+  DD_RESULTADO_LABELS,
+  DD_ESTADO_EVALUACION_LABELS,
   DD_VINCULO_LABELS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
@@ -61,6 +64,10 @@ export function DdBandeja() {
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [externas, setExternas] = useState<DdEmpresaEstadoDTO[]>([]);
+  const [filtroExterno, setFiltroExterno] = useState<string>("todos");
+  const [extPage, setExtPage] = useState(1);
+  const [extPerPage, setExtPerPage] = useState(10);
 
   const refs = useRef({ page, perPage, search, estado });
   useEffect(() => { refs.current = { page, perPage, search, estado }; }, [page, perPage, search, estado]);
@@ -75,6 +82,14 @@ export function DdBandeja() {
         estado: actual.estado,
       });
       setData(respuesta);
+      try {
+        const externasRespuesta = await debidaDiligenciaService.empresasTodas({
+          search: actual.search.trim() || undefined,
+        });
+        setExternas(externasRespuesta);
+      } catch {
+        setExternas([]);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar la bandeja");
     } finally {
@@ -96,6 +111,17 @@ export function DdBandeja() {
   };
 
   const resumen = data?.resumen ?? RESUMEN_VACIO;
+  const normalizarDocumento = (valor: string | null | undefined) =>
+    (valor ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const externasPorRuc = new Map(externas.map((empresa) => [normalizarDocumento(empresa.documento), empresa]));
+  const externasFiltradas = externas.filter((empresa) => {
+    if (filtroExterno !== "todos" && empresa.resultado !== filtroExterno) return false;
+    return true;
+  });
+  const extTotalPages = Math.max(1, Math.ceil(externasFiltradas.length / extPerPage));
+  const extPageSafe = Math.min(extPage, extTotalPages);
+  const extRows = externasFiltradas.slice((extPageSafe - 1) * extPerPage, extPageSafe * extPerPage);
+
 
   return (
     <div className="space-y-4">
@@ -244,7 +270,14 @@ export function DdBandeja() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell><DdEstadoBadge estado={fila.estado} /></TableCell>
+                        <TableCell>
+                          <DdEstadoBadge estado={fila.estado} />
+                          {externasPorRuc.has(normalizarDocumento(fila.empresa.ruc)) && (
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              Registro externo: {externasPorRuc.get(normalizarDocumento(fila.empresa.ruc))?.resultadoLabel}
+                            </p>
+                          )}
+                        </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {fila.reputacionCasos === 0 ? (
                             <span className="text-[11px] text-muted-foreground">—</span>
@@ -320,13 +353,128 @@ export function DdBandeja() {
 
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {data.total} resultados — página {data.page} de {data.totalPages || 1}
+                  {data.total} resultados · página {data.page} de {data.totalPages || 1}
                 </span>
                 <Pagination
                   page={data.page}
                   totalPages={data.totalPages}
                   onPageChange={(p) => { setPage(p); recargar({ page: p }); }}
                 />
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader className="space-y-3 border-b border-border pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Registro externo de Debida Diligencia</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Empresas importadas manualmente. Es informativo y no crea expedientes internos.
+              </p>
+            </div>
+            <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
+              <span>{externasFiltradas.length} empresa(s)</span>
+            </Badge>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={filtroExterno} onValueChange={(valor) => { setFiltroExterno(valor); setExtPage(1); }}>
+              <SelectTrigger className="h-8 w-full border-border text-xs sm:w-[220px]">
+                <SelectValue placeholder="Resultado externo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos"><span>Todos los resultados</span></SelectItem>
+                {Object.entries(DD_RESULTADO_LABELS).map(([valor, label]) => (
+                  <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(extPerPage)} onValueChange={(valor) => { setExtPerPage(Number(valor)); setExtPage(1); }}>
+              <SelectTrigger className="h-8 w-[90px] border-border text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50].map((n) => (
+                  <SelectItem key={n} value={String(n)}><span>{n}</span></SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-4">
+          {extRows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No hay empresas externas para este filtro.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Resultado</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Evaluación</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Revisión</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vencimiento</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Origen</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {extRows.map((empresa) => (
+                      <TableRow key={empresa.id}>
+                        <TableCell className="max-w-[280px]">
+                          <p className="truncate text-xs font-semibold text-foreground">{empresa.razonSocial}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            {empresa.tipoDocumento} {empresa.documento}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`pointer-events-none text-[10px] ${
+                              empresa.resultado === DD_RESULTADOS.APTO
+                                ? BADGE_STYLES.SUCCESS
+                                : empresa.resultado === DD_RESULTADOS.NO_APTO
+                                  ? BADGE_STYLES.DESTRUCTIVE
+                                  : BADGE_STYLES.WARNING
+                            }`}
+                          >
+                            <span>{empresa.resultadoLabel || DD_RESULTADO_LABELS[empresa.resultado as keyof typeof DD_RESULTADO_LABELS] || empresa.resultado}</span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`pointer-events-none text-[10px] ${empresa.vigente ? BADGE_STYLES.SUCCESS : BADGE_STYLES.DESTRUCTIVE}`}>
+                            <span>
+                              {empresa.estadoEvaluacionLabel
+                                ?? DD_ESTADO_EVALUACION_LABELS[empresa.estadoEvaluacion as keyof typeof DD_ESTADO_EVALUACION_LABELS]
+                                ?? empresa.estadoEvaluacion
+                                ?? "Sin evaluación"}
+                            </span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
+                          {empresa.fechaRevision ? dateUtils.format(empresa.fechaRevision) : "—"}
+                        </TableCell>
+                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
+                          {empresa.fechaVencimiento ? dateUtils.format(empresa.fechaVencimiento) : "—"}
+                        </TableCell>
+                        <TableCell className="hidden text-[11px] text-muted-foreground xl:table-cell">
+                          {empresa.origen || "Importación manual"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-[10px] text-muted-foreground">Solo lectura</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-muted-foreground">
+                  {externasFiltradas.length} resultados · página {extPageSafe} de {extTotalPages}
+                </span>
+                <Pagination page={extPageSafe} totalPages={extTotalPages} onPageChange={setExtPage} />
               </div>
             </>
           )}
