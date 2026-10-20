@@ -40,15 +40,37 @@ export class ReservaApplicationService {
     standIds: string[],
     eventoId: string,
     userSub: string,
-    _userEmail: string | undefined,
+    userEmail: string | undefined,
     minutos?: number,
   ): Promise<{ holdId: string; expiresAt: string; reservaEnMinutos: number }> {
     if (!userSub) throw new DomainError("Inicia sesion para reservar", "UNAUTHORIZED", 401);
     if (!eventoId) throw new DomainError("Evento requerido para bloquear stands", "VALIDATION", 400);
+    const ids = [...new Set(standIds.filter(Boolean))];
+    /* La empresa duena de una pre-reserva puede bloquear y reservar su propio stand. */
+    const perfil = userEmail
+      ? await this.authRepo.findPerfilByEmail(userEmail).catch(() => null)
+      : null;
+    const viewer: EmpresaViewer = {
+      ruc: perfil?.empresa?.ruc ?? null,
+      razonSocial: perfil?.empresa?.razonSocial ?? perfil?.nombreEmpresa ?? null,
+    };
+    const detalle = await Promise.all(ids.map((id) => this.gessRepo.findById(id)));
+    const preReservadosPropios = detalle
+      .filter((stand): stand is NonNullable<typeof stand> =>
+        Boolean(stand && stand.eventoId === eventoId && stand.estado === ESTADOS_STAND.PRE_RESERVADO && esEmpresaDuenaPreReserva(stand, viewer)),
+      )
+      .map((stand) => stand.id);
     const duracion = minutos ?? await this.minutosHold();
     const holdId = randomUUID();
     const expiresAt = new Date(Date.now() + duracion * 60 * 1000);
-    const resultado = await this.gessRepo.crearHold({ standIds, eventoId, holdId, userId: userSub, expiresAt });
+    const resultado = await this.gessRepo.crearHold({
+      standIds: ids,
+      eventoId,
+      holdId,
+      userId: userSub,
+      expiresAt,
+      preReservadosPropios,
+    });
     if (!resultado.ok) {
       throw new DomainError(
         `Los stands ya estan en proceso o reservados: ${resultado.conflictos.join(", ")}`,

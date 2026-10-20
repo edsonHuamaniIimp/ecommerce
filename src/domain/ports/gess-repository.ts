@@ -39,6 +39,8 @@ export interface IGessRepository {
     holdId: string;
     userId: string;
     expiresAt: Date;
+    /** IDs pre-reservados a nombre del usuario que crea el hold. */
+    preReservadosPropios?: string[];
   }): Promise<{ ok: boolean; conflictos: string[] }>;
   /** Libera un hold propio y devuelve los stands liberados. */
   liberarHold(holdId: string, userId: string): Promise<Array<{ id: string; standCode: string; eventoId: string }>>;

@@ -2,6 +2,7 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-imagen-repository";
+import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { GessStandEntity } from "@/domain/models/entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
@@ -29,6 +30,7 @@ export class GessApplicationService {
     private readonly api: IPlanogessClient,
     private readonly planoRepo: IPlanoRepository,
     private readonly tiposImagenRepo: ITipoStandImagenRepository,
+    private readonly standEvents?: StandEventPublisher,
   ) {}
 
   /** Mapa clave canonica del tipo → imagen referencial del evento (pisa la global). */
@@ -161,6 +163,7 @@ export class GessApplicationService {
         preReservaAt: at,
       } as Partial<GessStandEntity>);
     }
+    await this.notificarPreReserva(encontrados).catch(() => {});
     return { preReservados: encontrados.length };
   }
 
@@ -181,6 +184,7 @@ export class GessApplicationService {
         preReservaAt: null,
       } as Partial<GessStandEntity>);
     }
+    await this.notificarPreReserva(encontrados).catch(() => {});
     return { liberados: encontrados.length };
   }
 
@@ -208,7 +212,19 @@ export class GessApplicationService {
       preReservaLogoUrl: datos.logoUrl?.trim() || null,
       preReservaNota: datos.nota?.trim() || null,
     } as Partial<GessStandEntity>);
+    await this.notificarPreReserva([stand]).catch(() => {});
     return { actualizado: true };
+  }
+
+  /** Avisa a los planos abiertos que cambio una pre-reserva (la vista es por usuario). */
+  private async notificarPreReserva(stands: GessStandEntity[]): Promise<void> {
+    const eventoId = stands[0]?.eventoId;
+    if (!eventoId || !this.standEvents?.standPreReservaChanged) return;
+    await this.standEvents.standPreReservaChanged({
+      eventoId,
+      standIds: stands.map((s) => s.id),
+      standCodes: stands.map((s) => s.standCode),
+    });
   }
 
   /** Valida en lote que los stands existan y esten en el estado requerido (todo o nada). */

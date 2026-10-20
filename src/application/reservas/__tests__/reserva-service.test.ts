@@ -191,9 +191,35 @@ describe("ReservaApplicationService - hold temporal", () => {
     expect(minutosRestantes).toBeLessThanOrEqual(10);
   });
 
+  it("permite crear el hold de una pre-reserva propia", async () => {
+    const crearHold = vi.fn(async () => ({ ok: true, conflictos: [] }));
+    const repo = {
+      crearHold,
+      findById: vi.fn(async (id: string) => ({
+        id,
+        standCode: "144",
+        eventoId: "evt-1",
+        estado: "pre_reservado",
+        preReservaRuc: "20312372895",
+        preReservaRazonSocial: "YURA S.A.",
+      })),
+    } as unknown as IGessRepository;
+    const standEvents = { standReservado: vi.fn(), standHold: vi.fn(async () => {}), standReleased: vi.fn() };
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso({ ruc: "20312372895", razonSocial: "YURA S.A." }), standEvents);
+
+    const hold = await svc.crearHold(["g1"], "evt-1", "user-1", "correo@correo.com");
+
+    expect(hold.holdId).toBeTruthy();
+    expect(crearHold).toHaveBeenCalledWith(expect.objectContaining({
+      standIds: ["g1"],
+      preReservadosPropios: ["g1"],
+    }));
+  });
+
   it("no publica evento ni devuelve hold cuando otro cliente bloqueo el stand", async () => {
     const repo = {
       crearHold: vi.fn(async () => ({ ok: false, conflictos: ["A-1"] })),
+      findById: vi.fn(async (id: string) => ({ id, standCode: "A-1", eventoId: "evt-1" })),
     } as unknown as IGessRepository;
     const standEvents = {
       standReservado: vi.fn(),
