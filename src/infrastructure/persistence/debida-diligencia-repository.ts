@@ -349,27 +349,8 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where: { empresaId_eventoId: { empresaId: data.empresaId, eventoId: data.eventoId } },
       select: { id: true },
     });
-    if (existente) {
-      await prisma.debidaDiligencia.update({
-        where: { id: existente.id },
-        data: {
-          estado: data.estado,
-          origen: "importado",
-          estadoOrigen: data.estadoOrigen,
-          eventoProyecto: data.eventoProyecto,
-          motivoImportacion: data.motivoImportacion,
-          importacionId: data.importacionId,
-          fechaEnvio: data.fechaEnvio,
-          fechaRevision: data.fechaRevision,
-          fechaAprobacion: data.fechaAprobacion,
-          fechaVencimiento: data.fechaVencimiento,
-          fechaRechazo: data.fechaRechazo,
-          revisadoPor: DD_IMPORTACION_REVISOR,
-          actualizadoPor: data.actualizadoPor,
-        },
-      });
-      return { id: existente.id, creado: false };
-    }
+    /* La carga masiva nunca modifica un expediente ya iniciado por el cliente. */
+    if (existente) return { id: existente.id, creado: false };
 
     const row = await prisma.debidaDiligencia.create({
       data: {

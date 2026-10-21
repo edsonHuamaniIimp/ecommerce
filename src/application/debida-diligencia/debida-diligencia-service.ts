@@ -601,7 +601,8 @@ export class DebidaDiligenciaApplicationService {
 
   /**
    * Importa resultados manuales directamente a la DD interna.
-   * Todos los estados se migran; el resultado original queda como trazabilidad.
+   * Solo crea expedientes que aun no existen: un expediente iniciado por el
+   * cliente nunca se actualiza desde la carga masiva.
    */
   async importarExpedientes(
     rows: Array<{
@@ -617,7 +618,6 @@ export class DebidaDiligenciaApplicationService {
       fechaVencimiento: Date | null;
     }>,
     meta: { archivo: string; hash: string; total: number; omitidos: number; errores: unknown },
-    actualizarExistentes: boolean,
     session: DdSession,
   ): Promise<{ importados: number; actualizados: number; omitidos: number; loteId: string }> {
     this.exigirPermiso(session, PERMISSIONS.DD_VER);
@@ -633,19 +633,18 @@ export class DebidaDiligenciaApplicationService {
     });
 
     let importados = 0;
-    let actualizados = 0;
     let omitidos = 0;
     const anio = String(dateUtils.currentYear());
 
     for (const row of rows) {
-      const estado = this.estadoDesdeImportacion(row.resultado, row.estadoOrigen);
       const existente = await this.repo.findExpedientePorEmpresaEvento(row.empresaId, eventoId);
-      if (existente && !actualizarExistentes) {
+      if (existente) {
         omitidos += 1;
         continue;
       }
-      const codigo = existente?.codigo ?? await this.repo.siguienteCodigo(anio);
-      const resultado = await this.repo.importarExpediente({
+      const estado = this.estadoDesdeImportacion(row.resultado, row.estadoOrigen);
+      const codigo = await this.repo.siguienteCodigo(anio);
+      await this.repo.importarExpediente({
         empresaId: row.empresaId,
         eventoId,
         codigo,
@@ -662,12 +661,11 @@ export class DebidaDiligenciaApplicationService {
         fechaVencimiento: row.fechaVencimiento,
         fechaRechazo: estado === DD_ESTADOS.RECHAZADA ? (row.fechaRevision ?? row.fechaIngreso) : null,
       });
-      if (resultado.creado) importados += 1;
-      else actualizados += 1;
+      importados += 1;
     }
 
-    await this.repo.cerrarImportacion(loteId, importados, actualizados, omitidos + meta.omitidos);
-    return { importados, actualizados, omitidos, loteId };
+    await this.repo.cerrarImportacion(loteId, importados, 0, omitidos + meta.omitidos);
+    return { importados, actualizados: 0, omitidos, loteId };
   }
 
   private estadoDesdeImportacion(resultado: string, estadoOrigen: string): string {
