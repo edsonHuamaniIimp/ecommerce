@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -107,6 +107,29 @@ export function DdBandeja() {
     recargar({ estado: valor, page: 1 });
   };
 
+  const limpiarFiltros = () => {
+    setSearch("");
+    setEstado(DD_FILTRO_TODAS);
+    setOrigen(DD_FILTRO_TODAS);
+    setVinculo(DD_FILTRO_TODAS);
+    setDocumentos(DD_FILTRO_TODAS);
+    setPage(1);
+    recargar({
+      search: "",
+      estado: DD_FILTRO_TODAS,
+      origen: DD_FILTRO_TODAS,
+      vinculo: DD_FILTRO_TODAS,
+      documentos: DD_FILTRO_TODAS,
+      page: 1,
+    });
+  };
+
+  const hayFiltrosAvanzados =
+    origen !== DD_FILTRO_TODAS ||
+    vinculo !== DD_FILTRO_TODAS ||
+    documentos !== DD_FILTRO_TODAS ||
+    search.trim().length > 0;
+
   const resumen = data?.resumen ?? RESUMEN_VACIO;
 
 
@@ -186,7 +209,7 @@ export function DdBandeja() {
             </Select>
           </div>
 
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg bg-secondary/40 p-1" role="group" aria-label="Filtrar por estado">
             {DD_BANDEJA_FILTROS.map((filtro) => {
               const activo = estado === filtro.value;
               return (
@@ -194,8 +217,8 @@ export function DdBandeja() {
                   key={filtro.value}
                   type="button"
                   size="sm"
-                  variant={activo ? "default" : "outline"}
-                  className="h-7 rounded-full px-3 text-[11px]"
+                  variant={activo ? "default" : "ghost"}
+                  className="h-7 rounded-md px-3 text-[11px]"
                   onClick={() => cambiarFiltro(filtro.value)}
                 >
                   <span>{filtro.label}</span>
@@ -204,9 +227,13 @@ export function DdBandeja() {
             })}
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1 pr-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filtros
+            </span>
             <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
-              <SelectTrigger className="h-8 w-[170px] border-border text-xs">
+              <SelectTrigger className="h-7 w-[145px] rounded-full border-border/70 bg-secondary/30 text-[11px]">
                 <SelectValue placeholder="Origen" />
               </SelectTrigger>
               <SelectContent>
@@ -217,7 +244,7 @@ export function DdBandeja() {
             </Select>
 
             <Select value={vinculo} onValueChange={(valor) => { setVinculo(valor); setPage(1); recargar({ vinculo: valor, page: 1 }); }}>
-              <SelectTrigger className="h-8 w-[190px] border-border text-xs">
+              <SelectTrigger className="h-7 w-[165px] rounded-full border-border/70 bg-secondary/30 text-[11px]">
                 <SelectValue placeholder="Vínculo" />
               </SelectTrigger>
               <SelectContent>
@@ -229,7 +256,7 @@ export function DdBandeja() {
             </Select>
 
             <Select value={documentos} onValueChange={(valor) => { setDocumentos(valor); setPage(1); recargar({ documentos: valor, page: 1 }); }}>
-              <SelectTrigger className="h-8 w-[180px] border-border text-xs">
+              <SelectTrigger className="h-7 w-[155px] rounded-full border-border/70 bg-secondary/30 text-[11px]">
                 <SelectValue placeholder="Documentos" />
               </SelectTrigger>
               <SelectContent>
@@ -238,6 +265,18 @@ export function DdBandeja() {
                 <SelectItem value={DD_DOCUMENTOS_FILTRO.SIN}><span>Sin documentos</span></SelectItem>
               </SelectContent>
             </Select>
+            {hayFiltrosAvanzados ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 rounded-full px-2 text-[11px] text-muted-foreground"
+                onClick={limpiarFiltros}
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Limpiar</span>
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
 
