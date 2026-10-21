@@ -44,6 +44,7 @@ export function mapDdEmpresaToDTO(empresa: DdEmpresaResumen): DdEmpresaDTO {
   return {
     id: empresa.id,
     ruc: empresa.ruc,
+    tipoDocumento: empresa.tipoDocumento ?? null,
     razonSocial: empresa.razonSocial,
     nombreComercial: empresa.nombreComercial,
     sitioWeb: empresa.sitioWeb,

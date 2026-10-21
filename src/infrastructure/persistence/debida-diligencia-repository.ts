@@ -62,6 +62,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 const empresaSelect = {
   id: true,
   ruc: true,
+  tipoDocumento: true,
   razonSocial: true,
   nombreComercial: true,
   sitioWeb: true,
@@ -108,6 +109,7 @@ function mapEmpresa(row: ExpedienteRow["empresa"]): DdEmpresaResumen {
   return {
     id: row.id,
     ruc: row.ruc,
+    tipoDocumento: row.tipoDocumento,
     razonSocial: row.razonSocial,
     nombreComercial: row.nombreComercial ?? null,
     sitioWeb: row.sitioWeb ?? null,

@@ -9,6 +9,8 @@ const ARCHIVO = [
   "2/10/2026;5/10/2026;EMPRESA PENDIENTE S.A.C.;20602295398;EXHIBIDOR;PERUMIN;EN REVISIÓN",
   "2/10/2026;5/10/2026;XCEL INSPECTION SOLUTIONS LT D;SIC. 71122;EXHIBIDOR;PERUMIN;APTO",
   "6/10/2026;7/10/2026;TEGA INDUSTRIES CHILE SPA;2.03E+11;EXHIBIDOR;IIMP;APTO",
+  "6/10/2026;7/10/2026;MARLEW S.A.;33-58551048-9;EXHIBIDOR;IIMP;APTO",
+  "6/10/2026;7/10/2026;PERSONA NATURAL;12345678;EXHIBIDOR;IIMP;APTO",
 ].join("\n");
 
 describe("parseEmpresasExcel", () => {
@@ -18,7 +20,7 @@ describe("parseEmpresasExcel", () => {
       const resultado = await parseEmpresasExcel(Buffer.from(ARCHIVO, "utf8"), nombre);
 
       expect(resultado.errors).toEqual([]);
-      expect(resultado.rows).toHaveLength(4);
+      expect(resultado.rows).toHaveLength(6);
       expect(resultado.rows[0]).toMatchObject({
         documento: "20549974342",
         resultado: DD_RESULTADOS.APTO,
@@ -27,8 +29,22 @@ describe("parseEmpresasExcel", () => {
         documento: "20602295398",
         resultado: DD_RESULTADOS.PENDIENTE,
       });
-      expect(resultado.rows[2]?.documento).toBe("SIC.71122");
-      expect(resultado.rows[3]?.documento).toBe("202608324489");
+      expect(resultado.rows[2]).toMatchObject({
+        documento: "SIC.71122",
+        tipoDocumento: "EXTRANJERO",
+      });
+      expect(resultado.rows[3]).toMatchObject({
+        documento: "202608324489",
+        tipoDocumento: "RUT",
+      });
+      expect(resultado.rows[4]).toMatchObject({
+        documento: "33-58551048-9",
+        tipoDocumento: "RUT",
+      });
+      expect(resultado.rows[5]).toMatchObject({
+        documento: "12345678",
+        tipoDocumento: "DNI",
+      });
     },
   );
 });

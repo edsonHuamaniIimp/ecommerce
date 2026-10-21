@@ -50,6 +50,7 @@ import {
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import {
   exportarTablaCsv,
   exportarTablaExcel,
@@ -184,7 +185,8 @@ export function DdBandeja() {
       }
       const columnas: ColumnaExportacion<DdBandejaRowDTO>[] = [
         { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
-        { encabezado: "RUC", valor: (r) => r.empresa.ruc },
+        { encabezado: "Tipo documento", valor: (r) => etiquetaTipoDocumentoEmpresa(r.empresa.tipoDocumento, r.empresa.ruc) },
+        { encabezado: "Documento", valor: (r) => r.empresa.ruc },
         { encabezado: "Expediente", valor: (r) => r.codigo },
         { encabezado: "Origen", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
         { encabezado: "Vínculo / motivo", valor: (r) => r.motivoImportacion ?? (r.tipoRelacionComercial ? DD_VINCULO_LABELS[r.tipoRelacionComercial] ?? r.tipoRelacionComercial : "") },
@@ -287,7 +289,7 @@ export function DdBandeja() {
             <div className="relative w-full sm:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar razón social, RUC o expediente..."
+                placeholder="Buscar razón social, documento o expediente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -440,7 +442,7 @@ export function DdBandeja() {
                       <TableRow key={fila.id}>
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.empresa.razonSocial}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">RUC {fila.empresa.ruc}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">{etiquetaTipoDocumentoEmpresa(fila.empresa.tipoDocumento, fila.empresa.ruc)} {fila.empresa.ruc}</p>
                           <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
                         </TableCell>
                         <TableCell>

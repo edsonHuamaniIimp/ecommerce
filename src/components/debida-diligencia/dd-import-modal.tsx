@@ -96,7 +96,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             Importación masiva de Debida Diligencia
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador debe ser RUC de 11 dígitos o RUT/identificador extranjero.
+            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador puede ser RUC, RUT, DNI o un identificador extranjero.
           </p>
         </DialogHeader>
 

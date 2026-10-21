@@ -126,11 +126,22 @@ function documentoConAlias(documento: string, razonSocial: string): string {
   return alias ?? documento;
 }
 
-function clasificarDocumento(documento: string): DdTipoDocumentoEmpresa | null {
-  if (/^\d{11}$/.test(documento)) return DD_TIPOS_DOCUMENTO_EMPRESA.RUC;
-  if (/^\d{8}$/.test(documento)) return null;
-  if (/^[A-Z0-9][A-Z0-9.-]{2,19}$/.test(documento)) {
+function clasificarDocumento(
+  documento: string,
+  documentoFuente: string,
+): DdTipoDocumentoEmpresa | null {
+  const fuente = documentoFuente.toUpperCase();
+  const limpio = documento.replace(/[^A-Z0-9]/g, "");
+  const rutConSeparadores =
+    fuente.includes("-") && /^\d{8,12}[\dK]$/.test(limpio);
+  if (rutConSeparadores) return DD_TIPOS_DOCUMENTO_EMPRESA.RUT;
+  if (/^\d{11}$/.test(limpio)) return DD_TIPOS_DOCUMENTO_EMPRESA.RUC;
+  if (/^\d{8}$/.test(limpio)) return DD_TIPOS_DOCUMENTO_EMPRESA.DNI;
+  if (/^\d{9,10}$/.test(limpio) || /^\d{12}$/.test(limpio)) {
     return DD_TIPOS_DOCUMENTO_EMPRESA.RUT;
+  }
+  if (/^[A-Z0-9][A-Z0-9.-]{2,19}$/.test(documento)) {
+    return DD_TIPOS_DOCUMENTO_EMPRESA.EXTRANJERO;
   }
   return null;
 }
@@ -259,12 +270,12 @@ export async function parseEmpresasExcel(
       continue;
     }
 
-    const tipoDocumento = clasificarDocumento(documento);
+    const tipoDocumento = clasificarDocumento(documento, documentoFuente);
     if (!tipoDocumento) {
       errors.push({
         fila: numero + 1,
         documento,
-        mensaje: "Identificador inválido: solo se aceptan RUC (11 dígitos) o RUT/identificador extranjero.",
+        mensaje: "Identificador inválido: use RUC, RUT, DNI o identificador extranjero.",
       });
       continue;
     }

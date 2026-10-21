@@ -17,6 +17,7 @@ import type {
 export interface DdEmpresaResumen {
   id: string;
   ruc: string;
+  tipoDocumento?: string | null;
   razonSocial: string;
   nombreComercial: string | null;
   sitioWeb: string | null;
