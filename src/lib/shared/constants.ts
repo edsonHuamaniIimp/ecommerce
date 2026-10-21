@@ -1216,6 +1216,19 @@ export const DD_ESTADOS = {
   RECHAZADA: "rechazada",
 } as const;
 
+/** Origen de un registro de Debida Diligencia. */
+export const DD_ORIGENES = {
+  FLUJO_REGULAR: "flujo_regular",
+  IMPORTADO: "importado",
+} as const;
+
+export type DdOrigen = (typeof DD_ORIGENES)[keyof typeof DD_ORIGENES];
+
+export const DD_ORIGEN_LABELS: Record<string, string> = {
+  [DD_ORIGENES.FLUJO_REGULAR]: "Flujo regular",
+  [DD_ORIGENES.IMPORTADO]: "Importado",
+};
+
 export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
 
 export const DD_ESTADO_LABELS: Record<string, string> = {

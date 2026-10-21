@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import type { DdBandejaResponseDTO, DdBandejaRowDTO, DdEmpresaEstadoDTO } from "@/types/dto/debida-diligencia";
+import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { DdImportModal } from "./dd-import-modal";
@@ -34,12 +34,11 @@ import {
   BADGE_STYLES,
   DD_BANDEJA_FILTROS,
   DD_ESTADOS,
+  DD_ORIGEN_LABELS,
+  DD_ORIGENES,
   DD_PER_PAGE_DEFAULT,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
-  DD_RESULTADOS,
-  DD_RESULTADO_LABELS,
-  DD_ESTADO_EVALUACION_LABELS,
   DD_VINCULO_LABELS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
@@ -64,10 +63,6 @@ export function DdBandeja() {
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [externas, setExternas] = useState<DdEmpresaEstadoDTO[]>([]);
-  const [filtroExterno, setFiltroExterno] = useState<string>("todos");
-  const [extPage, setExtPage] = useState(1);
-  const [extPerPage, setExtPerPage] = useState(10);
 
   const refs = useRef({ page, perPage, search, estado });
   useEffect(() => { refs.current = { page, perPage, search, estado }; }, [page, perPage, search, estado]);
@@ -82,14 +77,6 @@ export function DdBandeja() {
         estado: actual.estado,
       });
       setData(respuesta);
-      try {
-        const externasRespuesta = await debidaDiligenciaService.empresasTodas({
-          search: actual.search.trim() || undefined,
-        });
-        setExternas(externasRespuesta);
-      } catch {
-        setExternas([]);
-      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar la bandeja");
     } finally {
@@ -111,16 +98,6 @@ export function DdBandeja() {
   };
 
   const resumen = data?.resumen ?? RESUMEN_VACIO;
-  const normalizarDocumento = (valor: string | null | undefined) =>
-    (valor ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const externasPorRuc = new Map(externas.map((empresa) => [normalizarDocumento(empresa.documento), empresa]));
-  const externasFiltradas = externas.filter((empresa) => {
-    if (filtroExterno !== "todos" && empresa.resultado !== filtroExterno) return false;
-    return true;
-  });
-  const extTotalPages = Math.max(1, Math.ceil(externasFiltradas.length / extPerPage));
-  const extPageSafe = Math.min(extPage, extTotalPages);
-  const extRows = externasFiltradas.slice((extPageSafe - 1) * extPerPage, extPageSafe * extPerPage);
 
 
   return (
@@ -130,7 +107,7 @@ export function DdBandeja() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Debida Diligencia</h1>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
-              {resumen.enRevision} en revisión
+              {resumen.enRevision} en revisiÃƒÆ’Ã‚Â³n
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -146,7 +123,7 @@ export function DdBandeja() {
             onClick={() => setImportOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
-            <span>Importación masiva</span>
+            <span>ImportaciÃƒÆ’Ã‚Â³n masiva</span>
           </Button>
           <Button
             type="button"
@@ -164,8 +141,8 @@ export function DdBandeja() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Borradores y sin iniciar", variante: "muted" }} />
-        <StatsCard title="En revisión" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisión", variante: "primary" }} />
-        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando corrección", variante: "gold" }} />
+        <StatsCard title="En revisiÃƒÆ’Ã‚Â³n" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisiÃƒÆ’Ã‚Â³n", variante: "primary" }} />
+        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correcciÃƒÆ’Ã‚Â³n", variante: "gold" }} />
         <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Vigencia de 6 meses", variante: "primary" }} />
       </div>
 
@@ -175,7 +152,7 @@ export function DdBandeja() {
             <div className="relative w-full lg:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar razón social, RUC o expediente..."
+                placeholder="Buscar razÃƒÆ’Ã‚Â³n social, RUC o expediente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -220,14 +197,14 @@ export function DdBandeja() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={perPage} columns={7} />
+            <TableSkeleton rows={perPage} columns={9} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {estado === DD_ESTADOS.EN_REVISION
-                  ? "Cuando un cliente envíe su debida diligencia aparecerá aquí."
-                  : "Prueba con otro estado o limpia la búsqueda."}
+                  ? "Cuando un cliente envÃƒÆ’Ã‚Â­e su debida diligencia aparecerÃƒÆ’Ã‚Â¡ aquÃƒÆ’Ã‚Â­."
+                  : "Prueba con otro estado o limpia la bÃƒÆ’Ã‚Âºsqueda."}
               </p>
             </div>
           ) : (
@@ -237,10 +214,11 @@ export function DdBandeja() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Origen</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">VÃƒÆ’Ã‚Â­nculo</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">ReputaciÃƒÆ’Ã‚Â³n</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
@@ -254,8 +232,18 @@ export function DdBandeja() {
                           <p className="font-mono text-[11px] text-muted-foreground">RUC {fila.empresa.ruc}</p>
                           <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
                         </TableCell>
+                        <TableCell>
+                          <Badge className={`pointer-events-none text-[9px] ${fila.origen === DD_ORIGENES.IMPORTADO ? BADGE_STYLES.NEUTRAL : BADGE_STYLES.INFO}`}>
+                            <span>{DD_ORIGEN_LABELS[fila.origen] ?? fila.origen}</span>
+                          </Badge>
+                          {fila.origen === DD_ORIGENES.IMPORTADO && fila.estadoOrigen ? (
+                            <p className="mt-1 max-w-[140px] truncate text-[10px] text-muted-foreground" title={fila.estadoOrigen}>
+                              {fila.estadoOrigen}
+                            </p>
+                          ) : null}
+                        </TableCell>
                         <TableCell className="hidden text-xs md:table-cell">
-                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
+                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -272,15 +260,10 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell>
                           <DdEstadoBadge estado={fila.estado} />
-                          {externasPorRuc.has(normalizarDocumento(fila.empresa.ruc)) && (
-                            <p className="mt-1 text-[10px] text-muted-foreground">
-                              Registro externo: {externasPorRuc.get(normalizarDocumento(fila.empresa.ruc))?.resultadoLabel}
-                            </p>
-                          )}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {fila.reputacionCasos === 0 ? (
-                            <span className="text-[11px] text-muted-foreground">—</span>
+                            <span className="text-[11px] text-muted-foreground">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</span>
                           ) : (
                             <Badge
                               className={`pointer-events-none text-[9px] ${
@@ -318,7 +301,7 @@ export function DdBandeja() {
                                   : "",
                               ]
                                 .filter(Boolean)
-                                .join(" · ")}
+                                .join(" Ãƒâ€šÃ‚Â· ")}
                             </p>
                           ) : null}
                         </TableCell>
@@ -339,10 +322,10 @@ export function DdBandeja() {
                             variant="outline"
                             size="sm"
                             className="h-7 gap-1 text-[11px]"
-                            onClick={() => setRevisando(fila)}
+                            onClick={() => { if (fila.origen !== DD_ORIGENES.IMPORTADO) setRevisando(fila); }}
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            <span>Revisar</span>
+                            <span>{fila.origen === DD_ORIGENES.IMPORTADO ? "Solo lectura" : "Revisar"}</span>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -353,128 +336,13 @@ export function DdBandeja() {
 
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {data.total} resultados · página {data.page} de {data.totalPages || 1}
+                  {data.total} resultados Ãƒâ€šÃ‚Â· pÃƒÆ’Ã‚Â¡gina {data.page} de {data.totalPages || 1}
                 </span>
                 <Pagination
                   page={data.page}
                   totalPages={data.totalPages}
                   onPageChange={(p) => { setPage(p); recargar({ page: p }); }}
                 />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader className="space-y-3 border-b border-border pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Registro externo de Debida Diligencia</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Empresas importadas manualmente. Es informativo y no crea expedientes internos.
-              </p>
-            </div>
-            <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
-              <span>{externasFiltradas.length} empresa(s)</span>
-            </Badge>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={filtroExterno} onValueChange={(valor) => { setFiltroExterno(valor); setExtPage(1); }}>
-              <SelectTrigger className="h-8 w-full border-border text-xs sm:w-[220px]">
-                <SelectValue placeholder="Resultado externo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos"><span>Todos los resultados</span></SelectItem>
-                {Object.entries(DD_RESULTADO_LABELS).map(([valor, label]) => (
-                  <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={String(extPerPage)} onValueChange={(valor) => { setExtPerPage(Number(valor)); setExtPage(1); }}>
-              <SelectTrigger className="h-8 w-[90px] border-border text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 25, 50].map((n) => (
-                  <SelectItem key={n} value={String(n)}><span>{n}</span></SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-4">
-          {extRows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No hay empresas externas para este filtro.</p>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Resultado</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Evaluación</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Revisión</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vencimiento</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Origen</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {extRows.map((empresa) => (
-                      <TableRow key={empresa.id}>
-                        <TableCell className="max-w-[280px]">
-                          <p className="truncate text-xs font-semibold text-foreground">{empresa.razonSocial}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            {empresa.tipoDocumento} {empresa.documento}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`pointer-events-none text-[10px] ${
-                              empresa.resultado === DD_RESULTADOS.APTO
-                                ? BADGE_STYLES.SUCCESS
-                                : empresa.resultado === DD_RESULTADOS.NO_APTO
-                                  ? BADGE_STYLES.DESTRUCTIVE
-                                  : BADGE_STYLES.WARNING
-                            }`}
-                          >
-                            <span>{empresa.resultadoLabel || DD_RESULTADO_LABELS[empresa.resultado as keyof typeof DD_RESULTADO_LABELS] || empresa.resultado}</span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`pointer-events-none text-[10px] ${empresa.vigente ? BADGE_STYLES.SUCCESS : BADGE_STYLES.DESTRUCTIVE}`}>
-                            <span>
-                              {empresa.estadoEvaluacionLabel
-                                ?? DD_ESTADO_EVALUACION_LABELS[empresa.estadoEvaluacion as keyof typeof DD_ESTADO_EVALUACION_LABELS]
-                                ?? empresa.estadoEvaluacion
-                                ?? "Sin evaluación"}
-                            </span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
-                          {empresa.fechaRevision ? dateUtils.format(empresa.fechaRevision) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
-                          {empresa.fechaVencimiento ? dateUtils.format(empresa.fechaVencimiento) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground xl:table-cell">
-                          {empresa.origen || "Importación manual"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-[10px] text-muted-foreground">Solo lectura</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {externasFiltradas.length} resultados · página {extPageSafe} de {extTotalPages}
-                </span>
-                <Pagination page={extPageSafe} totalPages={extTotalPages} onPageChange={setExtPage} />
               </div>
             </>
           )}

@@ -80,6 +80,11 @@ export interface DdExpedienteEntity {
   eventoId: string;
   codigo: string;
   estado: DdEstado;
+  origen: string;
+  estadoOrigen: string | null;
+  eventoProyecto: string | null;
+  motivoImportacion: string | null;
+  importacionId: string | null;
   tipoRelacionComercial: DdVinculo | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
@@ -152,6 +157,10 @@ export interface DdBandejaRow {
   id: string;
   codigo: string;
   estado: DdEstado;
+  origen: string;
+  estadoOrigen: string | null;
+  eventoProyecto: string | null;
+  motivoImportacion: string | null;
   tipoRelacionComercial: DdVinculo | null;
   empresa: DdEmpresaResumen;
   documentoCargados: number;

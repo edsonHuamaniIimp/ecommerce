@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/server/auth";
 import { services } from "@/lib/server/services";
@@ -7,7 +8,6 @@ import { error, success } from "@/lib/server/api-response";
 import {
   API_ERROR_CODES,
   DD_DOCUMENTO_MAX_BYTES,
-  DD_RESULTADOS,
   PERMISSIONS,
   ROLES,
 } from "@/lib/shared/constants";
@@ -67,9 +67,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (puedeCrearEmpresas) {
       for (const row of parsed.rows) {
-        if (row.resultado !== DD_RESULTADOS.APTO) continue;
         try {
-          const { creada } = await services.empresas.crearSiNoExiste(
+          const { empresa, creada } = await services.empresas.crearSiNoExiste(
             {
               ruc: row.documento,
               tipoDocumento: row.tipoDocumento,
@@ -77,6 +76,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             },
             session.email,
           );
+          row.empresaId = empresa.id;
           if (creada) empresasCreadas += 1;
           else empresasExistentes += 1;
         } catch (e) {
@@ -88,11 +88,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
-    const resultado = await services.debidaDiligencia.importarEmpresas(
-      parsed.rows.map((row) => ({
+    const filasConEmpresa = parsed.rows.filter((row) => row.empresaId);
+    const resultado = await services.debidaDiligencia.importarExpedientes(
+      filasConEmpresa.map((row) => ({
+        empresaId: row.empresaId as string,
         documento: row.documento,
         razonSocial: row.razonSocial,
-        tipoDocumento: row.tipoDocumento,
         motivoEvaluacion: row.motivoEvaluacion,
         eventoProyecto: row.eventoProyecto,
         resultado: row.resultado,
@@ -101,6 +102,13 @@ export async function POST(request: Request): Promise<NextResponse> {
         fechaRevision: row.fechaRevision,
         fechaVencimiento: row.fechaVencimiento,
       })),
+      {
+        archivo: file.name,
+        hash: createHash("sha256").update(buffer).digest("hex"),
+        total: parsed.rows.length,
+        omitidos: parsed.omitidos,
+        errores: [...parsed.errors, ...empresasError],
+      },
       {
         email: session.email,
         roles: session.roles,
@@ -113,8 +121,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       empresasCreadas,
       empresasExistentes,
       empresasError,
-      omitidos: parsed.omitidos,
-      errores: parsed.errors,
+      omitidos: parsed.omitidos + empresasError.length,
+      errores: [...parsed.errors, ...empresasError],
     });
   } catch (e) {
     return error(

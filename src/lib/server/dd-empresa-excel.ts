@@ -20,6 +20,8 @@ export interface DdEmpresaImportRow {
   fechaIngreso: Date | null;
   fechaRevision: Date | null;
   fechaVencimiento: Date | null;
+  /** Empresa local resuelta/creada durante la importacion. */
+  empresaId?: string;
 }
 
 export interface DdEmpresaImportError {

@@ -122,6 +122,11 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     eventoId: row.eventoId,
     codigo: row.codigo,
     estado: row.estado as DdEstado,
+    origen: row.origen,
+    estadoOrigen: row.estadoOrigen ?? null,
+    eventoProyecto: row.eventoProyecto ?? null,
+    motivoImportacion: row.motivoImportacion ?? null,
+    importacionId: row.importacionId ?? null,
     tipoRelacionComercial: row.tipoRelacionComercial as DdExpedienteEntity["tipoRelacionComercial"],
     actividadEconomica: row.actividadEconomica ?? null,
     actividadEconomicaOtro: row.actividadEconomicaOtro ?? null,
@@ -311,6 +316,106 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       include: expedienteInclude,
     });
     return mapExpediente(row);
+  }
+
+  /** Crea/actualiza un expediente proveniente de la migracion manual. */
+  async importarExpediente(data: {
+    empresaId: string;
+    eventoId: string;
+    codigo: string;
+    estado: string;
+    estadoOrigen: string | null;
+    eventoProyecto: string | null;
+    motivoImportacion: string | null;
+    importacionId: string;
+    creadoPor: string;
+    actualizadoPor: string;
+    fechaEnvio: Date | null;
+    fechaRevision: Date | null;
+    fechaAprobacion: Date | null;
+    fechaVencimiento: Date | null;
+    fechaRechazo: Date | null;
+  }): Promise<{ id: string; creado: boolean }> {
+    const existente = await prisma.debidaDiligencia.findUnique({
+      where: { empresaId_eventoId: { empresaId: data.empresaId, eventoId: data.eventoId } },
+      select: { id: true },
+    });
+    if (existente) {
+      await prisma.debidaDiligencia.update({
+        where: { id: existente.id },
+        data: {
+          estado: data.estado,
+          origen: "importado",
+          estadoOrigen: data.estadoOrigen,
+          eventoProyecto: data.eventoProyecto,
+          motivoImportacion: data.motivoImportacion,
+          importacionId: data.importacionId,
+          fechaEnvio: data.fechaEnvio,
+          fechaRevision: data.fechaRevision,
+          fechaAprobacion: data.fechaAprobacion,
+          fechaVencimiento: data.fechaVencimiento,
+          fechaRechazo: data.fechaRechazo,
+          revisadoPor: "importacion_masiva",
+          actualizadoPor: data.actualizadoPor,
+        },
+      });
+      return { id: existente.id, creado: false };
+    }
+
+    const row = await prisma.debidaDiligencia.create({
+      data: {
+        empresaId: data.empresaId,
+        eventoId: data.eventoId,
+        codigo: data.codigo,
+        estado: data.estado,
+        origen: "importado",
+        estadoOrigen: data.estadoOrigen,
+        eventoProyecto: data.eventoProyecto,
+        motivoImportacion: data.motivoImportacion,
+        importacionId: data.importacionId,
+        creadoPor: data.creadoPor,
+        actualizadoPor: data.actualizadoPor,
+        fechaEnvio: data.fechaEnvio,
+        fechaRevision: data.fechaRevision,
+        fechaAprobacion: data.fechaAprobacion,
+        fechaVencimiento: data.fechaVencimiento,
+        fechaRechazo: data.fechaRechazo,
+        revisadoPor: "importacion_masiva",
+      },
+      select: { id: true },
+    });
+    return { id: row.id, creado: true };
+  }
+
+  async crearImportacion(data: {
+    archivo: string;
+    hash: string;
+    eventoId: string;
+    usuario: string;
+    total: number;
+    omitidos: number;
+    errores: unknown;
+  }): Promise<string> {
+    const row = await prisma.ddImportacion.create({
+      data: {
+        archivo: data.archivo,
+        hash: data.hash,
+        eventoId: data.eventoId,
+        usuario: data.usuario,
+        total: data.total,
+        omitidos: data.omitidos,
+        errores: data.errores as never,
+      },
+      select: { id: true },
+    });
+    return row.id;
+  }
+
+  async cerrarImportacion(id: string, importados: number, actualizados: number): Promise<void> {
+    await prisma.ddImportacion.update({
+      where: { id },
+      data: { importados, actualizados },
+    });
   }
 
   async guardarFormulario(id: string, data: DdGuardarData, actualizadoPor: string): Promise<DdExpedienteEntity> {
@@ -610,6 +715,10 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         id: row.id,
         codigo: row.codigo,
         estado: row.estado as DdEstado,
+        origen: row.origen,
+        estadoOrigen: row.estadoOrigen ?? null,
+        eventoProyecto: row.eventoProyecto ?? null,
+        motivoImportacion: row.motivoImportacion ?? null,
         tipoRelacionComercial: row.tipoRelacionComercial as DdMatrizRow["tipoRelacionComercial"],
         empresa: mapEmpresa(row.empresa),
         documentoCargados: row.documentos.filter(

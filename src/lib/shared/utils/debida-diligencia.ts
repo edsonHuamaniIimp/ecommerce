@@ -227,9 +227,10 @@ export const ddUtils = {
     resultado: DdResultado,
     estadoEvaluacion: DdEstadoEvaluacion | null,
     declaraVerdad: boolean,
+    esImportado = false,
   ): boolean {
     return (
-      declaraVerdad &&
+      (declaraVerdad || esImportado) &&
       estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE &&
       (resultado === DD_RESULTADOS.APTO ||
         resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES)

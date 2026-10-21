@@ -1157,6 +1157,27 @@ model PortalConfig {
  */
 
 /// Expediente de debida diligencia de una empresa en un evento.
+/// Lote de importacion de resultados de DD (Excel/CSV/TXT).
+model DdImportacion {
+  id          String   @id @default(uuid())
+  archivo     String   @db.VarChar(255)
+  hash        String   @db.VarChar(64)
+  eventoId    String   @map("evento_id")
+  usuario     String   @db.VarChar(200)
+  total       Int
+  importados  Int      @default(0)
+  actualizados Int     @default(0)
+  omitidos    Int      @default(0)
+  errores     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  expedientes DebidaDiligencia[]
+
+  @@index([eventoId])
+  @@index([createdAt])
+  @@map("dd_importacion")
+}
+
 model DebidaDiligencia {
   id        String @id @default(uuid())
   empresaId String @map("empresa_id")
@@ -1165,6 +1186,16 @@ model DebidaDiligencia {
   codigo    String @unique @db.VarChar(30)
   /// Estado del workflow (ver DD_ESTADOS): borrador | pendiente | en_revision | observada | aprobada | rechazada.
   estado    String @default("borrador") @db.VarChar(20)
+  /// Origen del registro: flujo_regular | importado.
+  origen    String @default("flujo_regular") @db.VarChar(20)
+  /// Resultado original de la fuente externa (APTO, EN REVISION, etc.).
+  estadoOrigen String? @map("estado_origen") @db.VarChar(80)
+  /// Proyecto/evento tal como viene en el archivo de importacion.
+  eventoProyecto String? @map("evento_proyecto") @db.VarChar(120)
+  /// Motivo/vinculo original de la fuente externa.
+  motivoImportacion String? @map("motivo_importacion") @db.VarChar(250)
+  /// Lote que origino el registro importado.
+  importacionId String? @map("importacion_id")
 
   /// Tipo de relacion comercial con el IIMP (ver DD_VINCULOS).
   tipoRelacionComercial  String? @map("tipo_relacion_comercial") @db.VarChar(40)
@@ -1214,6 +1245,7 @@ model DebidaDiligencia {
 
   empresa       Empresa                        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   evento        Evento                         @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  importacion   DdImportacion?                 @relation(fields: [importacionId], references: [id], onDelete: SetNull)
   beneficiarios DebidaDiligenciaBeneficiario[]
   documentos    DebidaDiligenciaDocumento[]
   observaciones DebidaDiligenciaObservacion[]
@@ -1223,6 +1255,8 @@ model DebidaDiligencia {
   @@index([eventoId, estado])
   @@index([fechaVencimiento])
   @@index([codigo])
+  @@index([origen])
+  @@index([importacionId])
   @@map("debida_diligencia")
 }
 
