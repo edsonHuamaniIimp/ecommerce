@@ -8,6 +8,7 @@ import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet,
 import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight, ZoomIn, ZoomOut, RotateCcw, RotateCw, Home, Compass, Hand, HelpCircle } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { logsService } from "@/lib/client/api/services/logs-service";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
@@ -337,7 +338,10 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
       try {
         const [dbList, apiList] = await Promise.all([
           gessService.all(eventoId),
-          gessService.fetchFromApi(tipoEvento, codigoEvento).catch(() => [] as Record<string, unknown>[]),
+          gessService.fetchFromApi(tipoEvento, codigoEvento).catch((error: unknown) => {
+            void logsService.registrar({ message: error instanceof Error ? error.message : "Error al consultar el API de stands", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "fetch_api", eventoId } }).catch(() => {});
+            return [] as Record<string, unknown>[];
+          }),
         ]);
 
         if (cancelled) return;
@@ -402,7 +406,8 @@ map.set(String(bloqueId), {
         }
         setLinkedMap(map);
         if (!cancelled) setDataReady(true);
-      } catch {
+      } catch (error) {
+        void logsService.registrar({ message: error instanceof Error ? error.message : "Error al cargar el mapa", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "cargar_mapa", eventoId } }).catch(() => {});
         if (!cancelled) setDataReady(true);
       }
     })();
@@ -518,7 +523,24 @@ map.set(String(bloqueId), {
             holdReservaRef.current = hold;
             setHoldReserva(hold);
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.");
+            const msg = error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.";
+            const detalle = error as { code?: string; status?: number; stack?: string } | null;
+            void logsService.registrar({
+              message: msg,
+              stack: detalle?.stack,
+              url: typeof window !== "undefined" ? window.location.href : undefined,
+              path: typeof window !== "undefined" ? window.location.pathname : undefined,
+              userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+              metadata: {
+                source: "wizard",
+                flujo: "reserva_stand",
+                paso: "1_hold",
+                stands: standIds.join(","),
+                code: detalle?.code ?? null,
+                status: detalle?.status ?? null,
+              },
+            }).catch(() => {});
+            toast.error(msg);
             return false;
           } finally {
             holdSolicitudRef.current = null;

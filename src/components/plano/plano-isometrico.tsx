@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
+import { logsService } from "@/lib/client/api/services/logs-service";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
@@ -121,7 +122,10 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
       try {
         const [dbList, apiList] = await Promise.all([
           gessService.all(eventoId),
-          gessService.fetchFromApi(tipoEvento, codigoEvento).catch(() => [] as Record<string, unknown>[]),
+          gessService.fetchFromApi(tipoEvento, codigoEvento).catch((error: unknown) => {
+            void logsService.registrar({ message: error instanceof Error ? error.message : "Error al consultar el API de stands", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "fetch_api", eventoId } }).catch(() => {});
+            return [] as Record<string, unknown>[];
+          }),
         ]);
 
         if (cancelled) return;
@@ -177,7 +181,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         }
         setLinkedMap(map);
         if (!cancelled) setDataReady(true);
-      } catch {
+      } catch (error) {
+        void logsService.registrar({ message: error instanceof Error ? error.message : "Error al cargar el mapa", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "cargar_mapa", eventoId } }).catch(() => {});
         if (!cancelled) setDataReady(true);
       }
     })();
