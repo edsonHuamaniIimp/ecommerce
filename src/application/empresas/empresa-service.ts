@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PERMISSIONS, REGEX_DNI, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
@@ -415,7 +416,7 @@ export class EmpresaApplicationService {
 
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.crearUsuario({
-      userId: `user|${email}`,
+      userId: randomUUID(),
       email,
       password: hashPassword(passwordTemporal),
       /* Solo referencia: la persona y la empresa viven en servicio-persona. */
@@ -1092,7 +1093,7 @@ export class EmpresaApplicationService {
 
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.crearUsuario({
-      userId: `user|${usuario}`,
+      userId: randomUUID(),
       email: usuario,
       password: hashPassword(passwordTemporal),
       nombre: empresa.representanteLegalNombre ?? empresa.razonSocial,

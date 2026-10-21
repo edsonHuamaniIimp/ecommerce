@@ -35,7 +35,7 @@ export const portalEmpresaController = {
     if (correoNuevo) {
       const token = await signToken(
         {
-          sub: `user|${correoNuevo}`,
+          sub: session.sub,
           email: correoNuevo,
           name: session.name,
           roles: session.roles,

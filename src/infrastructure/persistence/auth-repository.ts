@@ -212,18 +212,10 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   /**
-   * Cambia el correo de acceso de la cuenta completa: se propaga a todas las filas
-   * con el mismo userId y se reescribe `user|<email>` para que el login siga resolviendo.
+   * Cambia el correo de contacto de la cuenta completa.
+   * El userId es un UUID inmutable: no se modifica.
    */
   async actualizarEmailCuenta(userId: string, email: string): Promise<void> {
-    const nuevoUserId = `user|${email}`;
-    /*
-     * El userId es el identificador de dueno de solicitudes y documentos
-     * (`user|<email>`). Al adoptar un correo real (cuenta provisional), se migran
-     * las referencias historicas en la MISMA transaccion: ninguna solicitud ni
-     * documento queda huerfano. Solo se actualizan identificadores/contacto;
-     * nunca se elimina ni se toca `flg_activo`.
-     */
     await prisma.$transaction(async (tx) => {
       const cuenta = await tx.userRole.findFirst({
         where: { userId },
@@ -231,38 +223,27 @@ export class AuthPrismaRepository implements IAuthRepository {
       });
       const emailAnterior = cuenta?.email ?? null;
 
+      await tx.userRole.updateMany({
+        where: { userId },
+        data: { email },
+      });
+
+      if (!emailAnterior) return;
+
+      /* El correo visible de la solicitud se actualiza; el userId no cambia. */
+      await tx.solicitud.updateMany({
+        where: { userId },
+        data: { email },
+      });
+
       const solicitudes = await tx.solicitud.findMany({
         where: { userId },
         select: { id: true },
       });
       const solicitudIds = solicitudes.map((s) => s.id);
 
-      await tx.userRole.updateMany({
-        where: { userId },
-        data: { email, userId: nuevoUserId },
-      });
-
-      await tx.solicitud.updateMany({
-        where: { userId },
-        data: {
-          userId: nuevoUserId,
-          ...(emailAnterior ? { email } : {}),
-        },
-      });
-
-      await tx.solicitudDocumento.updateMany({
-        where: { userId },
-        data: { userId: nuevoUserId },
-      });
-
-      /* Bandeja de notificaciones: las alertas tambien se amarran al userId. */
-      await tx.alerta.updateMany({
-        where: { userId },
-        data: { userId: nuevoUserId },
-      });
-
       /* Auditoria visible (uploadedBy): solo documentos de estas solicitudes. */
-      if (emailAnterior && solicitudIds.length > 0) {
+      if (solicitudIds.length > 0) {
         await tx.solicitudDocumento.updateMany({
           where: { solicitudId: { in: solicitudIds }, uploadedBy: emailAnterior },
           data: { uploadedBy: email },

@@ -71,7 +71,7 @@ export interface IAuthRepository {
   setResetToken(id: string, token: string, expires: Date): Promise<void>;
   findByResetToken(token: string): Promise<{ id: string } | null>;
   updatePassword(id: string, password: string): Promise<void>;
-  /** Cambia el correo de acceso de la cuenta completa (todas sus filas de rol) y reescribe el userId. */
+  /** Cambia el correo de todas las filas de rol de la cuenta; el userId UUID no cambia. */
   actualizarEmailCuenta(userId: string, email: string): Promise<void>;
   /** Setea el sie_code (persona en servicio-persona) a las cuentas de la empresa que aun no lo tienen. */
   actualizarSieCodeDeEmpresa(empresaId: string, sieCode: string): Promise<void>;

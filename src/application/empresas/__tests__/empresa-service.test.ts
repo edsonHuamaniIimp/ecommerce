@@ -801,7 +801,7 @@ describe("EmpresaApplicationService.crearCuenta", () => {
     expect(resultado.emailEnviado).toBeNull();
     expect(auth.llamadas.creados).toHaveLength(1);
     const datos = auth.llamadas.creados[0] as Record<string, unknown>;
-    expect(datos.userId).toBe("user|acceso-20601234567@acceso.iimp");
+    expect(datos.userId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(datos.empresaId).toBe(creada.id);
     expect(datos.debeCambiarPassword).toBe(true);
     expect(datos.roleId).toBe("rol-cliente");

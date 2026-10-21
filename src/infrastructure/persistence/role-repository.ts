@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/server/db";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 
@@ -82,7 +83,10 @@ export class RolePrismaRepository implements IRoleRepository {
   }
 
   async addUser(email: string, roleId: string) {
-    const row = await prisma.userRole.create({ data: { email, userId: `user|${email}`, roleId } });
+    const existente = await prisma.userRole.findFirst({ where: { email }, select: { userId: true } });
+    const row = await prisma.userRole.create({
+      data: { email, userId: existente?.userId ?? randomUUID(), roleId },
+    });
     return row;
   }
 

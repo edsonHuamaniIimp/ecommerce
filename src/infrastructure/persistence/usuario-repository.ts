@@ -110,14 +110,13 @@ export class UsuarioPrismaRepository implements IUsuarioRepository {
 
     /*
      * Correo y estado pertenecen a la cuenta completa (no a una fila de rol):
-     * se propagan a todas las filas con el mismo userId. El userId se reescribe
-     * como `user|<email>` para que la sesion (sub del JWT) siga resolviendo.
+     * se propagan a todas las filas con el mismo userId. El userId UUID no cambia.
      */
     if (data.email !== undefined || data.flgActivo !== undefined) {
       await prisma.userRole.updateMany({
         where: { userId: actual.userId },
         data: {
-          ...(data.email !== undefined ? { email: data.email, userId: `user|${data.email}` } : {}),
+          ...(data.email !== undefined ? { email: data.email } : {}),
           /* Habilitar/deshabilitar manualmente limpia cualquier reactivacion programada. */
           ...(data.flgActivo !== undefined ? { flgActivo: data.flgActivo, reactivarEn: null } : {}),
         },

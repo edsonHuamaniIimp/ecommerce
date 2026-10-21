@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
@@ -119,7 +120,7 @@ export class AuthApplicationService {
     }
 
     await this.repo.crearUsuario({
-      userId: `user|${email}`,
+      userId: randomUUID(),
       email,
       password: pendiente.password,
       nombre: pendiente.nombre,
@@ -139,7 +140,7 @@ export class AuthApplicationService {
     }
     const roles = userRoles.map((ur) => ur.role.nombre as Rol);
     const token = await signToken(
-      { sub: `user|${email}`, email, name: email.split("@")[0] ?? email, roles, permissions: principal.role.permisos },
+      { sub: principal.userId, email, name: email.split("@")[0] ?? email, roles, permissions: principal.role.permisos },
       SESION.JWT_EXPIRACION_ESTANDAR,
     );
     return { token, roles, email, remember: false };
@@ -212,7 +213,7 @@ export class AuthApplicationService {
 
     const token = await signToken(
       {
-        sub: `user|${email}`,
+        sub: principal.userId,
         email,
         name: email.split("@")[0] ?? email,
         roles,
@@ -272,7 +273,7 @@ export class AuthApplicationService {
       : null;
     const token = await signToken(
       {
-        sub: `user|${email}`,
+        sub: principal.userId,
         email,
         name: session.name ?? email.split("@")[0] ?? email,
         roles,
@@ -479,7 +480,7 @@ export class AuthApplicationService {
           await this.repo.actualizarEmailCuenta(principal.userId, nuevoCorreo).catch(() => {});
           token = await signToken(
             {
-              sub: `user|${nuevoCorreo}`,
+              sub: session.sub,
               email: nuevoCorreo,
               name: session.name,
               roles: session.roles,
