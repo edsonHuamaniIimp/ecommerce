@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -35,6 +35,7 @@ import {
   DD_BANDEJA_FILTROS,
   DD_DOCUMENTOS_FILTRO,
   DD_ESTADOS,
+  DD_ESTADO_LABELS,
   DD_FILTRO_TODAS,
   DD_IMPORTACION_REVISOR,
   DD_IMPORTACION_REVISOR_LABEL,
@@ -47,6 +48,12 @@ import {
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import {
+  exportarTablaCsv,
+  exportarTablaExcel,
+  nombreArchivoExport,
+  type ColumnaExportacion,
+} from "@/lib/shared/utils/export-tabla";
 
 const RESUMEN_VACIO = {
   total: 0,
@@ -70,6 +77,7 @@ export function DdBandeja() {
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
   const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos });
   useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos }; }, [page, perPage, search, estado, origen, vinculo, documentos]);
@@ -130,6 +138,66 @@ export function DdBandeja() {
     documentos !== DD_FILTRO_TODAS ||
     search.trim().length > 0;
 
+  /** Exporta todas las paginas que cumplen los filtros aplicados. */
+  const exportar = async (formato: "csv" | "xlsx") => {
+    setExportando(formato);
+    try {
+      const filtros = refs.current;
+      const perPage = 100;
+      const primera = await debidaDiligenciaService.bandeja({
+        page: 1,
+        perPage,
+        search: filtros.search.trim() || undefined,
+        estado: filtros.estado,
+        origen: filtros.origen,
+        vinculo: filtros.vinculo,
+        documentos: filtros.documentos,
+      });
+      const filas: DdBandejaRowDTO[] = [...primera.data];
+      for (let page = 2; page <= primera.totalPages; page += 1) {
+        const siguiente = await debidaDiligenciaService.bandeja({
+          page,
+          perPage,
+          search: filtros.search.trim() || undefined,
+          estado: filtros.estado,
+          origen: filtros.origen,
+          vinculo: filtros.vinculo,
+          documentos: filtros.documentos,
+        });
+        filas.push(...siguiente.data);
+      }
+      if (filas.length === 0) {
+        toast.error("No hay registros para exportar con los filtros actuales");
+        return;
+      }
+      const columnas: ColumnaExportacion<DdBandejaRowDTO>[] = [
+        { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
+        { encabezado: "RUC", valor: (r) => r.empresa.ruc },
+        { encabezado: "Expediente", valor: (r) => r.codigo },
+        { encabezado: "Origen", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
+        { encabezado: "Vínculo / motivo", valor: (r) => r.motivoImportacion ?? (r.tipoRelacionComercial ? DD_VINCULO_LABELS[r.tipoRelacionComercial] ?? r.tipoRelacionComercial : "") },
+        { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
+        { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
+        { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
+        { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
+        { encabezado: "Enviado", valor: (r) => (r.fechaEnvio ? dateUtils.format(r.fechaEnvio) : "") },
+        { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
+        { encabezado: "Vence", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
+        { encabezado: "Asignado", valor: (r) => r.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (r.revisadoPor ?? "") },
+      ];
+      if (formato === "csv") {
+        exportarTablaCsv(filas, columnas, nombreArchivoExport("dd-bandeja", "csv"));
+      } else {
+        await exportarTablaExcel(filas, columnas, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
+      }
+      toast.success(`${filas.length} registro(s) exportado(s)`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
+    } finally {
+      setExportando(null);
+    }
+  };
+
   const resumen = data?.resumen ?? RESUMEN_VACIO;
 
 
@@ -148,6 +216,28 @@ export function DdBandeja() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={exportando !== null || loading}
+            onClick={() => { void exportar("xlsx"); }}
+          >
+            <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
+            <span>{exportando === "xlsx" ? "Exportando..." : "Excel"}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={exportando !== null || loading}
+            onClick={() => { void exportar("csv"); }}
+          >
+            <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
+            <span>{exportando === "csv" ? "Exportando..." : "CSV"}</span>
+          </Button>
           <Button
             type="button"
             variant="outline"
