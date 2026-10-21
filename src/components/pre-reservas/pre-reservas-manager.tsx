@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Dialog, DialogContent, DialogFooter,
   DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -10,6 +10,7 @@ import {
 import { Bookmark, CheckSquare, Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Pencil, RotateCcw, Search, Square, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { EmpresaPicker } from "@/components/shared/empresa-picker";
+import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useConfirm } from "@/hooks/use-confirm";
 import { gessService } from "@/lib/client/api/services/gess-service";
@@ -24,6 +25,11 @@ import type { EmpresaAccesoDTO } from "@/types/dto/usuarios/usuario.dto";
 
 /** Estados sobre los que se puede operar desde esta vista. */
 const ESTADOS_SELECCIONABLES: string[] = [ESTADOS_STAND.DISPONIBLE, ESTADOS_STAND.PRE_RESERVADO];
+
+/** Paginacion server-side de la bandeja. */
+const PER_PAGE_DEFAULT = 25;
+const PER_PAGE_OPCIONES = [10, 25, 50, 100];
+const EXPORT_MAX_FILAS = 2000;
 
 /** Etiqueta para stands sin pabellon resoluble (plano o nombre). */
 const SIN_PABELLON = "Sin pabellon";
@@ -43,12 +49,17 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
   const { confirm, confirmDialog } = useConfirm();
   const [rows, setRows] = useState<GessStandDTO[]>([]);
   const [bloquePlano, setBloquePlano] = useState<Map<string, string>>(new Map());
+  const [pabellonesPlano, setPabellonesPlano] = useState<Array<{ label: string; bloqueIds: string[] }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
   const [tipo, setTipo] = useState<string>(UI_SENTINEL.TODOS);
   const [estadoFiltro, setEstadoFiltro] = useState<string>(UI_SENTINEL.TODOS);
-  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(PER_PAGE_DEFAULT);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
+  const [seleccion, setSeleccion] = useState<Map<string, GessStandDTO>>(new Map());
 
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editRow, setEditRow] = useState<GessStandDTO | null>(null);
@@ -62,21 +73,86 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
   const [guardando, setGuardando] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
-  const load = useCallback(async () => {
+  const pageRef = useRef(page);
+  const perPageRef = useRef(perPage);
+  const filtrosRef = useRef({ search, pabellon, tipo, estadoFiltro });
+  const pabellonesRef = useRef(pabellonesPlano);
+  const firstSearchRef = useRef(true);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { perPageRef.current = perPage; }, [perPage]);
+  useEffect(() => { filtrosRef.current = { search, pabellon, tipo, estadoFiltro }; }, [search, pabellon, tipo, estadoFiltro]);
+  useEffect(() => { pabellonesRef.current = pabellonesPlano; }, [pabellonesPlano]);
+
+  const load = useCallback(async (
+    p?: number,
+    overrides?: Partial<{ search: string; pabellon: string; tipo: string; estadoFiltro: string }>,
+    pp?: number,
+  ) => {
     setLoading(true);
     try {
-      const data = await gessService.all(eventoId);
-      setRows(data);
-      setSeleccion(new Set());
+      const filtros = { ...filtrosRef.current, ...overrides };
+      const bloqueIds = pabellonesRef.current.find((item) => item.label === filtros.pabellon)?.bloqueIds ?? [];
+      const respuesta = await gessService.list(eventoId, {
+        page: p ?? pageRef.current,
+        per_page: pp ?? perPageRef.current,
+        search: filtros.search.trim() || undefined,
+        estado: filtros.estadoFiltro === UI_SENTINEL.TODOS ? undefined : filtros.estadoFiltro,
+        tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
+        bloqueIds: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : bloqueIds,
+        sinPabellon: filtros.pabellon === SIN_PABELLON,
+      });
+      setRows(respuesta.data);
+      setPagination({
+        page: respuesta.pagination.page,
+        total: respuesta.pagination.total,
+        totalPages: respuesta.pagination.total_pages,
+      });
     } catch {
       setRows([]);
+      setPagination({ page: 1, total: 0, totalPages: 0 });
     }
     setLoading(false);
   }, [eventoId]);
 
   useEffect(() => {
-    void (async () => { await load(); })();
+    void (async () => { await load(1); })();
   }, [load]);
+
+  /* Tipos distintos del evento (filtro server-side). */
+  useEffect(() => {
+    let activo = true;
+    gessService.tipos(eventoId)
+      .then((lista) => { if (activo) setTipos(lista); })
+      .catch(() => {});
+    return () => { activo = false; };
+  }, [eventoId]);
+
+  /* Busqueda con debounce; el primer render no dispara una segunda carga. */
+  useEffect(() => {
+    if (firstSearchRef.current) { firstSearchRef.current = false; return; }
+    const timer = setTimeout(() => {
+      setPage(1);
+      setSeleccion(new Map());
+      void load(1, { search });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, load]);
+
+  const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; tipo: string; estadoFiltro: string }>) => {
+    filtrosRef.current = { ...filtrosRef.current, ...cambios };
+    if (cambios.pabellon !== undefined) setPabellon(cambios.pabellon);
+    if (cambios.tipo !== undefined) setTipo(cambios.tipo);
+    if (cambios.estadoFiltro !== undefined) setEstadoFiltro(cambios.estadoFiltro);
+    setPage(1);
+    setSeleccion(new Map());
+    void load(1, cambios);
+  };
+
+  const cambiarPerPage = (valor: number) => {
+    setPerPage(valor);
+    setPage(1);
+    void load(1, undefined, valor);
+  };
 
   /* Pabellon por bloque: los planos del evento dan el nombre real (no la coordenada cruda). */
   useEffect(() => {
@@ -86,12 +162,22 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
       .then((planes) => {
         if (!activo) return;
         const mapa = new Map<string, string>();
+        const porPabellon = new Map<string, Set<string>>();
         for (const plano of planes) {
+          const label = plano.nombre?.trim() || plano.codigo;
+          const bloqueIds = porPabellon.get(label) ?? new Set<string>();
           for (const bloque of plano.bloques) {
-            mapa.set(bloque.bloqueId, plano.nombre?.trim() || plano.codigo);
+            mapa.set(bloque.bloqueId, label);
+            bloqueIds.add(bloque.bloqueId);
           }
+          porPabellon.set(label, bloqueIds);
         }
         setBloquePlano(mapa);
+        setPabellonesPlano(
+          [...porPabellon.entries()]
+            .map(([label, ids]) => ({ label, bloqueIds: [...ids] }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        );
       })
       .catch(() => {});
     return () => { activo = false; };
@@ -105,51 +191,29 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     return SIN_PABELLON;
   }, [bloquePlano]);
 
-  const pabellones = useMemo(
-    () => [...new Set(rows.map(pabellonDe))].sort(),
-    [rows, pabellonDe],
-  );
-  const tipos = useMemo(
-    () => [...new Set(rows.map((r) => r.tipoStand).filter((t): t is string => Boolean(t)))].sort(),
-    [rows],
-  );
-
-  const filtrados = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (estadoFiltro !== UI_SENTINEL.TODOS && r.estado !== estadoFiltro) return false;
-      if (pabellon !== UI_SENTINEL.TODOS && pabellonDe(r) !== pabellon) return false;
-      if (tipo !== UI_SENTINEL.TODOS && r.tipoStand !== tipo) return false;
-      if (!q) return true;
-      return `${r.standCode} ${r.empresa ?? ""} ${r.tipoStand ?? ""} ${pabellonDe(r)}`.toLowerCase().includes(q);
-    });
-  }, [rows, search, pabellon, tipo, estadoFiltro, pabellonDe]);
-
-  /* Reporte: solo stands vinculados a un bloque del plano (excluye sueltos/mock). */
-  const exportables = useMemo(() => filtrados.filter((r) => Boolean(r.bloqueId)), [filtrados]);
-
-  const seleccionables = filtrados.filter((r) => ESTADOS_SELECCIONABLES.includes(r.estado ?? ""));
-  const seleccionadosDisponibles = filtrados.filter((r) => seleccion.has(r.id) && r.estado === ESTADOS_STAND.DISPONIBLE);
-  const seleccionadosPre = filtrados.filter((r) => seleccion.has(r.id) && r.estado === ESTADOS_STAND.PRE_RESERVADO);
-  const todosFiltradosSeleccionados = seleccionables.length > 0 && seleccionables.every((r) => seleccion.has(r.id));
+  /* Seleccion sobre la pagina actual; el Map conserva filas de paginas anteriores. */
+  const seleccionablesPagina = rows.filter((r) => ESTADOS_SELECCIONABLES.includes(r.estado ?? ""));
+  const seleccionadosDisponibles = [...seleccion.values()].filter((r) => r.estado === ESTADOS_STAND.DISPONIBLE);
+  const seleccionadosPre = [...seleccion.values()].filter((r) => r.estado === ESTADOS_STAND.PRE_RESERVADO);
+  const todosPaginaSeleccionados = seleccionablesPagina.length > 0 && seleccionablesPagina.every((r) => seleccion.has(r.id));
 
   const toggle = (row: GessStandDTO) => {
     if (!ESTADOS_SELECCIONABLES.includes(row.estado ?? "")) return;
     setSeleccion((prev) => {
-      const next = new Set(prev);
+      const next = new Map(prev);
       if (next.has(row.id)) next.delete(row.id);
-      else next.add(row.id);
+      else next.set(row.id, row);
       return next;
     });
   };
 
-  const toggleTodosFiltrados = () => {
+  const toggleTodosPagina = () => {
     setSeleccion((prev) => {
-      const next = new Set(prev);
-      if (todosFiltradosSeleccionados) {
-        for (const r of seleccionables) next.delete(r.id);
+      const next = new Map(prev);
+      if (todosPaginaSeleccionados) {
+        for (const r of seleccionablesPagina) next.delete(r.id);
       } else {
-        for (const r of seleccionables) next.add(r.id);
+        for (const r of seleccionablesPagina) next.set(r.id, r);
       }
       return next;
     });
@@ -235,6 +299,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
       }
       setModalAbierto(false);
       setEditRow(null);
+      setSeleccion(new Map());
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo guardar la pre-reserva");
@@ -251,20 +316,43 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     try {
       const res = await gessService.liberarPreReserva(seleccionadosPre.map((r) => r.id));
       toast.success(`${res.liberados} stand(s) liberado(s)`);
+      setSeleccion(new Map());
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudieron liberar");
     }
   };
 
-  /** Exporta la bandeja filtrada (respeta busqueda, pabellon, tipo y estado). */
+  /** Exporta TODAS las paginas que cumplen los filtros (solo stands vinculados). */
   const exportar = async (formato: "csv" | "xlsx") => {
-    if (exportables.length === 0) {
-      toast.error("No hay stands vinculados para exportar con los filtros actuales");
-      return;
-    }
     setExportando(formato);
     try {
+      const filtros = filtrosRef.current;
+      const bloqueIds = pabellonesRef.current.find((item) => item.label === filtros.pabellon)?.bloqueIds ?? [];
+      const acumulados: GessStandDTO[] = [];
+      let pagina = 1;
+      let totalPaginas = 1;
+      do {
+        const respuesta = await gessService.list(eventoId, {
+          page: pagina,
+          per_page: 100,
+          search: filtros.search.trim() || undefined,
+          estado: filtros.estadoFiltro === UI_SENTINEL.TODOS ? undefined : filtros.estadoFiltro,
+          tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
+          bloqueIds: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : bloqueIds,
+          sinPabellon: filtros.pabellon === SIN_PABELLON,
+        });
+        acumulados.push(...respuesta.data);
+        totalPaginas = respuesta.pagination.total_pages;
+        pagina += 1;
+      } while (pagina <= totalPaginas && acumulados.length < EXPORT_MAX_FILAS);
+
+      /* Reporte: solo stands vinculados a un bloque del plano (excluye sueltos/mock). */
+      const exportables = acumulados.filter((row) => Boolean(row.bloqueId)).slice(0, EXPORT_MAX_FILAS);
+      if (exportables.length === 0) {
+        toast.error("No hay stands vinculados para exportar con los filtros actuales");
+        return;
+      }
       const columnas: ColumnaExportacion<GessStandDTO>[] = [
         { encabezado: "Stand", valor: (r) => r.standCode },
         { encabezado: "Pabellon", valor: (r) => pabellonDe(r) },
@@ -290,7 +378,6 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
       setExportando(null);
     }
   };
-
   return (
     <Card>
       <CardHeader className="gap-3">
@@ -302,13 +389,13 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={exportando !== null || loading || exportables.length === 0}>
+                <Button size="sm" variant="outline" disabled={exportando !== null || loading || pagination.total === 0}>
                   <Download className={`h-3.5 w-3.5 ${exportando ? "animate-pulse" : ""}`} />
                   {exportando ? "Exportando..." : "Exportar"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel><span>Solo vinculados ({exportables.length})</span></DropdownMenuLabel>
+                <DropdownMenuLabel><span>Solo vinculados</span></DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("xlsx"); }}>
                   <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
@@ -349,21 +436,22 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
               className="pl-8"
             />
           </div>
-          <Select value={pabellon} onValueChange={setPabellon}>
+          <Select value={pabellon} onValueChange={(v) => cambiarFiltro({ pabellon: v })}>
             <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Pabellon" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los pabellones</span></SelectItem>
-              {pabellones.map((p) => <SelectItem key={p} value={p}><span>{p}</span></SelectItem>)}
+              {pabellonesPlano.map((p) => <SelectItem key={p.label} value={p.label}><span>{p.label}</span></SelectItem>)}
+              <SelectItem value={SIN_PABELLON}><span>{SIN_PABELLON}</span></SelectItem>
             </SelectContent>
           </Select>
-          <Select value={tipo} onValueChange={setTipo}>
+          <Select value={tipo} onValueChange={(v) => cambiarFiltro({ tipo: v })}>
             <SelectTrigger className="w-full sm:w-52"><SelectValue placeholder="Tipo" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los tipos</span></SelectItem>
               {tipos.map((t) => <SelectItem key={t} value={t}><span>{t}</span></SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={estadoFiltro} onValueChange={setEstadoFiltro}>
+          <Select value={estadoFiltro} onValueChange={(v) => cambiarFiltro({ estadoFiltro: v })}>
             <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los estados</span></SelectItem>
@@ -371,19 +459,22 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
               <SelectItem value={ESTADOS_STAND.PRE_RESERVADO}><span>Pre-reservados</span></SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={toggleTodosFiltrados} disabled={seleccionables.length === 0}>
-            {todosFiltradosSeleccionados ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-            {todosFiltradosSeleccionados ? "Quitar seleccion" : `Seleccionar todo (${seleccionables.length})`}
+          <Button variant="outline" size="sm" onClick={toggleTodosPagina} disabled={seleccionablesPagina.length === 0}>
+            {todosPaginaSeleccionados ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+            {todosPaginaSeleccionados ? "Quitar seleccion de pagina" : `Seleccionar pagina (${seleccionablesPagina.length})`}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          {filtrados.length} de {rows.length} stands · seleccionados: {seleccion.size}
+          {pagination.total} stands &middot; seleccionados: {seleccion.size}
         </p>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <TableSkeleton rows={6} />
+          <TableSkeleton rows={Math.min(perPage, 8)} />
+        ) : rows.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">No hay stands con los filtros actuales.</p>
         ) : (
+          <>
           <div className="max-h-[60vh] overflow-auto rounded-md border">
             <Table>
               <TableHeader>
@@ -399,7 +490,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtrados.map((r) => {
+                {rows.map((r) => {
                   const badge = estadoStandBadge(r.estado);
                   const seleccionable = ESTADOS_SELECCIONABLES.includes(r.estado ?? "");
                   const checked = seleccion.has(r.id);
@@ -454,6 +545,27 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
               </TableBody>
             </Table>
           </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                {pagination.total} resultados &middot; pagina {pagination.page} de {pagination.totalPages || 1}
+              </span>
+              <Select value={String(perPage)} onValueChange={(v) => cambiarPerPage(Number(v))}>
+                <SelectTrigger className="h-7 w-[72px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PER_PAGE_OPCIONES.map((n) => (
+                    <SelectItem key={n} value={String(n)}><span>{n}</span></SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Pagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(p) => { setPage(p); void load(p); }}
+            />
+          </div>
+          </>
         )}
       </CardContent>
 

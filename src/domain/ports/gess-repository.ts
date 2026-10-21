@@ -5,6 +5,12 @@ export interface GessPaginationParams {
   perPage: number;
   search?: string;
   estado?: string;
+  /** Tipo de stand exacto (gess_stand.tipo_stand). */
+  tipo?: string;
+  /** Bloques del plano (pabellon seleccionado) para filtrar por vinculo. */
+  bloqueIds?: string[];
+  /** Solo stands sin bloque vinculado. */
+  sinPabellon?: boolean;
 }
 
 export interface GessPaginatedResult {
@@ -24,6 +30,8 @@ export interface DatosReservaStand {
 
 export interface IGessRepository {
   findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult>;
+  /** Tipos de stand distintos del evento (para filtros). */
+  tiposDistintos(eventoId: string): Promise<string[]>;
   findByBloque(bloqueId: string): Promise<GessStandEntity | null>;
   findByStandApiId(eventoId: string, standApiId: string): Promise<GessStandEntity | null>;
   findById(id: string): Promise<GessStandEntity | null>;

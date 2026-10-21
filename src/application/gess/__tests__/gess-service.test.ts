@@ -31,6 +31,7 @@ function pagina(data: GessStandEntity[]): GessPaginatedResult {
 function mockRepo(): IGessRepository {
   return {
     findAllPaginated: vi.fn(),
+    tiposDistintos: vi.fn(),
     findByBloque: vi.fn(),
     findByStandApiId: vi.fn(),
     findById: vi.fn(),

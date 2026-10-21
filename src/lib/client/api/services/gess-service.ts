@@ -8,13 +8,28 @@ import type { TipoStandImagenDTO } from "@/types/dto/gess/tipo-stand-imagen.dto"
 
 export const gessService = {
   /** Paginado (para bandejas) */
-  list(eventoId: string, params?: { page?: number; per_page?: number; search?: string; estado?: string }) {
+  list(eventoId: string, params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    estado?: string;
+    tipo?: string;
+    bloqueIds?: string[];
+    sinPabellon?: boolean;
+  }) {
     const qs = new URLSearchParams({ eventoId });
     if (params?.page) qs.set("page", String(params.page));
     if (params?.per_page) qs.set("per_page", String(params.per_page));
     if (params?.search) qs.set("search", params.search);
     if (params?.estado) qs.set("estado", params.estado);
+    if (params?.tipo) qs.set("tipo", params.tipo);
+    if (params?.sinPabellon) qs.set("sinPabellon", "true");
+    if (params?.bloqueIds && params.bloqueIds.length > 0) qs.set("bloqueIds", params.bloqueIds.join(","));
     return internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?${qs.toString()}`);
+  },
+  /** Tipos de stand distintos del evento (opciones de filtro). */
+  tipos(eventoId: string) {
+    return internalApi.get<string[]>(`/api/gess/tipos?eventoId=${encodeURIComponent(eventoId)}`);
   },
   /** Todos los registros (plano, vinculacion); recorre todas las paginas (per_page 1000). */
   async all(eventoId: string) {

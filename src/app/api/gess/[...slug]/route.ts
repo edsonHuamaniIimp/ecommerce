@@ -4,6 +4,7 @@ import { gessController } from "@/controllers/gess.controller";
 export const { GET, POST, PATCH, DELETE } = createRouter({
   GET: {
     listar: (req) => gessController.listar(req),
+    tipos: (req) => gessController.tipos(req),
     "tipos-imagen": () => gessController.tiposImagenListar(),
   },
   POST: {
