@@ -8,9 +8,6 @@ import {
   CardContent,
   CardHeader,
   Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -82,6 +79,7 @@ export function DdBandeja() {
   const [asignacion, setAsignacion] = useState<string>(DD_FILTRO_TODAS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
@@ -285,8 +283,8 @@ export function DdBandeja() {
 
       <Card className="overflow-hidden">
         <CardHeader className="space-y-3 border-b border-border pb-4">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="relative w-full lg:flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative w-full sm:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar razón social, RUC o expediente..."
@@ -301,6 +299,19 @@ export function DdBandeja() {
                 className="h-8 border-border bg-secondary pl-8 text-xs placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>
+            <Button
+              type="button"
+              variant={filtersOpen ? "default" : "outline"}
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+              onClick={() => setFiltersOpen((valor) => !valor)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filtros</span>
+              {filtrosActivos > 0 ? (
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-bold">{filtrosActivos}</span>
+              ) : null}
+            </Button>
             <Select value={String(perPage)} onValueChange={(valor) => { const n = Number(valor); setPerPage(n); setPage(1); recargar({ perPage: n, page: 1 }); }}>
               <SelectTrigger className="h-8 w-[80px] shrink-0 border-border text-xs">
                 <SelectValue />
@@ -311,105 +322,88 @@ export function DdBandeja() {
                 ))}
               </SelectContent>
             </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 gap-1.5 text-xs">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span>Filtros</span>
-                  {filtrosActivos > 0 ? (
-                    <Badge variant="secondary" className="h-4 min-w-4 rounded-full px-1 text-[10px]">{filtrosActivos}</Badge>
-                  ) : null}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[min(92vw,760px)] p-4">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Filtros</p>
-                    <p className="text-[11px] text-muted-foreground">Se aplican al seleccionar.</p>
-                  </div>
-                  {filtrosActivos > 0 ? (
-                    <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={limpiarFiltros}>
-                      <X className="h-3.5 w-3.5" />
-                      <span>Limpiar</span>
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Estado</span>
-                    <Select value={estado} onValueChange={(valor) => { setEstado(valor); setPage(1); recargar({ estado: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
-                      <SelectContent>
-                        {DD_BANDEJA_FILTROS.map((filtro) => (
-                          <SelectItem key={filtro.value} value={filtro.value}><span>{filtro.label}</span></SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Origen</span>
-                    <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Origen" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
-                        <SelectItem value={DD_ORIGENES.FLUJO_REGULAR}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.FLUJO_REGULAR]}</span></SelectItem>
-                        <SelectItem value={DD_ORIGENES.IMPORTADO}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.IMPORTADO]}</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Vínculo</span>
-                    <Select value={vinculo} onValueChange={(valor) => { setVinculo(valor); setPage(1); recargar({ vinculo: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Vínculo" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
-                        {Object.entries(DD_VINCULO_LABELS).map(([valor, label]) => (
-                          <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Documentos</span>
-                    <Select value={documentos} onValueChange={(valor) => { setDocumentos(valor); setPage(1); recargar({ documentos: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Documentos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
-                        <SelectItem value={DD_DOCUMENTOS_FILTRO.CON}><span>Con documentos</span></SelectItem>
-                        <SelectItem value={DD_DOCUMENTOS_FILTRO.SIN}><span>Sin documentos</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Reputación</span>
-                    <Select value={reputacion} onValueChange={(valor) => { setReputacion(valor); setPage(1); recargar({ reputacion: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Reputación" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
-                        <SelectItem value={DD_REPUTACION_FILTRO_PENDIENTE}><span>Pendiente</span></SelectItem>
-                        {[DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, DD_REPUTACION_ESTADOS.CON_HALLAZGOS, DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION].map((valor) => (
-                          <SelectItem key={valor} value={valor}><span>{DD_REPUTACION_ESTADO_LABELS[valor]}</span></SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Asignación</span>
-                    <Select value={asignacion} onValueChange={(valor) => { setAsignacion(valor); setPage(1); recargar({ asignacion: valor, page: 1 }); }}>
-                      <SelectTrigger className="h-8 w-full border-border/70 text-xs"><SelectValue placeholder="Asignación" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
-                        <SelectItem value={DD_ASIGNACION_FILTRO.IMPORTACION}><span>{DD_IMPORTACION_REVISOR_LABEL}</span></SelectItem>
-                        <SelectItem value={DD_ASIGNACION_FILTRO.SIN_ASIGNAR}><span>Sin asignar</span></SelectItem>
-                        <SelectItem value={DD_ASIGNACION_FILTRO.REVISOR}><span>Con revisor</span></SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
           </div>
 
+          {filtersOpen ? (
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-estado">Estado</label>
+                <Select value={estado} onValueChange={(valor) => { setEstado(valor); setPage(1); recargar({ estado: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-estado" className="h-8 border-border text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    {DD_BANDEJA_FILTROS.map((filtro) => (
+                      <SelectItem key={filtro.value} value={filtro.value}><span>{filtro.label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-origen">Origen</label>
+                <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-origen" className="h-8 border-border text-xs"><SelectValue placeholder="Origen" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_ORIGENES.FLUJO_REGULAR}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.FLUJO_REGULAR]}</span></SelectItem>
+                    <SelectItem value={DD_ORIGENES.IMPORTADO}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.IMPORTADO]}</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-vinculo">Vínculo</label>
+                <Select value={vinculo} onValueChange={(valor) => { setVinculo(valor); setPage(1); recargar({ vinculo: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-vinculo" className="h-8 border-border text-xs"><SelectValue placeholder="Vínculo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    {Object.entries(DD_VINCULO_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-documentos">Documentos</label>
+                <Select value={documentos} onValueChange={(valor) => { setDocumentos(valor); setPage(1); recargar({ documentos: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-documentos" className="h-8 border-border text-xs"><SelectValue placeholder="Documentos" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_DOCUMENTOS_FILTRO.CON}><span>Con documentos</span></SelectItem>
+                    <SelectItem value={DD_DOCUMENTOS_FILTRO.SIN}><span>Sin documentos</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-reputacion">Reputación</label>
+                <Select value={reputacion} onValueChange={(valor) => { setReputacion(valor); setPage(1); recargar({ reputacion: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-reputacion" className="h-8 border-border text-xs"><SelectValue placeholder="Reputación" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_REPUTACION_FILTRO_PENDIENTE}><span>Pendiente</span></SelectItem>
+                    {[DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, DD_REPUTACION_ESTADOS.CON_HALLAZGOS, DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION].map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{DD_REPUTACION_ESTADO_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-asignacion">Asignación</label>
+                <Select value={asignacion} onValueChange={(valor) => { setAsignacion(valor); setPage(1); recargar({ asignacion: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-asignacion" className="h-8 border-border text-xs"><SelectValue placeholder="Asignación" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.IMPORTACION}><span>{DD_IMPORTACION_REVISOR_LABEL}</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.SIN_ASIGNAR}><span>Sin asignar</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.REVISOR}><span>Con revisor</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={limpiarFiltros} disabled={filtrosActivos === 0}>
+                  <X className="h-3.5 w-3.5" />
+                  <span>Limpiar filtros</span>
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardHeader>
 
         <CardContent className="space-y-3 pt-4">
