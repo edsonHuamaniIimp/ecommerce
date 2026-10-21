@@ -110,7 +110,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               Resultados aceptados: APTO, APTO CON OBSERVACIONES, NO APTO, EN REVISION, EN PROCESO o DOCUMENTACION OBSERVADA.
             </p>
             <p className="mt-2">
-              Todos los resultados se importan a Debida Diligencia como registros de origen <strong>Importado</strong>, sin importar el estado. Los documentos se podrán cargar después; los APTOS quedarán habilitados para esa carga.
+              Todos los resultados se importan a Debida Diligencia con procedencia <strong>Carga masiva</strong>, sin importar el estado. Los documentos se podrán cargar después; los APTOS quedarán habilitados para esa carga.
             </p>
           </div>
 

@@ -325,6 +325,8 @@ export class DebidaDiligenciaApplicationService {
       documentos: params.documentos,
       reputacion: params.reputacion,
       asignacion: params.asignacion,
+      solicitudes: params.solicitudes,
+      orden: params.orden,
     });
   }
 
@@ -346,6 +348,8 @@ export class DebidaDiligenciaApplicationService {
       documentos: params.documentos,
       reputacion: params.reputacion,
       asignacion: params.asignacion,
+      solicitudes: params.solicitudes,
+      orden: params.orden,
     });
   }
 

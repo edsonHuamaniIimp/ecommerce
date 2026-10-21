@@ -183,6 +183,8 @@ export const ddPaginacionSchema = z.object({
   documentos: z.string().trim().max(20).optional(),
   reputacion: z.string().trim().max(40).optional(),
   asignacion: z.string().trim().max(40).optional(),
+  solicitudes: z.string().trim().max(20).optional(),
+  orden: z.string().trim().max(30).optional(),
 });
 
 /** Paginacion y filtros de la matriz del panel. */

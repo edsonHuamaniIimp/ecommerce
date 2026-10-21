@@ -9,4 +9,6 @@ export interface DdBandejaQueryDTO {
   documentos?: string;
   reputacion?: string;
   asignacion?: string;
+  solicitudes?: string;
+  orden?: string;
 }

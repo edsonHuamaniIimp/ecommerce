@@ -283,6 +283,8 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     motivoImportacion: row.motivoImportacion,
     tipoRelacionComercial: row.tipoRelacionComercial,
     empresa: mapDdEmpresaToDTO(row.empresa),
+    fechaCreacion: fecha(row.fechaCreacion),
+    solicitudesAlquiler: row.solicitudesAlquiler,
     documentoCargados: row.documentoCargados,
     documentoTotal: row.documentoTotal,
     fechaEnvio: fecha(row.fechaEnvio),

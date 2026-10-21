@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Badge,
   Button,
@@ -34,6 +35,8 @@ import {
   BADGE_STYLES,
   DD_ASIGNACION_FILTRO,
   DD_BANDEJA_FILTROS,
+  DD_BANDEJA_ORDEN,
+  DD_BANDEJA_ORDEN_LABELS,
   DD_DOCUMENTOS_FILTRO,
   DD_ESTADOS,
   DD_ESTADO_LABELS,
@@ -46,6 +49,7 @@ import {
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_FILTRO_PENDIENTE,
   DD_REPUTACION_ESTADO_LABELS,
+  DD_SOLICITUDES_FILTRO,
   DD_VINCULO_LABELS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
@@ -78,6 +82,8 @@ export function DdBandeja() {
   const [documentos, setDocumentos] = useState<string>(DD_FILTRO_TODAS);
   const [reputacion, setReputacion] = useState<string>(DD_FILTRO_TODAS);
   const [asignacion, setAsignacion] = useState<string>(DD_FILTRO_TODAS);
+  const [solicitudes, setSolicitudes] = useState<string>(DD_FILTRO_TODAS);
+  const [orden, setOrden] = useState<string>(DD_BANDEJA_ORDEN.ACTUALIZADOS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -85,10 +91,10 @@ export function DdBandeja() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
-  const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion });
-  useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion }; }, [page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion]);
+  const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden });
+  useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden }; }, [page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden]);
 
-  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string }>) => {
+  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
     const actual = { ...refs.current, ...overrides };
     try {
       const respuesta = await debidaDiligenciaService.bandeja({
@@ -101,6 +107,8 @@ export function DdBandeja() {
         documentos: actual.documentos,
         reputacion: actual.reputacion,
         asignacion: actual.asignacion,
+        solicitudes: actual.solicitudes,
+        orden: actual.orden,
       });
       setData(respuesta);
     } catch (err) {
@@ -110,7 +118,7 @@ export function DdBandeja() {
     }
   }, []);
 
-  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string }>) => {
+  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
     setLoading(true);
     void load(overrides);
   };
@@ -125,6 +133,8 @@ export function DdBandeja() {
     setDocumentos(DD_FILTRO_TODAS);
     setReputacion(DD_FILTRO_TODAS);
     setAsignacion(DD_FILTRO_TODAS);
+    setSolicitudes(DD_FILTRO_TODAS);
+    setOrden(DD_BANDEJA_ORDEN.ACTUALIZADOS);
     setPage(1);
     recargar({
       search: "",
@@ -134,6 +144,8 @@ export function DdBandeja() {
       documentos: DD_FILTRO_TODAS,
       reputacion: DD_FILTRO_TODAS,
       asignacion: DD_FILTRO_TODAS,
+      solicitudes: DD_FILTRO_TODAS,
+      orden: DD_BANDEJA_ORDEN.ACTUALIZADOS,
       page: 1,
     });
   };
@@ -145,6 +157,7 @@ export function DdBandeja() {
     documentos,
     reputacion,
     asignacion,
+    solicitudes,
   ].filter((valor) => valor !== DD_FILTRO_TODAS).length;
 
   /** Exporta todas las paginas que cumplen los filtros aplicados. */
@@ -163,6 +176,8 @@ export function DdBandeja() {
         documentos: filtros.documentos,
         reputacion: filtros.reputacion,
         asignacion: filtros.asignacion,
+        solicitudes: filtros.solicitudes,
+        orden: filtros.orden,
       });
       const filas: DdBandejaRowDTO[] = [...primera.data];
       for (let page = 2; page <= primera.totalPages; page += 1) {
@@ -176,6 +191,8 @@ export function DdBandeja() {
           documentos: filtros.documentos,
           reputacion: filtros.reputacion,
           asignacion: filtros.asignacion,
+          solicitudes: filtros.solicitudes,
+          orden: filtros.orden,
         });
         filas.push(...siguiente.data);
       }
@@ -188,9 +205,11 @@ export function DdBandeja() {
         { encabezado: "Tipo documento", valor: (r) => etiquetaTipoDocumentoEmpresa(r.empresa.tipoDocumento, r.empresa.ruc) },
         { encabezado: "Documento", valor: (r) => r.empresa.ruc },
         { encabezado: "Expediente", valor: (r) => r.codigo },
-        { encabezado: "Origen", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
+        { encabezado: "Procedencia", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
         { encabezado: "Vínculo / motivo", valor: (r) => r.motivoImportacion ?? (r.tipoRelacionComercial ? DD_VINCULO_LABELS[r.tipoRelacionComercial] ?? r.tipoRelacionComercial : "") },
         { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
+        { encabezado: "Creado", valor: (r) => (r.fechaCreacion ? dateUtils.format(r.fechaCreacion) : "") },
+        { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
         { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
         { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
         { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
@@ -340,9 +359,9 @@ export function DdBandeja() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-origen">Origen</label>
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-origen">Procedencia</label>
                 <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
-                  <SelectTrigger id="dd-filtro-origen" className="h-8 border-border text-xs"><SelectValue placeholder="Origen" /></SelectTrigger>
+                  <SelectTrigger id="dd-filtro-origen" className="h-8 border-border text-xs"><SelectValue placeholder="Procedencia" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
                     <SelectItem value={DD_ORIGENES.FLUJO_REGULAR}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.FLUJO_REGULAR]}</span></SelectItem>
@@ -374,6 +393,17 @@ export function DdBandeja() {
                 </Select>
               </div>
               <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-solicitudes">Solicitudes</label>
+                <Select value={solicitudes} onValueChange={(valor) => { setSolicitudes(valor); setPage(1); recargar({ solicitudes: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-solicitudes" className="h-8 border-border text-xs"><SelectValue placeholder="Solicitudes" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_SOLICITUDES_FILTRO.CON}><span>Con solicitudes</span></SelectItem>
+                    <SelectItem value={DD_SOLICITUDES_FILTRO.SIN}><span>Sin solicitudes</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-reputacion">Reputación</label>
                 <Select value={reputacion} onValueChange={(valor) => { setReputacion(valor); setPage(1); recargar({ reputacion: valor, page: 1 }); }}>
                   <SelectTrigger id="dd-filtro-reputacion" className="h-8 border-border text-xs"><SelectValue placeholder="Reputación" /></SelectTrigger>
@@ -398,6 +428,17 @@ export function DdBandeja() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-orden">Orden</label>
+                <Select value={orden} onValueChange={(valor) => { setOrden(valor); setPage(1); recargar({ orden: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-orden" className="h-8 border-border text-xs"><SelectValue placeholder="Orden" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(DD_BANDEJA_ORDEN_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-end">
                 <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={limpiarFiltros} disabled={filtrosActivos === 0}>
                   <X className="h-3.5 w-3.5" />
@@ -410,7 +451,7 @@ export function DdBandeja() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={perPage} columns={9} />
+            <TableSkeleton rows={perPage} columns={11} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
@@ -427,10 +468,12 @@ export function DdBandeja() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Origen</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Creado</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Procedencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
@@ -445,15 +488,16 @@ export function DdBandeja() {
                           <p className="font-mono text-[11px] text-muted-foreground">{etiquetaTipoDocumentoEmpresa(fila.empresa.tipoDocumento, fila.empresa.ruc)} {fila.empresa.ruc}</p>
                           <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
                         </TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
+                          {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
+                        </TableCell>
                         <TableCell>
-                          <Badge className={`pointer-events-none text-[9px] ${fila.origen === DD_ORIGENES.IMPORTADO ? BADGE_STYLES.NEUTRAL : BADGE_STYLES.INFO}`}>
+                          <Badge
+                            className={`pointer-events-none text-[9px] ${fila.origen === DD_ORIGENES.IMPORTADO ? BADGE_STYLES.NEUTRAL : BADGE_STYLES.INFO}`}
+                            title={fila.origen === DD_ORIGENES.IMPORTADO ? "Registro creado desde Importación masiva" : "Registro creado desde el portal"}
+                          >
                             <span>{DD_ORIGEN_LABELS[fila.origen] ?? fila.origen}</span>
                           </Badge>
-                          {fila.origen === DD_ORIGENES.IMPORTADO && fila.estadoOrigen ? (
-                            <p className="mt-1 max-w-[140px] truncate text-[10px] text-muted-foreground" title={fila.estadoOrigen}>
-                              {fila.estadoOrigen}
-                            </p>
-                          ) : null}
                         </TableCell>
                         <TableCell className="hidden text-xs md:table-cell">
                           {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
@@ -473,6 +517,17 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell>
                           <DdEstadoBadge estado={fila.estado} />
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            href="/dashboard/solicitudes"
+                            className="inline-flex"
+                            title={fila.solicitudesAlquiler > 0 ? "Ver solicitudes de alquiler" : "Sin solicitudes de alquiler"}
+                          >
+                            <Badge className={`text-[9px] ${fila.solicitudesAlquiler > 0 ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
+                              <span>{fila.solicitudesAlquiler > 0 ? `Sí (${fila.solicitudesAlquiler})` : "No"}</span>
+                            </Badge>
+                          </Link>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {fila.reputacionCasos === 0 ? (

@@ -1186,6 +1186,25 @@ export const DD_DOCUMENTOS_FILTRO = {
   SIN: "sin",
 } as const;
 
+/** Filtros de presencia de solicitudes de alquiler en la bandeja. */
+export const DD_SOLICITUDES_FILTRO = {
+  CON: "con",
+  SIN: "sin",
+} as const;
+
+/** Ordenamiento de la bandeja de Debida Diligencia. */
+export const DD_BANDEJA_ORDEN = {
+  SOLICITUDES: "solicitudes",
+  ACTUALIZADOS: "actualizados",
+  CREADOS: "creados",
+} as const;
+
+export const DD_BANDEJA_ORDEN_LABELS: Record<string, string> = {
+  [DD_BANDEJA_ORDEN.SOLICITUDES]: "Más solicitudes",
+  [DD_BANDEJA_ORDEN.ACTUALIZADOS]: "Últimos actualizados",
+  [DD_BANDEJA_ORDEN.CREADOS]: "Últimos creados",
+};
+
 /** Filtro de reputacion pendiente (casos por revisar o en analisis). */
 export const DD_REPUTACION_FILTRO_PENDIENTE = "pendiente";
 
@@ -1245,8 +1264,8 @@ export const DD_ORIGENES = {
 export type DdOrigen = (typeof DD_ORIGENES)[keyof typeof DD_ORIGENES];
 
 export const DD_ORIGEN_LABELS: Record<string, string> = {
-  [DD_ORIGENES.FLUJO_REGULAR]: "Flujo regular",
-  [DD_ORIGENES.IMPORTADO]: "Importado",
+  [DD_ORIGENES.FLUJO_REGULAR]: "Portal",
+  [DD_ORIGENES.IMPORTADO]: "Carga masiva",
 };
 
 export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
@@ -1257,8 +1276,8 @@ export const DD_ESTADO_LABELS: Record<string, string> = {
   [DD_ESTADOS.EN_REVISION]: "En revisión",
   [DD_ESTADOS.EN_LEGAL]: "En revisión legal",
   [DD_ESTADOS.OBSERVADA]: "Observada",
-  [DD_ESTADOS.APROBADA]: "Aprobada",
-  [DD_ESTADOS.RECHAZADA]: "Rechazada",
+  [DD_ESTADOS.APROBADA]: "APTO",
+  [DD_ESTADOS.RECHAZADA]: "NO APTO",
 };
 
 /** Resultado de la evaluacion de debida diligencia (correo institucional). */
@@ -1313,8 +1332,8 @@ export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
-  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
-  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_ESTADOS.APROBADA, label: "APTO" },
+  { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
 ];
 
@@ -1325,8 +1344,8 @@ export const DD_MATRIZ_ESTADO_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
-  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
-  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_ESTADOS.APROBADA, label: "APTO" },
+  { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
 ];
 

@@ -164,6 +164,8 @@ export interface DdBandejaRow {
   motivoImportacion: string | null;
   tipoRelacionComercial: DdVinculo | null;
   empresa: DdEmpresaResumen;
+  fechaCreacion: Date;
+  solicitudesAlquiler: number;
   documentoCargados: number;
   documentoTotal: number;
   fechaEnvio: Date | null;
@@ -191,6 +193,8 @@ export interface DdBandejaParams {
   documentos?: string;
   reputacion?: string;
   asignacion?: string;
+  solicitudes?: string;
+  orden?: string;
 }
 
 export interface DdBandejaResumen {

@@ -10,6 +10,8 @@ export interface DdBandejaRowDTO {
   motivoImportacion: string | null;
   tipoRelacionComercial: string | null;
   empresa: DdEmpresaDTO;
+  fechaCreacion: string | null;
+  solicitudesAlquiler: number;
   documentoCargados: number;
   documentoTotal: number;
   fechaEnvio: string | null;
