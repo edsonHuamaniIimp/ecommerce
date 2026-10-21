@@ -656,7 +656,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.documentos = { none: {} };
     }
 
-    if (params.reputacion) {
+    if (params.reputacion && params.reputacion !== DD_FILTRO_TODAS) {
       if (params.reputacion === DD_REPUTACION_FILTRO_PENDIENTE) {
         where.AND = [
           {
@@ -671,12 +671,14 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       }
     }
 
-    if (params.asignacion === DD_ASIGNACION_FILTRO.IMPORTACION) {
-      where.revisadoPor = DD_IMPORTACION_REVISOR;
-    } else if (params.asignacion === DD_ASIGNACION_FILTRO.SIN_ASIGNAR) {
-      where.revisadoPor = null;
-    } else if (params.asignacion === DD_ASIGNACION_FILTRO.REVISOR) {
-      where.revisadoPor = { not: null, notIn: [DD_IMPORTACION_REVISOR] };
+    if (params.asignacion && params.asignacion !== DD_FILTRO_TODAS) {
+      if (params.asignacion === DD_ASIGNACION_FILTRO.IMPORTACION) {
+        where.revisadoPor = DD_IMPORTACION_REVISOR;
+      } else if (params.asignacion === DD_ASIGNACION_FILTRO.SIN_ASIGNAR) {
+        where.revisadoPor = null;
+      } else if (params.asignacion === DD_ASIGNACION_FILTRO.REVISOR) {
+        where.revisadoPor = { not: null, notIn: [DD_IMPORTACION_REVISOR] };
+      }
     }
 
     if (params.search?.trim()) {
