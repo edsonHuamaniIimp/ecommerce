@@ -155,6 +155,7 @@ function solicitudRepoMock(
     crearOActualizarRevision: vi.fn(),
     crearRevisionInicial: vi.fn(),
     crearSolicitud: vi.fn(),
+    touchAuditoria: vi.fn(),
     crearAlertaReserva: vi.fn(),
     crearReevaluacion: vi.fn(),
     tieneReevaluacionPendiente: vi.fn(),

@@ -54,6 +54,8 @@ import { DebidaDiligenciaApplicationService } from "@/application/debida-diligen
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
+import { AuditoriaPrismaRepository } from "@/infrastructure/persistence/auditoria-repository";
+import { AuditoriaApplicationService } from "@/application/auditoria/auditoria-service";
 import { PusherStandEventPublisher } from "@/infrastructure/external/pusher-stand-events";
 
 const eventoRepo = new EventoPrismaRepository();
@@ -87,6 +89,7 @@ const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgc
 const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo);
 const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
+const auditoria = new AuditoriaApplicationService(new AuditoriaPrismaRepository());
 const standEvents = new PusherStandEventPublisher();
 
 export const services = {
@@ -114,6 +117,7 @@ export const services = {
   alertas: new AlertasApplicationService(authRepo),
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
   configuracion: new ConfiguracionApplicationService(configuracionRepo),
+  auditoria,
   debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator),
   gessRepo,
   roleRepo,

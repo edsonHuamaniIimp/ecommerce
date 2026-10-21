@@ -128,6 +128,8 @@ export class ReservaApplicationService {
     eventoId?: string;
     /** Hold creado al abrir el wizard; se convierte en reserva. */
     holdId?: string;
+    /** IP del request para auditoria. */
+    ip?: string | null;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
@@ -237,6 +239,7 @@ export class ReservaApplicationService {
           request.userSub,
           contactEmail ?? undefined,
           snapshot,
+          { actor: request.userSub ?? null, ip: request.ip ?? null },
         );
         for (const area of REVISION_AREA_ORDER) {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);

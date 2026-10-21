@@ -506,6 +506,13 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return result;
   }
 
+  async touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { updatedBy: actor, updatedIp: ip },
+    });
+  }
+
   async crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity> {
     const created = await prisma.revision.create({
       data: { solicitudId, area, estado: ESTADOS_REVISION.PENDIENTE },
@@ -515,13 +522,23 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return result;
   }
 
-  async crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null): Promise<string> {
+  async crearSolicitud(
+    standIds: string[],
+    userId?: string,
+    email?: string,
+    datosFacturacion?: DatosFacturacionSolicitud | null,
+    auditoria?: { actor?: string | null; ip?: string | null },
+  ): Promise<string> {
     const created = await prisma.solicitud.create({
       data: {
         gessStandId: standIds.length === 1 ? standIds[0] : null,
         userId: userId ?? null,
         email: email ?? null,
         datosFacturacion: (datosFacturacion ?? undefined) as never,
+        createdBy: auditoria?.actor ?? null,
+        updatedBy: auditoria?.actor ?? null,
+        createdIp: auditoria?.ip ?? null,
+        updatedIp: auditoria?.ip ?? null,
       },
     });
 

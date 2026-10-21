@@ -44,7 +44,8 @@ export interface ISolicitudesRepository {
     reviewerEmail: string;
   }): Promise<RevisionEntity>;
   crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity>;
-    crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null): Promise<string>;
+    crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null, auditoria?: { actor?: string | null; ip?: string | null }): Promise<string>;
+  touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void>;
   crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string }): Promise<void>;
   crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity>;
   tieneReevaluacionPendiente(solicitudId: string): Promise<boolean>;
