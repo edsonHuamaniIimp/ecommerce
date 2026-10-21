@@ -8,6 +8,67 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 const API_KEY = process.env.RESEND_API_KEY;
 
 /**
+ * Plantillas que nunca deben redirigirse al correo de notificaciones:
+ * son de seguridad/cuenta y deben ir al correo de acceso original.
+ */
+const PLANTILLAS_SIN_REDIRECCION: ReadonlySet<PlantillaEmailKind> = new Set([
+  "codigo-registro",
+  "reset-password",
+  "credenciales-empresa",
+  "invitacion-cuenta",
+  "rechazo-cuenta",
+  "notificacion-solicitud-cuenta",
+  "notificacion-verificacion",
+]);
+
+/**
+ * Resuelve el correo de notificaciones verificado del usuario.
+ * Si el destinatario es el correo de acceso, representante o contacto de una
+ * empresa, se usa la preferencia verificada; si no existe, se conserva `to`.
+ */
+async function resolverDestinoNotificacion(to: string, plantilla: PlantillaEmailKind): Promise<string> {
+  if (PLANTILLAS_SIN_REDIRECCION.has(plantilla)) return to;
+  const normalizado = to.trim().toLowerCase();
+  if (!normalizado) return to;
+  try {
+    const { prisma } = await import("./db");
+    const directo = await prisma.userRole.findFirst({
+      where: {
+        email: normalizado,
+        notificationEmail: { not: null },
+        notificationEmailVerifiedAt: { not: null },
+      },
+      select: { notificationEmail: true },
+    });
+    if (directo?.notificationEmail) return directo.notificationEmail;
+
+    const empresa = await prisma.empresa.findFirst({
+      where: {
+        OR: [
+          { representanteCorreo: normalizado },
+          { emailContacto: normalizado },
+          { emailFacturacion: normalizado },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!empresa) return to;
+
+    const usuario = await prisma.userRole.findFirst({
+      where: {
+        empresaId: empresa.id,
+        notificationEmail: { not: null },
+        notificationEmailVerifiedAt: { not: null },
+      },
+      select: { notificationEmail: true },
+    });
+    return usuario?.notificationEmail ?? to;
+  } catch {
+    return to;
+  }
+}
+
+/**
  * Remitente de los correos transaccionales (runtime):
  * EMAIL_FROM (ej. "no-reply@iimp.org.pe") > ADMIN_EMAIL > fallback historico.
  * La direccion debe pertenecer al dominio verificado en Resend.
@@ -70,6 +131,7 @@ export async function enviarEmailPlantilla<K extends PlantillaEmailKind>(params:
   idioma: string | null | undefined;
   datos: DatosPlantilla[K];
 }): Promise<boolean> {
+  const to = await resolverDestinoNotificacion(params.to, params.plantilla);
   const { subject, html } = getPlantillaEmail(params.plantilla, params.idioma, params.datos);
-  return sendEmail({ to: params.to, subject, html });
+  return sendEmail({ to, subject, html });
 }

@@ -10,7 +10,8 @@ import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/pass
 import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC } from "@/lib/shared/constants";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC, REGEX_EMAIL, IDIOMA_DEFAULT, API_ERROR_CODES, NOTIFICACION_EMAIL_CODIGO_MINUTOS, NOTIFICACION_EMAIL_CODIGO_LONGITUD } from "@/lib/shared/constants";
+import { DomainError } from "@/lib/server/router";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { getAppUrl } from "@/lib/server/app-url";
@@ -375,7 +376,12 @@ export class AuthApplicationService {
     if (!session) return null;
     const u = await this.repo.findPerfilByEmail(session.email);
     if (!u) {
-      return { email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null, idEmpresa: null, nombreEmpresa: null, empresa: null, representanteIncompleto: false, logoUrl: null, firmaUrl: null, idioma: null };
+      return {
+        email: session.email, nombre: null, apellidos: null, telefono: null, tipoUsuarioId: null,
+        idEmpresa: null, nombreEmpresa: null, empresa: null, representanteIncompleto: false,
+        logoUrl: null, firmaUrl: null, idioma: null, notificationEmail: null,
+        notificationEmailPending: null, notificationEmailVerifiedAt: null, emailsNotificacion: [],
+      };
     }
     /* Portal del Cliente: el representante legal debe tener DNI, correo, celular y direccion completos. */
     const ficha = u.empresa ?? (u.idEmpresa ? await this.empresas.findBySieCode(u.idEmpresa).catch(() => null) : null);
@@ -385,6 +391,7 @@ export class AuthApplicationService {
       direccionFiscal: ficha.direccionFiscal,
       telefono: ficha.telefono,
       emailContacto: ficha.emailContacto,
+      emailFacturacion: ficha.emailFacturacion,
       representanteLegalNombre: ficha.representanteLegalNombre,
       representanteLegalDni: ficha.representanteLegalDni,
       representanteCorreo: ficha.representanteCorreo,
@@ -396,7 +403,120 @@ export class AuthApplicationService {
     const representanteIncompleto = Boolean(
       empresa && (!empresa.representanteLegalDni || !empresa.representanteCorreo || !empresa.representanteCelular || !empresa.representanteDireccion),
     );
-    return { ...u, empresa, representanteIncompleto };
+    const emailsNotificacion = this.correosNotificacion(
+      u.email,
+      u.notificationEmail,
+      empresa?.representanteCorreo,
+      empresa?.emailContacto,
+      empresa?.emailFacturacion,
+    );
+    return {
+      ...u,
+      empresa,
+      representanteIncompleto,
+      emailsNotificacion,
+    };
+  }
+
+  /** Correos que el usuario puede elegir para notificaciones, sin duplicados. */
+  private correosNotificacion(
+    acceso: string,
+    activo: string | null,
+    representante?: string | null,
+    contacto?: string | null,
+    facturacion?: string | null,
+  ): PerfilResult["emailsNotificacion"] {
+    const candidatos: { email: string; label: string }[] = [
+      { email: acceso, label: "Correo de acceso" },
+      ...(representante ? [{ email: representante, label: "Correo del representante" }] : []),
+      ...(contacto ? [{ email: contacto, label: "Correo de contacto de la empresa" }] : []),
+      ...(facturacion ? [{ email: facturacion, label: "Correo de facturación" }] : []),
+    ];
+    const vistos = new Set<string>();
+    const emailActivo = (activo ?? acceso).trim().toLowerCase();
+    return candidatos.flatMap((item) => {
+      const email = item.email.trim().toLowerCase();
+      if (!email || !REGEX_EMAIL.test(email) || vistos.has(email)) return [];
+      vistos.add(email);
+      return [{ email, label: item.label, activo: email === emailActivo }];
+    });
+  }
+
+  /** Inicia la verificacion del correo elegido para notificaciones. */
+  async solicitarVerificacionNotificacion(email: string): Promise<{ ok: boolean; email?: string; verificado?: boolean; emailEnviado?: boolean; expiraEnMinutos?: number }> {
+    const { getSession } = await import("@/lib/server/auth");
+    const session = await getSession();
+    if (!session) throw new DomainError("No autorizado", API_ERROR_CODES.UNAUTHORIZED, 401);
+
+    const limpio = String(email ?? "").trim().toLowerCase();
+    if (!REGEX_EMAIL.test(limpio)) {
+      throw new DomainError("Correo invalido", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    const u = await this.repo.findPerfilByEmail(session.email);
+    if (!u) throw new DomainError("Perfil no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    const candidatos = this.correosNotificacion(
+      u.email,
+      u.notificationEmail,
+      u.empresa?.representanteCorreo,
+      u.empresa?.emailContacto,
+      u.empresa?.emailFacturacion,
+    );
+    if (!candidatos.some((c) => c.email === limpio)) {
+      throw new DomainError("Ese correo no pertenece a tu cuenta o empresa", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    /* El correo de acceso ya esta verificado por el propio login. */
+    if (limpio === u.email.trim().toLowerCase()) {
+      await this.repo.usarCorreoAccesoParaNotificaciones(session.sub);
+      return { ok: true, email: limpio, verificado: true, emailEnviado: false };
+    }
+
+    if (
+      u.notificationEmail?.trim().toLowerCase() === limpio &&
+      u.notificationEmailVerifiedAt
+    ) {
+      return { ok: true, email: limpio, verificado: true, emailEnviado: false };
+    }
+
+    const codigo = generarCodigoNumerico(NOTIFICACION_EMAIL_CODIGO_LONGITUD);
+    const expira = new Date(Date.now() + NOTIFICACION_EMAIL_CODIGO_MINUTOS * MS_POR_MINUTO);
+    await this.repo.guardarNotificacionPendiente(session.sub, limpio, codigo, expira);
+    const emailEnviado = await enviarEmailPlantilla({
+      to: limpio,
+      plantilla: "notificacion-verificacion",
+      idioma: u.idioma ?? IDIOMA_DEFAULT,
+      datos: { codigo, email: limpio, minutos: NOTIFICACION_EMAIL_CODIGO_MINUTOS },
+    }).catch(() => false);
+
+    return {
+      ok: true,
+      email: limpio,
+      verificado: false,
+      emailEnviado,
+      expiraEnMinutos: NOTIFICACION_EMAIL_CODIGO_MINUTOS,
+    };
+  }
+
+  /** Confirma el codigo y activa el correo de notificaciones. */
+  async confirmarVerificacionNotificacion(codigo: string): Promise<{ ok: boolean; email: string }> {
+    const { getSession } = await import("@/lib/server/auth");
+    const session = await getSession();
+    if (!session) throw new DomainError("No autorizado", API_ERROR_CODES.UNAUTHORIZED, 401);
+
+    const config = await this.repo.findNotificationConfig(session.sub);
+    if (!config?.notificationEmailPending || !config.notificationEmailCode || !config.notificationEmailCodeExpires) {
+      throw new DomainError("No hay una verificacion pendiente", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (config.notificationEmailCodeExpires.getTime() < Date.now()) {
+      throw new DomainError("El codigo expiro. Solicita uno nuevo.", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (String(codigo ?? "").trim() !== config.notificationEmailCode) {
+      throw new DomainError("Codigo incorrecto", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    await this.repo.activarNotificacionEmail(session.sub, config.notificationEmailPending);
+    return { ok: true, email: config.notificationEmailPending };
   }
 
   /** Guarda el idioma preferido del usuario (selector ES/EN del dashboard). */

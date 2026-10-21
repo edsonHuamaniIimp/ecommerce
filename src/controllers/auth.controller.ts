@@ -163,6 +163,20 @@ export const authController = {
     return res;
   },
 
+  /** Inicia la verificacion del correo de notificaciones. */
+  async solicitarNotificacion(request: Request): Promise<NextResponse> {
+    const body = (await request.json()) as { email?: string };
+    const result = await services.auth.solicitarVerificacionNotificacion(body.email ?? "");
+    return success(result);
+  },
+
+  /** Confirma el codigo del correo de notificaciones. */
+  async confirmarNotificacion(request: Request): Promise<NextResponse> {
+    const body = (await request.json()) as { codigo?: string };
+    const result = await services.auth.confirmarVerificacionNotificacion(body.codigo ?? "");
+    return success(result);
+  },
+
   /** @request ResetPasswordRequestDTO */
   async requestReset(request: Request): Promise<NextResponse> {
     const dto: ResetPasswordRequestDTO = await request.json();

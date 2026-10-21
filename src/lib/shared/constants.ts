@@ -1547,6 +1547,10 @@ export const REGEX_DNI = /^\d{8}$/;
 /** Correo electronico simple (validacion de formularios). */
 export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Vigencia y longitud del codigo para verificar el correo de notificaciones. */
+export const NOTIFICACION_EMAIL_CODIGO_MINUTOS = 10;
+export const NOTIFICACION_EMAIL_CODIGO_LONGITUD = 6;
+
 /** Nacionalidad: solo letras, espacios, apóstrofes, puntos y guiones. */
 export const REGEX_NACIONALIDAD = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.'-]+$/;
 

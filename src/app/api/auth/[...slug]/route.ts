@@ -17,6 +17,8 @@ export const { GET, POST, PATCH } = createRouter({
     "reset-password/confirm": (req) => authController.confirmReset(req),
     "solicitar-cuenta": (req) => solicitudCuentaController.crear(req),
     "cambiar-password": (req) => authController.cambiarPassword(req),
+    "notificaciones/solicitar": (req) => authController.solicitarNotificacion(req),
+    "notificaciones/confirmar": (req) => authController.confirmarNotificacion(req),
   },
   PATCH: {
     perfil: (req) => authController.updatePerfil(req),

@@ -10,6 +10,8 @@ export interface DatosPlantilla {
   "codigo-registro": { codigo: string; nombre: string };
   /** Restablecimiento de contrasena. */
   "reset-password": { nombre?: string | null; url: string; minutos: number };
+  /** Verificacion del correo elegido para notificaciones. */
+  "notificacion-verificacion": { codigo: string; email: string; minutos: number };
   /** Credenciales del Portal del Cliente (cuenta creada por backoffice). */
   "credenciales-empresa": {
     razonSocial: string;

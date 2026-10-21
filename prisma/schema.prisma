@@ -165,6 +165,16 @@ model UserRole {
   sieCode             String?   @map("sie_code") @db.VarChar(20)
   /// Documento de la empresa vinculada (RUC o RUT, copiado de la ficha) para representar la cuenta.
   ruc                 String?   @db.VarChar(20)
+  /// Correo elegido por el usuario para recibir notificaciones (puede diferir del correo de acceso).
+  notificationEmail   String?   @map("notification_email") @db.VarChar(200)
+  /// Fecha de verificacion del correo de notificaciones.
+  notificationEmailVerifiedAt DateTime? @map("notification_email_verified_at")
+  /// Correo pendiente de verificacion; no se usa hasta confirmar el codigo.
+  notificationEmailPending String? @map("notification_email_pending") @db.VarChar(200)
+  /// Codigo temporal de verificacion del correo de notificaciones.
+  notificationEmailCode String? @map("notification_email_code") @db.VarChar(10)
+  /// Vencimiento del codigo de verificacion del correo de notificaciones.
+  notificationEmailCodeExpires DateTime? @map("notification_email_code_expires")
   /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
   initialUserId       String?   @map("initial_user_id") @db.VarChar(100)
 
@@ -174,6 +184,7 @@ model UserRole {
   @@unique([userId, roleId])
   @@index([userId])
   @@index([initialUserId])
+  @@index([notificationEmail])
   @@index([email])
   @@index([empresaId])
   @@index([sieCode])

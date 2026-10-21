@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, IdCard, LockKeyhole } from "lucide-react";
+import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, IdCard, LockKeyhole, Bell } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
@@ -36,6 +36,15 @@ function PerfilPageContent() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetDone, setResetDone] = useState(false);
+
+  /* Correo de notificaciones: seleccion + verificacion por codigo. */
+  const [notifCandidates, setNotifCandidates] = useState<{ email: string; label: string; activo: boolean }[]>([]);
+  const [notifActive, setNotifActive] = useState("");
+  const [notifPending, setNotifPending] = useState("");
+  const [notifSelected, setNotifSelected] = useState("");
+  const [notifCode, setNotifCode] = useState("");
+  const [notifSending, setNotifSending] = useState(false);
+  const [notifConfirming, setNotifConfirming] = useState(false);
 
   // Empresa
   const [idEmpresa, setIdEmpresa] = useState<string | null>(null);
@@ -80,6 +89,12 @@ function PerfilPageContent() {
       setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
       setRepCorreoRegistrable(Boolean(perfilData.empresa) && !(perfilData.empresa?.representanteCorreo ?? "").trim());
       setRepCelular(perfilData.empresa?.representanteCelular ?? "");
+      const candidatos = perfilData.emailsNotificacion ?? [];
+      setNotifCandidates(candidatos);
+      const activo = candidatos.find((c) => c.activo)?.email ?? perfilData.email ?? session.email ?? "";
+      setNotifActive(activo);
+      setNotifSelected(activo);
+      setNotifPending(perfilData.notificationEmailPending ?? "");
       setLoading(false);
     })();
   }, []);
@@ -203,6 +218,50 @@ function PerfilPageContent() {
     setResetting(false);
   };
 
+  const marcarCorreoActivo = (email: string) => {
+    setNotifActive(email);
+    setNotifSelected(email);
+    setNotifPending("");
+    setNotifCode("");
+    setNotifCandidates((prev) => prev.map((c) => ({ ...c, activo: c.email === email })));
+  };
+
+  const handleSolicitarNotificacion = async () => {
+    if (!notifSelected || notifSelected === notifActive || notifSending) return;
+    setNotifSending(true);
+    try {
+      const result = await perfilService.solicitarNotificacion(notifSelected);
+      if (result.verificado) {
+        marcarCorreoActivo(result.email);
+        toast.success("Correo de notificaciones actualizado");
+      } else {
+        setNotifPending(result.email);
+        setNotifCode("");
+        if (result.emailEnviado) {
+          toast.success("Te enviamos un codigo al correo seleccionado");
+        } else {
+          toast.warning("Solicitud registrada, pero no se pudo enviar el correo. Revisa la configuracion de correo.");
+        }
+      }
+    } catch {
+      toast.error("No se pudo iniciar la verificacion del correo");
+    }
+    setNotifSending(false);
+  };
+
+  const handleConfirmarNotificacion = async () => {
+    if (!notifCode.trim() || notifConfirming) return;
+    setNotifConfirming(true);
+    try {
+      const result = await perfilService.confirmarNotificacion(notifCode.trim());
+      marcarCorreoActivo(result.email);
+      toast.success("Correo de notificaciones verificado");
+    } catch {
+      toast.error("Codigo invalido o expirado");
+    }
+    setNotifConfirming(false);
+  };
+
   if (loading) return null;
   return (
     <main className="flex-1 py-6">
@@ -215,7 +274,7 @@ function PerfilPageContent() {
         </div>
 
         <Tabs defaultValue="cuenta" className="space-y-4">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
             <TabsTrigger value="cuenta" className="gap-1.5 text-xs">
               <UserRound className="h-3.5 w-3.5" />
               <span>Cuenta</span>
@@ -231,6 +290,10 @@ function PerfilPageContent() {
             <TabsTrigger value="seguridad" className="gap-1.5 text-xs">
               <LockKeyhole className="h-3.5 w-3.5" />
               <span>Seguridad</span>
+            </TabsTrigger>
+            <TabsTrigger value="notificaciones" className="gap-1.5 text-xs">
+              <Bell className="h-3.5 w-3.5" />
+              <span>Notificaciones</span>
             </TabsTrigger>
           </TabsList>
 
@@ -468,6 +531,82 @@ function PerfilPageContent() {
                     </Button>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="notificaciones" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  <span>Notificaciones por correo</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Elige entre los correos registrados en tu cuenta y empresa. El correo de acceso siempre queda para iniciar sesion y recuperar la contrasena.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  {notifCandidates.map((c) => {
+                    const esActivo = c.email === notifActive;
+                    const esPendiente = c.email === notifPending;
+                    const seleccionado = c.email === notifSelected;
+                    return (
+                      <button
+                        key={c.email}
+                        type="button"
+                        onClick={() => setNotifSelected(c.email)}
+                        className={`flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition ${seleccionado ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+                      >
+                        <span className="space-y-0.5">
+                          <span className="block text-xs font-medium">{c.label}</span>
+                          <span className="block break-all text-xs text-muted-foreground">{c.email}</span>
+                        </span>
+                        <span className="shrink-0">
+                          {esActivo ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">Activo</span>
+                          ) : esPendiente ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Pendiente</span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {notifSelected && notifSelected !== notifActive && notifSelected !== notifPending && (
+                  <Button type="button" size="sm" disabled={notifSending} onClick={() => void handleSolicitarNotificacion()}>
+                    {notifSending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    <span>{notifSending ? "Enviando..." : notifSelected === email ? "Usar correo de acceso" : "Enviar codigo de verificacion"}</span>
+                  </Button>
+                )}
+
+                {notifPending && notifSelected === notifPending && (
+                  <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                    <p className="text-xs text-amber-800">
+                      Enviamos un codigo de 6 digitos a <strong>{notifPending}</strong>. Vence en 10 minutos.
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Codigo de verificacion"
+                        value={notifCode}
+                        onChange={(e) => setNotifCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className="max-w-48 text-xs tracking-[0.3em]"
+                      />
+                      <Button type="button" size="sm" disabled={notifConfirming || notifCode.length !== 6} onClick={() => void handleConfirmarNotificacion()}>
+                        {notifConfirming ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                        <span>{notifConfirming ? "Verificando..." : "Confirmar correo"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-muted-foreground">
+                  Los correos de seguridad (inicio de sesion, recuperacion de contrasena y credenciales) siempre se envian al correo de acceso.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

@@ -37,6 +37,22 @@ export const plantillasEs: PlantillasEmail = {
     ),
   }),
 
+  "notificacion-verificacion": ({ codigo, email, minutos }) => ({
+    subject: "Verifica tu correo de notificaciones - IIMP Contratos Stands",
+    html: envoltura(
+      "Verificacion de correo",
+      `
+        <p>Recibimos una solicitud para usar <strong>${esc(email)}</strong> como correo de notificaciones.</p>
+        <p>Usa este codigo para confirmarlo:</p>
+        <div style="text-align:center;margin:24px 0">
+          <span style="display:inline-block;letter-spacing:8px;font-size:32px;font-weight:700;color:#1b365d;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:14px 24px">${esc(codigo)}</span>
+        </div>
+        <p>El codigo vence en ${minutos} minutos. Si no solicitaste este cambio, ignora este mensaje.</p>
+      `,
+      PIE_ES,
+    ),
+  }),
+
   "credenciales-empresa": ({ razonSocial, nombreContacto, email, passwordTemporal }) => ({
     subject: "Tus credenciales del Portal del Cliente - IIMP",
     html: envoltura(
