@@ -5,7 +5,7 @@ name: CI/CD QA - ContratosStands
 #   manual (Actions > Run workflow) -> mismo flujo.
 # - La instancia QA es x86_64 (t3.small); la imagen se construye para linux/amd64.
 # - La app se reinicia con el env-file /opt/ctrst-qa/app.env de la instancia.
-# - La base PostgreSQL local y los uploads NO se tocan en cada deploy.
+# - Las migraciones Prisma pendientes se aplican al iniciar el contenedor; no se recrea la base.
 # - Producción (main) tiene su propio workflow deploy.yml.
 
 on:
@@ -150,10 +150,13 @@ jobs:
           COMMANDS_JSON=$(jq -nc --arg image "$IMAGE" --arg repo "$REPO" '[
             "set -euo pipefail",
             "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin " + $repo,
+            "docker rm -f ctrst-qa-app >/dev/null 2>&1 || true",
+            "docker image prune -af >/dev/null 2>&1 || true",
+            "docker builder prune -af >/dev/null 2>&1 || true",
             "docker pull " + $image,
             "docker network inspect ctrst-qa-net >/dev/null 2>&1 || docker network create ctrst-qa-net",
-            "docker rm -f ctrst-qa-app >/dev/null 2>&1 || true",
             "docker run -d --name ctrst-qa-app --restart unless-stopped --network ctrst-qa-net --env-file /opt/ctrst-qa/app.env -p 3000:3000 -v /opt/ctrst-qa/uploads:/app/public/uploads " + $image,
+            "docker exec ctrst-qa-app npx prisma migrate deploy",
             "for i in $(seq 1 36); do if docker exec ctrst-qa-app curl -fsS http://localhost:3000/api/health >/dev/null 2>&1; then echo \"QA app healthy\"; exit 0; fi; sleep 5; done",
             "docker logs --tail 100 ctrst-qa-app >&2 || true",
             "exit 1"
