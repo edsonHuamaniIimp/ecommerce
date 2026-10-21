@@ -92,7 +92,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             Importación masiva de Debida Diligencia
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador debe ser RUC de 11 d��gitos o RUT/identificador extranjero.
+            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador debe ser RUC de 11 dígitos o RUT/identificador extranjero.
           </p>
         </DialogHeader>
 
@@ -146,11 +146,11 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               <CheckCircle2 className="h-4 w-4 text-success" />
               <AlertDescription className="text-xs">
                 <p>
-                  Nuevos: <strong>{resultado.importados}</strong> �� Actualizados:{" "}
-                  <strong>{resultado.actualizados}</strong> �� Omitidos: <strong>{resultado.omitidos}</strong>
+                  Nuevos: <strong>{resultado.importados}</strong> · Actualizados:{" "}
+                  <strong>{resultado.actualizados}</strong> · Omitidos: <strong>{resultado.omitidos}</strong>
                 </p>
                 <p>
-                  Empresas creadas: <strong>{resultado.empresasCreadas}</strong> �� Ya existentes:{" "}
+                  Empresas creadas: <strong>{resultado.empresasCreadas}</strong> · Ya existentes:{" "}
                   <strong>{resultado.empresasExistentes}</strong>
                 </p>
                 {resultado.empresasError.length > 0 ? (

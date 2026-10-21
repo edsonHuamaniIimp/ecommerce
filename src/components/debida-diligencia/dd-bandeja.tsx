@@ -107,7 +107,7 @@ export function DdBandeja() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Debida Diligencia</h1>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
-              {resumen.enRevision} en revisiÃƒÆ’Ã‚Â³n
+              {resumen.enRevision} en revisión
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -123,7 +123,7 @@ export function DdBandeja() {
             onClick={() => setImportOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
-            <span>ImportaciÃƒÆ’Ã‚Â³n masiva</span>
+            <span>Importación masiva</span>
           </Button>
           <Button
             type="button"
@@ -141,8 +141,8 @@ export function DdBandeja() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Borradores y sin iniciar", variante: "muted" }} />
-        <StatsCard title="En revisiÃƒÆ’Ã‚Â³n" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisiÃƒÆ’Ã‚Â³n", variante: "primary" }} />
-        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correcciÃƒÆ’Ã‚Â³n", variante: "gold" }} />
+        <StatsCard title="En revisión" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisión", variante: "primary" }} />
+        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando corrección", variante: "gold" }} />
         <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Vigencia de 6 meses", variante: "primary" }} />
       </div>
 
@@ -152,7 +152,7 @@ export function DdBandeja() {
             <div className="relative w-full lg:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar razÃƒÆ’Ã‚Â³n social, RUC o expediente..."
+                placeholder="Buscar razón social, RUC o expediente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -203,8 +203,8 @@ export function DdBandeja() {
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {estado === DD_ESTADOS.EN_REVISION
-                  ? "Cuando un cliente envÃƒÆ’Ã‚Â­e su debida diligencia aparecerÃƒÆ’Ã‚Â¡ aquÃƒÆ’Ã‚Â­."
-                  : "Prueba con otro estado o limpia la bÃƒÆ’Ã‚Âºsqueda."}
+                  ? "Cuando un cliente envíe su debida diligencia aparecerá aquí."
+                  : "Prueba con otro estado o limpia la búsqueda."}
               </p>
             </div>
           ) : (
@@ -215,10 +215,10 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Origen</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">VÃƒÆ’Ã‚Â­nculo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">ReputaciÃƒÆ’Ã‚Â³n</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
@@ -243,7 +243,7 @@ export function DdBandeja() {
                           ) : null}
                         </TableCell>
                         <TableCell className="hidden text-xs md:table-cell">
-                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {fila.reputacionCasos === 0 ? (
-                            <span className="text-[11px] text-muted-foreground">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</span>
+                            <span className="text-[11px] text-muted-foreground">—</span>
                           ) : (
                             <Badge
                               className={`pointer-events-none text-[9px] ${
@@ -301,7 +301,7 @@ export function DdBandeja() {
                                   : "",
                               ]
                                 .filter(Boolean)
-                                .join(" Ãƒâ€šÃ‚Â· ")}
+                                .join(" · ")}
                             </p>
                           ) : null}
                         </TableCell>
@@ -336,7 +336,7 @@ export function DdBandeja() {
 
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {data.total} resultados Ãƒâ€šÃ‚Â· pÃƒÆ’Ã‚Â¡gina {data.page} de {data.totalPages || 1}
+                  {data.total} resultados · página {data.page} de {data.totalPages || 1}
                 </span>
                 <Pagination
                   page={data.page}
