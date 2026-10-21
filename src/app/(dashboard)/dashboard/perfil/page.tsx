@@ -1,18 +1,19 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, IdCard, LockKeyhole, Bell } from "lucide-react";
+import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, LockKeyhole, Bell } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { BADGE_STYLES, MAESTRA_TABLAS, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, TIPO_COMPROBANTE_LABELS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 function PerfilPageContent() {
@@ -45,6 +46,16 @@ function PerfilPageContent() {
   const [notifCode, setNotifCode] = useState("");
   const [notifSending, setNotifSending] = useState(false);
   const [notifConfirming, setNotifConfirming] = useState(false);
+  const [emailFacturacion, setEmailFacturacion] = useState("");
+
+  // Datos contractuales de la empresa
+  const [razonSocialEmpresa, setRazonSocialEmpresa] = useState("");
+  const [nombreComercialEmpresa, setNombreComercialEmpresa] = useState("");
+  const [direccionFiscal, setDireccionFiscal] = useState("");
+  const [telefonoEmpresa, setTelefonoEmpresa] = useState("");
+  const [tipoComprobante, setTipoComprobante] = useState<string>(TIPOS_COMPROBANTE.FACTURA);
+  const [sitioWebEmpresa, setSitioWebEmpresa] = useState("");
+  const [savingEmpresa, setSavingEmpresa] = useState(false);
 
   // Empresa
   const [idEmpresa, setIdEmpresa] = useState<string | null>(null);
@@ -82,6 +93,13 @@ function PerfilPageContent() {
       setNombreEmpresa(perfilData.nombreEmpresa ?? null);
       setRucEmpresa(perfilData.empresa?.ruc ?? perfilData.ruc ?? null);
       setEmpresaVinculada(Boolean(perfilData.empresa));
+      setRazonSocialEmpresa(perfilData.empresa?.razonSocial ?? perfilData.nombreEmpresa ?? "");
+      setNombreComercialEmpresa(perfilData.empresa?.nombreComercial ?? "");
+      setDireccionFiscal(perfilData.empresa?.direccionFiscal ?? "");
+      setTelefonoEmpresa(perfilData.empresa?.telefono ?? "");
+      setEmailFacturacion(perfilData.empresa?.emailFacturacion ?? "");
+      setTipoComprobante(perfilData.empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA);
+      setSitioWebEmpresa(perfilData.empresa?.sitioWeb ?? "");
       setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
       setRepDni(perfilData.empresa?.representanteLegalDni ?? "");
       setRepPartida(perfilData.empresa?.representantePartida ?? "");
@@ -148,6 +166,43 @@ function PerfilPageContent() {
     } catch { toast.error("Error al guardar"); }
     setSaving(false);
   };
+
+  const handleSaveEmpresa = async () => {
+    if (!rucEmpresa || !razonSocialEmpresa.trim() || !repNombre.trim() || !repDni.trim() ||
+      !repCorreo.trim() || !repCelular.trim() || !repDireccion.trim()) {
+      toast.error("Completa los datos obligatorios de la empresa y del representante.");
+      return;
+    }
+    setSavingEmpresa(true);
+    try {
+      await portalEmpresaService.validarDatos({
+        ruc: rucEmpresa,
+        razonSocial: razonSocialEmpresa.trim(),
+        nombreComercial: nombreComercialEmpresa.trim() || null,
+        direccionFiscal: direccionFiscal.trim() || null,
+        telefono: telefonoEmpresa.trim() || null,
+        emailFacturacion: emailFacturacion.trim() || null,
+        representanteLegalNombre: repNombre.trim(),
+        representanteLegalDni: repDni.trim(),
+        representanteCorreo: repCorreo.trim(),
+        representanteCelular: repCelular.trim(),
+        representanteDireccion: repDireccion.trim(),
+        partidaElectronica: repPartida.trim() || null,
+        tipoComprobante,
+        sitioWeb: sitioWebEmpresa.trim() || null,
+      });
+      toast.success("Datos de la empresa actualizados");
+      window.location.reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudieron guardar los datos de la empresa");
+    } finally {
+      setSavingEmpresa(false);
+    }
+  };
+
+  const notifDatosCompletos = Boolean(
+    empresaVinculada && repCorreo.trim() && emailFacturacion.trim(),
+  );
 
   const onLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -339,43 +394,86 @@ function PerfilPageContent() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="empresa" className="mt-0">
+          <TabsContent value="empresa" className="mt-0 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <IdCard className="h-4 w-4" />
-                  <span>Empresa y representante legal</span>
+                  <Building2 className="h-4 w-4" />
+                  <span>Datos de la empresa</span>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Estos datos se usan en el contrato marco y en el comprobante.
+                  Información fiscal y comercial que se usa en el contrato y el comprobante.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {nombreEmpresa ? (
-                  <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary/50 px-4 py-3">
-                    <Building2 className="h-4 w-4 shrink-0 text-primary" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">{nombreEmpresa}</p>
-                      {rucEmpresa && <p className="font-mono text-[11px] text-muted-foreground">RUC {rucEmpresa}</p>}
-                      {idEmpresa && <p className="font-mono text-[10px] text-muted-foreground">ID {idEmpresa}</p>}
+              <CardContent>
+                {empresaVinculada ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span></Label>
+                      <Input id="empresaRazonSocial" maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
                     </div>
-                    <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                      Empresa vinculada
-                    </span>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaRuc"><span>RUC</span></Label>
+                      <Input id="empresaRuc" value={rucEmpresa ?? ""} disabled className="font-mono text-xs opacity-60" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaNombreComercial"><span>Nombre comercial</span></Label>
+                      <Input id="empresaNombreComercial" maxLength={200} value={nombreComercialEmpresa} onChange={(e) => setNombreComercialEmpresa(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaDireccion"><span>Dirección fiscal</span></Label>
+                      <Input id="empresaDireccion" maxLength={250} value={direccionFiscal} onChange={(e) => setDireccionFiscal(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaTelefono"><span>Teléfono</span></Label>
+                      <Input id="empresaTelefono" maxLength={30} value={telefonoEmpresa} onChange={(e) => setTelefonoEmpresa(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturación</span></Label>
+                      <Input id="empresaEmailFacturacion" type="email" maxLength={200} value={emailFacturacion} onChange={(e) => setEmailFacturacion(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaTipoComprobante"><span>Tipo de comprobante</span></Label>
+                      <Select value={tipoComprobante} onValueChange={setTipoComprobante}>
+                        <SelectTrigger id="empresaTipoComprobante" className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.values(TIPOS_COMPROBANTE).map((tipo) => (
+                            <SelectItem key={tipo} value={tipo}><span>{TIPO_COMPROBANTE_LABELS[tipo] ?? tipo}</span></SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaSitioWeb"><span>Sitio web</span></Label>
+                      <Input id="empresaSitioWeb" maxLength={200} value={sitioWebEmpresa} onChange={(e) => setSitioWebEmpresa(e.target.value)} className="text-xs" />
+                    </div>
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-3">
-                    <p className="text-sm font-medium text-foreground"><span>Sin empresa vinculada</span></p>
-                  </div>
+                  <p className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    No tienes una empresa vinculada.
+                  </p>
                 )}
+              </CardContent>
+            </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserRound className="h-4 w-4" />
+                  <span>Representante legal</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Persona que firma el contrato y usa el correo de acceso al sistema.
+                </p>
+              </CardHeader>
+              <CardContent>
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <Label htmlFor="repDni"><span>DNI del representante</span></Label>
                         {repDniValidado && (
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${BADGE_STYLES.SUCCESS}`}>
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "rgb(220 252 231)", color: "rgb(21 128 61)" }}>
                             <ShieldCheck className="h-3 w-3" />
                             <span>Validado RENIEC</span>
                           </span>
@@ -398,26 +496,17 @@ function PerfilPageContent() {
                       <Input id="repNombre" placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repPartida"><span>Partida electronica (opcional)</span></Label>
+                      <Label htmlFor="repPartida"><span>Partida electrónica (opcional)</span></Label>
                       <Input id="repPartida" placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repDireccion"><span>Direccion</span></Label>
+                      <Label htmlFor="repDireccion"><span>Dirección</span></Label>
                       <Input id="repDireccion" placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCorreo"><span>Correo</span></Label>
-                      {repCorreoRegistrable ? (
-                        <>
-                          <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
-                          <p className="text-[11px] text-muted-foreground">Registra el correo del representante: se usara en el contrato y para las notificaciones.</p>
-                        </>
-                      ) : (
-                        <>
-                          <Input id="repCorreo" type="email" value={repCorreo} disabled className="opacity-60 text-xs" />
-                          <p className="text-[11px] text-muted-foreground">Para cambiar el correo, primero debe validarse.</p>
-                        </>
-                      )}
+                      <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
+                      <p className="text-[11px] text-muted-foreground">Se usará en el contrato, como usuario del sistema y para las notificaciones.</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCelular"><span>Celular</span></Label>
@@ -429,16 +518,15 @@ function PerfilPageContent() {
                     No hay representante legal porque no tienes una empresa vinculada.
                   </p>
                 )}
-
-                <div className="flex justify-end">
-                  <Button onClick={handleSave} disabled={saving}>
-                    <span>{saving ? "Guardando..." : "Guardar datos de la empresa"}</span>
-                  </Button>
-                </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
+            <div className="flex justify-end">
+              <Button onClick={() => void handleSaveEmpresa()} disabled={savingEmpresa}>
+                <span>{savingEmpresa ? "Guardando..." : "Guardar datos de la empresa y representante"}</span>
+              </Button>
+            </div>
+          </TabsContent>
           <TabsContent value="recursos" className="mt-0">
             <Card>
               <CardHeader>
@@ -547,6 +635,17 @@ function PerfilPageContent() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!notifDatosCompletos ? (
+                  <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
+                    <p className="text-xs text-foreground">
+                      Para elegir el correo de notificaciones primero completa el correo del representante y el correo de facturación en los datos de tu empresa.
+                    </p>
+                    <Button type="button" size="sm" onClick={() => router.push("/auth/validar-datos")}>
+                      <span>Completar datos de la empresa</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <>
                 <div className="grid gap-2">
                   {notifCandidates.map((c) => {
                     const esActivo = c.email === notifActive;
@@ -607,6 +706,8 @@ function PerfilPageContent() {
                 <p className="text-[11px] text-muted-foreground">
                   Los correos de seguridad (inicio de sesion, recuperacion de contrasena y credenciales) siempre se envian al correo de acceso.
                 </p>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

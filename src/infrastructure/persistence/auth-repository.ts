@@ -141,7 +141,7 @@ export class AuthPrismaRepository implements IAuthRepository {
         userId: true, email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
         notificationEmail: true, notificationEmailVerifiedAt: true, notificationEmailPending: true,
-        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, emailFacturacion: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
+        empresa: { select: { ruc: true, razonSocial: true, nombreComercial: true, direccionFiscal: true, telefono: true, emailContacto: true, emailFacturacion: true, tipoComprobante: true, sitioWeb: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
       },
     });
     if (!row) return null;

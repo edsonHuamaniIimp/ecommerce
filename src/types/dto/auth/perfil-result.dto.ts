@@ -25,10 +25,13 @@ export interface PerfilResult {
   empresa: {
     ruc: string;
     razonSocial: string;
+    nombreComercial: string | null;
     direccionFiscal: string | null;
     telefono: string | null;
     emailContacto: string | null;
     emailFacturacion: string | null;
+    tipoComprobante: string;
+    sitioWeb: string | null;
     representanteLegalNombre: string | null;
     representanteLegalDni: string | null;
     representanteCorreo: string | null;

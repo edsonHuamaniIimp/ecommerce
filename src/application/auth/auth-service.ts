@@ -388,10 +388,13 @@ export class AuthApplicationService {
     const empresa = ficha ? {
       ruc: ficha.ruc,
       razonSocial: ficha.razonSocial,
+      nombreComercial: ficha.nombreComercial,
       direccionFiscal: ficha.direccionFiscal,
       telefono: ficha.telefono,
       emailContacto: ficha.emailContacto,
       emailFacturacion: ficha.emailFacturacion,
+      tipoComprobante: ficha.tipoComprobante,
+      sitioWeb: ficha.sitioWeb,
       representanteLegalNombre: ficha.representanteLegalNombre,
       representanteLegalDni: ficha.representanteLegalDni,
       representanteCorreo: ficha.representanteCorreo,
