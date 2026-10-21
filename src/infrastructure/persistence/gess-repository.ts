@@ -7,6 +7,9 @@ export class GessPrismaRepository implements IGessRepository {
   async findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult> {
     const where: Record<string, unknown> = { eventoId };
     if (params.estado) where.estado = params.estado;
+    if (params.tipo) where.tipoStand = params.tipo;
+    if (params.sinPabellon) where.bloqueId = null;
+    else if (params.bloqueIds && params.bloqueIds.length > 0) where.bloqueId = { in: params.bloqueIds };
     if (params.search) {
       const q = params.search.trim();
       where.OR = ["standCode", "tipoStand", "estado", "empresa", "bloqueId"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } }));
@@ -27,6 +30,16 @@ export class GessPrismaRepository implements IGessRepository {
       perPage: params.perPage,
       totalPages: Math.ceil(total / params.perPage),
     };
+  }
+
+  async tiposDistintos(eventoId: string): Promise<string[]> {
+    const rows = await prisma.gessStand.findMany({
+      where: { eventoId, tipoStand: { not: null } },
+      distinct: ["tipoStand"],
+      select: { tipoStand: true },
+      orderBy: { tipoStand: "asc" },
+    });
+    return rows.map((row) => row.tipoStand).filter((tipo): tipo is string => Boolean(tipo));
   }
 
   async findByBloque(bloqueId: string) {

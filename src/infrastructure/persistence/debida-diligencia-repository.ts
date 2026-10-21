@@ -37,9 +37,15 @@ import {
   DD_CODIGO_DIGITOS,
   DD_CODIGO_PREFIJO,
   DD_DIAS_POR_VENCER,
+  DD_DOCUMENTOS_FILTRO,
+  DD_SOLICITUDES_FILTRO,
+  DD_BANDEJA_ORDEN,
+  DD_ASIGNACION_FILTRO,
   DD_FILTRO_POR_VENCER,
   DD_FILTRO_SIN_INICIAR,
   DD_FILTRO_TODAS,
+  DD_IMPORTACION_REVISOR,
+  DD_REPUTACION_FILTRO_PENDIENTE,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
@@ -54,10 +60,12 @@ import {
   type DdEstado,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
 const empresaSelect = {
   id: true,
   ruc: true,
+  tipoDocumento: true,
   razonSocial: true,
   nombreComercial: true,
   sitioWeb: true,
@@ -104,6 +112,7 @@ function mapEmpresa(row: ExpedienteRow["empresa"]): DdEmpresaResumen {
   return {
     id: row.id,
     ruc: row.ruc,
+    tipoDocumento: row.tipoDocumento,
     razonSocial: row.razonSocial,
     nombreComercial: row.nombreComercial ?? null,
     sitioWeb: row.sitioWeb ?? null,
@@ -122,6 +131,11 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     eventoId: row.eventoId,
     codigo: row.codigo,
     estado: row.estado as DdEstado,
+    origen: row.origen,
+    estadoOrigen: row.estadoOrigen ?? null,
+    eventoProyecto: row.eventoProyecto ?? null,
+    motivoImportacion: row.motivoImportacion ?? null,
+    importacionId: row.importacionId ?? null,
     tipoRelacionComercial: row.tipoRelacionComercial as DdExpedienteEntity["tipoRelacionComercial"],
     actividadEconomica: row.actividadEconomica ?? null,
     actividadEconomicaOtro: row.actividadEconomicaOtro ?? null,
@@ -311,6 +325,87 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       include: expedienteInclude,
     });
     return mapExpediente(row);
+  }
+
+  /** Crea/actualiza un expediente proveniente de la migracion manual. */
+  async importarExpediente(data: {
+    empresaId: string;
+    eventoId: string;
+    codigo: string;
+    estado: string;
+    estadoOrigen: string | null;
+    eventoProyecto: string | null;
+    motivoImportacion: string | null;
+    importacionId: string;
+    creadoPor: string;
+    actualizadoPor: string;
+    fechaEnvio: Date | null;
+    fechaRevision: Date | null;
+    fechaAprobacion: Date | null;
+    fechaVencimiento: Date | null;
+    fechaRechazo: Date | null;
+  }): Promise<{ id: string; creado: boolean }> {
+    const existente = await prisma.debidaDiligencia.findUnique({
+      where: { empresaId_eventoId: { empresaId: data.empresaId, eventoId: data.eventoId } },
+      select: { id: true },
+    });
+    /* La carga masiva nunca modifica un expediente ya iniciado por el cliente. */
+    if (existente) return { id: existente.id, creado: false };
+
+    const row = await prisma.debidaDiligencia.create({
+      data: {
+        empresaId: data.empresaId,
+        eventoId: data.eventoId,
+        codigo: data.codigo,
+        estado: data.estado,
+        origen: "importado",
+        estadoOrigen: data.estadoOrigen,
+        eventoProyecto: data.eventoProyecto,
+        motivoImportacion: data.motivoImportacion,
+        importacionId: data.importacionId,
+        creadoPor: data.creadoPor,
+        actualizadoPor: data.actualizadoPor,
+        fechaEnvio: data.fechaEnvio,
+        fechaRevision: data.fechaRevision,
+        fechaAprobacion: data.fechaAprobacion,
+        fechaVencimiento: data.fechaVencimiento,
+        fechaRechazo: data.fechaRechazo,
+        revisadoPor: DD_IMPORTACION_REVISOR,
+      },
+      select: { id: true },
+    });
+    return { id: row.id, creado: true };
+  }
+
+  async crearImportacion(data: {
+    archivo: string;
+    hash: string;
+    eventoId: string;
+    usuario: string;
+    total: number;
+    omitidos: number;
+    errores: unknown;
+  }): Promise<string> {
+    const row = await prisma.ddImportacion.create({
+      data: {
+        archivo: data.archivo,
+        hash: data.hash,
+        eventoId: data.eventoId,
+        usuario: data.usuario,
+        total: data.total,
+        omitidos: data.omitidos,
+        errores: data.errores as never,
+      },
+      select: { id: true },
+    });
+    return row.id;
+  }
+
+  async cerrarImportacion(id: string, importados: number, actualizados: number, omitidos: number): Promise<void> {
+    await prisma.ddImportacion.update({
+      where: { id },
+      data: { importados, actualizados, omitidos },
+    });
   }
 
   async guardarFormulario(id: string, data: DdGuardarData, actualizadoPor: string): Promise<DdExpedienteEntity> {
@@ -535,6 +630,43 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.estado = params.estado;
     }
 
+    if (params.origen && params.origen !== DD_FILTRO_TODAS) {
+      where.origen = params.origen;
+    }
+    if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
+      where.tipoRelacionComercial = params.vinculo;
+    }
+    if (params.documentos === DD_DOCUMENTOS_FILTRO.CON) {
+      where.documentos = { some: {} };
+    } else if (params.documentos === DD_DOCUMENTOS_FILTRO.SIN) {
+      where.documentos = { none: {} };
+    }
+
+    if (params.reputacion && params.reputacion !== DD_FILTRO_TODAS) {
+      if (params.reputacion === DD_REPUTACION_FILTRO_PENDIENTE) {
+        where.AND = [
+          {
+            OR: [
+              { reputacion: { some: { estado: { in: [DD_REPUTACION_ESTADOS.POR_REVISAR, DD_REPUTACION_ESTADOS.EN_ANALISIS] } } } },
+              { reputacion: { none: {} } },
+            ],
+          },
+        ];
+      } else {
+        where.reputacion = { some: { estado: params.reputacion } };
+      }
+    }
+
+    if (params.asignacion && params.asignacion !== DD_FILTRO_TODAS) {
+      if (params.asignacion === DD_ASIGNACION_FILTRO.IMPORTACION) {
+        where.revisadoPor = DD_IMPORTACION_REVISOR;
+      } else if (params.asignacion === DD_ASIGNACION_FILTRO.SIN_ASIGNAR) {
+        where.revisadoPor = null;
+      } else if (params.asignacion === DD_ASIGNACION_FILTRO.REVISOR) {
+        where.revisadoPor = { not: null, notIn: [DD_IMPORTACION_REVISOR] };
+      }
+    }
+
     if (params.search?.trim()) {
       const q = params.search.trim();
       where.OR = [
@@ -544,12 +676,25 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       ];
     }
 
+    /* El filtro y el orden por solicitudes se resuelven sobre el conjunto completo. */
+    const clasificarSolicitudes =
+      (params.solicitudes === DD_SOLICITUDES_FILTRO.CON ||
+        params.solicitudes === DD_SOLICITUDES_FILTRO.SIN) ||
+      params.orden === DD_BANDEJA_ORDEN.SOLICITUDES;
+    const orderBy = params.orden === DD_BANDEJA_ORDEN.CREADOS
+      ? { createdAt: "desc" as const }
+      : { updatedAt: "desc" as const };
+
     const [rows, total, grupos] = await Promise.all([
       prisma.debidaDiligencia.findMany({
         where,
-        orderBy: { updatedAt: "desc" },
-        skip: (params.page - 1) * params.perPage,
-        take: params.perPage,
+        orderBy,
+        ...(clasificarSolicitudes
+          ? {}
+          : {
+              skip: (params.page - 1) * params.perPage,
+              take: params.perPage,
+            }),
         include: {
           empresa: { select: empresaSelect },
           documentos: { select: { tipo: true, estado: true } },
@@ -575,8 +720,35 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       rechazadas: porEstado.get(DD_ESTADOS.RECHAZADA) ?? 0,
     };
 
+    const solicitudesPorDocumento = await this.contarSolicitudesPorDocumento(
+      rows.map((row) => row.empresa.ruc),
+    );
+
+    const contarSolicitudes = (row: (typeof rows)[number]): number =>
+      solicitudesPorDocumento.get(normalizarDocumentoEmpresa(row.empresa.ruc)) ?? 0;
+
+    let filas = [...rows];
+    if (params.solicitudes === DD_SOLICITUDES_FILTRO.CON) {
+      filas = filas.filter((row) => contarSolicitudes(row) > 0);
+    } else if (params.solicitudes === DD_SOLICITUDES_FILTRO.SIN) {
+      filas = filas.filter((row) => contarSolicitudes(row) === 0);
+    }
+
+    if (params.orden === DD_BANDEJA_ORDEN.SOLICITUDES) {
+      filas.sort(
+        (a, b) =>
+          contarSolicitudes(b) - contarSolicitudes(a) ||
+          b.updatedAt.getTime() - a.updatedAt.getTime(),
+      );
+    }
+
+    const totalVisibles = clasificarSolicitudes ? filas.length : total;
+    const filasPagina = clasificarSolicitudes
+      ? filas.slice((params.page - 1) * params.perPage, params.page * params.perPage)
+      : filas;
+
     return {
-      data: rows.map((row) => {
+      data: filasPagina.map((row) => {
         const reputacion = row.reputacion;
         const reputacionPendientes = reputacion.filter(
           (r) =>
@@ -610,8 +782,14 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         id: row.id,
         codigo: row.codigo,
         estado: row.estado as DdEstado,
+        origen: row.origen,
+        estadoOrigen: row.estadoOrigen ?? null,
+        eventoProyecto: row.eventoProyecto ?? null,
+        motivoImportacion: row.motivoImportacion ?? null,
         tipoRelacionComercial: row.tipoRelacionComercial as DdMatrizRow["tipoRelacionComercial"],
         empresa: mapEmpresa(row.empresa),
+        fechaCreacion: row.createdAt,
+        solicitudesAlquiler: solicitudesPorDocumento.get(normalizarDocumentoEmpresa(row.empresa.ruc)) ?? 0,
         documentoCargados: row.documentos.filter(
           (d) => d.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
         ).length,
@@ -630,12 +808,33 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         reputacionRequiereInformacion,
         };
       }),
-      total,
+      total: totalVisibles,
       page: params.page,
       perPage: params.perPage,
-      totalPages: Math.ceil(total / params.perPage),
+      totalPages: Math.ceil(totalVisibles / params.perPage),
       resumen,
     };
+  }
+
+  private async contarSolicitudesPorDocumento(documentos: string[]): Promise<Map<string, number>> {
+    const buscados = new Set(documentos.map(normalizarDocumentoEmpresa).filter(Boolean));
+    if (buscados.size === 0) return new Map();
+
+    const solicitudes = await prisma.solicitud.findMany({
+      where: { flgActivo: true },
+      select: { datosFacturacion: true },
+    });
+    const conteo = new Map<string, number>();
+    for (const solicitud of solicitudes) {
+      const datos = solicitud.datosFacturacion as { numeroDocumento?: unknown } | null;
+      const documento = typeof datos?.numeroDocumento === "string"
+        ? normalizarDocumentoEmpresa(datos.numeroDocumento)
+        : "";
+      if (datos && buscados.has(documento)) {
+        conteo.set(documento, (conteo.get(documento) ?? 0) + 1);
+      }
+    }
+    return conteo;
   }
 
   async resumenPanel(eventoId: string): Promise<{

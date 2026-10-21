@@ -1176,6 +1176,45 @@ export const DD_PAIS_DEFAULT = "Perú";
 /** Valor del filtro "todas" en las bandejas del modulo. */
 export const DD_FILTRO_TODAS = "todas";
 
+/** Usuario tecnico que registra la migracion masiva. */
+export const DD_IMPORTACION_REVISOR = "importacion_masiva";
+export const DD_IMPORTACION_REVISOR_LABEL = "Importación masiva";
+
+/** Filtros de presencia de documentos en la bandeja. */
+export const DD_DOCUMENTOS_FILTRO = {
+  CON: "con",
+  SIN: "sin",
+} as const;
+
+/** Filtros de presencia de solicitudes de alquiler en la bandeja. */
+export const DD_SOLICITUDES_FILTRO = {
+  CON: "con",
+  SIN: "sin",
+} as const;
+
+/** Ordenamiento de la bandeja de Debida Diligencia. */
+export const DD_BANDEJA_ORDEN = {
+  SOLICITUDES: "solicitudes",
+  ACTUALIZADOS: "actualizados",
+  CREADOS: "creados",
+} as const;
+
+export const DD_BANDEJA_ORDEN_LABELS: Record<string, string> = {
+  [DD_BANDEJA_ORDEN.SOLICITUDES]: "Más solicitudes",
+  [DD_BANDEJA_ORDEN.ACTUALIZADOS]: "Últimos actualizados",
+  [DD_BANDEJA_ORDEN.CREADOS]: "Últimos creados",
+};
+
+/** Filtro de reputacion pendiente (casos por revisar o en analisis). */
+export const DD_REPUTACION_FILTRO_PENDIENTE = "pendiente";
+
+/** Filtros de asignacion de la bandeja. */
+export const DD_ASIGNACION_FILTRO = {
+  IMPORTACION: DD_IMPORTACION_REVISOR,
+  SIN_ASIGNAR: "sin_asignar",
+  REVISOR: "revisor",
+} as const;
+
 /** Valor del filtro calculado de vigencias proximas a vencer. */
 export const DD_FILTRO_POR_VENCER = "por_vencer";
 
@@ -1216,6 +1255,19 @@ export const DD_ESTADOS = {
   RECHAZADA: "rechazada",
 } as const;
 
+/** Origen de un registro de Debida Diligencia. */
+export const DD_ORIGENES = {
+  FLUJO_REGULAR: "flujo_regular",
+  IMPORTADO: "importado",
+} as const;
+
+export type DdOrigen = (typeof DD_ORIGENES)[keyof typeof DD_ORIGENES];
+
+export const DD_ORIGEN_LABELS: Record<string, string> = {
+  [DD_ORIGENES.FLUJO_REGULAR]: "Portal",
+  [DD_ORIGENES.IMPORTADO]: "Carga masiva",
+};
+
 export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
 
 export const DD_ESTADO_LABELS: Record<string, string> = {
@@ -1224,8 +1276,8 @@ export const DD_ESTADO_LABELS: Record<string, string> = {
   [DD_ESTADOS.EN_REVISION]: "En revisión",
   [DD_ESTADOS.EN_LEGAL]: "En revisión legal",
   [DD_ESTADOS.OBSERVADA]: "Observada",
-  [DD_ESTADOS.APROBADA]: "Aprobada",
-  [DD_ESTADOS.RECHAZADA]: "Rechazada",
+  [DD_ESTADOS.APROBADA]: "APTO",
+  [DD_ESTADOS.RECHAZADA]: "NO APTO",
 };
 
 /** Resultado de la evaluacion de debida diligencia (correo institucional). */
@@ -1280,8 +1332,8 @@ export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
-  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
-  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_ESTADOS.APROBADA, label: "APTO" },
+  { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
 ];
 
@@ -1292,8 +1344,8 @@ export const DD_MATRIZ_ESTADO_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
-  { value: DD_ESTADOS.APROBADA, label: "Aprobadas" },
-  { value: DD_ESTADOS.RECHAZADA, label: "Rechazadas" },
+  { value: DD_ESTADOS.APROBADA, label: "APTO" },
+  { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
 ];
 
@@ -1546,6 +1598,10 @@ export const REGEX_DNI = /^\d{8}$/;
 
 /** Correo electronico simple (validacion de formularios). */
 export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Vigencia y longitud del codigo para verificar el correo de notificaciones. */
+export const NOTIFICACION_EMAIL_CODIGO_MINUTOS = 10;
+export const NOTIFICACION_EMAIL_CODIGO_LONGITUD = 6;
 
 /** Nacionalidad: solo letras, espacios, apóstrofes, puntos y guiones. */
 export const REGEX_NACIONALIDAD = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.'-]+$/;
@@ -1829,6 +1885,37 @@ export const API_ERROR_CODES = {
   TOO_MANY_REQUESTS: "TOO_MANY_REQUESTS",
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
 } as const;
+
+/** Origen de un registro en `error_log` (trazabilidad de fallos). */
+export const ERROR_LOG_SOURCES = {
+  SERVER_API: "server-api",
+  WIZARD: "wizard",
+  MAPA: "mapa",
+} as const;
+
+export type ErrorLogSource = (typeof ERROR_LOG_SOURCES)[keyof typeof ERROR_LOG_SOURCES];
+
+/** Flujos que reportan errores contextualizados en `error_log`. */
+export const ERROR_LOG_FLUJOS = {
+  RESERVA_STAND: "reserva_stand",
+} as const;
+
+export type ErrorLogFlujo = (typeof ERROR_LOG_FLUJOS)[keyof typeof ERROR_LOG_FLUJOS];
+
+/** Pasos del flujo de reserva usados al mapear errores. */
+export const ERROR_LOG_PASOS_RESERVA = {
+  HOLD: "1_hold",
+  MAPA_CARGA: "cargar_mapa",
+  MAPA_API: "fetch_api",
+  CUOTAS: "2_cuotas",
+  ANEXOS: "3_anexos",
+  FIRMA_MANUAL: "3_firma_manual",
+  FIRMA_DIGITAL: "3_firma_digital",
+  FIRMA_PERFIL: "3_firma_perfil",
+  CONFIRMAR: "4_confirmar",
+} as const;
+
+export type ErrorLogPasoReserva = (typeof ERROR_LOG_PASOS_RESERVA)[keyof typeof ERROR_LOG_PASOS_RESERVA];
 
 /* ================================================================
    Estilos de Badge (colores semanticos por estado)

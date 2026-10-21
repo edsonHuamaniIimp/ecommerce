@@ -1,6 +1,19 @@
 import 'client-only';
 
 import type { ApiResult } from "@/lib/shared/api-types";
+import { API_ERROR_CODES } from "@/lib/shared/constants";
+
+/** Error HTTP del API interno: conserva codigo y status para mapeo/trazabilidad. */
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiClientError";
+  }
+}
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const hasBody = options?.body !== undefined;
@@ -16,12 +29,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const json = await res.json().catch(() => ({})) as ApiResult<T> | { error?: string } | null;
   if (!res.ok) {
     if (json && typeof json === "object" && "success" in json && json.success === false && "error" in json) {
-      throw new Error((json as ApiResult<T> & { success: false }).error.message);
+      const detalle = (json as ApiResult<T> & { success: false }).error;
+      throw new ApiClientError(detalle.message, String(detalle.code ?? API_ERROR_CODES.INTERNAL), res.status);
     }
     if (json && "error" in json && typeof json.error === "string") {
-      throw new Error(json.error);
+      throw new ApiClientError(json.error, API_ERROR_CODES.INTERNAL, res.status);
     }
-    throw new Error(`Error ${res.status}`);
+    throw new ApiClientError(`Error ${res.status}`, API_ERROR_CODES.INTERNAL, res.status);
   }
   if (res.status === 204) return undefined as T;
   if (json && typeof json === "object" && "success" in json && json.success === true && "data" in json) {

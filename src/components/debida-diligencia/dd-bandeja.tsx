@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Badge,
   Button,
@@ -20,30 +21,46 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Eye, RefreshCw, Search, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import type { DdBandejaResponseDTO, DdBandejaRowDTO, DdEmpresaEstadoDTO } from "@/types/dto/debida-diligencia";
+import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { DdImportModal } from "./dd-import-modal";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
   BADGE_STYLES,
+  DD_ASIGNACION_FILTRO,
   DD_BANDEJA_FILTROS,
+  DD_BANDEJA_ORDEN,
+  DD_BANDEJA_ORDEN_LABELS,
+  DD_DOCUMENTOS_FILTRO,
   DD_ESTADOS,
+  DD_ESTADO_LABELS,
+  DD_FILTRO_TODAS,
+  DD_IMPORTACION_REVISOR,
+  DD_IMPORTACION_REVISOR_LABEL,
+  DD_ORIGEN_LABELS,
+  DD_ORIGENES,
   DD_PER_PAGE_DEFAULT,
   DD_REPUTACION_ESTADOS,
+  DD_REPUTACION_FILTRO_PENDIENTE,
   DD_REPUTACION_ESTADO_LABELS,
-  DD_RESULTADOS,
-  DD_RESULTADO_LABELS,
-  DD_ESTADO_EVALUACION_LABELS,
+  DD_SOLICITUDES_FILTRO,
   DD_VINCULO_LABELS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import {
+  exportarTablaCsv,
+  exportarTablaExcel,
+  nombreArchivoExport,
+  type ColumnaExportacion,
+} from "@/lib/shared/utils/export-tabla";
 
 const RESUMEN_VACIO = {
   total: 0,
@@ -59,20 +76,25 @@ export function DdBandeja() {
   const [data, setData] = useState<DdBandejaResponseDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [estado, setEstado] = useState<string>(DD_ESTADOS.EN_REVISION);
+  const [estado, setEstado] = useState<string>(DD_FILTRO_TODAS);
+  const [origen, setOrigen] = useState<string>(DD_FILTRO_TODAS);
+  const [vinculo, setVinculo] = useState<string>(DD_FILTRO_TODAS);
+  const [documentos, setDocumentos] = useState<string>(DD_FILTRO_TODAS);
+  const [reputacion, setReputacion] = useState<string>(DD_FILTRO_TODAS);
+  const [asignacion, setAsignacion] = useState<string>(DD_FILTRO_TODAS);
+  const [solicitudes, setSolicitudes] = useState<string>(DD_FILTRO_TODAS);
+  const [orden, setOrden] = useState<string>(DD_BANDEJA_ORDEN.ACTUALIZADOS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [externas, setExternas] = useState<DdEmpresaEstadoDTO[]>([]);
-  const [filtroExterno, setFiltroExterno] = useState<string>("todos");
-  const [extPage, setExtPage] = useState(1);
-  const [extPerPage, setExtPerPage] = useState(10);
+  const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
-  const refs = useRef({ page, perPage, search, estado });
-  useEffect(() => { refs.current = { page, perPage, search, estado }; }, [page, perPage, search, estado]);
+  const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden });
+  useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden }; }, [page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden]);
 
-  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string }>) => {
+  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
     const actual = { ...refs.current, ...overrides };
     try {
       const respuesta = await debidaDiligenciaService.bandeja({
@@ -80,16 +102,15 @@ export function DdBandeja() {
         perPage: actual.perPage,
         search: actual.search.trim() || undefined,
         estado: actual.estado,
+        origen: actual.origen,
+        vinculo: actual.vinculo,
+        documentos: actual.documentos,
+        reputacion: actual.reputacion,
+        asignacion: actual.asignacion,
+        solicitudes: actual.solicitudes,
+        orden: actual.orden,
       });
       setData(respuesta);
-      try {
-        const externasRespuesta = await debidaDiligenciaService.empresasTodas({
-          search: actual.search.trim() || undefined,
-        });
-        setExternas(externasRespuesta);
-      } catch {
-        setExternas([]);
-      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar la bandeja");
     } finally {
@@ -97,30 +118,120 @@ export function DdBandeja() {
     }
   }, []);
 
-  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string }>) => {
+  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
     setLoading(true);
     void load(overrides);
   };
 
   useEffect(() => { void load(); }, [load]);
 
-  const cambiarFiltro = (valor: string) => {
-    setEstado(valor);
+  const limpiarFiltros = () => {
+    setSearch("");
+    setEstado(DD_FILTRO_TODAS);
+    setOrigen(DD_FILTRO_TODAS);
+    setVinculo(DD_FILTRO_TODAS);
+    setDocumentos(DD_FILTRO_TODAS);
+    setReputacion(DD_FILTRO_TODAS);
+    setAsignacion(DD_FILTRO_TODAS);
+    setSolicitudes(DD_FILTRO_TODAS);
+    setOrden(DD_BANDEJA_ORDEN.ACTUALIZADOS);
     setPage(1);
-    recargar({ estado: valor, page: 1 });
+    recargar({
+      search: "",
+      estado: DD_FILTRO_TODAS,
+      origen: DD_FILTRO_TODAS,
+      vinculo: DD_FILTRO_TODAS,
+      documentos: DD_FILTRO_TODAS,
+      reputacion: DD_FILTRO_TODAS,
+      asignacion: DD_FILTRO_TODAS,
+      solicitudes: DD_FILTRO_TODAS,
+      orden: DD_BANDEJA_ORDEN.ACTUALIZADOS,
+      page: 1,
+    });
+  };
+
+  const filtrosActivos = [
+    estado,
+    origen,
+    vinculo,
+    documentos,
+    reputacion,
+    asignacion,
+    solicitudes,
+  ].filter((valor) => valor !== DD_FILTRO_TODAS).length;
+
+  /** Exporta todas las paginas que cumplen los filtros aplicados. */
+  const exportar = async (formato: "csv" | "xlsx") => {
+    setExportando(formato);
+    try {
+      const filtros = refs.current;
+      const perPage = 100;
+      const primera = await debidaDiligenciaService.bandeja({
+        page: 1,
+        perPage,
+        search: filtros.search.trim() || undefined,
+        estado: filtros.estado,
+        origen: filtros.origen,
+        vinculo: filtros.vinculo,
+        documentos: filtros.documentos,
+        reputacion: filtros.reputacion,
+        asignacion: filtros.asignacion,
+        solicitudes: filtros.solicitudes,
+        orden: filtros.orden,
+      });
+      const filas: DdBandejaRowDTO[] = [...primera.data];
+      for (let page = 2; page <= primera.totalPages; page += 1) {
+        const siguiente = await debidaDiligenciaService.bandeja({
+          page,
+          perPage,
+          search: filtros.search.trim() || undefined,
+          estado: filtros.estado,
+          origen: filtros.origen,
+          vinculo: filtros.vinculo,
+          documentos: filtros.documentos,
+          reputacion: filtros.reputacion,
+          asignacion: filtros.asignacion,
+          solicitudes: filtros.solicitudes,
+          orden: filtros.orden,
+        });
+        filas.push(...siguiente.data);
+      }
+      if (filas.length === 0) {
+        toast.error("No hay registros para exportar con los filtros actuales");
+        return;
+      }
+      const columnas: ColumnaExportacion<DdBandejaRowDTO>[] = [
+        { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
+        { encabezado: "Tipo documento", valor: (r) => etiquetaTipoDocumentoEmpresa(r.empresa.tipoDocumento, r.empresa.ruc) },
+        { encabezado: "Documento", valor: (r) => r.empresa.ruc },
+        { encabezado: "Expediente", valor: (r) => r.codigo },
+        { encabezado: "Procedencia", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
+        { encabezado: "Vínculo / motivo", valor: (r) => r.motivoImportacion ?? (r.tipoRelacionComercial ? DD_VINCULO_LABELS[r.tipoRelacionComercial] ?? r.tipoRelacionComercial : "") },
+        { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
+        { encabezado: "Creado", valor: (r) => (r.fechaCreacion ? dateUtils.format(r.fechaCreacion) : "") },
+        { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
+        { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
+        { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
+        { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
+        { encabezado: "Enviado", valor: (r) => (r.fechaEnvio ? dateUtils.format(r.fechaEnvio) : "") },
+        { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
+        { encabezado: "Vence", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
+        { encabezado: "Asignado", valor: (r) => r.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (r.revisadoPor ?? "") },
+      ];
+      if (formato === "csv") {
+        exportarTablaCsv(filas, columnas, nombreArchivoExport("dd-bandeja", "csv"));
+      } else {
+        await exportarTablaExcel(filas, columnas, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
+      }
+      toast.success(`${filas.length} registro(s) exportado(s)`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
+    } finally {
+      setExportando(null);
+    }
   };
 
   const resumen = data?.resumen ?? RESUMEN_VACIO;
-  const normalizarDocumento = (valor: string | null | undefined) =>
-    (valor ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const externasPorRuc = new Map(externas.map((empresa) => [normalizarDocumento(empresa.documento), empresa]));
-  const externasFiltradas = externas.filter((empresa) => {
-    if (filtroExterno !== "todos" && empresa.resultado !== filtroExterno) return false;
-    return true;
-  });
-  const extTotalPages = Math.max(1, Math.ceil(externasFiltradas.length / extPerPage));
-  const extPageSafe = Math.min(extPage, extTotalPages);
-  const extRows = externasFiltradas.slice((extPageSafe - 1) * extPerPage, extPageSafe * extPerPage);
 
 
   return (
@@ -138,6 +249,28 @@ export function DdBandeja() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={exportando !== null || loading}
+            onClick={() => { void exportar("xlsx"); }}
+          >
+            <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
+            <span>{exportando === "xlsx" ? "Exportando..." : "Excel"}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={exportando !== null || loading}
+            onClick={() => { void exportar("csv"); }}
+          >
+            <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
+            <span>{exportando === "csv" ? "Exportando..." : "CSV"}</span>
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -171,11 +304,11 @@ export function DdBandeja() {
 
       <Card className="overflow-hidden">
         <CardHeader className="space-y-3 border-b border-border pb-4">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="relative w-full lg:flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative w-full sm:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar razón social, RUC o expediente..."
+                placeholder="Buscar razón social, documento o expediente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -187,6 +320,19 @@ export function DdBandeja() {
                 className="h-8 border-border bg-secondary pl-8 text-xs placeholder:text-muted-foreground/60 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>
+            <Button
+              type="button"
+              variant={filtersOpen ? "default" : "outline"}
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+              onClick={() => setFiltersOpen((valor) => !valor)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filtros</span>
+              {filtrosActivos > 0 ? (
+                <span className="rounded-full bg-primary-foreground/20 px-1.5 text-[10px] font-bold">{filtrosActivos}</span>
+              ) : null}
+            </Button>
             <Select value={String(perPage)} onValueChange={(valor) => { const n = Number(valor); setPerPage(n); setPage(1); recargar({ perPage: n, page: 1 }); }}>
               <SelectTrigger className="h-8 w-[80px] shrink-0 border-border text-xs">
                 <SelectValue />
@@ -199,28 +345,113 @@ export function DdBandeja() {
             </Select>
           </div>
 
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
-            {DD_BANDEJA_FILTROS.map((filtro) => {
-              const activo = estado === filtro.value;
-              return (
-                <Button
-                  key={filtro.value}
-                  type="button"
-                  size="sm"
-                  variant={activo ? "default" : "outline"}
-                  className="h-7 rounded-full px-3 text-[11px]"
-                  onClick={() => cambiarFiltro(filtro.value)}
-                >
-                  <span>{filtro.label}</span>
+          {filtersOpen ? (
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-estado">Estado</label>
+                <Select value={estado} onValueChange={(valor) => { setEstado(valor); setPage(1); recargar({ estado: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-estado" className="h-8 border-border text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
+                  <SelectContent>
+                    {DD_BANDEJA_FILTROS.map((filtro) => (
+                      <SelectItem key={filtro.value} value={filtro.value}><span>{filtro.label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-origen">Procedencia</label>
+                <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-origen" className="h-8 border-border text-xs"><SelectValue placeholder="Procedencia" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_ORIGENES.FLUJO_REGULAR}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.FLUJO_REGULAR]}</span></SelectItem>
+                    <SelectItem value={DD_ORIGENES.IMPORTADO}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.IMPORTADO]}</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-vinculo">Vínculo</label>
+                <Select value={vinculo} onValueChange={(valor) => { setVinculo(valor); setPage(1); recargar({ vinculo: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-vinculo" className="h-8 border-border text-xs"><SelectValue placeholder="Vínculo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    {Object.entries(DD_VINCULO_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-documentos">Documentos</label>
+                <Select value={documentos} onValueChange={(valor) => { setDocumentos(valor); setPage(1); recargar({ documentos: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-documentos" className="h-8 border-border text-xs"><SelectValue placeholder="Documentos" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_DOCUMENTOS_FILTRO.CON}><span>Con documentos</span></SelectItem>
+                    <SelectItem value={DD_DOCUMENTOS_FILTRO.SIN}><span>Sin documentos</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-solicitudes">Solicitudes</label>
+                <Select value={solicitudes} onValueChange={(valor) => { setSolicitudes(valor); setPage(1); recargar({ solicitudes: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-solicitudes" className="h-8 border-border text-xs"><SelectValue placeholder="Solicitudes" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_SOLICITUDES_FILTRO.CON}><span>Con solicitudes</span></SelectItem>
+                    <SelectItem value={DD_SOLICITUDES_FILTRO.SIN}><span>Sin solicitudes</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-reputacion">Reputación</label>
+                <Select value={reputacion} onValueChange={(valor) => { setReputacion(valor); setPage(1); recargar({ reputacion: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-reputacion" className="h-8 border-border text-xs"><SelectValue placeholder="Reputación" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_REPUTACION_FILTRO_PENDIENTE}><span>Pendiente</span></SelectItem>
+                    {[DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, DD_REPUTACION_ESTADOS.CON_HALLAZGOS, DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION].map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{DD_REPUTACION_ESTADO_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-asignacion">Asignación</label>
+                <Select value={asignacion} onValueChange={(valor) => { setAsignacion(valor); setPage(1); recargar({ asignacion: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-asignacion" className="h-8 border-border text-xs"><SelectValue placeholder="Asignación" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todas</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.IMPORTACION}><span>{DD_IMPORTACION_REVISOR_LABEL}</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.SIN_ASIGNAR}><span>Sin asignar</span></SelectItem>
+                    <SelectItem value={DD_ASIGNACION_FILTRO.REVISOR}><span>Con revisor</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-orden">Orden</label>
+                <Select value={orden} onValueChange={(valor) => { setOrden(valor); setPage(1); recargar({ orden: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-orden" className="h-8 border-border text-xs"><SelectValue placeholder="Orden" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(DD_BANDEJA_ORDEN_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={limpiarFiltros} disabled={filtrosActivos === 0}>
+                  <X className="h-3.5 w-3.5" />
+                  <span>Limpiar filtros</span>
                 </Button>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+          ) : null}
         </CardHeader>
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={perPage} columns={7} />
+            <TableSkeleton rows={perPage} columns={11} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
@@ -237,9 +468,12 @@ export function DdBandeja() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Creado</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Procedencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
@@ -251,8 +485,19 @@ export function DdBandeja() {
                       <TableRow key={fila.id}>
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.empresa.razonSocial}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">RUC {fila.empresa.ruc}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">{etiquetaTipoDocumentoEmpresa(fila.empresa.tipoDocumento, fila.empresa.ruc)} {fila.empresa.ruc}</p>
                           <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
+                        </TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
+                          {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`pointer-events-none text-[9px] ${fila.origen === DD_ORIGENES.IMPORTADO ? BADGE_STYLES.NEUTRAL : BADGE_STYLES.INFO}`}
+                            title={fila.origen === DD_ORIGENES.IMPORTADO ? "Registro creado desde Importación masiva" : "Registro creado desde el portal"}
+                          >
+                            <span>{DD_ORIGEN_LABELS[fila.origen] ?? fila.origen}</span>
+                          </Badge>
                         </TableCell>
                         <TableCell className="hidden text-xs md:table-cell">
                           {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
@@ -272,11 +517,17 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell>
                           <DdEstadoBadge estado={fila.estado} />
-                          {externasPorRuc.has(normalizarDocumento(fila.empresa.ruc)) && (
-                            <p className="mt-1 text-[10px] text-muted-foreground">
-                              Registro externo: {externasPorRuc.get(normalizarDocumento(fila.empresa.ruc))?.resultadoLabel}
-                            </p>
-                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            href="/dashboard/solicitudes"
+                            className="inline-flex"
+                            title={fila.solicitudesAlquiler > 0 ? "Ver solicitudes de alquiler" : "Sin solicitudes de alquiler"}
+                          >
+                            <Badge className={`text-[9px] ${fila.solicitudesAlquiler > 0 ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}>
+                              <span>{fila.solicitudesAlquiler > 0 ? `Sí (${fila.solicitudesAlquiler})` : "No"}</span>
+                            </Badge>
+                          </Link>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           {fila.reputacionCasos === 0 ? (
@@ -331,7 +582,7 @@ export function DdBandeja() {
                           </div>
                         </TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-[11px] text-muted-foreground xl:table-cell">
-                          {fila.revisadoPor ?? "Sin asignar"}
+                          {fila.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (fila.revisadoPor ?? "Sin asignar")}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -339,10 +590,10 @@ export function DdBandeja() {
                             variant="outline"
                             size="sm"
                             className="h-7 gap-1 text-[11px]"
-                            onClick={() => setRevisando(fila)}
+                            onClick={() => { if (fila.origen !== DD_ORIGENES.IMPORTADO) setRevisando(fila); }}
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            <span>Revisar</span>
+                            <span>{fila.origen === DD_ORIGENES.IMPORTADO ? "Solo lectura" : "Revisar"}</span>
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -360,121 +611,6 @@ export function DdBandeja() {
                   totalPages={data.totalPages}
                   onPageChange={(p) => { setPage(p); recargar({ page: p }); }}
                 />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader className="space-y-3 border-b border-border pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Registro externo de Debida Diligencia</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Empresas importadas manualmente. Es informativo y no crea expedientes internos.
-              </p>
-            </div>
-            <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
-              <span>{externasFiltradas.length} empresa(s)</span>
-            </Badge>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Select value={filtroExterno} onValueChange={(valor) => { setFiltroExterno(valor); setExtPage(1); }}>
-              <SelectTrigger className="h-8 w-full border-border text-xs sm:w-[220px]">
-                <SelectValue placeholder="Resultado externo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos"><span>Todos los resultados</span></SelectItem>
-                {Object.entries(DD_RESULTADO_LABELS).map(([valor, label]) => (
-                  <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={String(extPerPage)} onValueChange={(valor) => { setExtPerPage(Number(valor)); setExtPage(1); }}>
-              <SelectTrigger className="h-8 w-[90px] border-border text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 25, 50].map((n) => (
-                  <SelectItem key={n} value={String(n)}><span>{n}</span></SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-4">
-          {extRows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No hay empresas externas para este filtro.</p>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Resultado</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Evaluación</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Revisión</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vencimiento</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Origen</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {extRows.map((empresa) => (
-                      <TableRow key={empresa.id}>
-                        <TableCell className="max-w-[280px]">
-                          <p className="truncate text-xs font-semibold text-foreground">{empresa.razonSocial}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            {empresa.tipoDocumento} {empresa.documento}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`pointer-events-none text-[10px] ${
-                              empresa.resultado === DD_RESULTADOS.APTO
-                                ? BADGE_STYLES.SUCCESS
-                                : empresa.resultado === DD_RESULTADOS.NO_APTO
-                                  ? BADGE_STYLES.DESTRUCTIVE
-                                  : BADGE_STYLES.WARNING
-                            }`}
-                          >
-                            <span>{empresa.resultadoLabel || DD_RESULTADO_LABELS[empresa.resultado as keyof typeof DD_RESULTADO_LABELS] || empresa.resultado}</span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`pointer-events-none text-[10px] ${empresa.vigente ? BADGE_STYLES.SUCCESS : BADGE_STYLES.DESTRUCTIVE}`}>
-                            <span>
-                              {empresa.estadoEvaluacionLabel
-                                ?? DD_ESTADO_EVALUACION_LABELS[empresa.estadoEvaluacion as keyof typeof DD_ESTADO_EVALUACION_LABELS]
-                                ?? empresa.estadoEvaluacion
-                                ?? "Sin evaluación"}
-                            </span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
-                          {empresa.fechaRevision ? dateUtils.format(empresa.fechaRevision) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground lg:table-cell">
-                          {empresa.fechaVencimiento ? dateUtils.format(empresa.fechaVencimiento) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-[11px] text-muted-foreground xl:table-cell">
-                          {empresa.origen || "Importación manual"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className="text-[10px] text-muted-foreground">Solo lectura</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {externasFiltradas.length} resultados · página {extPageSafe} de {extTotalPages}
-                </span>
-                <Pagination page={extPageSafe} totalPages={extTotalPages} onPageChange={setExtPage} />
               </div>
             </>
           )}

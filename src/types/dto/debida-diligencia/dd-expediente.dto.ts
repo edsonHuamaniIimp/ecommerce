@@ -14,6 +14,7 @@ export interface DdEstadoExternoDTO {
 export interface DdEmpresaDTO {
   id: string;
   ruc: string;
+  tipoDocumento?: string | null;
   razonSocial: string;
   nombreComercial: string | null;
   sitioWeb: string | null;
@@ -92,6 +93,11 @@ export interface DdExpedienteDTO {
   eventoId: string;
   codigo: string;
   estado: string;
+  origen: string;
+  estadoOrigen: string | null;
+  eventoProyecto: string | null;
+  motivoImportacion: string | null;
+  importacionId: string | null;
   tipoRelacionComercial: string | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;

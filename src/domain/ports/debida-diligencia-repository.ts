@@ -68,6 +68,36 @@ export interface IDebidaDiligenciaRepository {
     codigo: string;
     creadoPor: string;
   }): Promise<DdExpedienteEntity>;
+  /** Crea/actualiza un expediente importado (migracion manual). */
+  importarExpediente(data: {
+    empresaId: string;
+    eventoId: string;
+    codigo: string;
+    estado: string;
+    estadoOrigen: string | null;
+    eventoProyecto: string | null;
+    motivoImportacion: string | null;
+    importacionId: string;
+    creadoPor: string;
+    actualizadoPor: string;
+    fechaEnvio: Date | null;
+    fechaRevision: Date | null;
+    fechaAprobacion: Date | null;
+    fechaVencimiento: Date | null;
+    fechaRechazo: Date | null;
+  }): Promise<{ id: string; creado: boolean }>;
+  /** Crea el lote de importacion para trazabilidad. */
+  crearImportacion(data: {
+    archivo: string;
+    hash: string;
+    eventoId: string;
+    usuario: string;
+    total: number;
+    omitidos: number;
+    errores: unknown;
+  }): Promise<string>;
+  /** Cierra el lote con los conteos finales. */
+  cerrarImportacion(id: string, importados: number, actualizados: number, omitidos: number): Promise<void>;
   /** Guarda en una sola transaccion el formulario, beneficiarios y documentos. */
   guardarFormulario(id: string, data: DdGuardarData, actualizadoPor: string): Promise<DdExpedienteEntity>;
   /** Marca los documentos seleccionados como observados y el resto como aprobados. */

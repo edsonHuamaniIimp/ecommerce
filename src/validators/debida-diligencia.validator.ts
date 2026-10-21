@@ -178,6 +178,13 @@ export const ddPaginacionSchema = z.object({
   perPage: z.coerce.number().int().min(1).max(100).default(DD_PER_PAGE_DEFAULT),
   search: z.string().trim().max(200).optional(),
   estado: z.string().trim().max(40).optional(),
+  origen: z.string().trim().max(30).optional(),
+  vinculo: z.string().trim().max(40).optional(),
+  documentos: z.string().trim().max(20).optional(),
+  reputacion: z.string().trim().max(40).optional(),
+  asignacion: z.string().trim().max(40).optional(),
+  solicitudes: z.string().trim().max(20).optional(),
+  orden: z.string().trim().max(30).optional(),
 });
 
 /** Paginacion y filtros de la matriz del panel. */

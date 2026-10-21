@@ -22,7 +22,16 @@ export function resolverTipoDocumentoEmpresa(valor: string | null | undefined, d
       : TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO;
   }
   if (v === "RUC" || v === TIPOS_DOCUMENTO_EMPRESA.RUC) return TIPOS_DOCUMENTO_EMPRESA.RUC;
-  if (v === "RUT" || v === "NO DOMICILIADO" || v === "NO_DOMICILIADO" || v === "EXTRANJERO" || v === "EXTRANJERA" || v === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO) {
+  if (
+    v === "RUT" ||
+    v === "DNI" ||
+    v === "EXTRANJERO" ||
+    v === "EXTRANJERA" ||
+    v === "OTRO" ||
+    v === "NO DOMICILIADO" ||
+    v === "NO_DOMICILIADO" ||
+    v === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO
+  ) {
     return TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO;
   }
   return null;
@@ -38,7 +47,14 @@ export function validarDocumentoEmpresa(tipo: TipoDocumentoEmpresa, documento: s
   return REGEX_DOCUMENTO_EMPRESA.test(doc) ? null : "RUT/Documento invalido (alfanumerico, maximo 20)";
 }
 
-/** Etiqueta visible del tipo de documento de empresa (RUC o RUT/no domiciliado). */
-export function etiquetaTipoDocumentoEmpresa(tipo: string | null | undefined): string {
-  return tipo === TIPOS_DOCUMENTO_EMPRESA.RUC ? "RUC" : "RUT";
+/** Etiqueta visible del tipo de documento de empresa (RUC o RUT/ID). */
+export function etiquetaTipoDocumentoEmpresa(
+  tipo: string | null | undefined,
+  documento?: string | null,
+): string {
+  if (tipo === TIPOS_DOCUMENTO_EMPRESA.RUC) return "RUC";
+  const normalizado = normalizarDocumentoEmpresa(documento);
+  if (!tipo && /^\d{11}$/.test(normalizado)) return "RUC";
+  if (/^\d{8}$/.test(normalizado)) return "DNI";
+  return "RUT/ID";
 }

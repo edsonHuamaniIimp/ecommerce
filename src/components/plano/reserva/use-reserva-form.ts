@@ -7,13 +7,14 @@ import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { errorReporting } from "@/lib/client/utils/error-reporting";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
 import { isStepDatosCompleto, isValidTelefono, onlyPhoneDigits } from "@/lib/shared/utils/form-validator";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
-import { ANEXOS_REQUERIDOS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_REQUERIDOS, ERROR_LOG_PASOS_RESERVA, type ErrorLogPasoReserva, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { datosContratoValidos } from "./interfaces";
 import type { DatosContratoForm, FormDatos, GessLinkedInfo } from "./interfaces";
 
@@ -255,8 +256,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     try {
       const url = await handleUpload(file);
       setDocsRequisitos((prev) => ({ ...prev, [requisito]: url }));
-    } catch {
-      setSubmitError("No se pudo subir el documento. Intenta de nuevo.");
+    } catch (err) {
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.ANEXOS, err, { stands: selectedIds, extra: { requisito } });
+      setSubmitError(err instanceof Error ? err.message : "No se pudo subir el documento. Intenta de nuevo.");
     }
     setSubiendoRequisito(null);
   };
@@ -271,9 +273,14 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
 
   /** Sube la firma digital desde el wizard: mismo efecto que en /dashboard/perfil. */
   const subirFirmaPerfil = async (file: File): Promise<void> => {
-    const url = await handleUpload(file);
-    await perfilService.update({ firmaUrl: url });
-    setFirmaPerfilUrl(url);
+    try {
+      const url = await handleUpload(file);
+      await perfilService.update({ firmaUrl: url });
+      setFirmaPerfilUrl(url);
+    } catch (err) {
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.FIRMA_PERFIL, err, { stands: selectedIds });
+      throw err;
+    }
   };
 
   /** Crea la reserva (bloquea los stands) y devuelve el id de la solicitud ("" si falla). */
@@ -282,7 +289,9 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       .map((id) => linkedMap.get(id)?.dbId)
       .filter((id): id is string => typeof id === "string" && id.length > 0);
     if (standIds.length === 0) {
-      setSubmitError("No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.");
+      const msg = "No se encontraron los stands seleccionados. Recarga la pagina e intenta de nuevo.";
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.CONFIRMAR, new Error(msg), { stands: selectedIds });
+      setSubmitError(msg);
       return "";
     }
     const result = await gessService.reservar({
@@ -301,11 +310,15 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       },
     });
     if (!result.ok) {
-      setSubmitError(result.message ?? "No se pudo crear la reserva. Verifica la disponibilidad de los stands.");
+      const msg = result.message ?? "No se pudo crear la reserva. Verifica la disponibilidad de los stands.";
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.CONFIRMAR, new Error(msg), { stands: selectedIds, extra: { conflicted: result.conflicted ?? [] } });
+      setSubmitError(msg);
       return "";
     }
     if (!result.solicitudId) {
-      setSubmitError("La reserva se creo pero no se obtuvo el identificador de la solicitud.");
+      const msg = "La reserva se creo pero no se obtuvo el identificador de la solicitud.";
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.CONFIRMAR, new Error(msg), { stands: selectedIds });
+      setSubmitError(msg);
       return "";
     }
     return result.solicitudId;
@@ -346,6 +359,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       setFirmaDigitalAplicada(false);
       return true;
     } catch (err) {
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.CUOTAS, err, { stands: selectedIds });
       if (esRespuestaVigente(seq, key)) {
         setSubmitError(err instanceof Error ? err.message : "No se pudo generar el contrato. Intenta de nuevo.");
       }
@@ -353,7 +367,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     } finally {
       if (esRespuestaVigente(seq, key)) setGenerandoContrato(false);
     }
-  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey]);
+  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey, selectedIds]);
 
   /** Paso 4: sube el contrato firmado por el cliente (descargado y firmado manualmente). */
   const subirContratoFirmado = async (file: File) => {
@@ -364,9 +378,10 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       if (key !== keyVigenteRef.current) return;
       setContratoFirmadoUrl(url);
       setFirmaDigitalAplicada(false);
-    } catch {
+    } catch (err) {
+      errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.FIRMA_MANUAL, err, { stands: selectedIds });
       if (key === keyVigenteRef.current) {
-        setSubmitError("No se pudo subir el contrato firmado. Intenta de nuevo.");
+        setSubmitError(err instanceof Error ? err.message : "No se pudo subir el contrato firmado. Intenta de nuevo.");
       }
     } finally {
       if (key === keyVigenteRef.current) setSubiendoFirmado(false);
@@ -405,6 +420,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     }
     setSubmitting(true);
     setSubmitError(null);
+    let pasoError: ErrorLogPasoReserva = ERROR_LOG_PASOS_RESERVA.CONFIRMAR;
     try {
       const solicitudId = contrato.solicitudId || (await crearReserva(holdId));
       if (!solicitudId) return "No se pudo crear la solicitud.";
@@ -417,6 +433,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
        * bloquearia el reintento. `firmar` regenera internamente con el snapshot.
        */
       if (!contrato.solicitudId) {
+        pasoError = ERROR_LOG_PASOS_RESERVA.CUOTAS;
         await contratosService.generar({
           solicitudId,
           cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
@@ -428,6 +445,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       /* Si la firma vigente es la digital, se regenera firmada sobre la solicitud. */
       let firmadoUrl = contratoFirmadoUrl;
       if (firmaDigitalAplicada) {
+        pasoError = ERROR_LOG_PASOS_RESERVA.FIRMA_DIGITAL;
         const firmado = await contratosService.firmar({
           solicitudId,
           idioma: idiomaODefecto(leerIdiomaCookie()),
@@ -435,6 +453,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         });
         firmadoUrl = firmado.pdfUrl ?? firmado.docxUrl;
       }
+      pasoError = ERROR_LOG_PASOS_RESERVA.ANEXOS;
 
       for (const [requisito, url] of Object.entries(docsRequisitos)) {
         await solicitudesService.uploadDocumento({
@@ -445,6 +464,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
           requisito,
         });
       }
+      pasoError = ERROR_LOG_PASOS_RESERVA.CONFIRMAR;
       if (firmadoUrl) {
         await solicitudesService.uploadDocumento({
           solicitudId,
@@ -457,6 +477,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       setReservaOpen(false);
       return true;
     } catch (err) {
+      errorReporting.reserva(pasoError, err, { stands: selectedIds });
       const msg = err instanceof Error ? err.message : "Error de conexion";
       setSubmitError(msg);
       return msg;

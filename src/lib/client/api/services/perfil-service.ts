@@ -16,9 +16,13 @@ interface PerfilDTO {
   empresa?: {
     ruc: string;
     razonSocial: string;
+    nombreComercial: string | null;
     direccionFiscal: string | null;
     telefono: string | null;
     emailContacto: string | null;
+    emailFacturacion: string | null;
+    tipoComprobante: string;
+    sitioWeb: string | null;
     representanteLegalNombre: string | null;
     representanteLegalDni: string | null;
     representanteCorreo: string | null;
@@ -42,6 +46,13 @@ interface PerfilDTO {
   logoUrl?: string | null;
   /** Firma digital del usuario (imagen); se usa para firmar contratos desde el portal. */
   firmaUrl?: string | null;
+  /** Correo verificado para notificaciones; null = correo de acceso. */
+  notificationEmail?: string | null;
+  /** Correo pendiente de verificacion. */
+  notificationEmailPending?: string | null;
+  /** Correos disponibles para elegir como destino de notificaciones. */
+  emailsNotificacion?: { email: string; label: string; activo: boolean }[];
+  notificationEmailVerifiedAt?: string | null;
 }
 
 export type { PerfilDTO };
@@ -58,5 +69,14 @@ export const perfilService = {
   },
   confirmReset(token: string, password: string) {
     return internalApi.post<{ ok: boolean }>("/api/auth/reset-password/confirm", { token, password });
+  },
+  solicitarNotificacion(email: string) {
+    return internalApi.post<{ ok: boolean; email: string; verificado: boolean; emailEnviado?: boolean; expiraEnMinutos?: number }>(
+      "/api/auth/notificaciones/solicitar",
+      { email },
+    );
+  },
+  confirmarNotificacion(codigo: string) {
+    return internalApi.post<{ ok: boolean; email: string }>("/api/auth/notificaciones/confirmar", { codigo });
   },
 };

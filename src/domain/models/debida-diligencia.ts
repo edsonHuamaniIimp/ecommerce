@@ -17,6 +17,7 @@ import type {
 export interface DdEmpresaResumen {
   id: string;
   ruc: string;
+  tipoDocumento?: string | null;
   razonSocial: string;
   nombreComercial: string | null;
   sitioWeb: string | null;
@@ -80,6 +81,11 @@ export interface DdExpedienteEntity {
   eventoId: string;
   codigo: string;
   estado: DdEstado;
+  origen: string;
+  estadoOrigen: string | null;
+  eventoProyecto: string | null;
+  motivoImportacion: string | null;
+  importacionId: string | null;
   tipoRelacionComercial: DdVinculo | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
@@ -152,8 +158,14 @@ export interface DdBandejaRow {
   id: string;
   codigo: string;
   estado: DdEstado;
+  origen: string;
+  estadoOrigen: string | null;
+  eventoProyecto: string | null;
+  motivoImportacion: string | null;
   tipoRelacionComercial: DdVinculo | null;
   empresa: DdEmpresaResumen;
+  fechaCreacion: Date;
+  solicitudesAlquiler: number;
   documentoCargados: number;
   documentoTotal: number;
   fechaEnvio: Date | null;
@@ -176,6 +188,13 @@ export interface DdBandejaParams {
   perPage: number;
   search?: string;
   estado?: string;
+  origen?: string;
+  vinculo?: string;
+  documentos?: string;
+  reputacion?: string;
+  asignacion?: string;
+  solicitudes?: string;
+  orden?: string;
 }
 
 export interface DdBandejaResumen {

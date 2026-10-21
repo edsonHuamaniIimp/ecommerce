@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getStorage } from "@/lib/server/storage";
 import { ok, err } from "@/lib/server/api-response";
-import { UPLOAD_ALLOWED_EXTENSIONS, UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, UPLOAD_ALLOWED_EXTENSIONS, UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { apiErrorLogger } from "@/lib/server/api-error-logger";
 
 export async function POST(request: Request) {
   try {
@@ -10,22 +11,22 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json(err("VALIDATION", "Archivo requerido"), { status: 400 });
+      const message = "Archivo requerido";
+      apiErrorLogger.registrar({ request, status: 400, code: API_ERROR_CODES.VALIDATION, message });
+      return NextResponse.json(err(API_ERROR_CODES.VALIDATION, message), { status: 400 });
     }
 
     /* Validacion backend (no confiar solo en el frontend): extension admitida y tamano. */
     const ext = archivoUtils.extensionDeArchivo(file.name);
     if (!archivoUtils.extensionPermitida(file.name)) {
-      return NextResponse.json(
-        err("VALIDATION", `Formato no permitido (.${ext || "?"}). Admitidos: ${UPLOAD_ALLOWED_EXTENSIONS.join(", ")}.`),
-        { status: 400 },
-      );
+      const message = `Formato no permitido (.${ext || "?"}). Admitidos: ${UPLOAD_ALLOWED_EXTENSIONS.join(", ")}.`;
+      apiErrorLogger.registrar({ request, status: 400, code: API_ERROR_CODES.VALIDATION, message });
+      return NextResponse.json(err(API_ERROR_CODES.VALIDATION, message), { status: 400 });
     }
     if (file.size > UPLOAD_MAX_BYTES) {
-      return NextResponse.json(
-        err("VALIDATION", `El archivo supera el maximo de ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`),
-        { status: 400 },
-      );
+      const message = `El archivo supera el maximo de ${UPLOAD_MAX_BYTES / 1024 / 1024} MB`;
+      apiErrorLogger.registrar({ request, status: 400, code: API_ERROR_CODES.VALIDATION, message });
+      return NextResponse.json(err(API_ERROR_CODES.VALIDATION, message), { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
@@ -39,9 +40,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(ok({ url, filename, originalName: file.name }));
   } catch (error) {
-    return NextResponse.json(
-      err("INTERNAL", error instanceof Error ? error.message : "Error al subir"),
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : "Error al subir";
+    apiErrorLogger.registrar({
+      request,
+      status: 500,
+      code: API_ERROR_CODES.INTERNAL,
+      message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return NextResponse.json(err(API_ERROR_CODES.INTERNAL, message), { status: 500 });
   }
 }

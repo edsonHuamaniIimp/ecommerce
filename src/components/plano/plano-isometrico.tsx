@@ -7,9 +7,10 @@ import { useRouter } from "next/navigation";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Eye, X, Info, Image, ScrollText, Upload, ClipboardCheck, Bell, Check } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
+import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
+import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -121,7 +122,10 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
       try {
         const [dbList, apiList] = await Promise.all([
           gessService.all(eventoId),
-          gessService.fetchFromApi(tipoEvento, codigoEvento).catch(() => [] as Record<string, unknown>[]),
+          gessService.fetchFromApi(tipoEvento, codigoEvento).catch((error: unknown) => {
+            errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_API, error, { eventoId });
+            return [] as Record<string, unknown>[];
+          }),
         ]);
 
         if (cancelled) return;
@@ -177,7 +181,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         }
         setLinkedMap(map);
         if (!cancelled) setDataReady(true);
-      } catch {
+      } catch (error) {
+        errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_CARGA, error, { eventoId });
         if (!cancelled) setDataReady(true);
       }
     })();

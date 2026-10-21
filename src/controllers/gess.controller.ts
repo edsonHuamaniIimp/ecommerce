@@ -48,6 +48,13 @@ export const gessController = {
     const perPage = Number(searchParams.get("per_page") || 10);
     const search = searchParams.get("search") ?? undefined;
     const estado = searchParams.get("estado") ?? undefined;
+    const tipo = searchParams.get("tipo") ?? undefined;
+    const sinPabellon = searchParams.get("sinPabellon") === "true";
+    const bloqueIds = (searchParams.get("bloqueIds") ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean)
+      .slice(0, 500);
 
     /* Sesion opcional: si es una empresa cliente, se resuelve para la vista efectiva
      * de pre-reservas propias (su stand pre-reservado se muestra disponible). */
@@ -61,11 +68,18 @@ export const gessController = {
       };
     }
 
-    const result = await services.gess.listar(eventoId, { page, perPage, search, estado }, viewer);
+    const result = await services.gess.listar(eventoId, { page, perPage, search, estado, tipo, bloqueIds, sinPabellon }, viewer);
     return NextResponse.json({
       data: result.data,
       pagination: { page: result.page, per_page: result.perPage, total: result.total, total_pages: result.totalPages },
     });
+  },
+
+  /** Tipos de stand distintos del evento (filtros de bandeja). */
+  async tipos(request: Request): Promise<NextResponse> {
+    const eventoId = new URL(request.url).searchParams.get("eventoId");
+    if (!eventoId) return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);
+    return success(await services.gess.tipos(eventoId));
   },
 
   async actualizar(request: Request): Promise<NextResponse> {

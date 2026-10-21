@@ -56,7 +56,7 @@ export class GessApplicationService {
 
   async listar(
     eventoId: string,
-    params: { page: number; perPage: number; search?: string; estado?: string },
+    params: { page: number; perPage: number; search?: string; estado?: string; tipo?: string; bloqueIds?: string[]; sinPabellon?: boolean },
     viewer?: EmpresaViewer | null,
   ) {
     const result = await this.repo.findAllPaginated(eventoId, params);
@@ -105,6 +105,11 @@ export class GessApplicationService {
       );
     }
     return result;
+  }
+
+  /** Tipos de stand distintos del evento (para filtros de bandeja). */
+  async tipos(eventoId: string): Promise<string[]> {
+    return this.repo.tiposDistintos(eventoId);
   }
 
   async findByBloque(bloqueId: string) {

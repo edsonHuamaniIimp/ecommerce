@@ -8,9 +8,10 @@ import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet,
 import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight, ZoomIn, ZoomOut, RotateCcw, RotateCw, Home, Compass, Hand, HelpCircle } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -337,7 +338,10 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
       try {
         const [dbList, apiList] = await Promise.all([
           gessService.all(eventoId),
-          gessService.fetchFromApi(tipoEvento, codigoEvento).catch(() => [] as Record<string, unknown>[]),
+          gessService.fetchFromApi(tipoEvento, codigoEvento).catch((error: unknown) => {
+            errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_API, error, { eventoId });
+            return [] as Record<string, unknown>[];
+          }),
         ]);
 
         if (cancelled) return;
@@ -402,7 +406,8 @@ map.set(String(bloqueId), {
         }
         setLinkedMap(map);
         if (!cancelled) setDataReady(true);
-      } catch {
+      } catch (error) {
+        errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_CARGA, error, { eventoId });
         if (!cancelled) setDataReady(true);
       }
     })();
@@ -518,7 +523,9 @@ map.set(String(bloqueId), {
             holdReservaRef.current = hold;
             setHoldReserva(hold);
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.");
+            const msg = error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.";
+            errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.HOLD, error, { stands: standIds });
+            toast.error(msg);
             return false;
           } finally {
             holdSolicitudRef.current = null;

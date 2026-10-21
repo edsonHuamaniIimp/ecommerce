@@ -24,6 +24,9 @@ describe("resolverTipoDocumentoEmpresa", () => {
   it("acepta el tipo explicito con alias", () => {
     expect(resolverTipoDocumentoEmpresa("RUC", "FR48305461063")).toBe(TIPOS_DOCUMENTO_EMPRESA.RUC);
     expect(resolverTipoDocumentoEmpresa("RUT", "20601234567")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+    expect(resolverTipoDocumentoEmpresa("DNI", "12345678")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+    expect(resolverTipoDocumentoEmpresa("EXTRANJERO", "91370285069054066K")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
+    expect(resolverTipoDocumentoEmpresa("OTRO", "SIC.71122")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
     expect(resolverTipoDocumentoEmpresa("no domiciliado", "x")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
     expect(resolverTipoDocumentoEmpresa("6", "20601234567")).toBe(TIPOS_DOCUMENTO_EMPRESA.RUC);
     expect(resolverTipoDocumentoEmpresa("0", "X")).toBe(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO);
@@ -49,8 +52,10 @@ describe("validarDocumentoEmpresa", () => {
 });
 
 describe("etiquetaTipoDocumentoEmpresa", () => {
-  it("RUC para el codigo 6 y RUT para el resto", () => {
+  it("distingue RUC, DNI y RUT/ID", () => {
     expect(etiquetaTipoDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.RUC)).toBe("RUC");
-    expect(etiquetaTipoDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO)).toBe("RUT");
+    expect(etiquetaTipoDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO)).toBe("RUT/ID");
+    expect(etiquetaTipoDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO, "12345678")).toBe("DNI");
+    expect(etiquetaTipoDocumentoEmpresa(undefined, "20601234567")).toBe("RUC");
   });
 });

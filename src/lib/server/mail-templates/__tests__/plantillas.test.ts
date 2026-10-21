@@ -5,6 +5,7 @@ import type { DatosPlantilla } from "../tipos";
 const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
   "codigo-registro": { codigo: "482913", nombre: "Jorge Quispe" },
   "reset-password": { nombre: "Jorge Quispe", url: "https://ejemplo.pe/reset/token", minutos: 30 },
+  "notificacion-verificacion": { codigo: "482913", email: "notificaciones@empresa.pe", minutos: 10 },
   "credenciales-empresa": {
     razonSocial: "Minera Cordillera S.A.C.",
     nombreContacto: "Jorge Quispe Ramos",

@@ -138,9 +138,10 @@ export class AuthPrismaRepository implements IAuthRepository {
     const row = await prisma.userRole.findFirst({
       where: { email },
       select: {
-        email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
+        userId: true, email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
-        empresa: { select: { ruc: true, razonSocial: true, direccionFiscal: true, telefono: true, emailContacto: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
+        notificationEmail: true, notificationEmailVerifiedAt: true, notificationEmailPending: true,
+        empresa: { select: { ruc: true, razonSocial: true, nombreComercial: true, direccionFiscal: true, telefono: true, emailContacto: true, emailFacturacion: true, tipoComprobante: true, sitioWeb: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
       },
     });
     if (!row) return null;
@@ -187,6 +188,62 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }) {
     await prisma.userRole.updateMany({ where: { email }, data });
+  }
+
+  async findNotificationConfig(userId: string) {
+    return prisma.userRole.findFirst({
+      where: { userId },
+      select: {
+        email: true,
+        notificationEmail: true,
+        notificationEmailVerifiedAt: true,
+        notificationEmailPending: true,
+        notificationEmailCode: true,
+        notificationEmailCodeExpires: true,
+      },
+    });
+  }
+
+  async guardarNotificacionPendiente(
+    userId: string,
+    pending: string,
+    code: string,
+    expires: Date,
+  ): Promise<void> {
+    await prisma.userRole.updateMany({
+      where: { userId },
+      data: {
+        notificationEmailPending: pending,
+        notificationEmailCode: code,
+        notificationEmailCodeExpires: expires,
+      },
+    });
+  }
+
+  async activarNotificacionEmail(userId: string, email: string): Promise<void> {
+    await prisma.userRole.updateMany({
+      where: { userId },
+      data: {
+        notificationEmail: email,
+        notificationEmailVerifiedAt: new Date(),
+        notificationEmailPending: null,
+        notificationEmailCode: null,
+        notificationEmailCodeExpires: null,
+      },
+    });
+  }
+
+  async usarCorreoAccesoParaNotificaciones(userId: string): Promise<void> {
+    await prisma.userRole.updateMany({
+      where: { userId },
+      data: {
+        notificationEmail: null,
+        notificationEmailVerifiedAt: new Date(),
+        notificationEmailPending: null,
+        notificationEmailCode: null,
+        notificationEmailCodeExpires: null,
+      },
+    });
   }
 
   async findForReset(email: string) {

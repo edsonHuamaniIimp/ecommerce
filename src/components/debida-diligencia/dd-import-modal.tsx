@@ -64,7 +64,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
     try {
       const respuesta = await debidaDiligenciaService.importarEmpresas(file);
       setResultado(respuesta);
-      toast.success(`Importación completada: ${respuesta.importados} nuevos, ${respuesta.actualizados} actualizados.`);
+      toast.success(`Importación completada: ${respuesta.importados} nuevos, ${respuesta.omitidos} existentes omitidos.`);
       onImported();
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : "No se pudo importar el archivo";
@@ -92,7 +92,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             Importación masiva de Debida Diligencia
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador debe ser RUC de 11 d��gitos o RUT/identificador extranjero.
+            Sube la lista oficial en XLSX, CSV o TXT separado por punto y coma. El identificador puede ser RUC, RUT, DNI o un identificador extranjero.
           </p>
         </DialogHeader>
 
@@ -106,7 +106,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               Resultados aceptados: APTO, APTO CON OBSERVACIONES, NO APTO, EN REVISION, EN PROCESO o DOCUMENTACION OBSERVADA.
             </p>
             <p className="mt-2">
-              Las empresas APTO que no existan en Empresas se crean autom�ticamente. Las dem�s solo actualizan su estado externo.
+              Todos los resultados se importan a Debida Diligencia con procedencia <strong>Carga masiva</strong>, sin importar el estado. Solo se crean expedientes para empresas que aún no tienen uno; los expedientes existentes no se modifican.
             </p>
           </div>
 
@@ -146,11 +146,11 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
               <CheckCircle2 className="h-4 w-4 text-success" />
               <AlertDescription className="text-xs">
                 <p>
-                  Nuevos: <strong>{resultado.importados}</strong> �� Actualizados:{" "}
-                  <strong>{resultado.actualizados}</strong> �� Omitidos: <strong>{resultado.omitidos}</strong>
+                  Nuevos: <strong>{resultado.importados}</strong> · Existentes omitidos:{" "}
+                  <strong>{resultado.omitidos}</strong>
                 </p>
                 <p>
-                  Empresas creadas: <strong>{resultado.empresasCreadas}</strong> �� Ya existentes:{" "}
+                  Empresas creadas: <strong>{resultado.empresasCreadas}</strong> · Ya existentes:{" "}
                   <strong>{resultado.empresasExistentes}</strong>
                 </p>
                 {resultado.empresasError.length > 0 ? (

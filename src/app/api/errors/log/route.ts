@@ -11,6 +11,8 @@ export async function POST(request: Request) {
       stack?: string;
       digest?: string;
       url?: string;
+      path?: string;
+      userAgent?: string;
       metadata?: Prisma.InputJsonValue;
     };
 
@@ -19,6 +21,11 @@ export async function POST(request: Request) {
     }
 
     const session = await getSession().catch(() => null);
+    const metadata = {
+      ...(body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? body.metadata : {}),
+      ...(body.path ? { path: body.path } : {}),
+      ...(body.userAgent ? { userAgent: body.userAgent } : {}),
+    };
 
     await errorLogger.log({
       message: body.message,
@@ -26,7 +33,7 @@ export async function POST(request: Request) {
       digest: body.digest,
       url: body.url,
       userId: session?.sub ?? undefined,
-      metadata: body.metadata,
+      metadata,
     });
 
     return success({ ok: true });

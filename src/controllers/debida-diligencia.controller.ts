@@ -79,6 +79,13 @@ export const debidaDiligenciaController = {
       perPage: params.get("perPage") ?? undefined,
       search: params.get("search") ?? undefined,
       estado: params.get("estado") ?? undefined,
+      origen: params.get("origen") ?? undefined,
+      vinculo: params.get("vinculo") ?? undefined,
+      documentos: params.get("documentos") ?? undefined,
+      reputacion: params.get("reputacion") ?? undefined,
+      asignacion: params.get("asignacion") ?? undefined,
+      solicitudes: params.get("solicitudes") ?? undefined,
+      orden: params.get("orden") ?? undefined,
     });
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);

@@ -9,6 +9,8 @@ export interface ErrorLogPayload {
   url?: string;
   path?: string;
   userAgent?: string;
+  /** Contexto del flujo (paso, stands, codigo/status HTTP, etc.). */
+  metadata?: Record<string, unknown>;
 }
 
 export const logsService = {

@@ -510,6 +510,7 @@ export class EmpresaApplicationService {
     creadoPor: string | null,
   ): Promise<{ empresa: EmpresaEntity; creada: boolean }> {
     const ruc = normalizarDocumentoEmpresa(input.ruc);
+    /* Idempotente por documento normalizado: el tipo declarado no crea una ficha duplicada. */
     const existente = await this.repo.findByRuc(ruc);
     if (existente) return { empresa: existente, creada: false };
     const empresa = await this.crear(input, creadoPor, { sincronizarFuente: false });

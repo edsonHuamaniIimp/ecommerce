@@ -8,7 +8,6 @@ import type {
   DdClientesParams,
   DdClientesResult,
   DdEmpresaEstadoEntity,
-  DdEmpresaEstadoImportData,
   DdEmpresaResumen,
   DdEvaluacionEmpresa,
   DdEmpresasParams,
@@ -37,6 +36,7 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_ORIGENES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
   DD_RESULTADOS,
@@ -320,6 +320,13 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
       estado: params.estado,
+      origen: params.origen,
+      vinculo: params.vinculo,
+      documentos: params.documentos,
+      reputacion: params.reputacion,
+      asignacion: params.asignacion,
+      solicitudes: params.solicitudes,
+      orden: params.orden,
     });
   }
 
@@ -336,6 +343,13 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
       estado: DD_ESTADOS.EN_LEGAL,
+      origen: params.origen,
+      vinculo: params.vinculo,
+      documentos: params.documentos,
+      reputacion: params.reputacion,
+      asignacion: params.asignacion,
+      solicitudes: params.solicitudes,
+      orden: params.orden,
     });
   }
 
@@ -389,6 +403,7 @@ export class DebidaDiligenciaApplicationService {
             resultadoEvaluacion,
             estadoEvaluacion,
             expediente.declaraVerdad,
+            expediente.origen === DD_ORIGENES.IMPORTADO,
           ),
           alcance: ddUtils.alcanceResultado(resultadoEvaluacion),
           observacionesAbiertas,
@@ -497,6 +512,7 @@ export class DebidaDiligenciaApplicationService {
       resultado,
       estadoEvaluacion,
       expediente.declaraVerdad,
+      expediente.origen === DD_ORIGENES.IMPORTADO,
     );
 
     let mensaje: string | null = null;
@@ -583,13 +599,84 @@ export class DebidaDiligenciaApplicationService {
     };
   }
 
-  /** Importa o actualiza el registro externo de empresas. */
-  async importarEmpresas(
-    rows: DdEmpresaEstadoImportData[],
+  /**
+   * Importa resultados manuales directamente a la DD interna.
+   * Solo crea expedientes que aun no existen: un expediente iniciado por el
+   * cliente nunca se actualiza desde la carga masiva.
+   */
+  async importarExpedientes(
+    rows: Array<{
+      empresaId: string;
+      documento: string;
+      razonSocial: string;
+      estadoOrigen: string;
+      resultado: string;
+      motivoEvaluacion: string | null;
+      eventoProyecto: string | null;
+      fechaIngreso: Date | null;
+      fechaRevision: Date | null;
+      fechaVencimiento: Date | null;
+    }>,
+    meta: { archivo: string; hash: string; total: number; omitidos: number; errores: unknown },
     session: DdSession,
-  ): Promise<{ importados: number; actualizados: number }> {
+  ): Promise<{ importados: number; actualizados: number; omitidos: number; loteId: string }> {
     this.exigirPermiso(session, PERMISSIONS.DD_VER);
-    return this.repo.upsertEmpresasEstados(rows);
+    const eventoId = this.eventoRequerido(session);
+    const loteId = await this.repo.crearImportacion({
+      archivo: meta.archivo,
+      hash: meta.hash,
+      eventoId,
+      usuario: session.email,
+      total: meta.total,
+      omitidos: meta.omitidos,
+      errores: meta.errores,
+    });
+
+    let importados = 0;
+    let omitidos = 0;
+    const anio = String(dateUtils.currentYear());
+
+    for (const row of rows) {
+      const existente = await this.repo.findExpedientePorEmpresaEvento(row.empresaId, eventoId);
+      if (existente) {
+        omitidos += 1;
+        continue;
+      }
+      const estado = this.estadoDesdeImportacion(row.resultado, row.estadoOrigen);
+      const codigo = await this.repo.siguienteCodigo(anio);
+      await this.repo.importarExpediente({
+        empresaId: row.empresaId,
+        eventoId,
+        codigo,
+        estado,
+        estadoOrigen: row.estadoOrigen,
+        eventoProyecto: row.eventoProyecto,
+        motivoImportacion: row.motivoEvaluacion,
+        importacionId: loteId,
+        creadoPor: session.email,
+        actualizadoPor: session.email,
+        fechaEnvio: row.fechaIngreso,
+        fechaRevision: row.fechaRevision,
+        fechaAprobacion: estado === DD_ESTADOS.APROBADA ? (row.fechaRevision ?? row.fechaIngreso) : null,
+        fechaVencimiento: row.fechaVencimiento,
+        fechaRechazo: estado === DD_ESTADOS.RECHAZADA ? (row.fechaRevision ?? row.fechaIngreso) : null,
+      });
+      importados += 1;
+    }
+
+    await this.repo.cerrarImportacion(loteId, importados, 0, omitidos + meta.omitidos);
+    return { importados, actualizados: 0, omitidos, loteId };
+  }
+
+  private estadoDesdeImportacion(resultado: string, estadoOrigen: string): string {
+    if (resultado === DD_RESULTADOS.APTO || resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES) {
+      return DD_ESTADOS.APROBADA;
+    }
+    if (resultado === DD_RESULTADOS.NO_APTO) return DD_ESTADOS.RECHAZADA;
+    const origen = estadoOrigen.trim().toUpperCase();
+    if (origen.includes("OBSERV")) return DD_ESTADOS.OBSERVADA;
+    if (origen.includes("REVIS") || origen.includes("PROCESO")) return DD_ESTADOS.EN_REVISION;
+    return DD_ESTADOS.PENDIENTE;
   }
 
   /** Detalle de un expediente (staff o empresa duena). */
