@@ -320,6 +320,9 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
       estado: params.estado,
+      origen: params.origen,
+      vinculo: params.vinculo,
+      documentos: params.documentos,
     });
   }
 
@@ -336,6 +339,9 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
       estado: DD_ESTADOS.EN_LEGAL,
+      origen: params.origen,
+      vinculo: params.vinculo,
+      documentos: params.documentos,
     });
   }
 

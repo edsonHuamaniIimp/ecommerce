@@ -37,9 +37,11 @@ import {
   DD_CODIGO_DIGITOS,
   DD_CODIGO_PREFIJO,
   DD_DIAS_POR_VENCER,
+  DD_DOCUMENTOS_FILTRO,
   DD_FILTRO_POR_VENCER,
   DD_FILTRO_SIN_INICIAR,
   DD_FILTRO_TODAS,
+  DD_IMPORTACION_REVISOR,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
@@ -355,7 +357,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           fechaAprobacion: data.fechaAprobacion,
           fechaVencimiento: data.fechaVencimiento,
           fechaRechazo: data.fechaRechazo,
-          revisadoPor: "importacion_masiva",
+          revisadoPor: DD_IMPORTACION_REVISOR,
           actualizadoPor: data.actualizadoPor,
         },
       });
@@ -380,7 +382,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         fechaAprobacion: data.fechaAprobacion,
         fechaVencimiento: data.fechaVencimiento,
         fechaRechazo: data.fechaRechazo,
-        revisadoPor: "importacion_masiva",
+        revisadoPor: DD_IMPORTACION_REVISOR,
       },
       select: { id: true },
     });
@@ -638,6 +640,18 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.fechaVencimiento = { gte: ahora, lte: limiteVencimiento };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
       where.estado = params.estado;
+    }
+
+    if (params.origen && params.origen !== DD_FILTRO_TODAS) {
+      where.origen = params.origen;
+    }
+    if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
+      where.tipoRelacionComercial = params.vinculo;
+    }
+    if (params.documentos === DD_DOCUMENTOS_FILTRO.CON) {
+      where.documentos = { some: {} };
+    } else if (params.documentos === DD_DOCUMENTOS_FILTRO.SIN) {
+      where.documentos = { none: {} };
     }
 
     if (params.search?.trim()) {

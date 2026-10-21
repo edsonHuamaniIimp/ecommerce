@@ -88,6 +88,9 @@ export const debidaDiligenciaService = {
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
     if (params.estado) qs.set("estado", params.estado);
+    if (params.origen) qs.set("origen", params.origen);
+    if (params.vinculo) qs.set("vinculo", params.vinculo);
+    if (params.documentos) qs.set("documentos", params.documentos);
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdBandejaResponseDTO>(`/api/debida-diligencia/bandeja${sufijo}`);
   },

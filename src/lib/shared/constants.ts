@@ -1176,6 +1176,12 @@ export const DD_PAIS_DEFAULT = "Perú";
 /** Valor del filtro "todas" en las bandejas del modulo. */
 export const DD_FILTRO_TODAS = "todas";
 
+/** Filtros de presencia de documentos en la bandeja. */
+export const DD_DOCUMENTOS_FILTRO = {
+  CON: "con",
+  SIN: "sin",
+} as const;
+
 /** Valor del filtro calculado de vigencias proximas a vencer. */
 export const DD_FILTRO_POR_VENCER = "por_vencer";
 
@@ -1228,6 +1234,10 @@ export const DD_ORIGEN_LABELS: Record<string, string> = {
   [DD_ORIGENES.FLUJO_REGULAR]: "Flujo regular",
   [DD_ORIGENES.IMPORTADO]: "Importado",
 };
+
+/** Usuario tecnico que registra la migracion masiva. */
+export const DD_IMPORTACION_REVISOR = "importacion_masiva";
+export const DD_IMPORTACION_REVISOR_LABEL = "Importación masiva";
 
 export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
 

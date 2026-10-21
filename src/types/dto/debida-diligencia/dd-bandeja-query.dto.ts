@@ -4,4 +4,7 @@ export interface DdBandejaQueryDTO {
   perPage?: number;
   search?: string;
   estado?: string;
+  origen?: string;
+  vinculo?: string;
+  documentos?: string;
 }

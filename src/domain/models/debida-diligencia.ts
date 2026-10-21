@@ -185,6 +185,9 @@ export interface DdBandejaParams {
   perPage: number;
   search?: string;
   estado?: string;
+  origen?: string;
+  vinculo?: string;
+  documentos?: string;
 }
 
 export interface DdBandejaResumen {

@@ -33,7 +33,11 @@ import { debidaDiligenciaService } from "@/lib/client/api/services/debida-dilige
 import {
   BADGE_STYLES,
   DD_BANDEJA_FILTROS,
+  DD_DOCUMENTOS_FILTRO,
   DD_ESTADOS,
+  DD_FILTRO_TODAS,
+  DD_IMPORTACION_REVISOR,
+  DD_IMPORTACION_REVISOR_LABEL,
   DD_ORIGEN_LABELS,
   DD_ORIGENES,
   DD_PER_PAGE_DEFAULT,
@@ -59,15 +63,18 @@ export function DdBandeja() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<string>(DD_ESTADOS.EN_REVISION);
+  const [origen, setOrigen] = useState<string>(DD_FILTRO_TODAS);
+  const [vinculo, setVinculo] = useState<string>(DD_FILTRO_TODAS);
+  const [documentos, setDocumentos] = useState<string>(DD_FILTRO_TODAS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
-  const refs = useRef({ page, perPage, search, estado });
-  useEffect(() => { refs.current = { page, perPage, search, estado }; }, [page, perPage, search, estado]);
+  const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos });
+  useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos }; }, [page, perPage, search, estado, origen, vinculo, documentos]);
 
-  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string }>) => {
+  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string }>) => {
     const actual = { ...refs.current, ...overrides };
     try {
       const respuesta = await debidaDiligenciaService.bandeja({
@@ -75,6 +82,9 @@ export function DdBandeja() {
         perPage: actual.perPage,
         search: actual.search.trim() || undefined,
         estado: actual.estado,
+        origen: actual.origen,
+        vinculo: actual.vinculo,
+        documentos: actual.documentos,
       });
       setData(respuesta);
     } catch (err) {
@@ -84,7 +94,7 @@ export function DdBandeja() {
     }
   }, []);
 
-  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string }>) => {
+  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string }>) => {
     setLoading(true);
     void load(overrides);
   };
@@ -192,6 +202,42 @@ export function DdBandeja() {
                 </Button>
               );
             })}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Select value={origen} onValueChange={(valor) => { setOrigen(valor); setPage(1); recargar({ origen: valor, page: 1 }); }}>
+              <SelectTrigger className="h-8 w-[170px] border-border text-xs">
+                <SelectValue placeholder="Origen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DD_FILTRO_TODAS}><span>Todos los orígenes</span></SelectItem>
+                <SelectItem value={DD_ORIGENES.FLUJO_REGULAR}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.FLUJO_REGULAR]}</span></SelectItem>
+                <SelectItem value={DD_ORIGENES.IMPORTADO}><span>{DD_ORIGEN_LABELS[DD_ORIGENES.IMPORTADO]}</span></SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={vinculo} onValueChange={(valor) => { setVinculo(valor); setPage(1); recargar({ vinculo: valor, page: 1 }); }}>
+              <SelectTrigger className="h-8 w-[190px] border-border text-xs">
+                <SelectValue placeholder="Vínculo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DD_FILTRO_TODAS}><span>Todos los vínculos</span></SelectItem>
+                {Object.entries(DD_VINCULO_LABELS).map(([valor, label]) => (
+                  <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={documentos} onValueChange={(valor) => { setDocumentos(valor); setPage(1); recargar({ documentos: valor, page: 1 }); }}>
+              <SelectTrigger className="h-8 w-[180px] border-border text-xs">
+                <SelectValue placeholder="Documentos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DD_FILTRO_TODAS}><span>Todos los documentos</span></SelectItem>
+                <SelectItem value={DD_DOCUMENTOS_FILTRO.CON}><span>Con documentos</span></SelectItem>
+                <SelectItem value={DD_DOCUMENTOS_FILTRO.SIN}><span>Sin documentos</span></SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
 
@@ -314,7 +360,7 @@ export function DdBandeja() {
                           </div>
                         </TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-[11px] text-muted-foreground xl:table-cell">
-                          {fila.revisadoPor ?? "Sin asignar"}
+                          {fila.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (fila.revisadoPor ?? "Sin asignar")}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
