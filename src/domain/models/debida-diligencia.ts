@@ -188,6 +188,8 @@ export interface DdBandejaParams {
   origen?: string;
   vinculo?: string;
   documentos?: string;
+  reputacion?: string;
+  asignacion?: string;
 }
 
 export interface DdBandejaResumen {

@@ -82,6 +82,8 @@ export const debidaDiligenciaController = {
       origen: params.get("origen") ?? undefined,
       vinculo: params.get("vinculo") ?? undefined,
       documentos: params.get("documentos") ?? undefined,
+      reputacion: params.get("reputacion") ?? undefined,
+      asignacion: params.get("asignacion") ?? undefined,
     });
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);

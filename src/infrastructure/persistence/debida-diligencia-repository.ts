@@ -38,10 +38,12 @@ import {
   DD_CODIGO_PREFIJO,
   DD_DIAS_POR_VENCER,
   DD_DOCUMENTOS_FILTRO,
+  DD_ASIGNACION_FILTRO,
   DD_FILTRO_POR_VENCER,
   DD_FILTRO_SIN_INICIAR,
   DD_FILTRO_TODAS,
   DD_IMPORTACION_REVISOR,
+  DD_REPUTACION_FILTRO_PENDIENTE,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
@@ -652,6 +654,29 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.documentos = { some: {} };
     } else if (params.documentos === DD_DOCUMENTOS_FILTRO.SIN) {
       where.documentos = { none: {} };
+    }
+
+    if (params.reputacion) {
+      if (params.reputacion === DD_REPUTACION_FILTRO_PENDIENTE) {
+        where.AND = [
+          {
+            OR: [
+              { reputacion: { some: { estado: { in: [DD_REPUTACION_ESTADOS.POR_REVISAR, DD_REPUTACION_ESTADOS.EN_ANALISIS] } } } },
+              { reputacion: { none: {} } },
+            ],
+          },
+        ];
+      } else {
+        where.reputacion = { some: { estado: params.reputacion } };
+      }
+    }
+
+    if (params.asignacion === DD_ASIGNACION_FILTRO.IMPORTACION) {
+      where.revisadoPor = DD_IMPORTACION_REVISOR;
+    } else if (params.asignacion === DD_ASIGNACION_FILTRO.SIN_ASIGNAR) {
+      where.revisadoPor = null;
+    } else if (params.asignacion === DD_ASIGNACION_FILTRO.REVISOR) {
+      where.revisadoPor = { not: null, notIn: [DD_IMPORTACION_REVISOR] };
     }
 
     if (params.search?.trim()) {

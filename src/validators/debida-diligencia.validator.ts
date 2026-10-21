@@ -181,6 +181,8 @@ export const ddPaginacionSchema = z.object({
   origen: z.string().trim().max(30).optional(),
   vinculo: z.string().trim().max(40).optional(),
   documentos: z.string().trim().max(20).optional(),
+  reputacion: z.string().trim().max(40).optional(),
+  asignacion: z.string().trim().max(40).optional(),
 });
 
 /** Paginacion y filtros de la matriz del panel. */

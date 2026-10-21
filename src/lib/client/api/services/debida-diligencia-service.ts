@@ -92,6 +92,8 @@ export const debidaDiligenciaService = {
     if (params.origen) qs.set("origen", params.origen);
     if (params.vinculo) qs.set("vinculo", params.vinculo);
     if (params.documentos) qs.set("documentos", params.documentos);
+    if (params.reputacion) qs.set("reputacion", params.reputacion);
+    if (params.asignacion) qs.set("asignacion", params.asignacion);
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdBandejaResponseDTO>(`/api/debida-diligencia/bandeja${sufijo}`);
   },

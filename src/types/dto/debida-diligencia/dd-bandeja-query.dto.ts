@@ -7,4 +7,6 @@ export interface DdBandejaQueryDTO {
   origen?: string;
   vinculo?: string;
   documentos?: string;
+  reputacion?: string;
+  asignacion?: string;
 }
