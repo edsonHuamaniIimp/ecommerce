@@ -1886,6 +1886,37 @@ export const API_ERROR_CODES = {
   SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
 } as const;
 
+/** Origen de un registro en `error_log` (trazabilidad de fallos). */
+export const ERROR_LOG_SOURCES = {
+  SERVER_API: "server-api",
+  WIZARD: "wizard",
+  MAPA: "mapa",
+} as const;
+
+export type ErrorLogSource = (typeof ERROR_LOG_SOURCES)[keyof typeof ERROR_LOG_SOURCES];
+
+/** Flujos que reportan errores contextualizados en `error_log`. */
+export const ERROR_LOG_FLUJOS = {
+  RESERVA_STAND: "reserva_stand",
+} as const;
+
+export type ErrorLogFlujo = (typeof ERROR_LOG_FLUJOS)[keyof typeof ERROR_LOG_FLUJOS];
+
+/** Pasos del flujo de reserva usados al mapear errores. */
+export const ERROR_LOG_PASOS_RESERVA = {
+  HOLD: "1_hold",
+  MAPA_CARGA: "cargar_mapa",
+  MAPA_API: "fetch_api",
+  CUOTAS: "2_cuotas",
+  ANEXOS: "3_anexos",
+  FIRMA_MANUAL: "3_firma_manual",
+  FIRMA_DIGITAL: "3_firma_digital",
+  FIRMA_PERFIL: "3_firma_perfil",
+  CONFIRMAR: "4_confirmar",
+} as const;
+
+export type ErrorLogPasoReserva = (typeof ERROR_LOG_PASOS_RESERVA)[keyof typeof ERROR_LOG_PASOS_RESERVA];
+
 /* ================================================================
    Estilos de Badge (colores semanticos por estado)
    — Usar en lugar de strings hardcodeados para mantener consistencia visual

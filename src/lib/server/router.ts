@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { DomainError } from "@/domain/errors/domain-error";
-import { errorLogger } from "@/lib/server/error-logger";
+import { apiErrorLogger } from "@/lib/server/api-error-logger";
 
 export { DomainError } from "@/domain/errors/domain-error";
 
@@ -19,22 +19,6 @@ interface RouterConfig {
   DELETE?: RouteMap;
 }
 
-/** Persiste un error de API (no bloquea la respuesta). */
-function registrarErrorApi(req: Request, path: string, status: number, code: string, message: string, stack?: string) {
-  void errorLogger.log({
-    message,
-    stack,
-    url: req.url,
-    metadata: {
-      source: "server-api",
-      method: req.method,
-      path: path || req.url,
-      status,
-      code,
-    },
-  });
-}
-
 export function createRouter(config: RouterConfig) {
   const exports: Record<string, (req: Request, context?: { params: Promise<{ slug: string[] }> }) => Promise<NextResponse>> = {};
 
@@ -45,7 +29,7 @@ export function createRouter(config: RouterConfig) {
       const action = routes[path];
       if (!action) {
         const message = `Endpoint '${method} /${path}' no encontrado`;
-        registrarErrorApi(req, path, 404, "NOT_FOUND", message);
+        apiErrorLogger.registrar({ request: req, status: 404, code: API_ERROR_CODES.NOT_FOUND, message, action: path });
         return NextResponse.json({ error: message }, { status: 404 });
       }
 
@@ -54,7 +38,7 @@ export function createRouter(config: RouterConfig) {
         const response = result instanceof NextResponse ? result : await result;
         /* Toda respuesta de error del API queda registrada (incluye validaciones/business). */
         if (response.status >= 400) {
-          let code = "INTERNAL";
+          let code: string = API_ERROR_CODES.INTERNAL;
           let message = response.statusText || `HTTP ${response.status}`;
           try {
             const body = (await response.clone().json()) as {
@@ -67,22 +51,22 @@ export function createRouter(config: RouterConfig) {
               message = body.error.message ?? message;
             }
           } catch { /* respuesta sin JSON */ }
-          registrarErrorApi(req, path, response.status, code, message);
+          apiErrorLogger.registrar({ request: req, status: response.status, code, message, action: path });
         }
         return response;
       } catch (err) {
         if (err instanceof DomainError) {
-          registrarErrorApi(req, path, err.status, err.code, err.message, err.stack);
+          apiErrorLogger.registrar({ request: req, status: err.status, code: err.code, message: err.message, stack: err.stack, action: path });
           return NextResponse.json({ success: false, error: { code: err.code, message: err.message } }, { status: err.status });
         }
         if (err instanceof ZodError) {
           const message = err.issues.map((issue) => issue.message).join("; ");
-          registrarErrorApi(req, path, 400, API_ERROR_CODES.VALIDATION, message, err.stack);
+          apiErrorLogger.registrar({ request: req, status: 400, code: API_ERROR_CODES.VALIDATION, message, stack: err.stack, action: path });
           return NextResponse.json({ success: false, error: { code: API_ERROR_CODES.VALIDATION, message } }, { status: 400 });
         }
         const message = err instanceof Error ? err.message : "Error interno";
-        registrarErrorApi(req, path, 500, "INTERNAL", message, err instanceof Error ? err.stack : undefined);
-        return NextResponse.json({ success: false, error: { code: "INTERNAL", message } }, { status: 500 });
+        apiErrorLogger.registrar({ request: req, status: 500, code: API_ERROR_CODES.INTERNAL, message, stack: err instanceof Error ? err.stack : undefined, action: path });
+        return NextResponse.json({ success: false, error: { code: API_ERROR_CODES.INTERNAL, message } }, { status: 500 });
       }
     };
   }

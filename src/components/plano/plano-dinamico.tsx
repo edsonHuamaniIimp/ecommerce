@@ -8,10 +8,10 @@ import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Sheet,
 import { FileText, Eye, X, Image, ScrollText, Upload, ClipboardCheck, Bell, Check, Layers, Loader2, Trash2, ShoppingBag, ChevronLeft, ChevronRight, MousePointerClick, ArrowUpRight, ZoomIn, ZoomOut, RotateCcw, RotateCw, Home, Compass, Hand, HelpCircle } from "lucide-react";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
-import { logsService } from "@/lib/client/api/services/logs-service";
+import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -339,7 +339,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
         const [dbList, apiList] = await Promise.all([
           gessService.all(eventoId),
           gessService.fetchFromApi(tipoEvento, codigoEvento).catch((error: unknown) => {
-            void logsService.registrar({ message: error instanceof Error ? error.message : "Error al consultar el API de stands", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "fetch_api", eventoId } }).catch(() => {});
+            errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_API, error, { eventoId });
             return [] as Record<string, unknown>[];
           }),
         ]);
@@ -407,7 +407,7 @@ map.set(String(bloqueId), {
         setLinkedMap(map);
         if (!cancelled) setDataReady(true);
       } catch (error) {
-        void logsService.registrar({ message: error instanceof Error ? error.message : "Error al cargar el mapa", stack: error instanceof Error ? error.stack : undefined, url: typeof window !== "undefined" ? window.location.href : undefined, metadata: { source: "mapa", flujo: "reserva_stand", paso: "cargar_mapa", eventoId } }).catch(() => {});
+        errorReporting.mapa(ERROR_LOG_PASOS_RESERVA.MAPA_CARGA, error, { eventoId });
         if (!cancelled) setDataReady(true);
       }
     })();
@@ -524,22 +524,7 @@ map.set(String(bloqueId), {
             setHoldReserva(hold);
           } catch (error) {
             const msg = error instanceof Error ? error.message : "No se pudo bloquear el stand. Intenta de nuevo.";
-            const detalle = error as { code?: string; status?: number; stack?: string } | null;
-            void logsService.registrar({
-              message: msg,
-              stack: detalle?.stack,
-              url: typeof window !== "undefined" ? window.location.href : undefined,
-              path: typeof window !== "undefined" ? window.location.pathname : undefined,
-              userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-              metadata: {
-                source: "wizard",
-                flujo: "reserva_stand",
-                paso: "1_hold",
-                stands: standIds.join(","),
-                code: detalle?.code ?? null,
-                status: detalle?.status ?? null,
-              },
-            }).catch(() => {});
+            errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.HOLD, error, { stands: standIds });
             toast.error(msg);
             return false;
           } finally {
