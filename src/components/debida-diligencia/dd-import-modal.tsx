@@ -5,11 +5,13 @@ import {
   Alert,
   AlertDescription,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Label,
 } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +37,7 @@ const CABECERAS = [
 export function DdImportModal({ open, onClose, onImported }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [actualizarExistentes, setActualizarExistentes] = useState(false);
   const [importing, setImporting] = useState(false);
   const [resultado, setResultado] = useState<DdEmpresasImportResponseDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +65,9 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
     setError(null);
     setResultado(null);
     try {
-      const respuesta = await debidaDiligenciaService.importarEmpresas(file);
+      const respuesta = await debidaDiligenciaService.importarEmpresas(file, actualizarExistentes);
       setResultado(respuesta);
-      toast.success(`Importación completada: ${respuesta.importados} nuevos, ${respuesta.actualizados} actualizados.`);
+      toast.success(`Importación completada: ${respuesta.importados} nuevos, ${respuesta.actualizados} actualizados, ${respuesta.omitidos} omitidos.`);
       onImported();
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : "No se pudo importar el archivo";
@@ -80,6 +83,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
     setFile(null);
     setResultado(null);
     setError(null);
+    setActualizarExistentes(false);
     onClose();
   };
 
@@ -108,6 +112,22 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
             <p className="mt-2">
               Todos los resultados se importan a Debida Diligencia como registros de origen <strong>Importado</strong>, sin importar el estado. Los documentos se podrán cargar después; los APTOS quedarán habilitados para esa carga.
             </p>
+          </div>
+
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-background p-3">
+            <Checkbox
+              id="actualizar-dd-existentes"
+              checked={actualizarExistentes}
+              onCheckedChange={(valor) => setActualizarExistentes(valor === true)}
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="actualizar-dd-existentes" className="text-xs font-medium">
+                Actualizar expedientes existentes
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Si está desmarcado, los expedientes que ya existen no se modifican. Solo se crearán los nuevos.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">

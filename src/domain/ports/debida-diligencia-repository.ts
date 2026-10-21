@@ -97,7 +97,7 @@ export interface IDebidaDiligenciaRepository {
     errores: unknown;
   }): Promise<string>;
   /** Cierra el lote con los conteos finales. */
-  cerrarImportacion(id: string, importados: number, actualizados: number): Promise<void>;
+  cerrarImportacion(id: string, importados: number, actualizados: number, omitidos: number): Promise<void>;
   /** Guarda en una sola transaccion el formulario, beneficiarios y documentos. */
   guardarFormulario(id: string, data: DdGuardarData, actualizadoPor: string): Promise<DdExpedienteEntity>;
   /** Marca los documentos seleccionados como observados y el resto como aprobados. */

@@ -32,6 +32,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const file = formData.get("file");
+  const actualizarExistentes = formData.get("actualizarExistentes") === "true";
   if (!(file instanceof File)) {
     return error(API_ERROR_CODES.VALIDATION, "Archivo requerido", 400);
   }
@@ -109,6 +110,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         omitidos: parsed.omitidos,
         errores: [...parsed.errors, ...empresasError],
       },
+      actualizarExistentes,
       {
         email: session.email,
         roles: session.roles,
@@ -121,7 +123,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       empresasCreadas,
       empresasExistentes,
       empresasError,
-      omitidos: parsed.omitidos + empresasError.length,
+      omitidos: parsed.omitidos + empresasError.length + resultado.omitidos,
       errores: [...parsed.errors, ...empresasError],
     });
   } catch (e) {

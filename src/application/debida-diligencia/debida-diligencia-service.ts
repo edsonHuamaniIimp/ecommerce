@@ -609,8 +609,9 @@ export class DebidaDiligenciaApplicationService {
       fechaVencimiento: Date | null;
     }>,
     meta: { archivo: string; hash: string; total: number; omitidos: number; errores: unknown },
+    actualizarExistentes: boolean,
     session: DdSession,
-  ): Promise<{ importados: number; actualizados: number; loteId: string }> {
+  ): Promise<{ importados: number; actualizados: number; omitidos: number; loteId: string }> {
     this.exigirPermiso(session, PERMISSIONS.DD_VER);
     const eventoId = this.eventoRequerido(session);
     const loteId = await this.repo.crearImportacion({
@@ -625,11 +626,16 @@ export class DebidaDiligenciaApplicationService {
 
     let importados = 0;
     let actualizados = 0;
+    let omitidos = 0;
     const anio = String(dateUtils.currentYear());
 
     for (const row of rows) {
       const estado = this.estadoDesdeImportacion(row.resultado, row.estadoOrigen);
       const existente = await this.repo.findExpedientePorEmpresaEvento(row.empresaId, eventoId);
+      if (existente && !actualizarExistentes) {
+        omitidos += 1;
+        continue;
+      }
       const codigo = existente?.codigo ?? await this.repo.siguienteCodigo(anio);
       const resultado = await this.repo.importarExpediente({
         empresaId: row.empresaId,
@@ -652,8 +658,8 @@ export class DebidaDiligenciaApplicationService {
       else actualizados += 1;
     }
 
-    await this.repo.cerrarImportacion(loteId, importados, actualizados);
-    return { importados, actualizados, loteId };
+    await this.repo.cerrarImportacion(loteId, importados, actualizados, omitidos + meta.omitidos);
+    return { importados, actualizados, omitidos, loteId };
   }
 
   private estadoDesdeImportacion(resultado: string, estadoOrigen: string): string {

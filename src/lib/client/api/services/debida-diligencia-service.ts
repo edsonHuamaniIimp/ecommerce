@@ -48,9 +48,10 @@ export const debidaDiligenciaService = {
     );
   },
 
-  importarEmpresas(file: File) {
+  importarEmpresas(file: File, actualizarExistentes: boolean) {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("actualizarExistentes", String(actualizarExistentes));
     return internalApi.postForm<DdEmpresasImportResponseDTO>(
       "/api/debida-diligencia/empresas/importar",
       formData,

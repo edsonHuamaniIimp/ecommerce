@@ -413,10 +413,10 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     return row.id;
   }
 
-  async cerrarImportacion(id: string, importados: number, actualizados: number): Promise<void> {
+  async cerrarImportacion(id: string, importados: number, actualizados: number, omitidos: number): Promise<void> {
     await prisma.ddImportacion.update({
       where: { id },
-      data: { importados, actualizados },
+      data: { importados, actualizados, omitidos },
     });
   }
 
