@@ -2342,8 +2342,8 @@ export const UPLOAD_MAX_BYTES = 26214400;
 export const CONTRATO_FIRMADO_EXTENSIONES = ["pdf"] as const;
 export const ANEXOS_UPLOAD_MAX_BYTES = 10485760;
 
-/** Firma digital del usuario (Perfil y wizard de reserva): imagen PNG o JPG. */
-export const FIRMA_PERFIL_EXTENSIONES = ["png", "jpg"] as const;
+/** Firma digital del usuario (Perfil y wizard de reserva): solo PNG. */
+export const FIRMA_PERFIL_EXTENSIONES = ["png"] as const;
 export const FIRMA_PERFIL_MAX_BYTES = 10485760;
 
 /** Claves de los anexos requeridos; tambien son la clave de `docsRequisitos` en el wizard. */

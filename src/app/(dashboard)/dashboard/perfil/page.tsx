@@ -13,7 +13,8 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { MAESTRA_TABLAS, TIPO_COMPROBANTE_LABELS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
+import { FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, MAESTRA_TABLAS, TIPO_COMPROBANTE_LABELS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
 function PerfilPageContent() {
@@ -234,6 +235,14 @@ function PerfilPageContent() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!archivoUtils.extensionPermitida(file.name, FIRMA_PERFIL_EXTENSIONES)) {
+      toast.error("La firma debe ser una imagen PNG.");
+      return;
+    }
+    if (file.size > FIRMA_PERFIL_MAX_BYTES) {
+      toast.error(`La firma supera el máximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
+      return;
+    }
     setSubiendoFirma(true);
     try {
       const url = await uploadService.subir(file);
@@ -573,7 +582,7 @@ function PerfilPageContent() {
                         <PenLine className="h-4 w-4" />
                       </span>
                     )}
-                    <input ref={firmaRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => { void onFirmaFile(e); }} />
+                    <input ref={firmaRef} type="file" accept=".png,image/png" className="hidden" onChange={(e) => { void onFirmaFile(e); }} />
                     <Button type="button" variant="outline" size="sm" className="rounded-full text-xs" disabled={subiendoFirma} onClick={() => firmaRef.current?.click()}>
                       {subiendoFirma ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                       <span>{firmaUrl ? "Cambiar firma" : "Subir firma"}</span>
@@ -584,7 +593,7 @@ function PerfilPageContent() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG/JPG de tu firma con fondo claro. Se usara para firmar digitalmente tus contratos.</p>
+                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG de tu firma con fondo claro. Se usará para firmar digitalmente tus contratos.</p>
                 </div>
               </CardContent>
             </Card>

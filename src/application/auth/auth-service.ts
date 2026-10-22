@@ -10,9 +10,10 @@ import { esHash, hashPassword, verificarPassword } from "@/lib/server/utils/pass
 import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import { resolverIdiomaPeticion } from "@/lib/server/idioma";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, REGEX_RUC, REGEX_EMAIL, IDIOMA_DEFAULT, API_ERROR_CODES, NOTIFICACION_EMAIL_CODIGO_MINUTOS, NOTIFICACION_EMAIL_CODIGO_LONGITUD } from "@/lib/shared/constants";
+import { SESION, RESET_PASSWORD_MINUTOS_VIGENCIA, ROLES, REGISTRO_CODIGO, MS_POR_MINUTO, PASSWORD_MIN_LENGTH, TIPOS_DOCUMENTO_PERSONA, FOTO_PERSONA_MAX_BYTES, FIRMA_PERFIL_EXTENSIONES, REGEX_RUC, REGEX_EMAIL, IDIOMA_DEFAULT, API_ERROR_CODES, NOTIFICACION_EMAIL_CODIGO_MINUTOS, NOTIFICACION_EMAIL_CODIGO_LONGITUD } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { getAppUrl } from "@/lib/server/app-url";
 import type { Idioma, Rol } from "@/lib/shared/constants";import type { LoginRequestDTO } from "@/types/dto/auth/login-request.dto";
@@ -546,6 +547,14 @@ export class AuthApplicationService {
     const { getSession } = await import("@/lib/server/auth");
     const session = await getSession();
     if (!session) return { ok: false };
+    if (dto.firmaUrl !== undefined && dto.firmaUrl !== null &&
+      !archivoUtils.extensionPermitida(dto.firmaUrl, FIRMA_PERFIL_EXTENSIONES)) {
+      throw new DomainError(
+        "La firma digital debe ser una imagen PNG.",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
     /*
      * El RUC de la empresa elegida (codigo SIE de entidades) resuelve la empresa
      * fiscal local por RUC para dejar la FK `empresa_id`; sin registro local queda

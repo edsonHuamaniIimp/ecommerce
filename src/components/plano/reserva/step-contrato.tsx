@@ -182,7 +182,7 @@ export function StepContrato({
           {!firmaPerfilUrl && (
             <>
               <p className="text-[11px] text-muted-foreground">
-                Para firmar digitalmente sube tu firma (imagen PNG/JPG, fondo claro) aquí mismo o desde{" "}
+                Para firmar digitalmente sube tu firma (imagen PNG, fondo claro) aquí mismo o desde{" "}
                 <a href="/dashboard/perfil" className="font-medium text-primary hover:underline">tu Perfil</a>.
                 Tambien puedes descargar, firmar manualmente y adjuntar el contrato.
               </p>

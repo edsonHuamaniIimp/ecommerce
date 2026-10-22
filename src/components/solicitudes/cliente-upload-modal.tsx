@@ -1,12 +1,14 @@
 ﻿"use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { uploadService } from "@/lib/client/api/services/upload-service";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
@@ -52,8 +54,24 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
     (!ultimaRevision || dateUtils.isAfter(doc.createdAt, ultimaRevision));
   const [error, setError] = useState<string | null>(null);
+  const [firmaPerfilUrl, setFirmaPerfilUrl] = useState<string | null>(null);
+  const [subiendoFirma, setSubiendoFirma] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const firmaRef = useRef<HTMLInputElement>(null);
   const requisitoRef = useRef<string | null>(null);
+
+  /* La firma es requisito del servidor para estampar el contrato. */
+  useEffect(() => {
+    let activo = true;
+    void perfilService.get()
+      .then((perfil) => {
+        if (activo) setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      activo = false;
+    };
+  }, [solicitud.id]);
 
   const handleUpload = async (file: File) => {
     /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
@@ -119,6 +137,33 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setSending(false);
   };
 
+  /** Sube la firma PNG directamente desde el modal y la guarda en el perfil. */
+  const onFirmaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!archivoUtils.extensionPermitida(file.name, FIRMA_PERFIL_EXTENSIONES)) {
+      setError("La firma debe ser una imagen PNG.");
+      return;
+    }
+    if (file.size > FIRMA_PERFIL_MAX_BYTES) {
+      setError(`La firma supera el máximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
+      return;
+    }
+    setSubiendoFirma(true);
+    setError(null);
+    try {
+      const url = await uploadService.subir(file);
+      await perfilService.update({ firmaUrl: url });
+      setFirmaPerfilUrl(url);
+      toast.success("Firma PNG cargada. Ya puedes firmar el contrato.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la firma.");
+    } finally {
+      setSubiendoFirma(false);
+    }
+  };
+
   const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
     .filter(d => d.userId !== solicitud.userId)
     .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0));
@@ -130,6 +175,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
 
   /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma del perfil. */
   const handleFirmarDigital = async () => {
+    if (!firmaPerfilUrl) {
+      setError("Sube tu firma en formato PNG antes de firmar el contrato.");
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -173,7 +222,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   );
   /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
   const puedeFirmarDigital = (soloFirmaDigital || contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO) &&
-    !firmaManualVigente && !firmaManualPendiente;
+    Boolean(firmaPerfilUrl) && !firmaManualVigente && !firmaManualPendiente;
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
   const faltanObs = observadosAnexos.filter((obs) => {
@@ -285,6 +334,36 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                 <span>Descargar</span>
               </a>
             </div>
+          </div>
+        )}
+        {soloFirmaDigital && (
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground">Firma para el contrato</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {firmaPerfilUrl
+                  ? "Firma PNG cargada. Puedes firmar digitalmente."
+                  : "Sube tu firma en formato PNG (fondo claro) para firmar digitalmente."}
+              </p>
+            </div>
+            <input
+              ref={firmaRef}
+              type="file"
+              accept=".png,image/png"
+              className="hidden"
+              onChange={(e) => { void onFirmaFile(e); }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5 rounded-full text-xs"
+              disabled={subiendoFirma}
+              onClick={() => firmaRef.current?.click()}
+            >
+              {subiendoFirma ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+              <span>{subiendoFirma ? "Subiendo..." : firmaPerfilUrl ? "Cambiar firma PNG" : "Subir firma PNG"}</span>
+            </Button>
           </div>
         )}
       </div>
@@ -425,7 +504,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
             {esContrato && (contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO || soloFirmaDigital) && (
-              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={!puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
+              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={!firmaPerfilUrl ? "Sube tu firma en formato PNG para firmar digitalmente." : !puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
                 <PenLine className="mr-1 h-3 w-3" />
                 {sending ? "Firmando..." : "Firmar digitalmente"}
               </Button>
