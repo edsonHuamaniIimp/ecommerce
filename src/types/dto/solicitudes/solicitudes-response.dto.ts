@@ -53,6 +53,8 @@ export interface SolicitudDTO {
   estado: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;
+  /** El revisor habilito la firma del contrato para el cliente. */
+  contratoHabilitado?: boolean;
   /** RF-08: URL de la imagen del recorte del pabellon (se adjunta al contrato). */
   recortePlanoUrl?: string | null;
   documentos: string[];

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import {
   anexosBloqueantesFaltantes,
@@ -10,7 +10,7 @@ import {
   faltanAnexosBloqueantes,
   hayContratoAdminNuevoParaFirmar,
   hayFirmadoPosteriorAlContratoCorregido,
-  contratoReservaPendienteFirma,
+  contratoClientePendienteFirma,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
@@ -292,14 +292,8 @@ describe("anexos requeridos (RF-13)", () => {
   });
 });
 
-describe("contratoReservaPendienteFirma", () => {
-  const admin = {
-    userId: null,
-    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
-    requisito: null,
-    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
-    createdAt: "2026-10-18T10:00:00.000Z",
-  };
+
+describe("contratoClientePendienteFirma — contrato posterior", () => {
   const firmado = (createdAt: string) => ({
     userId: CLIENTE,
     categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
@@ -308,21 +302,43 @@ describe("contratoReservaPendienteFirma", () => {
     createdAt,
   });
 
-  it("pide firma si el cliente no firmo o firmo una version anterior", () => {
-    expect(contratoReservaPendienteFirma({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE, docsAdjuntos: [admin] })).toBe(true);
-    expect(contratoReservaPendienteFirma({
+  const contratoAdmin = {
+    userId: null,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: "2026-10-18T10:00:00.000Z",
+  };
+
+  it("solo muestra la firma cuando el revisor la habilito", () => {
+    expect(contratoClientePendienteFirma({
       ...base,
-      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
-      docsAdjuntos: [admin, firmado("2026-10-17T10:00:00.000Z")],
+      contratoHabilitado: false,
+    })).toBe(false);
+    expect(contratoClientePendienteFirma({
+      ...base,
+      contratoHabilitado: true,
     })).toBe(true);
   });
 
-  it("no pide firma si ya firmo la version vigente o la solicitud no esta pendiente", () => {
-    expect(contratoReservaPendienteFirma({
+  it("un contrato antiguo del admin no reemplaza el habilitador", () => {
+    expect(contratoClientePendienteFirma({
       ...base,
-      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
-      docsAdjuntos: [admin, firmado("2026-10-19T10:00:00.000Z")],
+      docsAdjuntos: [contratoAdmin],
+      contratoHabilitado: false,
     })).toBe(false);
-    expect(contratoReservaPendienteFirma({ ...base, estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO, docsAdjuntos: [admin] })).toBe(false);
+  });
+
+  it("oculta la firma si el cliente ya firmo o la solicitud no esta pendiente", () => {
+    expect(contratoClientePendienteFirma({
+      ...base,
+      contratoHabilitado: true,
+      docsAdjuntos: [firmado("2026-10-19T10:00:00.000Z")],
+    })).toBe(false);
+    expect(contratoClientePendienteFirma({
+      ...base,
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      contratoHabilitado: true,
+    })).toBe(false);
   });
 });

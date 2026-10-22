@@ -71,6 +71,8 @@ export interface ISolicitudesRepository {
   findNombreUsuario(userId: string): Promise<string | null>;
   /** RF-08: guarda la URL de la imagen del recorte del pabellon de una solicitud. */
   guardarRecortePlano(solicitudId: string, url: string): Promise<void>;
+  /** Habilita la firma del contrato posterior sin generar ni modificar documentos. */
+  habilitarContrato(solicitudId: string): Promise<void>;
   /** RF-10/11: persiste el plan de cuotas configurado por el cliente (snapshot). */
   guardarPlanCuotas(solicitudId: string, plan: PlanCuotasSolicitud): Promise<void>;
   /**

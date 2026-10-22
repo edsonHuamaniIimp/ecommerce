@@ -36,6 +36,11 @@ export const solicitudesReenviarObservacionSchema = z.object({
   solicitudId: z.string().uuid(),
 });
 
+/** Habilitador del revisor para mostrar la firma del contrato posterior. */
+export const solicitudesHabilitarContratoSchema = z.object({
+  solicitudId: z.string().uuid(),
+});
+
 /** Notificacion manual del resultado al cliente desde la bandeja. */
 export const solicitudesNotificarSchema = z.object({
   solicitudId: z.string().uuid(),
@@ -51,6 +56,10 @@ export const uploadDocumentoSchema = z.object({
   nombre: z.string().trim().max(200).optional(),
   tipo: z.string().max(30).optional(),
   requisito: z.string().max(30).optional().nullable(),
+  /** Eventos con contrato posterior: permite los anexos iniciales de la reserva. */
+  permitirAnexosIniciales: z.boolean().optional(),
+  /** Solo la firma digital del servidor puede adjuntar un contrato firmado en estos eventos. */
+  firmaDigital: z.boolean().optional(),
 });
 
 /** RF-08: imagen del recorte del pabellon (se guarda tras subirla a /api/upload). */

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 
@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoReservaPendienteFirma, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -553,11 +553,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Pagar ahora</span>
                             </Button>
                           )}
-                          {contratoReservaPendienteFirma(row) && (
+                          {contratoClientePendienteFirma(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
-                              <Upload className="h-3.5 w-3.5" />
-                              <span>Subir contrato y documentos</span>
+                              <PenLine className="h-3.5 w-3.5" />
+                              <span>Firmar contrato</span>
                             </Button>
                           )}
                           {enVentanaLegalSgc(row) && (
@@ -680,11 +680,11 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Pagar ahora</span>
                               </Button>
                             )}
-                            {contratoReservaPendienteFirma(row) && (
+                            {contratoClientePendienteFirma(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
-                                <Upload className="h-3.5 w-3.5" />
-                                <span>Subir contrato firmado</span>
+                                <PenLine className="h-3.5 w-3.5" />
+                                <span>Firmar contrato</span>
                               </Button>
                             )}
                             {enVentanaLegalSgc(row) && (
@@ -1033,14 +1033,16 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Contrato disponible: el cliente debe firmar y subirlo */}
-              {detailRow && contratoReservaPendienteFirma(detailRow) && detailRow.flgActivo !== false && (
-                <ModalSection title="Accion requerida">
+              {detailRow && contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && (
+                <ModalSection title="Firma del contrato">
                   <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/10 p-3">
                     <div className="flex items-start gap-3">
                       <FileText className="mt-0.5 h-4 w-4 shrink-0 text-info" />
                       <div>
-                        <p className="text-xs font-semibold text-info">Contrato disponible</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">La administracion subio el contrato de tu solicitud. Descargalo, firmalo y sube el contrato firmado para continuar con el proceso.</p>
+                        <p className="text-xs font-semibold text-info">Firma del contrato</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                          El IIMP habilitó la firma de tu contrato. Firma digitalmente desde aquí; no se admite subir un contrato firmado manualmente.
+                        </p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -1057,8 +1059,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       })()}
                       <Button size="sm" className="w-full gap-1.5 sm:w-auto"
                         onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
-                        <Upload className="h-3.5 w-3.5" />
-                        <span>Subir contrato firmado</span>
+                        <PenLine className="h-3.5 w-3.5" />
+                        <span>Firmar contrato</span>
                       </Button>
                     </div>
                   </div>
@@ -1118,8 +1120,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                       })()}
                       <Button size="sm" className="w-full gap-1.5 sm:w-auto"
                         onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
-                        <Upload className="h-3.5 w-3.5" />
-                        <span>Subir contrato firmado</span>
+                        <PenLine className="h-3.5 w-3.5" />
+                        <span>Firmar contrato</span>
                       </Button>
                     </div>
                   </div>

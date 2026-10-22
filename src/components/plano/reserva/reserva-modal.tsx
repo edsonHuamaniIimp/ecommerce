@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
 import { ChevronRight, ChevronLeft, Building2, X, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { RESERVA_STEPS } from "@/lib/shared/constants";
-import type { ReservaStep } from "@/lib/shared/constants";
+import { ETAPAS_ENVIO_RESERVA, RESERVA_STEPS } from "@/lib/shared/constants";
+import type { EtapaEnvioReserva, ReservaStep } from "@/lib/shared/constants";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { StepIndicator } from "./step-indicator";
 import { StepDatos } from "./step-datos";
@@ -35,6 +35,7 @@ interface Props {
   docsRequisitos: Record<string, string>;
   subiendoRequisito: string | null;
   submitting: boolean;
+  submitStage: EtapaEnvioReserva | null;
   submitError: string | null;
   selectedCount: number;
   singleStand: boolean;
@@ -70,6 +71,8 @@ interface Props {
   /** La firma digital se aplicara al generar el contrato definitivo al enviar. */
   firmaDigitalAplicada: boolean;
   onFirmarDigital: () => void;
+  /** Politica fija: el wizard solo solicita los 3 anexos; el contrato se firma al final. */
+  sinContrato?: boolean;
 }
 
 const STEPS = [RESERVA_STEPS.DATOS, RESERVA_STEPS.CUOTAS, RESERVA_STEPS.CONTRATO, RESERVA_STEPS.CONFIRMACION] as const;
@@ -109,28 +112,33 @@ function HoldCountdown({ expiresAt, count }: { expiresAt: string | null; count: 
   );
 }
 
-function encabezado(step: ReservaStep): string {
+function encabezado(step: ReservaStep, sinContrato = true): string {
   if (step === RESERVA_STEPS.DATOS) return "Completa los datos comerciales y de facturacion para formalizar tu solicitud.";
-  if (step === RESERVA_STEPS.CUOTAS) return "Elige la modalidad de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
-  if (step === RESERVA_STEPS.CONTRATO) return "Descarga el contrato, firmalo (digital o manualmente) y adjunta los 3 documentos requeridos.";
+  if (step === RESERVA_STEPS.CUOTAS) return sinContrato
+    ? "Elige la modalidad de pago; la solicitud se crea al confirmar."
+    : "Elige la modalidad de pago: se genera el contrato (borrador). La solicitud se crea al confirmar.";
+  if (step === RESERVA_STEPS.CONTRATO) return sinContrato
+    ? "Adjunta los 3 documentos requeridos para completar tu solicitud."
+    : "Descarga el contrato, firmalo (digital o manualmente) y adjunta los 3 documentos requeridos.";
   return "Revisa el resumen y envia tu solicitud al proceso de revision.";
 }
 
 export function ReservaModal(props: Props) {
   const {
     open, onOpenChange, holdExpiresAt, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
-    formDatos, onDatosChange, docsRequisitos, subiendoRequisito, submitting, submitError,
-    selectedCount, singleStand, selectedLabels, selectedItems,
+    formDatos, onDatosChange, docsRequisitos, subiendoRequisito, submitting, submitStage, submitError,
+    selectedCount, selectedLabels, selectedItems,
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
     aceptaRepresentante, onAceptaRepresentanteChange,
     configCuotas, cuotasPago, onCuotasPagoChange, contratoDatos, onContratoDatosChange, contrato, generandoContrato, onGenerarContrato,
     contratoFirmadoUrl, subiendoFirmado, onSubirFirmado,
-    firmaPerfilUrl, onSubirFirmaPerfil, firmaDigitalAplicada, onFirmarDigital,
+    firmaPerfilUrl, onSubirFirmaPerfil, firmaDigitalAplicada, onFirmarDigital, sinContrato = true,
   } = props;
 
   const isLast = step === RESERVA_STEPS.CONFIRMACION;
   const isFirst = step === RESERVA_STEPS.DATOS;
+  const esMultiple = selectedCount > 1;
   const [showStands, setShowStands] = useState(false);
   const pasoActual = STEPS.indexOf(step) + 1;
 
@@ -144,7 +152,7 @@ export function ReservaModal(props: Props) {
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
               {selectedCount} {selectedCount === 1 ? "stand seleccionado" : "stands seleccionados"}
             </span>
-            {!singleStand && (
+            {esMultiple && (
               <span className="rounded-full border border-gold/30 bg-gold/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold">
                 Reserva multiple
               </span>
@@ -163,10 +171,10 @@ export function ReservaModal(props: Props) {
           </div>
 
           <h2 className="text-base font-bold tracking-tight text-primary">
-            {singleStand ? "Proceso de Reserva de Stand" : "Proceso de Reserva de Stands"}
+            {esMultiple ? "Proceso de Reserva de Stands" : "Proceso de Reserva de Stand"}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {autenticado ? encabezado(step) : "Identificate para continuar con tu reserva."}
+            {autenticado ? encabezado(step, sinContrato) : "Identificate para continuar con tu reserva."}
           </p>
 
           {holdExpiresAt && (
@@ -177,7 +185,7 @@ export function ReservaModal(props: Props) {
 
           {autenticado && (
             <div className="mt-4">
-              <StepIndicator currentStep={step} stepDone={stepDone} canGoStep={canGoStep} onGoStep={onGoStep} />
+              <StepIndicator currentStep={step} stepDone={stepDone} canGoStep={canGoStep} onGoStep={onGoStep} sinContrato={sinContrato} />
             </div>
           )}
         </div>
@@ -207,6 +215,7 @@ export function ReservaModal(props: Props) {
                   contratoDatos={contratoDatos}
                   onContratoDatosChange={onContratoDatosChange}
                   contrato={contrato}
+                  sinContrato={sinContrato}
                 />
               )}
               {step === RESERVA_STEPS.CONTRATO && (
@@ -226,6 +235,7 @@ export function ReservaModal(props: Props) {
                   onAddRequisito={onAddRequisito}
                   onRemoveRequisito={onRemoveRequisito}
                   standsLabel={selectedLabels}
+                  sinContrato={sinContrato}
                 />
               )}
               {step === RESERVA_STEPS.CONFIRMACION && (
@@ -233,12 +243,13 @@ export function ReservaModal(props: Props) {
                   datos={formDatos}
                   selectedLabels={selectedLabels}
                   selectedCount={selectedCount}
-                  docsCount={Object.keys(docsRequisitos).length + (firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada) ? 1 : 0)}
+                  docsCount={Object.keys(docsRequisitos).length + (!sinContrato && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada) ? 1 : 0)}
               cuotasPago={cuotasPago}
               confirmado={confirmado}
               onConfirmadoChange={onConfirmadoChange}
               aceptaRepresentante={aceptaRepresentante}
               onAceptaRepresentanteChange={onAceptaRepresentanteChange}
+              sinContrato={sinContrato}
                 />
               )}
             </>
@@ -284,13 +295,13 @@ export function ReservaModal(props: Props) {
               {!isLast && (
                 <Button
                   size="sm"
-                  disabled={!stepDone(step) || (step === RESERVA_STEPS.CUOTAS && generandoContrato)}
+                  disabled={!stepDone(step) || (!sinContrato && step === RESERVA_STEPS.CUOTAS && generandoContrato)}
                   className="gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                   onClick={() => {
                     const idx = STEPS.indexOf(step);
                     const next = idx < STEPS.length - 1 ? STEPS[idx + 1] : undefined;
                     if (next === undefined) return;
-                    if (step === RESERVA_STEPS.CUOTAS) {
+                    if (!sinContrato && step === RESERVA_STEPS.CUOTAS) {
                       void (async () => {
                         if (await onGenerarContrato()) onGoStep(next);
                       })();
@@ -299,14 +310,14 @@ export function ReservaModal(props: Props) {
                     onGoStep(next);
                   }}
                 >
-                  {step === RESERVA_STEPS.CUOTAS && generandoContrato ? (
+                  {!sinContrato && step === RESERVA_STEPS.CUOTAS && generandoContrato ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       <span>Generando contrato...</span>
                     </>
                   ) : (
                     <>
-                      <span>{step === RESERVA_STEPS.CUOTAS ? "Generar contrato y continuar" : "Continuar"}</span>
+                      <span>{!sinContrato && step === RESERVA_STEPS.CUOTAS ? "Generar contrato y continuar" : "Continuar"}</span>
                       <ChevronRight className="h-3.5 w-3.5" />
                     </>
                   )}
@@ -319,7 +330,7 @@ export function ReservaModal(props: Props) {
                   className="gap-1.5 bg-gold text-xs font-bold text-gold-foreground shadow-md hover:bg-gold/90 disabled:opacity-60"
                   onClick={onSubmit}
                 >
-                  {submitting ? <span>Enviando...</span> : <span>Enviar solicitud</span>}
+                  {submitting ? <span>{submitStage ?? ETAPAS_ENVIO_RESERVA.ENVIANDO}</span> : <span>Enviar solicitud</span>}
                 </Button>
               )}
             </div>

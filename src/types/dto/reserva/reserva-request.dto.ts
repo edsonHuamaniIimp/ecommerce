@@ -15,6 +15,8 @@ export interface ReservaRequestDTO {
   /** Hold temporal creado al abrir el wizard. */
   holdId?: string;
   documentos?: string[];
+  /** Cronograma elegido en el wizard; se persiste para el contrato final. */
+  cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
   datos?: DatosFacturacionRequestDTO;
 }
 

@@ -1,4 +1,4 @@
-import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
+﻿import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
@@ -7,7 +7,7 @@ import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, enVentanaAnexosReserva } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
@@ -238,6 +238,20 @@ export class SolicitudesApplicationService {
   }
 
   /**
+   * Habilita al cliente la firma del contrato. Es solo un habilitador:
+   * no genera contrato, no cambia el estado de la solicitud ni las revisiones.
+   */
+  async habilitarContrato(solicitudId: string): Promise<void> {
+    const detalle = await this.repo.detalle(solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) {
+      throw new DomainError("La solicitud ya no está pendiente", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (detalle.contratoHabilitado === true) return;
+    await this.repo.habilitarContrato(solicitudId);
+  }
+
+  /**
    * Reenvio tras una observacion local (cliente): exige que TODOS los documentos
    * observados tengan una nueva version vigente del mismo requisito/categoria y,
    * si es asi, los pasa a `reemplazado` (historial), reinicia la revision del
@@ -342,6 +356,10 @@ export class SolicitudesApplicationService {
     tipo?: string;
     /** Requisito del anexo (clave de ANEXOS_REQUERIDOS); RF-13. */
     requisito?: string | null;
+    /** Eventos con contrato posterior: permite anexos iniciales de la reserva. */
+    permitirAnexosIniciales?: boolean;
+    /** True solo cuando el archivo firmado lo genera la firma digital del servidor. */
+    firmaDigital?: boolean;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
 
@@ -356,9 +374,28 @@ export class SolicitudesApplicationService {
       if (detalle.userId !== params.userSub) {
         throw new DomainError("No puedes adjuntar documentos a esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
       }
-      if (!puedeClienteSubirDocumentos(detalle)) {
+      /*
+       * Politica fija: el cliente solo puede firmar digitalmente. Se rechaza
+       * cualquier subida manual de un contrato firmado.
+       */
+      if (
+        params.tipo === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+        params.firmaDigital !== true
+      ) {
         throw new DomainError(
-          "Aun no puedes adjuntar documentos. Se habilita al llegar a la revision Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
+          "Este contrato solo permite firma digital; no se admite subir un contrato firmado manualmente.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (
+        !puedeClienteSubirDocumentos(detalle) &&
+        !(params.permitirAnexosIniciales === true &&
+          enVentanaAnexosReserva(detalle) &&
+          params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO)
+      ) {
+        throw new DomainError(
+          "Aún no puedes adjuntar documentos. Se habilita al llegar a la revisión Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
           API_ERROR_CODES.CONFLICT,
           409,
         );

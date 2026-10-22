@@ -4,7 +4,7 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
@@ -385,6 +385,36 @@ export const solicitudesController = {
     return success(items);
   },
 
+  /** Habilita la firma del contrato posterior; no genera documento ni cambia el flujo. */
+  async habilitarContrato(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const parsed = solicitudesHabilitarContratoSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const puedeHabilitar =
+      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      session.permissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD) ||
+      session.permissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
+      session.permissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL);
+    if (!puedeHabilitar) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para habilitar el contrato", 403);
+    }
+
+    await services.solicitudes.habilitarContrato(parsed.data.solicitudId);
+    await auditarOperacion(
+      request,
+      session,
+      "habilitar-contrato",
+      parsed.data.solicitudId,
+      "Habilito la firma del contrato posterior",
+    );
+    return success({ contratoHabilitado: true });
+  },
+
   async uploadDocumento(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
@@ -403,6 +433,8 @@ export const solicitudesController = {
       userPermissions: session.permissions,
       tipo: raw.tipo,
       requisito: raw.requisito ?? null,
+      permitirAnexosIniciales: raw.permitirAnexosIniciales === true,
+      firmaDigital: raw.firmaDigital === true,
     });
     await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
     return success(doc);

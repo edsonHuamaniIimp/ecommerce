@@ -98,7 +98,12 @@ export const solicitudesService = {
     return internalApi.post<{ ok: boolean }>(`/api/solicitudes/atender-reevaluacion`, body);
   },
 
-  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null }) {
+  /** Habilitador del revisor: muestra al cliente la firma del contrato posterior. */
+  habilitarContrato(body: { solicitudId: string }) {
+    return internalApi.post<{ contratoHabilitado: boolean }>(`/api/solicitudes/habilitar-contrato`, body);
+  },
+
+  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null; permitirAnexosIniciales?: boolean; firmaDigital?: boolean }) {
     return internalApi.post<Record<string, unknown>>(`/api/solicitudes/upload-doc`, body);
   },
 

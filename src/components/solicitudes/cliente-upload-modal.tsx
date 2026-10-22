@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef } from "react";
 import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
@@ -35,6 +35,9 @@ interface Pendiente {
 
 export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
   const esContrato = modo === "contrato";
+  /** Politica fija: solo firma digital, sin subida manual del contrato. */
+  /* Politica fija: todo contrato se firma digitalmente desde Mis solicitudes. */
+  const soloFirmaDigital = esContrato;
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -130,6 +133,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setSending(true);
     setError(null);
     try {
+      if (soloFirmaDigital && !contratoAdmin) {
+        await contratosService.generar({ solicitudId: solicitud.id });
+      }
       const firmado = await contratosService.firmar({ solicitudId: solicitud.id });
       const urlFirmado = firmado.pdfUrl ?? firmado.docxUrl;
       await solicitudesService.uploadDocumento({
@@ -138,6 +144,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         nombre: urlFirmado.split("/").pop() ?? "contrato-firmado",
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         requisito: null,
+        firmaDigital: true,
       });
       toast.success("Contrato firmado digitalmente");
       onSaved();
@@ -165,7 +172,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     dateUtils.isSameOrAfter(firmadoActivo.createdAt, contratoAdmin.createdAt),
   );
   /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
-  const puedeFirmarDigital = contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO &&
+  const puedeFirmarDigital = (soloFirmaDigital || contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO) &&
     !firmaManualVigente && !firmaManualPendiente;
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
@@ -189,12 +196,19 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
-        <h3 className="text-sm font-semibold text-foreground">{esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {soloFirmaDigital ? "Firmar contrato" : esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}
+        </h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
-          {esContrato ? (
+          {soloFirmaDigital ? (
+            <p className="text-[11px] font-semibold text-foreground">
+              El contrato de esta solicitud se firma <span className="text-primary">solo digitalmente</span>.
+              Puedes descargar el contrato vigente; no se admite subir un contrato firmado manualmente.
+            </p>
+          ) : esContrato ? (
             firmadoObservado ? (
               <p className="text-[11px] font-semibold text-warning">
                 Tu contrato firmado fue observado{firmadoObservado.motivoObservacion ? `: ${firmadoObservado.motivoObservacion}` : "."}{" "}
@@ -294,7 +308,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </div>
         )}
 
-        {(
+        {!soloFirmaDigital && (
           <div className="space-y-2 rounded-xl border border-border/70 p-3">
             <div>
               <Label className="text-xs">{esContrato ? "Documentos requeridos (anexos del contrato)" : "Documentos requeridos"}</Label>
@@ -374,7 +388,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                     </Badge>
                   )}
                   {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                  {puedeEliminarDoc(doc) && (
+                  {!soloFirmaDigital && puedeEliminarDoc(doc) && (
                     <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
                       onClick={() => setDeleteConfirm(doc.id)}>
                       <Trash2 className="h-3 w-3" />
@@ -384,7 +398,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               ))}
             </div>
           )}
-          {pendientes.some(p => !p.requisito) && (
+          {!soloFirmaDigital && pendientes.some(p => !p.requisito) && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
               {pendientes.map((p, i) => p.requisito ? null : (
                 <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
@@ -397,27 +411,31 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               ))}
             </div>
           )}
-          <input ref={fileRef} type="file" className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleUpload(file);
-            e.target.value = "";
-          }} />
-          {faltanObs.length > 0 && (
+          {!soloFirmaDigital && (
+            <input ref={fileRef} type="file" className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUpload(file);
+              e.target.value = "";
+            }} />
+          )}
+          {!soloFirmaDigital && faltanObs.length > 0 && (
             <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
               Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
             </p>
           )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-            {esContrato && contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO && (
+            {esContrato && (contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO || soloFirmaDigital) && (
               <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={!puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
                 <PenLine className="mr-1 h-3 w-3" />
                 {sending ? "Firmando..." : "Firmar digitalmente"}
               </Button>
             )}
-            <Button variant="outline" size="sm" className="w-full rounded-full text-xs sm:w-auto" disabled={uploading} onClick={() => abrirSelector(null)}>
-              <Upload className="mr-1 h-3 w-3" />
-              {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
-            </Button>
+            {!soloFirmaDigital && (
+              <Button variant="outline" size="sm" className="w-full rounded-full text-xs sm:w-auto" disabled={uploading} onClick={() => abrirSelector(null)}>
+                <Upload className="mr-1 h-3 w-3" />
+                {uploading ? "Subiendo..." : esContrato ? "Subir contrato firmado" : "Agregar otro documento"}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -431,12 +449,14 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           <Button variant="outline" size="sm" className="rounded-full px-3 text-xs font-medium" onClick={onClose}>
             Cancelar
           </Button>
-          <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
-            disabled={sending || pendientes.length === 0 || faltanObs.length > 0}
-            title={faltanObs.length > 0 ? "Reemplaza todos los anexos observados antes de enviar" : undefined}
-            onClick={handleEnviar}>
-            {sending ? "Enviando..." : "Enviar documentos"}
-          </Button>
+          {!soloFirmaDigital && (
+            <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
+              disabled={sending || pendientes.length === 0 || faltanObs.length > 0}
+              title={faltanObs.length > 0 ? "Reemplaza todos los anexos observados antes de enviar" : undefined}
+              onClick={handleEnviar}>
+              {sending ? "Enviando..." : "Enviar documentos"}
+            </Button>
+          )}
         </div>
       </div>
 

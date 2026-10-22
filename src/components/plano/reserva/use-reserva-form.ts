@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
@@ -14,7 +14,7 @@ import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, cuotasPers
 import { dateUtils } from "@/lib/shared/utils/date";
 import { idiomaODefecto } from "@/lib/shared/utils/idioma";
 import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
-import { ANEXOS_REQUERIDOS, ERROR_LOG_PASOS_RESERVA, type ErrorLogPasoReserva, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_REQUERIDOS, ERROR_LOG_PASOS_RESERVA, ETAPAS_ENVIO_RESERVA, type ErrorLogPasoReserva, type EtapaEnvioReserva, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { datosContratoValidos } from "./interfaces";
 import type { DatosContratoForm, FormDatos, GessLinkedInfo } from "./interfaces";
 
@@ -100,7 +100,12 @@ function prefillEmpresa(prev: FormDatos, empresa: PerfilDTO["empresa"] | null | 
   };
 }
 
-export function useReservaForm(selectedIds: string[], linkedMap: Map<string, GessLinkedInfo>) {
+export function useReservaForm(
+  selectedIds: string[],
+  linkedMap: Map<string, GessLinkedInfo>,
+  opciones: { sinContrato?: boolean } = {},
+) {
+  const sinContrato = opciones.sinContrato ?? true;
   const [reservaOpen, setReservaOpen] = useState(false);
   const [reservaStep, setReservaStep] = useState(0);
   const [formDatos, setFormDatos] = useState<FormDatos>(emptyDatos);
@@ -108,6 +113,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   const [docsRequisitos, setDocsRequisitos] = useState<Record<string, string>>({});
   const [subiendoRequisito, setSubiendoRequisito] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitStage, setSubmitStage] = useState<EtapaEnvioReserva | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmado, setConfirmado] = useState(false);
   const [aceptaRepresentante, setAceptaRepresentante] = useState(false);
@@ -166,20 +172,21 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
   }), [contratoDatos, formDatos, representantePerfil]);
 
   const stepDone = useCallback((step: number): boolean => {
+    if (selectedCount === 0) return false;
     if (step === 0) return isStepDatosCompleto(formDatos);
-    if (step === 1) return cuotasConfigValidas(cuotasConfig, configCuotas) && datosContratoValidos(contratoEfectivo);
-    if (step === 2) return Boolean(contrato) && anexosCompletos && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada);
-    if (step === 3) return Boolean(contrato) && confirmado && aceptaRepresentante && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada);
+    if (step === 1) return cuotasConfigValidas(cuotasConfig, configCuotas) && (sinContrato || datosContratoValidos(contratoEfectivo));
+    if (step === 2) return anexosCompletos && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
+    if (step === 3) return confirmado && aceptaRepresentante && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
     return false;
-  }, [formDatos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada]);
+  }, [selectedCount, formDatos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada, sinContrato]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
     if (step === 1) return stepDone(0);
-    if (step === 2) return stepDone(0) && stepDone(1) && Boolean(contrato);
+    if (step === 2) return stepDone(0) && stepDone(1) && (sinContrato || Boolean(contrato));
     if (step === 3) return stepDone(0) && stepDone(1) && stepDone(2);
     return false;
-  }, [stepDone, contrato]);
+  }, [stepDone, contrato, sinContrato]);
 
   /* Prellena los datos del contrato: la fusion vive en `contratoEfectivo` (sin efectos). */
 
@@ -296,6 +303,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     }
     const result = await gessService.reservar({
       standIds,
+      cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
       ...(holdId ? { holdId } : {}),
       datos: {
         razonSocial: formDatos.razonSocial || formDatos.numeroDocumento,
@@ -322,7 +330,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       return "";
     }
     return result.solicitudId;
-  }, [selectedIds, linkedMap, formDatos]);
+  }, [selectedIds, linkedMap, formDatos, cuotasConfig]);
 
   /** IDs (gess_stand) de la seleccion actual; "" si no se pudieron resolver. */
   const standIdsSeleccionados = useCallback((): string[] => {
@@ -413,39 +421,50 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
    * real, los anexos y el contrato firmado (digital regenerado o el subido por el cliente).
    */
   const handleSubmit = async (holdId?: string): Promise<boolean | string> => {
-    if (!contrato) {
+    if (!sinContrato && !contrato) {
       const msg = "Primero configura las cuotas y genera el contrato.";
       setSubmitError(msg);
       return msg;
     }
     setSubmitting(true);
+    setSubmitStage(ETAPAS_ENVIO_RESERVA.CREANDO_SOLICITUD);
     setSubmitError(null);
     let pasoError: ErrorLogPasoReserva = ERROR_LOG_PASOS_RESERVA.CONFIRMAR;
     try {
-      const solicitudId = contrato.solicitudId || (await crearReserva(holdId));
+      const solicitudId = contrato?.solicitudId || (await crearReserva(holdId));
       if (!solicitudId) return "No se pudo crear la solicitud.";
       /* Retry-safe: si un intento previo creo la solicitud, reutilizarla (evita duplicados). */
-      if (!contrato.solicitudId) setContrato((prev) => (prev ? { ...prev, solicitudId } : prev));
+      const contratoYaTieneArchivo = Boolean(contrato?.docxUrl);
+      setContrato((prev) => (
+        prev
+          ? { ...prev, solicitudId }
+          : { solicitudId, docxUrl: "", pdfUrl: null }
+      ));
 
       /*
-       * Si el contrato ya se genero en un intento anterior, no se vuelve a llamar
-       * `generar`: la solicitud ya no esta en estado `pendiente` y el backend
-       * bloquearia el reintento. `firmar` regenera internamente con el snapshot.
+       * El contrato normal se genero como borrador en el paso de cuotas.
+       * Politica fija: NO se genera nada aqui; al enviar solo se crea
+       * la solicitud y se adjuntan los anexos. El contrato se genera cuando el
+       * cliente lo firma desde Mis solicitudes.
+       * En un reintento no se regenera si el archivo ya existe.
        */
-      if (!contrato.solicitudId) {
+      if (!sinContrato && !contratoYaTieneArchivo) {
         pasoError = ERROR_LOG_PASOS_RESERVA.CUOTAS;
-        await contratosService.generar({
+        setSubmitStage(ETAPAS_ENVIO_RESERVA.GENERANDO_CONTRATO);
+        const generado = await contratosService.generar({
           solicitudId,
           cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
           idioma: idiomaODefecto(leerIdiomaCookie()),
           contrato: contratoPayload(),
         });
+        setContrato({ solicitudId, docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl });
       }
 
       /* Si la firma vigente es la digital, se regenera firmada sobre la solicitud. */
-      let firmadoUrl = contratoFirmadoUrl;
-      if (firmaDigitalAplicada) {
+      let firmadoUrl = sinContrato ? null : contratoFirmadoUrl;
+      if (!sinContrato && firmaDigitalAplicada) {
         pasoError = ERROR_LOG_PASOS_RESERVA.FIRMA_DIGITAL;
+        setSubmitStage(ETAPAS_ENVIO_RESERVA.FIRMANDO_CONTRATO);
         const firmado = await contratosService.firmar({
           solicitudId,
           idioma: idiomaODefecto(leerIdiomaCookie()),
@@ -454,6 +473,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
         firmadoUrl = firmado.pdfUrl ?? firmado.docxUrl;
       }
       pasoError = ERROR_LOG_PASOS_RESERVA.ANEXOS;
+      setSubmitStage(ETAPAS_ENVIO_RESERVA.ADJUNTANDO_DOCUMENTOS);
 
       for (const [requisito, url] of Object.entries(docsRequisitos)) {
         await solicitudesService.uploadDocumento({
@@ -462,10 +482,11 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
           nombre: url.split("/").pop() ?? requisito,
           tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
           requisito,
+          permitirAnexosIniciales: sinContrato,
         });
       }
       pasoError = ERROR_LOG_PASOS_RESERVA.CONFIRMAR;
-      if (firmadoUrl) {
+      if (!sinContrato && firmadoUrl) {
         await solicitudesService.uploadDocumento({
           solicitudId,
           url: firmadoUrl,
@@ -483,6 +504,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
       return msg;
     } finally {
       setSubmitting(false);
+      setSubmitStage(null);
     }
   };
 
@@ -509,6 +531,7 @@ export function useReservaForm(selectedIds: string[], linkedMap: Map<string, Ges
     docsRequisitos,
     subiendoRequisito,
     submitting,
+    submitStage,
     submitError,
     selectedCount,
     singleStand,

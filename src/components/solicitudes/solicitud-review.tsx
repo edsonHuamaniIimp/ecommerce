@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
@@ -103,6 +103,7 @@ export function SolicitudReview({
   });
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [regenerandoContrato, setRegenerandoContrato] = useState(false);
+  const [habilitandoContrato, setHabilitandoContrato] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [confirmReject, setConfirmReject] = useState<{ area: string; accion: string } | null>(null);
@@ -164,6 +165,20 @@ export function SolicitudReview({
     }
   };
 
+  /** Habilita la firma del contrato sin generar ni alterar el flujo. */
+  const habilitarContrato = async () => {
+    setHabilitandoContrato(true);
+    try {
+      await solicitudesService.habilitarContrato({ solicitudId: row.id });
+      toast.success("Contrato habilitado para la firma del cliente");
+      onSaved(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo habilitar el contrato");
+    } finally {
+      setHabilitandoContrato(false);
+    }
+  };
+
   const aprobarLegalBypass = async () => {
     if (ddAccionesBloqueadas) return;
     const ok = await confirm({
@@ -210,6 +225,12 @@ export function SolicitudReview({
   }
   const tieneContrato = contratoSgc.length > 0;
   const contratoUrl = contratoSgc[0]?.url;
+  const puedeEnviarContrato =
+    row.contratoHabilitado !== true &&
+    row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE &&
+    (isAdmin ||
+      canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO) ||
+      canReviewArea(userPermissions, REVISION_AREAS.LEGAL));
   /* El admin ya adjunto un contrato posterior al ultimo firmado del cliente (subsanacion). */
   const tieneContratoAdminNuevo = hayContratoAdminNuevoParaFirmar(row);
   const contratoAdminObservado = row.docsAdjuntos.some(
@@ -528,7 +549,23 @@ export function SolicitudReview({
             <div className="border-t border-border pt-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Documentos adjuntos</h4>
-                <span className="text-[11px] text-muted-foreground">{grupos.length} documento(s) · {unique.length} archivo(s)</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {puedeEnviarContrato && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
+                      disabled={habilitandoContrato || ddAccionesBloqueadas}
+                      title="Habilita al cliente la firma del contrato"
+                      onClick={() => { void habilitarContrato(); }}
+                    >
+                      {habilitandoContrato ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                      <span>Enviar contrato</span>
+                    </Button>
+                  )}
+                  <span className="text-[11px] text-muted-foreground">{grupos.length} documento(s) {"\u00b7"} {unique.length} archivo(s)</span>
+                </div>
               </div>
               {isAdmin && contratoAdminObservado && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">

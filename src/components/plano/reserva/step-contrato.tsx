@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState } from "react";
 import { CheckCircle2, Download, FileText, Loader2, PenLine, Upload, X } from "lucide-react";
@@ -31,6 +31,8 @@ interface Props {
   onRemoveRequisito: (requisito: string) => void;
   /** Stand(s) de esta reserva (ej. "197, 198"), para verificar el contrato firmado. */
   standsLabel: string;
+  /** El contrato se firma al final; este paso solo muestra los anexos. */
+  sinContrato?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export function StepContrato({
   onAddRequisito,
   onRemoveRequisito,
   standsLabel,
+  sinContrato = true,
 }: Props) {
   const firmadoRef = useRef<HTMLInputElement>(null);
   /** Requisito cuyo modal de carga (drag & drop) esta abierto; null = cerrado. */
@@ -89,6 +92,8 @@ export function StepContrato({
 
   return (
     <div className="flex flex-col gap-3 pt-3">
+      {!sinContrato && (
+        <>
       {/* Contrato generado */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
@@ -229,6 +234,8 @@ export function StepContrato({
           </p>
         </div>
       </div>
+        </>
+      )}
 
       {/* Documentos adjuntos (3 requisitos) */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">

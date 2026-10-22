@@ -248,6 +248,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     iimpReservaAt: row.iimpReservaAt ?? null,
     estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
     flgActivo: row.flgActivo,
+    contratoHabilitado: row.contratoHabilitado,
     documentos,
     imagenes,
     docsAdjuntosCount: row._count.docsAdjuntos,
@@ -853,6 +854,14 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.solicitud.update({
       where: { id: solicitudId },
       data: { recortePlanoUrl: url },
+    });
+  }
+
+  /** Habilita la firma del contrato posterior sin generar ni modificar documentos. */
+  async habilitarContrato(solicitudId: string): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { contratoHabilitado: true },
     });
   }
 

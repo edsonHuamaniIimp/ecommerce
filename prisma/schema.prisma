@@ -39,7 +39,6 @@ model Evento {
   flgActivo     Boolean   @default(true) @map("flg_activo")
   flgVisible    Boolean   @default(true) @map("flg_visible")
   plano         String    @default("gess") @db.VarChar(50)
-
   eventoPadre        EventoPadre         @relation(fields: [eventoPadreId], references: [id])
   tiposStand         TipoStand[]
   stands             Stand[]
@@ -481,6 +480,8 @@ model Solicitud {
   iimpReservaAt       DateTime? @map("iimp_reserva_at")
   flgActivo           Boolean   @default(true) @map("flg_activo")
   estado              String?   @db.VarChar(20)
+  /// Habilitador del revisor: muestra al cliente la firma del contrato posterior.
+  contratoHabilitado  Boolean   @default(false) @map("contrato_habilitado")
   /// Auditoria de la ultima creacion/actualizacion de la solicitud.
   createdBy           String?   @map("created_by") @db.VarChar(200)
   updatedBy           String?   @map("updated_by") @db.VarChar(200)

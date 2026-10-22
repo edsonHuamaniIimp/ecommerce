@@ -63,8 +63,8 @@ export const eventosController = {
 
     const tocaEdicion =
       body.anio !== undefined || body.fecha_inicio !== undefined || body.fecha_fin !== undefined ||
-      body.plano !== undefined || body.imagen !== undefined || body.modal_info !== undefined ||
-      body.tipo_evento !== undefined || body.codigo_evento !== undefined;
+      body.plano !== undefined || body.imagen !== undefined ||
+      body.modal_info !== undefined || body.tipo_evento !== undefined || body.codigo_evento !== undefined;
     const tocaToggle = body.estado !== undefined || body.flg_visible !== undefined || body.flg_activo !== undefined;
 
     if (tocaEdicion && !puede(session.permissions, PERMISSIONS.EVENTS_EDIT)) {

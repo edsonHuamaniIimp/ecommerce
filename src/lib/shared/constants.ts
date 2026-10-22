@@ -32,6 +32,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/maestra",
   "/api/exhibidoras",
   "/api/eventos/modal-info",
+  "/api/eventos/config",
   "/api/stands/exhibidora",
   "/api/stands/contrato",
   "/api/planos/publico",
@@ -1935,6 +1936,20 @@ export const ERROR_LOG_PASOS_RESERVA = {
 } as const;
 
 export type ErrorLogPasoReserva = (typeof ERROR_LOG_PASOS_RESERVA)[keyof typeof ERROR_LOG_PASOS_RESERVA];
+
+/** Politica fija: el contrato siempre se genera y firma al final. */
+export const CONTRATO_SIEMPRE_AL_FINAL = true;
+
+/** Etapas visibles del envio de la solicitud de reserva. */
+export const ETAPAS_ENVIO_RESERVA = {
+  CREANDO_SOLICITUD: "Creando la solicitud...",
+  GENERANDO_CONTRATO: "Generando el contrato...",
+  FIRMANDO_CONTRATO: "Firmando el contrato...",
+  ADJUNTANDO_DOCUMENTOS: "Adjuntando documentos...",
+  ENVIANDO: "Enviando...",
+} as const;
+
+export type EtapaEnvioReserva = (typeof ETAPAS_ENVIO_RESERVA)[keyof typeof ETAPAS_ENVIO_RESERVA];
 
 /* ================================================================
    Estilos de Badge (colores semanticos por estado)

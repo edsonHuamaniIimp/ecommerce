@@ -18,12 +18,20 @@ interface Props {
   stepDone: (step: number) => boolean;
   canGoStep: (step: number) => boolean;
   onGoStep: (step: ReservaStep) => void;
+  sinContrato?: boolean;
 }
 
-export function StepIndicator({ currentStep, stepDone, canGoStep, onGoStep }: Props) {
+export function StepIndicator({ currentStep, stepDone, canGoStep, onGoStep, sinContrato = false }: Props) {
+  const steps = [
+    ...STEPS.slice(0, 2),
+    sinContrato
+      ? { key: RESERVA_STEPS.CONTRATO, label: "Documentos", sub: "Anexos requeridos" }
+      : STEPS[2],
+    STEPS[3],
+  ] as const;
   return (
     <div className="mb-4 flex items-start justify-between gap-1">
-      {STEPS.map((step, idx) => {
+      {steps.map((step, idx) => {
         const done = stepDone(step.key);
         const clickable = canGoStep(step.key);
         const isCurrent = currentStep === step.key;
@@ -72,7 +80,7 @@ export function StepIndicator({ currentStep, stepDone, canGoStep, onGoStep }: Pr
                 <span className="hidden text-[10px] text-muted-foreground/70 sm:inline">{step.sub}</span>
               </span>
             </Button>
-            {idx < STEPS.length - 1 && (
+            {idx < steps.length - 1 && (
               <div
                 className={`mt-4 h-0.5 flex-1 rounded-full transition-colors ${
                   currentStep > step.key ? "bg-success" : "bg-border"

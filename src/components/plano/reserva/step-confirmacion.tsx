@@ -20,6 +20,8 @@ interface Props {
   /** Declaracion del solicitante como representante legal de la empresa. */
   aceptaRepresentante: boolean;
   onAceptaRepresentanteChange: (v: boolean) => void;
+  /** Eventos con contrato posterior: la nota final no debe mencionar contrato. */
+  sinContrato?: boolean;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -46,7 +48,7 @@ function CardResumen({ titulo, icono, badge, children }: { titulo: string; icono
   );
 }
 
-export function StepConfirmacion({ datos, selectedLabels, selectedCount, docsCount, cuotasPago, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange }: Props) {
+export function StepConfirmacion({ datos, selectedLabels, selectedCount, docsCount, cuotasPago, confirmado, onConfirmadoChange, aceptaRepresentante, onAceptaRepresentanteChange, sinContrato = false }: Props) {
   const [termsOpen, setTermsOpen] = useState(false);
   const esFactura = datos.tipoComprobante === TIPOS_COMPROBANTE.FACTURA;
   const comprobante = esFactura ? "Factura" : datos.tipoComprobante === TIPOS_COMPROBANTE.BOLETA ? "Boleta" : "-";
@@ -158,7 +160,7 @@ export function StepConfirmacion({ datos, selectedLabels, selectedCount, docsCou
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
           <span className="font-semibold">Nota importante:</span> al enviar la solicitud, {variosStands ? "tus stands quedarán sujetos" : "tu stand quedará sujeto"} al
-          proceso de revisión hasta que el Comité Comercial del IIMP emita el contrato marco.
+          proceso de revisión {sinContrato ? "hasta que el IIMP confirme la reserva." : "hasta que el Comité Comercial del IIMP emita el contrato marco."}
         </span>
       </div>
 

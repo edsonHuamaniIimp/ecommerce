@@ -10,7 +10,7 @@ import { gessService } from "@/lib/client/api/services/gess-service";
 import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA } from "@/lib/shared/constants";
+import { LS_KEYS, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA } from "@/lib/shared/constants";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -196,6 +196,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     docsRequisitos,
     subiendoRequisito,
     submitting,
+    submitStage,
     submitError,
     selectedCount,
     singleStand,
@@ -220,7 +221,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     subirFirmaPerfil,
     firmaDigitalAplicada,
     firmarDigitalmente,
-  } = useReservaForm(selectedIds, linkedMap);
+  } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL });
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
 
@@ -522,6 +523,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         docsRequisitos={docsRequisitos}
         subiendoRequisito={subiendoRequisito}
         submitting={submitting}
+        submitStage={submitStage}
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
@@ -559,6 +561,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         onSubirFirmaPerfil={subirFirmaPerfil}
         firmaDigitalAplicada={firmaDigitalAplicada}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
+        sinContrato={CONTRATO_SIEMPRE_AL_FINAL}
         onSubmit={async () => {
           const result = await handleSubmit();
           if (result === true) {

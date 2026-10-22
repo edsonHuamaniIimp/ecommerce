@@ -11,7 +11,7 @@ import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -204,7 +204,6 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const router = useRouter();
   const [plano, setPlano] = useState<PlanoDefinition | null>(null);
   const [planoLoading, setPlanoLoading] = useState(true);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -430,6 +429,12 @@ map.set(String(bloqueId), {
   // (descarta ids que desaparecieron o quedaron reservados).
   useEffect(() => {
     if (!dataReady) return;
+    /*
+     * Mientras el usuario tiene un hold activo, el mapa puede reflejar su propio
+     * stand como no disponible. No purgar la seleccion en ese caso: el wizard
+     * conserva los stands que el usuario esta reservando.
+     */
+    if (holdReserva || holdReservaRef.current || holdSolicitudRef.current) return;
     const { selecciones, sincronizarPlano } = usePlanoCarrito.getState();
     const ids = selecciones[planoId] ?? [];
     if (ids.length === 0) return;
@@ -440,7 +445,7 @@ map.set(String(bloqueId), {
       validos.push(carritoInfoDe(id));
     }
     sincronizarPlano(planoId, validos);
-  }, [dataReady, planoId, linkedMap, carritoInfoDe]);
+  }, [dataReady, planoId, linkedMap, carritoInfoDe, holdReserva]);
 
   /*
    * RF-08: preseleccion desde `/mapa?bloque=...` (link de la bandeja). Abre el detalle
@@ -460,6 +465,7 @@ map.set(String(bloqueId), {
     });
   }, [bloqueInicial, dataReady, linkedMap, planoId, seleccionarSolo, carritoInfoDe]);
 
+  const sinContrato = CONTRATO_SIEMPRE_AL_FINAL;
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -467,6 +473,7 @@ map.set(String(bloqueId), {
     docsRequisitos,
     subiendoRequisito,
     submitting,
+    submitStage,
     submitError,
     selectedCount,
     singleStand,
@@ -491,7 +498,7 @@ map.set(String(bloqueId), {
     subirFirmaPerfil,
     firmaDigitalAplicada,
     firmarDigitalmente,
-  } = useReservaForm(idsGlobales, linkedMap);
+  } = useReservaForm(idsGlobales, linkedMap, { sinContrato });
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
 
@@ -1205,6 +1212,7 @@ map.set(String(bloqueId), {
         docsRequisitos={docsRequisitos}
         subiendoRequisito={subiendoRequisito}
         submitting={submitting}
+        submitStage={submitStage}
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
@@ -1242,6 +1250,7 @@ map.set(String(bloqueId), {
         onSubirFirmaPerfil={subirFirmaPerfil}
         firmaDigitalAplicada={firmaDigitalAplicada}
         onFirmarDigital={() => { void firmarDigitalmente(); }}
+        sinContrato={sinContrato}
         onSubmit={async () => {
           const result = await handleSubmit(holdReserva?.holdId);
           if (result === true) {

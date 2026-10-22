@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { SolicitudesApplicationService } from "../solicitudes-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow } from "@/domain/models/entities";
@@ -48,6 +48,7 @@ function repoMock(): ISolicitudesRepository {
     findNombreUsuario: vi.fn().mockResolvedValue(null),
     guardarRecortePlano: vi.fn(),
     guardarPlanCuotas: vi.fn(),
+    habilitarContrato: vi.fn(),
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),
     datosReservaIImp: vi.fn(),
@@ -371,6 +372,7 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
       ...base,
       url: "/uploads/firmado.pdf",
       tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      firmaDigital: true,
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
@@ -383,6 +385,36 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
       null,
       null,
     );
+  });
+
+  it("rechaza subir manualmente el contrato firmado cuando la firma es digital", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleReserva());
+    const service = svc(repo);
+
+    await expect(
+      service.uploadDocumento({
+        ...base,
+        url: "/uploads/firmado.pdf",
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("acepta el contrato firmado generado por la firma digital", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleReserva());
+    const service = svc(repo);
+
+    await service.uploadDocumento({
+      ...base,
+      url: "/uploads/firmado-digital.pdf",
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      firmaDigital: true,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
   });
 
   it("permite anexos cuando la solicitud fue observada", async () => {
@@ -449,6 +481,23 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
       }),
     ).rejects.toMatchObject({ status: 409 });
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("permite anexos iniciales de una reserva sin contrato cuando el flujo lo indica", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleReserva({ docsAdminCount: 0, docsAdjuntos: [] }));
+    const service = svc(repo);
+
+    await expect(
+      service.uploadDocumento({
+        ...base,
+        url: "/uploads/anexo.pdf",
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: "ficha-ruc",
+        permitirAnexosIniciales: true,
+      }),
+    ).resolves.toBeUndefined();
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
   });
 });
 
@@ -664,5 +713,36 @@ describe("revisar: solo documentos del cliente", () => {
       }),
     ).rejects.toMatchObject({ status: 409 });
     expect(repo.observarDocumentos).not.toHaveBeenCalled();
+  });
+});
+
+describe("SolicitudesApplicationService.habilitarContrato", () => {
+  it("solo enciende el habilitador sin tocar el flujo ni generar documentos", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue({
+      userId: "user-1",
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      contratoHabilitado: false,
+    } as unknown as SolicitudRow);
+    const service = svc(repo);
+
+    await service.habilitarContrato(ID);
+
+    expect(repo.habilitarContrato).toHaveBeenCalledWith(ID);
+    expect(repo.crearOActualizarRevision).not.toHaveBeenCalled();
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+    expect(repo.guardarPlanCuotas).not.toHaveBeenCalled();
+  });
+
+  it("no habilita una solicitud que ya no esta pendiente", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue({
+      userId: "user-1",
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+    } as unknown as SolicitudRow);
+    const service = svc(repo);
+
+    await expect(service.habilitarContrato(ID)).rejects.toMatchObject({ status: 409 });
+    expect(repo.habilitarContrato).not.toHaveBeenCalled();
   });
 });

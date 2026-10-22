@@ -45,6 +45,8 @@ export interface SolicitudDocumentosGate {
   sgcSubsanacionMotivo?: string | null;
   /** Documentos adjuntos (para detectar si el admin ya subio un contrato corregido). */
   docsAdjuntos?: DocumentoLike[] | null;
+  /** El revisor habilito la firma del contrato del cliente. */
+  contratoHabilitado?: boolean;
   /** Revisiones por area de la solicitud. */
   revisiones: RevisionLike[];
 }
@@ -255,8 +257,17 @@ export function enVentanaObservacionLocal(s: SolicitudDocumentosGate): boolean {
 }
 
 /**
+ * Ventana de anexos iniciales: la reserva ya existe en estado pendiente y aun no
+ * hay contrato del administrador. Aplica a eventos configurados con contrato posterior.
+ */
+export function enVentanaAnexosReserva(s: SolicitudDocumentosGate): boolean {
+  return s.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && s.docsAdminCount === 0;
+}
+
+/**
  * Regla unica (server + cliente) para que un usuario **cliente** adjunte documentos:
  *  - contrato de reserva (el admin ya subio el contrato), o
+ *  - anexos iniciales de una reserva con contrato posterior, o
  *  - ventana Legal (SGC) mientras no se enviaron documentos al SGC, o
  *  - preparando una re-evaluacion, o
  *  - solicitud observada por el Asociado (reemplazo de documentos).
@@ -272,21 +283,27 @@ export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean
 }
 
 /**
- * El cliente aun debe firmar el contrato del administrador: hay contrato vigente
- * mas nuevo que su ultimo firmado (o nunca firmo). Evita volver a pedir la firma
- * cuando ya subio la version firmada de ese contrato.
+ * El revisor habilito la firma y el cliente aun no firmo. El contrato se
+ * genera recien al firmar desde Mis solicitudes.
  */
-export function contratoReservaPendienteFirma(s: SolicitudDocumentosGate): boolean {
-  if (s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) return false;
-  const docs = s.docsAdjuntos ?? [];
-  const activo = (d: DocumentoLike) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
-  const esContratoAdmin = (d: DocumentoLike) =>
-    d.userId === null &&
-    (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null || d.categoria === undefined);
-  const contratoAdmin = docs.filter((d) => activo(d) && esContratoAdmin(d)).sort(porFechaDesc)[0];
-  if (!contratoAdmin) return false;
-  const firmado = docs
-    .filter((d) => activo(d) && d.userId === s.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+export function contratoHabilitadoPendienteFirma(s: SolicitudDocumentosGate): boolean {
+  if (
+    s.contratoHabilitado !== true ||
+    s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE
+  ) {
+    return false;
+  }
+  const firmado = (s.docsAdjuntos ?? [])
+    .filter((d) =>
+      (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+      d.userId === s.userId &&
+      d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    )
     .sort(porFechaDesc)[0];
-  return !firmado || dateUtils.isBefore(firmado.createdAt, contratoAdmin.createdAt);
+  return !firmado;
+}
+
+/** El cliente solo puede firmar cuando el revisor habilito la firma. */
+export function contratoClientePendienteFirma(s: SolicitudDocumentosGate): boolean {
+  return contratoHabilitadoPendienteFirma(s);
 }

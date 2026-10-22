@@ -7,6 +7,9 @@ import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repo
 import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
+import { calcularImportes } from "@/lib/shared/utils/importes";
+import { modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
@@ -112,6 +115,8 @@ export class ReservaApplicationService {
   async crear(request: {
     standIds: string[];
     documentos?: string[];
+    /** Cronograma elegido en el wizard: snapshot para el contrato final. */
+    cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
     datos?: {
       razonSocial: string;
       tipoDocumento: string;
@@ -137,7 +142,7 @@ export class ReservaApplicationService {
     const idsUnicos = [...new Set(request.standIds)];
 
     // Fase 1: validar todo antes de mutar (existencia, evento y estado).
-    const validos: Array<{ dbId: string; standCode: string }> = [];
+    const validos: Array<{ dbId: string; standCode: string; precio: number }> = [];
     let eventoComun: string | null = request.eventoId ?? null;
 
     /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueño). */
@@ -179,7 +184,7 @@ export class ReservaApplicationService {
         conflicted.push(`${stand.standCode} esta pre-reservado para otra empresa`);
         continue;
       }
-      validos.push({ dbId: stand.id, standCode: stand.standCode });
+      validos.push({ dbId: stand.id, standCode: stand.standCode, precio: resolverPrecioStand(stand) });
       standCodes.push(stand.standCode);
     }
 
@@ -243,6 +248,18 @@ export class ReservaApplicationService {
         );
         for (const area of REVISION_AREA_ORDER) {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
+        }
+
+        /* Snapshot del cronograma elegido: el contrato se genera al final. */
+        if (request.cuotas && request.cuotas.length > 0) {
+          const neto = validos.reduce((total, stand) => total + stand.precio, 0);
+          const importes = calcularImportes(neto);
+          const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
+          const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
+          await this.solicitudesRepo.guardarPlanCuotas(solicitudId, {
+            modalidad: modalidadDeCuotas(porcentajes),
+            cuotas: planCuotasConFechas(importes.total, porcentajes, fechas),
+          });
         }
 
         // Alerta a los revisores del nivel local "Asociado" (unifica Logistica + Comunicacion).

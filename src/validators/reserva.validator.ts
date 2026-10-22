@@ -5,6 +5,10 @@ export const reservaRequestSchema = z.object({
   /** Hold creado al abrir el wizard. */
   holdId: z.string().uuid().optional(),
   documentos: z.array(z.string()).optional(),
+  cuotas: z.array(z.object({
+    porcentaje: z.number().min(0).max(100),
+    fechaVencimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })).min(1).max(9).optional(),
   datos: z.object({
     razonSocial: z.string(),
     tipoDocumento: z.string(),

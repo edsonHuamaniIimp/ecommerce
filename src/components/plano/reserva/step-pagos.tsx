@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, CheckCircle2, CreditCard, FileSignature, FileText, ShieldCheck } from "lucide-react";
@@ -26,6 +26,8 @@ interface Props {
   onContratoDatosChange: (datos: DatosContratoForm) => void;
   /** Contrato generado (se muestra el aviso cuando ya existe). */
   contrato: { docxUrl: string; pdfUrl: string | null } | null;
+  /** El contrato se firma al final; aqui solo se configuran cuotas. */
+  sinContrato?: boolean;
 }
 
 const OPCIONES: Array<{ cantidad: ModalidadCuotas; etiqueta: string; detalle: string }> = [
@@ -38,7 +40,7 @@ const OPCIONES: Array<{ cantidad: ModalidadCuotas; etiqueta: string; detalle: st
  * Paso 2: el cliente elige una modalidad de pago fija. Las fechas y porcentajes
  * los determina el cronograma del contrato; no se editan a mano.
  */
-export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato }: Props) {
+export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato, sinContrato = true }: Props) {
   const neto = precios.reduce((s, p) => s + p, 0);
   const importes = calcularImportes(neto);
   const moneda = MONEDAS.USD;
@@ -305,6 +307,8 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
       )}
 
       {/* Datos del exhibidor para el cuerpo del contrato */}
+      {!sinContrato && (
+        <>
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
           <span className="flex items-center gap-2 text-[10px] font-semibold tracking-wider text-primary uppercase">
@@ -387,13 +391,15 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
         </div>
       </div>
 
-      {contrato && (
+      {!sinContrato && contrato && (
         <div className="flex items-start gap-2.5 rounded-xl border border-success/30 bg-success/10 px-3.5 py-3">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-success" />
           <p className="text-xs leading-relaxed text-muted-foreground">
             Contrato generado con esta configuración. Puedes descargarlo y firmarlo en el siguiente paso.
           </p>
         </div>
+      )}
+        </>
       )}
 
       {valido && (personalizado || seleccionada) && (

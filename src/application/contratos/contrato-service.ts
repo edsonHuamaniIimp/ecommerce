@@ -1,4 +1,4 @@
-import 'server-only';
+﻿import 'server-only';
 
 import fs from "node:fs";
 import os from "node:os";
@@ -172,19 +172,38 @@ export class ContratoApplicationService {
     const isAdmin =
       input.userPermissions.includes(PERMISSIONS.ADMIN_FULL) ||
       input.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
-    if (!isAdmin && detalle.userId !== input.userSub) {
+    /*
+     * El revisor (Asociado/Legal) habilita la firma; el cliente no puede generar
+     * el contrato antes de esa accion.
+     */
+    const esRevisorContrato =
+      input.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
+      input.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL);
+    const puedeGenerar = isAdmin || esRevisorContrato;
+    if (!puedeGenerar && detalle.userId !== input.userSub) {
       throw new DomainError("No puedes generar el contrato de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
     }
     /* El cliente puede (re)generar mientras la solicitud este en una ventana habilitada
      * (pendiente, observada, Legal/SGC o subsanacion); despues, solo admin. */
-    if (!isAdmin && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
+    if (!puedeGenerar && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes regenerar el contrato.", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true) {
+      throw new DomainError(
+        "El IIMP aún no ha habilitado la firma del contrato de esta solicitud.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
     }
 
     /* Datos de la empresa del cliente (cuenta → empresa del Portal). */
     /* Datos de la empresa del cliente (cuenta -> empresa del Portal). Se usa el correo
      * de la sesion: el correo de contacto de la solicitud puede ser distinto. */
-    const emailPropietario = input.userEmail ?? detalle.email;
+    /* Al generar para el cliente, usar los datos de la solicitud, no la cuenta
+     * del revisor/admin que ejecuta la accion. */
+    const emailPropietario = isAdmin || esRevisorContrato
+      ? (detalle.email ?? input.userEmail)
+      : (input.userEmail ?? detalle.email);
     const empresaId = emailPropietario ? await this.auth.findEmpresaIdDeUsuario(emailPropietario) : null;
     const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { SolicitudesApplicationService } from "../solicitudes-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { ISgcRepository } from "@/domain/ports/sgc-repository";
@@ -58,6 +58,7 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     findNombreUsuario: vi.fn().mockResolvedValue(null),
     guardarRecortePlano: vi.fn(),
     guardarPlanCuotas: vi.fn(),
+    habilitarContrato: vi.fn(),
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),
     datosReservaIImp: vi.fn(),
@@ -210,6 +211,7 @@ describe("SolicitudesApplicationService + SGC", () => {
       userEmail: "cliente@iimp.org.pe",
       userPermissions: [],
       tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      firmaDigital: true,
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
@@ -336,6 +338,7 @@ describe("SolicitudesApplicationService + SGC", () => {
         userEmail: "cliente@iimp.org.pe",
         userPermissions: [],
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        firmaDigital: true,
       }),
     ).rejects.toThrow(/otra solicitud/);
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
@@ -357,6 +360,7 @@ describe("SolicitudesApplicationService + SGC", () => {
       userEmail: "cliente@iimp.org.pe",
       userPermissions: [],
       tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      firmaDigital: true,
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import PizZip from "pizzip";
@@ -75,6 +75,7 @@ function solicitudRow(): SolicitudRow {
     clienteDocsAdjuntosCount: 0,
     docsAdminCount: 0,
     docsAdjuntos: [],
+    contratoHabilitado: true,
     updatedAt: new Date("2026-10-03T00:00:00Z"),
     revisiones: [] as RevisionEntity[],
     reevaluaciones: [] as ReevaluacionEntity[],
@@ -827,5 +828,23 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("Modalidad 4 X:");
     expect(texto).toContain("Cuota 4: 25% del total");
     expect(texto).toContain("30/04/2027");
+  });
+});
+
+describe("ContratoApplicationService.generar — contrato posterior", () => {
+  it("no permite al cliente generar el contrato antes de que el revisor lo habilite", async () => {
+    const { svc } = build({
+      detalle: {
+        contratoHabilitado: false,
+        docsAdjuntos: [],
+      },
+    });
+
+    await expect(svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(2),
+      userSub: "user-1",
+      userPermissions: [],
+    })).rejects.toThrow("aún no ha habilitado la firma del contrato");
   });
 });

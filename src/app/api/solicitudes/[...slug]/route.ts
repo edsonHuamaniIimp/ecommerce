@@ -17,6 +17,7 @@ export const { GET, POST } = createRouter({
     "atender-reevaluacion": (req) => solicitudesController.atenderReevaluacion(req),
     baja: (req) => solicitudesController.darDeBaja(req),
     "orden-pago": (req) => solicitudesController.ordenPago(req),
+    "habilitar-contrato": (req) => solicitudesController.habilitarContrato(req),
     "upload-doc": (req) => solicitudesController.uploadDocumento(req),
     "recorte-plano": (req) => solicitudesController.guardarRecortePlano(req),
     "eliminar-doc": (req) => solicitudesController.eliminarDocumento(req),

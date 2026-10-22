@@ -1,4 +1,4 @@
-import type { ModalInfoConfig } from "@/domain/models/entities";
+﻿import type { ModalInfoConfig } from "@/domain/models/entities";
 
 export interface EventoPresalaDTO {
   id: string;

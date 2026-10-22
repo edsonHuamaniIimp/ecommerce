@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
@@ -12,6 +12,7 @@ vi.mock("@/lib/server/idioma", () => ({
 import { ReservaApplicationService } from "../reserva-service";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
 function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null } | null = null): IAuthRepository {
@@ -242,5 +243,42 @@ describe("ReservaApplicationService - hold temporal", () => {
     expect(res.ok).toBe(false);
     expect(res.message).toContain("expiro");
     expect(update).not.toHaveBeenCalled();
+  });
+});
+describe("ReservaApplicationService - snapshot de cuotas", () => {
+  it("persiste el cronograma del wizard al crear la solicitud", async () => {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      crearRevisionInicial: vi.fn(async () => ({})),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = new ReservaApplicationService(repo, solicitudesRepo, authRepoFalso());
+
+    const res = await svc.crear({
+      standIds: ["g1"],
+      eventoId: "evt-1",
+      userSub: "user-1",
+      cuotas: [
+        { porcentaje: 40, fechaVencimiento: "2026-11-15" },
+        { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+        { porcentaje: 30, fechaVencimiento: "2027-06-15" },
+      ],
+    });
+
+    expect(res.ok).toBe(true);
+    expect(solicitudesRepo.guardarPlanCuotas).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({
+        modalidad: "tres_cuotas",
+        cuotas: expect.arrayContaining([
+          expect.objectContaining({ porcentaje: 40, fechaVencimiento: "2026-11-15" }),
+          expect.objectContaining({ porcentaje: 30, fechaVencimiento: "2027-02-15" }),
+          expect.objectContaining({ porcentaje: 30, fechaVencimiento: "2027-06-15" }),
+        ]),
+      }),
+    );
   });
 });

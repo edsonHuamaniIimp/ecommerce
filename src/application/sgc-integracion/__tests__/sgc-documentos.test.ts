@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
 import type { SgcIntegracionConfig } from "../sgc-integracion-service";
 import type {
@@ -176,6 +176,7 @@ function solicitudRepoMock(
     findNombreUsuario: vi.fn().mockResolvedValue(null),
     guardarRecortePlano: vi.fn(),
     guardarPlanCuotas: vi.fn(),
+    habilitarContrato: vi.fn(),
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),
     datosReservaIImp: vi.fn(),
