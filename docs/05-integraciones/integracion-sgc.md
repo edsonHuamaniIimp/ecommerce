@@ -581,3 +581,35 @@ flowchart TD
   firmado; si es **personalizado** solo descarga y adjunta. En modo `nuevo_contrato` el reenvío
   exige un **firmado posterior al contrato corregido** del admin
   (`hayFirmadoPosteriorAlContratoCorregido`).
+
+## Actualización 22-oct-2026: solo documentos vigentes
+
+- `solicitud_documento.estado` (`ESTADOS_DOCUMENTO_SOLICITUD`: `activo` | `observado` |
+  `reemplazado` | `baja`): el SGC envía **solo versiones vigentes** (estado vacío/legacy o
+  `activo`); las observadas/reemplazadas quedan como historial y no se envían.
+- `seleccionarContrato` (prioridad): 1) último `contrato_firmado` **vigente** del cliente,
+  2) último contrato **vigente** del admin (`userId` null), 3) columna legacy `documentos`.
+- Anexos (`subirAnexosDeSolicitud`): solo documentos vigentes del cliente.
+- Nuevo flujo de **observación de documentos** (revisor Asociado): el cliente subsana y
+  reenvía con `POST /api/solicitudes/reenviar-observacion`; el reenvío exige reemplazo de
+  todos los observados y, si aplica, `contrato_firmado` vigente **posterior** al contrato
+  vigente del administrador.
+- Contratos: la plantilla se genera **al enviar** la reserva; la regeneración requiere que el
+  revisor habilite la firma (`POST /api/solicitudes/habilitar-contrato`). En rechazo del SGC
+  sigue vigente el panel "Resubir contrato generado (plantilla)" / "Subir PDF personalizado".
+
+## Cutover a SGC producción (22-oct-2026)
+
+- `SGC_API_URL=https://gestion-contratos.sistemasiimp.org.pe/api/integrations/v1`
+  (QA: `https://qa-gestion-contratos.sistemasiimp.org.pe/api/integrations/v1`).
+- Credenciales en **Secrets Manager** e inyectadas al task como `SGC_API_KEY` /
+  `SGC_WEBHOOK_SECRET`: `iimp-ctrst-prod-sgc-api-key` (Bearer `sgc_…`) y
+  `iimp-ctrst-prod-sgc-webhook-secret` (`whsec_…`).
+- `SGC_AREA_CODE=EVENTOS`; `SGC_CONTRACT_TYPE_CODE=AUSPICIO`. El catálogo de producción es
+  `PROVEEDOR`, `ARRENDAMIENTO`, `SERVICIOS`, `AUSPICIO`, `RECLUTAMIENTO_DE_AUSPICIADORES` —
+  **no existe `EVENTOS` como tipo de contrato**.
+- Verificado end-to-end desde el contenedor de prod: `GET /contract-types` → **200**.
+- **Pendiente en el panel del SGC prod**: registrar la suscripción de webhooks hacia
+  `https://ecommerce.sistemasiimp.org.pe/sgc` con el `whsec_…` nuevo (la app además deduplica
+  por `x-sgc-delivery`).
+- ECS: task definition `:16` (memoria 2048 MB para evitar OOM de arranque en deploys).
