@@ -9,6 +9,8 @@ export interface GessPaginationParams {
   tipo?: string;
   /** Bloques del plano (pabellon seleccionado) para filtrar por vinculo. */
   bloqueIds?: string[];
+  /** Codigo del plano (pabellon): el servicio resuelve sus bloques en el servidor. */
+  planoCodigo?: string;
   /** Solo stands sin bloque vinculado. */
   sinPabellon?: boolean;
 }

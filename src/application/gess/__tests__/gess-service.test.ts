@@ -56,6 +56,25 @@ function catalogoMock(filas: Array<{ tipo: string; imagenUrl: string }> = []): I
 const catalogo = catalogoMock();
 
 describe("GessApplicationService.listar (RF-09)", () => {
+  it("resuelve los bloques del plano en el servidor cuando se filtra por planoCodigo", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findAllPaginated).mockResolvedValue(pagina([stand()]));
+    vi.mocked(repo.datosEmpresaPorStands).mockResolvedValue(new Map());
+    const plano = {
+      detallePorCodigo: vi.fn().mockResolvedValue({
+        bloques: [{ bloqueId: "BLOQUE-340" }, { bloqueId: "BLOQUE-341" }],
+      }),
+    } as unknown as IPlanoRepository;
+    const svc = new GessApplicationService(repo, api, plano, catalogo);
+
+    await svc.listar("ev1", { page: 1, perPage: 10, planoCodigo: "pab-22937" });
+
+    expect(repo.findAllPaginated).toHaveBeenCalledWith(
+      "ev1",
+      expect.objectContaining({ planoCodigo: "pab-22937", bloqueIds: ["BLOQUE-340", "BLOQUE-341"] }),
+    );
+  });
+
   it("completa la razon social de los stands reservados desde empresa de la cuenta", async () => {
     const repo = mockRepo();
     vi.mocked(repo.findAllPaginated).mockResolvedValue(pagina([stand()]));

@@ -56,10 +56,20 @@ export class GessApplicationService {
 
   async listar(
     eventoId: string,
-    params: { page: number; perPage: number; search?: string; estado?: string; tipo?: string; bloqueIds?: string[]; sinPabellon?: boolean },
+    params: { page: number; perPage: number; search?: string; estado?: string; tipo?: string; bloqueIds?: string[]; planoCodigo?: string; sinPabellon?: boolean },
     viewer?: EmpresaViewer | null,
   ) {
-    const result = await this.repo.findAllPaginated(eventoId, params);
+    /*
+     * El pabellon llega como codigo de plano: los bloques se resuelven en el
+     * servidor para no exceder el limite del WAF/CloudFront con listas largas
+     * de `bloqueIds` en el query string (Pabellon 4/5 superaban el limite).
+     */
+    const filtroRepo = { ...params };
+    if (params.planoCodigo && !params.bloqueIds?.length) {
+      const plano = await this.planoRepo.detallePorCodigo(params.planoCodigo).catch(() => null);
+      filtroRepo.bloqueIds = plano?.bloques.map((b) => b.bloqueId) ?? [];
+    }
+    const result = await this.repo.findAllPaginated(eventoId, filtroRepo);
 
     /*
      * RF-09: completa razon social y logo de los stands reservados desde la empresa/usuario

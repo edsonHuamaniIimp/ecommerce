@@ -49,7 +49,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
   const { confirm, confirmDialog } = useConfirm();
   const [rows, setRows] = useState<GessStandDTO[]>([]);
   const [bloquePlano, setBloquePlano] = useState<Map<string, string>>(new Map());
-  const [pabellonesPlano, setPabellonesPlano] = useState<Array<{ label: string; bloqueIds: string[] }>>([]);
+  const [pabellonesPlano, setPabellonesPlano] = useState<Array<{ label: string; codigo: string; bloqueIds: string[] }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
@@ -91,14 +91,14 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     setLoading(true);
     try {
       const filtros = { ...filtrosRef.current, ...overrides };
-      const bloqueIds = pabellonesRef.current.find((item) => item.label === filtros.pabellon)?.bloqueIds ?? [];
+      const pabellonSel = pabellonesRef.current.find((item) => item.label === filtros.pabellon);
       const respuesta = await gessService.list(eventoId, {
         page: p ?? pageRef.current,
         per_page: pp ?? perPageRef.current,
         search: filtros.search.trim() || undefined,
         estado: filtros.estadoFiltro === UI_SENTINEL.TODOS ? undefined : filtros.estadoFiltro,
         tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
-        bloqueIds: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : bloqueIds,
+        planoCodigo: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : pabellonSel?.codigo,
         sinPabellon: filtros.pabellon === SIN_PABELLON,
       });
       setRows(respuesta.data);
@@ -163,6 +163,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
         if (!activo) return;
         const mapa = new Map<string, string>();
         const porPabellon = new Map<string, Set<string>>();
+        const codigoPorPabellon = new Map<string, string>();
         for (const plano of planes) {
           const label = plano.nombre?.trim() || plano.codigo;
           const bloqueIds = porPabellon.get(label) ?? new Set<string>();
@@ -171,11 +172,12 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
             bloqueIds.add(bloque.bloqueId);
           }
           porPabellon.set(label, bloqueIds);
+          if (!codigoPorPabellon.has(label)) codigoPorPabellon.set(label, plano.codigo);
         }
         setBloquePlano(mapa);
         setPabellonesPlano(
           [...porPabellon.entries()]
-            .map(([label, ids]) => ({ label, bloqueIds: [...ids] }))
+            .map(([label, ids]) => ({ label, codigo: codigoPorPabellon.get(label) ?? "", bloqueIds: [...ids] }))
             .sort((a, b) => a.label.localeCompare(b.label)),
         );
       })
@@ -328,7 +330,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
     setExportando(formato);
     try {
       const filtros = filtrosRef.current;
-      const bloqueIds = pabellonesRef.current.find((item) => item.label === filtros.pabellon)?.bloqueIds ?? [];
+      const pabellonSel = pabellonesRef.current.find((item) => item.label === filtros.pabellon);
       const acumulados: GessStandDTO[] = [];
       let pagina = 1;
       let totalPaginas = 1;
@@ -339,7 +341,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           search: filtros.search.trim() || undefined,
           estado: filtros.estadoFiltro === UI_SENTINEL.TODOS ? undefined : filtros.estadoFiltro,
           tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
-          bloqueIds: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : bloqueIds,
+          planoCodigo: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : pabellonSel?.codigo,
           sinPabellon: filtros.pabellon === SIN_PABELLON,
         });
         acumulados.push(...respuesta.data);

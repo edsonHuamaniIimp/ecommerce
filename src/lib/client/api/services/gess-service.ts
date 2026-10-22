@@ -15,6 +15,8 @@ export const gessService = {
     estado?: string;
     tipo?: string;
     bloqueIds?: string[];
+    /** Codigo del plano/pabellon: el servidor resuelve los bloques (URL corta). */
+    planoCodigo?: string;
     sinPabellon?: boolean;
   }) {
     const qs = new URLSearchParams({ eventoId });
@@ -24,6 +26,7 @@ export const gessService = {
     if (params?.estado) qs.set("estado", params.estado);
     if (params?.tipo) qs.set("tipo", params.tipo);
     if (params?.sinPabellon) qs.set("sinPabellon", "true");
+    if (params?.planoCodigo) qs.set("planoCodigo", params.planoCodigo);
     if (params?.bloqueIds && params.bloqueIds.length > 0) qs.set("bloqueIds", params.bloqueIds.join(","));
     return internalApi.get<PaginatedResponseDTO<GessStandDTO>>(`/api/gess/listar?${qs.toString()}`);
   },

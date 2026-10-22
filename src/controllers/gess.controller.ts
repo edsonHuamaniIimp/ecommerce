@@ -50,6 +50,7 @@ export const gessController = {
     const estado = searchParams.get("estado") ?? undefined;
     const tipo = searchParams.get("tipo") ?? undefined;
     const sinPabellon = searchParams.get("sinPabellon") === "true";
+    const planoCodigo = searchParams.get("planoCodigo") ?? undefined;
     const bloqueIds = (searchParams.get("bloqueIds") ?? "")
       .split(",")
       .map((id) => id.trim())
@@ -68,7 +69,7 @@ export const gessController = {
       };
     }
 
-    const result = await services.gess.listar(eventoId, { page, perPage, search, estado, tipo, bloqueIds, sinPabellon }, viewer);
+    const result = await services.gess.listar(eventoId, { page, perPage, search, estado, tipo, bloqueIds, planoCodigo, sinPabellon }, viewer);
     return NextResponse.json({
       data: result.data,
       pagination: { page: result.page, per_page: result.perPage, total: result.total, total_pages: result.totalPages },
