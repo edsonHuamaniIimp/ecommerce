@@ -42,6 +42,7 @@ export type { DdMatrizQueryDTO } from "./dd-matriz-query.dto";
 export type { DdMatrizResponseDTO } from "./dd-matriz-response.dto";
 export type {
   DdReputacionEmpresaDTO,
+  DdReputacionGrupoDTO,
   DdReputacionResponseDTO,
   DdReputacionRowDTO,
 } from "./dd-reputacion.dto";

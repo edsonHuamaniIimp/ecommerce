@@ -17,6 +17,7 @@ export const { GET, POST } = createRouter({
     guardar: (req) => debidaDiligenciaController.guardar(req),
     enviar: () => debidaDiligenciaController.enviar(),
     revisar: (req) => debidaDiligenciaController.revisar(req),
+    "derivar-comunicaciones": (req) => debidaDiligenciaController.derivarComunicaciones(req),
     "legal/resolver": (req) => debidaDiligenciaController.resolverLegal(req),
     "reputacion/resolver": (req) => debidaDiligenciaController.reputacionResolver(req),
   },

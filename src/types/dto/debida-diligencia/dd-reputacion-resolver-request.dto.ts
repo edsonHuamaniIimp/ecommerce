@@ -5,6 +5,7 @@ export interface DdReputacionResolverRequestDTO {
   id: string;
   resultado: DdReputacionResultado;
   comentario?: string | null;
+  linkHallazgos?: string | null;
   cerrar: boolean;
   notificar: boolean;
 }

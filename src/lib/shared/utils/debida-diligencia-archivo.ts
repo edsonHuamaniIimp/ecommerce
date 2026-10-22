@@ -5,6 +5,7 @@ export const DD_FORMATOS_ARCHIVO = {
   PDF: "pdf",
   JPG: "jpg",
   PNG: "png",
+  DOCX: "docx",
 } as const;
 
 export type DdFormatoArchivo = (typeof DD_FORMATOS_ARCHIVO)[keyof typeof DD_FORMATOS_ARCHIVO];
@@ -30,6 +31,9 @@ function detectarFormato(bytes: Uint8Array): DdFormatoArchivo | null {
   ) {
     return DD_FORMATOS_ARCHIVO.PNG;
   }
+  if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+    return DD_FORMATOS_ARCHIVO.DOCX;
+  }
   return null;
 }
 
@@ -38,6 +42,7 @@ function formatoDesdeNombre(nombre: string): DdFormatoArchivo | null {
   if (extension === "pdf") return DD_FORMATOS_ARCHIVO.PDF;
   if (extension === "jpg" || extension === "jpeg") return DD_FORMATOS_ARCHIVO.JPG;
   if (extension === "png") return DD_FORMATOS_ARCHIVO.PNG;
+  if (extension === "docx") return DD_FORMATOS_ARCHIVO.DOCX;
   return null;
 }
 
@@ -51,21 +56,39 @@ export const ddArchivoUtils = {
   },
 
   /** Valida nombre, tamano y contenido real de un documento del expediente. */
-  validar(datos: { nombre: string; size: number; bytes: Uint8Array }): string | null {
+  validar(
+    datos: { nombre: string; size: number; bytes: Uint8Array },
+    opciones: { permitirDocx?: boolean; soloPdf?: boolean } = {},
+  ): string | null {
     if (!datos.nombre.trim()) return "El nombre del archivo es obligatorio.";
     if (datos.size <= 0) return "El archivo esta vacio.";
     if (datos.size > DD_DOCUMENTO_MAX_BYTES) {
       return `El archivo supera el maximo de ${DD_DOCUMENTO_MAX_BYTES / 1024 / 1024} MB.`;
     }
 
+    const permitidos = opciones.soloPdf
+      ? "pdf"
+      : opciones.permitirDocx
+        ? `${DD_DOCUMENTO_EXTENSIONES.join(", ")}, docx`
+        : DD_DOCUMENTO_EXTENSIONES.join(", ");
     const formatoNombre = formatoDesdeNombre(datos.nombre);
-    if (!formatoNombre) {
-      return `Formato no permitido. Admitidos: ${DD_DOCUMENTO_EXTENSIONES.join(", ")}.`;
+    const formatoNoPermitido =
+      !formatoNombre ||
+      (formatoNombre === DD_FORMATOS_ARCHIVO.DOCX && !opciones.permitirDocx) ||
+      (opciones.soloPdf && formatoNombre !== DD_FORMATOS_ARCHIVO.PDF);
+    if (formatoNoPermitido) {
+      return `Formato no permitido. Admitidos: ${permitidos}.`;
     }
 
     const formatoReal = detectarFormato(datos.bytes);
     if (!formatoReal) {
-      return "El archivo no es un PDF, JPG o PNG válido.";
+      return "El archivo no es un PDF, JPG, PNG o DOCX válido.";
+    }
+    if (opciones.soloPdf && formatoReal !== DD_FORMATOS_ARCHIVO.PDF) {
+      return "El documento adicional solicitado debe ser un PDF.";
+    }
+    if (formatoReal === DD_FORMATOS_ARCHIVO.DOCX && !opciones.permitirDocx) {
+      return `Formato no permitido. Admitidos: ${permitidos}.`;
     }
     if (formatoReal !== formatoNombre) {
       return "La extensión del archivo no coincide con su contenido real.";

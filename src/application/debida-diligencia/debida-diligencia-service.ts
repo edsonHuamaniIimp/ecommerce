@@ -39,8 +39,11 @@ import {
   DD_ORIGENES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
+  DD_REPUTACION_ESTADOS,
+  DD_REPUTACION_RESULTADOS,
   DD_RESULTADOS,
   DD_MATRIZ_PER_PAGE_MAX,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_PER_PAGE_MAX,
   DD_RUTAS,
@@ -190,7 +193,7 @@ export class DebidaDiligenciaApplicationService {
       })),
     };
 
-    const tiposPermitidos = new Set(DD_DOCUMENTOS_REQUERIDOS.map((d) => d.tipo));
+    const tiposPermitidos = new Set([...DD_DOCUMENTOS_REQUERIDOS.map((d) => d.tipo), DD_DOCUMENTOS.ADICIONAL]);
     for (const documento of data.documentos) {
       if (!tiposPermitidos.has(documento.tipo)) {
         throw new DomainError("Tipo de documento inválido", API_ERROR_CODES.VALIDATION, 400);
@@ -272,6 +275,24 @@ export class DebidaDiligenciaApplicationService {
     const faltantes = ddUtils.documentosFaltantes(expediente.documentos);
     if (faltantes.length > 0) {
       throw new DomainError("Faltan documentos obligatorios", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const observaciones = await this.repo.listarObservaciones(expediente.id);
+    const requiereDocumentoAdicional = observaciones.some(
+      (observacion) =>
+        observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA &&
+        observacion.documentoTipo === DD_DOCUMENTOS.ADICIONAL,
+    );
+    if (
+      requiereDocumentoAdicional &&
+      !expediente.documentos.some(
+        (documento) => documento.tipo === DD_DOCUMENTOS.ADICIONAL && documento.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
+      )
+    ) {
+      throw new DomainError(
+        "Debe adjuntar el documento adicional solicitado por el revisor",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
 
     await Promise.all(
@@ -708,6 +729,21 @@ export class DebidaDiligenciaApplicationService {
       );
     }
 
+    if (
+      dto.accion === DD_ACCIONES_REVISION.APROBAR &&
+      (expediente.reputacion ?? []).some(
+        (caso) =>
+          caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
+          caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+      )
+    ) {
+      throw new DomainError(
+        "No se puede aprobar la debida diligencia: Comunicaciones registró hallazgos reputacionales.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+
     const ahora = dateUtils.now();
     const retornoLegal = expediente.decisionLegal === DD_ACCIONES_LEGAL.APROBAR;
     let actualizado: DdExpedienteEntity;
@@ -785,6 +821,7 @@ export class DebidaDiligenciaApplicationService {
         fechaRevision: ahora,
         fechaDerivacionLegal: ahora,
         derivadoLegalPor: session.email,
+        informeLogisticaUrl: dto.informeLogisticaUrl?.trim() || null,
         revisadoPor: session.email,
         motivoRechazo: dto.motivo,
         actualizadoPor: session.email,
@@ -826,21 +863,6 @@ export class DebidaDiligenciaApplicationService {
       }
     }
 
-    if (dto.derivarComunicaciones) {
-      const yaDerivado = await this.repo.tieneCasosReputacion(expediente.id);
-      if (!yaDerivado) {
-        const nombres = ddUtils.nombresARevisar(expediente);
-        await this.repo.crearCasosReputacion(
-          expediente.id,
-          nombres.map((nombre) => ({
-            nombreARevisar: nombre,
-            sitioWeb: expediente.sitioWeb,
-            derivadoPor: session.email,
-          })),
-        );
-      }
-    }
-
     await this.repo.registrarAuditoria(
       `revision:${dto.accion}`,
       `debida_diligencia:${actualizado.codigo}`,
@@ -849,6 +871,39 @@ export class DebidaDiligenciaApplicationService {
     );
 
     return actualizado;
+  }
+
+  /**
+   * Deriva manualmente los nombres del expediente (empresa, representante y
+   * beneficiarios) a la revision reputacional de Comunicaciones.
+   */
+  async derivarComunicaciones(dto: { expedienteId: string }, session: DdSession): Promise<{ derivados: number }> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
+    const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
+    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    const yaDerivado = await this.repo.tieneCasosReputacion(expediente.id);
+    if (yaDerivado) {
+      throw new DomainError("Los nombres ya fueron derivados a Comunicaciones", API_ERROR_CODES.CONFLICT, 409);
+    }
+    const nombres = ddUtils.nombresARevisar(expediente);
+    if (nombres.length === 0) {
+      throw new DomainError("El expediente no tiene nombres para derivar", API_ERROR_CODES.VALIDATION, 400);
+    }
+    await this.repo.crearCasosReputacion(
+      expediente.id,
+      nombres.map((nombre) => ({
+        nombreARevisar: nombre,
+        sitioWeb: expediente.sitioWeb,
+        derivadoPor: session.email,
+      })),
+    );
+    await this.repo.registrarAuditoria(
+      "derivar-comunicaciones",
+      `debida_diligencia:${expediente.codigo}`,
+      session.email,
+      `Logística derivó ${nombres.length} nombre(s) a Comunicaciones`,
+    );
+    return { derivados: nombres.length };
   }
 
   /** Panel del modulo: KPIs y agregados de vigencia/vinculo. */
@@ -992,6 +1047,7 @@ export class DebidaDiligenciaApplicationService {
       estado: estadoFinal,
       resultado,
       comentario: dto.comentario?.trim() || null,
+      linkHallazgos: resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ? dto.linkHallazgos?.trim() || null : null,
       revisor: session.email,
       cerrar: dto.cerrar,
     });

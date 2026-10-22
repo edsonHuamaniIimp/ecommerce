@@ -5,6 +5,7 @@ import { ddArchivoUtils } from "@/lib/shared/utils/debida-diligencia-archivo";
 const PDF = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
 const JPG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+const DOCX = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x06, 0x00]);
 
 describe("ddArchivoUtils.validar", () => {
   it("acepta PDF, JPG y PNG con firma binaria correcta", () => {
@@ -13,7 +14,19 @@ describe("ddArchivoUtils.validar", () => {
     expect(ddArchivoUtils.validar({ nombre: "dni.png", size: PNG.length, bytes: PNG })).toBeNull();
   });
 
-  it("rechaza extensiones no admitidas", () => {
+  it("acepta DOCX cuando el tipo de documento lo permite", () => {
+    expect(
+      ddArchivoUtils.validar(
+        { nombre: "declaracion.docx", size: DOCX.length, bytes: DOCX },
+        { permitirDocx: true },
+      ),
+    ).toBeNull();
+  });
+
+  it("rechaza DOCX por defecto y extensiones no admitidas", () => {
+    expect(
+      ddArchivoUtils.validar({ nombre: "declaracion.docx", size: DOCX.length, bytes: DOCX }),
+    ).toContain("Formato no permitido");
     expect(ddArchivoUtils.validar({ nombre: "documento.docx", size: PDF.length, bytes: PDF })).toContain(
       "Formato no permitido",
     );

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { DomainError } from "@/domain/errors/domain-error";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, DD_DOCUMENTOS } from "@/lib/shared/constants";
 import { getStorage } from "@/lib/server/storage";
 import { ddArchivoUtils } from "@/lib/shared/utils/debida-diligencia-archivo";
 import type {
@@ -58,11 +58,17 @@ export class DebidaDiligenciaDocumentoValidator implements IDebidaDiligenciaDocu
       );
     }
 
-    const error = ddArchivoUtils.validar({
-      nombre: documento.nombre,
-      size: archivo.bytes.byteLength,
-      bytes: archivo.bytes,
-    });
+    const error = ddArchivoUtils.validar(
+      {
+        nombre: documento.nombre,
+        size: archivo.bytes.byteLength,
+        bytes: archivo.bytes,
+      },
+      {
+        permitirDocx: documento.tipo === DD_DOCUMENTOS.DECLARACION_JURADA,
+        soloPdf: documento.tipo === DD_DOCUMENTOS.ADICIONAL,
+      },
+    );
     if (error) {
       throw new DomainError(
         `Documento "${documento.nombre}": ${error}`,

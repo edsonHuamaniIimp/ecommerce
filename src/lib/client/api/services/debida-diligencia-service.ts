@@ -103,6 +103,11 @@ export const debidaDiligenciaService = {
     return internalApi.post<DdExpedienteDTO>("/api/debida-diligencia/revisar", body);
   },
 
+  /** Deriva manualmente empresa, representante y beneficiarios a Comunicaciones. */
+  derivarComunicaciones(expedienteId: string) {
+    return internalApi.post<{ derivados: number }>("/api/debida-diligencia/derivar-comunicaciones", { expedienteId });
+  },
+
   bandejaLegal(params: DdBandejaQueryDTO = {}) {
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));

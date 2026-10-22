@@ -17,6 +17,7 @@ import {
 } from "@/lib/shared/mappers/debida-diligencia";
 import {
   ddClientesQuerySchema,
+  ddDerivarComunicacionesSchema,
   ddEmpresasQuerySchema,
   ddGuardarSchema,
   ddLegalResolverSchema,
@@ -184,6 +185,16 @@ export const debidaDiligenciaController = {
     }
     const expediente = await services.debidaDiligencia.revisar(parsed.data, session);
     return success(mapDdExpedienteToDTO(expediente));
+  },
+
+  /** Deriva manualmente empresa, representante y beneficiarios a Comunicaciones. */
+  async derivarComunicaciones(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddDerivarComunicacionesSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    return success(await services.debidaDiligencia.derivarComunicaciones(parsed.data, session));
   },
 
   /** Panel del modulo: KPIs, vigencias y matriz. */

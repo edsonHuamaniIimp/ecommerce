@@ -1417,6 +1417,7 @@ export const DD_DOCUMENTOS = {
   PODERES: "poderes",
   IDENTIDAD_REPRESENTANTE: "identidad_representante",
   DECLARACION_JURADA: "declaracion_jurada",
+  ADICIONAL: "documento_adicional",
 } as const;
 
 export type DdDocumentoTipo = (typeof DD_DOCUMENTOS)[keyof typeof DD_DOCUMENTOS];
@@ -1454,11 +1455,29 @@ export const DD_DOCUMENTOS_REQUERIDOS: {
   },
 ];
 
+/** Documento extra que Logística puede solicitar durante la revisión. */
+export const DD_DOCUMENTO_ADICIONAL = {
+  tipo: DD_DOCUMENTOS.ADICIONAL,
+  titulo: "Adjunto (PDF)",
+  ayuda: "Puede adjuntar un PDF adicional. Si el revisor lo solicita, será obligatorio.",
+  permiteFormato: false,
+} as const;
+
+export const DD_DOCUMENTO_EXTENSIONES_ADICIONAL = ["pdf"] as const;
+export const DD_DOCUMENTO_ACCEPT_ADICIONAL = DD_DOCUMENTO_EXTENSIONES_ADICIONAL.map((e) => `.${e}`).join(",");
+
+/** Documentos que puede persistir un expediente: los 4 obligatorios + el adjunto opcional. */
+export const DD_MAX_DOCUMENTOS_EXPEDIENTE = DD_DOCUMENTOS_REQUERIDOS.length + 1;
+
 /** Extensiones admitidas para los documentos del expediente. */
 export const DD_DOCUMENTO_EXTENSIONES = ["pdf", "jpg", "jpeg", "png"] as const;
 
 /** Valor de `accept` del input de archivo de documentos DD. */
 export const DD_DOCUMENTO_ACCEPT = DD_DOCUMENTO_EXTENSIONES.map((e) => `.${e}`).join(",");
+
+/** La declaracion jurada tambien admite el formato oficial DOCX. */
+export const DD_DOCUMENTO_EXTENSIONES_DECLARACION = [...DD_DOCUMENTO_EXTENSIONES, "docx"] as const;
+export const DD_DOCUMENTO_ACCEPT_DECLARACION = DD_DOCUMENTO_EXTENSIONES_DECLARACION.map((e) => `.${e}`).join(",");
 
 /** Tamaño máximo de cada documento del expediente (10 MB). */
 export const DD_DOCUMENTO_MAX_BYTES = 10 * BYTES_POR_MB;

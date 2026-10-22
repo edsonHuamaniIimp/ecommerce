@@ -177,6 +177,18 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                   <p className="mt-1 text-xs text-foreground">
                     {detalle.motivoRechazo || "Sin motivo registrado."}
                   </p>
+                  {detalle.informeLogisticaUrl ? (
+                    <a
+                      href={detalle.informeLogisticaUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-[11px] font-medium text-primary underline underline-offset-2"
+                    >
+                      Ver informe de Logística (Drive)
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-[10px] text-muted-foreground">Sin link de informe de Logística.</p>
+                  )}
                   <p className="mt-2 text-[10px] text-muted-foreground">
                     Derivado por {detalle.derivadoLegalPor ?? detalle.revisadoPor ?? "—"} el{" "}
                     {detalle.fechaDerivacionLegal
@@ -307,6 +319,16 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                             {caso.resultado ? `Resultado: ${caso.resultado}` : "Pendiente de resultado"}
                             {caso.comentario ? ` · ${caso.comentario}` : ""}
                           </p>
+                          {caso.linkHallazgos ? (
+                            <a
+                              href={caso.linkHallazgos}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 inline-block text-[10px] font-medium text-primary underline underline-offset-2"
+                            >
+                              Ver sustento de hallazgos
+                            </a>
+                          ) : null}
                         </div>
                       ))}
                     </div>

@@ -9,6 +9,7 @@ import type {
   DdMatrizResult,
   DdMatrizRow,
   DdPanelData,
+  DdReputacionGrupo,
   DdReputacionResult,
 } from "@/domain/models/debida-diligencia";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
@@ -23,6 +24,7 @@ import type {
   DdMatrizResponseDTO,
   DdMatrizRowDTO,
   DdPanelDTO,
+  DdReputacionGrupoDTO,
   DdReputacionResponseDTO,
   DdReputacionRowDTO,
 } from "@/types/dto/debida-diligencia";
@@ -90,6 +92,7 @@ export function mapDdExpedienteToDTO(expediente: DdExpedienteEntity): DdExpedien
     motivoRechazo: expediente.motivoRechazo,
     fechaDerivacionLegal: fecha(expediente.fechaDerivacionLegal),
     derivadoLegalPor: expediente.derivadoLegalPor,
+    informeLogisticaUrl: expediente.informeLogisticaUrl,
     fechaLegal: fecha(expediente.fechaLegal),
     legalRevisor: expediente.legalRevisor,
     decisionLegal: expediente.decisionLegal,
@@ -149,6 +152,7 @@ export function mapDdExpedienteToDTO(expediente: DdExpedienteEntity): DdExpedien
       estado: r.estado,
       resultado: r.resultado,
       comentario: r.comentario,
+      linkHallazgos: r.linkHallazgos,
       derivadoPor: r.derivadoPor,
       fechaDerivacion: dateUtils.toIso(r.fechaDerivacion),
       revisor: r.revisor,
@@ -344,7 +348,7 @@ export function mapDdMatrizToDTO(resultado: DdMatrizResult): DdMatrizResponseDTO
   };
 }
 
-export function mapDdReputacionRowToDTO(row: DdReputacionResult["data"][number]): DdReputacionRowDTO {
+export function mapDdReputacionRowToDTO(row: DdReputacionGrupo["casos"][number]): DdReputacionRowDTO {
   return {
     id: row.id,
     expedienteId: row.expedienteId,
@@ -355,6 +359,7 @@ export function mapDdReputacionRowToDTO(row: DdReputacionResult["data"][number])
     estado: row.estado,
     resultado: row.resultado,
     comentario: row.comentario,
+    linkHallazgos: row.linkHallazgos,
     derivadoPor: row.derivadoPor,
     fechaDerivacion: dateUtils.toIso(row.fechaDerivacion),
     revisor: row.revisor,
@@ -363,9 +368,22 @@ export function mapDdReputacionRowToDTO(row: DdReputacionResult["data"][number])
   };
 }
 
+function mapDdReputacionGrupoToDTO(grupo: DdReputacionGrupo): DdReputacionGrupoDTO {
+  return {
+    expedienteId: grupo.expedienteId,
+    codigo: grupo.codigo,
+    empresa: { razonSocial: grupo.empresa.razonSocial },
+    casos: grupo.casos.map(mapDdReputacionRowToDTO),
+    totalCasos: grupo.totalCasos,
+    pendientes: grupo.pendientes,
+    cerrados: grupo.cerrados,
+    fechaDerivacion: dateUtils.toIso(grupo.fechaDerivacion),
+  };
+}
+
 export function mapDdReputacionToDTO(resultado: DdReputacionResult): DdReputacionResponseDTO {
   return {
-    data: resultado.data.map(mapDdReputacionRowToDTO),
+    data: resultado.data.map(mapDdReputacionGrupoToDTO),
     total: resultado.total,
     page: resultado.page,
     perPage: resultado.perPage,

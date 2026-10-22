@@ -4,7 +4,7 @@ import {
   DD_ACCIONES_REVISION,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
-  DD_DOCUMENTOS_REQUERIDOS,
+  DD_MAX_DOCUMENTOS_EXPEDIENTE,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_MAX_BENEFICIARIOS,
@@ -28,14 +28,14 @@ const textoNullable = (max: number) =>
   z.union([z.literal(""), z.string().trim().max(max)]).nullable().default(null);
 
 const emailNullable = z
-  .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo inválido")])
+  .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invÃ¡lido")])
   .nullable()
   .default(null);
 
 const nacionalidadNullable = z
   .union([
     z.literal(""),
-    z.string().trim().max(80).regex(REGEX_NACIONALIDAD, "Nacionalidad inválida"),
+    z.string().trim().max(80).regex(REGEX_NACIONALIDAD, "Nacionalidad invÃ¡lida"),
   ])
   .nullable()
   .default(null);
@@ -45,14 +45,14 @@ const tipoRelacionSchema = z.enum(valores(DD_VINCULOS)).nullable().default(null)
 const tipoDocumentoSchema = z.enum(valores(DD_DOCUMENTOS)).nullable().default(null);
 
 const beneficiarioSchema = z.object({
-  nombre: z.string().trim().min(1, "El nombre o razón social es obligatorio").max(200),
+  nombre: z.string().trim().min(1, "El nombre o razÃ³n social es obligatorio").max(200),
   documento: z.string().trim().min(1, "El documento es obligatorio").max(30),
   nacionalidad: z
     .string()
     .trim()
     .min(1, "La nacionalidad es obligatoria")
     .max(80)
-    .regex(REGEX_NACIONALIDAD, "Nacionalidad inválida"),
+    .regex(REGEX_NACIONALIDAD, "Nacionalidad invÃ¡lida"),
   porcentaje: z
     .number()
     .min(0, "El porcentaje no puede ser negativo")
@@ -83,9 +83,9 @@ export const ddGuardarSchema = z.object({
   representanteNacionalidad: nacionalidadNullable,
   beneficiarios: z
     .array(beneficiarioSchema)
-    .max(DD_MAX_BENEFICIARIOS, `Máximo ${DD_MAX_BENEFICIARIOS} beneficiarios`)
+    .max(DD_MAX_BENEFICIARIOS, `MÃ¡ximo ${DD_MAX_BENEFICIARIOS} beneficiarios`)
     .default([]),
-  documentos: z.array(documentoSchema).max(DD_DOCUMENTOS_REQUERIDOS.length).default([]),
+  documentos: z.array(documentoSchema).max(DD_MAX_DOCUMENTOS_EXPEDIENTE).default([]),
 });
 
 /** Envio a revision (sin payload adicional; usa los datos guardados). */
@@ -97,17 +97,18 @@ export const ddRevisarSchema = z
     expedienteId: z.string().min(1, "expedienteId requerido"),
     accion: z.enum(valores(DD_ACCIONES_REVISION)),
     motivo: textoNullable(1000),
+    informeLogisticaUrl: z.string().trim().url("Ingrese un link vÃ¡lido").max(500).nullable().default(null),
     documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).default([]),
     observaciones: z
       .array(
         z.object({
           documentoTipo: tipoDocumentoSchema,
-          texto: z.string().trim().min(1, "La observación no puede estar vacía").max(1000),
+          texto: z.string().trim().min(1, "La observaciÃ³n no puede estar vacÃ­a").max(1000),
         }),
       )
       .max(DD_MAX_OBSERVACIONES)
       .default([]),
-    derivarComunicaciones: z.boolean().default(true),
+    derivarComunicaciones: z.boolean().default(false),
   })
   .superRefine((valor, ctx) => {
     if (valor.accion === DD_ACCIONES_REVISION.OBSERVAR) {
@@ -115,7 +116,7 @@ export const ddRevisarSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["observaciones"],
-          message: "Registra al menos una observación o un motivo para observar el expediente",
+          message: "Registra al menos una observaciÃ³n o un motivo para observar el expediente",
         });
       }
     }
@@ -126,7 +127,19 @@ export const ddRevisarSchema = z
         message: "El motivo del rechazo es obligatorio",
       });
     }
+    if (valor.accion === DD_ACCIONES_REVISION.RECHAZAR && !valor.informeLogisticaUrl?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["informeLogisticaUrl"],
+        message: "El link del informe de LogÃ­stica es obligatorio para derivar a Legal",
+      });
+    }
   });
+
+/** Derivacion manual de nombres a revision reputacional (Comunicaciones). */
+export const ddDerivarComunicacionesSchema = z.object({
+  expedienteId: z.string().min(1, "expedienteId requerido"),
+});
 
 /** Resolucion final de Legal con informe adjunto. */
 export const ddLegalResolverSchema = z
@@ -164,13 +177,24 @@ export const ddLegalResolverSchema = z
   });
 
 /** Resolucion de un caso reputacional. */
-export const ddReputacionResolverSchema = z.object({
-  id: z.string().min(1, "id requerido"),
-  resultado: z.enum(valores(DD_REPUTACION_RESULTADOS)),
-  comentario: textoNullable(1500),
-  cerrar: z.boolean().default(false),
-  notificar: z.boolean().default(true),
-});
+export const ddReputacionResolverSchema = z
+  .object({
+    id: z.string().min(1, "id requerido"),
+    resultado: z.enum(valores(DD_REPUTACION_RESULTADOS)),
+    comentario: textoNullable(1500),
+    linkHallazgos: z.string().trim().url("Ingrese un link válido").max(500).nullable().default(null),
+    cerrar: z.boolean().default(false),
+    notificar: z.boolean().default(true),
+  })
+  .superRefine((valor, ctx) => {
+    if (valor.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS && !valor.linkHallazgos?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["linkHallazgos"],
+        message: "El link de sustento es obligatorio cuando hay hallazgos",
+      });
+    }
+  });
 
 /** Paginacion de las bandejas del modulo. */
 export const ddPaginacionSchema = z.object({

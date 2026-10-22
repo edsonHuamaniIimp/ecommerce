@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  Input,
   Label,
   RadioGroup,
   RadioGroupItem,
@@ -30,13 +31,16 @@ import {
   BADGE_STYLES,
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
+  DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
   DD_OBSERVACION_ESTADOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
+  DD_REPUTACION_RESULTADOS,
   DD_REPUTACION_TIPO_LABELS,
   DD_REPUTACION_TIPOS,
   DD_REPUTACION_RESULTADO_LABELS,
@@ -78,7 +82,8 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
   const [accion, setAccion] = useState<DdAccionRevision>(DD_ACCIONES_REVISION.APROBAR);
   const [documentosObservados, setDocumentosObservados] = useState<DdDocumentoTipo[]>([]);
   const [texto, setTexto] = useState("");
-  const [derivar, setDerivar] = useState(true);
+  const [informeLogisticaUrl, setInformeLogisticaUrl] = useState("");
+  const [derivando, setDerivando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
@@ -94,7 +99,17 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
           r.estado === DD_ESTADOS.APROBADA ||
           (r.estado === DD_ESTADOS.RECHAZADA && !r.decisionLegal);
         if (derivable) setAccion(DD_ACCIONES_REVISION.RECHAZAR);
+        if (
+          r.reputacion.some(
+            (caso) =>
+              caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
+              caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+          )
+        ) {
+          setAccion(DD_ACCIONES_REVISION.OBSERVAR);
+        }
         if (r.estado === DD_ESTADOS.RECHAZADA) setTexto(r.motivoRechazo ?? "");
+        setInformeLogisticaUrl(r.informeLogisticaUrl ?? "");
       })
       .catch((e) => { if (activo) setError(e instanceof Error ? e.message : "No se pudo cargar el expediente"); })
       .finally(() => { if (activo) setLoading(false); });
@@ -111,9 +126,25 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
     accion === DD_ACCIONES_REVISION.OBSERVAR &&
     documentosObservados.length === 0 &&
     !texto.trim();
-  const documentosCargados = detalle?.documentos.length ?? 0;
-  const observadosCount = detalle?.documentos.filter((d) => d.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO).length ?? 0;
+  const requiereComentarioAdicional =
+    accion === DD_ACCIONES_REVISION.OBSERVAR &&
+    documentosObservados.includes(DD_DOCUMENTOS.ADICIONAL) &&
+    !texto.trim();
+  const documentosAdicionales = [...DD_DOCUMENTOS_REQUERIDOS, DD_DOCUMENTO_ADICIONAL];
+  const documentosCargados = (detalle?.documentos ?? []).filter((documento) =>
+    DD_DOCUMENTOS_REQUERIDOS.some((requisito) => requisito.tipo === documento.tipo),
+  ).length;
+  const observadosCount = (detalle?.documentos ?? []).filter(
+    (documento) =>
+      DD_DOCUMENTOS_REQUERIDOS.some((requisito) => requisito.tipo === documento.tipo) &&
+      documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO,
+  ).length;
   const reputacion = detalle?.reputacion ?? [];
+  const reputacionConHallazgos = reputacion.some(
+    (caso) =>
+      caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
+      caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+  );
   const esAprobada = detalle?.estado === DD_ESTADOS.APROBADA;
   const enLegal = detalle?.estado === DD_ESTADOS.EN_LEGAL;
   const rechazada = detalle?.estado === DD_ESTADOS.RECHAZADA;
@@ -124,7 +155,36 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
   const puedeDerivar = esAprobada || (rechazada && !detalle?.decisionLegal);
   const sinDecision = enLegal || rechazadaCerrada;
   const accionPermitida =
-    !sinDecision && (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR);
+    !sinDecision &&
+    (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
+    !(reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR);
+
+  /** Deriva explicitamente los nombres a Comunicaciones (accion independiente de la decision). */
+  const derivarNombresAComunicaciones = async () => {
+    if (derivando || reputacion.length > 0) return;
+    const ok = await confirm({
+      title: "Derivar a Comunicaciones",
+      description:
+        "Se enviaran el nombre de la empresa, del representante legal y de los beneficiarios a revision reputacional. No cambia el estado del expediente.",
+      confirmLabel: "Derivar",
+    });
+    if (!ok) return;
+    setDerivando(true);
+    setError(null);
+    try {
+      const resultado = await debidaDiligenciaService.derivarComunicaciones(fila.id);
+      toast.success(`${resultado.derivados} nombre(s) derivados a Comunicaciones`);
+      const actualizado = await debidaDiligenciaService.detalle(fila.id);
+      setDetalle(actualizado);
+      onDone();
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : "No se pudo derivar a Comunicaciones";
+      setError(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setDerivando(false);
+    }
+  };
 
   const cambiarAccion = (valor: string) => {
     if (sinDecision) {
@@ -137,6 +197,10 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
           ? "La debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."
           : "El expediente ya está rechazado. Solo se puede derivar a revisión legal.",
       );
+      return;
+    }
+    if (reputacionConHallazgos && valor === DD_ACCIONES_REVISION.APROBAR) {
+      setError("No se puede aprobar: Comunicaciones registró hallazgos reputacionales.");
       return;
     }
     setAccion(valor as DdAccionRevision);
@@ -166,8 +230,20 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
       setError("Describe la observación general antes de solicitar correcciones.");
       return;
     }
+    if (requiereComentarioAdicional) {
+      setError("Describe qué documento adicional debe subir el cliente.");
+      return;
+    }
+    if (reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR) {
+      setError("No se puede aprobar: Comunicaciones registró hallazgos reputacionales.");
+      return;
+    }
     if (accion === DD_ACCIONES_REVISION.RECHAZAR && !texto.trim()) {
       setError("El motivo de la derivación a Legal es obligatorio.");
+      return;
+    }
+    if (accion === DD_ACCIONES_REVISION.RECHAZAR && !informeLogisticaUrl.trim()) {
+      setError("El link del informe de Logística es obligatorio.");
       return;
     }
 
@@ -191,15 +267,17 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
         documentoTipo: tipo,
         texto:
           texto.trim() ||
-          `El documento "${DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === tipo)?.titulo ?? tipo}" requiere corrección.`,
+          (tipo === DD_DOCUMENTOS.ADICIONAL
+            ? "El revisor solicita un documento adicional en PDF."
+            : `El documento "${DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === tipo)?.titulo ?? tipo}" requiere corrección.`),
       }));
       await debidaDiligenciaService.revisar({
         expedienteId: fila.id,
         accion,
         motivo: texto.trim() || null,
+        informeLogisticaUrl: informeLogisticaUrl.trim() || null,
         documentosObservados,
         observaciones,
-        derivarComunicaciones: derivar,
       });
       toast.success(
         accion === DD_ACCIONES_REVISION.APROBAR
@@ -391,7 +469,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                           : "Revisa el contenido antes de tomar una decisión."}
                     </p>
                     <div className="space-y-2">
-                      {DD_DOCUMENTOS_REQUERIDOS.map((requisito) => {
+                      {documentosAdicionales.map((requisito) => {
                         const documento = detalle.documentos.find((d) => d.tipo === requisito.tipo);
                         const marcado = documentosObservados.includes(requisito.tipo);
                         return (
@@ -484,6 +562,11 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                         Describe la observación general para poder solicitar correcciones.
                       </p>
                     ) : null}
+                    {requiereComentarioAdicional ? (
+                      <p className="text-[11px] font-medium text-warning">
+                        Describe qué documento adicional debe subir el cliente.
+                      </p>
+                    ) : null}
                   </section>
                 </TabsContent>
 
@@ -559,6 +642,16 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                                   {caso.comentario}
                                 </p>
                               ) : null}
+                              {caso.linkHallazgos ? (
+                                <a
+                                  href={caso.linkHallazgos}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-1 inline-block text-[10px] font-medium text-primary underline underline-offset-2"
+                                >
+                                  Ver sustento de hallazgos
+                                </a>
+                              ) : null}
                               <p className="mt-1 text-[10px] text-muted-foreground">
                                 Derivado por {caso.derivadoPor} el{" "}
                                 {dateUtils.formatDateTime(caso.fechaDerivacion)}
@@ -598,14 +691,20 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                     </p>
                   ) : rechazada ? (
                     <p className="mb-2 rounded-md border border-warning/40 bg-warning/5 p-2 text-[10px] text-warning">
-                      Este expediente está rechazado. Puedes derivarlo a Legal para su revisión.
+                      Este expediente estǭ rechazado. Puedes derivarlo a Legal para su revisi��n.
+                    </p>
+                  ) : null}
+                  {reputacionConHallazgos && !sinDecision ? (
+                    <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[10px] font-medium text-destructive">
+                      No se puede aprobar: Comunicaciones registró hallazgos reputacionales. Solicita correcciones o deriva a Legal.
                     </p>
                   ) : null}
                   <RadioGroup value={accion} onValueChange={cambiarAccion} className="space-y-2">
                     {ACCIONES.map((opcion) => {
                       const permitida =
                         !sinDecision &&
-                        (!puedeDerivar || opcion.value === DD_ACCIONES_REVISION.RECHAZAR);
+                        (!puedeDerivar || opcion.value === DD_ACCIONES_REVISION.RECHAZAR) &&
+                        !(reputacionConHallazgos && opcion.value === DD_ACCIONES_REVISION.APROBAR);
                       return (
                       <label
                         key={opcion.value}
@@ -637,12 +736,44 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                   {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
                 </div>
 
-                <label className="flex items-start gap-2 rounded-lg border border-border bg-card p-3">
-                  <Checkbox checked={derivar} disabled={sinDecision} onCheckedChange={(valor) => setDerivar(valor === true)} className="mt-0.5" />
-                  <span className="text-[11px] leading-relaxed text-muted-foreground">
-                    Derivar nombres de empresa, representante y beneficiarios a Comunicaciones.
-                  </span>
-                </label>
+                {accion === DD_ACCIONES_REVISION.RECHAZAR && !sinDecision ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs">
+                      <span>Link del informe para Legal <span className="text-destructive">*</span></span>
+                    </Label>
+                    <Input
+                      type="url"
+                      value={informeLogisticaUrl}
+                      onChange={(e) => { setInformeLogisticaUrl(e.target.value); setError(null); }}
+                      placeholder="https://drive.google.com/..."
+                      className="h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Pega aquí el enlace de Drive del informe que Logística entrega a Legal.
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground">Revisión reputacional</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                      Deriva los nombres de empresa, representante y beneficiarios a Comunicaciones.
+                      Es independiente de la decisión.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1.5 text-xs"
+                    disabled={derivando || reputacion.length > 0 || sinDecision}
+                    onClick={() => { void derivarNombresAComunicaciones(); }}
+                  >
+                    {derivando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    <span>{reputacion.length > 0 ? "Ya derivado" : "Derivar a Comunicaciones"}</span>
+                  </Button>
+                </div>
               </div>
 
               <div className="shrink-0 space-y-2 border-t border-border bg-card p-4">
@@ -655,7 +786,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                   type="button"
                   size="sm"
                   className="w-full gap-1.5 text-xs"
-                  disabled={loading || !detalle || guardando || requiereComentarioGeneral || !accionPermitida}
+                  disabled={loading || !detalle || guardando || requiereComentarioGeneral || requiereComentarioAdicional || !accionPermitida}
                   onClick={() => void guardar()}
                 >
                   {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}

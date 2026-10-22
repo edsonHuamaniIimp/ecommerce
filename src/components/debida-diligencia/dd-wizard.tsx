@@ -27,7 +27,6 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  AlertCircle,
   CheckCircle2,
   Eye,
   FileText,
@@ -54,9 +53,15 @@ import {
   BADGE_STYLES,
   BYTES_POR_MB,
   DD_DOCUMENTO_ACCEPT,
+  DD_DOCUMENTO_ACCEPT_ADICIONAL,
+  DD_DOCUMENTO_ACCEPT_DECLARACION,
+  DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTO_EXTENSIONES,
+  DD_DOCUMENTO_EXTENSIONES_ADICIONAL,
+  DD_DOCUMENTO_EXTENSIONES_DECLARACION,
   DD_DOCUMENTO_MAX_BYTES,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_OBSERVACION_ESTADOS,
@@ -214,12 +219,22 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
     const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
     return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
   });
+  const documentosVisibles = [...DD_DOCUMENTOS_REQUERIDOS, DD_DOCUMENTO_ADICIONAL];
   const enSubsanacion =
     expedienteInicial?.estado === DD_ESTADOS.OBSERVADA || observacionesAbiertas.length > 0;
+  /* Comentario unico de la observacion (evita repetirlo en cada input). */
+  const comentariosObservacion = [...new Set([
+    ...observacionesAbiertas.map((observacion) => observacion.texto?.trim() ?? ""),
+    ...documentosObservados.map((documento) => documento.observacion?.trim() ?? ""),
+  ].filter((texto) => texto.length > 0))];
   const tiposObservados = new Set([
     ...documentosObservados.map((documento) => documento.tipo),
     ...observacionesAbiertas.flatMap((observacion) => observacion.documentoTipo ? [observacion.documentoTipo] : []),
   ]);
+  const tituloDocumento = (tipo: string) =>
+    DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ??
+    (tipo === DD_DOCUMENTOS.ADICIONAL ? DD_DOCUMENTO_ADICIONAL.titulo : tipo);
+  const tiposObservadosLabels = [...tiposObservados].map(tituloDocumento);
   const estaEnCorreccion = (documento: DocumentoForm) =>
     documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
     (documento.estado === DD_DOCUMENTO_ESTADOS.CARGADO && tiposObservados.has(documento.tipo));
@@ -426,8 +441,21 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
   };
 
   const subirDocumento = async (tipo: DdDocumentoTipo, file: File) => {
-    if (!archivoUtils.extensionPermitida(file.name, DD_DOCUMENTO_EXTENSIONES)) {
-      toast.error("Formato no permitido. Use PDF, JPG o PNG.");
+    const esDeclaracion = tipo === DD_DOCUMENTOS.DECLARACION_JURADA;
+    const esAdicional = tipo === DD_DOCUMENTOS.ADICIONAL;
+    const extensiones = esDeclaracion
+      ? DD_DOCUMENTO_EXTENSIONES_DECLARACION
+      : esAdicional
+        ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
+        : DD_DOCUMENTO_EXTENSIONES;
+    if (!archivoUtils.extensionPermitida(file.name, extensiones)) {
+      toast.error(
+        esDeclaracion
+          ? "Formato no permitido. Use PDF, DOCX, JPG o PNG."
+          : esAdicional
+            ? "El documento adicional solicitado debe ser PDF."
+            : "Formato no permitido. Use PDF, JPG o PNG.",
+      );
       return;
     }
     if (file.size > DD_DOCUMENTO_MAX_BYTES) {
@@ -535,19 +563,17 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                 <span className="mb-1 block text-xs font-semibold text-warning">
                   El expediente tiene {observacionesAbiertas.length} observación(es) abierta(s)
                 </span>
-                <ul className="list-disc space-y-1 pl-4 text-xs text-foreground">
-                  {observacionesAbiertas.map((o) => (
-                    <li key={o.id}>
-                      <span className="font-medium">{o.texto}</span>
-                      {o.documentoTipo ? (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          ({DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === o.documentoTipo)?.titulo ?? o.documentoTipo})
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                {tiposObservadosLabels.length > 0 ? (
+                  <p className="text-xs text-foreground">
+                    <span className="font-semibold">Documentos observados:</span>{" "}
+                    {tiposObservadosLabels.join(", ")}.
+                  </p>
+                ) : null}
+                {comentariosObservacion.map((texto) => (
+                  <p key={texto} className="mt-1 text-xs text-foreground">
+                    <span className="font-semibold">Observación:</span> {texto}
+                  </p>
+                ))}
               </AlertDescription>
             </Alert>
           ) : null}
@@ -934,26 +960,30 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Documentos de sustento</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Todos son obligatorios. Formatos PDF o imagen, máximo {DD_DOCUMENTO_MAX_BYTES / BYTES_POR_MB} MB.
+                  Todos los documentos son obligatorios.
                 </p>
-                {enSubsanacion ? (
-                  <p className="mt-1 text-[11px] font-medium text-warning">
-                    {documentosObservados.length > 0
-                      ? `Tienes ${documentosObservados.length} documento(s) observado(s). Solo esos debes subirlos como una nueva versión.`
-                      : "La observación es general y no tiene un documento asociado. Contacta al IIMP para que Logística indique el documento a subsanar."}
-                  </p>
-                ) : null}
               </div>
 
               <div className="space-y-3">
-                {DD_DOCUMENTOS_REQUERIDOS.map((requisito) => {
+                {documentosVisibles.map((requisito) => {
                   const documento = documentoDe(requisito.tipo);
                   const subiendoEste = subiendo === requisito.tipo;
+                  const extensionesDocumento = requisito.tipo === DD_DOCUMENTOS.DECLARACION_JURADA
+                    ? DD_DOCUMENTO_EXTENSIONES_DECLARACION
+                    : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
+                      ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
+                      : DD_DOCUMENTO_EXTENSIONES;
+                  const formatosDocumento = [...new Set(
+                    extensionesDocumento.map((ext) => (ext === "jpeg" ? "jpg" : ext)),
+                  )].map((ext) => ext.toUpperCase()).join(", ");
+                  const observado =
+                    documento?.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
+                    tiposObservados.has(requisito.tipo);
                   return (
                     <div
                       key={requisito.tipo}
                       id={`dd-doc-${requisito.tipo}`}
-                      className={`scroll-mt-24 rounded-lg border p-4 ${documento?.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ? "border-warning bg-warning/5 shadow-sm ring-2 ring-warning/20" : "border-border bg-card"}`}
+                      className={`scroll-mt-24 rounded-lg border p-4 ${observado ? "border-warning bg-warning/5 shadow-sm ring-2 ring-warning/20" : "border-border bg-card"}`}
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex min-w-0 items-start gap-3">
@@ -963,20 +993,18 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-foreground">{requisito.titulo}</p>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">{requisito.ayuda}</p>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              <span>Formatos: {formatosDocumento}. Máximo {DD_DOCUMENTO_MAX_BYTES / BYTES_POR_MB} MB.</span>
+                            </p>
                             {documento ? (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <DdDocumentoBadge estado={documento.estado} />
                                 <span className="truncate text-[11px] text-muted-foreground">{documento.nombre}</span>
                               </div>
-                            ) : null}
-                            {documento?.observacion ? (
-                              <p className="mt-1 text-[11px] text-warning">{documento.observacion}</p>
-                            ) : null}
-                            {documento?.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ? (
-                              <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-warning">
-                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                <span>Documento observado: suba una nueva versión.</span>
-                              </p>
+                            ) : observado ? (
+                              <Badge className={`pointer-events-none mt-2 text-[10px] ${BADGE_STYLES.WARNING}`}>
+                                <span>Observado</span>
+                              </Badge>
                             ) : null}
                             {documento && documento.versiones.length > 0 ? (
                               <details className="mt-2 max-w-full rounded-md border border-border/70 bg-secondary/30 px-2.5 py-2">
@@ -1057,7 +1085,13 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                               <input
                                 ref={(el) => { inputsArchivo.current[requisito.tipo] = el; }}
                                 type="file"
-                                accept={DD_DOCUMENTO_ACCEPT}
+                                accept={
+                                  requisito.tipo === DD_DOCUMENTOS.DECLARACION_JURADA
+                                    ? DD_DOCUMENTO_ACCEPT_DECLARACION
+                                    : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
+                                      ? DD_DOCUMENTO_ACCEPT_ADICIONAL
+                                      : DD_DOCUMENTO_ACCEPT
+                                }
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];

@@ -26,6 +26,7 @@ import type {
   DdReputacionActualizacion,
   DdReputacionCasoEntity,
   DdReputacionCreacion,
+  DdReputacionGrupo,
   DdReputacionParams,
   DdReputacionResult,
 } from "@/domain/models/debida-diligencia";
@@ -158,6 +159,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     motivoRechazo: row.motivoRechazo ?? null,
     fechaDerivacionLegal: row.fechaDerivacionLegal ?? null,
     derivadoLegalPor: row.derivadoLegalPor ?? null,
+    informeLogisticaUrl: row.informeLogisticaUrl ?? null,
     fechaLegal: row.fechaLegal ?? null,
     legalRevisor: row.legalRevisor ?? null,
     decisionLegal: row.decisionLegal as DdExpedienteEntity["decisionLegal"],
@@ -216,6 +218,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
       estado: r.estado as DdReputacionCasoEntity["estado"],
       resultado: r.resultado as DdReputacionCasoEntity["resultado"],
       comentario: r.comentario ?? null,
+      linkHallazgos: r.linkHallazgos ?? null,
       derivadoPor: r.derivadoPor,
       fechaDerivacion: r.fechaDerivacion,
       revisor: r.revisor ?? null,
@@ -226,7 +229,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
   };
 }
 
-function mapReputacion(row: ReputacionRow): DdReputacionResult["data"][number] {
+function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
   return {
     id: row.id,
     expedienteId: row.expedienteId,
@@ -234,9 +237,10 @@ function mapReputacion(row: ReputacionRow): DdReputacionResult["data"][number] {
     empresa: mapEmpresa(row.expediente.empresa),
     nombreARevisar: row.nombreARevisar,
     sitioWeb: row.sitioWeb ?? null,
-    estado: row.estado as DdReputacionResult["data"][number]["estado"],
-    resultado: row.resultado as DdReputacionResult["data"][number]["resultado"],
+    estado: row.estado as DdReputacionGrupo["casos"][number]["estado"],
+    resultado: row.resultado as DdReputacionGrupo["casos"][number]["resultado"],
     comentario: row.comentario ?? null,
+    linkHallazgos: row.linkHallazgos ?? null,
     derivadoPor: row.derivadoPor,
     fechaDerivacion: row.fechaDerivacion,
     revisor: row.revisor ?? null,
@@ -605,6 +609,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         motivoRechazo: data.motivoRechazo ?? undefined,
         fechaDerivacionLegal: data.fechaDerivacionLegal ?? undefined,
         derivadoLegalPor: data.derivadoLegalPor ?? undefined,
+        informeLogisticaUrl: data.informeLogisticaUrl ?? undefined,
         fechaLegal: data.fechaLegal ?? undefined,
         legalRevisor: data.legalRevisor ?? undefined,
         decisionLegal: data.decisionLegal ?? undefined,
@@ -791,7 +796,9 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         fechaCreacion: row.createdAt,
         solicitudesAlquiler: solicitudesPorDocumento.get(normalizarDocumentoEmpresa(row.empresa.ruc)) ?? 0,
         documentoCargados: row.documentos.filter(
-          (d) => d.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
+          (d) =>
+            DD_DOCUMENTOS_REQUERIDOS.some((requisito) => requisito.tipo === d.tipo) &&
+            d.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
         ).length,
         documentoTotal: DD_DOCUMENTOS_REQUERIDOS.length,
         fechaEnvio: row.fechaEnvio ?? null,
@@ -1345,19 +1352,46 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       ];
     }
 
-    const [rows, total] = await Promise.all([
-      prisma.debidaDiligenciaReputacion.findMany({
-        where,
-        orderBy: { fechaDerivacion: "desc" },
-        skip: (params.page - 1) * params.perPage,
-        take: params.perPage,
-        include: reputacionInclude,
-      }),
-      prisma.debidaDiligenciaReputacion.count({ where }),
-    ]);
+    const rows = await prisma.debidaDiligenciaReputacion.findMany({
+      where,
+      orderBy: { fechaDerivacion: "desc" },
+      include: reputacionInclude,
+    });
+    const casos = rows.map(mapReputacion);
+    const grupos = new Map<string, DdReputacionGrupo>();
+
+    for (const caso of casos) {
+      let grupo = grupos.get(caso.expedienteId);
+      if (!grupo) {
+        grupo = {
+          expedienteId: caso.expedienteId,
+          codigo: caso.codigo,
+          empresa: caso.empresa,
+          casos: [],
+          totalCasos: 0,
+          pendientes: 0,
+          cerrados: 0,
+          fechaDerivacion: caso.fechaDerivacion,
+        };
+        grupos.set(caso.expedienteId, grupo);
+      }
+      grupo.casos.push(caso);
+      grupo.totalCasos += 1;
+      if (caso.estado === DD_REPUTACION_ESTADOS.CERRADA) grupo.cerrados += 1;
+      else grupo.pendientes += 1;
+      if (caso.fechaDerivacion.getTime() > grupo.fechaDerivacion.getTime()) {
+        grupo.fechaDerivacion = caso.fechaDerivacion;
+      }
+    }
+
+    const agrupados = [...grupos.values()].sort(
+      (a, b) => b.fechaDerivacion.getTime() - a.fechaDerivacion.getTime(),
+    );
+    const total = agrupados.length;
+    const data = agrupados.slice((params.page - 1) * params.perPage, params.page * params.perPage);
 
     return {
-      data: rows.map(mapReputacion),
+      data,
       total,
       page: params.page,
       perPage: params.perPage,
@@ -1372,6 +1406,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         estado: data.estado,
         resultado: data.resultado,
         comentario: data.comentario,
+        linkHallazgos: data.linkHallazgos,
         revisor: data.revisor,
         fechaCierre: data.cerrar ? dateUtils.now() : null,
       },

@@ -71,6 +71,20 @@ const RESUMEN_VACIO = {
   rechazadas: 0,
 };
 
+const ESTADOS_REVISABLES = new Set<string>([
+  DD_ESTADOS.EN_REVISION,
+  DD_ESTADOS.OBSERVADA,
+  DD_ESTADOS.APROBADA,
+  DD_ESTADOS.RECHAZADA,
+]);
+
+function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string } {
+  if (fila.origen === DD_ORIGENES.IMPORTADO) return { puede: false, label: "Solo lectura" };
+  if (fila.estado === DD_ESTADOS.EN_LEGAL) return { puede: false, label: "En Legal" };
+  if (!ESTADOS_REVISABLES.has(fila.estado)) return { puede: false, label: "No enviado" };
+  return { puede: true, label: "Revisar" };
+}
+
 /** Bandeja de revision de Logistica del modulo Debida Diligencia. */
 export function DdBandeja() {
   const [data, setData] = useState<DdBandejaResponseDTO | null>(null);
@@ -481,7 +495,9 @@ export function DdBandeja() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.data.map((fila) => (
+                    {data.data.map((fila) => {
+                      const accion = accionRevision(fila);
+                      return (
                       <TableRow key={fila.id}>
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.empresa.razonSocial}</p>
@@ -590,14 +606,17 @@ export function DdBandeja() {
                             variant="outline"
                             size="sm"
                             className="h-7 gap-1 text-[11px]"
-                            onClick={() => { if (fila.origen !== DD_ORIGENES.IMPORTADO) setRevisando(fila); }}
+                            disabled={!accion.puede}
+                            title={accion.puede ? "Revisar expediente" : accion.label}
+                            onClick={() => { if (accion.puede) setRevisando(fila); }}
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            <span>{fila.origen === DD_ORIGENES.IMPORTADO ? "Solo lectura" : "Revisar"}</span>
+                            <span>{accion.label}</span>
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

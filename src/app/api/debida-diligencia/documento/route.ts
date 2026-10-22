@@ -7,7 +7,7 @@ import { getStorage } from "@/lib/server/storage";
 import { error, success } from "@/lib/server/api-response";
 import {
   API_ERROR_CODES,
-  DD_DOCUMENTOS_REQUERIDOS,
+  DD_DOCUMENTOS,
   PERMISSIONS,
   ROLES,
   type DdDocumentoTipo,
@@ -19,6 +19,7 @@ const MIME_POR_FORMATO = {
   pdf: "application/pdf",
   jpg: "image/jpeg",
   png: "image/png",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 } as const;
 
 /** Carga de un documento de sustento del modulo DD (validacion real en backend). */
@@ -43,16 +44,22 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!(file instanceof File)) {
     return error(API_ERROR_CODES.VALIDATION, "Archivo requerido", 400);
   }
-  if (typeof tipo !== "string" || !DD_DOCUMENTOS_REQUERIDOS.some((d) => d.tipo === tipo)) {
+  if (typeof tipo !== "string" || !Object.values(DD_DOCUMENTOS).includes(tipo as DdDocumentoTipo)) {
     return error(API_ERROR_CODES.VALIDATION, "Tipo de documento inválido", 400);
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const errorArchivo = ddArchivoUtils.validar({
-    nombre: file.name,
-    size: bytes.byteLength,
-    bytes,
-  });
+  const errorArchivo = ddArchivoUtils.validar(
+    {
+      nombre: file.name,
+      size: bytes.byteLength,
+      bytes,
+    },
+    {
+      permitirDocx: tipo === DD_DOCUMENTOS.DECLARACION_JURADA,
+      soloPdf: tipo === DD_DOCUMENTOS.ADICIONAL,
+    },
+  );
   if (errorArchivo) {
     return error(API_ERROR_CODES.VALIDATION, errorArchivo, 400);
   }

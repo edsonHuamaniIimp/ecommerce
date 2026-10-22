@@ -108,6 +108,7 @@ export interface DdExpedienteEntity {
   motivoRechazo: string | null;
   fechaDerivacionLegal: Date | null;
   derivadoLegalPor: string | null;
+  informeLogisticaUrl: string | null;
   fechaLegal: Date | null;
   legalRevisor: string | null;
   decisionLegal: DdAccionLegal | null;
@@ -145,6 +146,7 @@ export interface DdReputacionCasoEntity {
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;
   comentario: string | null;
+  linkHallazgos: string | null;
   derivadoPor: string;
   fechaDerivacion: Date;
   revisor: string | null;
@@ -288,6 +290,7 @@ export interface DdReputacionRow {
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;
   comentario: string | null;
+  linkHallazgos: string | null;
   derivadoPor: string;
   fechaDerivacion: Date;
   revisor: string | null;
@@ -303,8 +306,19 @@ export interface DdReputacionParams {
   estado?: string;
 }
 
+export interface DdReputacionGrupo {
+  expedienteId: string;
+  codigo: string;
+  empresa: DdEmpresaResumen;
+  casos: DdReputacionRow[];
+  totalCasos: number;
+  pendientes: number;
+  cerrados: number;
+  fechaDerivacion: Date;
+}
+
 export interface DdReputacionResult {
-  data: DdReputacionRow[];
+  data: DdReputacionGrupo[];
   total: number;
   page: number;
   perPage: number;
@@ -491,6 +505,7 @@ export interface DdReputacionActualizacion {
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;
   comentario: string | null;
+  linkHallazgos: string | null;
   revisor: string;
   cerrar: boolean;
 }

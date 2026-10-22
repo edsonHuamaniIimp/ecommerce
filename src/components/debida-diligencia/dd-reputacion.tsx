@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Alert,
   AlertDescription,
+  Badge,
   Button,
   Card,
   CardContent,
@@ -35,6 +40,7 @@ import { DdReputacionBadge } from "./dd-estado-badge";
 import { DdRadioIndicator } from "./dd-radio-indicator";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
+  BADGE_STYLES,
   DD_PER_PAGE_DEFAULT,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_FILTROS,
@@ -57,6 +63,7 @@ export function DdReputacion() {
   const [seleccionado, setSeleccionado] = useState<DdReputacionRowDTO | null>(null);
   const [resultado, setResultado] = useState<DdReputacionResultado | "">("");
   const [comentario, setComentario] = useState("");
+  const [linkHallazgos, setLinkHallazgos] = useState("");
   const [notificar, setNotificar] = useState(true);
   const [guardando, setGuardando] = useState<"guardar" | "cerrar" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +106,7 @@ export function DdReputacion() {
     setSeleccionado(fila);
     setResultado(fila.resultado ?? "");
     setComentario(fila.comentario ?? "");
+    setLinkHallazgos(fila.linkHallazgos ?? "");
     setError(null);
   };
 
@@ -108,6 +116,10 @@ export function DdReputacion() {
       setError("Selecciona un resultado para la revisión.");
       return;
     }
+    if (resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS && !linkHallazgos.trim()) {
+      setError("El link de sustento es obligatorio cuando hay hallazgos.");
+      return;
+    }
     setGuardando(cerrar ? "cerrar" : "guardar");
     setError(null);
     try {
@@ -115,6 +127,7 @@ export function DdReputacion() {
         id: seleccionado.id,
         resultado,
         comentario: comentario.trim() || null,
+        linkHallazgos: resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ? linkHallazgos.trim() : null,
         cerrar,
         notificar,
       });
@@ -122,6 +135,7 @@ export function DdReputacion() {
       setSeleccionado(null);
       setResultado("");
       setComentario("");
+      setLinkHallazgos("");
       recargar();
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : "No se pudo guardar el resultado";
@@ -156,7 +170,7 @@ export function DdReputacion() {
           </p>
         </div>
         <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-          {data?.total ?? 0} casos
+          {data?.total ?? 0} solicitud(es)
         </span>
       </div>
 
@@ -167,7 +181,7 @@ export function DdReputacion() {
               <div className="relative w-full sm:flex-1">
                 <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar empresa, nombre o expediente..."
+                  placeholder="Buscar empresa, nombre o solicitud..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
@@ -214,60 +228,104 @@ export function DdReputacion() {
               <TableSkeleton rows={perPage} columns={6} />
             ) : !data || data.data.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-sm text-muted-foreground">No hay casos en este filtro.</p>
+                <p className="text-sm text-muted-foreground">No hay solicitudes en este filtro.</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Logística deriva los nombres al resolver la revisión de documentos.
                 </p>
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-[10px] uppercase tracking-wide">Empresa / Nombre</TableHead>
-                        <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Sitio web</TableHead>
-                        <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Derivado por</TableHead>
-                        <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Fecha</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wide">Resultado</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.data.map((fila) => (
-                        <TableRow key={fila.id} className={seleccionado?.id === fila.id ? "bg-primary/5" : undefined}>
-                          <TableCell className="max-w-[250px]">
-                            <p className="truncate text-xs font-semibold text-foreground">{fila.nombreARevisar}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">{fila.empresa.razonSocial}</p>
-                            <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
-                          </TableCell>
-                          <TableCell className="hidden max-w-[160px] truncate text-xs md:table-cell">
-                            {fila.sitioWeb ? (
-                              <a href={fila.sitioWeb} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
-                                {fila.sitioWeb.replace(/^https?:\/\//, "")}
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">Sin web</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">{fila.derivadoPor}</TableCell>
-                          <TableCell className="hidden text-[11px] text-muted-foreground sm:table-cell">{dateUtils.format(fila.fechaDerivacion)}</TableCell>
-                          <TableCell><DdReputacionBadge estado={fila.estado} /></TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-[11px]"
-                              onClick={() => seleccionar(fila)}
-                            >
-                              <span>{fila.estado === DD_REPUTACION_ESTADOS.CERRADA ? "Ver" : "Revisar"}</span>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <Accordion type="multiple" className="space-y-2">
+                  {data.data.map((grupo) => (
+                    <AccordionItem
+                      key={grupo.expedienteId}
+                      value={grupo.expedienteId}
+                      className="rounded-xl border border-border bg-card px-3"
+                    >
+                      <AccordionTrigger className="py-3 hover:no-underline">
+                        <div className="flex w-full flex-wrap items-center justify-between gap-2 pr-2 text-left">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-foreground">
+                              {grupo.empresa.razonSocial}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              {grupo.codigo} · {grupo.totalCasos} nombre(s)
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {grupo.pendientes > 0 ? (
+                              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                <span>{grupo.pendientes} pendiente(s)</span>
+                              </Badge>
+                            ) : null}
+                            {grupo.cerrados > 0 ? (
+                              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.SUCCESS}`}>
+                                <span>{grupo.cerrados} cerrado(s)</span>
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-3">
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="text-[10px] uppercase tracking-wide">Nombre</TableHead>
+                                <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Sitio web</TableHead>
+                                <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Derivado por</TableHead>
+                                <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Fecha</TableHead>
+                                <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {grupo.casos.map((fila) => (
+                                <TableRow key={fila.id} className={seleccionado?.id === fila.id ? "bg-primary/5" : undefined}>
+                                  <TableCell className="max-w-[250px]">
+                                    <p className="truncate text-xs font-semibold text-foreground">{fila.nombreARevisar}</p>
+                                  </TableCell>
+                                  <TableCell className="hidden max-w-[160px] truncate text-xs md:table-cell">
+                                    {fila.sitioWeb ? (
+                                      <a href={fila.sitioWeb} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                                        {fila.sitioWeb.replace(/^https?:\/\//, "")}
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted-foreground">Sin web</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">{fila.derivadoPor}</TableCell>
+                                  <TableCell className="hidden text-[11px] text-muted-foreground sm:table-cell">{dateUtils.format(fila.fechaDerivacion)}</TableCell>
+                                  <TableCell><DdReputacionBadge estado={fila.estado} /></TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-[11px]"
+                                      onClick={() => seleccionar(fila)}
+                                    >
+                                      <span>{fila.estado === DD_REPUTACION_ESTADOS.CERRADA ? "Ver" : "Revisar"}</span>
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+                <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {data.total} solicitud(es) · página {data.page} de {data.totalPages || 1}
+                  </span>
+                  <Pagination
+                    page={data.page}
+                    totalPages={data.totalPages}
+                    onPageChange={(p) => { setPage(p); recargar({ page: p }); }}
+                  />
                 </div>
                 <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-xs text-muted-foreground">
@@ -364,6 +422,25 @@ export function DdReputacion() {
                   />
                   {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
                 </div>
+
+                {resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs">
+                      <span>Link de sustento de hallazgos <span className="text-destructive">*</span></span>
+                    </Label>
+                    <Input
+                      type="url"
+                      value={linkHallazgos}
+                      onChange={(e) => { setLinkHallazgos(e.target.value); setError(null); }}
+                      placeholder="https://drive.google.com/..."
+                      className="h-9 text-sm"
+                      disabled={cerrada}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Adjunta el enlace de Drive con la evidencia de los hallazgos.
+                    </p>
+                  </div>
+                ) : null}
 
                 {seleccionado.estado !== DD_REPUTACION_ESTADOS.CERRADA ? (
                   <label className="flex items-start gap-2">

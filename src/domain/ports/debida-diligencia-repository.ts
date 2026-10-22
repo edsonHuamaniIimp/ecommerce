@@ -36,6 +36,7 @@ export interface DdEstadoExpedienteData {
   motivoRechazo?: string | null;
   fechaDerivacionLegal?: Date | null;
   derivadoLegalPor?: string | null;
+  informeLogisticaUrl?: string | null;
   fechaLegal?: Date | null;
   legalRevisor?: string | null;
   decisionLegal?: string | null;

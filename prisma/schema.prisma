@@ -1239,6 +1239,8 @@ model DebidaDiligencia {
 
   fechaDerivacionLegal DateTime? @map("fecha_derivacion_legal")
   derivadoLegalPor     String?   @map("derivado_legal_por") @db.VarChar(200)
+  /// Link del informe de Logistica enviado a Legal (por ejemplo, Google Drive).
+  informeLogisticaUrl  String?   @map("informe_logistica_url") @db.VarChar(500)
   fechaLegal           DateTime? @map("fecha_legal")
   legalRevisor         String?   @map("legal_revisor") @db.VarChar(200)
   decisionLegal        String?   @map("decision_legal") @db.VarChar(20)
@@ -1362,6 +1364,8 @@ model DebidaDiligenciaReputacion {
   /// Resultado de la revision (ver DD_REPUTACION_RESULTADOS); null mientras no se resuelve.
   resultado       String?   @db.VarChar(30)
   comentario      String?   @db.VarChar(1500)
+  /// Link de sustento cuando el resultado es con hallazgos.
+  linkHallazgos   String?   @map("link_hallazgos") @db.VarChar(500)
   derivadoPor     String    @map("derivado_por") @db.VarChar(200)
   fechaDerivacion DateTime  @default(now()) @map("fecha_derivacion")
   revisor         String?   @db.VarChar(200)

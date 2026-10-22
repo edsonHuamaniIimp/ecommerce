@@ -69,6 +69,15 @@ locals {
   tags = merge(var.common_tags, { component = "app" })
 
   use_waf = var.enable_waf
+
+  # Rutas de carga: los managed rules no inspeccionan su cuerpo (multipart/binarios
+  # disparan XSS/LFI falsos positivos). El rate limit y las demas reglas siguen activos.
+  waf_upload_paths = [
+    "/api/upload",
+    "/api/debida-diligencia/documento",
+    "/api/debida-diligencia/empresas/importar",
+    "/api/debida-diligencia/legal/informe",
+  ]
 }
 
 # ── WAF (scope CLOUDFRONT, us-east-1) ───────────────────────────────────────
@@ -95,6 +104,31 @@ resource "aws_wafv2_web_acl" "main" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+
+        scope_down_statement {
+          not_statement {
+            statement {
+              or_statement {
+                dynamic "statement" {
+                  for_each = local.waf_upload_paths
+                  content {
+                    byte_match_statement {
+                      field_to_match {
+                        uri_path {}
+                      }
+                      positional_constraint = "EXACTLY"
+                      search_string         = statement.value
+                      text_transformation {
+                        priority = 0
+                        type     = "NONE"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
 
         # SizeRestrictions_BODY (CRS) bloquea cuerpos > 8KB con 403, lo que impide subir
         # documentos/imagenes. Se pasa a 'count' (AWS no permite scope-down por ruta en
@@ -127,6 +161,31 @@ resource "aws_wafv2_web_acl" "main" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesKnownBadInputsRuleSet"
         vendor_name = "AWS"
+
+        scope_down_statement {
+          not_statement {
+            statement {
+              or_statement {
+                dynamic "statement" {
+                  for_each = local.waf_upload_paths
+                  content {
+                    byte_match_statement {
+                      field_to_match {
+                        uri_path {}
+                      }
+                      positional_constraint = "EXACTLY"
+                      search_string         = statement.value
+                      text_transformation {
+                        priority = 0
+                        type     = "NONE"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
 

@@ -78,6 +78,7 @@ export interface DdReputacionCasoDTO {
   estado: string;
   resultado: string | null;
   comentario: string | null;
+  linkHallazgos: string | null;
   derivadoPor: string;
   fechaDerivacion: string;
   revisor: string | null;
@@ -120,6 +121,7 @@ export interface DdExpedienteDTO {
   motivoRechazo: string | null;
   fechaDerivacionLegal: string | null;
   derivadoLegalPor: string | null;
+  informeLogisticaUrl: string | null;
   fechaLegal: string | null;
   legalRevisor: string | null;
   decisionLegal: string | null;

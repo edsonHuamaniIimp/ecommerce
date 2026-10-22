@@ -15,6 +15,7 @@ export interface DdReputacionRowDTO {
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;
   comentario: string | null;
+  linkHallazgos: string | null;
   derivadoPor: string;
   fechaDerivacion: string;
   revisor: string | null;
@@ -22,8 +23,19 @@ export interface DdReputacionRowDTO {
   observacionesAbiertas: number;
 }
 
+export interface DdReputacionGrupoDTO {
+  expedienteId: string;
+  codigo: string;
+  empresa: DdReputacionEmpresaDTO;
+  casos: DdReputacionRowDTO[];
+  totalCasos: number;
+  pendientes: number;
+  cerrados: number;
+  fechaDerivacion: string;
+}
+
 export interface DdReputacionResponseDTO {
-  data: DdReputacionRowDTO[];
+  data: DdReputacionGrupoDTO[];
   total: number;
   page: number;
   perPage: number;
