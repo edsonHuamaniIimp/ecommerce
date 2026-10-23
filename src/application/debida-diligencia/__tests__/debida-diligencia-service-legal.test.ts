@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 import { DebidaDiligenciaApplicationService } from "../debida-diligencia-service";
 import type { DdExpedienteEntity } from "@/domain/models/debida-diligencia";
 import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligencia-repository";
@@ -9,6 +9,8 @@ import {
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
   DD_ESTADOS,
+  DD_DOCUMENTOS,
+  DD_HISTORIAL_TIPOS,
   PERMISSIONS,
 } from "@/lib/shared/constants";
 
@@ -31,12 +33,17 @@ function crearServicio() {
     findExpedientePorId: vi.fn().mockResolvedValue(EXPEDIENTE),
     resolverDocumentos: vi.fn(),
     resolverObservaciones: vi.fn(),
+    crearObservaciones: vi.fn(),
+    listarObservaciones: vi.fn().mockResolvedValue([]),
     actualizarEstado: vi.fn(),
     registrarAuditoria: vi.fn(),
+    registrarHistorial: vi.fn().mockResolvedValue(undefined),
+    listarHistorial: vi.fn().mockResolvedValue([]),
   } as unknown as IDebidaDiligenciaRepository;
   const notificaciones = {
     expedienteAprobado: vi.fn(),
     expedienteRechazado: vi.fn(),
+    expedienteObservado: vi.fn(),
   } as unknown as IDebidaDiligenciaNotificacionPort;
   const documentoValidator = {
     validarInformeLegal: vi.fn(),
@@ -95,6 +102,10 @@ describe("revisar - aprobación de Logística", () => {
     expect(notificaciones.expedienteAprobado).toHaveBeenCalledWith(
       expect.objectContaining({ codigo: "DD-2026-0001" }),
     );
+    expect(repo.registrarHistorial).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.APROBACION }),
+    );
   });
 });
 
@@ -124,6 +135,10 @@ describe("resolverLegal", () => {
     expect(notificaciones.expedienteRechazado).toHaveBeenCalledWith(
       expect.objectContaining({ motivo: "Informe legal" }),
     );
+    expect(repo.registrarHistorial).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.LEGAL_RECHAZO }),
+    );
   });
 
   it("aprueba la revisión y devuelve el expediente a Logística", async () => {
@@ -147,6 +162,10 @@ describe("resolverLegal", () => {
       }),
     );
     expect(notificaciones.expedienteAprobado).not.toHaveBeenCalled();
+    expect(repo.registrarHistorial).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.LEGAL_APROBACION }),
+    );
   });
 
   it("rechaza expedientes que no están en revisión legal", async () => {
@@ -201,3 +220,86 @@ describe("resolverLegal", () => {
     expect(notificaciones.expedienteAprobado).not.toHaveBeenCalled();
   });
 });
+  it("observa con una observacion de Legal y habilita la subsanacion del cliente", async () => {
+    const { servicio, repo, notificaciones } = crearServicio();
+    (repo.actualizarEstado as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.OBSERVADA,
+      decisionLegal: DD_ACCIONES_LEGAL.OBSERVAR,
+    });
+    (repo.listarObservaciones as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "obs-1",
+        area: "legal",
+        documentoTipo: null,
+        texto: "Falta actualizar la vigencia de poderes.",
+        estado: "abierta",
+      },
+    ]);
+
+    await servicio.resolverLegal(
+      {
+        expedienteId: "exp-1",
+        decision: DD_ACCIONES_LEGAL.OBSERVAR,
+        motivo: "Falta actualizar la vigencia de poderes.",
+        informeLegalNombre: null,
+        informeLegalUrl: null,
+      },
+      session,
+    );
+
+    expect(repo.crearObservaciones).toHaveBeenCalledWith(
+      "exp-1",
+      [expect.objectContaining({ area: "legal", texto: "Falta actualizar la vigencia de poderes." })],
+      "legal@iimp.org.pe",
+    );
+    expect(repo.actualizarEstado).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        estado: DD_ESTADOS.OBSERVADA,
+        decisionLegal: DD_ACCIONES_LEGAL.OBSERVAR,
+      }),
+    );
+    expect(notificaciones.expedienteObservado).toHaveBeenCalledWith(
+      expect.objectContaining({ codigo: "DD-2026-0001" }),
+    );
+  });
+
+  it("registra la solicitud de un documento adicional de Legal", async () => {
+    const { servicio, repo } = crearServicio();
+    (repo.actualizarEstado as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.OBSERVADA,
+      decisionLegal: DD_ACCIONES_LEGAL.OBSERVAR,
+    });
+    (repo.listarObservaciones as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await servicio.resolverLegal(
+      {
+        expedienteId: "exp-1",
+        decision: DD_ACCIONES_LEGAL.OBSERVAR,
+        motivo: "Adjuntar carta de autorización vigente.",
+        documentosObservados: [DD_DOCUMENTOS.ADICIONAL],
+        informeLegalNombre: null,
+        informeLegalUrl: null,
+      },
+      session,
+    );
+
+    expect(repo.crearObservaciones).toHaveBeenCalledWith(
+      "exp-1",
+      [
+        expect.objectContaining({
+          area: "legal",
+          documentoTipo: DD_DOCUMENTOS.ADICIONAL,
+          texto: "Adjuntar carta de autorización vigente.",
+        }),
+      ],
+      "legal@iimp.org.pe",
+    );
+    expect(repo.resolverDocumentos).toHaveBeenCalledWith(
+      "exp-1",
+      [DD_DOCUMENTOS.ADICIONAL],
+      "Adjuntar carta de autorización vigente.",
+    );
+  });

@@ -9,6 +9,7 @@ import type {
   DdEmpresasResponseDTO,
   DdExpedienteDTO,
   DdGuardarRequestDTO,
+  DdHistorialResponseDTO,
   DdInformeLegalUploadResponseDTO,
   DdLegalResolverRequestDTO,
   DdMatrizQueryDTO,
@@ -45,6 +46,12 @@ export const debidaDiligenciaService = {
   detalle(id: string) {
     return internalApi.get<DdExpedienteDTO>(
       `/api/debida-diligencia/detalle?id=${encodeURIComponent(id)}`,
+    );
+  },
+
+  historial(id: string) {
+    return internalApi.get<DdHistorialResponseDTO>(
+      `/api/debida-diligencia/historial?id=${encodeURIComponent(id)}`,
     );
   },
 

@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  History,
   Map,
   Mail,
   RefreshCw,
@@ -38,6 +39,7 @@ import {
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { DdEstadoBadge, DdDocumentoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
+import { DdHistorialDialog } from "./dd-historial-dialog";
 import { useSesion } from "@/hooks/use-sesion";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -68,6 +70,7 @@ export function MiDebidaDiligencia() {
   const [loading, setLoading] = useState(true);
   const [documentosOpen, setDocumentosOpen] = useState(false);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
+  const [historialOpen, setHistorialOpen] = useState(false);
 
   useEffect(() => {
     if (!eventoId) return;
@@ -282,6 +285,16 @@ export function MiDebidaDiligencia() {
                     <FileText className="h-3.5 w-3.5" />
                     <span>Ver documentos enviados</span>
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={() => setHistorialOpen(true)}
+                  >
+                    <History className="h-3.5 w-3.5" />
+                    <span>Ver historial</span>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -437,6 +450,12 @@ export function MiDebidaDiligencia() {
           </div>
         </div>
       )}
+
+      <DdHistorialDialog
+        expedienteId={expediente?.id ?? null}
+        open={historialOpen}
+        onOpenChange={setHistorialOpen}
+      />
 
       <Dialog open={documentosOpen} onOpenChange={setDocumentosOpen}>
         <DialogContent className="sm:max-w-lg">

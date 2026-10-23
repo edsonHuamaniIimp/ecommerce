@@ -14,9 +14,12 @@ import type {
   DdEmpresasResult,
   DdExpedienteEntity,
   DdGuardarData,
+  DdHistorialCreacion,
+  DdHistorialEventoEntity,
   DdLegalResolucionData,
   DdMatrizParams,
   DdMatrizResult,
+  DdObservacionEntity,
   DdPanelData,
   DdReputacionParams,
   DdReputacionResult,
@@ -36,6 +39,7 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_HISTORIAL_TIPOS,
   DD_ORIGENES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
@@ -120,6 +124,7 @@ export class DebidaDiligenciaApplicationService {
     const esStaff =
       this.tienePermiso(session, PERMISSIONS.DD_VER) ||
       this.tienePermiso(session, PERMISSIONS.DD_REVISION) ||
+      this.tienePermiso(session, PERMISSIONS.DD_LEGAL) ||
       this.tienePermiso(session, PERMISSIONS.DD_REPUTACION) ||
       this.tienePermiso(session, PERMISSIONS.DD_PANEL);
     if (!esStaff) {
@@ -129,6 +134,111 @@ export class DebidaDiligenciaApplicationService {
       }
     }
     return expediente;
+  }
+
+  private async registrarHistorial(
+    expedienteId: string,
+    data: DdHistorialCreacion,
+  ): Promise<void> {
+    await this.repo.registrarHistorial(expedienteId, data);
+  }
+
+  /**
+   * Historial del expediente: eventos de workflow persistidos y observaciones
+   * emitidas por las areas. El cliente solo puede ver su propia empresa.
+   */
+  async historial(
+    expedienteId: string,
+    session: DdSession,
+  ): Promise<{ eventos: DdHistorialEventoEntity[]; observaciones: DdObservacionEntity[] }> {
+    const expediente = await this.expedienteConAcceso(expedienteId, session);
+    const [eventos, observaciones] = await Promise.all([
+      this.repo.listarHistorial(expediente.id),
+      this.repo.listarObservaciones(expediente.id),
+    ]);
+    return {
+      eventos: eventos.length > 0 ? eventos : this.eventosHistoricos(expediente),
+      observaciones,
+    };
+  }
+
+  /**
+   * Reconstruye hitos para expedientes creados antes de existir la tabla de
+   * historial. Solo se usa cuando no hay eventos persistidos, para no duplicar
+   * los hitos de los flujos nuevos.
+   */
+  private eventosHistoricos(expediente: DdExpedienteEntity): DdHistorialEventoEntity[] {
+    const eventos: DdHistorialEventoEntity[] = [];
+    const push = (evento: Omit<DdHistorialEventoEntity, "id" | "metadata"> & { id: string }) => {
+      eventos.push({ ...evento, metadata: { historico: true } });
+    };
+    if (expediente.fechaEnvio) {
+      push({
+        id: "historico-envio",
+        tipo: DD_HISTORIAL_TIPOS.ENVIO,
+        area: null,
+        estado: DD_ESTADOS.EN_REVISION,
+        titulo: "Expediente enviado a revisión",
+        detalle: "Registro reconstruido desde las fechas del expediente.",
+        actor: expediente.creadoPor,
+        createdAt: expediente.fechaEnvio,
+      });
+    }
+    if (expediente.fechaDerivacionLegal) {
+      push({
+        id: "historico-derivacion-legal",
+        tipo: DD_HISTORIAL_TIPOS.DERIVACION_LEGAL,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: DD_ESTADOS.EN_LEGAL,
+        titulo: "Expediente derivado a Legal",
+        detalle: "Registro reconstruido desde las fechas del expediente.",
+        actor: expediente.derivadoLegalPor ?? expediente.revisadoPor ?? expediente.creadoPor,
+        createdAt: expediente.fechaDerivacionLegal,
+      });
+    }
+    if (expediente.fechaLegal && expediente.decisionLegal) {
+      const rechazada = expediente.decisionLegal === DD_ACCIONES_LEGAL.RECHAZAR;
+      const observada = expediente.decisionLegal === DD_ACCIONES_LEGAL.OBSERVAR;
+      if (!observada) {
+        push({
+          id: "historico-legal",
+          tipo: rechazada
+            ? DD_HISTORIAL_TIPOS.LEGAL_RECHAZO
+            : DD_HISTORIAL_TIPOS.LEGAL_APROBACION,
+          area: DD_OBSERVACION_AREAS.LEGAL,
+          estado: expediente.estado,
+          titulo: rechazada ? "Debida diligencia rechazada por Legal" : "Revisión legal aprobada",
+          detalle: expediente.motivoLegal ?? "Registro reconstruido desde las fechas del expediente.",
+          actor: expediente.legalRevisor ?? expediente.creadoPor,
+          createdAt: expediente.fechaLegal,
+        });
+      }
+    }
+    if (expediente.fechaAprobacion) {
+      push({
+        id: "historico-aprobacion",
+        tipo: DD_HISTORIAL_TIPOS.APROBACION,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: DD_ESTADOS.APROBADA,
+        titulo: "Debida diligencia aprobada",
+        detalle: "Registro reconstruido desde las fechas del expediente.",
+        actor: expediente.revisadoPor ?? expediente.creadoPor,
+        createdAt: expediente.fechaAprobacion,
+      });
+    }
+    if (expediente.fechaRechazo && expediente.decisionLegal !== DD_ACCIONES_LEGAL.RECHAZAR) {
+      push({
+        id: "historico-rechazo",
+        tipo: DD_HISTORIAL_TIPOS.RECHAZO,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: DD_ESTADOS.RECHAZADA,
+        titulo: "Debida diligencia rechazada",
+        detalle: expediente.motivoRechazo ?? "Registro reconstruido desde las fechas del expediente.",
+        actor: expediente.revisadoPor ?? expediente.creadoPor,
+        createdAt: expediente.fechaRechazo,
+      });
+    }
+    return eventos;
   }
 
   /** Expediente de la empresa del usuario para el evento activo. */
@@ -277,6 +387,12 @@ export class DebidaDiligenciaApplicationService {
       throw new DomainError("Faltan documentos obligatorios", API_ERROR_CODES.VALIDATION, 400);
     }
     const observaciones = await this.repo.listarObservaciones(expediente.id);
+    /*
+     * Marcador exclusivo del nuevo flujo de observacion legal. No inferir por
+     * `area = legal`: las derivaciones historicas de Logistica tambien crean
+     * observaciones de area legal y no deben cambiar el retorno a Logistica.
+     */
+    const volveraLegal = expediente.decisionLegal === DD_ACCIONES_LEGAL.OBSERVAR;
     const requiereDocumentoAdicional = observaciones.some(
       (observacion) =>
         observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA &&
@@ -306,7 +422,7 @@ export class DebidaDiligenciaApplicationService {
     );
     await this.repo.resolverObservaciones(expediente.id);
     const actualizado = await this.repo.actualizarEstado(expediente.id, {
-      estado: DD_ESTADOS.EN_REVISION,
+      estado: volveraLegal ? DD_ESTADOS.EN_LEGAL : DD_ESTADOS.EN_REVISION,
       fechaEnvio: dateUtils.now(),
       actualizadoPor: session.email,
     });
@@ -314,8 +430,42 @@ export class DebidaDiligenciaApplicationService {
       "enviar",
       `debida_diligencia:${actualizado.codigo}`,
       session.email,
-      "El cliente envió la debida diligencia a revisión",
+      volveraLegal
+        ? "El cliente subsanó la observación y reenvió el expediente a revisión legal"
+        : "El cliente envió la debida diligencia a revisión",
     );
+
+    const observacionesAbiertas = observaciones.filter(
+      (observacion) => observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA,
+    ).length;
+    const esReenvio = volveraLegal || observacionesAbiertas > 0;
+    await this.registrarHistorial(actualizado.id, {
+      tipo: esReenvio ? DD_HISTORIAL_TIPOS.REENVIO : DD_HISTORIAL_TIPOS.ENVIO,
+      estado: actualizado.estado,
+      titulo: volveraLegal
+        ? "Expediente reenviado a Legal"
+        : esReenvio
+          ? "Expediente reenviado a Logística"
+          : "Expediente enviado a revisión",
+      detalle: volveraLegal
+        ? "El cliente corrigió las observaciones y solicitó una nueva revisión legal."
+        : esReenvio
+          ? `El cliente respondió ${observacionesAbiertas} observación(es) y solicitó una nueva revisión.`
+          : "El cliente completó el formulario y lo envió para revisión.",
+      actor: session.email,
+      metadata: {
+        observacionesRespondidas: observacionesAbiertas,
+        reenvioLegal: volveraLegal,
+      },
+    });
+
+    if (volveraLegal) {
+      await this.notificaciones.notificarLegal({
+        codigo: actualizado.codigo,
+        razonSocial: actualizado.empresa.razonSocial,
+        motivo: "El cliente subsanó la observación de Legal.",
+      });
+    }
 
     const destino =
       actualizado.emailRepresentante ??
@@ -828,6 +978,38 @@ export class DebidaDiligenciaApplicationService {
       });
     }
 
+    if (dto.accion === DD_ACCIONES_REVISION.APROBAR) {
+      await this.registrarHistorial(actualizado.id, {
+        tipo: DD_HISTORIAL_TIPOS.APROBACION,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: actualizado.estado,
+        titulo: "Debida diligencia aprobada",
+        detalle: `Logística aprobó la evaluación. Vigente hasta ${dateUtils.format(actualizado.fechaVencimiento)}.`,
+        actor: session.email,
+      });
+    } else if (retornoLegal) {
+      await this.registrarHistorial(actualizado.id, {
+        tipo: DD_HISTORIAL_TIPOS.RECHAZO,
+        area: DD_OBSERVACION_AREAS.LEGAL,
+        estado: actualizado.estado,
+        titulo: "Debida diligencia rechazada",
+        detalle: actualizado.motivoRechazo ?? "Rechazo final luego de la revisión legal.",
+        actor: session.email,
+      });
+    } else if (actualizado.estado === DD_ESTADOS.EN_LEGAL) {
+      await this.registrarHistorial(actualizado.id, {
+        tipo: DD_HISTORIAL_TIPOS.DERIVACION_LEGAL,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: actualizado.estado,
+        titulo: "Expediente derivado a Legal",
+        detalle: actualizado.motivoRechazo ?? "Logística derivó el expediente para revisión legal.",
+        actor: session.email,
+        metadata: {
+          informeLogisticaUrl: actualizado.informeLogisticaUrl,
+        },
+      });
+    }
+
     if (actualizado.estado === DD_ESTADOS.EN_LEGAL) {
       await this.notificaciones.notificarLegal({
         codigo: actualizado.codigo,
@@ -903,6 +1085,15 @@ export class DebidaDiligenciaApplicationService {
       session.email,
       `Logística derivó ${nombres.length} nombre(s) a Comunicaciones`,
     );
+    await this.registrarHistorial(expediente.id, {
+      tipo: DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES,
+      area: DD_OBSERVACION_AREAS.COMUNICACION,
+      estado: expediente.estado,
+      titulo: "Revisión reputacional derivada",
+      detalle: `Logística derivó ${nombres.length} nombre(s) a Comunicaciones.`,
+      actor: session.email,
+      metadata: { nombres: nombres.length },
+    });
     return { derivados: nombres.length };
   }
 
@@ -943,6 +1134,13 @@ export class DebidaDiligenciaApplicationService {
         400,
       );
     }
+    if (dto.decision === DD_ACCIONES_LEGAL.OBSERVAR && !dto.motivo?.trim()) {
+      throw new DomainError(
+        "El motivo de la observación legal es obligatorio",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
     if (informeLegalNombre && informeLegalUrl) {
       await this.documentoValidator.validarInformeLegal({
         url: informeLegalUrl,
@@ -952,10 +1150,40 @@ export class DebidaDiligenciaApplicationService {
 
     const ahora = dateUtils.now();
     const aprobar = dto.decision === DD_ACCIONES_LEGAL.APROBAR;
+    const observar = dto.decision === DD_ACCIONES_LEGAL.OBSERVAR;
     await this.repo.resolverObservaciones(expediente.id);
+    if (observar) {
+      const documentosObservados = dto.documentosObservados ?? [];
+      if (documentosObservados.length > 0) {
+        await this.repo.resolverDocumentos(
+          expediente.id,
+          documentosObservados,
+          dto.motivo?.trim() || null,
+        );
+      }
+      await this.repo.crearObservaciones(
+        expediente.id,
+        documentosObservados.length > 0
+          ? documentosObservados.map((documentoTipo) => ({
+              area: DD_OBSERVACION_AREAS.LEGAL,
+              documentoTipo,
+              texto: dto.motivo?.trim() || "Documento observado por Legal.",
+            }))
+          : [{
+              area: DD_OBSERVACION_AREAS.LEGAL,
+              documentoTipo: null,
+              texto: dto.motivo?.trim() || "Observación de Legal.",
+            }],
+        session.email,
+      );
+    }
 
     const actualizado = await this.repo.actualizarEstado(expediente.id, {
-      estado: aprobar ? DD_ESTADOS.EN_REVISION : DD_ESTADOS.RECHAZADA,
+      estado: observar
+        ? DD_ESTADOS.OBSERVADA
+        : aprobar
+          ? DD_ESTADOS.EN_REVISION
+          : DD_ESTADOS.RECHAZADA,
       fechaRevision: ahora,
       fechaLegal: ahora,
       legalRevisor: session.email,
@@ -963,7 +1191,7 @@ export class DebidaDiligenciaApplicationService {
       motivoLegal: dto.motivo?.trim() || null,
       informeLegalNombre,
       informeLegalUrl,
-      ...(aprobar
+      ...(observar || aprobar
         ? {
             fechaAprobacion: null,
             fechaVencimiento: null,
@@ -977,24 +1205,58 @@ export class DebidaDiligenciaApplicationService {
       `legal:${dto.decision}`,
       `debida_diligencia:${actualizado.codigo}`,
       session.email,
-      aprobar
-        ? "Legal aprobó la revisión y devolvió el expediente a Logística"
-        : "Legal rechazó la debida diligencia con informe legal",
+      observar
+        ? "Legal observó la debida diligencia y devolvió el expediente al cliente"
+        : aprobar
+          ? "Legal aprobó la revisión y devolvió el expediente a Logística"
+          : "Legal rechazó la debida diligencia con informe legal",
     );
 
-    if (!aprobar) {
-      const destino =
-        actualizado.emailRepresentante ??
-        actualizado.empresa.representanteCorreo ??
-        actualizado.empresa.emailContacto;
-      if (destino) {
-        await this.notificaciones.expedienteRechazado({
-          to: destino,
-          codigo: actualizado.codigo,
-          razonSocial: actualizado.empresa.razonSocial,
-          motivo: actualizado.motivoLegal ?? actualizado.motivoRechazo,
-        });
-      }
+    if (aprobar) {
+      await this.registrarHistorial(actualizado.id, {
+        tipo: DD_HISTORIAL_TIPOS.LEGAL_APROBACION,
+        area: DD_OBSERVACION_AREAS.LEGAL,
+        estado: actualizado.estado,
+        titulo: "Revisión legal aprobada",
+        detalle: "Legal aprobó la revisión y devolvió el expediente a Logística.",
+        actor: session.email,
+      });
+    } else if (!observar) {
+      await this.registrarHistorial(actualizado.id, {
+        tipo: DD_HISTORIAL_TIPOS.LEGAL_RECHAZO,
+        area: DD_OBSERVACION_AREAS.LEGAL,
+        estado: actualizado.estado,
+        titulo: "Debida diligencia rechazada por Legal",
+        detalle: actualizado.motivoLegal ?? "Legal rechazó la debida diligencia.",
+        actor: session.email,
+        metadata: {
+          informeLegalNombre: actualizado.informeLegalNombre,
+          informeLegalUrl: actualizado.informeLegalUrl,
+        },
+      });
+    }
+
+    const destino =
+      actualizado.emailRepresentante ??
+      actualizado.empresa.representanteCorreo ??
+      actualizado.empresa.emailContacto;
+    if (destino && observar) {
+      const observaciones = await this.repo.listarObservaciones(actualizado.id);
+      await this.notificaciones.expedienteObservado({
+        to: destino,
+        codigo: actualizado.codigo,
+        razonSocial: actualizado.empresa.razonSocial,
+        observaciones: observaciones
+          .filter((observacion) => observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA)
+          .map((observacion) => observacion.texto),
+      });
+    } else if (destino && !aprobar) {
+      await this.notificaciones.expedienteRechazado({
+        to: destino,
+        codigo: actualizado.codigo,
+        razonSocial: actualizado.empresa.razonSocial,
+        motivo: actualizado.motivoLegal ?? actualizado.motivoRechazo,
+      });
     }
 
     return actualizado;

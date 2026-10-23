@@ -28,14 +28,14 @@ const textoNullable = (max: number) =>
   z.union([z.literal(""), z.string().trim().max(max)]).nullable().default(null);
 
 const emailNullable = z
-  .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invÃ¡lido")])
+  .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo inválido")])
   .nullable()
   .default(null);
 
 const nacionalidadNullable = z
   .union([
     z.literal(""),
-    z.string().trim().max(80).regex(REGEX_NACIONALIDAD, "Nacionalidad invÃ¡lida"),
+    z.string().trim().max(80).regex(REGEX_NACIONALIDAD, "Nacionalidad inválida"),
   ])
   .nullable()
   .default(null);
@@ -45,14 +45,14 @@ const tipoRelacionSchema = z.enum(valores(DD_VINCULOS)).nullable().default(null)
 const tipoDocumentoSchema = z.enum(valores(DD_DOCUMENTOS)).nullable().default(null);
 
 const beneficiarioSchema = z.object({
-  nombre: z.string().trim().min(1, "El nombre o razÃ³n social es obligatorio").max(200),
+  nombre: z.string().trim().min(1, "El nombre o razón social es obligatorio").max(200),
   documento: z.string().trim().min(1, "El documento es obligatorio").max(30),
   nacionalidad: z
     .string()
     .trim()
     .min(1, "La nacionalidad es obligatoria")
     .max(80)
-    .regex(REGEX_NACIONALIDAD, "Nacionalidad invÃ¡lida"),
+    .regex(REGEX_NACIONALIDAD, "Nacionalidad inválida"),
   porcentaje: z
     .number()
     .min(0, "El porcentaje no puede ser negativo")
@@ -83,7 +83,7 @@ export const ddGuardarSchema = z.object({
   representanteNacionalidad: nacionalidadNullable,
   beneficiarios: z
     .array(beneficiarioSchema)
-    .max(DD_MAX_BENEFICIARIOS, `MÃ¡ximo ${DD_MAX_BENEFICIARIOS} beneficiarios`)
+    .max(DD_MAX_BENEFICIARIOS, `Máximo ${DD_MAX_BENEFICIARIOS} beneficiarios`)
     .default([]),
   documentos: z.array(documentoSchema).max(DD_MAX_DOCUMENTOS_EXPEDIENTE).default([]),
 });
@@ -97,13 +97,13 @@ export const ddRevisarSchema = z
     expedienteId: z.string().min(1, "expedienteId requerido"),
     accion: z.enum(valores(DD_ACCIONES_REVISION)),
     motivo: textoNullable(1000),
-    informeLogisticaUrl: z.string().trim().url("Ingrese un link vÃ¡lido").max(500).nullable().default(null),
+    informeLogisticaUrl: z.string().trim().url("Ingrese un link válido").max(500).nullable().default(null),
     documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).default([]),
     observaciones: z
       .array(
         z.object({
           documentoTipo: tipoDocumentoSchema,
-          texto: z.string().trim().min(1, "La observaciÃ³n no puede estar vacÃ­a").max(1000),
+          texto: z.string().trim().min(1, "La observación no puede estar vacía").max(1000),
         }),
       )
       .max(DD_MAX_OBSERVACIONES)
@@ -116,7 +116,7 @@ export const ddRevisarSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["observaciones"],
-          message: "Registra al menos una observaciÃ³n o un motivo para observar el expediente",
+          message: "Registra al menos una observación o un motivo para observar el expediente",
         });
       }
     }
@@ -131,7 +131,7 @@ export const ddRevisarSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["informeLogisticaUrl"],
-        message: "El link del informe de LogÃ­stica es obligatorio para derivar a Legal",
+        message: "El link del informe de Logística es obligatorio para derivar a Legal",
       });
     }
   });
@@ -147,6 +147,7 @@ export const ddLegalResolverSchema = z
     expedienteId: z.string().min(1, "expedienteId requerido"),
     decision: z.enum(valores(DD_ACCIONES_LEGAL)),
     motivo: textoNullable(2000),
+    documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).max(DD_MAX_DOCUMENTOS_EXPEDIENTE).default([]),
     informeLegalNombre: z.string().trim().max(250).nullable().default(null),
     informeLegalUrl: z.string().trim().max(500).nullable().default(null),
   })
@@ -158,6 +159,13 @@ export const ddLegalResolverSchema = z
         code: "custom",
         path: ["motivo"],
         message: "El motivo del rechazo legal es obligatorio",
+      });
+    }
+    if (valor.decision === DD_ACCIONES_LEGAL.OBSERVAR && !valor.motivo?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["motivo"],
+        message: "El motivo de la observación legal es obligatorio",
       });
     }
     if (valor.decision === DD_ACCIONES_LEGAL.RECHAZAR && (!nombre || !url)) {

@@ -1288,6 +1288,7 @@ model DebidaDiligencia {
   beneficiarios DebidaDiligenciaBeneficiario[]
   documentos    DebidaDiligenciaDocumento[]
   observaciones DebidaDiligenciaObservacion[]
+  historial     DebidaDiligenciaHistorial[]
   reputacion    DebidaDiligenciaReputacion[]
   matrizVinculos DdMatrizVinculo[]
 
@@ -1379,6 +1380,32 @@ model DebidaDiligenciaObservacion {
 
   @@index([expedienteId, estado])
   @@map("debida_diligencia_observacion")
+}
+
+/// Evento del flujo de debida diligencia para el historial visible del expediente.
+/// Las observaciones se leen de DebidaDiligenciaObservacion; esta tabla guarda
+/// envios, subsanaciones, derivaciones y decisiones de Logistica/Legal.
+model DebidaDiligenciaHistorial {
+  id           String  @id @default(uuid())
+  expedienteId String  @map("expediente_id")
+  /// Tipo de evento (ver DD_HISTORIAL_TIPOS).
+  tipo         String  @db.VarChar(40)
+  /// Area que origina el evento (ver DD_OBSERVACION_AREAS).
+  area         String? @db.VarChar(30)
+  /// Estado resultante del expediente.
+  estado       String? @db.VarChar(20)
+  titulo       String  @db.VarChar(200)
+  detalle      String? @db.VarChar(1500)
+  actor        String  @db.VarChar(200)
+  /// Datos auxiliares del evento (documentos, conteos, links, etc.).
+  metadata     Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+
+  @@index([expedienteId, createdAt])
+  @@map("debida_diligencia_historial")
 }
 
 /// Caso de revision reputacional derivado por Logistica a Comunicaciones.

@@ -10,6 +10,7 @@ export const { GET, POST } = createRouter({
     clientes: (req) => debidaDiligenciaController.clientes(req),
     empresas: (req) => debidaDiligenciaController.empresas(req),
     detalle: (req) => debidaDiligenciaController.detalle(req),
+    historial: (req) => debidaDiligenciaController.historial(req),
     panel: () => debidaDiligenciaController.panel(),
     matriz: (req) => debidaDiligenciaController.matriz(req),
     "matriz-evaluacion": (req) => ddMatrizEvaluacionController.listar(req),

@@ -64,6 +64,7 @@ import {
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
+  DD_OBSERVACION_AREA_LABELS,
   DD_OBSERVACION_ESTADOS,
   DD_PAIS_DEFAULT,
   DD_PORCENTAJE_PARTICIPACION_MIN,
@@ -222,11 +223,10 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
   const documentosVisibles = [...DD_DOCUMENTOS_REQUERIDOS, DD_DOCUMENTO_ADICIONAL];
   const enSubsanacion =
     expedienteInicial?.estado === DD_ESTADOS.OBSERVADA || observacionesAbiertas.length > 0;
-  /* Comentario unico de la observacion (evita repetirlo en cada input). */
-  const comentariosObservacion = [...new Set([
-    ...observacionesAbiertas.map((observacion) => observacion.texto?.trim() ?? ""),
-    ...documentosObservados.map((documento) => documento.observacion?.trim() ?? ""),
-  ].filter((texto) => texto.length > 0))];
+  /* Comentarios de documentos observados (se muestran una sola vez). */
+  const comentariosDocumentos = [...new Set(
+    documentosObservados.map((documento) => documento.observacion?.trim() ?? "").filter((texto) => texto.length > 0),
+  )];
   const tiposObservados = new Set([
     ...documentosObservados.map((documento) => documento.tipo),
     ...observacionesAbiertas.flatMap((observacion) => observacion.documentoTipo ? [observacion.documentoTipo] : []),
@@ -569,9 +569,17 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                     {tiposObservadosLabels.join(", ")}.
                   </p>
                 ) : null}
-                {comentariosObservacion.map((texto) => (
+                {observacionesAbiertas.map((observacion) => (
+                  <p key={observacion.id} className="mt-1 text-xs text-foreground">
+                    <span className="font-semibold">
+                      {DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area}:
+                    </span>{" "}
+                    {observacion.texto}
+                  </p>
+                ))}
+                {comentariosDocumentos.map((texto) => (
                   <p key={texto} className="mt-1 text-xs text-foreground">
-                    <span className="font-semibold">Observación:</span> {texto}
+                    <span className="font-semibold">Documento observado:</span> {texto}
                   </p>
                 ))}
               </AlertDescription>

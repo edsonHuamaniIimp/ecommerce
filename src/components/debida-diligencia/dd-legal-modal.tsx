@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Badge,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -14,7 +15,7 @@ import {
   Skeleton,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Eye, FileText, Loader2, Scale, Upload, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, FileText, Loader2, Scale, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DdDocumentoBadge, DdReputacionBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
@@ -24,10 +25,13 @@ import { debidaDiligenciaService } from "@/lib/client/api/services/debida-dilige
 import {
   BADGE_STYLES,
   DD_ACCIONES_LEGAL,
+  DD_DOCUMENTO_ADICIONAL,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_REPUTACION_TIPOS,
   DD_REPUTACION_TIPO_LABELS,
   type DdAccionLegal,
+  type DdDocumentoTipo,
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -44,6 +48,7 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
   const [detalle, setDetalle] = useState<DdExpedienteDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<DdAccionLegal>(DD_ACCIONES_LEGAL.APROBAR);
+  const [documentosObservados, setDocumentosObservados] = useState<DdDocumentoTipo[]>([]);
   const [motivo, setMotivo] = useState("");
   const [informe, setInforme] = useState<DdInformeLegalUploadResponseDTO | null>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -97,15 +102,30 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
       setError("El motivo del rechazo legal es obligatorio.");
       return;
     }
+    if (requiereExplicarAdicional) {
+      setError("Describe qué documento adicional debe subir la empresa.");
+      return;
+    }
+    if (decision === DD_ACCIONES_LEGAL.OBSERVAR && !motivo.trim()) {
+      setError("El motivo de la observación legal es obligatorio.");
+      return;
+    }
 
     const aprobar = decision === DD_ACCIONES_LEGAL.APROBAR;
+    const observar = decision === DD_ACCIONES_LEGAL.OBSERVAR;
     const ok = await confirm({
-      title: aprobar ? "Aprobar debida diligencia" : "Rechazar debida diligencia",
-      description: aprobar
-        ? "Legal aprobará la revisión y el expediente volverá a Logística para la decisión final."
-        : "Legal rechazará la debida diligencia y recién entonces se notificará al cliente.",
-      confirmLabel: aprobar ? "Aprobar" : "Rechazar",
-      destructive: !aprobar,
+      title: observar
+        ? "Observar debida diligencia"
+        : aprobar
+          ? "Aprobar debida diligencia"
+          : "Rechazar debida diligencia",
+      description: observar
+        ? "El expediente pasará a Observada con la observación de Legal. El cliente deberá subsanar y reenviarlo."
+        : aprobar
+          ? "Legal aprobará la revisión y el expediente volverá a Logística para la decisión final."
+          : "Legal rechazará la debida diligencia y recién entonces se notificará al cliente.",
+      confirmLabel: observar ? "Observar" : aprobar ? "Aprobar" : "Rechazar",
+      destructive: !aprobar && !observar,
     });
     if (!ok) return;
 
@@ -116,13 +136,16 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
         expedienteId: fila.id,
         decision,
         motivo: motivo.trim() || null,
+        documentosObservados,
         informeLegalNombre: informe?.nombre ?? null,
         informeLegalUrl: informe?.url ?? null,
       });
       toast.success(
-        aprobar
-          ? "Revisión legal aprobada; el expediente retornó a Logística"
-          : "Debida diligencia rechazada por Legal",
+        observar
+          ? "Expediente observado por Legal; el cliente deberá subsanar"
+          : aprobar
+            ? "Revisión legal aprobada; el expediente retornó a Logística"
+            : "Debida diligencia rechazada por Legal",
       );
       onDone();
       onClose();
@@ -135,12 +158,28 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
     }
   };
 
+  const alternarDocumento = (tipo: DdDocumentoTipo) => {
+    if (decision !== DD_ACCIONES_LEGAL.OBSERVAR) return;
+    setDocumentosObservados((prev) =>
+      prev.includes(tipo) ? prev.filter((item) => item !== tipo) : [...prev, tipo],
+    );
+    setError(null);
+  };
+
   const reputacion = detalle?.reputacion ?? [];
   const documentos = detalle?.documentos ?? [];
+  const tituloDocumento = (tipo: string) =>
+    DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ??
+    (tipo === DD_DOCUMENTOS.ADICIONAL ? DD_DOCUMENTO_ADICIONAL.titulo : tipo);
   const requiereInforme = decision === DD_ACCIONES_LEGAL.RECHAZAR;
+  const requiereMotivo = decision === DD_ACCIONES_LEGAL.RECHAZAR || decision === DD_ACCIONES_LEGAL.OBSERVAR;
+  const requiereExplicarAdicional =
+    decision === DD_ACCIONES_LEGAL.OBSERVAR &&
+    documentosObservados.includes(DD_DOCUMENTOS.ADICIONAL) &&
+    !motivo.trim();
   const puedeGuardar =
     (!requiereInforme || Boolean(informe)) &&
-    (!requiereInforme || motivo.trim().length > 0) &&
+    (!requiereMotivo || motivo.trim().length > 0) &&
     !guardando &&
     !subiendo;
 
@@ -215,12 +254,24 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Documentos
                   </h3>
+                  {decision === DD_ACCIONES_LEGAL.OBSERVAR ? (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Marca los documentos que la empresa debe subsanar. Si la observación es general,
+                        déjala sin marcar y explica el motivo en el comentario legal.
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Si marcas <strong className="text-foreground">{DD_DOCUMENTO_ADICIONAL.titulo}</strong>, detalla en el comentario
+                        qué documento adicional debe subir la empresa.
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="divide-y divide-border rounded-lg border border-border">
                     {documentos.map((documento) => (
                       <div key={documento.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-foreground">
-                            {DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === documento.tipo)?.titulo ?? documento.tipo}
+                            {tituloDocumento(documento.tipo)}
                           </p>
                           <p className="truncate text-[11px] text-muted-foreground">{documento.nombre}</p>
                           {documento.versiones.length > 0 ? (
@@ -256,6 +307,15 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                           ) : null}
                         </div>
                         <div className="flex items-center gap-2">
+                          {decision === DD_ACCIONES_LEGAL.OBSERVAR ? (
+                            <label className={`flex cursor-pointer items-center gap-1.5 text-[11px] font-medium ${documentosObservados.includes(documento.tipo as DdDocumentoTipo) ? "text-warning" : "text-muted-foreground"}`}>
+                              <Checkbox
+                                checked={documentosObservados.includes(documento.tipo as DdDocumentoTipo)}
+                                onCheckedChange={() => alternarDocumento(documento.tipo as DdDocumentoTipo)}
+                              />
+                              <span>Observar</span>
+                            </label>
+                          ) : null}
                           <DdDocumentoBadge estado={documento.estado} />
                           <a
                             href={documento.url}
@@ -278,6 +338,28 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                         </div>
                       </div>
                     ))}
+                    {!documentos.some((documento) => documento.tipo === DD_DOCUMENTOS.ADICIONAL) ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground">{DD_DOCUMENTO_ADICIONAL.titulo}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{DD_DOCUMENTO_ADICIONAL.ayuda}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {decision === DD_ACCIONES_LEGAL.OBSERVAR ? (
+                            <label className={`flex cursor-pointer items-center gap-1.5 text-[11px] font-medium ${documentosObservados.includes(DD_DOCUMENTOS.ADICIONAL) ? "text-warning" : "text-muted-foreground"}`}>
+                              <Checkbox
+                                checked={documentosObservados.includes(DD_DOCUMENTOS.ADICIONAL)}
+                                onCheckedChange={() => alternarDocumento(DD_DOCUMENTOS.ADICIONAL)}
+                              />
+                              <span>Observar</span>
+                            </label>
+                          ) : null}
+                          <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
+                            <span>No cargado</span>
+                          </Badge>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 
@@ -347,7 +429,7 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                     )}
                   </h3>
                   <p className="mb-2 text-[11px] text-muted-foreground">
-                    Obligatorio para rechazar; opcional para aprobar. Formato PDF, máximo 10 MB.
+                    Obligatorio para rechazar; opcional para aprobar u observar. Formato PDF, máximo 10 MB.
                   </p>
                   <input
                     ref={inputRef}
@@ -390,6 +472,7 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                   >
                     {[
                       { value: DD_ACCIONES_LEGAL.APROBAR, label: "Aprobar", icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" /> },
+                      { value: DD_ACCIONES_LEGAL.OBSERVAR, label: "Observar", icon: <AlertCircle className="h-3.5 w-3.5 text-warning" /> },
                       { value: DD_ACCIONES_LEGAL.RECHAZAR, label: "Rechazar", icon: <XCircle className="h-3.5 w-3.5 text-destructive" /> },
                     ].map((opcion) => (
                       <label
@@ -403,8 +486,14 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                       </label>
                     ))}
                   </RadioGroup>
+                  {decision === DD_ACCIONES_LEGAL.OBSERVAR ? (
+                    <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+                      Se enviará una solicitud de subsanación a la empresa solicitante. El expediente quedará
+                      observado y el cliente deberá corregir y reenviar.
+                    </p>
+                  ) : null}
                   <div className="mt-3 space-y-1">
-                    <Label className="text-xs">Comentario legal {decision === DD_ACCIONES_LEGAL.RECHAZAR ? <span className="text-destructive">*</span> : null}</Label>
+                    <Label className="text-xs">Comentario legal {requiereMotivo ? <span className="text-destructive">*</span> : null}</Label>
                     <Textarea
                       value={motivo}
                       onChange={(e) => {
@@ -414,10 +503,19 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                       placeholder={
                         decision === DD_ACCIONES_LEGAL.RECHAZAR
                           ? "Motivo del rechazo legal (obligatorio)"
-                          : "Comentario de la decisión legal"
+                          : decision === DD_ACCIONES_LEGAL.OBSERVAR
+                            ? requiereExplicarAdicional
+                              ? "Describe qué documento adicional debe subir la empresa (obligatorio)"
+                              : "Observación de Legal para que el cliente subsane (obligatoria)"
+                            : "Comentario de la decisión legal"
                       }
                       className="min-h-24 text-sm"
                     />
+                    {requiereExplicarAdicional ? (
+                      <p className="text-[10px] font-medium text-warning">
+                        Indica el nombre o detalle del documento adicional que debe adjuntar la empresa.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 

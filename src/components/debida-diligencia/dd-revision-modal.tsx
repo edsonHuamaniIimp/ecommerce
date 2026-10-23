@@ -37,6 +37,8 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
+  DD_ORIGEN_LABELS,
+  DD_ORIGENES,
   DD_OBSERVACION_ESTADOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
@@ -311,6 +313,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
           {detalle ? (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
               <span><strong className="text-foreground">Vínculo:</strong> {detalle.tipoRelacionComercial ? DD_VINCULO_LABELS[detalle.tipoRelacionComercial] ?? detalle.tipoRelacionComercial : "Sin clasificar"}</span>
+              <span><strong className="text-foreground">Procedencia:</strong> {DD_ORIGEN_LABELS[detalle.origen] ?? detalle.origen}</span>
               <span><strong className="text-foreground">Enviado:</strong> {dateUtils.format(detalle.fechaEnvio)}</span>
               <span><strong className="text-foreground">Documentos:</strong> {documentosCargados}/{DD_DOCUMENTOS_REQUERIDOS.length}{observadosCount > 0 ? ` · ${observadosCount} observado(s)` : ""}</span>
               <span><strong className="text-foreground">Representante:</strong> {detalle.representanteNombre ?? "—"}</span>
@@ -372,6 +375,20 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                       </DatoResumen>
                     </div>
                   </section>
+
+                  {detalle.origen === DD_ORIGENES.IMPORTADO ? (
+                    <section className="space-y-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Procedencia</h3>
+                      <div className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-4 sm:grid-cols-2">
+                        <DatoResumen label="Origen">
+                          {DD_ORIGEN_LABELS[detalle.origen] ?? detalle.origen}
+                        </DatoResumen>
+                        <DatoResumen label="Estado de origen">{detalle.estadoOrigen ?? "—"}</DatoResumen>
+                        <DatoResumen label="Evento o proyecto">{detalle.eventoProyecto ?? "—"}</DatoResumen>
+                        <DatoResumen label="Motivo de importación">{detalle.motivoImportacion ?? "—"}</DatoResumen>
+                      </div>
+                    </section>
+                  ) : null}
 
                   <section className="space-y-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Representante legal</h3>

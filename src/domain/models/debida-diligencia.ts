@@ -5,6 +5,7 @@ import type {
   DdDocumentoTipo,
   DdEstado,
   DdEstadoEvaluacion,
+  DdHistorialTipo,
   DdObservacionArea,
   DdReputacionEstado,
   DdReputacionResultado,
@@ -73,6 +74,30 @@ export interface DdObservacionEntity {
   creadoPor: string;
   fechaResolucion: Date | null;
   createdAt: Date;
+}
+
+/** Evento persistido del flujo (envios, decisiones y derivaciones). */
+export interface DdHistorialEventoEntity {
+  id: string;
+  tipo: DdHistorialTipo;
+  area: DdObservacionArea | null;
+  estado: string | null;
+  titulo: string;
+  detalle: string | null;
+  actor: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+/** Datos para registrar un evento del historial. */
+export interface DdHistorialCreacion {
+  tipo: DdHistorialTipo;
+  area?: DdObservacionArea | null;
+  estado?: string | null;
+  titulo: string;
+  detalle?: string | null;
+  actor: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface DdExpedienteEntity {
@@ -475,6 +500,7 @@ export interface DdLegalResolucionData {
   expedienteId: string;
   decision: DdAccionLegal;
   motivo: string | null;
+  documentosObservados?: DdDocumentoTipo[];
   informeLegalNombre: string | null;
   informeLegalUrl: string | null;
 }

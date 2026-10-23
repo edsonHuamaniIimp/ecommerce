@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -35,6 +35,7 @@ import { StatsCard } from "@/components/dashboard/stats-card";
 import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
+import { DdHistorialDialog } from "./dd-historial-dialog";
 import { DdImportModal } from "./dd-import-modal";
 import { DdMatrizBoton } from "./dd-matriz-boton";
 import { useSesion } from "@/hooks/use-sesion";
@@ -89,7 +90,7 @@ const ESTADOS_REVISABLES = new Set<string>([
 ]);
 
 function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string } {
-  if (fila.origen === DD_ORIGENES.IMPORTADO) return { puede: false, label: "Solo lectura" };
+  /* Los importados siguen las mismas reglas por estado que los del portal. */
   if (fila.estado === DD_ESTADOS.EN_LEGAL) return { puede: false, label: "En Legal" };
   if (!ESTADOS_REVISABLES.has(fila.estado)) return { puede: false, label: "No enviado" };
   return { puede: true, label: "Revisar" };
@@ -114,6 +115,7 @@ export function DdBandeja() {
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
+  const [historialId, setHistorialId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
@@ -499,7 +501,6 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Creado</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Procedencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
@@ -522,14 +523,6 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`pointer-events-none text-[9px] ${fila.origen === DD_ORIGENES.IMPORTADO ? BADGE_STYLES.NEUTRAL : BADGE_STYLES.INFO}`}
-                            title={fila.origen === DD_ORIGENES.IMPORTADO ? "Registro creado desde Importación masiva" : "Registro creado desde el portal"}
-                          >
-                            <span>{DD_ORIGEN_LABELS[fila.origen] ?? fila.origen}</span>
-                          </Badge>
                         </TableCell>
                         <TableCell className="hidden text-xs md:table-cell">
                           {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
@@ -620,6 +613,16 @@ export function DdBandeja() {
                           <div className="flex items-center justify-end gap-1.5">
                             <Button
                               type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              onClick={() => setHistorialId(fila.id)}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                              <span>Ver historial</span>
+                            </Button>
+                            <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               className="h-7 gap-1 text-[11px]"
@@ -668,6 +671,12 @@ export function DdBandeja() {
           onDone={() => recargar()}
         />
       ) : null}
+
+      <DdHistorialDialog
+        expedienteId={historialId}
+        open={historialId !== null}
+        onOpenChange={(abierto) => { if (!abierto) setHistorialId(null); }}
+      />
     </div>
   );
 }

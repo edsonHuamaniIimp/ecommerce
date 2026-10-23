@@ -1299,6 +1299,7 @@ export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
 export const DD_ACCIONES_LEGAL = {
   APROBAR: "aprobar",
   RECHAZAR: "rechazar",
+  OBSERVAR: "observar",
 } as const;
 
 export type DdAccionLegal = (typeof DD_ACCIONES_LEGAL)[keyof typeof DD_ACCIONES_LEGAL];
@@ -1523,6 +1524,33 @@ export const DD_OBSERVACION_ESTADOS = {
   ABIERTA: "abierta",
   RESUELTA: "resuelta",
 } as const;
+
+/** Tipos de evento del historial visible de un expediente DD. */
+export const DD_HISTORIAL_TIPOS = {
+  OBSERVACION: "observacion",
+  ENVIO: "envio",
+  REENVIO: "reenvio",
+  APROBACION: "aprobacion",
+  RECHAZO: "rechazo",
+  DERIVACION_LEGAL: "derivacion_legal",
+  LEGAL_APROBACION: "legal_aprobacion",
+  LEGAL_RECHAZO: "legal_rechazo",
+  DERIVACION_COMUNICACIONES: "derivacion_comunicaciones",
+} as const;
+
+export type DdHistorialTipo = (typeof DD_HISTORIAL_TIPOS)[keyof typeof DD_HISTORIAL_TIPOS];
+
+export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
+  [DD_HISTORIAL_TIPOS.OBSERVACION]: "Observación",
+  [DD_HISTORIAL_TIPOS.ENVIO]: "Envío",
+  [DD_HISTORIAL_TIPOS.REENVIO]: "Subsanación",
+  [DD_HISTORIAL_TIPOS.APROBACION]: "Aprobación",
+  [DD_HISTORIAL_TIPOS.RECHAZO]: "Rechazo",
+  [DD_HISTORIAL_TIPOS.DERIVACION_LEGAL]: "Derivación a Legal",
+  [DD_HISTORIAL_TIPOS.LEGAL_APROBACION]: "Aprobación de Legal",
+  [DD_HISTORIAL_TIPOS.LEGAL_RECHAZO]: "Rechazo de Legal",
+  [DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES]: "Derivación a Comunicaciones",
+};
 
 /** Acciones que puede tomar Logística al revisar un expediente. */
 export const DD_ACCIONES_REVISION = {

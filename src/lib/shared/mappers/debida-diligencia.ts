@@ -6,8 +6,10 @@ import type {
   DdEvaluacionEmpresa,
   DdEmpresasResult,
   DdExpedienteEntity,
+  DdHistorialEventoEntity,
   DdMatrizResult,
   DdMatrizRow,
+  DdObservacionEntity,
   DdPanelData,
   DdReputacionGrupo,
   DdReputacionResult,
@@ -21,6 +23,7 @@ import type {
   DdEmpresaDTO,
   DdEmpresasResponseDTO,
   DdExpedienteDTO,
+  DdHistorialResponseDTO,
   DdMatrizResponseDTO,
   DdMatrizRowDTO,
   DdPanelDTO,
@@ -29,8 +32,13 @@ import type {
   DdReputacionRowDTO,
 } from "@/types/dto/debida-diligencia";
 import {
+  DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADO_EVALUACION_LABELS,
   DD_ESTADOS_EVALUACION,
+  DD_HISTORIAL_TIPO_LABELS,
+  DD_HISTORIAL_TIPOS,
+  DD_OBSERVACION_AREA_LABELS,
+  DD_OBSERVACION_ESTADOS,
   DD_RESULTADO_LABELS,
   DD_RESULTADOS,
   DD_TIPOS_DOCUMENTO_EMPRESA,
@@ -160,6 +168,62 @@ export function mapDdExpedienteToDTO(expediente: DdExpedienteEntity): DdExpedien
       createdAt: dateUtils.toIso(r.createdAt),
       updatedAt: dateUtils.toIso(r.updatedAt),
     })),
+  };
+}
+
+/** Une eventos de workflow y observaciones en una linea de tiempo descendente. */
+export function mapDdHistorialToDTO(
+  eventos: DdHistorialEventoEntity[],
+  observaciones: DdObservacionEntity[],
+): DdHistorialResponseDTO {
+  const items = [
+    ...eventos.map((evento) => ({
+      id: evento.id,
+      tipo: evento.tipo,
+      tipoLabel: DD_HISTORIAL_TIPO_LABELS[evento.tipo],
+      area: evento.area,
+      areaLabel: evento.area ? DD_OBSERVACION_AREA_LABELS[evento.area] ?? evento.area : null,
+      estado: evento.estado,
+      titulo: evento.titulo,
+      detalle: evento.detalle,
+      actor: evento.actor,
+      documentoTipo: null,
+      documentoTitulo: null,
+      fecha: dateUtils.toIso(evento.createdAt),
+      fechaResolucion: null,
+      metadata: evento.metadata,
+    })),
+    ...observaciones.map((observacion) => {
+      const documentoTitulo = observacion.documentoTipo
+        ? DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === observacion.documentoTipo)?.titulo ??
+          observacion.documentoTipo
+        : null;
+      const areaLabel = DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area;
+      return {
+        id: observacion.id,
+        tipo: DD_HISTORIAL_TIPOS.OBSERVACION,
+        tipoLabel: DD_HISTORIAL_TIPO_LABELS[DD_HISTORIAL_TIPOS.OBSERVACION],
+        area: observacion.area,
+        areaLabel,
+        estado: observacion.estado,
+        titulo: documentoTitulo
+          ? `${areaLabel} observó ${documentoTitulo}`
+          : `${areaLabel} registró una observación`,
+        detalle: observacion.texto,
+        actor: observacion.creadoPor,
+        documentoTipo: observacion.documentoTipo,
+        documentoTitulo,
+        fecha: dateUtils.toIso(observacion.createdAt),
+        fechaResolucion: fecha(observacion.fechaResolucion),
+        metadata:
+          observacion.estado === DD_OBSERVACION_ESTADOS.RESUELTA
+            ? { resuelta: true }
+            : null,
+      };
+    }),
+  ];
+  return {
+    items: items.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()),
   };
 }
 

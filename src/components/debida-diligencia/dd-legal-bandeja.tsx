@@ -21,11 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { FileSearch, RefreshCw, Search, Scale } from "lucide-react";
+import { FileSearch, History, RefreshCw, Search, Scale } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdLegalModal } from "./dd-legal-modal";
+import { DdHistorialDialog } from "./dd-historial-dialog";
 import { DdReputacionBadge } from "./dd-estado-badge";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
@@ -61,6 +62,7 @@ export function DdLegalBandeja() {
   const [search, setSearch] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [revisando, setRevisando] = useState<DdBandejaRowDTO | null>(null);
+  const [historialId, setHistorialId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -108,7 +110,7 @@ export function DdLegalBandeja() {
             Revisión legal
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Expedientes rechazados por Logística que requieren informe y decisión legal.
+            Expedientes derivados por Logística para revisión y decisión legal.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -178,7 +180,7 @@ export function DdLegalBandeja() {
               <FileSearch className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">Sin expedientes en revisión legal</p>
               <p className="text-xs text-muted-foreground">
-                Los rechazos de Logística aparecerán aquí.
+                Los expedientes derivados por Logística aparecerán aquí.
               </p>
             </div>
           ) : (
@@ -220,15 +222,27 @@ export function DdLegalBandeja() {
                           {fila.fechaEnvio ? dateUtils.format(fila.fechaEnvio) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-7 gap-1 text-[11px]"
-                            onClick={() => setRevisando(fila)}
-                          >
-                            <Scale className="h-3.5 w-3.5" />
-                            <span>Revisar</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              onClick={() => setHistorialId(fila.id)}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                              <span>Ver historial</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              onClick={() => setRevisando(fila)}
+                            >
+                              <Scale className="h-3.5 w-3.5" />
+                              <span>Revisar</span>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -256,6 +270,12 @@ export function DdLegalBandeja() {
           }}
         />
       ) : null}
+
+      <DdHistorialDialog
+        expedienteId={historialId}
+        open={historialId !== null}
+        onOpenChange={(abierto) => { if (!abierto) setHistorialId(null); }}
+      />
     </div>
   );
 }

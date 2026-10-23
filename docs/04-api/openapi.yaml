@@ -1866,6 +1866,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/historial:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Historial de observaciones y eventos de un expediente
+      description: |
+        Devuelve la linea de tiempo del expediente. Incluye observaciones de
+        Logistica, Legal y Comunicaciones, ademas de envios, subsanaciones,
+        derivaciones y decisiones. El cliente solo puede consultar su empresa;
+        Logistica, Legal y el panel requieren sus permisos `dd:*`.
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdHistorialResponse"
+        "403":
+          description: Sin permiso para consultar el expediente
   /debida-diligencia/revisar:
     post:
       tags: [DebidaDiligencia]
@@ -2467,6 +2491,70 @@ components:
         createdAt:
           type: string
           format: date-time
+    DdHistorialEvento:
+      type: object
+      properties:
+        id:
+          type: string
+        tipo:
+          type: string
+          enum:
+            - observacion
+            - envio
+            - reenvio
+            - aprobacion
+            - rechazo
+            - derivacion_legal
+            - legal_aprobacion
+            - legal_rechazo
+            - derivacion_comunicaciones
+        tipoLabel:
+          type: string
+        area:
+          type: string
+          nullable: true
+        areaLabel:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          nullable: true
+        titulo:
+          type: string
+        detalle:
+          type: string
+          nullable: true
+        actor:
+          type: string
+        documentoTipo:
+          type: string
+          nullable: true
+        documentoTitulo:
+          type: string
+          nullable: true
+        fecha:
+          type: string
+          format: date-time
+        fechaResolucion:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+    DdHistorialResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdHistorialEvento"
     DdExpediente:
       type: object
       properties:

@@ -16,6 +16,8 @@ import type {
   DdEmpresaResumen,
   DdExpedienteEntity,
   DdGuardarData,
+  DdHistorialCreacion,
+  DdHistorialEventoEntity,
   DdMatrizParams,
   DdMatrizResult,
   DdMatrizRow,
@@ -593,6 +595,42 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where: { expedienteId, estado: DD_OBSERVACION_ESTADOS.ABIERTA },
       data: { estado: DD_OBSERVACION_ESTADOS.RESUELTA, fechaResolucion: dateUtils.now() },
     });
+  }
+
+  async registrarHistorial(
+    expedienteId: string,
+    data: DdHistorialCreacion,
+  ): Promise<void> {
+    await prisma.debidaDiligenciaHistorial.create({
+      data: {
+        expedienteId,
+        tipo: data.tipo,
+        area: data.area ?? null,
+        estado: data.estado ?? null,
+        titulo: data.titulo,
+        detalle: data.detalle ?? null,
+        actor: data.actor,
+        metadata: (data.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+      },
+    });
+  }
+
+  async listarHistorial(expedienteId: string): Promise<DdHistorialEventoEntity[]> {
+    const rows = await prisma.debidaDiligenciaHistorial.findMany({
+      where: { expedienteId },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      tipo: row.tipo as DdHistorialEventoEntity["tipo"],
+      area: row.area as DdHistorialEventoEntity["area"],
+      estado: row.estado,
+      titulo: row.titulo,
+      detalle: row.detalle,
+      actor: row.actor,
+      metadata: (row.metadata as Record<string, unknown> | null) ?? null,
+      createdAt: row.createdAt,
+    }));
   }
 
   async actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity> {

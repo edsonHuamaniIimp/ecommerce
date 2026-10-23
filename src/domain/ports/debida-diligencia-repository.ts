@@ -10,6 +10,8 @@ import type {
   DdEmpresaResumen,
   DdExpedienteEntity,
   DdGuardarData,
+  DdHistorialCreacion,
+  DdHistorialEventoEntity,
   DdMatrizParams,
   DdMatrizResult,
   DdObservacionCreacion,
@@ -117,6 +119,10 @@ export interface IDebidaDiligenciaRepository {
   ): Promise<void>;
   /** Cierra las observaciones abiertas (el cliente corrigio y reenvio). */
   resolverObservaciones(expedienteId: string): Promise<void>;
+  /** Registra un evento del historial visible del expediente. */
+  registrarHistorial(expedienteId: string, data: DdHistorialCreacion): Promise<void>;
+  /** Eventos persistidos del historial, en orden cronologico ascendente. */
+  listarHistorial(expedienteId: string): Promise<DdHistorialEventoEntity[]>;
   /** Actualiza el estado del expediente y sus fechas de workflow. */
   actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity>;
   /** Bandeja paginada de Logistica. */

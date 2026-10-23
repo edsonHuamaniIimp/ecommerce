@@ -11,6 +11,7 @@ import {
   mapDdEmpresasToDTO,
   mapDdEstadoExternoToDTO,
   mapDdExpedienteToDTO,
+  mapDdHistorialToDTO,
   mapDdMatrizToDTO,
   mapDdPanelToDTO,
   mapDdReputacionToDTO,
@@ -174,6 +175,15 @@ export const debidaDiligenciaController = {
     if (!id) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
     const expediente = await services.debidaDiligencia.detalle(id, session);
     return success(mapDdExpedienteToDTO(expediente));
+  },
+
+  /** Historial de observaciones y eventos del expediente. */
+  async historial(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const id = new URL(request.url).searchParams.get("id")?.trim();
+    if (!id) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
+    const { eventos, observaciones } = await services.debidaDiligencia.historial(id, session);
+    return success(mapDdHistorialToDTO(eventos, observaciones));
   },
 
   /** Resolucion de Logistica. */
