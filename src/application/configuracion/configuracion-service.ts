@@ -1,4 +1,11 @@
-import { API_ERROR_CODES, PERMISSIONS, REGEX_EMAIL } from "@/lib/shared/constants";
+import {
+  API_ERROR_CODES,
+  MAX_STANDS_RESERVA_DEFAULT,
+  MAX_STANDS_RESERVA_LIMITE,
+  MAX_STANDS_RESERVA_MIN,
+  PERMISSIONS,
+  REGEX_EMAIL,
+} from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { PortalConfigEntity } from "@/domain/models/configuracion";
@@ -11,6 +18,7 @@ const PORTAL_VACIO: PortalConfigEntity = {
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
+  maxStandsReserva: MAX_STANDS_RESERVA_DEFAULT,
   mantenimientoActivo: false,
   mantenimientoInicio: null,
   mantenimientoFin: null,
@@ -26,6 +34,7 @@ export interface PortalConfigInput {
   manualUrl?: string | null;
   reglamentoUrl?: string | null;
   holdReservaMinutos?: number;
+  maxStandsReserva?: number;
   mantenimientoActivo?: boolean;
   mantenimientoInicio?: string | null;
   mantenimientoFin?: string | null;
@@ -63,6 +72,23 @@ function minutosHold(valor: number | undefined): number {
     throw new DomainError("Los minutos de bloqueo deben ser un entero entre 1 y 120", API_ERROR_CODES.VALIDATION, 400);
   }
   return minutos;
+}
+
+/** Maximo de stands por reserva: entero entre el minimo y el tope configurable. */
+function maximoStands(valor: number | undefined): number {
+  const maximo = valor ?? MAX_STANDS_RESERVA_DEFAULT;
+  if (
+    !Number.isInteger(maximo) ||
+    maximo < MAX_STANDS_RESERVA_MIN ||
+    maximo > MAX_STANDS_RESERVA_LIMITE
+  ) {
+    throw new DomainError(
+      `El maximo de stands debe ser un entero entre ${MAX_STANDS_RESERVA_MIN} y ${MAX_STANDS_RESERVA_LIMITE}`,
+      API_ERROR_CODES.VALIDATION,
+      400,
+    );
+  }
+  return maximo;
 }
 
 /**
@@ -110,6 +136,7 @@ export class ConfiguracionApplicationService {
       manualUrl: url(input.manualUrl, "Manual del Exhibidor"),
       reglamentoUrl: url(input.reglamentoUrl, "Reglamento de Stands"),
       holdReservaMinutos: minutosHold(input.holdReservaMinutos),
+      maxStandsReserva: maximoStands(input.maxStandsReserva),
       mantenimientoActivo,
       mantenimientoInicio,
       mantenimientoFin,

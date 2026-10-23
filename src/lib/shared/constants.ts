@@ -1017,8 +1017,14 @@ export const FOTO_PERSONA_MAX_BYTES = 5 * 1024 * 1024;
 /** Maximo de cuotas por reserva que acepta el API del IIMP. */
 export const MAX_CUOTAS_IIMP = 9;
 
-/** Maximo de stands que un cliente puede reservar desde el mapa. */
-export const MAX_STANDS_RESERVA_CLIENTE = 2;
+/** Minimo configurable de stands por solicitud de reserva. */
+export const MAX_STANDS_RESERVA_MIN = 1;
+
+/** Valor por defecto del maximo de stands por solicitud de reserva. */
+export const MAX_STANDS_RESERVA_DEFAULT = 2;
+
+/** Tope configurable de stands por solicitud de reserva. */
+export const MAX_STANDS_RESERVA_LIMITE = 50;
 
 /** Maximo de stands por operacion de reserva que acepta el API del IIMP. */
 export const MAX_STANDS_IIMP = 50;

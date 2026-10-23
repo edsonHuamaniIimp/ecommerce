@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { REGEX_EMAIL } from "@/lib/shared/constants";
+import {
+  MAX_STANDS_RESERVA_DEFAULT,
+  MAX_STANDS_RESERVA_LIMITE,
+  MAX_STANDS_RESERVA_MIN,
+  REGEX_EMAIL,
+} from "@/lib/shared/constants";
 
 const emailOpcional = z
   .union([z.literal(""), z.string().trim().regex(REGEX_EMAIL, "Correo invalido").max(200)])
@@ -19,6 +24,8 @@ export const actualizarPortalConfigSchema = z.object({
   reglamentoUrl: urlOpcional,
   /** Duracion del bloqueo temporal al abrir el wizard de reserva. */
   holdReservaMinutos: z.number().int().min(1).max(120).default(25),
+  /** Maximo de stands por solicitud de reserva. */
+  maxStandsReserva: z.number().int().min(MAX_STANDS_RESERVA_MIN).max(MAX_STANDS_RESERVA_LIMITE).default(MAX_STANDS_RESERVA_DEFAULT),
   /** Aviso global de mantenimiento y ventana de vigencia. */
   mantenimientoActivo: z.boolean().optional().default(false),
   mantenimientoInicio: z.union([z.literal(""), z.string().datetime()]).nullable().optional(),

@@ -11,6 +11,7 @@ type FilaPortalConfig = {
   manualUrl: string | null;
   reglamentoUrl: string | null;
   holdReservaMinutos: number;
+  maxStandsReserva: number;
   mantenimientoActivo: boolean;
   mantenimientoInicio: Date | null;
   mantenimientoFin: Date | null;
@@ -26,6 +27,7 @@ function aEntidad(row: FilaPortalConfig): PortalConfigEntity {
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
     holdReservaMinutos: row.holdReservaMinutos,
+    maxStandsReserva: row.maxStandsReserva,
     mantenimientoActivo: row.mantenimientoActivo,
     mantenimientoInicio: row.mantenimientoInicio,
     mantenimientoFin: row.mantenimientoFin,

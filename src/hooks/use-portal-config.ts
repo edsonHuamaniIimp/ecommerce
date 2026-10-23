@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { configuracionService } from "@/lib/client/api/services/configuracion-service";
+import { MAX_STANDS_RESERVA_DEFAULT } from "@/lib/shared/constants";
 import type { PortalConfigDTO } from "@/types/dto/configuracion/portal-config.dto";
 
 /** Configuracion sin datos: el portal no muestra ningun enlace. */
@@ -11,6 +12,7 @@ export const PORTAL_CONFIG_VACIO: PortalConfigDTO = {
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
+  maxStandsReserva: MAX_STANDS_RESERVA_DEFAULT,
   mantenimientoActivo: false,
   mantenimientoInicio: null,
   mantenimientoFin: null,
@@ -20,6 +22,12 @@ export const PORTAL_CONFIG_VACIO: PortalConfigDTO = {
 /* Cache en memoria del modulo: header, footer y tarjetas comparten una sola peticion. */
 let cache: PortalConfigDTO | null = null;
 let enVuelo: Promise<PortalConfigDTO> | null = null;
+
+/** Invalida la configuracion cacheada tras guardar cambios en /dashboard/configuracion. */
+export function invalidarPortalConfig(): void {
+  cache = null;
+  enVuelo = null;
+}
 
 function cargar(): Promise<PortalConfigDTO> {
   if (cache) return Promise.resolve(cache);

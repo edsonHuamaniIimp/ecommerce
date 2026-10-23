@@ -11,7 +11,7 @@ import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, MAX_STANDS_RESERVA_CLIENTE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, MAX_STANDS_RESERVA_DEFAULT, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -27,6 +27,7 @@ import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } fro
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { usePortalConfig } from "@/hooks/use-portal-config";
 import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
@@ -232,6 +233,8 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const entradasCarrito = useMemo(() => Object.values(itemsCarrito), [itemsCarrito]);
   const parentsCarrito = usePlanoCarrito((s) => s.parents);
   const macroCodigo = usePlanoCarrito((s) => s.macroCodigo);
+  const portalConfig = usePortalConfig();
+  const maxStandsReserva = portalConfig.maxStandsReserva ?? MAX_STANDS_RESERVA_DEFAULT;
 
   // Registra el parent de este plano para navegar desde el carrito.
   useEffect(() => {
@@ -516,9 +519,9 @@ map.set(String(bloqueId), {
       toast.error("Hay bloques no disponibles. Quita los stands bloqueados para continuar.");
       return false;
     }
-    if (idsGlobales.length > MAX_STANDS_RESERVA_CLIENTE) {
+    if (idsGlobales.length > maxStandsReserva) {
       toast.warning(
-        `No puedes continuar con la reserva: solo se permite un máximo de ${MAX_STANDS_RESERVA_CLIENTE} stands. ` +
+        `No puedes continuar con la reserva: solo se permite un máximo de ${maxStandsReserva} stands. ` +
           `Quita los stands adicionales para continuar.`,
       );
       return false;
@@ -557,7 +560,7 @@ map.set(String(bloqueId), {
     } finally {
       setVerificandoPerfil(false);
     }
-  }, [router, setReservaOpen, setReservaStep, sesionReserva?.authenticated, idsGlobales, linkedMap]);
+  }, [router, setReservaOpen, setReservaStep, sesionReserva?.authenticated, idsGlobales, linkedMap, maxStandsReserva]);
 
   useEffect(() => {
     if (!openReserva || !dataReady) return;

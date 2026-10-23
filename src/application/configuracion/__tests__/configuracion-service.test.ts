@@ -55,6 +55,7 @@ describe("ConfiguracionApplicationService", () => {
       manualUrl: null,
       reglamentoUrl: null,
       holdReservaMinutos: 25,
+      maxStandsReserva: 2,
       mantenimientoActivo: false,
       mantenimientoInicio: null,
       mantenimientoFin: null,
@@ -93,6 +94,17 @@ describe("ConfiguracionApplicationService", () => {
     expect(guardados[0]).toEqual(expect.objectContaining({ holdReservaMinutos: 40 }));
     await expect(service.actualizarPortal({ holdReservaMinutos: 0 }, null)).rejects.toMatchObject({ status: 400 });
     await expect(service.actualizarPortal({ holdReservaMinutos: 121 }, null)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("guarda el maximo de stands configurado y valida el rango", async () => {
+    const { repo, guardados } = fakeRepo();
+    const service = new ConfiguracionApplicationService(repo);
+
+    await service.actualizarPortal({ maxStandsReserva: 3 }, "admin@iimp.org.pe");
+
+    expect(guardados[0]).toEqual(expect.objectContaining({ maxStandsReserva: 3 }));
+    await expect(service.actualizarPortal({ maxStandsReserva: 0 }, null)).rejects.toMatchObject({ status: 400 });
+    await expect(service.actualizarPortal({ maxStandsReserva: 51 }, null)).rejects.toMatchObject({ status: 400 });
   });
 
   it("rechaza correos invalidos y URLs sin http(s)", async () => {

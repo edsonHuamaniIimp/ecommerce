@@ -1171,6 +1171,8 @@ model PortalConfig {
   reglamentoUrl  String?  @map("reglamento_url") @db.VarChar(500)
   /// Minutos que un stand queda bloqueado mientras el cliente completa el wizard.
   holdReservaMinutos Int  @default(25) @map("hold_reserva_minutos")
+  /// Maximo de stands que un cliente puede solicitar en una reserva.
+  maxStandsReserva Int @default(2) @map("max_stands_reserva")
   /// Aviso global de mantenimiento para los usuarios del portal.
   mantenimientoActivo Boolean @default(false) @map("mantenimiento_activo")
   mantenimientoInicio DateTime? @map("mantenimiento_inicio")
