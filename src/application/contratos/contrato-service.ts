@@ -192,7 +192,7 @@ export class ContratoApplicationService {
       const esPrimeraPlantilla = detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && detalle.docsAdminCount === 0;
       if (!esPrimeraPlantilla) {
         throw new DomainError(
-          "El IIMP a�n no ha habilitado la firma del contrato de esta solicitud.",
+          "El IIMP aún no ha habilitado la firma del contrato de esta solicitud.",
           API_ERROR_CODES.CONFLICT,
           409,
         );

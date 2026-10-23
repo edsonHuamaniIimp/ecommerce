@@ -691,7 +691,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                     </p>
                   ) : rechazada ? (
                     <p className="mb-2 rounded-md border border-warning/40 bg-warning/5 p-2 text-[10px] text-warning">
-                      Este expediente estǭ rechazado. Puedes derivarlo a Legal para su revisi��n.
+                      Este expediente está rechazado. Puedes derivarlo a Legal para su revisión.
                     </p>
                   ) : null}
                   {reputacionConHallazgos && !sinDecision ? (
