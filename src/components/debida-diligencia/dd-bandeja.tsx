@@ -8,6 +8,12 @@ import {
   Card,
   CardContent,
   CardHeader,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Select,
   SelectContent,
@@ -21,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -269,28 +275,32 @@ export function DdBandeja() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            disabled={exportando !== null || loading}
-            onClick={() => { void exportar("xlsx"); }}
-          >
-            <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "xlsx" ? "Exportando..." : "Excel"}</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            disabled={exportando !== null || loading}
-            onClick={() => { void exportar("csv"); }}
-          >
-            <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "csv" ? "Exportando..." : "CSV"}</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 px-2.5 text-xs"
+                disabled={exportando !== null || loading}
+              >
+                <Download className={`h-3.5 w-3.5 ${exportando ? "animate-pulse" : ""}`} />
+                <span>{exportando ? "Exportando..." : "Exportar"}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel><span>Bandeja filtrada ({data?.total ?? 0})</span></DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("xlsx"); }}>
+                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                <span>Excel (.xlsx)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={exportando !== null} onSelect={() => { void exportar("csv"); }}>
+                <FileText className="mr-2 h-3.5 w-3.5" />
+                <span>CSV (.csv)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="outline"
