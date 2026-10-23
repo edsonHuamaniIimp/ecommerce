@@ -65,6 +65,7 @@ import {
 } from "@/lib/shared/constants";
 import { tienePermiso } from "@/lib/shared/utils/permisos";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import {
   exportarTablaCsv,
@@ -234,7 +235,7 @@ export function DdBandeja() {
         { encabezado: "Documento", valor: (r) => r.empresa.ruc },
         { encabezado: "Expediente", valor: (r) => r.codigo },
         { encabezado: "Procedencia", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
-        { encabezado: "Vínculo / motivo", valor: (r) => r.motivoImportacion ?? (r.tipoRelacionComercial ? DD_VINCULO_LABELS[r.tipoRelacionComercial] ?? r.tipoRelacionComercial : "") },
+        { encabezado: "Vínculos / motivo", valor: (r) => r.motivoImportacion ?? ddUtils.etiquetaVinculos(r.tipoRelacionComercial) },
         { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
         { encabezado: "Creado", valor: (r) => (r.fechaCreacion ? dateUtils.format(r.fechaCreacion) : "") },
         { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
@@ -501,7 +502,7 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Creado</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes</TableHead>
@@ -524,8 +525,8 @@ export function DdBandeja() {
                         <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
                         </TableCell>
-                        <TableCell className="hidden text-xs md:table-cell">
-                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
+                        <TableCell className="hidden max-w-[180px] truncate text-xs md:table-cell">
+                          {ddUtils.etiquetaVinculos(fila.tipoRelacionComercial) || "—"}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

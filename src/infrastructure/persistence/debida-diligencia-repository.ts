@@ -677,7 +677,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.origen = params.origen;
     }
     if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
-      where.tipoRelacionComercial = params.vinculo;
+      where.tipoRelacionComercial = { has: params.vinculo };
     }
     if (params.documentos === DD_DOCUMENTOS_FILTRO.CON) {
       where.documentos = { some: {} };
@@ -934,7 +934,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     }
 
     const porVinculo: DdPanelVinculo[] = Object.values(DD_VINCULOS).map((vinculo) => {
-      const delVinculo = expedientes.filter((e) => e.tipoRelacionComercial === vinculo);
+      const delVinculo = expedientes.filter((e) => e.tipoRelacionComercial.includes(vinculo));
       return {
         vinculo,
         label: DD_VINCULO_LABELS[vinculo] ?? vinculo,
@@ -947,21 +947,21 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       };
     });
 
-    const sinVinculo = expedientes.filter((e) => !e.tipoRelacionComercial).length;
+    const sinVinculo = expedientes.filter((e) => e.tipoRelacionComercial.length === 0).length;
     if (sinVinculo > 0) {
       porVinculo.push({
         vinculo: "sin_vinculo",
         label: "Sin clasificar",
         total: sinVinculo,
         aprobadas: expedientes.filter(
-          (e) => !e.tipoRelacionComercial && e.estado === DD_ESTADOS.APROBADA,
+          (e) => e.tipoRelacionComercial.length === 0 && e.estado === DD_ESTADOS.APROBADA,
         ).length,
         observadas: expedientes.filter(
-          (e) => !e.tipoRelacionComercial && e.estado === DD_ESTADOS.OBSERVADA,
+          (e) => e.tipoRelacionComercial.length === 0 && e.estado === DD_ESTADOS.OBSERVADA,
         ).length,
         pendientes: expedientes.filter(
           (e) =>
-            !e.tipoRelacionComercial &&
+            e.tipoRelacionComercial.length === 0 &&
             e.estado !== DD_ESTADOS.APROBADA &&
             e.estado !== DD_ESTADOS.OBSERVADA,
         ).length,
@@ -1005,7 +1005,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
 
     const ddWhere: Prisma.DebidaDiligenciaWhereInput = { eventoId: params.eventoId };
     if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
-      ddWhere.tipoRelacionComercial = params.vinculo;
+      ddWhere.tipoRelacionComercial = { has: params.vinculo };
     }
 
     if (params.estado === DD_FILTRO_SIN_INICIAR) {
@@ -1057,7 +1057,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           codigo: expediente?.codigo ?? null,
           estado: (expediente?.estado as DdEstado | undefined) ?? null,
           tipoRelacionComercial:
-            (expediente?.tipoRelacionComercial as DdMatrizRow["tipoRelacionComercial"]) ?? null,
+            (expediente?.tipoRelacionComercial as DdMatrizRow["tipoRelacionComercial"] | undefined) ?? [],
           fechaAprobacion: expediente?.fechaAprobacion ?? null,
           fechaVencimiento: expediente?.fechaVencimiento ?? null,
           revisadoPor: expediente?.revisadoPor ?? null,

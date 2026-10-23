@@ -14,7 +14,7 @@ const EXPEDIENTE_COMPLETO = {
   aceptaDatos: true,
   aceptaVerificacion: true,
   declaraVerdad: true,
-  tipoRelacionComercial: "exhibidor",
+  tipoRelacionComercial: ["exhibidor"],
   actividadEconomica: "Servicios",
   actividadEconomicaOtro: null,
   paisConstitucion: "Perú",
@@ -219,6 +219,21 @@ describe("validaciones por paso", () => {
       "debida diligencia reforzada",
     );
     expect(ddUtils.validarConsentimientos({ aceptaDatos: true, aceptaVerificacion: true })).toBeNull();
+  });
+
+  it("acepta varios vinculos comerciales y exige al menos uno", () => {
+    const empresa = {
+      tipoRelacionComercial: ["exhibidor", "proveedor"],
+      actividadEconomica: "Servicios",
+      actividadEconomicaOtro: "",
+      paisConstitucion: "Perú",
+      sitioWeb: "https://empresa.pe",
+      emailRepresentante: "contacto@empresa.pe",
+    };
+    expect(ddUtils.validarEmpresa(empresa)).toBeNull();
+    expect(
+      ddUtils.validarEmpresa({ ...empresa, tipoRelacionComercial: [] }),
+    ).toContain("al menos un tipo");
   });
 
   it("mapea el resultado reputacional al estado persistido", () => {

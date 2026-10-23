@@ -2,7 +2,7 @@ import type { DdDocumentoEstado, DdDocumentoTipo, DdVinculo } from "@/lib/shared
 
 /** Datos que el cliente guarda desde el wizard de 4 pasos. */
 export interface DdGuardarRequestDTO {
-  tipoRelacionComercial: DdVinculo | null;
+  tipoRelacionComercial: DdVinculo[];
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;

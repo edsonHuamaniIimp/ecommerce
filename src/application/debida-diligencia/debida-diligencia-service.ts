@@ -275,7 +275,7 @@ export class DebidaDiligenciaApplicationService {
     }
 
     const data: DdGuardarData = {
-      tipoRelacionComercial: dto.tipoRelacionComercial ?? null,
+      tipoRelacionComercial: dto.tipoRelacionComercial,
       actividadEconomica: dto.actividadEconomica ?? null,
       actividadEconomicaOtro: dto.actividadEconomicaOtro ?? null,
       paisConstitucion: dto.paisConstitucion ?? null,

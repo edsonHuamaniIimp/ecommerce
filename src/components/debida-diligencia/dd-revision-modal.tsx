@@ -47,7 +47,6 @@ import {
   DD_REPUTACION_TIPOS,
   DD_REPUTACION_RESULTADO_LABELS,
   DD_VIGENCIA_MESES,
-  DD_VINCULO_LABELS,
   type DdAccionRevision,
   type DdDocumentoTipo,
 } from "@/lib/shared/constants";
@@ -312,7 +311,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
           </p>
           {detalle ? (
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-              <span><strong className="text-foreground">Vínculo:</strong> {detalle.tipoRelacionComercial ? DD_VINCULO_LABELS[detalle.tipoRelacionComercial] ?? detalle.tipoRelacionComercial : "Sin clasificar"}</span>
+              <span><strong className="text-foreground">Vínculos:</strong> {ddUtils.etiquetaVinculos(detalle.tipoRelacionComercial) || "Sin clasificar"}</span>
               <span><strong className="text-foreground">Procedencia:</strong> {DD_ORIGEN_LABELS[detalle.origen] ?? detalle.origen}</span>
               <span><strong className="text-foreground">Enviado:</strong> {dateUtils.format(detalle.fechaEnvio)}</span>
               <span><strong className="text-foreground">Documentos:</strong> {documentosCargados}/{DD_DOCUMENTOS_REQUERIDOS.length}{observadosCount > 0 ? ` · ${observadosCount} observado(s)` : ""}</span>

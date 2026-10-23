@@ -75,11 +75,11 @@ const COLORES = {
 } as const;
 
 function descargarMatriz(matriz: DdMatrizRowDTO[], evento: string) {
-  const cabeceras = ["Empresa", "RUC", "Vínculo", "Expediente", "Estado DD", "Última revisión", "Vigencia hasta", "Responsable"];
+  const cabeceras = ["Empresa", "RUC", "Vínculos", "Expediente", "Estado DD", "Última revisión", "Vigencia hasta", "Responsable"];
   const filas = matriz.map((fila) => [
     fila.empresa.razonSocial,
     fila.empresa.ruc,
-    fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "",
+    ddUtils.etiquetaVinculos(fila.tipoRelacionComercial),
     fila.codigo ?? "",
     fila.estado ? DD_ESTADO_LABELS[fila.estado] ?? fila.estado : ddUtils.etiquetaSinIniciar(),
     fila.fechaAprobacion ? dateUtils.format(fila.fechaAprobacion) : "",
@@ -352,7 +352,9 @@ export function DdPanel() {
         <Card className="lg:col-span-2">
           <CardHeader className="border-b border-border pb-3">
             <CardTitle><span className="text-sm font-bold text-primary">Estado por vínculo</span></CardTitle>
-            <p className="text-[11px] text-muted-foreground">Aprobadas, observadas y pendientes por tipo de relación comercial.</p>
+            <p className="text-[11px] text-muted-foreground">
+              Aprobadas, observadas y pendientes por tipo de relación comercial. Una empresa puede figurar en más de un vínculo.
+            </p>
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
             {data.porVinculo.length === 0 ? (
@@ -465,7 +467,7 @@ export function DdPanel() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculo</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado DD</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Última revisión</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia hasta</TableHead>
@@ -481,8 +483,8 @@ export function DdPanel() {
                           <p className="font-mono text-[11px] text-muted-foreground">RUC {fila.empresa.ruc}</p>
                           {fila.codigo ? <p className="text-[10px] text-muted-foreground">{fila.codigo}</p> : null}
                         </TableCell>
-                        <TableCell className="hidden text-xs md:table-cell">
-                          {fila.tipoRelacionComercial ? DD_VINCULO_LABELS[fila.tipoRelacionComercial] ?? fila.tipoRelacionComercial : "—"}
+                        <TableCell className="hidden max-w-[180px] truncate text-xs md:table-cell">
+                          {ddUtils.etiquetaVinculos(fila.tipoRelacionComercial) || "—"}
                         </TableCell>
                         <TableCell><DdEstadoBadge estado={fila.estado} /></TableCell>
                         <TableCell className="hidden text-xs lg:table-cell">{dateUtils.format(fila.fechaAprobacion)}</TableCell>

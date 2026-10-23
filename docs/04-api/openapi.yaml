@@ -2569,8 +2569,9 @@ components:
         estado:
           type: string
         tipoRelacionComercial:
-          type: string
-          nullable: true
+          type: array
+          items:
+            type: string
         actividadEconomica:
           type: string
           nullable: true
@@ -2752,8 +2753,9 @@ components:
       type: object
       properties:
         tipoRelacionComercial:
-          type: string
-          nullable: true
+          type: array
+          items:
+            type: string
         actividadEconomica:
           type: string
           nullable: true
@@ -2873,8 +2875,9 @@ components:
         estado:
           type: string
         tipoRelacionComercial:
-          type: string
-          nullable: true
+          type: array
+          items:
+            type: string
         empresa:
           $ref: "#/components/schemas/DdEmpresa"
         documentoCargados:
@@ -3241,8 +3244,9 @@ components:
           type: string
           nullable: true
         tipoRelacionComercial:
-          type: string
-          nullable: true
+          type: array
+          items:
+            type: string
         fechaAprobacion:
           type: string
           format: date-time

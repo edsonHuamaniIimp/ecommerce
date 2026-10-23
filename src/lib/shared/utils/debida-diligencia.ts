@@ -18,6 +18,7 @@ import {
   DD_REPUTACION_TIPOS,
   DD_REPUTACION_RESULTADO_A_ESTADO,
   DD_VIGENCIA_MESES,
+  DD_VINCULO_LABELS,
   type DdDocumentoTipo,
   type DdEstado,
   type DdEstadoEvaluacion,
@@ -47,6 +48,13 @@ const ESTADOS_EDITABLES: DdEstado[] = [
 
 /** Utilidades puras del modulo Debida Diligencia (frontend y backend). */
 export const ddUtils = {
+  /** Etiquetas legibles de los vinculos comerciales seleccionados. */
+  etiquetaVinculos(vinculos: string[] | null | undefined): string {
+    return (vinculos ?? [])
+      .map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo)
+      .join(", ");
+  },
+
   /** true si el expediente admite edicion del cliente. */
   puedeEditar(estado: string | null | undefined): boolean {
     return !estado || ESTADOS_EDITABLES.includes(estado as DdEstado);
@@ -61,14 +69,14 @@ export const ddUtils = {
 
   /** Validacion del paso 2: datos de la empresa. */
   validarEmpresa(datos: {
-    tipoRelacionComercial: string;
+    tipoRelacionComercial: string[];
     actividadEconomica: string;
     actividadEconomicaOtro: string;
     paisConstitucion: string;
     sitioWeb: string;
     emailRepresentante: string;
   }): string | null {
-    if (!datos.tipoRelacionComercial) return "Seleccione el tipo de relación comercial con el IIMP.";
+    if (datos.tipoRelacionComercial.length === 0) return "Seleccione al menos un tipo de relación comercial con el IIMP.";
     if (!datos.actividadEconomica) return "Seleccione la actividad económica principal.";
     if (!DD_ACTIVIDADES_ECONOMICAS.includes(datos.actividadEconomica as never)) {
       return "Seleccione una actividad económica válida del catálogo.";
@@ -248,7 +256,7 @@ export const ddUtils = {
     aceptaDatos: boolean;
     aceptaVerificacion: boolean;
     declaraVerdad: boolean;
-    tipoRelacionComercial: string | null;
+    tipoRelacionComercial: string[];
     actividadEconomica: string | null;
     actividadEconomicaOtro: string | null;
     paisConstitucion: string | null;
@@ -265,7 +273,9 @@ export const ddUtils = {
     if (!expediente.aceptaDatos) errores.push(DD_MENSAJES.CONSENT_DATOS);
     if (!expediente.aceptaVerificacion) errores.push(DD_MENSAJES.CONSENT_VERIFICACION);
     if (!expediente.declaraVerdad) errores.push(DD_MENSAJES.DECLARACION_VERACIDAD);
-    if (!expediente.tipoRelacionComercial) errores.push("Seleccione el tipo de relación comercial con el IIMP.");
+    if (expediente.tipoRelacionComercial.length === 0) {
+      errores.push("Seleccione al menos un tipo de relación comercial con el IIMP.");
+    }
     if (!expediente.actividadEconomica) errores.push("Seleccione la actividad económica principal.");
     if (
       expediente.actividadEconomica &&

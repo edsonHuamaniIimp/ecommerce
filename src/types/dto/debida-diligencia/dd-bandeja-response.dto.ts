@@ -8,7 +8,7 @@ export interface DdBandejaRowDTO {
   estadoOrigen: string | null;
   eventoProyecto: string | null;
   motivoImportacion: string | null;
-  tipoRelacionComercial: string | null;
+  tipoRelacionComercial: string[];
   empresa: DdEmpresaDTO;
   fechaCreacion: string | null;
   solicitudesAlquiler: number;

@@ -32,7 +32,7 @@ export interface DdMatrizRowDTO {
   empresa: DdEmpresaDTO;
   codigo: string | null;
   estado: string | null;
-  tipoRelacionComercial: string | null;
+  tipoRelacionComercial: string[];
   fechaAprobacion: string | null;
   fechaVencimiento: string | null;
   revisadoPor: string | null;

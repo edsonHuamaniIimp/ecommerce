@@ -121,7 +121,7 @@ function documentosDesde(expediente: DdExpedienteDTO | null): DocumentoForm[] {
 }
 
 interface FormState {
-  tipoRelacionComercial: DdVinculo | "";
+  tipoRelacionComercial: DdVinculo[];
   actividadEconomica: string;
   actividadEconomicaOtro: string;
   paisConstitucion: string;
@@ -150,7 +150,7 @@ function nuevoBeneficiario(): BeneficiarioForm {
 
 function formDesde(empresa: DdEmpresaDTO | null, expediente: DdExpedienteDTO | null): FormState {
   return {
-    tipoRelacionComercial: (expediente?.tipoRelacionComercial as DdVinculo | null | undefined) ?? "",
+    tipoRelacionComercial: (expediente?.tipoRelacionComercial as DdVinculo[] | undefined) ?? [],
     actividadEconomica: expediente?.actividadEconomica ?? "",
     actividadEconomicaOtro: expediente?.actividadEconomicaOtro ?? "",
     paisConstitucion: expediente?.paisConstitucion ?? DD_PAIS_DEFAULT,
@@ -355,7 +355,7 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
   };
 
   const construirPayload = (): DdGuardarRequestDTO => ({
-    tipoRelacionComercial: form.tipoRelacionComercial || null,
+    tipoRelacionComercial: form.tipoRelacionComercial,
     actividadEconomica: form.actividadEconomica || null,
     actividadEconomicaOtro: form.actividadEconomicaOtro || null,
     paisConstitucion: form.paisConstitucion || null,
@@ -684,23 +684,37 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
           {paso === 2 ? (
             <div className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label className="text-xs"><span>Tipo de relación comercial con el IIMP *</span></Label>
-                  <Select
-                    value={form.tipoRelacionComercial || undefined}
-                    onValueChange={(valor) => setCampo("tipoRelacionComercial", valor as DdVinculo)}
-                  >
-                    <SelectTrigger className="mt-1 h-9 w-full text-sm">
-                      <SelectValue placeholder="Seleccione una opción" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(DD_VINCULOS).map((vinculo) => (
-                        <SelectItem key={vinculo} value={vinculo}>
+                <div className="md:col-span-2">
+                  <Label className="text-xs"><span>Tipos de relación comercial con el IIMP *</span></Label>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Puedes seleccionar más de una opción.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {Object.values(DD_VINCULOS).map((vinculo) => {
+                      const marcado = form.tipoRelacionComercial.includes(vinculo);
+                      return (
+                        <label
+                          key={vinculo}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+                            marcado ? "border-primary bg-primary/5 text-foreground" : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          <Checkbox
+                            checked={marcado}
+                            onCheckedChange={(valor) =>
+                              setCampo(
+                                "tipoRelacionComercial",
+                                valor === true
+                                  ? [...form.tipoRelacionComercial, vinculo]
+                                  : form.tipoRelacionComercial.filter((item) => item !== vinculo),
+                              )
+                            }
+                          />
                           <span>{DD_VINCULO_LABELS[vinculo]}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>

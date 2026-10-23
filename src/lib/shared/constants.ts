@@ -1367,6 +1367,9 @@ export const DD_VINCULOS = {
 
 export type DdVinculo = (typeof DD_VINCULOS)[keyof typeof DD_VINCULOS];
 
+/** Maximo de vinculos seleccionables en el formulario. */
+export const DD_MAX_VINCULOS = Object.keys(DD_VINCULOS).length;
+
 export const DD_VINCULO_LABELS: Record<string, string> = {
   [DD_VINCULOS.AUSPICIADOR]: "Auspiciador",
   [DD_VINCULOS.EXHIBIDOR]: "Exhibidor",

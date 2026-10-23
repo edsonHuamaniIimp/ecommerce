@@ -150,7 +150,7 @@ Pantalla desktop "Debida Diligencia — Paso 2: Información de la Empresa" del 
 Header institucional: logo IIMP, "Debida Diligencia", evento activo, ayuda y cuenta. Fondo #F8FAFC con grilla sutil; tarjeta blanca 760px centrada, borde #E2E8F0, radio 12px.
 
 Contenido: breadcrumb "Portal del Expositor / Debida Diligencia / Paso 2"; título "Información de la empresa"; stepper 4 pasos (1 completado con check verde, 2 "Empresa" activo navy, 3 y 4 inactivos).
-Select "Tipo de relación comercial con el IIMP": Auspiciador, Exhibidor, Asociado Adherente, Media Partner, Proveedor, Alquileres, Otro (Exhibidor seleccionado). Campos: "Razón social" (prellenado "COMPAÑÍA DE MINAS BUENAVENTURA S.A.A."); "RUC" con badge verde "Validado SUNAT"; "País de constitución" (Perú); select "Actividad económica principal" abierto con catálogo de sectores; campo condicional "En caso de haber marcado Otro, indicar cuál".
+Selección múltiple "Tipos de relación comercial con el IIMP": Auspiciador, Exhibidor, Asociado Adherente, Media Partner, Proveedor, Alquileres, Otro (Exhibidor seleccionado). Campos: "Razón social" (prellenado "COMPAÑÍA DE MINAS BUENAVENTURA S.A.A."); "RUC" con badge verde "Validado SUNAT"; "País de constitución" (Perú); select "Actividad económica principal" abierto con catálogo de sectores; campo condicional "En caso de haber marcado Otro, indicar cuál".
 Campos nuevos: "Sitio web de la empresa" con helper "Se usa para la revisión reputacional de Comunicaciones"; "Correo de contacto del representante legal" con helper "Aquí recibirá las observaciones".
 Aviso dorado #B8860B: "Puede reservar un stand, pero no avanzará en las aprobaciones hasta completar la debida diligencia."
 
@@ -281,8 +281,8 @@ Inter, WCAG AA, sin gradientes.
 
 - Página 1 y 2: consentimiento de tratamiento de datos y derechos ARCO, y aceptación
   de la debida diligencia reforzada (Sí / No).
-- Página 3: tipo de relación comercial (Auspiciador, Exhibidor, Asociado Adherente,
-  Media Partner, Proveedor, Alquileres, Otro), razón social, RUC, país de
+- Página 3: tipos de relación comercial (Auspiciador, Exhibidor, Asociado Adherente,
+  Media Partner, Proveedor, Alquileres, Otro; puede seleccionar varios), razón social, RUC, país de
   constitución, actividad económica principal (catálogo más "Otro"), nombre del
   representante legal, número de documento, nacionalidad, y beneficiarios con 10% o
   más de participación (nombre o razón social, documento o identificación fiscal,

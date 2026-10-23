@@ -1234,8 +1234,8 @@ model DebidaDiligencia {
   /// Lote que origino el registro importado.
   importacionId String? @map("importacion_id")
 
-  /// Tipo de relacion comercial con el IIMP (ver DD_VINCULOS).
-  tipoRelacionComercial  String? @map("tipo_relacion_comercial") @db.VarChar(40)
+  /// Tipos de relacion comercial con el IIMP (ver DD_VINCULOS). Admite varios.
+  tipoRelacionComercial  String[] @default([]) @map("tipo_relacion_comercial")
   /// Actividad economica principal (catalogo DD_ACTIVIDADES_ECONOMICAS).
   actividadEconomica     String? @map("actividad_economica") @db.VarChar(120)
   /// Detalle cuando la actividad economica es "Otro".

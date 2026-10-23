@@ -99,7 +99,7 @@ export interface DdExpedienteDTO {
   eventoProyecto: string | null;
   motivoImportacion: string | null;
   importacionId: string | null;
-  tipoRelacionComercial: string | null;
+  tipoRelacionComercial: string[];
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;

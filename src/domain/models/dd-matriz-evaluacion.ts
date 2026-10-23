@@ -53,7 +53,7 @@ export interface DdMatrizExpedienteContexto {
   empresaPais: string;
   paisConstitucion: string | null;
   actividadEconomica: string | null;
-  tipoRelacionComercial: string | null;
+  tipoRelacionComercial: string[];
   motivo: string | null;
   eventoProyecto: string | null;
   fechaIngreso: Date;

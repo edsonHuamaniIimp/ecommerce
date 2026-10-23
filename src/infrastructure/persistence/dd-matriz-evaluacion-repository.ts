@@ -91,8 +91,12 @@ function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto 
     empresaPais: row.empresa.pais,
     paisConstitucion: row.paisConstitucion ?? null,
     actividadEconomica: row.actividadEconomica ?? row.empresa.actividadEconomica ?? null,
-    tipoRelacionComercial: row.tipoRelacionComercial ?? null,
-    motivo: row.motivoImportacion ?? row.tipoRelacionComercial ?? null,
+    tipoRelacionComercial: row.tipoRelacionComercial,
+    motivo:
+      row.motivoImportacion ??
+      row.tipoRelacionComercial
+        .map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo)
+        .join(", "),
     eventoProyecto: row.eventoProyecto ?? null,
     fechaIngreso: row.fechaEnvio ?? row.createdAt,
     revisadoPor: row.revisadoPor ?? null,
@@ -259,7 +263,10 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         actividadEconomica: exp.actividadEconomica ?? exp.empresa.actividadEconomica ?? null,
         motivo:
           exp.motivoImportacion ??
-          (exp.tipoRelacionComercial ? (DD_VINCULO_LABELS[exp.tipoRelacionComercial] ?? exp.tipoRelacionComercial) : null),
+          exp.tipoRelacionComercial
+            .map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo)
+            .join(", ") ??
+          null,
         eventoProyecto: exp.eventoProyecto ?? null,
       });
       if (exp.representanteNombre?.trim()) {

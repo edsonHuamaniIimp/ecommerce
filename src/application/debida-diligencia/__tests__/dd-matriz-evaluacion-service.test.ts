@@ -62,7 +62,7 @@ function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoE
       empresaPais: "PE",
       paisConstitucion: "Perú",
       actividadEconomica: null,
-      tipoRelacionComercial: "exhibidor",
+      tipoRelacionComercial: ["exhibidor"],
       motivo: "Exhibidor",
       eventoProyecto: "PERUMIN",
       fechaIngreso: new Date("2026-10-01T00:00:00Z"),

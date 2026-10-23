@@ -9,6 +9,7 @@ import {
   DD_ESTADOS_EVALUACION,
   DD_MAX_BENEFICIARIOS,
   DD_MATRIZ_PER_PAGE_MAX,
+  DD_MAX_VINCULOS,
   DD_RESULTADOS,
   DD_MAX_OBSERVACIONES,
   DD_PER_PAGE_DEFAULT,
@@ -40,7 +41,13 @@ const nacionalidadNullable = z
   .nullable()
   .default(null);
 
-const tipoRelacionSchema = z.enum(valores(DD_VINCULOS)).nullable().default(null);
+const tipoRelacionSchema = z.preprocess(
+  (valor) => (valor == null ? [] : Array.isArray(valor) ? valor : [valor]),
+  z
+    .array(z.enum(valores(DD_VINCULOS)))
+    .max(DD_MAX_VINCULOS)
+    .transform((valores) => [...new Set(valores)]),
+);
 
 const tipoDocumentoSchema = z.enum(valores(DD_DOCUMENTOS)).nullable().default(null);
 

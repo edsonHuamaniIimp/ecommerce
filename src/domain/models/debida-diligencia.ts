@@ -111,7 +111,7 @@ export interface DdExpedienteEntity {
   eventoProyecto: string | null;
   motivoImportacion: string | null;
   importacionId: string | null;
-  tipoRelacionComercial: DdVinculo | null;
+  tipoRelacionComercial: DdVinculo[];
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
@@ -189,7 +189,7 @@ export interface DdBandejaRow {
   estadoOrigen: string | null;
   eventoProyecto: string | null;
   motivoImportacion: string | null;
-  tipoRelacionComercial: DdVinculo | null;
+  tipoRelacionComercial: DdVinculo[];
   empresa: DdEmpresaResumen;
   fechaCreacion: Date;
   solicitudesAlquiler: number;
@@ -275,7 +275,7 @@ export interface DdMatrizRow {
   empresa: DdEmpresaResumen;
   codigo: string | null;
   estado: DdEstado | null;
-  tipoRelacionComercial: DdVinculo | null;
+  tipoRelacionComercial: DdVinculo[];
   fechaAprobacion: Date | null;
   fechaVencimiento: Date | null;
   revisadoPor: string | null;
@@ -479,7 +479,7 @@ export interface DdEmpresasResult {
 }
 
 export interface DdGuardarData {
-  tipoRelacionComercial: DdVinculo | null;
+  tipoRelacionComercial: DdVinculo[];
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
