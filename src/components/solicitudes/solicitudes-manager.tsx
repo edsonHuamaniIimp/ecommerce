@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, Table
 import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
+import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
@@ -18,6 +19,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import type { SolicitudesListFiltros } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { DdEstadoBadge } from "@/components/debida-diligencia/dd-estado-badge";
 import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
@@ -134,6 +136,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
+  const [resumen, setResumen] = useState({ pendientes: 0, enRevision: 0, observadas: 0, aprobadas: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -207,6 +210,26 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     })();
   }, []);
 
+  const loadResumen = useCallback(async () => {
+    if (!eventoId) return;
+    try {
+      const [pendientes, enRevision, observadas, aprobadas] = await Promise.all([
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.PENDIENTE }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.EN_PROCESO }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.APROBADO }),
+      ]);
+      setResumen({
+        pendientes: pendientes.total,
+        enRevision: enRevision.total,
+        observadas: observadas.total,
+        aprobadas: aprobadas.total,
+      });
+    } catch {
+      /* El resumen es informativo; no bloquea la bandeja. */
+    }
+  }, [eventoId]);
+
   const load = useCallback(async (p?: number, s?: string, pp?: number, f?: SolicitudesListFiltros) => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
@@ -223,6 +246,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       if (seq !== loadSeqRef.current) return;
       setRows(data.data?.filter((r) => r.flgActivo !== false) ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
+      void loadResumen();
 
       if (autoOpenIdRef.current && !reviewOpenRef.current) {
         const found = data.data?.find((r) => r.id === autoOpenIdRef.current);
@@ -235,7 +259,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     } catch { /* ignore */ } finally {
       if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [eventoId]);
+  }, [eventoId, loadResumen]);
 
   useEffect(() => {
     (async () => { await load(); })();
@@ -434,6 +458,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
   return (
     <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Sin iniciar revision", variante: "muted" }} />
+        <StatsCard title="En revision" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decision", variante: "primary" }} />
+        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} />
+        <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Listas para continuar", variante: "primary" }} />
+      </div>
+
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-col gap-3 border-b border-border pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -609,7 +640,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
         <CardContent className="space-y-3 pt-4">
 
           {loading ? (
-            <TableSkeleton rows={perPage} columns={9} />
+            <TableSkeleton rows={perPage} columns={10} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm font-medium text-muted-foreground">
@@ -622,41 +653,45 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-[1280px]">
                   <TableHeader>
                     <TableRow className="bg-secondary">
-                      <TableHead><span className="text-[10px] uppercase">Stand</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Empresa</span></TableHead>
-                      <TableHead className="hidden lg:table-cell"><span className="text-[10px] uppercase">Usuario</span></TableHead>
-                      <TableHead className="hidden lg:table-cell"><span className="text-[10px] uppercase">Correo</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span className="text-[10px] uppercase">Tipo</span></TableHead>
-                      <TableHead><span className="text-[10px] uppercase">Revision</span></TableHead>
-                      <TableHead className="hidden sm:table-cell"><span className="text-[10px] uppercase">Docs</span></TableHead>
-                      <TableHead className="hidden md:table-cell"><span className="text-[10px] uppercase">Fecha</span></TableHead>
-                      <TableHead className="text-right"><span className="text-[10px] uppercase">Accion</span></TableHead>
+                      <TableHead className="min-w-[100px]"><span className="text-[10px] uppercase">Stand</span></TableHead>
+                      <TableHead className="min-w-[190px]"><span className="text-[10px] uppercase">Empresa</span></TableHead>
+                      <TableHead className="min-w-[170px]"><span className="text-[10px] uppercase">Debida diligencia</span></TableHead>
+                      <TableHead className="min-w-[170px]"><span className="text-[10px] uppercase">Usuario</span></TableHead>
+                      <TableHead className="min-w-[220px]"><span className="text-[10px] uppercase">Correo</span></TableHead>
+                      <TableHead className="min-w-[110px]"><span className="text-[10px] uppercase">Tipo</span></TableHead>
+                      <TableHead className="min-w-[120px]"><span className="text-[10px] uppercase">Revision</span></TableHead>
+                      <TableHead className="min-w-[80px]"><span className="text-[10px] uppercase">Docs</span></TableHead>
+                      <TableHead className="min-w-[150px]"><span className="text-[10px] uppercase">Fecha</span></TableHead>
+                      <TableHead className="min-w-[120px] text-right"><span className="text-[10px] uppercase">Accion</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => {
                       return (
                         <TableRow key={row.id} className="transition-colors hover:bg-secondary/60">
-                          <TableCell className="font-medium">
+                          <TableCell className="min-w-[100px] align-top font-medium">
                             <span className="inline-flex items-center rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                               {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
                             </span>
                             {row.bloqueId && <span className="mt-0.5 block font-mono text-[10px] font-normal text-muted-foreground">{row.bloqueId}</span>}
                           </TableCell>
-                          <TableCell className="hidden max-w-[140px] truncate text-xs text-foreground sm:table-cell" title={row.empresa ?? ""}>
-                            {row.empresa ?? "â€”"}
+                          <TableCell className="min-w-[190px] max-w-[260px] align-top text-xs text-foreground" title={row.empresa ?? ""}>
+                            {row.empresa ?? "—"}
                           </TableCell>
-                          <TableCell className="hidden max-w-[160px] truncate text-xs text-foreground lg:table-cell" title={row.nombreUsuario ?? row.email ?? ""}>
+                          <TableCell className="min-w-[170px] align-top">
+                            <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
+                          </TableCell>
+                          <TableCell className="min-w-[170px] max-w-[230px] align-top text-xs text-foreground" title={row.nombreUsuario ?? row.email ?? ""}>
                             {row.nombreUsuario ?? "—"}
                           </TableCell>
-                          <TableCell className="hidden max-w-[200px] truncate text-xs text-muted-foreground lg:table-cell" title={row.email ?? ""}>
+                          <TableCell className="min-w-[220px] max-w-[280px] align-top text-xs text-muted-foreground" title={row.email ?? ""}>
                             {row.email ?? "—"}
                           </TableCell>
-                          <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{row.tipoStand ?? "â€”"}</TableCell>
-                          <TableCell>
+                          <TableCell className="min-w-[110px] align-top text-xs text-muted-foreground">{row.tipoStand ?? "—"}</TableCell>
+                          <TableCell className="min-w-[120px] align-top">
                              {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
@@ -694,13 +729,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                </Badge>
                              )}
                           </TableCell>
-                          <TableCell className="hidden sm:table-cell text-xs">
+                          <TableCell className="min-w-[80px] align-top text-xs">
                             {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                           </TableCell>
-                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          <TableCell className="min-w-[150px] align-top text-xs text-muted-foreground">
                             {dateUtils.formatDateTime(row.createdAt)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="min-w-[120px] text-right align-top">
                             <div className="flex gap-0.5 justify-end">
                               {row.revisiones.some((r) => r.updatedBy) && (
                                 <Tooltip>

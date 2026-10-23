@@ -111,7 +111,19 @@ export const solicitudesController = {
       hasta: parsed.hasta,
       orden: parsed.orden as SolicitudesOrden,
     });
-    return success(result);
+    const data = await Promise.all(result.data.map(async (row) => {
+      try {
+        const evaluacion = await services.debidaDiligencia.evaluacionDeUsuario(
+          row.email,
+          parsed.eventoId,
+          row.empresa,
+        );
+        return { ...row, ddEstado: mapDdEvaluacionSolicitudToDTO(row.id, evaluacion) };
+      } catch {
+        return row;
+      }
+    }));
+    return success({ ...result, data });
   },
 
   async detalle(request: Request): Promise<NextResponse> {

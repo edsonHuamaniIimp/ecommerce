@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/lib/server/api-response";
+import type { SolicitudDdEstadoDTO } from "./solicitud-dd-estado.dto";
 
 interface ReevaluacionDTO {
   id: string;
@@ -85,6 +86,8 @@ export interface SolicitudDTO {
   sgcDocumentosEnviados: boolean;
   /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */
   sgcEnabled: boolean;
+  /** Estado resumido de Debida Diligencia de la empresa solicitante. */
+  ddEstado?: SolicitudDdEstadoDTO;
 }
 
 export interface SolicitudesPaginatedDTO {
