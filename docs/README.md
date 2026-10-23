@@ -54,6 +54,7 @@ orden de lectura recomendado.
 | [arquitectura-aws.md](./02-despliegue/arquitectura-aws.md) | Decisión de arquitectura AWS (ECS Fargate + Aurora + ALB + CloudFront) |
 | [aws-terraform.md](./02-despliegue/aws-terraform.md) | Terraform + convención de tags y flujo MCP |
 | [REGLAS-DESPLIEGUE.md](./02-despliegue/REGLAS-DESPLIEGUE.md) | Gobernanza R1-R6 (prod con autorización explícita) |
+| [importacion-dd-qa.md](./02-despliegue/importacion-dd-qa.md) | Estrategia de importación y asignación de eventos DD en QA |
 
 ### 03 — Arquitectura
 | Documento | Contenido |
