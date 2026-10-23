@@ -442,13 +442,12 @@ export function useReservaForm(
       ));
 
       /*
-       * El contrato normal se genero como borrador en el paso de cuotas.
-       * Politica fija: NO se genera nada aqui; al enviar solo se crea
-       * la solicitud y se adjuntan los anexos. El contrato se genera cuando el
-       * cliente lo firma desde Mis solicitudes.
-       * En un reintento no se regenera si el archivo ya existe.
+       * Politica homologada: al enviar la solicitud se genera la PLANTILLA del
+       * contrato (sin firma). El revisor solo habilita la firma y el cliente la
+       * firma desde Mis solicitudes. En un reintento no se regenera si el
+       * archivo ya existe.
        */
-      if (!sinContrato && !contratoYaTieneArchivo) {
+      if (!contratoYaTieneArchivo) {
         pasoError = ERROR_LOG_PASOS_RESERVA.CUOTAS;
         setSubmitStage(ETAPAS_ENVIO_RESERVA.GENERANDO_CONTRATO);
         const generado = await contratosService.generar({

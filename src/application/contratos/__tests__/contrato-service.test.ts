@@ -832,10 +832,11 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 });
 
 describe("ContratoApplicationService.generar — contrato posterior", () => {
-  it("no permite al cliente generar el contrato antes de que el revisor lo habilite", async () => {
+  it("permite al cliente generar la primera plantilla al enviar (pendiente y sin contrato previo)", async () => {
     const { svc } = build({
       detalle: {
         contratoHabilitado: false,
+        docsAdminCount: 0,
         docsAdjuntos: [],
       },
     });
@@ -845,6 +846,23 @@ describe("ContratoApplicationService.generar — contrato posterior", () => {
       cuotas: cuotasFijas(2),
       userSub: "user-1",
       userPermissions: [],
-    })).rejects.toThrow("aún no ha habilitado la firma del contrato");
+    })).resolves.toBeDefined();
+  });
+
+  it("bloquea al cliente regenerar cuando ya existe contrato y el revisor no habilito la firma", async () => {
+    const { svc } = build({
+      detalle: {
+        contratoHabilitado: false,
+        docsAdminCount: 1,
+        docsAdjuntos: [],
+      },
+    });
+
+    await expect(svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(2),
+      userSub: "user-1",
+      userPermissions: [],
+    })).rejects.toMatchObject({ status: 409 });
   });
 });

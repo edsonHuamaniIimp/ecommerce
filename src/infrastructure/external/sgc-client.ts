@@ -17,7 +17,7 @@ import type {
   SgcUrlDescarga,
   SgcVersionResuelta,
 } from "@/domain/models/sgc";
-import { HTTP_METHODS, SGC_API_PATHS, SGC_APPROVAL_RESULT, SGC_IDEMPOTENCY_PREFIX, SGC_IDEMPOTENCY_DOC_PREFIX } from "@/lib/shared/constants";
+import { HTTP_METHODS, SGC_API_PATHS, SGC_APPROVAL_RESULT, SGC_IDEMPOTENCY_DOC_PREFIX } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 import type { HttpMethod } from "@/lib/shared/constants";
 

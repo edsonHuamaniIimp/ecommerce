@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, Upload, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -30,15 +30,10 @@ import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 
 type SolicitudRow = SolicitudDTO;
 
-function esMultiStand(row: SolicitudRow) { return (row.standCodes?.length ?? 0) > 1; }
-function estaPendiente(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE; }
 function estaPendientePago(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO; }
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
-function tieneDocsAdmin(row: SolicitudRow) { return ((row.docsAdjuntosCount ?? 0) - (row.clienteDocsAdjuntosCount ?? 0)) > 0; }
-function tieneDocsCliente(row: SolicitudRow) { return (row.clienteDocsAdjuntosCount ?? 0) > 0 || ((row.documentos as string[])?.length ?? 0) > 0; }
-function necesitaDocs(row: SolicitudRow) { return esMultiStand(row) && (!tieneDocsAdmin(row) || !tieneDocsCliente(row)); }
-function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row) && !necesitaDocs(row); }
-function adminDebeSubirContrato(row: SolicitudRow) { return esMultiStand(row) && estaPendiente(row) && !tieneDocsAdmin(row); }
+/** Flujo homologado: individual y multiple usan la misma accion de revision. */
+function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row); }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 
 /** Columnas de la exportacion avanzada (CSV/Excel) de la bandeja filtrada. */
@@ -154,9 +149,6 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [historialOpen, setHistorialOpen] = useState(false);
   const [historialStandId, setHistorialStandId] = useState<string | null>(null);
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadRow, setUploadRow] = useState<SolicitudRow | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [bajaRow, setBajaRow] = useState<SolicitudRow | null>(null);
   const [bajaOpen, setBajaOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
@@ -376,25 +368,6 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   };
 
   const canNotify = userPermissions.includes(PERMISSIONS.SOLICITUDES_NOTIFY) || userPermissions.includes(PERMISSIONS.ADMIN_FULL);
-
-  const handleUploadDoc = async (file: File) => {
-    if (!uploadRow) return;
-    setUploading(true);
-    try {
-      const url = await solicitudesService.subirArchivo(file);
-      await solicitudesService.uploadDocumento({
-        solicitudId: uploadRow.id,
-        url,
-        nombre: file.name,
-      });
-      toast.success("Documento subido correctamente");
-      setUploadOpen(false);
-      load(page, search, perPage);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error al subir");
-    }
-    setUploading(false);
-  };
 
   const confirmDarDeBaja = async () => {
     if (!bajaRow) return;
@@ -760,17 +733,6 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                   <TooltipContent side="top"><span>Revisar</span></TooltipContent>
                                 </Tooltip>
                               )}
-                              {adminDebeSubirContrato(row) && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                                      onClick={() => { setUploadRow(row); setUploadOpen(true); }}>
-                                      <Upload className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top"><span>Subir contrato</span></TooltipContent>
-                                </Tooltip>
-                              )}
                               {estaRechazada(row) && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -971,17 +933,6 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 </DetailSection>
               ) : null}
 
-              {/* Pendiente: admin debe subir contrato */}
-              {detailRow.standCodes && detailRow.standCodes.length > 1 && estaPendiente(detailRow) && !tieneDocsAdmin(detailRow) && (
-                <DetailSection id="accion" title="Accion requerida" open={accordionOpen === "accion"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
-                  <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-center">
-                    <Clock className="h-5 w-5 text-warning mx-auto mb-1" />
-                    <p className="text-xs font-semibold text-warning">Pendiente: Subir Contrato</p>
-                    <p className="text-[11px] text-warning mt-0.5">Debes subir el contrato como administrador para que el cliente pueda adjuntar sus documentos y continuar con el proceso.</p>
-                  </div>
-                </DetailSection>
-              )}
-
               {/* Re-evaluacion */}
               {detailRow.reevaluaciones && detailRow.reevaluaciones.length > 0 && (
                 <DetailSection id="reevaluacion" title={`Re-evaluacion (${detailRow.reevaluaciones.length})`} open={accordionOpen === "reevaluacion"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
@@ -1078,7 +1029,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           )}
           </div>
           {/* Footer */}
-          {hasViewPerm && detailRow && !estaPendientePago(detailRow) && !necesitaDocs(detailRow) && (
+          {hasViewPerm && detailRow && !estaPendientePago(detailRow) && (
             <div className="shrink-0 border-t border-border px-5 py-3 flex justify-end">
               <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold" onClick={() => {
                 setDetailOpen(false);
@@ -1231,33 +1182,6 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                   <span>Si, dar de baja</span>
                 </Button>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Upload contrato dialog */}
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle><span>Subir contrato</span></DialogTitle>
-          </DialogHeader>
-          {uploadRow && (
-            <div className="space-y-3 text-sm">
-              <p className="text-xs text-muted-foreground">
-                Solicitud multiple: <strong className="font-mono">{uploadRow.standCodes?.join(", ")}</strong>
-              </p>
-              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 hover:border-primary hover:bg-primary/5 transition-colors">
-                <Upload className="h-6 w-6 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">{uploading ? "Subiendo..." : "Click para seleccionar archivo"}</span>
-                <span className="text-[10px] text-muted-foreground">PDF, DOC, DOCX â€” max 10 MB</span>
-                <input type="file" className="hidden" accept=".pdf,.doc,.docx" disabled={uploading}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadDoc(file);
-                    e.target.value = "";
-                  }} />
-              </label>
             </div>
           )}
         </DialogContent>

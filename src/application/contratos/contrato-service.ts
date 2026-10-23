@@ -189,11 +189,14 @@ export class ContratoApplicationService {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes regenerar el contrato.", API_ERROR_CODES.CONFLICT, 409);
     }
     if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true) {
-      throw new DomainError(
-        "El IIMP aún no ha habilitado la firma del contrato de esta solicitud.",
-        API_ERROR_CODES.CONFLICT,
-        409,
-      );
+      const esPrimeraPlantilla = detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && detalle.docsAdminCount === 0;
+      if (!esPrimeraPlantilla) {
+        throw new DomainError(
+          "El IIMP a�n no ha habilitado la firma del contrato de esta solicitud.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
     }
 
     /* Datos de la empresa del cliente (cuenta → empresa del Portal). */
