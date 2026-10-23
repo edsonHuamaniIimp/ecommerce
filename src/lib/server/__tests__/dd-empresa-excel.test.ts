@@ -24,6 +24,8 @@ describe("parseEmpresasExcel", () => {
       expect(resultado.rows[0]).toMatchObject({
         documento: "20549974342",
         resultado: DD_RESULTADOS.APTO,
+        fechaRevision: new Date(2026, 9, 2),
+        fechaVencimiento: new Date(2027, 3, 2),
       });
       expect(resultado.rows[1]).toMatchObject({
         documento: "20602295398",
@@ -47,4 +49,20 @@ describe("parseEmpresasExcel", () => {
       });
     },
   );
+
+  it("no inventa fecha de cese cuando falta la aprobacion en la fuente", async () => {
+    const sinRevision = [
+      'FECHA DE INGRESO SOLICITUD;FECHA DE REVISION POR SIG;PERSONA JURIDICA / PERSONA NATURAL;RUC / DNI / ID;MOTIVO DE LA EVALUACION;EVENTO O PROYECTO ASOCIADO;RESULTADO DE EVALUACION DEBIDA DILIGENCIA',
+      "1/10/2026;;EMPRESA SIN FECHA S.A.C.;20549974342;EXHIBIDOR;PERUMIN;APTO",
+    ].join("\n");
+
+    const resultado = await parseEmpresasExcel(Buffer.from(sinRevision, "utf8"), "resultado.csv");
+
+    expect(resultado.errors).toEqual([]);
+    expect(resultado.rows[0]).toMatchObject({
+      resultado: DD_RESULTADOS.APTO,
+      fechaRevision: null,
+      fechaVencimiento: null,
+    });
+  });
 });

@@ -90,6 +90,16 @@ export interface DdHistorialEventoEntity {
 }
 
 /** Datos para registrar un evento del historial. */
+/** Version de evento del API usada para asignar una fila importada de DD. */
+export interface DdEventoImportacionCatalogo {
+  tipoEvento: number;
+  codigoEvento: number;
+  anio: string;
+  nombre: string;
+  fechaInicio: Date | null;
+  fechaFin: Date | null;
+}
+
 export interface DdHistorialCreacion {
   tipo: DdHistorialTipo;
   area?: DdObservacionArea | null;
@@ -98,6 +108,23 @@ export interface DdHistorialCreacion {
   detalle?: string | null;
   actor: string;
   metadata?: Record<string, unknown> | null;
+}
+
+export interface DdMisExpedientesParams {
+  empresaId: string;
+  page: number;
+  perPage: number;
+  search?: string;
+  estado?: string;
+  eventoId?: string;
+}
+
+export interface DdMisExpedientesResult {
+  data: DdExpedienteEntity[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export interface DdExpedienteEntity {
@@ -160,6 +187,8 @@ export interface DdEvaluacionEmpresa {
   estadoEvaluacion: DdEstadoEvaluacion | null;
   vigente: boolean;
   aptoParaContratar: boolean;
+  /** DD APTA/vigente de otro evento a la que le falta la declaracion de vigencia. */
+  requiereDeclaracionVigencia: boolean;
   observacionesAbiertas: number;
   mensaje: string | null;
 }
@@ -188,9 +217,11 @@ export interface DdBandejaRow {
   origen: string;
   estadoOrigen: string | null;
   eventoProyecto: string | null;
+  eventoNombre: string;
   motivoImportacion: string | null;
   tipoRelacionComercial: DdVinculo[];
   empresa: DdEmpresaResumen;
+  beneficiarios: DdBeneficiarioEntity[];
   fechaCreacion: Date;
   solicitudesAlquiler: number;
   documentoCargados: number;
@@ -210,7 +241,8 @@ export interface DdBandejaRow {
 }
 
 export interface DdBandejaParams {
-  eventoId: string;
+  /** null/undefined = todos los eventos. */
+  eventoId?: string;
   page: number;
   perPage: number;
   search?: string;
@@ -221,6 +253,7 @@ export interface DdBandejaParams {
   reputacion?: string;
   asignacion?: string;
   solicitudes?: string;
+  multiples?: string;
   orden?: string;
 }
 
@@ -230,6 +263,7 @@ export interface DdBandejaResumen {
   enRevision: number;
   observadas: number;
   aprobadas: number;
+  vencidas: number;
   rechazadas: number;
 }
 
@@ -294,6 +328,7 @@ export interface DdMatrizParams {
   search?: string;
   estado?: string;
   vinculo?: string;
+  multiples?: string;
 }
 
 export interface DdMatrizResult {

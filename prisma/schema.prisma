@@ -1294,7 +1294,8 @@ model DebidaDiligencia {
   reputacion    DebidaDiligenciaReputacion[]
   matrizVinculos DdMatrizVinculo[]
 
-  @@unique([empresaId, eventoId])
+  @@index([empresaId, eventoId, createdAt])
+  @@index([empresaId, fechaVencimiento])
   @@index([eventoId, estado])
   @@index([fechaVencimiento])
   @@index([codigo])

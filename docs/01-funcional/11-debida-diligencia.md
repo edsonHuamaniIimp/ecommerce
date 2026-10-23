@@ -242,13 +242,29 @@ Constantes: `DD_REPUTACION_ESTADOS` y `DD_REPUTACION_RESULTADO_A_ESTADO`.
 
 ## 7. Reglas de negocio
 
-- La vigencia de una debida diligencia aprobada es de **6 meses**.
+- En la portada del cliente, una DD **aprobada y vigente** prevalece sobre el evento
+  activo: si no existe DD del evento actual pero hay una vigente de otro evento, se
+  muestra esa DD con su linea de tiempo y no se ofrece iniciar una nueva.
+- Si la DD vigente es de otro evento y no tiene la **Declaracion jurada de vigencia
+  de informacion**, se ofrece un boton para regularizarla en el paso 4 de documentos.
+  Si la DD vigente es del evento activo, no se muestra ese input.
+- La declaracion de vigencia es un documento adicional opcional del flujo regular;
+  solo es obligatoria cuando la empresa mantiene una DD importada aprobada y vigente.
+- La vigencia de una debida diligencia aprobada es de **6 meses**, contados desde
+  que queda **APTA/aprobada** (aprobacion final de Logistica o fecha de revision APTA
+  importada), no desde el envio de la solicitud. Si falta la fecha de cese, se calcula
+  como aprobacion + 6 meses; si tampoco existe fecha de aprobacion, no se inventa una
+  vigencia y el expediente requiere una nueva evaluacion.
 - Se considera **por vencer** cuando faltan **30 dias o menos**.
 - Solo la aprobacion final de Logistica deja a la empresa **apta**. La aprobacion de
   Legal devuelve el expediente a Logistica y no activa la vigencia.
 - Una empresa pendiente puede reservar un stand, pero no debe avanzar en aprobaciones
-  hasta quedar aprobada. El bloqueo automatico del pipeline de reservas/solicitudes
-  sigue como integracion pendiente.
+  hasta quedar aprobada.
+- En Solicitudes, una DD **APTA y vigente de otro evento** sin la Declaracion jurada
+  de vigencia de informacion se muestra como **APTO pendiente de declaracion** y
+  bloquea la revision. Solo `admin:full` puede omitir el bloqueo.
+- El bloqueo automatico del pipeline de reservas/solicitudes sigue como integracion
+  pendiente.
 - Un expediente solo se puede editar en `borrador` u `observada`.
 - El envio exige ambos consentimientos, datos completos, representante, declaracion
   jurada y los cuatro documentos obligatorios.

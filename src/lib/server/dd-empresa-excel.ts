@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import {
   DD_RESULTADOS,
   DD_TIPOS_DOCUMENTO_EMPRESA,
+  DD_VIGENCIA_MESES,
   type DdResultado,
   type DdTipoDocumentoEmpresa,
 } from "@/lib/shared/constants";
@@ -287,11 +288,18 @@ export async function parseEmpresasExcel(
     }
 
     const fechaIngreso = fecha(fila[indices.ingreso]);
+    /* FECHA DE REVISION POR SIG es el fin de la DD en la fuente oficial. */
     const fechaRevision = fecha(fila[indices.revision]);
+    /*
+     * La vigencia de 6 meses corre desde que la DD queda APTA/aprobada
+     * (fecha de revision). Sin fecha de aprobacion no se inventa una
+     * vigencia: el expediente requerira una nueva evaluacion.
+     */
     const fechaVencimiento =
-      resultadoNormalizado === DD_RESULTADOS.APTO ||
-      resultadoNormalizado === DD_RESULTADOS.APTO_CON_OBSERVACIONES
-        ? sumarMeses(fechaRevision ?? fechaIngreso ?? new Date(), 6)
+      (resultadoNormalizado === DD_RESULTADOS.APTO ||
+        resultadoNormalizado === DD_RESULTADOS.APTO_CON_OBSERVACIONES) &&
+      fechaRevision
+        ? sumarMeses(fechaRevision, DD_VIGENCIA_MESES)
         : null;
 
     rows.push({

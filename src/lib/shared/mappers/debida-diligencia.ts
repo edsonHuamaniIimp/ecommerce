@@ -290,6 +290,7 @@ export function mapDdEvaluacionSolicitudToDTO(
     estadoEvaluacion: evaluacion.estadoEvaluacion,
     vigente: evaluacion.vigente,
     aptoParaContratar: evaluacion.aptoParaContratar,
+    requiereDeclaracionVigencia: evaluacion.requiereDeclaracionVigencia,
     mensaje: evaluacion.mensaje,
   };
 }
@@ -348,9 +349,11 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     origen: row.origen,
     estadoOrigen: row.estadoOrigen,
     eventoProyecto: row.eventoProyecto,
+    eventoNombre: row.eventoNombre,
     motivoImportacion: row.motivoImportacion,
     tipoRelacionComercial: row.tipoRelacionComercial,
     empresa: mapDdEmpresaToDTO(row.empresa),
+    beneficiarios: row.beneficiarios,
     fechaCreacion: fecha(row.fechaCreacion),
     solicitudesAlquiler: row.solicitudesAlquiler,
     documentoCargados: row.documentoCargados,

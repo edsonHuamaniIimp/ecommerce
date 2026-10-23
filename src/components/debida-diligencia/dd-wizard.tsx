@@ -55,10 +55,14 @@ import {
   DD_DOCUMENTO_ACCEPT,
   DD_DOCUMENTO_ACCEPT_ADICIONAL,
   DD_DOCUMENTO_ACCEPT_DECLARACION,
+  DD_DOCUMENTO_ACCEPT_VIGENCIA,
   DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTO_EXTENSIONES,
   DD_DOCUMENTO_EXTENSIONES_ADICIONAL,
+  DD_DOCUMENTO_EXTENSIONES_VIGENCIA,
+  DD_DOCUMENTO_VIGENCIA,
+  DD_DECLARACION_COMPROMISO,
   DD_DOCUMENTO_EXTENSIONES_DECLARACION,
   DD_DOCUMENTO_MAX_BYTES,
   DD_DOCUMENTOS,
@@ -98,6 +102,7 @@ interface BeneficiarioForm {
 interface Props {
   empresa: DdEmpresaDTO | null;
   expediente: DdExpedienteDTO | null;
+  requiereDeclaracionVigencia?: boolean;
 }
 
 interface DocumentoForm {
@@ -185,7 +190,11 @@ function beneficiariosDesde(expediente: DdExpedienteDTO | null): BeneficiarioFor
 }
 
 /** Wizard de 4 pasos de Debida Diligencia (Portal del Expositor). */
-export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
+export function DdWizard({
+  empresa,
+  expediente: expedienteInicial,
+  requiereDeclaracionVigencia = false,
+}: Props) {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const [paso, setPaso] = useState(() =>
@@ -220,7 +229,17 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
     const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
     return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
   });
-  const documentosVisibles = [...DD_DOCUMENTOS_REQUERIDOS, DD_DOCUMENTO_ADICIONAL];
+  const documentosVisibles: {
+    tipo: DdDocumentoTipo;
+    titulo: string;
+    ayuda: string;
+    permiteFormato: boolean;
+    formatoUrl?: string | null;
+  }[] = [
+    ...DD_DOCUMENTOS_REQUERIDOS,
+    DD_DOCUMENTO_VIGENCIA,
+    DD_DOCUMENTO_ADICIONAL,
+  ];
   const enSubsanacion =
     expedienteInicial?.estado === DD_ESTADOS.OBSERVADA || observacionesAbiertas.length > 0;
   /* Comentarios de documentos observados (se muestran una sola vez). */
@@ -233,7 +252,11 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
   ]);
   const tituloDocumento = (tipo: string) =>
     DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ??
-    (tipo === DD_DOCUMENTOS.ADICIONAL ? DD_DOCUMENTO_ADICIONAL.titulo : tipo);
+    (tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA
+      ? DD_DOCUMENTO_VIGENCIA.titulo
+      : tipo === DD_DOCUMENTOS.ADICIONAL
+        ? DD_DOCUMENTO_ADICIONAL.titulo
+        : tipo);
   const tiposObservadosLabels = [...tiposObservados].map(tituloDocumento);
   const estaEnCorreccion = (documento: DocumentoForm) =>
     documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
@@ -338,6 +361,7 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
     return ddUtils.validarDocumentos({
       documentos: documentos.map((d) => ({ tipo: d.tipo, url: d.url, estado: d.estado })),
       declaraVerdad: form.declaraVerdad,
+      requiereDeclaracionVigencia,
     });
   };
 
@@ -982,7 +1006,7 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Documentos de sustento</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Todos los documentos son obligatorios.
+                  Los documentos obligatorios deben estar cargados para enviar.
                 </p>
               </div>
 
@@ -992,15 +1016,21 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                   const subiendoEste = subiendo === requisito.tipo;
                   const extensionesDocumento = requisito.tipo === DD_DOCUMENTOS.DECLARACION_JURADA
                     ? DD_DOCUMENTO_EXTENSIONES_DECLARACION
-                    : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
-                      ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
-                      : DD_DOCUMENTO_EXTENSIONES;
+                    : requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA
+                      ? DD_DOCUMENTO_EXTENSIONES_VIGENCIA
+                      : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
+                        ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
+                        : DD_DOCUMENTO_EXTENSIONES;
                   const formatosDocumento = [...new Set(
                     extensionesDocumento.map((ext) => (ext === "jpeg" ? "jpg" : ext)),
                   )].map((ext) => ext.toUpperCase()).join(", ");
                   const observado =
                     documento?.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
                     tiposObservados.has(requisito.tipo);
+                  const obligatorio =
+                    DD_DOCUMENTOS_REQUERIDOS.some((item) => item.tipo === requisito.tipo) ||
+                    (requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA &&
+                      requiereDeclaracionVigencia);
                   return (
                     <div
                       key={requisito.tipo}
@@ -1013,7 +1043,23 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                             <FileText className="h-4 w-4" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-foreground">{requisito.titulo}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs font-semibold text-foreground">
+                                {requisito.titulo}
+                                {obligatorio ? (
+                                  <span className="ml-1 text-destructive" aria-label="Obligatorio">*</span>
+                                ) : null}
+                              </p>
+                              {requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA ? (
+                                <Badge
+                                  className={`pointer-events-none text-[9px] ${
+                                    obligatorio ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL
+                                  }`}
+                                >
+                                  <span>{obligatorio ? "Obligatorio" : "Opcional"}</span>
+                                </Badge>
+                              ) : null}
+                            </div>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">{requisito.ayuda}</p>
                             <p className="mt-0.5 text-[10px] text-muted-foreground">
                               <span>Formatos: {formatosDocumento}. Máximo {DD_DOCUMENTO_MAX_BYTES / BYTES_POR_MB} MB.</span>
@@ -1080,9 +1126,9 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                                 </ul>
                               </details>
                             ) : null}
-                            {requisito.permiteFormato ? (
+                            {requisito.permiteFormato && requisito.formatoUrl ? (
                               <Button asChild variant="link" size="sm" className="mt-1 h-auto p-0 text-[11px] text-primary">
-                                <a href="/api/debida-diligencia/declaracion-jurada" download>
+                                <a href={requisito.formatoUrl} download>
                                   Descargar formato
                                 </a>
                               </Button>
@@ -1110,9 +1156,11 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                                 accept={
                                   requisito.tipo === DD_DOCUMENTOS.DECLARACION_JURADA
                                     ? DD_DOCUMENTO_ACCEPT_DECLARACION
-                                    : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
-                                      ? DD_DOCUMENTO_ACCEPT_ADICIONAL
-                                      : DD_DOCUMENTO_ACCEPT
+                                    : requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA
+                                      ? DD_DOCUMENTO_ACCEPT_VIGENCIA
+                                      : requisito.tipo === DD_DOCUMENTOS.ADICIONAL
+                                        ? DD_DOCUMENTO_ACCEPT_ADICIONAL
+                                        : DD_DOCUMENTO_ACCEPT
                                 }
                                 className="hidden"
                                 onChange={(e) => {
@@ -1161,7 +1209,7 @@ export function DdWizard({ empresa, expediente: expedienteInicial }: Props) {
                   className="mt-0.5"
                 />
                 <span className="text-xs leading-relaxed text-foreground">
-                  Declaro que la información es veraz y me comprometo a actualizarla.
+                  {DD_DECLARACION_COMPROMISO}
                 </span>
               </label>
 

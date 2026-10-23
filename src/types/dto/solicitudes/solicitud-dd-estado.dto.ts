@@ -12,5 +12,6 @@ export interface SolicitudDdEstadoDTO {
   estadoEvaluacion: DdEstadoEvaluacion | null;
   vigente: boolean;
   aptoParaContratar: boolean;
+  requiereDeclaracionVigencia: boolean;
   mensaje: string | null;
 }

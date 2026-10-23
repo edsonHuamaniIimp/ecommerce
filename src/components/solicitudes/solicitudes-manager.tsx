@@ -682,7 +682,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                             {row.empresa ?? "—"}
                           </TableCell>
                           <TableCell className="min-w-[170px] align-top">
-                            <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
+                            <div className="space-y-1">
+                              <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
+                              {row.ddEstado?.requiereDeclaracionVigencia ? (
+                                <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                  <span>Declaración de vigencia pendiente</span>
+                                </Badge>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell className="min-w-[170px] max-w-[230px] align-top text-xs text-foreground" title={row.nombreUsuario ?? row.email ?? ""}>
                             {row.nombreUsuario ?? "—"}
@@ -757,7 +764,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                 </TooltipTrigger>
                                 <TooltipContent side="top"><span>Ver detalle</span></TooltipContent>
                               </Tooltip>
-                              {hasViewPerm && puedeRevisar(row) && (
+                              {hasViewPerm &&
+                                puedeRevisar(row) &&
+                                (!row.ddEstado?.requiereDeclaracionVigencia ||
+                                  userPermissions.includes(PERMISSIONS.ADMIN_FULL)) && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button variant="default" size="sm" className="h-7 w-7 p-0"
@@ -1064,7 +1074,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           )}
           </div>
           {/* Footer */}
-          {hasViewPerm && detailRow && !estaPendientePago(detailRow) && (
+          {hasViewPerm &&
+            detailRow &&
+            !estaPendientePago(detailRow) &&
+            (!detailRow.ddEstado?.requiereDeclaracionVigencia ||
+              userPermissions.includes(PERMISSIONS.ADMIN_FULL)) && (
             <div className="shrink-0 border-t border-border px-5 py-3 flex justify-end">
               <Button size="sm" variant="default" className="rounded-full px-4 text-xs font-semibold" onClick={() => {
                 setDetailOpen(false);

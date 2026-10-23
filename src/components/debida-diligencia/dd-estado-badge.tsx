@@ -13,12 +13,18 @@ import {
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 
-export function DdEstadoBadge({ estado }: { estado: string | null | undefined }) {
+export function DdEstadoBadge({
+  estado,
+  sinIniciarLabel = "Sin iniciar",
+}: {
+  estado: string | null | undefined;
+  sinIniciarLabel?: string;
+}) {
   if (!estado) {
     return (
       <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-        <span>Sin iniciar</span>
+        <span>{sinIniciarLabel}</span>
       </Badge>
     );
   }
@@ -122,11 +128,13 @@ export function DdReputacionBadge({ estado }: { estado: string }) {
 export function DdVigenciaBadge({
   estado,
   fechaVencimiento,
+  fechaAprobacion,
 }: {
   estado: string;
   fechaVencimiento: string | null;
+  fechaAprobacion?: string | null;
 }) {
-  const vigencia = ddUtils.estadoVigencia(estado, fechaVencimiento);
+  const vigencia = ddUtils.estadoVigencia(estado, fechaVencimiento, undefined, fechaAprobacion);
   if (vigencia === DD_VIGENCIAS.VENCIDA) {
     return <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}><span>Vencida</span></Badge>;
   }

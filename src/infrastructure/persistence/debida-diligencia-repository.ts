@@ -21,6 +21,8 @@ import type {
   DdMatrizParams,
   DdMatrizResult,
   DdMatrizRow,
+  DdMisExpedientesParams,
+  DdMisExpedientesResult,
   DdObservacionCreacion,
   DdObservacionEntity,
   DdPanelKpis,
@@ -45,23 +47,30 @@ import {
   DD_BANDEJA_ORDEN,
   DD_ASIGNACION_FILTRO,
   DD_FILTRO_POR_VENCER,
+  DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA,
+  DD_FILTRO_VENCIDA,
   DD_FILTRO_SIN_INICIAR,
+  DD_MULTIPLES_FILTRO,
   DD_FILTRO_TODAS,
   DD_IMPORTACION_REVISOR,
   DD_REPUTACION_FILTRO_PENDIENTE,
   DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_OBSERVACION_ESTADOS,
+  DD_ORIGENES,
   DD_REPUTACION_ESTADOS,
   DD_RESULTADOS,
+  DD_VIGENCIA_MESES,
   DD_VINCULOS,
   DD_VINCULO_LABELS,
   ESTADOS_EMPRESA,
   type DdDocumentoTipo,
   type DdEstado,
 } from "@/lib/shared/constants";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
@@ -253,8 +262,72 @@ function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
 
 export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaRepository {
   async findExpedientePorEmpresaEvento(empresaId: string, eventoId: string): Promise<DdExpedienteEntity | null> {
-    const row = await prisma.debidaDiligencia.findUnique({
-      where: { empresaId_eventoId: { empresaId, eventoId } },
+    const row = await prisma.debidaDiligencia.findFirst({
+      where: { empresaId, eventoId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: expedienteInclude,
+    });
+    return row ? mapExpediente(row) : null;
+  }
+
+  async findExpedienteAprobadoVigentePorEmpresa(
+    empresaId: string,
+    ahora: Date,
+  ): Promise<DdExpedienteEntity | null> {
+    const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
+    const row = await prisma.debidaDiligencia.findFirst({
+      where: {
+        empresaId,
+        estado: DD_ESTADOS.APROBADA,
+        OR: [
+          { fechaVencimiento: { gt: ahora } },
+          { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+        ],
+      },
+      orderBy: [{ fechaVencimiento: "desc" }, { createdAt: "desc" }],
+      include: expedienteInclude,
+    });
+    return row ? mapExpediente(row) : null;
+  }
+
+  async tieneExpedienteImportadoAprobadoVigente(
+    empresaId: string,
+    ahora: Date,
+  ): Promise<boolean> {
+    const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
+    const row = await prisma.debidaDiligencia.findFirst({
+      where: {
+        empresaId,
+        estado: DD_ESTADOS.APROBADA,
+        origen: DD_ORIGENES.IMPORTADO,
+        OR: [
+          { fechaVencimiento: { gt: ahora } },
+          { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+        ],
+      },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  async findExpedienteAprobadoVigentePorEmpresaEvento(
+    empresaId: string,
+    eventoId: string,
+    ahora: Date,
+  ): Promise<DdExpedienteEntity | null> {
+    const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
+    const row = await prisma.debidaDiligencia.findFirst({
+      where: {
+        empresaId,
+        eventoId,
+        estado: DD_ESTADOS.APROBADA,
+        OR: [
+          { fechaVencimiento: { gt: ahora } },
+          /* Legado sin fecha de cese: la vigencia corre desde la aprobacion. */
+          { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+        ],
+      },
+      orderBy: [{ fechaVencimiento: "desc" }, { createdAt: "desc" }],
       include: expedienteInclude,
     });
     return row ? mapExpediente(row) : null;
@@ -263,6 +336,38 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
   async findExpedientePorId(id: string): Promise<DdExpedienteEntity | null> {
     const row = await prisma.debidaDiligencia.findUnique({ where: { id }, include: expedienteInclude });
     return row ? mapExpediente(row) : null;
+  }
+
+  async listarMisExpedientes(params: DdMisExpedientesParams): Promise<DdMisExpedientesResult> {
+    const where: Prisma.DebidaDiligenciaWhereInput = { empresaId: params.empresaId };
+    if (params.estado && params.estado !== DD_FILTRO_TODAS) {
+      where.estado = params.estado;
+    }
+    if (params.eventoId) {
+      where.eventoId = params.eventoId;
+    }
+    if (params.search?.trim()) {
+      where.codigo = { contains: params.search.trim(), mode: "insensitive" };
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.debidaDiligencia.findMany({
+        where,
+        include: expedienteInclude,
+        orderBy: [{ createdAt: "desc" }, { codigo: "desc" }],
+        skip: (params.page - 1) * params.perPage,
+        take: params.perPage,
+      }),
+      prisma.debidaDiligencia.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(mapExpediente),
+      total,
+      page: params.page,
+      perPage: params.perPage,
+      totalPages: Math.ceil(total / params.perPage),
+    };
   }
 
   async findEmpresaResumen(empresaId: string): Promise<DdEmpresaResumen | null> {
@@ -351,8 +456,9 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     fechaVencimiento: Date | null;
     fechaRechazo: Date | null;
   }): Promise<{ id: string; creado: boolean }> {
-    const existente = await prisma.debidaDiligencia.findUnique({
-      where: { empresaId_eventoId: { empresaId: data.empresaId, eventoId: data.eventoId } },
+    const existente = await prisma.debidaDiligencia.findFirst({
+      where: { empresaId: data.empresaId, eventoId: data.eventoId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { id: true },
     });
     /* La carga masiva nunca modifica un expediente ya iniciado por el cliente. */
@@ -664,17 +770,59 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
   async listarBandeja(params: DdBandejaParams): Promise<DdBandejaResult> {
     const ahora = dateUtils.now();
     const limiteVencimiento = dateUtils.addDays(dateUtils.startOfDay(ahora), DD_DIAS_POR_VENCER);
-    const where: Prisma.DebidaDiligenciaWhereInput = { eventoId: params.eventoId };
+    const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
+    const limiteAprobacionPorVencer = dateUtils.addMonths(
+      limiteVencimiento,
+      -DD_VIGENCIA_MESES,
+    );
+    const eventoWhere: Prisma.DebidaDiligenciaWhereInput = params.eventoId
+      ? { eventoId: params.eventoId }
+      : {};
+    const where: Prisma.DebidaDiligenciaWhereInput = { ...eventoWhere };
+    const condicionesAnd: Prisma.DebidaDiligenciaWhereInput[] = [];
 
     if (params.estado === DD_FILTRO_POR_VENCER) {
       where.estado = DD_ESTADOS.APROBADA;
-      where.fechaVencimiento = { gte: ahora, lte: limiteVencimiento };
+      where.OR = [
+        { fechaVencimiento: { gt: ahora, lte: limiteVencimiento } },
+        {
+          fechaVencimiento: null,
+          fechaAprobacion: { gt: limiteAprobacion, lte: limiteAprobacionPorVencer },
+        },
+      ];
+    } else if (params.estado === DD_FILTRO_VENCIDA) {
+      where.estado = DD_ESTADOS.APROBADA;
+      where.OR = [
+        { fechaVencimiento: { lt: ahora } },
+        {
+          fechaVencimiento: null,
+          OR: [{ fechaAprobacion: null }, { fechaAprobacion: { lte: limiteAprobacion } }],
+        },
+      ];
+    } else if (params.estado === DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA) {
+      where.estado = DD_ESTADOS.APROBADA;
+      where.OR = [
+        { fechaVencimiento: { gt: ahora } },
+        { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+      ];
+      where.documentos = {
+        none: { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA },
+      };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
       where.estado = params.estado;
     }
 
     if (params.origen && params.origen !== DD_FILTRO_TODAS) {
       where.origen = params.origen;
+    }
+    if (params.multiples === DD_MULTIPLES_FILTRO.CON) {
+      const empresas = await prisma.$queryRaw<Array<{ empresa_id: string }>>`
+        SELECT empresa_id
+        FROM debida_diligencia
+        GROUP BY empresa_id
+        HAVING COUNT(*) > 1
+      `;
+      where.empresaId = { in: empresas.map((empresa) => empresa.empresa_id) };
     }
     if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
       where.tipoRelacionComercial = { has: params.vinculo };
@@ -687,14 +835,12 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
 
     if (params.reputacion && params.reputacion !== DD_FILTRO_TODAS) {
       if (params.reputacion === DD_REPUTACION_FILTRO_PENDIENTE) {
-        where.AND = [
-          {
-            OR: [
-              { reputacion: { some: { estado: { in: [DD_REPUTACION_ESTADOS.POR_REVISAR, DD_REPUTACION_ESTADOS.EN_ANALISIS] } } } },
-              { reputacion: { none: {} } },
-            ],
-          },
-        ];
+        condicionesAnd.push({
+          OR: [
+            { reputacion: { some: { estado: { in: [DD_REPUTACION_ESTADOS.POR_REVISAR, DD_REPUTACION_ESTADOS.EN_ANALISIS] } } } },
+            { reputacion: { none: {} } },
+          ],
+        });
       } else {
         where.reputacion = { some: { estado: params.reputacion } };
       }
@@ -712,12 +858,15 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
 
     if (params.search?.trim()) {
       const q = params.search.trim();
-      where.OR = [
-        { codigo: { contains: q, mode: "insensitive" } },
-        { empresa: { razonSocial: { contains: q, mode: "insensitive" } } },
-        { empresa: { ruc: { contains: q } } },
-      ];
+      condicionesAnd.push({
+        OR: [
+          { codigo: { contains: q, mode: "insensitive" } },
+          { empresa: { razonSocial: { contains: q, mode: "insensitive" } } },
+          { empresa: { ruc: { contains: q } } },
+        ],
+      });
     }
+    if (condicionesAnd.length > 0) where.AND = condicionesAnd;
 
     /* El filtro y el orden por solicitudes se resuelven sobre el conjunto completo. */
     const clasificarSolicitudes =
@@ -728,7 +877,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       ? { createdAt: "desc" as const }
       : { updatedAt: "desc" as const };
 
-    const [rows, total, grupos] = await Promise.all([
+    const [rows, total, grupos, vencidas] = await Promise.all([
       prisma.debidaDiligencia.findMany({
         where,
         orderBy,
@@ -740,6 +889,8 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
             }),
         include: {
           empresa: { select: empresaSelect },
+          evento: { select: eventoSelect },
+          beneficiarios: { orderBy: { orden: "asc" } },
           documentos: { select: { tipo: true, estado: true } },
           observaciones: { where: { estado: DD_OBSERVACION_ESTADOS.ABIERTA }, select: { id: true } },
           reputacion: { select: { estado: true } },
@@ -748,8 +899,21 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       prisma.debidaDiligencia.count({ where }),
       prisma.debidaDiligencia.groupBy({
         by: ["estado"],
-        where: { eventoId: params.eventoId },
+        where: eventoWhere,
         _count: { _all: true },
+      }),
+      prisma.debidaDiligencia.count({
+        where: {
+          ...eventoWhere,
+          estado: DD_ESTADOS.APROBADA,
+          OR: [
+            { fechaVencimiento: { lt: ahora } },
+            {
+              fechaVencimiento: null,
+              OR: [{ fechaAprobacion: null }, { fechaAprobacion: { lte: limiteAprobacion } }],
+            },
+          ],
+        },
       }),
     ]);
 
@@ -760,6 +924,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       enRevision: porEstado.get(DD_ESTADOS.EN_REVISION) ?? 0,
       observadas: porEstado.get(DD_ESTADOS.OBSERVADA) ?? 0,
       aprobadas: porEstado.get(DD_ESTADOS.APROBADA) ?? 0,
+      vencidas,
       rechazadas: porEstado.get(DD_ESTADOS.RECHAZADA) ?? 0,
     };
 
@@ -828,9 +993,18 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         origen: row.origen,
         estadoOrigen: row.estadoOrigen ?? null,
         eventoProyecto: row.eventoProyecto ?? null,
+        eventoNombre: `${row.evento.eventoPadre.nombre} ${row.evento.anio}`,
         motivoImportacion: row.motivoImportacion ?? null,
         tipoRelacionComercial: row.tipoRelacionComercial as DdMatrizRow["tipoRelacionComercial"],
         empresa: mapEmpresa(row.empresa),
+        beneficiarios: row.beneficiarios.map((beneficiario) => ({
+          id: beneficiario.id,
+          orden: beneficiario.orden,
+          nombre: beneficiario.nombre,
+          documento: beneficiario.documento,
+          nacionalidad: beneficiario.nacionalidad,
+          porcentaje: Number(beneficiario.porcentaje),
+        })),
         fechaCreacion: row.createdAt,
         solicitudesAlquiler: solicitudesPorDocumento.get(normalizarDocumentoEmpresa(row.empresa.ruc)) ?? 0,
         documentoCargados: row.documentos.filter(
@@ -921,11 +1095,15 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       }
 
       if (expediente.estado === DD_ESTADOS.APROBADA) {
-        const vence = expediente.fechaVencimiento;
-        if (!vence || vence > limite) {
+        const vence = ddUtils.fechaVencimientoEfectiva(
+          expediente.estado,
+          expediente.fechaVencimiento,
+          expediente.fechaAprobacion,
+        );
+        if (vence && vence > limite) {
           aprobadasVigentes += 1;
           vigentes += 1;
-        } else if (vence > ahora) {
+        } else if (vence && vence > ahora) {
           porVencer += 1;
         } else {
           vencidas += 1;
@@ -1007,6 +1185,15 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     if (params.vinculo && params.vinculo !== DD_FILTRO_TODAS) {
       ddWhere.tipoRelacionComercial = { has: params.vinculo };
     }
+    if (params.multiples === DD_MULTIPLES_FILTRO.CON) {
+      const empresas = await prisma.$queryRaw<Array<{ empresa_id: string }>>`
+        SELECT empresa_id
+        FROM debida_diligencia
+        GROUP BY empresa_id
+        HAVING COUNT(*) > 1
+      `;
+      where.id = { in: empresas.map((empresa) => empresa.empresa_id) };
+    }
 
     if (params.estado === DD_FILTRO_SIN_INICIAR) {
       where.debidasDiligencias = { none: { eventoId: params.eventoId } };
@@ -1032,21 +1219,34 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       prisma.empresa.count({ where }),
     ]);
 
-    const expedientes = await prisma.debidaDiligencia.findMany({
-      where: { eventoId: params.eventoId, empresaId: { in: empresas.map((e) => e.id) } },
-      select: {
-        id: true,
-        empresaId: true,
-        codigo: true,
-        estado: true,
-        tipoRelacionComercial: true,
-        fechaAprobacion: true,
-        fechaVencimiento: true,
-        revisadoPor: true,
-      },
-    });
+    const expedientes =
+      params.estado === DD_FILTRO_SIN_INICIAR
+        ? []
+        : await prisma.debidaDiligencia.findMany({
+            where: {
+              ...ddWhere,
+              empresaId: { in: empresas.map((e) => e.id) },
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              empresaId: true,
+              codigo: true,
+              estado: true,
+              tipoRelacionComercial: true,
+              fechaAprobacion: true,
+              fechaVencimiento: true,
+              revisadoPor: true,
+            },
+          });
 
-    const porEmpresa = new Map(expedientes.map((e) => [e.empresaId, e]));
+    /* La matriz muestra la DD mas reciente; el resto queda en el historial. */
+    const porEmpresa = new Map<string, (typeof expedientes)[number]>();
+    for (const expediente of expedientes) {
+      if (!porEmpresa.has(expediente.empresaId)) {
+        porEmpresa.set(expediente.empresaId, expediente);
+      }
+    }
 
     return {
       data: empresas.map((empresa) => {
@@ -1112,16 +1312,28 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       });
     }
 
+    const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
     if (params.estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE) {
       and.push({
         estado: DD_ESTADOS.APROBADA,
-        OR: [{ fechaVencimiento: null }, { fechaVencimiento: { gt: ahora } }],
+        OR: [
+          { fechaVencimiento: { gt: ahora } },
+          { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+        ],
       });
     } else if (params.estadoEvaluacion === DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION) {
       and.push({
         OR: [
           { estado: { in: [DD_ESTADOS.OBSERVADA, DD_ESTADOS.RECHAZADA] } },
           { estado: DD_ESTADOS.APROBADA, fechaVencimiento: { lte: ahora } },
+          {
+            estado: DD_ESTADOS.APROBADA,
+            fechaVencimiento: null,
+            OR: [
+              { fechaAprobacion: null },
+              { fechaAprobacion: { lte: limiteAprobacion } },
+            ],
+          },
         ],
       });
     }
@@ -1141,6 +1353,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         where: { eventoId: params.eventoId },
         select: {
           estado: true,
+          fechaAprobacion: true,
           fechaVencimiento: true,
           documentos: { select: { tipo: true, estado: true } },
           observaciones: {
@@ -1179,14 +1392,27 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         ).length;
         if (observacionesAbiertas > 0) aptosConObservaciones += 1;
         else aptos += 1;
-        if (!expediente.fechaVencimiento || expediente.fechaVencimiento > ahora) vigentes += 1;
+        const vence = ddUtils.fechaVencimientoEfectiva(
+          expediente.estado,
+          expediente.fechaVencimiento,
+          expediente.fechaAprobacion,
+        );
+        if (vence && vence > ahora) vigentes += 1;
       }
+      const aprobadaVencida =
+        expediente.estado === DD_ESTADOS.APROBADA &&
+        (() => {
+          const vence = ddUtils.fechaVencimientoEfectiva(
+            expediente.estado,
+            expediente.fechaVencimiento,
+            expediente.fechaAprobacion,
+          );
+          return !vence || vence <= ahora;
+        })();
       if (
         expediente.estado === DD_ESTADOS.OBSERVADA ||
         expediente.estado === DD_ESTADOS.RECHAZADA ||
-        (expediente.estado === DD_ESTADOS.APROBADA &&
-          expediente.fechaVencimiento !== null &&
-          expediente.fechaVencimiento <= ahora)
+        aprobadaVencida
       ) {
         requierenNuevaEvaluacion += 1;
       }

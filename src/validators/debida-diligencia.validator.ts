@@ -95,6 +95,13 @@ export const ddGuardarSchema = z.object({
   documentos: z.array(documentoSchema).max(DD_MAX_DOCUMENTOS_EXPEDIENTE).default([]),
 });
 
+/** Adjunta la declaracion de vigencia a una DD aprobada de otro evento. */
+export const ddRegularizarVigenciaSchema = z.object({
+  expedienteId: z.string().trim().min(1, "expedienteId requerido"),
+  nombre: z.string().trim().min(1, "nombre requerido").max(250),
+  url: z.string().trim().min(1, "url requerida").max(500),
+});
+
 /** Envio a revision (sin payload adicional; usa los datos guardados). */
 export const ddEnviarSchema = z.object({}).optional();
 
@@ -223,16 +230,19 @@ export const ddPaginacionSchema = z.object({
   reputacion: z.string().trim().max(40).optional(),
   asignacion: z.string().trim().max(40).optional(),
   solicitudes: z.string().trim().max(20).optional(),
+  multiples: z.string().trim().max(20).optional(),
   orden: z.string().trim().max(30).optional(),
 });
 
 /** Paginacion y filtros de la matriz del panel. */
 export const ddMatrizQuerySchema = z.object({
+  eventoId: z.string().trim().max(50).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(DD_MATRIZ_PER_PAGE_MAX).default(DD_PER_PAGE_DEFAULT),
   search: z.string().trim().max(200).optional(),
   estado: z.string().trim().max(40).optional(),
   vinculo: z.string().trim().max(40).optional(),
+  multiples: z.string().trim().max(20).optional(),
 });
 
 /** Consulta de empresas con estado externo de debida diligencia. */

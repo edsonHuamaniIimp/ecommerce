@@ -131,6 +131,7 @@ export function SolicitudReview({
   }, [row.id]);
 
   const ddBloqueado = !ddCargando && (!ddEstado || !ddEstado.aptoParaContratar);
+  const ddPendienteDeclaracion = ddEstado?.requiereDeclaracionVigencia === true;
   const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
   /* Bypass exclusivo de administradores: sin DD APTA pueden revisar y decidir igualmente. */
   const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
@@ -442,7 +443,11 @@ export function SolicitudReview({
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <span className="block text-xs font-semibold">Revisión bloqueada por Debida Diligencia</span>
+              <span className="block text-xs font-semibold">
+                {ddPendienteDeclaracion
+                  ? "DD APTA pendiente de declaración de vigencia"
+                  : "Revisión bloqueada por Debida Diligencia"}
+              </span>
               <span className="mt-1 block text-xs leading-relaxed">{ddMensaje}</span>
               {isAdmin && (
                 <span className="mt-1 block text-[11px] font-semibold">

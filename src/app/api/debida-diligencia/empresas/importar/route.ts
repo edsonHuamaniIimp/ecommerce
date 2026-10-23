@@ -12,6 +12,7 @@ import {
   ROLES,
 } from "@/lib/shared/constants";
 import { parseEmpresasExcel } from "@/lib/server/dd-empresa-excel";
+import type { DdEventoImportacionCatalogo } from "@/domain/models/debida-diligencia";
 
 /** Importacion masiva de la lista oficial de DD (XLSX, CSV o TXT). */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -89,6 +90,33 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const filasConEmpresa = parsed.rows.filter((row) => row.empresaId);
+    const eventoDestinoId = String(formData.get("eventoId") ?? "").trim() || undefined;
+    /* El catalogo aporta tipo, codigo y fechas de cada version de evento. */
+    let catalogoEventos: DdEventoImportacionCatalogo[] = [];
+    try {
+      const vistos = new Set<string>();
+      for (const padre of await services.presala.listarTodas()) {
+        for (const version of padre.versiones) {
+          if (version.tipoEvento === undefined || version.codigoEvento === undefined) continue;
+          const clave = `${version.tipoEvento}:${version.codigoEvento}`;
+          if (vistos.has(clave)) continue;
+          vistos.add(clave);
+          const inicio = version.fecha_inicio ? new Date(version.fecha_inicio) : null;
+          const fin = version.fecha_fin ? new Date(version.fecha_fin) : null;
+          catalogoEventos.push({
+            tipoEvento: version.tipoEvento,
+            codigoEvento: version.codigoEvento,
+            anio: version.anio,
+            nombre: padre.nombre,
+            fechaInicio: inicio && !Number.isNaN(inicio.getTime()) ? inicio : null,
+            fechaFin: fin && !Number.isNaN(fin.getTime()) ? fin : null,
+          });
+        }
+      }
+    } catch {
+      catalogoEventos = [];
+    }
+
     const resultado = await services.debidaDiligencia.importarExpedientes(
       filasConEmpresa.map((row) => ({
         empresaId: row.empresaId as string,
@@ -115,6 +143,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         permissions: session.permissions,
         eventoId: session.eventoId,
       },
+      eventoDestinoId,
+      catalogoEventos,
     );
     return success({
       ...resultado,

@@ -343,6 +343,17 @@ export const ESTADOS_EVENTO = {
 
 export type EstadoEvento = (typeof ESTADOS_EVENTO)[keyof typeof ESTADOS_EVENTO];
 
+/** Etiquetas de los tipos de evento que expone KBServicios. */
+export const TIPOS_EVENTO_LABELS: Record<number, string> = {
+  1: "PROEXPLO",
+  2: "PERUMIN",
+  4: "INSTITUCIONAL",
+  8: "DIFUSIÓN MINERA",
+  9: "EVENTOS",
+  13: "WORLD MINING CONGRESS",
+  14: "GESS",
+};
+
 /* ================================================================
    Tipos de comprobante
    ================================================================ */
@@ -1158,6 +1169,12 @@ export type FiltroUsuarioEmpresa = (typeof FILTROS_USUARIO_EMPRESA)[keyof typeof
 /** Vigencia de una debida diligencia aprobada (meses). */
 export const DD_VIGENCIA_MESES = 6;
 
+/** Declaracion jurada de veracidad y compromiso de actualizacion. */
+export const DD_DECLARACION_COMPROMISO =
+  `Declaro que la información es veraz y me comprometo a actualizarla. ` +
+  `La debida diligencia tiene una vigencia de ${DD_VIGENCIA_MESES} meses desde su aprobación; ` +
+  `su fecha de cese será la fecha de vencimiento registrada.`;
+
 /** Dias de anticipacion para marcar una debida diligencia "por vencer". */
 export const DD_DIAS_POR_VENCER = 30;
 
@@ -1188,6 +1205,19 @@ export const DD_PAIS_DEFAULT = "Perú";
 
 /** Valor del filtro "todas" en las bandejas del modulo. */
 export const DD_FILTRO_TODAS = "todas";
+
+/** Valor del filtro de DD aprobadas cuya fecha de cese ya pasó. */
+export const DD_FILTRO_VENCIDA = "vencida";
+/** DD aprobadas y vigentes a las que les falta la declaracion de vigencia. */
+export const DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA = "requiere_declaracion_vigencia";
+/** Valor del selector de evento para consultar todos los eventos. */
+export const DD_EVENTO_TODOS = "todos";
+export const DD_EVENTO_TODOS_LABEL = "Todos los eventos";
+
+/** Filtros de empresas con más de un expediente DD en el evento. */
+export const DD_MULTIPLES_FILTRO = {
+  CON: "con_multiples",
+} as const;
 
 /** Usuario tecnico que registra la migracion masiva. */
 export const DD_IMPORTACION_REVISOR = "importacion_masiva";
@@ -1234,7 +1264,9 @@ export const DD_FILTRO_POR_VENCER = "por_vencer";
 /** Rutas propias del modulo Debida Diligencia. */
 export const DD_RUTAS = {
   BASE: "/dashboard/debida-diligencia",
+  MIS_DILIGENCIAS: "/dashboard/mis-debidas-diligencias",
   FORMULARIO: "/dashboard/debida-diligencia/formulario",
+  REGULARIZAR_VIGENCIA: "/dashboard/debida-diligencia/declaracion-vigencia",
   BANDEJA: "/dashboard/debida-diligencia/bandeja",
   LEGAL: "/dashboard/debida-diligencia/legal",
   REPUTACION: "/dashboard/debida-diligencia/reputacion",
@@ -1243,6 +1275,7 @@ export const DD_RUTAS = {
 
 /** Etiqueta para empresas sin expediente de debida diligencia. */
 export const DD_ESTADO_SIN_INICIAR_LABEL = "Sin iniciar";
+export const DD_ESTADO_SIN_INICIAR_EVENTO_LABEL = "Sin iniciar en este evento";
 
 /** Valor del filtro de empresas sin expediente. */
 export const DD_FILTRO_SIN_INICIAR = "sin_iniciar";
@@ -1255,6 +1288,10 @@ export const DD_MENSAJES = {
   CONSENT_DATOS: "Debe aceptar el tratamiento de datos personales y derechos ARCO.",
   CONSENT_VERIFICACION: "Debe aceptar la debida diligencia reforzada.",
   DECLARACION_VERACIDAD: "Debe aceptar la declaración jurada de veracidad.",
+  DECLARACION_JURADA_OBLIGATORIA:
+    "Debe cargar la declaración jurada de compromiso de actualización de información.",
+  DECLARACION_VIGENCIA_OBLIGATORIA:
+    "Debe cargar la declaración jurada de vigencia de información.",
   ACTIVIDAD_OTRO: "Indique cuál es la actividad económica.",
   DOCUMENTOS_OBLIGATORIOS: "Cargue los cuatro documentos obligatorios.",
 } as const;
@@ -1350,12 +1387,14 @@ export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.APROBADA, label: "APTO" },
   { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
+  { value: DD_FILTRO_VENCIDA, label: "Vencidas" },
+  { value: DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA, label: "Vigentes sin declaración de vigencia" },
 ];
 
 /** Filtros de estado de la matriz del panel (incluye empresas sin expediente). */
 export const DD_MATRIZ_ESTADO_FILTROS: { value: string; label: string }[] = [
   { value: DD_FILTRO_TODAS, label: "Todos" },
-  { value: DD_FILTRO_SIN_INICIAR, label: "Sin iniciar" },
+  { value: DD_FILTRO_SIN_INICIAR, label: DD_ESTADO_SIN_INICIAR_EVENTO_LABEL },
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
@@ -1435,6 +1474,7 @@ export const DD_DOCUMENTOS = {
   PODERES: "poderes",
   IDENTIDAD_REPRESENTANTE: "identidad_representante",
   DECLARACION_JURADA: "declaracion_jurada",
+  DECLARACION_VIGENCIA: "declaracion_vigencia",
   ADICIONAL: "documento_adicional",
 } as const;
 
@@ -1446,6 +1486,7 @@ export const DD_DOCUMENTOS_REQUERIDOS: {
   titulo: string;
   ayuda: string;
   permiteFormato: boolean;
+  formatoUrl?: string;
 }[] = [
   {
     tipo: DD_DOCUMENTOS.FICHA_RUC,
@@ -1468,10 +1509,24 @@ export const DD_DOCUMENTOS_REQUERIDOS: {
   {
     tipo: DD_DOCUMENTOS.DECLARACION_JURADA,
     titulo: "Declaración jurada de compromiso de actualización de información",
-    ayuda: "Descargue el formato vigente y fírmelo antes de cargarlo.",
+    ayuda: `Obligatorio. Descargue el formato vigente y fírmelo antes de cargarlo. La DD vence a los ${DD_VIGENCIA_MESES} meses y debe renovarse al llegar a su fecha de cese.`,
     permiteFormato: true,
+    formatoUrl: "/api/debida-diligencia/declaracion-jurada",
   },
 ];
+
+/**
+ * Declaracion de vigencia de informacion. Se muestra en toda DD regular y solo
+ * es obligatoria cuando la empresa mantiene una DD importada vigente.
+ */
+export const DD_DOCUMENTO_VIGENCIA = {
+  tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+  titulo: "Declaración jurada de vigencia de información",
+  ayuda:
+    "Documento opcional. Es obligatorio si la empresa mantiene una DD importada vigente dentro de los 6 meses.",
+  permiteFormato: true,
+  formatoUrl: "/api/debida-diligencia/declaracion-vigencia",
+} as const;
 
 /** Documento extra que Logística puede solicitar durante la revisión. */
 export const DD_DOCUMENTO_ADICIONAL = {
@@ -1479,13 +1534,20 @@ export const DD_DOCUMENTO_ADICIONAL = {
   titulo: "Adjunto (PDF)",
   ayuda: "Puede adjuntar un PDF adicional. Si el revisor lo solicita, será obligatorio.",
   permiteFormato: false,
+  formatoUrl: null,
 } as const;
 
 export const DD_DOCUMENTO_EXTENSIONES_ADICIONAL = ["pdf"] as const;
 export const DD_DOCUMENTO_ACCEPT_ADICIONAL = DD_DOCUMENTO_EXTENSIONES_ADICIONAL.map((e) => `.${e}`).join(",");
 
-/** Documentos que puede persistir un expediente: los 4 obligatorios + el adjunto opcional. */
-export const DD_MAX_DOCUMENTOS_EXPEDIENTE = DD_DOCUMENTOS_REQUERIDOS.length + 1;
+/** Documentos opcionales del formulario regular. */
+export const DD_DOCUMENTOS_OPCIONALES = [
+  DD_DOCUMENTO_VIGENCIA,
+  DD_DOCUMENTO_ADICIONAL,
+] as const;
+
+/** Documentos que puede persistir un expediente: 4 obligatorios + 2 opcionales. */
+export const DD_MAX_DOCUMENTOS_EXPEDIENTE = DD_DOCUMENTOS_REQUERIDOS.length + 2;
 
 /** Extensiones admitidas para los documentos del expediente. */
 export const DD_DOCUMENTO_EXTENSIONES = ["pdf", "jpg", "jpeg", "png"] as const;
@@ -1496,6 +1558,8 @@ export const DD_DOCUMENTO_ACCEPT = DD_DOCUMENTO_EXTENSIONES.map((e) => `.${e}`).
 /** La declaracion jurada tambien admite el formato oficial DOCX. */
 export const DD_DOCUMENTO_EXTENSIONES_DECLARACION = [...DD_DOCUMENTO_EXTENSIONES, "docx"] as const;
 export const DD_DOCUMENTO_ACCEPT_DECLARACION = DD_DOCUMENTO_EXTENSIONES_DECLARACION.map((e) => `.${e}`).join(",");
+export const DD_DOCUMENTO_EXTENSIONES_VIGENCIA = DD_DOCUMENTO_EXTENSIONES_DECLARACION;
+export const DD_DOCUMENTO_ACCEPT_VIGENCIA = DD_DOCUMENTO_EXTENSIONES_VIGENCIA.map((e) => `.${e}`).join(",");
 
 /** Tamaño máximo de cada documento del expediente (10 MB). */
 export const DD_DOCUMENTO_MAX_BYTES = 10 * BYTES_POR_MB;
@@ -1542,6 +1606,7 @@ export const DD_HISTORIAL_TIPOS = {
   OBSERVACION: "observacion",
   ENVIO: "envio",
   REENVIO: "reenvio",
+  FIN_DD: "fin_dd",
   APROBACION: "aprobacion",
   RECHAZO: "rechazo",
   DERIVACION_LEGAL: "derivacion_legal",
@@ -1556,6 +1621,7 @@ export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
   [DD_HISTORIAL_TIPOS.OBSERVACION]: "Observación",
   [DD_HISTORIAL_TIPOS.ENVIO]: "Envío",
   [DD_HISTORIAL_TIPOS.REENVIO]: "Subsanación",
+  [DD_HISTORIAL_TIPOS.FIN_DD]: "Fin de DD",
   [DD_HISTORIAL_TIPOS.APROBACION]: "Aprobación",
   [DD_HISTORIAL_TIPOS.RECHAZO]: "Rechazo",
   [DD_HISTORIAL_TIPOS.DERIVACION_LEGAL]: "Derivación a Legal",
@@ -1644,6 +1710,15 @@ export const DD_REPUTACION_FILTROS: { value: string; label: string }[] = [
 
 /** Tipo de evento de auditoria del modulo Debida Diligencia (`audit_log.tipo`). */
 export const DD_AUDITORIA_TIPO = "debida_diligencia";
+
+/** Familias de evento del CSV oficial de DD, por prefijo normalizado. */
+export const DD_IMPORT_EVENTO_TIPOS: Record<string, number> = {
+  PERUMIN: 2,
+  EXTEMIN: 2,
+  PROEXPLO: 1,
+  WMC: 13,
+  GESS: 14,
+};
 
 /* ===== Matriz de evaluacion DD (por vinculo empresa/persona) =====
  * Cada catalogo guarda el CODIGO canonico (snake_case) y su etiqueta visible, que es

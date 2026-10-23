@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, RefreshCw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, RefreshCw, Search, SlidersHorizontal, Upload, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -36,6 +36,7 @@ import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-d
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { DdHistorialDialog } from "./dd-historial-dialog";
+import { DdEventoSelect } from "./dd-evento-select";
 import { DdImportModal } from "./dd-import-modal";
 import { DdMatrizBoton } from "./dd-matriz-boton";
 import { useSesion } from "@/hooks/use-sesion";
@@ -47,11 +48,13 @@ import {
   DD_BANDEJA_ORDEN,
   DD_BANDEJA_ORDEN_LABELS,
   DD_DOCUMENTOS_FILTRO,
+  DD_EVENTO_TODOS,
   DD_ESTADOS,
   DD_ESTADO_LABELS,
   DD_FILTRO_TODAS,
   DD_IMPORTACION_REVISOR,
   DD_IMPORTACION_REVISOR_LABEL,
+  DD_MULTIPLES_FILTRO,
   DD_ORIGEN_LABELS,
   DD_ORIGENES,
   DD_PER_PAGE_DEFAULT,
@@ -80,6 +83,7 @@ const RESUMEN_VACIO = {
   enRevision: 0,
   observadas: 0,
   aprobadas: 0,
+  vencidas: 0,
   rechazadas: 0,
 };
 
@@ -101,6 +105,8 @@ function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string 
 export function DdBandeja() {
   const { session } = useSesion();
   const puedeMatriz = tienePermiso(session, PERMISSIONS.DD_MATRIZ);
+  const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null);
+  const eventoId = eventoSeleccionado ?? session?.eventoId ?? "";
   const [data, setData] = useState<DdBandejaResponseDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -111,6 +117,7 @@ export function DdBandeja() {
   const [reputacion, setReputacion] = useState<string>(DD_FILTRO_TODAS);
   const [asignacion, setAsignacion] = useState<string>(DD_FILTRO_TODAS);
   const [solicitudes, setSolicitudes] = useState<string>(DD_FILTRO_TODAS);
+  const [multiples, setMultiples] = useState<string>(DD_FILTRO_TODAS);
   const [orden, setOrden] = useState<string>(DD_BANDEJA_ORDEN.ACTUALIZADOS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DD_PER_PAGE_DEFAULT);
@@ -120,13 +127,14 @@ export function DdBandeja() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
 
-  const refs = useRef({ page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden });
-  useEffect(() => { refs.current = { page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden }; }, [page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, orden]);
+  const refs = useRef({ eventoId, page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, multiples, orden });
+  useEffect(() => { refs.current = { eventoId, page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, multiples, orden }; }, [eventoId, page, perPage, search, estado, origen, vinculo, documentos, reputacion, asignacion, solicitudes, multiples, orden]);
 
-  const load = useCallback(async (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
+  const load = useCallback(async (overrides?: Partial<{ eventoId: string; page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; multiples: string; orden: string }>) => {
     const actual = { ...refs.current, ...overrides };
     try {
       const respuesta = await debidaDiligenciaService.bandeja({
+        eventoId: actual.eventoId || undefined,
         page: actual.page,
         perPage: actual.perPage,
         search: actual.search.trim() || undefined,
@@ -137,6 +145,7 @@ export function DdBandeja() {
         reputacion: actual.reputacion,
         asignacion: actual.asignacion,
         solicitudes: actual.solicitudes,
+        multiples: actual.multiples,
         orden: actual.orden,
       });
       setData(respuesta);
@@ -147,7 +156,7 @@ export function DdBandeja() {
     }
   }, []);
 
-  const recargar = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; orden: string }>) => {
+  const recargar = (overrides?: Partial<{ eventoId: string; page: number; perPage: number; search: string; estado: string; origen: string; vinculo: string; documentos: string; reputacion: string; asignacion: string; solicitudes: string; multiples: string; orden: string }>) => {
     setLoading(true);
     void load(overrides);
   };
@@ -163,6 +172,7 @@ export function DdBandeja() {
     setReputacion(DD_FILTRO_TODAS);
     setAsignacion(DD_FILTRO_TODAS);
     setSolicitudes(DD_FILTRO_TODAS);
+    setMultiples(DD_FILTRO_TODAS);
     setOrden(DD_BANDEJA_ORDEN.ACTUALIZADOS);
     setPage(1);
     recargar({
@@ -174,6 +184,7 @@ export function DdBandeja() {
       reputacion: DD_FILTRO_TODAS,
       asignacion: DD_FILTRO_TODAS,
       solicitudes: DD_FILTRO_TODAS,
+      multiples: DD_FILTRO_TODAS,
       orden: DD_BANDEJA_ORDEN.ACTUALIZADOS,
       page: 1,
     });
@@ -187,6 +198,7 @@ export function DdBandeja() {
     reputacion,
     asignacion,
     solicitudes,
+    multiples,
   ].filter((valor) => valor !== DD_FILTRO_TODAS).length;
 
   /** Exporta todas las paginas que cumplen los filtros aplicados. */
@@ -206,6 +218,7 @@ export function DdBandeja() {
         reputacion: filtros.reputacion,
         asignacion: filtros.asignacion,
         solicitudes: filtros.solicitudes,
+        multiples: filtros.multiples,
         orden: filtros.orden,
       });
       const filas: DdBandejaRowDTO[] = [...primera.data];
@@ -221,6 +234,7 @@ export function DdBandeja() {
           reputacion: filtros.reputacion,
           asignacion: filtros.asignacion,
           solicitudes: filtros.solicitudes,
+          multiples: filtros.multiples,
           orden: filtros.orden,
         });
         filas.push(...siguiente.data);
@@ -229,13 +243,42 @@ export function DdBandeja() {
         toast.error("No hay registros para exportar con los filtros actuales");
         return;
       }
-      const columnas: ColumnaExportacion<DdBandejaRowDTO>[] = [
+      type FilaExportacion = DdBandejaRowDTO & {
+        vinculoExportacion: string;
+        beneficiariosNombres: string;
+        beneficiariosDocumentos: string;
+        beneficiariosNacionalidades: string;
+        beneficiariosPorcentajes: string;
+      };
+      const filasExportacion: FilaExportacion[] = filas.flatMap((fila) => {
+        const vinculos = fila.tipoRelacionComercial.length > 0
+          ? fila.tipoRelacionComercial
+          : [""];
+        const beneficiarios = fila.beneficiarios ?? [];
+        const unir = (valores: string[]) =>
+          valores.filter((valor) => valor.trim().length > 0).join(" | ");
+        return vinculos.map((vinculo) => ({
+          ...fila,
+          vinculoExportacion: vinculo
+            ? DD_VINCULO_LABELS[vinculo] ?? vinculo
+            : "-",
+          beneficiariosNombres: unir(beneficiarios.map((b) => b.nombre)),
+          beneficiariosDocumentos: unir(beneficiarios.map((b) => b.documento)),
+          beneficiariosNacionalidades: unir(beneficiarios.map((b) => b.nacionalidad)),
+          beneficiariosPorcentajes: unir(
+            beneficiarios.map((b) => `${b.porcentaje}%`),
+          ),
+        }));
+      });
+      const columnas: ColumnaExportacion<FilaExportacion>[] = [
         { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
         { encabezado: "Tipo documento", valor: (r) => etiquetaTipoDocumentoEmpresa(r.empresa.tipoDocumento, r.empresa.ruc) },
         { encabezado: "Documento", valor: (r) => r.empresa.ruc },
         { encabezado: "Expediente", valor: (r) => r.codigo },
+        { encabezado: "Evento", valor: (r) => r.eventoNombre },
         { encabezado: "Procedencia", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
-        { encabezado: "Vínculos / motivo", valor: (r) => r.motivoImportacion ?? ddUtils.etiquetaVinculos(r.tipoRelacionComercial) },
+        { encabezado: "Vínculo", valor: (r) => r.vinculoExportacion },
+        { encabezado: "Motivo importación", valor: (r) => r.motivoImportacion ?? "" },
         { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
         { encabezado: "Creado", valor: (r) => (r.fechaCreacion ? dateUtils.format(r.fechaCreacion) : "") },
         { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
@@ -246,13 +289,17 @@ export function DdBandeja() {
         { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
         { encabezado: "Vence", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
         { encabezado: "Asignado", valor: (r) => r.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (r.revisadoPor ?? "") },
+        { encabezado: "Beneficiarios finales", valor: (r) => r.beneficiariosNombres },
+        { encabezado: "Documento beneficiario", valor: (r) => r.beneficiariosDocumentos },
+        { encabezado: "Nacionalidad beneficiario", valor: (r) => r.beneficiariosNacionalidades },
+        { encabezado: "Participación beneficiario", valor: (r) => r.beneficiariosPorcentajes },
       ];
       if (formato === "csv") {
-        exportarTablaCsv(filas, columnas, nombreArchivoExport("dd-bandeja", "csv"));
+        exportarTablaCsv(filasExportacion, columnas, nombreArchivoExport("dd-bandeja", "csv"));
       } else {
-        await exportarTablaExcel(filas, columnas, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
+        await exportarTablaExcel(filasExportacion, columnas, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
       }
-      toast.success(`${filas.length} registro(s) exportado(s)`);
+      toast.success(`${filasExportacion.length} fila(s) exportada(s)`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
     } finally {
@@ -278,6 +325,15 @@ export function DdBandeja() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <DdEventoSelect
+            value={eventoId}
+            incluirTodos
+            onChange={(id) => {
+              setEventoSeleccionado(id);
+              setPage(1);
+              recargar({ eventoId: id, page: 1 });
+            }}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -309,6 +365,8 @@ export function DdBandeja() {
             variant="outline"
             size="sm"
             className="h-8 gap-1.5 text-xs"
+            disabled={eventoId === DD_EVENTO_TODOS}
+            title={eventoId === DD_EVENTO_TODOS ? "Selecciona un evento para importar" : undefined}
             onClick={() => setImportOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
@@ -328,11 +386,12 @@ export function DdBandeja() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Borradores y sin iniciar", variante: "muted" }} />
         <StatsCard title="En revisión" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisión", variante: "primary" }} />
         <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando corrección", variante: "gold" }} />
         <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Vigencia de 6 meses", variante: "primary" }} />
+        <StatsCard title="Caducadas" value={resumen.vencidas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Vigencia vencida", variante: "gold" }} />
       </div>
 
       <Card className="overflow-hidden">
@@ -437,6 +496,16 @@ export function DdBandeja() {
                 </Select>
               </div>
               <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-multiples">Expedientes</label>
+                <Select value={multiples} onValueChange={(valor) => { setMultiples(valor); setPage(1); recargar({ multiples: valor, page: 1 }); }}>
+                  <SelectTrigger id="dd-filtro-multiples" className="h-8 border-border text-xs"><SelectValue placeholder="Expedientes" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_FILTRO_TODAS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_MULTIPLES_FILTRO.CON}><span>Empresas con más de 1 DD</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-reputacion">Reputación</label>
                 <Select value={reputacion} onValueChange={(valor) => { setReputacion(valor); setPage(1); recargar({ reputacion: valor, page: 1 }); }}>
                   <SelectTrigger id="dd-filtro-reputacion" className="h-8 border-border text-xs"><SelectValue placeholder="Reputación" /></SelectTrigger>
@@ -502,6 +571,7 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Creado</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Evento</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
@@ -524,6 +594,9 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
+                        </TableCell>
+                        <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">
+                          {fila.eventoNombre}
                         </TableCell>
                         <TableCell className="hidden max-w-[180px] truncate text-xs md:table-cell">
                           {ddUtils.etiquetaVinculos(fila.tipoRelacionComercial) || "—"}
@@ -601,7 +674,11 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="space-y-1">
-                            <DdVigenciaBadge estado={fila.estado} fechaVencimiento={fila.fechaVencimiento} />
+                            <DdVigenciaBadge
+                              estado={fila.estado}
+                              fechaVencimiento={fila.fechaVencimiento}
+                              fechaAprobacion={fila.fechaAprobacion}
+                            />
                             {fila.fechaVencimiento ? (
                               <p className="text-[10px] text-muted-foreground">Vence {dateUtils.format(fila.fechaVencimiento)}</p>
                             ) : null}
@@ -661,6 +738,7 @@ export function DdBandeja() {
 
       <DdImportModal
         open={importOpen}
+        eventoId={eventoId}
         onClose={() => setImportOpen(false)}
         onImported={() => void recargar()}
       />

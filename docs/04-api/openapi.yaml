@@ -1635,6 +1635,15 @@ paths:
     get:
       tags: [DebidaDiligencia]
       summary: Expediente de la empresa del usuario autenticado
+      description: |
+        Devuelve la DD del evento activo. Si no existe o no esta aprobada/vigente,
+        devuelve la DD aprobada vigente de cualquier evento y marca `esOtroEvento`.
+        Con `soloEvento=1` no aplica ese fallback, para editar el formulario del evento activo.
+      parameters:
+        - name: soloEvento
+          in: query
+          required: false
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: OK
@@ -1642,6 +1651,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdMiExpedienteResponse"
+  /debida-diligencia/mis-expedientes:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Historial paginado de todas las DD de la empresa autenticada
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: perPage, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: estado, in: query, schema: { type: string } }
+        - { name: eventoId, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMisExpedientesResponse"
   /debida-diligencia/guardar:
     post:
       tags: [DebidaDiligencia]
@@ -1659,6 +1685,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdExpedienteResponse"
+  /debida-diligencia/nueva:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Inicia una nueva DD cuando la ultima esta rechazada o vencida
+      description: |
+        Una empresa puede tener multiples DD por evento. Solo se permite crear
+        una nueva cuando la ultima esta rechazada o su fecha de cese ya paso.
+        La vigencia de 6 meses se cuenta desde que la DD queda APTA/aprobada;
+        si falta la fecha de cese se calcula como aprobacion + 6 meses. Si tampoco
+        existe fecha de aprobacion, no se inventa una vigencia.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+        "409":
+          description: La DD actual aun esta vigente o en revision
+  /debida-diligencia/regularizar-vigencia:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Adjunta la declaracion de vigencia a una DD aprobada de otro evento
+      description: |
+        Solo aplica a una DD aprobada y vigente de un evento distinto al activo.
+        No cambia el estado ni la vigencia del expediente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expedienteId, nombre, url]
+              properties:
+                expedienteId: { type: string }
+                nombre: { type: string, maxLength: 250 }
+                url: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdExpedienteResponse"
+        "409":
+          description: La DD no es aprobada, esta vencida o ya tiene la declaracion
   /debida-diligencia/enviar:
     post:
       tags: [DebidaDiligencia]
@@ -1823,6 +1895,14 @@ paths:
       tags: [DebidaDiligencia]
       summary: Bandeja paginada de Logistica
       parameters:
+        - name: eventoId
+          in: query
+          required: false
+          description: >
+            Version de evento; si se omite usa el evento activo de la sesion.
+            Enviar `todos` para consultar todas las versiones/eventos.
+          schema:
+            type: string
         - name: page
           in: query
           schema:
@@ -1991,6 +2071,13 @@ paths:
     get:
       tags: [DebidaDiligencia]
       summary: Panel del modulo con KPIs, vigencias y matriz de empresas
+      parameters:
+        - name: eventoId
+          in: query
+          required: false
+          description: Version de evento; si se omite usa el evento activo de la sesion.
+          schema:
+            type: string
       responses:
         "200":
           description: OK
@@ -2003,6 +2090,12 @@ paths:
       tags: [DebidaDiligencia]
       summary: Matriz paginada de empresas del panel
       parameters:
+        - name: eventoId
+          in: query
+          required: false
+          description: Version de evento; si se omite usa el evento activo de la sesion.
+          schema:
+            type: string
         - name: page
           in: query
           schema:
@@ -2024,6 +2117,11 @@ paths:
             type: string
         - name: vinculo
           in: query
+          schema:
+            type: string
+        - name: multiples
+          in: query
+          description: Si vale `con_multiples`, muestra solo empresas con más de una DD.
           schema:
             type: string
       responses:
@@ -2502,6 +2600,7 @@ components:
             - observacion
             - envio
             - reenvio
+            - fin_dd
             - aprobacion
             - rechazo
             - derivacion_legal
@@ -2749,6 +2848,34 @@ components:
               nullable: true
               allOf:
                 - $ref: "#/components/schemas/DdEmpresa"
+            esOtroEvento:
+              type: boolean
+              description: La DD mostrada pertenece a un evento distinto del evento activo.
+            requiereDeclaracionVigencia:
+              type: boolean
+              description: Obligatoria cuando la empresa mantiene una DD importada vigente.
+            puedeRegularizarDeclaracionVigencia:
+              type: boolean
+              description: DD vigente de otro evento a la que le falta la declaracion de vigencia.
+    DdMisExpedientesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdExpediente"
+            pagination:
+              type: object
+              properties:
+                page: { type: integer }
+                perPage: { type: integer }
+                total: { type: integer }
+                totalPages: { type: integer }
     DdGuardarRequest:
       type: object
       properties:
@@ -2878,8 +3005,21 @@ components:
           type: array
           items:
             type: string
+        eventoNombre:
+          type: string
         empresa:
           $ref: "#/components/schemas/DdEmpresa"
+        beneficiarios:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              orden: { type: integer }
+              nombre: { type: string }
+              documento: { type: string }
+              nacionalidad: { type: string }
+              porcentaje: { type: number }
         documentoCargados:
           type: integer
         documentoTotal:
@@ -3019,6 +3159,8 @@ components:
                 observadas:
                   type: integer
                 aprobadas:
+                  type: integer
+                vencidas:
                   type: integer
                 rechazadas:
                   type: integer

@@ -50,6 +50,7 @@ const VACIO: DdBandejaResponseDTO = {
     enRevision: 0,
     observadas: 0,
     aprobadas: 0,
+    vencidas: 0,
     rechazadas: 0,
   },
 };

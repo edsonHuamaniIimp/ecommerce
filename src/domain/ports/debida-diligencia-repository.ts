@@ -14,6 +14,8 @@ import type {
   DdHistorialEventoEntity,
   DdMatrizParams,
   DdMatrizResult,
+  DdMisExpedientesParams,
+  DdMisExpedientesResult,
   DdObservacionCreacion,
   DdObservacionEntity,
   DdPanelKpis,
@@ -49,10 +51,25 @@ export interface DdEstadoExpedienteData {
 }
 
 export interface IDebidaDiligenciaRepository {
-  /** Expediente completo de una empresa en un evento (null si aun no existe). */
+  /** Ultimo expediente de una empresa en un evento (null si aun no existe). */
   findExpedientePorEmpresaEvento(empresaId: string, eventoId: string): Promise<DdExpedienteEntity | null>;
+  /** Ultima DD aprobada y vigente de una empresa, sin importar el evento. */
+  findExpedienteAprobadoVigentePorEmpresa(
+    empresaId: string,
+    ahora: Date,
+  ): Promise<DdExpedienteEntity | null>;
+  /** Indica si la empresa tiene una DD importada aprobada y vigente. */
+  tieneExpedienteImportadoAprobadoVigente(empresaId: string, ahora: Date): Promise<boolean>;
+  /** Ultima DD aprobada y vigente de una empresa en un evento, para contratacion. */
+  findExpedienteAprobadoVigentePorEmpresaEvento(
+    empresaId: string,
+    eventoId: string,
+    ahora: Date,
+  ): Promise<DdExpedienteEntity | null>;
   /** Expediente por id con empresa, evento, documentos, beneficiarios y observaciones. */
   findExpedientePorId(id: string): Promise<DdExpedienteEntity | null>;
+  /** Historial paginado de DD de una empresa, con filtros de estado/evento. */
+  listarMisExpedientes(params: DdMisExpedientesParams): Promise<DdMisExpedientesResult>;
   /** Empresa resumida para el formulario y las bandejas. */
   findEmpresaResumen(empresaId: string): Promise<DdEmpresaResumen | null>;
   /** Empresa por razon social exacta (fallback para solicitudes historicas). */

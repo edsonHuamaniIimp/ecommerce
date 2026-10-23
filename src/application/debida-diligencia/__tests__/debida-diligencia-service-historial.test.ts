@@ -30,9 +30,12 @@ const EXPEDIENTE = {
   motivoRechazo: null,
 } as unknown as DdExpedienteEntity;
 
-function crearServicio(eventos: DdHistorialEventoEntity[] = []) {
+function crearServicio(
+  eventos: DdHistorialEventoEntity[] = [],
+  expediente: DdExpedienteEntity = EXPEDIENTE,
+) {
   const repo = {
-    findExpedientePorId: vi.fn().mockResolvedValue(EXPEDIENTE),
+    findExpedientePorId: vi.fn().mockResolvedValue(expediente),
     listarHistorial: vi.fn().mockResolvedValue(eventos),
     listarObservaciones: vi.fn().mockResolvedValue([]),
   } as unknown as IDebidaDiligenciaRepository;
@@ -84,5 +87,26 @@ describe("historial", () => {
       DD_HISTORIAL_TIPOS.APROBACION,
     ]);
     expect(resultado.eventos.every((evento) => evento.metadata?.historico === true)).toBe(true);
+  });
+
+  it("muestra la revisión SIG y la fecha de cese de una DD importada", async () => {
+    const importado = {
+      ...EXPEDIENTE,
+      origen: "importado",
+      estadoOrigen: "APTO",
+      fechaEnvio: new Date("2026-01-10T10:00:00Z"),
+      fechaRevision: new Date("2026-01-20T10:00:00Z"),
+      fechaAprobacion: new Date("2026-01-20T10:00:00Z"),
+      fechaVencimiento: new Date("2026-07-20T10:00:00Z"),
+    } as unknown as DdExpedienteEntity;
+    const { servicio } = crearServicio([], importado);
+
+    const resultado = await servicio.historial("exp-1", session);
+
+    expect(resultado.eventos.map((evento) => evento.tipo)).toEqual([
+      DD_HISTORIAL_TIPOS.ENVIO,
+      DD_HISTORIAL_TIPOS.FIN_DD,
+    ]);
+    expect(resultado.eventos[1]?.detalle).toContain("Fecha de cese");
   });
 });

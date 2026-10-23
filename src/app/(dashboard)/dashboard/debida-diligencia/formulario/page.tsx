@@ -2,15 +2,18 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, Card, CardContent, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
 import { ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { DdWizard } from "@/components/debida-diligencia/dd-wizard";
 import { DdAccesoDenegado } from "@/components/debida-diligencia/dd-acceso-denegado";
 import { SinEvento } from "@/components/dashboard/sin-evento";
 import { useSesion } from "@/hooks/use-sesion";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { DD_ESTADOS, DD_RUTAS, PERMISSIONS, DD_VIGENCIA_MESES } from "@/lib/shared/constants";
-import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { tienePermiso } from "@/lib/shared/utils/permisos";
 import type { DdMiExpedienteDTO } from "@/types/dto/debida-diligencia";
 
@@ -24,22 +27,48 @@ function FormularioShell({ children }: { children: ReactNode }) {
 
 export default function DebidaDiligenciaFormularioPage() {
   const { session, cargando } = useSesion();
+  const router = useRouter();
   const eventoId = session?.eventoId ?? "";
   const permitido = tienePermiso(session, PERMISSIONS.DD_FORMULARIO);
   const [data, setData] = useState<DdMiExpedienteDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [iniciandoNueva, setIniciandoNueva] = useState(false);
 
   useEffect(() => {
     if (!eventoId || !permitido) return;
     let activo = true;
     debidaDiligenciaService
-      .miExpediente()
+      .miExpediente({ soloEvento: true })
       .then((r) => { if (activo) setData(r); })
       .catch((e) => { if (activo) setError(e instanceof Error ? e.message : "No se pudo cargar el formulario"); })
       .finally(() => { if (activo) setLoading(false); });
     return () => { activo = false; };
   }, [eventoId, permitido]);
+
+  const ddVencida =
+    data?.expediente?.estado === DD_ESTADOS.APROBADA &&
+    ddUtils.estadoVigencia(
+      data.expediente.estado,
+      data.expediente.fechaVencimiento,
+      undefined,
+      data.expediente.fechaAprobacion,
+    ) === DD_VIGENCIAS.VENCIDA;
+  const puedeIniciarNueva =
+    Boolean(data?.expediente) &&
+    (data?.expediente?.estado === DD_ESTADOS.RECHAZADA || ddVencida);
+
+  const iniciarNueva = async () => {
+    setIniciandoNueva(true);
+    try {
+      const nuevo = await debidaDiligenciaService.iniciarNueva();
+      setData((prev) => (prev ? { ...prev, expediente: nuevo } : prev));
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo iniciar una nueva debida diligencia");
+      setIniciandoNueva(false);
+    }
+  };
 
   let contenido: ReactNode;
 
@@ -95,18 +124,37 @@ export default function DebidaDiligenciaFormularioPage() {
               {data.expediente.estado === DD_ESTADOS.EN_REVISION
                 ? "Logística está revisando los documentos. Te avisaremos si hay observaciones."
                 : data.expediente.estado === DD_ESTADOS.APROBADA
-                  ? `La aprobación tiene una vigencia de ${DD_VIGENCIA_MESES} meses. Para renovarla, contacta al IIMP.`
-                  : "El rechazo definitivo se comunica mediante informe legal. Contacta a la Mesa de Ayuda del IIMP."}
+                  ? `La aprobación tiene una vigencia de ${DD_VIGENCIA_MESES} meses. Su fecha de cese es ${dateUtils.format(data.expediente.fechaVencimiento)}.`
+                  : "El rechazo definitivo se comunica mediante informe legal."}
             </p>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={DD_RUTAS.BASE}>Ver el estado de mi debida diligencia</Link>
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {puedeIniciarNueva ? (
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                disabled={iniciandoNueva}
+                onClick={() => void iniciarNueva()}
+              >
+                {iniciandoNueva ? "Iniciando..." : "Iniciar nueva debida diligencia"}
+              </Button>
+            ) : null}
+            <Button asChild variant="outline" size="sm">
+              <Link href={DD_RUTAS.BASE}>Ver el estado de mi debida diligencia</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   } else {
-    contenido = <DdWizard empresa={data.empresa} expediente={data.expediente} />;
+    contenido = (
+      <DdWizard
+        empresa={data.empresa}
+        expediente={data.expediente}
+        requiereDeclaracionVigencia={data.requiereDeclaracionVigencia}
+      />
+    );
   }
 
   return <FormularioShell>{contenido}</FormularioShell>;

@@ -109,6 +109,45 @@ describe("revisar - aprobación de Logística", () => {
   });
 });
 
+describe("revisar - DD vigente sin declaración", () => {
+  it("permite observar una DD aprobada y vigente a la que le falta la declaración", async () => {
+    const { servicio, repo } = crearServicio();
+    const vigente = {
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.APROBADA,
+      fechaAprobacion: new Date("2026-06-16"),
+      fechaVencimiento: new Date("2026-12-16"),
+      documentos: [],
+    } as unknown as DdExpedienteEntity;
+    (repo.findExpedientePorId as ReturnType<typeof vi.fn>).mockResolvedValue(vigente);
+    (repo.actualizarEstado as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...vigente,
+      estado: DD_ESTADOS.OBSERVADA,
+    });
+
+    await servicio.revisar(
+      {
+        expedienteId: "exp-1",
+        accion: DD_ACCIONES_REVISION.OBSERVAR,
+        motivo: "Falta la declaración de vigencia.",
+        documentosObservados: [DD_DOCUMENTOS.DECLARACION_VIGENCIA],
+        observaciones: [],
+        derivarComunicaciones: false,
+      },
+      {
+        email: "logistica@iimp.org.pe",
+        roles: [],
+        permissions: [PERMISSIONS.DD_REVISION],
+      },
+    );
+
+    expect(repo.actualizarEstado).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ estado: DD_ESTADOS.OBSERVADA }),
+    );
+  });
+});
+
 describe("resolverLegal", () => {
   it("rechaza y notifica recién con la decisión de Legal", async () => {
     const { servicio, repo, notificaciones } = crearServicio();

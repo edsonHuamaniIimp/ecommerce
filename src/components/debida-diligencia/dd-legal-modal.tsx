@@ -26,6 +26,7 @@ import {
   BADGE_STYLES,
   DD_ACCIONES_LEGAL,
   DD_DOCUMENTO_ADICIONAL,
+  DD_DOCUMENTO_VIGENCIA,
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_REPUTACION_TIPOS,
@@ -170,7 +171,11 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
   const documentos = detalle?.documentos ?? [];
   const tituloDocumento = (tipo: string) =>
     DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ??
-    (tipo === DD_DOCUMENTOS.ADICIONAL ? DD_DOCUMENTO_ADICIONAL.titulo : tipo);
+    (tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA
+      ? DD_DOCUMENTO_VIGENCIA.titulo
+      : tipo === DD_DOCUMENTOS.ADICIONAL
+        ? DD_DOCUMENTO_ADICIONAL.titulo
+        : tipo);
   const requiereInforme = decision === DD_ACCIONES_LEGAL.RECHAZAR;
   const requiereMotivo = decision === DD_ACCIONES_LEGAL.RECHAZAR || decision === DD_ACCIONES_LEGAL.OBSERVAR;
   const requiereExplicarAdicional =

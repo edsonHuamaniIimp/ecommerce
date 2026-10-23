@@ -145,4 +145,10 @@ export interface DdMiExpedienteDTO {
   expediente: DdExpedienteDTO | null;
   empresa: DdEmpresaDTO | null;
   estadoExterno: DdEstadoExternoDTO | null;
+  /** La DD mostrada pertenece a otro evento distinto del evento activo. */
+  esOtroEvento: boolean;
+  /** Obligatoria cuando la empresa mantiene una DD importada vigente. */
+  requiereDeclaracionVigencia: boolean;
+  /** DD vigente de otro evento sin la declaracion de vigencia. */
+  puedeRegularizarDeclaracionVigencia: boolean;
 }

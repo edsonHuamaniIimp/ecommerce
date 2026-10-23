@@ -43,14 +43,17 @@ import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
 import { DdMatrizBoton } from "./dd-matriz-boton";
+import { DdEventoSelect } from "./dd-evento-select";
 import { useSesion } from "@/hooks/use-sesion";
 import { tienePermiso } from "@/lib/shared/utils/permisos";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
+  DD_ESTADO_SIN_INICIAR_EVENTO_LABEL,
   PERMISSIONS,
   DD_FILTRO_TODAS,
+  DD_MULTIPLES_FILTRO,
   DD_MATRIZ_ESTADO_FILTROS,
   DD_MATRIZ_PER_PAGE_MAX,
   DD_PER_PAGE_DEFAULT,
@@ -81,7 +84,9 @@ function descargarMatriz(matriz: DdMatrizRowDTO[], evento: string) {
     fila.empresa.ruc,
     ddUtils.etiquetaVinculos(fila.tipoRelacionComercial),
     fila.codigo ?? "",
-    fila.estado ? DD_ESTADO_LABELS[fila.estado] ?? fila.estado : ddUtils.etiquetaSinIniciar(),
+    fila.estado
+      ? DD_ESTADO_LABELS[fila.estado] ?? fila.estado
+      : DD_ESTADO_SIN_INICIAR_EVENTO_LABEL,
     fila.fechaAprobacion ? dateUtils.format(fila.fechaAprobacion) : "",
     fila.fechaVencimiento ? dateUtils.format(fila.fechaVencimiento) : "",
     fila.revisadoPor ?? "",
@@ -173,6 +178,8 @@ function DonaVigencia({ vigencia }: { vigencia: DdPanelDTO["vigencia"] }) {
 export function DdPanel() {
   const { session } = useSesion();
   const puedeMatriz = tienePermiso(session, PERMISSIONS.DD_MATRIZ);
+  const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null);
+  const eventoId = eventoSeleccionado ?? session?.eventoId ?? "";
   const [data, setData] = useState<DdPanelDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [matriz, setMatriz] = useState<DdMatrizResponseDTO | null>(null);
@@ -180,15 +187,17 @@ export function DdPanel() {
   const [matrizSearch, setMatrizSearch] = useState("");
   const [matrizEstado, setMatrizEstado] = useState(DD_FILTRO_TODAS);
   const [matrizVinculo, setMatrizVinculo] = useState(DD_FILTRO_TODAS);
+  const [matrizMultiples, setMatrizMultiples] = useState(DD_FILTRO_TODAS);
   const [matrizPage, setMatrizPage] = useState(1);
   const [matrizPerPage, setMatrizPerPage] = useState(DD_PER_PAGE_DEFAULT);
   const [ficha, setFicha] = useState<DdExpedienteDTO | null>(null);
   const [fichaOpen, setFichaOpen] = useState(false);
   const [fichaLoading, setFichaLoading] = useState(false);
 
-  const load = async () => {
+  const load = async (idEvento = eventoId) => {
+    if (!idEvento) return;
     try {
-      setData(await debidaDiligenciaService.panel());
+      setData(await debidaDiligenciaService.panel(idEvento));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar el panel");
     } finally {
@@ -196,23 +205,27 @@ export function DdPanel() {
     }
   };
 
-  const cargarMatriz = (overrides?: Partial<{ page: number; perPage: number; search: string; estado: string; vinculo: string }>) => {
+  const cargarMatriz = (overrides?: Partial<{ eventoId: string; page: number; perPage: number; search: string; estado: string; vinculo: string; multiples: string }>) => {
     const actual = {
+      eventoId,
       page: matrizPage,
       perPage: matrizPerPage,
       search: matrizSearch,
       estado: matrizEstado,
       vinculo: matrizVinculo,
+      multiples: matrizMultiples,
       ...overrides,
     };
     setMatrizLoading(true);
     debidaDiligenciaService
       .matriz({
+        eventoId: actual.eventoId || undefined,
         page: actual.page,
         perPage: actual.perPage,
         search: actual.search.trim() || undefined,
         estado: actual.estado,
         vinculo: actual.vinculo,
+        multiples: actual.multiples,
       })
       .then(setMatriz)
       .catch((err) => toast.error(err instanceof Error ? err.message : "No se pudo cargar la matriz"))
@@ -220,14 +233,17 @@ export function DdPanel() {
   };
 
   useEffect(() => {
+    if (!eventoId) return;
     let activo = true;
     Promise.all([
-      debidaDiligenciaService.panel(),
+      debidaDiligenciaService.panel(eventoId),
       debidaDiligenciaService.matriz({
+        eventoId,
         page: 1,
         perPage: DD_PER_PAGE_DEFAULT,
         estado: DD_FILTRO_TODAS,
         vinculo: DD_FILTRO_TODAS,
+        multiples: DD_FILTRO_TODAS,
       }),
     ])
       .then(([panel, matrizInicial]) => {
@@ -244,7 +260,7 @@ export function DdPanel() {
         setMatrizLoading(false);
       });
     return () => { activo = false; };
-  }, []);
+  }, [eventoId]);
 
   const verFicha = async (id: string) => {
     if (id.startsWith("empresa-")) return;
@@ -269,11 +285,13 @@ export function DdPanel() {
   const exportarMatriz = async () => {
     try {
       const todas = await debidaDiligenciaService.matriz({
+        eventoId: eventoId || undefined,
         page: 1,
         perPage: DD_MATRIZ_PER_PAGE_MAX,
         search: matrizSearch.trim() || undefined,
         estado: matrizEstado,
         vinculo: matrizVinculo,
+        multiples: matrizMultiples,
       });
       descargarMatriz(todas.data, dateUtils.todayInputValue());
     } catch (err) {
@@ -329,21 +347,36 @@ export function DdPanel() {
             Vigencia de {DD_VIGENCIA_MESES} meses · {data.kpis.empresasRegistradas} empresas · {data.kpis.aprobadasVigentes} aprobadas y vigentes
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 shrink-0 gap-1.5 text-xs"
-          onClick={() => void exportarMatriz()}
-        >
-          <Download className="h-3.5 w-3.5" />
-          <span>Exportar matriz</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <DdEventoSelect
+            value={eventoId}
+            onChange={(id) => {
+              setEventoSeleccionado(id);
+              setLoading(true);
+              setMatrizLoading(true);
+              setMatrizPage(1);
+              setMatrizEstado(DD_FILTRO_TODAS);
+              setMatrizVinculo(DD_FILTRO_TODAS);
+              setMatrizMultiples(DD_FILTRO_TODAS);
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 gap-1.5 text-xs"
+            onClick={() => void exportarMatriz()}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Exportar matriz</span>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatsCard title="Aprobadas y vigentes" value={data.kpis.aprobadasVigentes} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Dentro de vigencia", variante: "primary" }} />
         <StatsCard title="Por vencer en 30 días" value={data.kpis.porVencer} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Requieren renovación", variante: "gold" }} />
+        <StatsCard title="DD vencidas" value={data.vigencia.vencidas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Deben iniciar una nueva DD", variante: "gold" }} />
         <StatsCard title="En revisión" value={data.kpis.enRevision} icon={<Users className="h-4 w-4" />} chip={{ texto: "Logística / Comunicaciones", variante: "primary" }} />
         <StatsCard title="Rechazadas" value={data.kpis.rechazadas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Informe legal", variante: "muted" }} />
       </div>
@@ -401,7 +434,7 @@ export function DdPanel() {
       <Card className="overflow-hidden">
         <CardHeader className="border-b border-border pb-3">
           <CardTitle><span className="text-sm font-bold text-primary">Matriz de empresas</span></CardTitle>
-          <p className="text-[11px] text-muted-foreground">Todas las empresas activas y el estado de su debida diligencia en el evento.</p>
+          <p className="text-[11px] text-muted-foreground">Todas las empresas activas y el estado de su última debida diligencia en el evento.</p>
         </CardHeader>
         <CardContent className="space-y-3 p-0">
           <div className="flex flex-col gap-2 border-b border-border p-4 lg:flex-row lg:items-center">
@@ -439,6 +472,15 @@ export function DdPanel() {
                 {Object.values(DD_VINCULOS).map((vinculo) => (
                   <SelectItem key={vinculo} value={vinculo}><span>{DD_VINCULO_LABELS[vinculo]}</span></SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={matrizMultiples} onValueChange={(valor) => { setMatrizMultiples(valor); setMatrizPage(1); cargarMatriz({ multiples: valor, page: 1 }); }}>
+              <SelectTrigger className="h-8 w-full border-border text-xs lg:w-[190px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DD_FILTRO_TODAS}><span>Todas las empresas</span></SelectItem>
+                <SelectItem value={DD_MULTIPLES_FILTRO.CON}><span>Con más de 1 DD</span></SelectItem>
               </SelectContent>
             </Select>
             <Select value={String(matrizPerPage)} onValueChange={(valor) => { const n = Number(valor); setMatrizPerPage(n); setMatrizPage(1); cargarMatriz({ perPage: n, page: 1 }); }}>
@@ -486,7 +528,12 @@ export function DdPanel() {
                         <TableCell className="hidden max-w-[180px] truncate text-xs md:table-cell">
                           {ddUtils.etiquetaVinculos(fila.tipoRelacionComercial) || "—"}
                         </TableCell>
-                        <TableCell><DdEstadoBadge estado={fila.estado} /></TableCell>
+                        <TableCell>
+                          <DdEstadoBadge
+                            estado={fila.estado}
+                            sinIniciarLabel={DD_ESTADO_SIN_INICIAR_EVENTO_LABEL}
+                          />
+                        </TableCell>
                         <TableCell className="hidden text-xs lg:table-cell">{dateUtils.format(fila.fechaAprobacion)}</TableCell>
                         <TableCell className="hidden text-xs lg:table-cell">{dateUtils.format(fila.fechaVencimiento)}</TableCell>
                         <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground xl:table-cell">
@@ -552,7 +599,10 @@ export function DdPanel() {
                   <p className="text-xs font-semibold text-foreground">{ficha.empresa.razonSocial}</p>
                   <p className="font-mono text-[11px] text-muted-foreground">RUC {ficha.empresa.ruc} · {ficha.codigo}</p>
                 </div>
-                <DdEstadoBadge estado={ficha.estado} />
+                <DdEstadoBadge
+                  estado={ficha.estado}
+                  sinIniciarLabel={DD_ESTADO_SIN_INICIAR_EVENTO_LABEL}
+                />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

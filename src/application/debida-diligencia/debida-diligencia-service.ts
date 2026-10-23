@@ -12,6 +12,7 @@ import type {
   DdEvaluacionEmpresa,
   DdEmpresasParams,
   DdEmpresasResult,
+  DdEventoImportacionCatalogo,
   DdExpedienteEntity,
   DdGuardarData,
   DdHistorialCreacion,
@@ -19,6 +20,8 @@ import type {
   DdLegalResolucionData,
   DdMatrizParams,
   DdMatrizResult,
+  DdMisExpedientesParams,
+  DdMisExpedientesResult,
   DdObservacionEntity,
   DdPanelData,
   DdReputacionParams,
@@ -29,6 +32,7 @@ import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-di
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
 import type {
   DdGuardarRequestDTO,
+  DdRegularizarVigenciaRequestDTO,
   DdReputacionResolverRequestDTO,
   DdRevisarRequestDTO,
 } from "@/types/dto/debida-diligencia";
@@ -49,13 +53,16 @@ import {
   DD_MATRIZ_PER_PAGE_MAX,
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
+  DD_EVENTO_TODOS,
+  DD_MENSAJES,
+  DD_IMPORT_EVENTO_TIPOS,
   DD_PER_PAGE_MAX,
   DD_RUTAS,
   PERMISSIONS,
   ROLES,
   type DdDocumentoTipo,
 } from "@/lib/shared/constants";
-import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 
 export interface DdSession {
@@ -69,6 +76,9 @@ interface DdMiExpedienteResultado {
   expediente: DdExpedienteEntity | null;
   empresa: DdEmpresaResumen | null;
   estadoExterno: DdEmpresaEstadoEntity | null;
+  esOtroEvento: boolean;
+  requiereDeclaracionVigencia: boolean;
+  puedeRegularizarDeclaracionVigencia: boolean;
 }
 
 /**
@@ -172,6 +182,7 @@ export class DebidaDiligenciaApplicationService {
     const push = (evento: Omit<DdHistorialEventoEntity, "id" | "metadata"> & { id: string }) => {
       eventos.push({ ...evento, metadata: { historico: true } });
     };
+    const esImportado = expediente.origen === DD_ORIGENES.IMPORTADO;
     if (expediente.fechaEnvio) {
       push({
         id: "historico-envio",
@@ -182,6 +193,22 @@ export class DebidaDiligenciaApplicationService {
         detalle: "Registro reconstruido desde las fechas del expediente.",
         actor: expediente.creadoPor,
         createdAt: expediente.fechaEnvio,
+      });
+    }
+    if (esImportado && expediente.fechaRevision) {
+      const estadoOrigen = expediente.estadoOrigen?.trim();
+      const cese = expediente.fechaVencimiento
+        ? ` Fecha de cese: ${dateUtils.format(expediente.fechaVencimiento)}.`
+        : "";
+      push({
+        id: "historico-fin-dd",
+        tipo: DD_HISTORIAL_TIPOS.FIN_DD,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: expediente.estado,
+        titulo: "Fin de DD",
+        detalle: `${estadoOrigen ? `Resultado: ${estadoOrigen}. ` : ""}Fin de DD registrado en la fuente oficial.${cese}`,
+        actor: expediente.revisadoPor ?? "SIG",
+        createdAt: expediente.fechaRevision,
       });
     }
     if (expediente.fechaDerivacionLegal) {
@@ -214,7 +241,7 @@ export class DebidaDiligenciaApplicationService {
         });
       }
     }
-    if (expediente.fechaAprobacion) {
+    if (expediente.fechaAprobacion && !(esImportado && expediente.fechaRevision)) {
       push({
         id: "historico-aprobacion",
         tipo: DD_HISTORIAL_TIPOS.APROBACION,
@@ -226,7 +253,11 @@ export class DebidaDiligenciaApplicationService {
         createdAt: expediente.fechaAprobacion,
       });
     }
-    if (expediente.fechaRechazo && expediente.decisionLegal !== DD_ACCIONES_LEGAL.RECHAZAR) {
+    if (
+      expediente.fechaRechazo &&
+      expediente.decisionLegal !== DD_ACCIONES_LEGAL.RECHAZAR &&
+      !(esImportado && expediente.fechaRevision)
+    ) {
       push({
         id: "historico-rechazo",
         tipo: DD_HISTORIAL_TIPOS.RECHAZO,
@@ -242,19 +273,140 @@ export class DebidaDiligenciaApplicationService {
   }
 
   /** Expediente de la empresa del usuario para el evento activo. */
-  async obtenerMiExpediente(session: DdSession): Promise<DdMiExpedienteResultado> {
+  async obtenerMiExpediente(
+    session: DdSession,
+    opciones: { soloEvento?: boolean } = {},
+  ): Promise<DdMiExpedienteResultado> {
     this.exigirPermiso(session, PERMISSIONS.DD_FORMULARIO);
     const empresaId = await this.empresaDelUsuario(session);
     const eventoId = this.eventoRequerido(session);
-    const [expediente, empresa] = await Promise.all([
+    const [expedienteActivo, empresa] = await Promise.all([
       this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
       this.repo.findEmpresaResumen(empresaId),
     ]);
+    /*
+     * La validez prevalece sobre el evento: si la DD activa no esta aprobada
+     * o ya vencio, se busca cualquier DD aprobada vigente de la empresa.
+     * En su portada no se ofrece iniciar otra mientras exista una vigente.
+     */
+    const activoVigente =
+      expedienteActivo?.estado === DD_ESTADOS.APROBADA &&
+      ddUtils.estadoVigencia(
+        expedienteActivo.estado,
+        expedienteActivo.fechaVencimiento,
+        undefined,
+        expedienteActivo.fechaAprobacion,
+      ) !== DD_VIGENCIAS.VENCIDA;
+    let expediente = expedienteActivo;
+    let esOtroEvento = false;
+    if (!opciones.soloEvento && !activoVigente) {
+      const vigente = await this.repo.findExpedienteAprobadoVigentePorEmpresa(
+        empresaId,
+        dateUtils.now(),
+      );
+      if (vigente) {
+        expediente = vigente;
+        esOtroEvento = vigente.eventoId !== eventoId;
+      }
+    }
+    const requiereDeclaracionVigencia =
+      expedienteActivo && ddUtils.puedeEditar(expedienteActivo.estado)
+        ? await this.requiereDeclaracionVigencia(empresaId)
+        : false;
     const estadoExterno = await this.repo.findEmpresaEstado(
       empresa?.ruc ?? null,
       empresa?.razonSocial ?? null,
     );
-    return { expediente, empresa, estadoExterno };
+    const puedeRegularizarDeclaracionVigencia =
+      esOtroEvento &&
+      expediente?.estado === DD_ESTADOS.APROBADA &&
+      ddUtils.estadoVigencia(
+        expediente.estado,
+        expediente.fechaVencimiento,
+        undefined,
+        expediente.fechaAprobacion,
+      ) !== DD_VIGENCIAS.VENCIDA &&
+      !expediente.documentos.some(
+        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      );
+    return {
+      expediente,
+      empresa,
+      estadoExterno,
+      esOtroEvento,
+      requiereDeclaracionVigencia,
+      puedeRegularizarDeclaracionVigencia,
+    };
+  }
+
+  /**
+   * La declaracion de vigencia solo es obligatoria cuando la empresa ya tiene
+   * una DD importada aprobada y vigente.
+   */
+  private async requiereDeclaracionVigencia(empresaId: string): Promise<boolean> {
+    return this.repo.tieneExpedienteImportadoAprobadoVigente(empresaId, dateUtils.now());
+  }
+
+  /** Historial paginado de todas las DD de la empresa del usuario. */
+  async misExpedientes(
+    params: Omit<DdMisExpedientesParams, "empresaId">,
+    session: DdSession,
+  ): Promise<DdMisExpedientesResult> {
+    this.exigirPermiso(session, PERMISSIONS.DD_FORMULARIO);
+    const empresaId = await this.empresaDelUsuario(session);
+    return this.repo.listarMisExpedientes({
+      empresaId,
+      page: Math.max(1, params.page),
+      perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
+      search: params.search?.trim() || undefined,
+      estado: params.estado,
+      eventoId: params.eventoId,
+    });
+  }
+
+  /**
+   * Inicia una nueva DD cuando la ultima ya no admite edicion. Solo permite
+   * renovar una aprobada vencida o reemplazar una rechazada.
+   */
+  async iniciarNueva(session: DdSession): Promise<DdExpedienteEntity> {
+    this.exigirPermiso(session, PERMISSIONS.DD_FORMULARIO);
+    const empresaId = await this.empresaDelUsuario(session);
+    const eventoId = this.eventoRequerido(session);
+    const actual = await this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId);
+    if (actual && ddUtils.puedeEditar(actual.estado)) return actual;
+
+    if (actual) {
+      const vencida =
+        actual.estado === DD_ESTADOS.APROBADA &&
+        ddUtils.estadoVigencia(
+          actual.estado,
+          actual.fechaVencimiento,
+          undefined,
+          actual.fechaAprobacion,
+        ) === DD_VIGENCIAS.VENCIDA;
+      if (actual.estado !== DD_ESTADOS.RECHAZADA && !vencida) {
+        throw new DomainError(
+          "La debida diligencia actual aún no puede renovarse.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
+
+    const codigo = await this.repo.siguienteCodigo(String(dateUtils.currentYear()));
+    const expediente = await this.repo.crearExpediente({
+      empresaId,
+      eventoId,
+      codigo,
+      creadoPor: session.email,
+    });
+    await this.repo.registrarAuditoria(
+      "iniciar-nueva",
+      `debida_diligencia:${expediente.codigo}`,
+      session.email,
+      "El cliente inició una nueva debida diligencia",
+    );
+    return expediente;
   }
 
   /** Guarda el wizard (borrador o correccion de observaciones). */
@@ -269,8 +421,8 @@ export class DebidaDiligenciaApplicationService {
         expediente.estado === DD_ESTADOS.EN_REVISION
           ? "El expediente está en revisión. Espera el resultado antes de modificarlo."
           : expediente.estado === DD_ESTADOS.APROBADA
-            ? "La debida diligencia aprobada no se puede editar. Contacta al IIMP para renovarla."
-            : "El expediente fue rechazado y no admite nuevas modificaciones.";
+            ? "La debida diligencia aprobada no se puede editar. Inicia una nueva cuando llegue a su fecha de cese."
+            : "El expediente fue rechazado. Inicia una nueva debida diligencia.";
       throw new DomainError(mensaje, API_ERROR_CODES.CONFLICT, 409);
     }
 
@@ -303,7 +455,11 @@ export class DebidaDiligenciaApplicationService {
       })),
     };
 
-    const tiposPermitidos = new Set([...DD_DOCUMENTOS_REQUERIDOS.map((d) => d.tipo), DD_DOCUMENTOS.ADICIONAL]);
+    const tiposPermitidos = new Set([
+      ...DD_DOCUMENTOS_REQUERIDOS.map((d) => d.tipo),
+      DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      DD_DOCUMENTOS.ADICIONAL,
+    ]);
     for (const documento of data.documentos) {
       if (!tiposPermitidos.has(documento.tipo)) {
         throw new DomainError("Tipo de documento inválido", API_ERROR_CODES.VALIDATION, 400);
@@ -385,6 +541,21 @@ export class DebidaDiligenciaApplicationService {
     const faltantes = ddUtils.documentosFaltantes(expediente.documentos);
     if (faltantes.length > 0) {
       throw new DomainError("Faltan documentos obligatorios", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const requiereDeclaracionVigencia = await this.requiereDeclaracionVigencia(empresaId);
+    if (
+      requiereDeclaracionVigencia &&
+      !expediente.documentos.some(
+        (documento) =>
+          documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA &&
+          documento.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
+      )
+    ) {
+      throw new DomainError(
+        DD_MENSAJES.DECLARACION_VIGENCIA_OBLIGATORIA,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
     const observaciones = await this.repo.listarObservaciones(expediente.id);
     /*
@@ -482,9 +653,15 @@ export class DebidaDiligenciaApplicationService {
   }
 
   /** Bandeja paginada de Logistica. */
-  async bandeja(params: Omit<DdBandejaParams, "eventoId">, session: DdSession): Promise<DdBandejaResult> {
+  async bandeja(
+    params: Omit<DdBandejaParams, "eventoId"> & { eventoId?: string },
+    session: DdSession,
+  ): Promise<DdBandejaResult> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
-    const eventoId = this.eventoRequerido(session);
+    const eventoId =
+      params.eventoId === DD_EVENTO_TODOS
+        ? undefined
+        : params.eventoId ?? this.eventoRequerido(session);
     return this.repo.listarBandeja({
       eventoId,
       page: Math.max(1, params.page),
@@ -497,6 +674,7 @@ export class DebidaDiligenciaApplicationService {
       reputacion: params.reputacion,
       asignacion: params.asignacion,
       solicitudes: params.solicitudes,
+      multiples: params.multiples,
       orden: params.orden,
     });
   }
@@ -560,6 +738,8 @@ export class DebidaDiligenciaApplicationService {
         const estadoEvaluacion = ddUtils.estadoEvaluacion(
           expediente.estado,
           expediente.fechaVencimiento,
+          undefined,
+          expediente.fechaAprobacion,
         );
         return {
           expediente,
@@ -569,6 +749,8 @@ export class DebidaDiligenciaApplicationService {
           diasVigenciaRestantes: ddUtils.diasVigenciaRestantes(
             expediente.estado,
             expediente.fechaVencimiento,
+            undefined,
+            expediente.fechaAprobacion,
           ),
           aptoParaContratar: ddUtils.aptoParaContratar(
             resultadoEvaluacion,
@@ -597,14 +779,54 @@ export class DebidaDiligenciaApplicationService {
       (email ? await this.authRepo.findEmpresaIdDeUsuario(email) : null) ??
       (razonSocial ? await this.repo.findEmpresaIdPorRazonSocial(razonSocial) : null);
 
-    const [expediente, empresa] = empresaId
+    const [actual, empresa] = empresaId
       ? await Promise.all([
           this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId),
           this.repo.findEmpresaResumen(empresaId),
         ])
       : [null, null];
+
+    const actualVigente =
+      actual?.estado === DD_ESTADOS.APROBADA &&
+      ddUtils.estadoVigencia(
+        actual.estado,
+        actual.fechaVencimiento,
+        undefined,
+        actual.fechaAprobacion,
+      ) !== DD_VIGENCIAS.VENCIDA;
+    /* La validez de otro evento tambien aplica; el evento solo define el contexto. */
+    const vigenteEvento = actualVigente || !empresaId
+      ? null
+      : await this.repo.findExpedienteAprobadoVigentePorEmpresaEvento(
+          empresaId,
+          eventoId,
+          dateUtils.now(),
+        );
+    const vigente = actualVigente || vigenteEvento || !empresaId
+      ? vigenteEvento
+      : await this.repo.findExpedienteAprobadoVigentePorEmpresa(empresaId, dateUtils.now());
+    const expediente = actualVigente ? actual : vigente ?? actual;
+    const esOtroEvento = Boolean(vigente && vigente.eventoId !== eventoId);
+    const sinDeclaracionVigencia = Boolean(
+      expediente &&
+        !(expediente.documentos ?? []).some(
+          (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+        ),
+    );
     const interna = this.evaluacionDeEmpresa(expediente, empresa);
-    if (interna.aptoParaContratar) return interna;
+    if (interna.aptoParaContratar) {
+      if (esOtroEvento && sinDeclaracionVigencia) {
+        return {
+          ...interna,
+          vigente: true,
+          aptoParaContratar: false,
+          requiereDeclaracionVigencia: true,
+          mensaje:
+            "La empresa tiene una DD APTA y vigente, pero está pendiente de cargar la Declaración jurada de vigencia de información. La solicitud no puede revisarse.",
+        };
+      }
+      return interna;
+    }
 
     const externa = await this.repo.findEmpresaEstado(
       empresa?.ruc ?? null,
@@ -646,6 +868,7 @@ export class DebidaDiligenciaApplicationService {
       estadoEvaluacion,
       vigente,
       aptoParaContratar,
+      requiereDeclaracionVigencia: false,
       observacionesAbiertas: 0,
       mensaje,
     };
@@ -664,6 +887,7 @@ export class DebidaDiligenciaApplicationService {
         estadoEvaluacion: null,
         vigente: false,
         aptoParaContratar: false,
+        requiereDeclaracionVigencia: false,
         observacionesAbiertas: 0,
         mensaje:
           "La empresa no ha pasado por Debida Diligencia. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.",
@@ -677,7 +901,12 @@ export class DebidaDiligenciaApplicationService {
       return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
     }).length;
     const resultado = ddUtils.resultadoEvaluacion(expediente.estado, observacionesAbiertas);
-    const estadoEvaluacion = ddUtils.estadoEvaluacion(expediente.estado, expediente.fechaVencimiento);
+    const estadoEvaluacion = ddUtils.estadoEvaluacion(
+      expediente.estado,
+      expediente.fechaVencimiento,
+      undefined,
+      expediente.fechaAprobacion,
+    );
     const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
     const aptoParaContratar = ddUtils.aptoParaContratar(
       resultado,
@@ -710,6 +939,7 @@ export class DebidaDiligenciaApplicationService {
       estadoEvaluacion,
       vigente,
       aptoParaContratar,
+      requiereDeclaracionVigencia: false,
       observacionesAbiertas,
       mensaje,
     };
@@ -790,9 +1020,11 @@ export class DebidaDiligenciaApplicationService {
     }>,
     meta: { archivo: string; hash: string; total: number; omitidos: number; errores: unknown },
     session: DdSession,
+    eventoDestinoId?: string,
+    catalogoEventos: DdEventoImportacionCatalogo[] = [],
   ): Promise<{ importados: number; actualizados: number; omitidos: number; loteId: string }> {
     this.exigirPermiso(session, PERMISSIONS.DD_VER);
-    const eventoId = this.eventoRequerido(session);
+    const eventoId = eventoDestinoId ?? this.eventoRequerido(session);
     const loteId = await this.repo.crearImportacion({
       archivo: meta.archivo,
       hash: meta.hash,
@@ -806,9 +1038,18 @@ export class DebidaDiligenciaApplicationService {
     let importados = 0;
     let omitidos = 0;
     const anio = String(dateUtils.currentYear());
+    const eventosResueltos = new Map<string, string>();
+    const eventoFallback = eventoDestinoId ?? eventoId;
 
     for (const row of rows) {
-      const existente = await this.repo.findExpedientePorEmpresaEvento(row.empresaId, eventoId);
+      const eventoIdFila = await this.resolverEventoImportacion(
+        row.eventoProyecto,
+        row.fechaIngreso ?? row.fechaRevision,
+        eventoFallback,
+        eventosResueltos,
+        catalogoEventos,
+      );
+      const existente = await this.repo.findExpedientePorEmpresaEvento(row.empresaId, eventoIdFila);
       if (existente) {
         omitidos += 1;
         continue;
@@ -817,7 +1058,7 @@ export class DebidaDiligenciaApplicationService {
       const codigo = await this.repo.siguienteCodigo(anio);
       await this.repo.importarExpediente({
         empresaId: row.empresaId,
-        eventoId,
+        eventoId: eventoIdFila,
         codigo,
         estado,
         estadoOrigen: row.estadoOrigen,
@@ -828,7 +1069,8 @@ export class DebidaDiligenciaApplicationService {
         actualizadoPor: session.email,
         fechaEnvio: row.fechaIngreso,
         fechaRevision: row.fechaRevision,
-        fechaAprobacion: estado === DD_ESTADOS.APROBADA ? (row.fechaRevision ?? row.fechaIngreso) : null,
+        /* La aprobacion se registra cuando la DD figura APTA en la fuente. */
+        fechaAprobacion: estado === DD_ESTADOS.APROBADA ? row.fechaRevision : null,
         fechaVencimiento: row.fechaVencimiento,
         fechaRechazo: estado === DD_ESTADOS.RECHAZADA ? (row.fechaRevision ?? row.fechaIngreso) : null,
       });
@@ -837,6 +1079,66 @@ export class DebidaDiligenciaApplicationService {
 
     await this.repo.cerrarImportacion(loteId, importados, 0, omitidos + meta.omitidos);
     return { importados, actualizados: 0, omitidos, loteId };
+  }
+
+  /**
+   * Resuelve la version de evento de una fila del CSV con el catalogo real de
+   * eventos: primero por rango de fechas, luego por año y finalmente por la
+   * version mas reciente de la familia. Siempre termina usando el id local del
+   * evento, nunca un nombre o codigo como identificador persistido.
+   */
+  private async resolverEventoImportacion(
+    eventoProyecto: string | null,
+    fechaReferencia: Date | null,
+    eventoFallback: string,
+    cache: Map<string, string>,
+    catalogo: DdEventoImportacionCatalogo[],
+  ): Promise<string> {
+    const normalizado = (eventoProyecto ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
+    const tipoEvento = Object.entries(DD_IMPORT_EVENTO_TIPOS).find(([prefijo]) =>
+      normalizado.startsWith(prefijo),
+    )?.[1];
+    if (!tipoEvento) return eventoFallback;
+
+    const candidatos = catalogo.filter((evento) => evento.tipoEvento === tipoEvento);
+    if (candidatos.length === 0) return eventoFallback;
+
+    const anioReferencia = fechaReferencia?.getFullYear();
+    const porFecha = fechaReferencia
+      ? candidatos.find(
+          (evento) =>
+            evento.fechaInicio &&
+            evento.fechaFin &&
+            fechaReferencia >= evento.fechaInicio &&
+            fechaReferencia <= evento.fechaFin,
+        )
+      : undefined;
+    const porAnio = anioReferencia
+      ? candidatos.find((evento) => evento.anio === String(anioReferencia))
+      : undefined;
+    const elegido =
+      porFecha ??
+      porAnio ??
+      [...candidatos].sort((a, b) => b.anio.localeCompare(a.anio))[0];
+    if (!elegido) return eventoFallback;
+
+    const clave = `${elegido.tipoEvento}:${elegido.codigoEvento}`;
+    const existente = cache.get(clave);
+    if (existente) return existente;
+
+    const evento = await this.authRepo.findOrCreateEvento(
+      elegido.tipoEvento,
+      elegido.codigoEvento,
+    );
+    await this.authRepo
+      .renombrarEvento(evento.id, elegido.nombre, elegido.anio)
+      .catch(() => undefined);
+    cache.set(clave, evento.id);
+    return evento.id;
   }
 
   private estadoDesdeImportacion(resultado: string, estadoOrigen: string): string {
@@ -855,6 +1157,105 @@ export class DebidaDiligenciaApplicationService {
     return this.expedienteConAcceso(id, session);
   }
 
+  /**
+   * Regulariza una DD aprobada de otro evento adjuntando la declaracion de
+   * vigencia, sin modificar su estado ni su vigencia.
+   */
+  async regularizarDeclaracionVigencia(
+    dto: DdRegularizarVigenciaRequestDTO,
+    session: DdSession,
+  ): Promise<DdExpedienteEntity> {
+    this.exigirPermiso(session, PERMISSIONS.DD_FORMULARIO);
+    const empresaId = await this.empresaDelUsuario(session);
+    const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
+    if (!expediente) {
+      throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+    if (expediente.empresaId !== empresaId) {
+      throw new DomainError("No puedes modificar este expediente", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    if (expediente.estado !== DD_ESTADOS.APROBADA) {
+      throw new DomainError(
+        "Solo se regulariza una DD aprobada",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (expediente.eventoId === this.eventoRequerido(session)) {
+      throw new DomainError(
+        "Esta DD pertenece al evento activo; usa el flujo regular.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (
+      ddUtils.estadoVigencia(
+        expediente.estado,
+        expediente.fechaVencimiento,
+        undefined,
+        expediente.fechaAprobacion,
+      ) === DD_VIGENCIAS.VENCIDA
+    ) {
+      throw new DomainError("La DD ya no está vigente", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (
+      expediente.documentos.some(
+        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      )
+    ) {
+      throw new DomainError(
+        "La declaración de vigencia ya está cargada",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+
+    await this.documentoValidator.validarDocumento({
+      url: dto.url,
+      nombre: dto.nombre,
+      tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+    });
+
+    const data: DdGuardarData = {
+      tipoRelacionComercial: expediente.tipoRelacionComercial,
+      actividadEconomica: expediente.actividadEconomica,
+      actividadEconomicaOtro: expediente.actividadEconomicaOtro,
+      paisConstitucion: expediente.paisConstitucion,
+      sitioWeb: expediente.sitioWeb,
+      emailRepresentante: expediente.emailRepresentante,
+      aceptaDatos: expediente.aceptaDatos,
+      aceptaVerificacion: expediente.aceptaVerificacion,
+      declaraVerdad: expediente.declaraVerdad,
+      representanteNombre: expediente.representanteNombre,
+      representanteTipoDocumento: expediente.representanteTipoDocumento,
+      representanteDocumento: expediente.representanteDocumento,
+      representanteNacionalidad: expediente.representanteNacionalidad,
+      beneficiarios: expediente.beneficiarios.map((beneficiario, orden) => ({
+        orden,
+        nombre: beneficiario.nombre,
+        documento: beneficiario.documento,
+        nacionalidad: beneficiario.nacionalidad,
+        porcentaje: beneficiario.porcentaje,
+      })),
+      documentos: [
+        ...expediente.documentos.map((documento) => ({
+          tipo: documento.tipo,
+          nombre: documento.nombre,
+          url: documento.url,
+          estado: documento.estado,
+        })),
+        {
+          tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          nombre: dto.nombre,
+          url: dto.url,
+          estado: DD_DOCUMENTO_ESTADOS.CARGADO,
+        },
+      ],
+    };
+
+    return this.repo.guardarFormulario(expediente.id, data, session.email);
+  }
+
   /** Resolucion de Logistica: aprobar, observar o rechazar. */
   async revisar(dto: DdRevisarRequestDTO, session: DdSession): Promise<DdExpedienteEntity> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
@@ -866,11 +1267,23 @@ export class DebidaDiligenciaApplicationService {
       (expediente.estado === DD_ESTADOS.APROBADA ||
         (expediente.estado === DD_ESTADOS.RECHAZADA && !expediente.decisionLegal)) &&
       dto.accion === DD_ACCIONES_REVISION.RECHAZAR;
+    const observarVigenteSinDeclaracion =
+      expediente.estado === DD_ESTADOS.APROBADA &&
+      dto.accion === DD_ACCIONES_REVISION.OBSERVAR &&
+      ddUtils.estadoVigencia(
+        expediente.estado,
+        expediente.fechaVencimiento,
+        undefined,
+        expediente.fechaAprobacion,
+      ) !== DD_VIGENCIAS.VENCIDA &&
+      !(expediente.documentos ?? []).some(
+        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      );
 
-    if (!enRevision && !derivarExistente) {
+    if (!enRevision && !derivarExistente && !observarVigenteSinDeclaracion) {
       throw new DomainError(
         expediente.estado === DD_ESTADOS.APROBADA
-          ? "La debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."
+          ? "La debida diligencia ya está aprobada. Solo se puede observar si falta la declaración de vigencia o derivar a revisión legal."
           : expediente.estado === DD_ESTADOS.RECHAZADA
             ? "La debida diligencia ya fue rechazada por Legal y no puede derivarse nuevamente."
             : "Solo se pueden revisar expedientes enviados a revisión u observados",
@@ -1262,16 +1675,18 @@ export class DebidaDiligenciaApplicationService {
     return actualizado;
   }
 
-  async panel(session: DdSession): Promise<DdPanelData> {
+  async panel(eventoId: string | undefined, session: DdSession): Promise<DdPanelData> {
     this.exigirPermiso(session, PERMISSIONS.DD_PANEL);
-    const eventoId = this.eventoRequerido(session);
-    return this.repo.resumenPanel(eventoId);
+    return this.repo.resumenPanel(eventoId ?? this.eventoRequerido(session));
   }
 
   /** Matriz paginada de empresas del evento (panel). */
-  async matriz(params: Omit<DdMatrizParams, "eventoId">, session: DdSession): Promise<DdMatrizResult> {
+  async matriz(
+    params: Omit<DdMatrizParams, "eventoId"> & { eventoId?: string },
+    session: DdSession,
+  ): Promise<DdMatrizResult> {
     this.exigirPermiso(session, PERMISSIONS.DD_PANEL);
-    const eventoId = this.eventoRequerido(session);
+    const eventoId = params.eventoId ?? this.eventoRequerido(session);
     return this.repo.listarMatriz({
       eventoId,
       page: Math.max(1, params.page),
@@ -1279,6 +1694,7 @@ export class DebidaDiligenciaApplicationService {
       search: params.search?.trim() || undefined,
       estado: params.estado,
       vinculo: params.vinculo,
+      multiples: params.multiples,
     });
   }
 

@@ -33,6 +33,7 @@ import {
   DD_ACCIONES_REVISION,
   DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTO_VIGENCIA,
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
@@ -50,7 +51,7 @@ import {
   type DdAccionRevision,
   type DdDocumentoTipo,
 } from "@/lib/shared/constants";
-import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { DdBandejaRowDTO, DdExpedienteDTO } from "@/types/dto/debida-diligencia";
 
@@ -99,7 +100,23 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
         const derivable =
           r.estado === DD_ESTADOS.APROBADA ||
           (r.estado === DD_ESTADOS.RECHAZADA && !r.decisionLegal);
-        if (derivable) setAccion(DD_ACCIONES_REVISION.RECHAZAR);
+        const vigenteSinDeclaracion =
+          r.estado === DD_ESTADOS.APROBADA &&
+          ddUtils.estadoVigencia(
+            r.estado,
+            r.fechaVencimiento,
+            undefined,
+            r.fechaAprobacion,
+          ) !== DD_VIGENCIAS.VENCIDA &&
+          !r.documentos.some(
+            (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          );
+        if (vigenteSinDeclaracion) {
+          setAccion(DD_ACCIONES_REVISION.OBSERVAR);
+          setDocumentosObservados([DD_DOCUMENTOS.DECLARACION_VIGENCIA]);
+        } else if (derivable) {
+          setAccion(DD_ACCIONES_REVISION.RECHAZAR);
+        }
         if (
           r.reputacion.some(
             (caso) =>
@@ -131,7 +148,11 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
     accion === DD_ACCIONES_REVISION.OBSERVAR &&
     documentosObservados.includes(DD_DOCUMENTOS.ADICIONAL) &&
     !texto.trim();
-  const documentosAdicionales = [...DD_DOCUMENTOS_REQUERIDOS, DD_DOCUMENTO_ADICIONAL];
+  const documentosAdicionales = [
+    ...DD_DOCUMENTOS_REQUERIDOS,
+    DD_DOCUMENTO_VIGENCIA,
+    DD_DOCUMENTO_ADICIONAL,
+  ];
   const documentosCargados = (detalle?.documentos ?? []).filter((documento) =>
     DD_DOCUMENTOS_REQUERIDOS.some((requisito) => requisito.tipo === documento.tipo),
   ).length;
@@ -154,10 +175,23 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
     rechazada && detalle?.decisionLegal === DD_ACCIONES_LEGAL.RECHAZAR;
   const rechazadaCerrada = rechazada && Boolean(detalle?.decisionLegal);
   const puedeDerivar = esAprobada || (rechazada && !detalle?.decisionLegal);
+  const puedeObservarVigente =
+    esAprobada === true &&
+    ddUtils.estadoVigencia(
+      detalle?.estado ?? "",
+      detalle?.fechaVencimiento,
+      undefined,
+      detalle?.fechaAprobacion,
+    ) !== DD_VIGENCIAS.VENCIDA &&
+    !detalle?.documentos.some(
+      (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+    );
   const sinDecision = enLegal || rechazadaCerrada;
   const accionPermitida =
     !sinDecision &&
-    (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
+    (!puedeDerivar ||
+      accion === DD_ACCIONES_REVISION.RECHAZAR ||
+      (puedeObservarVigente && accion === DD_ACCIONES_REVISION.OBSERVAR)) &&
     !(reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR);
 
   /** Deriva explicitamente los nombres a Comunicaciones (accion independiente de la decision). */
@@ -192,10 +226,14 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
       setError("Este expediente ya no admite una decisión de Logística.");
       return;
     }
-    if (puedeDerivar && valor !== DD_ACCIONES_REVISION.RECHAZAR) {
+    if (
+      puedeDerivar &&
+      valor !== DD_ACCIONES_REVISION.RECHAZAR &&
+      !(puedeObservarVigente && valor === DD_ACCIONES_REVISION.OBSERVAR)
+    ) {
       setError(
         esAprobada
-          ? "La debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."
+          ? "La debida diligencia ya está aprobada. Solo se puede observar si falta la declaración de vigencia o derivar a revisión legal."
           : "El expediente ya está rechazado. Solo se puede derivar a revisión legal.",
       );
       return;
@@ -703,7 +741,9 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                           ? rechazadaPorLegal
                             ? "El expediente fue rechazado por Legal. No admite nuevas decisiones de Logística."
                             : "El expediente fue rechazado por Logística después de la revisión legal. No admite nuevas decisiones."
-                          : "Esta debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."}
+                          : puedeObservarVigente
+                            ? "Esta DD está aprobada y vigente, pero le falta la Declaración jurada de vigencia de información. Puedes solicitar esa corrección o derivar a Legal."
+                            : "Esta debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."}
                     </p>
                   ) : rechazada ? (
                     <p className="mb-2 rounded-md border border-warning/40 bg-warning/5 p-2 text-[10px] text-warning">
@@ -719,7 +759,10 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                     {ACCIONES.map((opcion) => {
                       const permitida =
                         !sinDecision &&
-                        (!puedeDerivar || opcion.value === DD_ACCIONES_REVISION.RECHAZAR) &&
+                        (!puedeDerivar ||
+                          opcion.value === DD_ACCIONES_REVISION.RECHAZAR ||
+                          (puedeObservarVigente &&
+                            opcion.value === DD_ACCIONES_REVISION.OBSERVAR)) &&
                         !(reputacionConHallazgos && opcion.value === DD_ACCIONES_REVISION.APROBAR);
                       return (
                       <label

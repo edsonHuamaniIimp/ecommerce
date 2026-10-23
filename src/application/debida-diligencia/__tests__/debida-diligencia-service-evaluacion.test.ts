@@ -5,7 +5,7 @@ import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligenc
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
-import { DD_ESTADOS, DD_RESULTADOS } from "@/lib/shared/constants";
+import { DD_ESTADOS, DD_RESULTADOS, PERMISSIONS } from "@/lib/shared/constants";
 
 const EMPRESA = {
   id: "emp-1",
@@ -40,6 +40,9 @@ function crearServicio(
 ) {
   const repo = {
     findExpedientePorEmpresaEvento: vi.fn().mockResolvedValue(expediente),
+    findExpedienteAprobadoVigentePorEmpresa: vi.fn().mockResolvedValue(null),
+    tieneExpedienteImportadoAprobadoVigente: vi.fn().mockResolvedValue(false),
+    findExpedienteAprobadoVigentePorEmpresaEvento: vi.fn().mockResolvedValue(expediente),
     findEmpresaResumen: vi.fn().mockResolvedValue(empresaId ? EMPRESA : null),
     findEmpresaEstado: vi.fn().mockResolvedValue(estadoExterno),
   } as unknown as IDebidaDiligenciaRepository;
@@ -54,6 +57,87 @@ function crearServicio(
   );
   return { servicio, repo, authRepo };
 }
+
+describe("obtenerMiExpediente", () => {
+  it("usa la DD aprobada vigente de otro evento cuando no hay DD en el evento activo", async () => {
+    const { servicio, repo } = crearServicio(null);
+    const otroEvento = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-otro",
+      eventoId: "evento-2",
+      estado: DD_ESTADOS.APROBADA,
+      fechaAprobacion: new Date(),
+      fechaVencimiento: new Date("2099-01-01"),
+    } as DdExpedienteEntity;
+    (repo.findExpedienteAprobadoVigentePorEmpresa as ReturnType<typeof vi.fn>).mockResolvedValue(
+      otroEvento,
+    );
+
+    const resultado = await servicio.obtenerMiExpediente({
+      email: "cliente@iimp.org.pe",
+      roles: [],
+      permissions: [PERMISSIONS.DD_FORMULARIO],
+      eventoId: "evento-1",
+    });
+
+    expect(resultado.esOtroEvento).toBe(true);
+    expect(resultado.expediente?.id).toBe("exp-otro");
+    expect(resultado.puedeRegularizarDeclaracionVigencia).toBe(true);
+  });
+
+  it("prioriza una DD vigente sobre un borrador del evento activo", async () => {
+    const borrador = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-borrador",
+      estado: DD_ESTADOS.BORRADOR,
+    } as DdExpedienteEntity;
+    const { servicio, repo } = crearServicio(borrador);
+    const vigente = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-vigente",
+      eventoId: "evento-1",
+      estado: DD_ESTADOS.APROBADA,
+      fechaAprobacion: new Date(),
+      fechaVencimiento: new Date("2099-01-01"),
+    } as DdExpedienteEntity;
+    (repo.findExpedienteAprobadoVigentePorEmpresa as ReturnType<typeof vi.fn>).mockResolvedValue(
+      vigente,
+    );
+
+    const resultado = await servicio.obtenerMiExpediente({
+      email: "cliente@iimp.org.pe",
+      roles: [],
+      permissions: [PERMISSIONS.DD_FORMULARIO],
+      eventoId: "evento-1",
+    });
+
+    expect(resultado.esOtroEvento).toBe(false);
+    expect(resultado.expediente?.id).toBe("exp-vigente");
+  });
+
+  it("mantiene la DD activa cuando ya esta aprobada y vigente", async () => {
+    const activa = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-activa",
+      eventoId: "evento-1",
+      estado: DD_ESTADOS.APROBADA,
+      fechaAprobacion: new Date(),
+      fechaVencimiento: new Date("2099-01-01"),
+    } as DdExpedienteEntity;
+    const { servicio, repo } = crearServicio(activa);
+
+    const resultado = await servicio.obtenerMiExpediente({
+      email: "cliente@iimp.org.pe",
+      roles: [],
+      permissions: [PERMISSIONS.DD_FORMULARIO],
+      eventoId: "evento-1",
+    });
+
+    expect(resultado.esOtroEvento).toBe(false);
+    expect(resultado.expediente?.id).toBe("exp-activa");
+    expect(repo.findExpedienteAprobadoVigentePorEmpresa).not.toHaveBeenCalled();
+  });
+});
 
 describe("evaluacionDeUsuario", () => {
   it("bloquea cuando la cuenta no tiene empresa o expediente DD", async () => {
@@ -74,6 +158,29 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.mensaje).toContain("fue rechazada");
   });
 
+  it("marca APTO pendiente de declaración cuando la DD vigente es de otro evento", async () => {
+    const { servicio, repo } = crearServicio(null);
+    const vigenteOtroEvento = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-otro",
+      eventoId: "evento-2",
+      estado: DD_ESTADOS.APROBADA,
+      fechaAprobacion: new Date("2026-06-16"),
+      fechaVencimiento: new Date("2026-12-16"),
+      documentos: [],
+    } as DdExpedienteEntity;
+    (repo.findExpedienteAprobadoVigentePorEmpresa as ReturnType<typeof vi.fn>).mockResolvedValue(
+      vigenteOtroEvento,
+    );
+
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
+    expect(evaluacion.aptoParaContratar).toBe(false);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(true);
+    expect(evaluacion.mensaje).toContain("Declaración jurada de vigencia");
+  });
+
   it("permite revisar con una DD aprobada y vigente", async () => {
     const aprobada = {
       ...EXPEDIENTE_BASE,
@@ -86,6 +193,25 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.aptoParaContratar).toBe(true);
     expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
     expect(evaluacion.mensaje).toBeNull();
+  });
+
+  it("usa la DD aprobada vigente aunque exista un borrador posterior", async () => {
+    const borrador = {
+      ...EXPEDIENTE_BASE,
+      estado: DD_ESTADOS.BORRADOR,
+    } as DdExpedienteEntity;
+    const aprobada = {
+      ...EXPEDIENTE_BASE,
+      estado: DD_ESTADOS.APROBADA,
+      fechaVencimiento: new Date("2099-01-01"),
+    } as DdExpedienteEntity;
+    const { servicio, repo } = crearServicio(borrador);
+    (repo.findExpedienteAprobadoVigentePorEmpresaEvento as ReturnType<typeof vi.fn>).mockResolvedValue(aprobada);
+
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(true);
+    expect(evaluacion.expediente?.id).toBe(aprobada.id);
   });
 
   it("usa el APTO externo/manual como bypass aunque no haya expediente interno", async () => {

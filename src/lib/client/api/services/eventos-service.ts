@@ -6,7 +6,7 @@ import type { ModalInfoConfig } from "@/domain/models/entities";
 
 export const eventosServiceClient = {
   listar() {
-    return internalApi.get<Record<string, unknown>[]>("/api/eventos/listar");
+    return internalApi.get<EventoPadrePresalaDTO[]>("/api/eventos/listar");
   },
   /** Version de evento por id (incluye tipoEvento/codigoEvento para las APIs externas). */
   obtener(id: string) {

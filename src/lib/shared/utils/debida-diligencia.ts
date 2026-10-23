@@ -3,6 +3,7 @@ import {
   DD_ACTIVIDAD_OTRO,
   DD_DIAS_POR_VENCER,
   DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
@@ -133,9 +134,22 @@ export const ddUtils = {
   validarDocumentos(datos: {
     documentos: { tipo: string; url: string; estado?: string }[];
     declaraVerdad: boolean;
+    requiereDeclaracionVigencia?: boolean;
   }): string | null {
-    if (ddUtils.documentosFaltantes(datos.documentos).length > 0) {
+    const faltantes = ddUtils.documentosFaltantes(datos.documentos);
+    if (faltantes.includes(DD_DOCUMENTOS.DECLARACION_JURADA)) {
+      return DD_MENSAJES.DECLARACION_JURADA_OBLIGATORIA;
+    }
+    if (faltantes.length > 0) {
       return DD_MENSAJES.DOCUMENTOS_OBLIGATORIOS;
+    }
+    if (
+      datos.requiereDeclaracionVigencia &&
+      !datos.documentos.some(
+        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      )
+    ) {
+      return DD_MENSAJES.DECLARACION_VIGENCIA_OBLIGATORIA;
     }
     if (datos.documentos.some((documento) => documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO)) {
       return "Sube una nueva versión de los documentos observados antes de enviar.";
@@ -151,17 +165,37 @@ export const ddUtils = {
     return dateUtils.addMonths(fecha, meses);
   },
 
+  /**
+   * Fecha de cese efectiva de una DD aprobada. La vigencia siempre cuenta
+   * desde la aprobacion; si no hay fecha guardada se deriva de `fechaAprobacion`.
+   */
+  fechaVencimientoEfectiva(
+    estado: string,
+    fechaVencimiento: Date | string | null | undefined,
+    fechaAprobacion: Date | string | null | undefined,
+  ): Date | null {
+    if (estado !== DD_ESTADOS.APROBADA) return null;
+    if (fechaVencimiento && dateUtils.isValid(fechaVencimiento)) {
+      return new Date(fechaVencimiento);
+    }
+    if (fechaAprobacion && dateUtils.isValid(fechaAprobacion)) {
+      return ddUtils.sumarMeses(new Date(fechaAprobacion));
+    }
+    return null;
+  },
+
   /** Vigencia de una DD aprobada: vigente, por vencer (30 dias) o vencida. */
   estadoVigencia(
     estado: string,
     fechaVencimiento: Date | string | null | undefined,
     ahora: Date = dateUtils.now(),
+    fechaAprobacion?: Date | string | null,
   ): DdVigencia {
     if (estado !== DD_ESTADOS.APROBADA) return DD_VIGENCIAS.SIN_VIGENCIA;
-    if (!fechaVencimiento) return DD_VIGENCIAS.VIGENTE;
-    if (!dateUtils.isValid(fechaVencimiento)) return DD_VIGENCIAS.VIGENTE;
-    if (!dateUtils.isBefore(ahora, fechaVencimiento)) return DD_VIGENCIAS.VENCIDA;
-    const dias = dateUtils.diffInDays(ahora, fechaVencimiento) ?? 0;
+    const vence = ddUtils.fechaVencimientoEfectiva(estado, fechaVencimiento, fechaAprobacion);
+    if (!vence) return DD_VIGENCIAS.VENCIDA;
+    if (!dateUtils.isBefore(ahora, vence)) return DD_VIGENCIAS.VENCIDA;
+    const dias = dateUtils.diffInDays(ahora, vence) ?? 0;
     return dias <= DD_DIAS_POR_VENCER ? DD_VIGENCIAS.POR_VENCER : DD_VIGENCIAS.VIGENTE;
   },
 
@@ -181,9 +215,11 @@ export const ddUtils = {
     estado: string,
     fechaVencimiento: Date | string | null | undefined,
     ahora: Date = dateUtils.now(),
+    fechaAprobacion?: Date | string | null,
   ): DdEstadoEvaluacion | null {
     if (estado === DD_ESTADOS.APROBADA) {
-      return ddUtils.estadoVigencia(estado, fechaVencimiento, ahora) === DD_VIGENCIAS.VENCIDA
+      return ddUtils.estadoVigencia(estado, fechaVencimiento, ahora, fechaAprobacion) ===
+        DD_VIGENCIAS.VENCIDA
         ? DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION
         : DD_ESTADOS_EVALUACION.VIGENTE;
     }
@@ -218,9 +254,12 @@ export const ddUtils = {
     estado: string,
     fechaVencimiento: Date | string | null | undefined,
     ahora: Date = dateUtils.now(),
+    fechaAprobacion?: Date | string | null,
   ): number | null {
-    if (estado !== DD_ESTADOS.APROBADA || !fechaVencimiento) return null;
-    return Math.max(0, dateUtils.diffInDays(ahora, fechaVencimiento) ?? 0);
+    if (estado !== DD_ESTADOS.APROBADA) return null;
+    const vence = ddUtils.fechaVencimientoEfectiva(estado, fechaVencimiento, fechaAprobacion);
+    if (!vence) return 0;
+    return Math.max(0, dateUtils.diffInDays(ahora, vence) ?? 0);
   },
 
   /** Alcance habilitado segun el resultado. */
@@ -309,8 +348,14 @@ export const ddUtils = {
       }
     }
     const faltantes = ddUtils.documentosFaltantes(expediente.documentos);
-    if (faltantes.length > 0) {
-      const titulos = faltantes
+    if (faltantes.includes(DD_DOCUMENTOS.DECLARACION_JURADA)) {
+      errores.push(DD_MENSAJES.DECLARACION_JURADA_OBLIGATORIA);
+    }
+    const otrosFaltantes = faltantes.filter(
+      (tipo) => tipo !== DD_DOCUMENTOS.DECLARACION_JURADA,
+    );
+    if (otrosFaltantes.length > 0) {
+      const titulos = otrosFaltantes
         .map((tipo) => DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === tipo)?.titulo ?? tipo)
         .join(", ");
       errores.push(`Faltan documentos obligatorios: ${titulos}.`);

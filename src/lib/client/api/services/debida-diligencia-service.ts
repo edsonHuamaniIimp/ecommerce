@@ -15,7 +15,10 @@ import type {
   DdMatrizQueryDTO,
   DdMatrizResponseDTO,
   DdMiExpedienteDTO,
+  DdMisExpedientesQueryDTO,
+  DdMisExpedientesResponseDTO,
   DdPanelDTO,
+  DdRegularizarVigenciaRequestDTO,
   DdReputacionQueryDTO,
   DdReputacionResponseDTO,
   DdReputacionResolverRequestDTO,
@@ -24,16 +27,36 @@ import type {
 
 /** Fachada cliente del modulo Debida Diligencia (reglas y endpoints propios). */
 export const debidaDiligenciaService = {
-  miExpediente() {
-    return internalApi.get<DdMiExpedienteDTO>("/api/debida-diligencia/mi-expediente");
+  miExpediente(opciones: { soloEvento?: boolean } = {}) {
+    const qs = opciones.soloEvento ? "?soloEvento=1" : "";
+    return internalApi.get<DdMiExpedienteDTO>(`/api/debida-diligencia/mi-expediente${qs}`);
+  },
+
+  misExpedientes(params: DdMisExpedientesQueryDTO = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.perPage) qs.set("perPage", String(params.perPage));
+    if (params.search) qs.set("search", params.search);
+    if (params.estado) qs.set("estado", params.estado);
+    if (params.eventoId) qs.set("eventoId", params.eventoId);
+    const sufijo = qs.toString() ? `?${qs.toString()}` : "";
+    return internalApi.get<DdMisExpedientesResponseDTO>(`/api/debida-diligencia/mis-expedientes${sufijo}`);
   },
 
   guardar(body: DdGuardarRequestDTO) {
     return internalApi.post<DdExpedienteDTO>("/api/debida-diligencia/guardar", body);
   },
 
+  iniciarNueva() {
+    return internalApi.post<DdExpedienteDTO>("/api/debida-diligencia/nueva", {});
+  },
+
   enviar() {
     return internalApi.post<DdExpedienteDTO>("/api/debida-diligencia/enviar", {});
+  },
+
+  regularizarVigencia(body: DdRegularizarVigenciaRequestDTO) {
+    return internalApi.post<DdExpedienteDTO>("/api/debida-diligencia/regularizar-vigencia", body);
   },
 
   subirDocumento(tipo: string, file: File) {
@@ -55,9 +78,10 @@ export const debidaDiligenciaService = {
     );
   },
 
-  importarEmpresas(file: File) {
+  importarEmpresas(file: File, eventoId: string) {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("eventoId", eventoId);
     return internalApi.postForm<DdEmpresasImportResponseDTO>(
       "/api/debida-diligencia/empresas/importar",
       formData,
@@ -91,6 +115,7 @@ export const debidaDiligenciaService = {
 
   bandeja(params: DdBandejaQueryDTO = {}) {
     const qs = new URLSearchParams();
+    if (params.eventoId) qs.set("eventoId", params.eventoId);
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
@@ -101,6 +126,7 @@ export const debidaDiligenciaService = {
     if (params.reputacion) qs.set("reputacion", params.reputacion);
     if (params.asignacion) qs.set("asignacion", params.asignacion);
     if (params.solicitudes) qs.set("solicitudes", params.solicitudes);
+    if (params.multiples) qs.set("multiples", params.multiples);
     if (params.orden) qs.set("orden", params.orden);
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdBandejaResponseDTO>(`/api/debida-diligencia/bandeja${sufijo}`);
@@ -137,17 +163,22 @@ export const debidaDiligenciaService = {
     );
   },
 
-  panel() {
-    return internalApi.get<DdPanelDTO>("/api/debida-diligencia/panel");
+  panel(eventoId?: string) {
+    const qs = new URLSearchParams();
+    if (eventoId) qs.set("eventoId", eventoId);
+    const sufijo = qs.toString() ? `?${qs.toString()}` : "";
+    return internalApi.get<DdPanelDTO>(`/api/debida-diligencia/panel${sufijo}`);
   },
 
   matriz(params: DdMatrizQueryDTO = {}) {
     const qs = new URLSearchParams();
+    if (params.eventoId) qs.set("eventoId", params.eventoId);
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
     if (params.estado) qs.set("estado", params.estado);
     if (params.vinculo) qs.set("vinculo", params.vinculo);
+    if (params.multiples) qs.set("multiples", params.multiples);
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdMatrizResponseDTO>(`/api/debida-diligencia/matriz${sufijo}`);
   },

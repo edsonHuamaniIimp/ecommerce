@@ -24,6 +24,7 @@ import {
   ddLegalResolverSchema,
   ddMatrizQuerySchema,
   ddPaginacionSchema,
+  ddRegularizarVigenciaSchema,
   ddReputacionResolverSchema,
   ddRevisarSchema,
 } from "@/validators/debida-diligencia.validator";
@@ -43,15 +44,55 @@ async function sesionRequerida(): Promise<DdSession> {
 
 export const debidaDiligenciaController = {
   /** Expediente de la empresa del usuario autenticado. */
-  async miExpediente(): Promise<NextResponse> {
+  async miExpediente(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
-    const resultado = await services.debidaDiligencia.obtenerMiExpediente(session);
+    const params = new URL(request.url).searchParams;
+    const resultado = await services.debidaDiligencia.obtenerMiExpediente(session, {
+      soloEvento: params.get("soloEvento") === "1",
+    });
     const data: DdMiExpedienteDTO = {
       expediente: resultado.expediente ? mapDdExpedienteToDTO(resultado.expediente) : null,
       empresa: resultado.empresa ? mapDdEmpresaToDTO(resultado.empresa) : null,
       estadoExterno: mapDdEstadoExternoToDTO(resultado.estadoExterno),
+      esOtroEvento: resultado.esOtroEvento,
+      requiereDeclaracionVigencia: resultado.requiereDeclaracionVigencia,
+      puedeRegularizarDeclaracionVigencia: resultado.puedeRegularizarDeclaracionVigencia,
     };
     return success(data);
+  },
+
+  /** Historial paginado de todas las DD de la empresa del usuario. */
+  async misExpedientes(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const params = new URL(request.url).searchParams;
+    const parsed = ddPaginacionSchema.safeParse({
+      page: params.get("page") ?? undefined,
+      perPage: params.get("perPage") ?? undefined,
+      search: params.get("search") ?? undefined,
+      estado: params.get("estado") ?? undefined,
+    });
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const resultado = await services.debidaDiligencia.misExpedientes(
+      {
+        page: parsed.data.page,
+        perPage: parsed.data.perPage,
+        search: parsed.data.search,
+        estado: parsed.data.estado,
+        eventoId: params.get("eventoId")?.trim() || undefined,
+      },
+      session,
+    );
+    return success({
+      items: resultado.data.map(mapDdExpedienteToDTO),
+      pagination: {
+        page: resultado.page,
+        perPage: resultado.perPage,
+        total: resultado.total,
+        totalPages: resultado.totalPages,
+      },
+    });
   },
 
   /** Guarda el wizard (borrador o correccion). */
@@ -65,10 +106,31 @@ export const debidaDiligenciaController = {
     return success(mapDdExpedienteToDTO(expediente));
   },
 
+  /** Inicia una nueva DD cuando la ultima esta vencida o rechazada. */
+  async iniciarNueva(): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const expediente = await services.debidaDiligencia.iniciarNueva(session);
+    return success(mapDdExpedienteToDTO(expediente));
+  },
+
   /** Envia el expediente a revision de Logistica. */
   async enviar(): Promise<NextResponse> {
     const session = await sesionRequerida();
     const expediente = await services.debidaDiligencia.enviar(session);
+    return success(mapDdExpedienteToDTO(expediente));
+  },
+
+  /** Adjunta la declaracion de vigencia a una DD aprobada de otro evento. */
+  async regularizarVigencia(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddRegularizarVigenciaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const expediente = await services.debidaDiligencia.regularizarDeclaracionVigencia(
+      parsed.data,
+      session,
+    );
     return success(mapDdExpedienteToDTO(expediente));
   },
 
@@ -87,12 +149,17 @@ export const debidaDiligenciaController = {
       reputacion: params.get("reputacion") ?? undefined,
       asignacion: params.get("asignacion") ?? undefined,
       solicitudes: params.get("solicitudes") ?? undefined,
+      multiples: params.get("multiples") ?? undefined,
       orden: params.get("orden") ?? undefined,
     });
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
-    const resultado = await services.debidaDiligencia.bandeja(parsed.data, session);
+    const eventoId = params.get("eventoId")?.trim() || undefined;
+    const resultado = await services.debidaDiligencia.bandeja(
+      { ...parsed.data, eventoId },
+      session,
+    );
     return success(mapDdBandejaToDTO(resultado));
   },
 
@@ -208,9 +275,10 @@ export const debidaDiligenciaController = {
   },
 
   /** Panel del modulo: KPIs, vigencias y matriz. */
-  async panel(): Promise<NextResponse> {
+  async panel(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
-    const panel = await services.debidaDiligencia.panel(session);
+    const eventoId = new URL(request.url).searchParams.get("eventoId")?.trim() || undefined;
+    const panel = await services.debidaDiligencia.panel(eventoId, session);
     return success(mapDdPanelToDTO(panel));
   },
 
@@ -219,11 +287,13 @@ export const debidaDiligenciaController = {
     const session = await sesionRequerida();
     const params = new URL(request.url).searchParams;
     const parsed = ddMatrizQuerySchema.safeParse({
+      eventoId: params.get("eventoId") ?? undefined,
       page: params.get("page") ?? undefined,
       perPage: params.get("perPage") ?? undefined,
       search: params.get("search") ?? undefined,
       estado: params.get("estado") ?? undefined,
       vinculo: params.get("vinculo") ?? undefined,
+      multiples: params.get("multiples") ?? undefined,
     });
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);

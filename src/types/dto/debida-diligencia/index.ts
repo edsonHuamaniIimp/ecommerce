@@ -11,7 +11,12 @@ export type {
   DdReputacionCasoDTO,
 } from "./dd-expediente.dto";
 export type { DdGuardarRequestDTO } from "./dd-guardar-request.dto";
+export type { DdRegularizarVigenciaRequestDTO } from "./dd-regularizar-vigencia-request.dto";
 export type { DdHistorialItemDTO, DdHistorialResponseDTO } from "./dd-historial.dto";
+export type {
+  DdMisExpedientesQueryDTO,
+  DdMisExpedientesResponseDTO,
+} from "./dd-mis-expedientes.dto";
 export type { DdDocumentoUploadResponseDTO } from "./dd-documento-upload-response.dto";
 export type { DdInformeLegalUploadResponseDTO } from "./dd-informe-legal-upload-response.dto";
 export type { DdLegalResolverRequestDTO } from "./dd-legal-resolver-request.dto";

@@ -1,4 +1,4 @@
-import type { DdEmpresaDTO } from "./dd-expediente.dto";
+import type { DdBeneficiarioDTO, DdEmpresaDTO } from "./dd-expediente.dto";
 
 export interface DdBandejaRowDTO {
   id: string;
@@ -7,9 +7,11 @@ export interface DdBandejaRowDTO {
   origen: string;
   estadoOrigen: string | null;
   eventoProyecto: string | null;
+  eventoNombre: string;
   motivoImportacion: string | null;
   tipoRelacionComercial: string[];
   empresa: DdEmpresaDTO;
+  beneficiarios: DdBeneficiarioDTO[];
   fechaCreacion: string | null;
   solicitudesAlquiler: number;
   documentoCargados: number;
@@ -34,6 +36,7 @@ export interface DdBandejaResumenDTO {
   enRevision: number;
   observadas: number;
   aprobadas: number;
+  vencidas: number;
   rechazadas: number;
 }
 

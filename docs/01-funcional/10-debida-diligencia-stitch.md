@@ -203,7 +203,7 @@ Columna principal:
 - Barra de acciones: botón navy "Corregir y solicitar nueva evaluación", link "Ver documentos enviados".
 
 Columna lateral:
-- Tarjeta "Vigencia": "Aprobada hasta 12 nov 2026", badge verde "Vigente", barra de progreso "5 de 6 meses" y nota "Debe renovarse cada 6 meses."
+- Tarjeta "Vigencia": "Fecha de cese: 12 nov 2026", badge verde "Vigente", barra de progreso "5 de 6 meses" y nota "Debe renovarse cada 6 meses."
 - Tarjeta "¿Puedo reservar?": texto "Puede reservar un stand, pero no avanzará en aprobaciones hasta quedar aprobada." con botón outline "Ir al plano de stands".
 - Tarjeta "Contacto": correo declarado, botón "Actualizar correo".
 
@@ -262,7 +262,16 @@ Inter, WCAG AA, sin gradientes.
 
 ### Reglas de la reunión
 
-- La debida diligencia tiene vigencia de seis meses y debe renovarse.
+- La debida diligencia tiene vigencia de seis meses y debe renovarse. La fecha
+  de cese es la fecha de vencimiento calculada desde la aprobación.
+- Una empresa puede tener varias DD por evento: se conserva el historial y solo
+  se inicia una nueva cuando la última está rechazada o vencida.
+- El menú del cliente incluye "Mi debida diligencia" (estado actual) y
+  "Mis debidas diligencias" (historial paginado con filtros por evento, estado
+  y código; cada fila permite abrir su historial).
+- La bandeja de Logística y el panel se filtran por versión de evento; la
+  importación masiva se ejecuta sobre el evento seleccionado y guarda
+  `EVENTO O PROYECTO ASOCIADO` como referencia de la fuente.
 - Son 400 empresas; cerca de 100 estaban aprobadas.
 - Una empresa pendiente puede reservar un stand, pero no avanza en aprobaciones.
 - Las observaciones permiten corregir documentos y solicitar una nueva evaluación.

@@ -18,6 +18,7 @@ import type { DdEmpresasImportResponseDTO } from "@/types/dto/debida-diligencia"
 
 interface Props {
   open: boolean;
+  eventoId: string;
   onClose: () => void;
   onImported: () => void;
 }
@@ -32,7 +33,7 @@ const CABECERAS = [
   "RESULTADO DE EVALUACIÓN DEBIDA DILIGENCIA",
 ];
 
-export function DdImportModal({ open, onClose, onImported }: Props) {
+export function DdImportModal({ open, eventoId, onClose, onImported }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -62,7 +63,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
     setError(null);
     setResultado(null);
     try {
-      const respuesta = await debidaDiligenciaService.importarEmpresas(file);
+      const respuesta = await debidaDiligenciaService.importarEmpresas(file, eventoId);
       setResultado(respuesta);
       toast.success(`Importación completada: ${respuesta.importados} nuevos, ${respuesta.omitidos} existentes omitidos.`);
       onImported();
@@ -100,7 +101,7 @@ export function DdImportModal({ open, onClose, onImported }: Props) {
           <div className="rounded-lg border border-border bg-secondary/30 p-3 text-[11px] text-muted-foreground">
             <p className="font-semibold text-foreground">Columnas requeridas</p>
             <p className="mt-1">
-              Fecha de ingreso · Fecha de revisión · Razón social · RUC/RUT · Motivo · Evento/proyecto · Resultado DD
+              Fecha de ingreso · Fin de DD (FECHA DE REVISIÓN POR SIG) · Razón social · RUC/RUT · Motivo · Evento/proyecto · Resultado DD
             </p>
             <p className="mt-2">
               Resultados aceptados: APTO, APTO CON OBSERVACIONES, NO APTO, EN REVISION, EN PROCESO o DOCUMENTACION OBSERVADA.

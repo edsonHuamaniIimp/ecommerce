@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
+  DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_REPUTACION_ESTADOS,
@@ -52,8 +53,17 @@ describe("ddEstadoVigencia", () => {
     expect(ddUtils.estadoVigencia(DD_ESTADOS.EN_REVISION, null, ahora)).toBe(DD_VIGENCIAS.SIN_VIGENCIA);
   });
 
-  it("marca vigente una aprobacion sin fecha de vencimiento", () => {
-    expect(ddUtils.estadoVigencia(DD_ESTADOS.APROBADA, null, ahora)).toBe(DD_VIGENCIAS.VIGENTE);
+  it("marca vencida una aprobacion sin fecha de cese ni de aprobacion", () => {
+    expect(ddUtils.estadoVigencia(DD_ESTADOS.APROBADA, null, ahora)).toBe(DD_VIGENCIAS.VENCIDA);
+  });
+
+  it("calcula la vigencia desde la fecha de aprobacion", () => {
+    expect(
+      ddUtils.estadoVigencia(DD_ESTADOS.APROBADA, null, ahora, new Date(2026, 0, 1)),
+    ).toBe(DD_VIGENCIAS.VIGENTE);
+    expect(
+      ddUtils.estadoVigencia(DD_ESTADOS.APROBADA, null, ahora, new Date(2025, 0, 1)),
+    ).toBe(DD_VIGENCIAS.VENCIDA);
   });
 
   it("marca por vencer dentro de los 30 dias", () => {
@@ -157,8 +167,45 @@ describe("documentos y errores de envio", () => {
     ]);
   });
 
+  it("exige la declaracion jurada aunque el resto de documentos este cargado", () => {
+    expect(
+      ddUtils.validarDocumentos({
+        documentos: Object.values(DD_DOCUMENTOS)
+          .filter((tipo) => tipo !== DD_DOCUMENTOS.DECLARACION_JURADA)
+          .map((tipo) => ({
+            tipo,
+            url: "/uploads/documento.pdf",
+            estado: DD_DOCUMENTO_ESTADOS.CARGADO,
+          })),
+        declaraVerdad: true,
+      }),
+    ).toContain("declaración jurada");
+  });
+
   it("no devuelve errores cuando el expediente esta completo", () => {
     expect(ddUtils.erroresDeEnvio(EXPEDIENTE_COMPLETO)).toEqual([]);
+  });
+
+  it("solo exige la declaracion de vigencia cuando la empresa tiene una DD importada vigente", () => {
+    const documentos = DD_DOCUMENTOS_REQUERIDOS.map((requisito) => ({
+      tipo: requisito.tipo,
+      url: "/uploads/documento.pdf",
+      estado: DD_DOCUMENTO_ESTADOS.CARGADO,
+    }));
+
+    expect(
+      ddUtils.validarDocumentos({
+        documentos,
+        declaraVerdad: true,
+      }),
+    ).toBeNull();
+    expect(
+      ddUtils.validarDocumentos({
+        documentos,
+        declaraVerdad: true,
+        requiereDeclaracionVigencia: true,
+      }),
+    ).toContain("vigencia de información");
   });
 
   it("exige el detalle cuando la actividad economica es Otro", () => {

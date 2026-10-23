@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Alert,
   AlertDescription,
@@ -43,7 +45,7 @@ import { DdHistorialDialog } from "./dd-historial-dialog";
 import { useSesion } from "@/hooks/use-sesion";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
@@ -51,6 +53,8 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_OBSERVACION_ESTADOS,
   DD_RUTAS,
+  DD_IMPORTACION_REVISOR,
+  DD_IMPORTACION_REVISOR_LABEL,
   DD_VIGENCIA_MESES,
 } from "@/lib/shared/constants";
 import type { DdMiExpedienteDTO } from "@/types/dto/debida-diligencia";
@@ -65,12 +69,14 @@ interface Hito {
 /** Vista "Mi debida diligencia" del Portal del Expositor. */
 export function MiDebidaDiligencia() {
   const { session, cargando } = useSesion();
+  const router = useRouter();
   const eventoId = session?.eventoId ?? "";
   const [data, setData] = useState<DdMiExpedienteDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [documentosOpen, setDocumentosOpen] = useState(false);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
+  const [iniciandoNueva, setIniciandoNueva] = useState(false);
 
   useEffect(() => {
     if (!eventoId) return;
@@ -86,6 +92,9 @@ export function MiDebidaDiligencia() {
   const expediente = data?.expediente ?? null;
   const empresa = data?.empresa ?? null;
   const estadoExterno = data?.estadoExterno ?? null;
+  const esOtroEvento = data?.esOtroEvento === true;
+  const puedeRegularizarDeclaracionVigencia =
+    data?.puedeRegularizarDeclaracionVigencia === true;
   const externoApto = estadoExterno?.aptoParaContratar === true;
   const editable = ddUtils.puedeEditar(expediente?.estado);
   const observacionesAbiertas = (expediente?.observaciones ?? []).filter((observacion) => {
@@ -138,7 +147,11 @@ export function MiDebidaDiligencia() {
         fecha: aprobado ? expediente.fechaAprobacion : rechazado ? expediente.fechaRechazo : null,
         estado: aprobado ? "completado" : rechazado ? "alerta" : "pendiente",
         detalle: aprobado
-          ? `Aprobada por ${expediente.revisadoPor ?? "Logística"}.`
+          ? `Aprobada por ${
+              expediente.revisadoPor === DD_IMPORTACION_REVISOR
+                ? DD_IMPORTACION_REVISOR_LABEL
+                : expediente.revisadoPor ?? "Logística"
+            }.`
           : rechazado
             ? expediente.motivoRechazo ?? "Consulta el informe legal."
             : "Pendiente de aprobación.",
@@ -147,6 +160,29 @@ export function MiDebidaDiligencia() {
   }, [expediente, observacionesAbiertas.length]);
 
   const cargandoVista = cargando || (Boolean(eventoId) && loading && data === null);
+  const ddVencida =
+    expediente?.estado === DD_ESTADOS.APROBADA &&
+    ddUtils.estadoVigencia(
+      expediente.estado,
+      expediente.fechaVencimiento,
+      undefined,
+      expediente.fechaAprobacion,
+    ) === DD_VIGENCIAS.VENCIDA;
+  const puedeIniciarNueva =
+    Boolean(expediente) &&
+    (expediente?.estado === DD_ESTADOS.RECHAZADA || ddVencida);
+
+  const iniciarNueva = async () => {
+    setIniciandoNueva(true);
+    try {
+      await debidaDiligenciaService.iniciarNueva();
+      router.push(DD_RUTAS.FORMULARIO);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo iniciar una nueva debida diligencia");
+      setIniciandoNueva(false);
+    }
+  };
 
   return (
     <PaginaDashboard
@@ -182,7 +218,7 @@ export function MiDebidaDiligencia() {
               </p>
               {estadoExterno?.fechaVencimiento ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Vigente hasta {dateUtils.format(estadoExterno.fechaVencimiento)}.
+                  Vigencia hasta {dateUtils.format(estadoExterno.fechaVencimiento)}.
                 </p>
               ) : null}
             </div>
@@ -212,6 +248,58 @@ export function MiDebidaDiligencia() {
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
+          {esOtroEvento ? (
+            <Alert className="border-primary/30 bg-primary/5 lg:col-span-3">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              <AlertDescription>
+                Tu debida diligencia vigente corresponde a{" "}
+                <strong className="text-foreground">{expediente.evento.nombre}</strong>.
+                El evento activo es{" "}
+                <strong className="text-foreground">
+                  {session?.eventoNombre ?? "otro evento"}
+                </strong>
+                .
+                {puedeRegularizarDeclaracionVigencia ? (
+                  <span className="mt-3 block">
+                    <Button asChild size="sm" className="gap-1.5 text-xs">
+                      <Link
+                        href={`${DD_RUTAS.REGULARIZAR_VIGENCIA}?expedienteId=${expediente.id}`}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Subir Declaración de vigencia de información</span>
+                      </Link>
+                    </Button>
+                  </span>
+                ) : null}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {ddVencida ? (
+            <Card className="border-warning/50 bg-warning/5 lg:col-span-3">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Tu debida diligencia venció</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      La fecha de cese fue el {dateUtils.format(expediente.fechaVencimiento)}. Inicia una nueva
+                      evaluación para volver a acreditar a tu empresa.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="shrink-0 gap-1.5 text-xs"
+                  disabled={iniciandoNueva}
+                  onClick={() => void iniciarNueva()}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${iniciandoNueva ? "animate-spin" : ""}`} />
+                  <span>Iniciar nueva DD</span>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
           <div className="space-y-4 lg:col-span-2">
             <Card>
               <CardHeader className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
@@ -224,7 +312,11 @@ export function MiDebidaDiligencia() {
                     Expediente {expediente.codigo} · {expediente.evento.nombre}
                   </p>
                 </div>
-                <DdVigenciaBadge estado={expediente.estado} fechaVencimiento={expediente.fechaVencimiento} />
+                    <DdVigenciaBadge
+                      estado={expediente.estado}
+                      fechaVencimiento={expediente.fechaVencimiento}
+                      fechaAprobacion={expediente.fechaAprobacion}
+                    />
               </CardHeader>
               <CardContent className="pt-5">
                 <ol className="relative space-y-5">
@@ -272,6 +364,18 @@ export function MiDebidaDiligencia() {
                         <RefreshCw className="h-3.5 w-3.5" />
                         <span>{expediente.estado === DD_ESTADOS.OBSERVADA ? "Corregir y solicitar nueva evaluación" : "Continuar formulario"}</span>
                       </Link>
+                    </Button>
+                  ) : null}
+                  {puedeIniciarNueva ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      disabled={iniciandoNueva}
+                      onClick={() => void iniciarNueva()}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${iniciandoNueva ? "animate-spin" : ""}`} />
+                      <span>{expediente.estado === DD_ESTADOS.APROBADA ? "Renovar debida diligencia" : "Iniciar nueva debida diligencia"}</span>
                     </Button>
                   ) : null}
                   <Button
@@ -400,9 +504,17 @@ export function MiDebidaDiligencia() {
                 {expediente.estado === DD_ESTADOS.APROBADA ? (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Aprobada hasta <strong className="text-foreground">{dateUtils.format(expediente.fechaVencimiento)}</strong>
+                      Fecha de cese:{" "}
+                      <strong className="text-foreground">{dateUtils.format(expediente.fechaVencimiento)}</strong>
                     </p>
-                    <DdVigenciaBadge estado={expediente.estado} fechaVencimiento={expediente.fechaVencimiento} />
+                    <p className="text-[11px] text-muted-foreground">
+                      La evaluación tiene una vigencia de {DD_VIGENCIA_MESES} meses desde su aprobación.
+                    </p>
+                <DdVigenciaBadge
+                  estado={expediente.estado}
+                  fechaVencimiento={expediente.fechaVencimiento}
+                  fechaAprobacion={expediente.fechaAprobacion}
+                />
                     <Progress className="mt-2 h-1.5" value={vigencia?.porcentaje ?? 0} />
                     <p className="text-[11px] text-muted-foreground">
                       {vigencia ? `${vigencia.transcurridos.toFixed(1)} de ${DD_VIGENCIA_MESES} meses transcurridos.` : `Debe renovarse cada ${DD_VIGENCIA_MESES} meses.`}
