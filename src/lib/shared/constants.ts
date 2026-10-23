@@ -1937,6 +1937,12 @@ export const TIPOS_DOCUMENTO_EMPRESA_LABELS: Record<string, string> = {
 /** Codigo de PERU en el catalogo de ubigeo de servicio-persona. */
 export const UBIGEO_PAIS_PERU = 75;
 
+/** Pais por defecto de la empresa (ISO 3166-1 alpha-2). */
+export const PAIS_DEFAULT = "PE";
+
+/** Codigo ISO 3166-1 alpha-2 de pais. */
+export const REGEX_PAIS = /^[A-Z]{2}$/;
+
 /** Codigos del API de reserva del IIMP (doc API-RESERVA-STAND-INTEGRACION.md). */
 export const FACTURACION_IIMP = {
   FACTURA: "01",

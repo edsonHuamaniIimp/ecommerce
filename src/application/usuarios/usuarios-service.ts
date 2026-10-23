@@ -156,6 +156,39 @@ export class UsuariosApplicationService {
     return { idEmpresa, nombreEmpresa, empresaId: local?.id ?? null };
   }
 
+  /**
+   * Vincula la cuenta como representante legal solo si coincide con los datos
+   * de la ficha y la empresa aun no tiene representante. El resto de usuarios
+   * de la empresa no reemplaza al representante.
+   */
+  private async vincularRepresentanteSiCorresponde(
+    empresaId: string | null,
+    userId: string,
+    email: string,
+    documento?: string | null,
+    sieCode?: string | null,
+  ): Promise<void> {
+    if (!empresaId) return;
+    const empresa = await this.empresaRepo.findById(empresaId).catch(() => null);
+    if (!empresa || empresa.representanteUserId) return;
+
+    const normalizarEmail = (valor?: string | null) => (valor ?? "").trim().toLowerCase();
+    const normalizarDocumento = (valor?: string | null) =>
+      (valor ?? "").replace(/[^0-9A-Za-z]/g, "").toLowerCase();
+    const coincideCorreo = normalizarEmail(empresa.representanteCorreo) === normalizarEmail(email);
+    const coincideDocumento = Boolean(documento) &&
+      normalizarDocumento(empresa.representanteLegalDni) === normalizarDocumento(documento);
+    const coincideSie = Boolean(sieCode) && empresa.representanteSieCode === sieCode;
+
+    if (!coincideCorreo && !coincideDocumento && !coincideSie) return;
+    await this.empresaRepo
+      .update(empresaId, {
+        representanteUserId: userId,
+        ...(!empresa.representanteSieCode && sieCode ? { representanteSieCode: sieCode } : {}),
+      })
+      .catch(() => {});
+  }
+
   async crear(empresa: EmpresaAccesoInput, input: NuevoUsuarioPortalInput): Promise<ResultadoCreacionUsuario> {
     const email = String(input.email ?? "").trim().toLowerCase();
     if (!REGEX_EMAIL.test(email)) {
@@ -211,8 +244,9 @@ export class UsuariosApplicationService {
 
     const rol = await this.resolverRol(input.rolId);
     const passwordTemporal = generarPasswordTemporal();
+    const userId = randomUUID();
     await this.authRepo.crearUsuario({
-      userId: randomUUID(),
+      userId,
       email,
       password: hashPassword(passwordTemporal),
       /* Solo referencia: la persona vive en servicio-persona. */
@@ -227,6 +261,7 @@ export class UsuariosApplicationService {
       ruc: String(empresa.ruc ?? "").replace(/\D/g, "") || null,
       debeCambiarPassword: true,
     });
+    await this.vincularRepresentanteSiCorresponde(empresaResuelta.empresaId, userId, email, documento, sieCode);
 
     const emailEnviado = await this.enviarCredenciales(email, empresaResuelta.nombreEmpresa, [nombres, apellidoPaterno].filter(Boolean).join(" "), passwordTemporal);
     return { email, creado: true, emailEnviado, error: null };
@@ -263,8 +298,9 @@ export class UsuariosApplicationService {
 
     const rol = await this.resolverRol(input.rolId);
     const passwordTemporal = generarPasswordTemporal();
+    const userId = randomUUID();
     await this.authRepo.crearUsuario({
-      userId: randomUUID(),
+      userId,
       email,
       password: hashPassword(passwordTemporal),
       nombre: "",
@@ -278,6 +314,7 @@ export class UsuariosApplicationService {
       ruc: String(input.ruc ?? "").replace(/\D/g, "") || null,
       debeCambiarPassword: true,
     });
+    await this.vincularRepresentanteSiCorresponde(empresaResuelta.empresaId, userId, email, null, sieCode);
 
     const emailEnviado = await this.enviarCredenciales(email, empresaResuelta.nombreEmpresa, null, passwordTemporal);
     return { email, creado: true, emailEnviado, error: null };

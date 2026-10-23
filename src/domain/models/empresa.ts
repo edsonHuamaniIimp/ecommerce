@@ -12,6 +12,8 @@ export interface EmpresaEntity {
   ruc: string;
   /** Tipo de documento (ver TIPOS_DOCUMENTO_EMPRESA: "6" RUC, "0" no domiciliado/RUT). */
   tipoDocumento: string;
+  /** Pais de la empresa (ISO 3166-1 alpha-2). */
+  pais: string;
   /** Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). */
   sieCode: string | null;
   razonSocial: string;
@@ -23,12 +25,32 @@ export interface EmpresaEntity {
   emailContacto: string | null;
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
+  representanteLegalTipoDocumento: string;
   representanteLegalDni: string | null;
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
   /** Codigo SIE de la persona del representante en servicio-persona (null = aun solo local). */
   representanteSieCode: string | null;
+  representanteUserId?: string | null;
+  /** Nombre que se imprime en el friso del stand. */
+  nombreFriso?: string | null;
+  actividadEconomica?: string | null;
+  estadoContribuyente?: string | null;
+  /** Nombre que debe figurar en la factura (si difiere de la razon social). */
+  facturarANombre?: string | null;
+  /** Responsable de coordinacion EXTEMIN. */
+  responsableExteminNombre?: string | null;
+  responsableExteminTelefono?: string | null;
+  responsableExteminTipoDocumento?: string | null;
+  responsableExteminDni?: string | null;
+  responsableExteminEmail?: string | null;
+  /** Responsable del area de pagos. */
+  responsablePagosNombre?: string | null;
+  responsablePagosTelefono?: string | null;
+  responsablePagosTipoDocumento?: string | null;
+  responsablePagosDni?: string | null;
+  responsablePagosEmail?: string | null;
   partidaElectronica: string | null;
   /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
   configCuotas: ConfigCuotasEmpresa | null;
@@ -51,6 +73,8 @@ export interface EmpresaInput {
   ruc: string;
   /** Tipo de documento (RUC/RUT); omitido = autodetecta por el documento. */
   tipoDocumento?: string | null;
+  /** Pais de la empresa (ISO 3166-1 alpha-2); omitido = PE. */
+  pais?: string | null;
   razonSocial: string;
   /** Codigo SIE ya conocido (padron IIMP): evita crear/consultar en servicio-persona. */
   sieCode?: string | null;
@@ -61,13 +85,31 @@ export interface EmpresaInput {
   emailContacto?: string | null;
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
+  representanteLegalTipoDocumento?: string | null;
   representanteLegalDni?: string | null;
   partidaElectronica?: string | null;
   /** Correo y celular del representante (se persisten y se usan para su cuenta). */
   representanteCorreo?: string | null;
   representanteCelular?: string | null;
+  /** Cuenta local del representante legal (user_role.user_id). */
+  representanteUserId?: string | null;
   /** Datos del representante para servicio-persona (no se persisten en la ficha local). */
   representanteDireccion?: string | null;
+  /** Datos adicionales de la solicitud de participacion. */
+  nombreFriso?: string | null;
+  actividadEconomica?: string | null;
+  estadoContribuyente?: string | null;
+  facturarANombre?: string | null;
+  responsableExteminNombre?: string | null;
+  responsableExteminTelefono?: string | null;
+  responsableExteminTipoDocumento?: string | null;
+  responsableExteminDni?: string | null;
+  responsableExteminEmail?: string | null;
+  responsablePagosNombre?: string | null;
+  responsablePagosTelefono?: string | null;
+  responsablePagosTipoDocumento?: string | null;
+  responsablePagosDni?: string | null;
+  responsablePagosEmail?: string | null;
   /** Foto del representante (URL local /uploads o http) para subirla a servicio-persona. */
   representanteFotoUrl?: string | null;
   tipoComprobante?: string | null;
@@ -79,6 +121,8 @@ export interface CrearEmpresaData {
   ruc: string;
   /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
   tipoDocumento: string;
+  /** Pais de la empresa (ISO 3166-1 alpha-2). */
+  pais: string;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode: string | null;
   razonSocial: string;
@@ -89,6 +133,7 @@ export interface CrearEmpresaData {
   emailContacto: string | null;
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
+  representanteLegalTipoDocumento: string;
   representanteLegalDni: string | null;
   /** Correo y celular del representante (se persisten en la ficha). */
   representanteCorreo: string | null;
@@ -96,6 +141,22 @@ export interface CrearEmpresaData {
   representanteDireccion: string | null;
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
+  representanteUserId?: string | null;
+  /** Datos adicionales de la solicitud de participacion. */
+  nombreFriso?: string | null;
+  actividadEconomica?: string | null;
+  estadoContribuyente?: string | null;
+  facturarANombre?: string | null;
+  responsableExteminNombre?: string | null;
+  responsableExteminTelefono?: string | null;
+  responsableExteminTipoDocumento?: string | null;
+  responsableExteminDni?: string | null;
+  responsableExteminEmail?: string | null;
+  responsablePagosNombre?: string | null;
+  responsablePagosTelefono?: string | null;
+  responsablePagosTipoDocumento?: string | null;
+  responsablePagosDni?: string | null;
+  responsablePagosEmail?: string | null;
   /** Partida electronica de poderes del representante (si aplica). */
   partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;

@@ -1,6 +1,6 @@
 export interface SessionDTO {
   authenticated: boolean;
-  /** Identificador del usuario (JWT `sub`, formato `user|<email>`). */
+  /** Identificador del usuario (JWT `sub`, UUID inmutable de `user_role.user_id`). */
   userId?: string;
   email?: string;
   roles?: string[];

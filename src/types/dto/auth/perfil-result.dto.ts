@@ -24,12 +24,25 @@ export interface PerfilResult {
   /** Empresa fiscal local vinculada (FK `empresa_id`); null si no hay registro local con su RUC. */
   empresa: {
     ruc: string;
+    pais: string;
     razonSocial: string;
     nombreComercial: string | null;
     direccionFiscal: string | null;
     telefono: string | null;
     emailContacto: string | null;
     emailFacturacion: string | null;
+    nombreFriso: string | null;
+    actividadEconomica: string | null;
+    estadoContribuyente: string | null;
+    facturarANombre: string | null;
+    responsableExteminNombre: string | null;
+    responsableExteminTelefono: string | null;
+    responsableExteminDni: string | null;
+    responsableExteminEmail: string | null;
+    responsablePagosNombre: string | null;
+    responsablePagosTelefono: string | null;
+    responsablePagosDni: string | null;
+    responsablePagosEmail: string | null;
     tipoComprobante: string;
     sitioWeb: string | null;
     representanteLegalNombre: string | null;

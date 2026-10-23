@@ -5,6 +5,8 @@ export interface EmpresaDTO {
   ruc: string;
   /** Tipo de documento (TIPOS_DOCUMENTO_EMPRESA: "6" RUC, "0" no domiciliado/RUT). */
   tipoDocumento: string;
+  /** Pais de la empresa (ISO 3166-1 alpha-2). */
+  pais: string;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode: string | null;
   razonSocial: string;
@@ -16,10 +18,26 @@ export interface EmpresaDTO {
   emailContacto: string | null;
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
+  representanteLegalTipoDocumento: string;
   representanteLegalDni: string | null;
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
+  /** Datos adicionales de la solicitud de participacion. */
+  nombreFriso: string | null;
+  actividadEconomica: string | null;
+  estadoContribuyente: string | null;
+  facturarANombre: string | null;
+  responsableExteminNombre: string | null;
+  responsableExteminTelefono: string | null;
+  responsableExteminTipoDocumento: string;
+  responsableExteminDni: string | null;
+  responsableExteminEmail: string | null;
+  responsablePagosNombre: string | null;
+  responsablePagosTelefono: string | null;
+  responsablePagosTipoDocumento: string;
+  responsablePagosDni: string | null;
+  responsablePagosEmail: string | null;
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
   partidaElectronica: string | null;

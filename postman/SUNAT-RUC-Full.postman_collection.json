@@ -1,0 +1,59 @@
+{
+  "info": {
+    "_postman_id": "4f6f0f1e-6e5d-4f95-9b0b-4a7f9c2d1e33",
+    "name": "SUNAT - RUC Full",
+    "description": "Consulta del padron SUNAT via apis.net.pe. Configura SUNAT_API_TOKEN en las variables de la coleccion.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Consultar RUC",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{SUNAT_API_TOKEN}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://api.apis.net.pe/v2/sunat/ruc/full?numero={{ruc}}",
+          "protocol": "https",
+          "host": [
+            "api",
+            "apis",
+            "net",
+            "pe"
+          ],
+          "path": [
+            "v2",
+            "sunat",
+            "ruc",
+            "full"
+          ],
+          "query": [
+            {
+              "key": "numero",
+              "value": "{{ruc}}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "ruc",
+      "value": "20107972090"
+    },
+    {
+      "key": "SUNAT_API_TOKEN",
+      "value": ""
+    }
+  ]
+}

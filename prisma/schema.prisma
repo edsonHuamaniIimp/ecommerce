@@ -8,7 +8,7 @@ datasource db {
 
 /**
  * ================================================================
- * 1. MAESTRAS — catálogos que rara vez cambian
+ * 1. MAESTRAS Ã¢â‚¬â€ catÃƒÂ¡logos que rara vez cambian
  * ================================================================
  */
 
@@ -265,7 +265,7 @@ model RegistroPendiente {
 
 /**
  * ================================================================
- * 2. TRANSACCIONALES — datos que cambian con frecuencia
+ * 2. TRANSACCIONALES Ã¢â‚¬â€ datos que cambian con frecuencia
  * ================================================================
  */
 
@@ -279,6 +279,8 @@ model Empresa {
   tipoDocumento            String    @default("6") @map("tipo_documento") @db.VarChar(10)
   /// Identificador de la empresa en servicio-persona (sie_code, ej. E0000000123). La empresa vive en la fuente.
   sieCode                  String?   @map("sie_code") @db.VarChar(20)
+  /// Pais de la empresa (ISO 3166-1 alpha-2; por defecto PE).
+  pais                     String    @default("PE") @map("pais") @db.VarChar(2)
   /// Razon social; usada en el cuerpo del contrato.
   razonSocial              String    @map("razon_social") @db.VarChar(200)
   /// Logo de la empresa (URL en /uploads/*); se pinta en sus stands reservados del mapa.
@@ -295,7 +297,9 @@ model Empresa {
   emailFacturacion         String?   @map("email_facturacion") @db.VarChar(200)
   /// Representante legal (nombre completo); firma el contrato.
   representanteLegalNombre String?   @map("representante_legal_nombre") @db.VarChar(200)
-  /// DNI/pasaporte del representante legal.
+  /// Tipo de documento del representante (TIPOS_DOCUMENTO_PERSONA; default 1 = DNI).
+  representanteLegalTipoDocumento String @default("1") @map("representante_legal_tipo_documento") @db.VarChar(10)
+  /// Numero de documento del representante legal.
   representanteLegalDni    String?   @map("representante_legal_dni") @db.VarChar(15)
   /// Correo del representante legal (crea su cuenta del Portal y sincroniza con la fuente).
   representanteCorreo      String?   @map("representante_correo") @db.VarChar(200)
@@ -303,8 +307,30 @@ model Empresa {
   representanteCelular     String?   @map("representante_celular") @db.VarChar(35)
   /// Direccion del representante legal.
   representanteDireccion   String?   @map("representante_direccion") @db.VarChar(100)
+  /// Nombre que se imprime en el friso del stand.
+  nombreFriso              String?   @map("nombre_friso") @db.VarChar(200)
+  /// Actividad economica declarada/consultada en SUNAT.
+  actividadEconomica       String?   @map("actividad_economica") @db.VarChar(200)
+  /// Estado y condicion del contribuyente en SUNAT (ej. ACTIVO / HABIDO).
+  estadoContribuyente      String?   @map("estado_contribuyente") @db.VarChar(80)
+  /// Nombre que debe figurar en la factura (si difiere de la razon social).
+  facturarANombre          String?   @map("facturar_a_nombre") @db.VarChar(200)
+  /// Responsable de coordinacion EXTEMIN.
+  responsableExteminNombre String?   @map("responsable_extemin_nombre") @db.VarChar(200)
+  responsableExteminTelefono String? @map("responsable_extemin_telefono") @db.VarChar(35)
+  responsableExteminTipoDocumento String @default("1") @map("responsable_extemin_tipo_documento") @db.VarChar(10)
+  responsableExteminDni    String?   @map("responsable_extemin_dni") @db.VarChar(15)
+  responsableExteminEmail  String?   @map("responsable_extemin_email") @db.VarChar(200)
+  /// Responsable del area de pagos.
+  responsablePagosNombre   String?   @map("responsable_pagos_nombre") @db.VarChar(200)
+  responsablePagosTelefono String?   @map("responsable_pagos_telefono") @db.VarChar(35)
+  responsablePagosTipoDocumento String @default("1") @map("responsable_pagos_tipo_documento") @db.VarChar(10)
+  responsablePagosDni      String?   @map("responsable_pagos_dni") @db.VarChar(15)
+  responsablePagosEmail    String?   @map("responsable_pagos_email") @db.VarChar(200)
   /// Codigo SIE de la persona del representante en servicio-persona (null = aun solo local, pendiente de sincronizar).
   representanteSieCode     String?   @map("representante_sie_code") @db.VarChar(20)
+  /// Cuenta del representante legal vinculada a la empresa (user_role.user_id).
+  representanteUserId      String?   @map("representante_user_id") @db.VarChar(100)
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
   partidaElectronica       String?   @map("partida_electronica") @db.VarChar(50)
   /// Configuracion personalizada de cuotas definida por el administrador:
@@ -334,6 +360,7 @@ model Empresa {
   @@index([razonSocial])
   @@index([sieCode])
   @@index([estado])
+  @@index([representanteUserId])
   @@map("empresa")
 }
 
@@ -453,7 +480,7 @@ model TipoStandImagen {
 
 /**
  * ================================================================
- * 2.5 SOLICITUDES — ciclo de reserva
+ * 2.5 SOLICITUDES Ã¢â‚¬â€ ciclo de reserva
  * ================================================================
  */
 
@@ -505,7 +532,7 @@ model Solicitud {
 
 /**
  * ================================================================
- * 3. RESERVAS — ciclo completo de reserva
+ * 3. RESERVAS Ã¢â‚¬â€ ciclo completo de reserva
  * ================================================================
  */
 
@@ -645,7 +672,7 @@ model InteropFacturacion {
 
 /**
  * ================================================================
- * 4. AUDITORÍA
+ * 4. AUDITORÃƒÂA
  * ================================================================
  */
 
@@ -826,7 +853,7 @@ model SolicitudStand {
 
 /**
  * ================================================================
- * 5. MAESTRA — diccionario jerarquico de valores lookup
+ * 5. MAESTRA Ã¢â‚¬â€ diccionario jerarquico de valores lookup
  * ================================================================
  */
 
@@ -850,7 +877,7 @@ model Maestra {
 
 /**
  * ================================================================
- * 6. PLANOS 3D — Laboratorio 3D: mapas editables almacenados en BD
+ * 6. PLANOS 3D Ã¢â‚¬â€ Laboratorio 3D: mapas editables almacenados en BD
  * plano.codigo es lo que guarda evento_metadata.plano
  * ================================================================
  */
@@ -888,7 +915,7 @@ model PlanoSeccion {
   rotacion    Float   @default(0) @map("rotacion") @db.Real // grados (0-360), rotacion del rect sobre la imagen
   puntos      Json? // seccion libre: N puntos normalizados [{x,y}]; null = rectangulo
   color       String  @default("#3b82f6") @db.VarChar(10)
-  planoHijoId String? @map("plano_hijo_id") // FK logica → plano 3D del pabellon
+  planoHijoId String? @map("plano_hijo_id") // FK logica Ã¢â€ â€™ plano 3D del pabellon
   orden       Int     @default(0)
 
   plano Plano @relation(fields: [planoId], references: [id], onDelete: Cascade)
@@ -941,7 +968,7 @@ model PlanoBloque {
   id         String  @id @default(uuid())
   planoId    String  @map("plano_id")
   tipoId     String? @map("tipo_id")
-  bloqueId   String  @db.VarChar(50) // "EXT-IZQ-01" — join key a gess_stand.bloque_id
+  bloqueId   String  @db.VarChar(50) // "EXT-IZQ-01" Ã¢â‚¬â€ join key a gess_stand.bloque_id
   tipoCodigo String  @db.VarChar(20) // redundante para queries rapidas
   tipologia  String? @map("tipologia") @db.VarChar(1) // "1"=Complejo, "2"=Simple, "3"=Octanorm (maestra stand_tipologia)
   x          Float   @db.Real
@@ -981,7 +1008,7 @@ model PlanoFurniture {
 
 /**
  * ================================================================
- * 7. INTEGRACIÓN SGC — correlación con el Sistema de Gestión de Contratos
+ * 7. INTEGRACIÃƒâ€œN SGC Ã¢â‚¬â€ correlaciÃƒÂ³n con el Sistema de GestiÃƒÂ³n de Contratos
  * Contrato: APIS_USE_HOOKS.md / docs/05-integraciones/integracion-sgc.md
  * ================================================================
  */
@@ -997,16 +1024,16 @@ model SgcExpediente {
   version                  Int?
   areaCode                 String    @map("area_code") @db.VarChar(40)
   contractTypeCode         String    @map("contract_type_code") @db.VarChar(40)
-  /// Motivo (libre) de la corrección declarado por el admin cuando el SGC devuelve el
-  /// trámite. Puede repetirse N veces (una por cada devolución); se limpia al reenviar.
+  /// Motivo (libre) de la correcciÃƒÂ³n declarado por el admin cuando el SGC devuelve el
+  /// trÃƒÂ¡mite. Puede repetirse N veces (una por cada devoluciÃƒÂ³n); se limpia al reenviar.
   subsanacionMotivo        String?   @map("subsanacion_motivo") @db.VarChar(500)
-  /// Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
+  /// Modo de la subsanaciÃƒÂ³n vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
   subsanacionModo          String?   @map("subsanacion_modo") @db.VarChar(20)
   lastSyncedAt             DateTime? @map("last_synced_at")
   lastError                String?   @map("last_error") @db.VarChar(500)
   /// Bypass admin: el contrato se marco aprobado localmente; no lo sobreescribe el sync-on-read.
   bypassAprobado           Boolean   @default(false) @map("bypass_aprobado")
-  /// Ultima devolucion del SGC (`workflow.returned`, guia §8): `true` = exige version nueva
+  /// Ultima devolucion del SGC (`workflow.returned`, guia Ã‚Â§8): `true` = exige version nueva
   /// del principal (vuelve a elaboracion y el cliente puede subsanar); `false` = validacion
   /// interna sobre la misma version (no se pide correccion al cliente).
   devolucionRequiereCambio Boolean?  @map("devolucion_requiere_cambio")
@@ -1029,13 +1056,13 @@ model SgcExpediente {
   @@map("sgc_expediente")
 }
 
-/// Bitácora auditable de cada ronda de subsanación (rechazo → motivo → corrección → reenvío).
+/// BitÃƒÂ¡cora auditable de cada ronda de subsanaciÃƒÂ³n (rechazo Ã¢â€ â€™ motivo Ã¢â€ â€™ correcciÃƒÂ³n Ã¢â€ â€™ reenvÃƒÂ­o).
 model SgcSubsanacion {
   id              String    @id @default(uuid())
   sgcExpedienteId String    @map("sgc_expediente_id")
-  /// Número de ronda de subsanación (1, 2, 3…).
+  /// NÃƒÂºmero de ronda de subsanaciÃƒÂ³n (1, 2, 3Ã¢â‚¬Â¦).
   ronda           Int
-  /// Motivo/indicación que declaró el administrador para esta ronda.
+  /// Motivo/indicaciÃƒÂ³n que declarÃƒÂ³ el administrador para esta ronda.
   motivo          String    @db.VarChar(500)
   /// Modo declarado: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy).
   modo            String?   @db.VarChar(20)
@@ -1045,7 +1072,7 @@ model SgcSubsanacion {
   declaradoAt     DateTime  @default(now()) @map("declarado_at")
   reenviadoPor    String?   @map("reenviado_por") @db.VarChar(200)
   reenviadoAt     DateTime? @map("reenviado_at")
-  /// Pieza documental del contrato en el SGC tras la corrección (trazabilidad).
+  /// Pieza documental del contrato en el SGC tras la correcciÃƒÂ³n (trazabilidad).
   documentId      String?   @map("document_id") @db.VarChar(64)
   versionId       String?   @map("version_id") @db.VarChar(64)
 
@@ -1398,7 +1425,7 @@ model DebidaDiligenciaEmpresaEstado {
   eventoProyecto   String?  @map("evento_proyecto") @db.VarChar(120)
   /// Resultado normalizado: apto | apto_con_observaciones | no_apto | pendiente.
   resultado        String   @db.VarChar(30)
-  /// Texto original del resultado recibido (APTO, EN REVISIÓN, etc.).
+  /// Texto original del resultado recibido (APTO, EN REVISIÃƒâ€œN, etc.).
   estadoOrigen     String   @map("estado_origen") @db.VarChar(80)
   fechaIngreso     DateTime? @map("fecha_ingreso")
   fechaRevision    DateTime? @map("fecha_revision")

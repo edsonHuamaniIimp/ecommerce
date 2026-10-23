@@ -388,12 +388,25 @@ export class AuthApplicationService {
     const ficha = u.empresa ?? (u.idEmpresa ? await this.empresas.findBySieCode(u.idEmpresa).catch(() => null) : null);
     const empresa = ficha ? {
       ruc: ficha.ruc,
+      pais: ficha.pais,
       razonSocial: ficha.razonSocial,
       nombreComercial: ficha.nombreComercial,
       direccionFiscal: ficha.direccionFiscal,
       telefono: ficha.telefono,
       emailContacto: ficha.emailContacto,
       emailFacturacion: ficha.emailFacturacion,
+      nombreFriso: ficha.nombreFriso ?? null,
+      actividadEconomica: ficha.actividadEconomica ?? null,
+      estadoContribuyente: ficha.estadoContribuyente ?? null,
+      facturarANombre: ficha.facturarANombre ?? null,
+      responsableExteminNombre: ficha.responsableExteminNombre ?? null,
+      responsableExteminTelefono: ficha.responsableExteminTelefono ?? null,
+      responsableExteminDni: ficha.responsableExteminDni ?? null,
+      responsableExteminEmail: ficha.responsableExteminEmail ?? null,
+      responsablePagosNombre: ficha.responsablePagosNombre ?? null,
+      responsablePagosTelefono: ficha.responsablePagosTelefono ?? null,
+      responsablePagosDni: ficha.responsablePagosDni ?? null,
+      responsablePagosEmail: ficha.responsablePagosEmail ?? null,
       tipoComprobante: ficha.tipoComprobante,
       sitioWeb: ficha.sitioWeb,
       representanteLegalNombre: ficha.representanteLegalNombre,
@@ -434,7 +447,7 @@ export class AuthApplicationService {
       { email: acceso, label: "Correo de acceso" },
       ...(representante ? [{ email: representante, label: "Correo del representante" }] : []),
       ...(contacto ? [{ email: contacto, label: "Correo de contacto de la empresa" }] : []),
-      ...(facturacion ? [{ email: facturacion, label: "Correo de facturación" }] : []),
+      ...(facturacion ? [{ email: facturacion, label: "Correo de facturaciÃ³n" }] : []),
     ];
     const vistos = new Set<string>();
     const emailActivo = (activo ?? acceso).trim().toLowerCase();
@@ -536,7 +549,7 @@ export class AuthApplicationService {
   }
 
   /**
-   * Idioma preferido del usuario para correos/documentos (BD -> cookie -> español).
+   * Idioma preferido del usuario para correos/documentos (BD -> cookie -> espaÃ±ol).
    * Expuesto a los controladores para no saltar capas.
    */
   async resolverIdiomaUsuario(email?: string | null): Promise<Idioma> {

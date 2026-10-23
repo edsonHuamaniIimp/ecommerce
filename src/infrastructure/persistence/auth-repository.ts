@@ -141,7 +141,7 @@ export class AuthPrismaRepository implements IAuthRepository {
         userId: true, email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
         notificationEmail: true, notificationEmailVerifiedAt: true, notificationEmailPending: true,
-        empresa: { select: { ruc: true, razonSocial: true, nombreComercial: true, direccionFiscal: true, telefono: true, emailContacto: true, emailFacturacion: true, tipoComprobante: true, sitioWeb: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
+        empresa: { select: { ruc: true, pais: true, razonSocial: true, nombreComercial: true, direccionFiscal: true, telefono: true, emailContacto: true, emailFacturacion: true, nombreFriso: true, actividadEconomica: true, estadoContribuyente: true, facturarANombre: true, responsableExteminNombre: true, responsableExteminTelefono: true, responsableExteminDni: true, responsableExteminEmail: true, responsablePagosNombre: true, responsablePagosTelefono: true, responsablePagosDni: true, responsablePagosEmail: true, tipoComprobante: true, sitioWeb: true, representanteLegalNombre: true, representanteLegalDni: true, representanteCorreo: true, representanteCelular: true, representanteDireccion: true, partidaElectronica: true, configCuotas: true } },
       },
     });
     if (!row) return null;
@@ -317,9 +317,20 @@ export class AuthPrismaRepository implements IAuthRepository {
     });
   }
 
-  /** Refleja los datos del representante (usuario del sistema) en las cuentas de la empresa. */
+  /**
+   * Refleja los datos del representante en su cuenta local.
+   * No toca a los demas usuarios de la empresa.
+   */
   async actualizarDatosUsuarioDeEmpresa(empresaId: string, data: { nombre?: string | null; telefono?: string | null }): Promise<void> {
-    await prisma.userRole.updateMany({ where: { empresaId }, data });
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: { representanteUserId: true },
+    });
+    if (!empresa?.representanteUserId) return;
+    await prisma.userRole.updateMany({
+      where: { userId: empresa.representanteUserId },
+      data,
+    });
   }
 
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
