@@ -11,7 +11,7 @@ import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
-import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
+import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, MAX_STANDS_RESERVA_CLIENTE, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -228,6 +228,7 @@ export function PlanoDinamico({ eventoId, tipoEvento, codigoEvento, planoId = "g
   const limpiarPlanoCarrito = usePlanoCarrito((s) => s.limpiarPlano);
   const idsPlano = useMemo(() => seleccionesCarrito[planoId] ?? [], [seleccionesCarrito, planoId]);
   const idsGlobales = useMemo(() => Object.values(seleccionesCarrito).flat(), [seleccionesCarrito]);
+  const totalCarritoCount = totalCarrito(seleccionesCarrito);
   const entradasCarrito = useMemo(() => Object.values(itemsCarrito), [itemsCarrito]);
   const parentsCarrito = usePlanoCarrito((s) => s.parents);
   const macroCodigo = usePlanoCarrito((s) => s.macroCodigo);
@@ -511,6 +512,17 @@ map.set(String(bloqueId), {
    * se redirige a /dashboard/perfil en vez de abrir la reserva.
    */
   const abrirReservaConPerfil = useCallback(async (): Promise<boolean> => {
+    if (idsGlobales.some((id) => linkedMap.get(id)?.reserved)) {
+      toast.error("Hay bloques no disponibles. Quita los stands bloqueados para continuar.");
+      return false;
+    }
+    if (idsGlobales.length > MAX_STANDS_RESERVA_CLIENTE) {
+      toast.warning(
+        `No puedes continuar con la reserva: solo se permite un máximo de ${MAX_STANDS_RESERVA_CLIENTE} stands. ` +
+          `Quita los stands adicionales para continuar.`,
+      );
+      return false;
+    }
     setVerificandoPerfil(true);
     try {
       const perfil = await perfilService.get().catch(() => null);
@@ -650,7 +662,6 @@ map.set(String(bloqueId), {
   // Contenido del panel "Mi seleccion": se monta en el aside (desktop) y en el
   // bottom sheet (mobile) sin duplicar el markup. Muestra el carrito global
   // (todos los pabellones).
-  const totalCarritoCount = totalCarrito(seleccionesCarrito);
   const pabellonesConItems = new Set(entradasCarrito.map((c) => c.pabellonCodigo)).size;
   /* Total del carrito: precio persistido por item o el resuelto de la fila actual. */
   const totalCarritoPrecio = useMemo(
