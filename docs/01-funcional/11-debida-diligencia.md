@@ -419,14 +419,29 @@ automaticas se **sincronizan desde el expediente** al abrir la lista (idempotent
 expedientes enviados del evento activo); las manuales se agregan con el boton de vinculo
 y solo ellas se pueden eliminar. No se importa el Excel historico.
 
-### 13.2 Nacional o extranjero
+### 13.2 Pais, nacional o extranjero
 
-El ambito decide que listas restrictivas aplican y se deriva de `paisConstitucion` /
-nacionalidad / tipo de documento (sin datos se asume nacional). SIG puede corregirlo; una
-vez corregido la sincronizacion ya no lo recalcula.
+Cada vinculo tiene un **pais** (ISO 3166-1 alpha-2) que se muestra como **bandera** en la lista y en
+el detalle (un "?" cuando aun no se conoce). El pais define el **ambito**: `PE` es nacional y
+cualquier otro pais es extranjero; **sin pais se asume nacional** (muchos expedientes no traen el dato).
 
-Colores de la matriz oficial: **lila** = nacional y extranjero, **naranja** = solo nacional,
-**celeste** = solo extranjero.
+| Vinculo | Origen del pais |
+|---|---|
+| Empresa | `Empresa.pais`; si es `PE` (valor por defecto) pero el expediente declara otro pais de constitucion, gana el declarado |
+| Representante / beneficiario | Nacionalidad en texto libre, reconocida por el mapper de pais (ISO, nombre en espanol/ingles o gentilicio: "Peruana", "Chile"...) |
+| Vinculo manual | El pais indicado o, si falta, su nacionalidad |
+
+SIG puede fijar el pais a mano (recalcula el ambito) o corregir solo el ambito. Lo corregido a mano no
+se pisa en la sincronizacion; "Restablecer automatico" vuelve al valor calculado. Si cambia el ambito, las
+respuestas de listas que dejan de aplicar **se conservan ocultas** y el backend rechaza guardar listas que no
+aplican al ambito actual. Si no hay pais, se usa el tipo de documento como respaldo (CE/pasaporte = extranjero;
+acepta tanto el texto del expediente como los codigos 1/4/7 de `TIPOS_DOCUMENTO_PERSONA`).
+
+Colores de la matriz oficial: **lila** = nacional y extranjero (se muestran siempre), **naranja** = solo
+nacional, **celeste** = solo extranjero (se muestran y validan solo cuando el ambito corresponde).
+
+Al sincronizar, el estado de contribuyente y la direccion legal de la empresa (SUNAT) se precargan en la
+fila de la empresa solo si estan vacios.
 
 ### 13.3 Secciones y quien las edita
 
@@ -440,6 +455,13 @@ Colores de la matriz oficial: **lila** = nacional y extranjero, **naranja** = so
 | Resultado final | `dd:revision` o `dd:legal` | |
 
 Los permisos de cada area se pueden reasignar desde **Roles y Permisos**.
+
+**Sin campos vacios de solo lectura:** ningun dato se muestra como "—". Si el dato ya existe en la BD se
+precarga (motivo, evento o proyecto, actividad economica, pais, fecha y responsable de revision, direccion y
+estado de contribuyente de SUNAT); si no existe, el campo es un **input** para completarlo. Lo escrito a mano
+nunca se pisa en la sincronizacion, tambien en las filas automaticas (nombre, documento, nacionalidad y cargo).
+Fecha y responsable de cada area, y quien registra el resultado final, son editables; si no se escriben se
+registran la fecha de hoy y el usuario que guarda.
 
 ### 13.3.1 Reglas del proceso (implementadas en `dd-matriz-evaluacion.ts`)
 
@@ -475,7 +497,8 @@ y `dd_matriz_adjunto`. Toda accion queda en `audit_log` (tipo `debida_diligencia
 
 ### 13.6 Pendientes
 
-- El campo definitivo de **nacionalidad** (en curso) reemplazara la derivacion provisional.
+- Los beneficiarios y representantes siguen declarando la nacionalidad como texto libre en el wizard; el
+  mapper de pais cubre los casos comunes y el resto queda como "?" para que SIG lo complete.
 - Los expedientes importados desde Excel no traen representante ni beneficiarios: sus
   personas vinculadas se agregan a mano.
 

@@ -22,6 +22,8 @@ export const ddMatrizEvaluacionService = {
     if (params.search) qs.set("search", params.search);
     if (params.tipo) qs.set("tipo", params.tipo);
     if (params.ambito) qs.set("ambito", params.ambito);
+    if (params.pais) qs.set("pais", params.pais);
+    if (params.sinPais) qs.set("sinPais", "true");
     if (params.resultadoFinal) qs.set("resultadoFinal", params.resultadoFinal);
     if (params.sinEvaluar) qs.set("sinEvaluar", "true");
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";

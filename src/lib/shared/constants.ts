@@ -1646,9 +1646,6 @@ export const DD_MATRIZ_AMBITO_LABELS: Record<DdMatrizAmbito, string> = {
   [DD_MATRIZ_AMBITOS.EXTRANJERO]: "EXTRANJERA",
 };
 
-/** Alias aceptados al derivar el ambito desde pais/nacionalidad (ya normalizados). */
-export const DD_MATRIZ_ALIAS_NACIONAL = ["PERU", "PERUANA", "PERUANO", "PE"] as const;
-
 /** Respuesta de cada lista restrictiva y de los campos SI / NO / N.A. de la matriz. */
 export const DD_MATRIZ_SI_NO_NA = {
   SI: "si",
@@ -1858,6 +1855,7 @@ export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
 /** Filtros de la lista de la matriz de evaluacion. */
 export const DD_MATRIZ_FILTRO_TODOS = "todos";
 export const DD_MATRIZ_FILTRO_SIN_EVALUAR = "sin_evaluar";
+export const DD_MATRIZ_FILTRO_SIN_PAIS = "sin_pais";
 
 /** Valor centinela de los Select de la matriz para "sin seleccionar" (Radix no admite ""). */
 export const DD_MATRIZ_SIN_VALOR = "__sin_valor__";

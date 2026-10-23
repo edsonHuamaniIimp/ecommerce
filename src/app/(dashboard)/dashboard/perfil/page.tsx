@@ -269,7 +269,7 @@ function PerfilPageContent() {
       return;
     }
     if (file.size > FIRMA_PERFIL_MAX_BYTES) {
-      toast.error(`La firma supera el mÃ¡ximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
+      toast.error(`La firma supera el máximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
       return;
     }
     setSubiendoFirma(true);
@@ -440,14 +440,14 @@ function PerfilPageContent() {
                   <span>Datos de la empresa</span>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  InformaciÃ³n fiscal y comercial que se usa en el contrato y el comprobante.
+                  Información fiscal y comercial que se usa en el contrato y el comprobante.
                 </p>
               </CardHeader>
               <CardContent>
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaRazonSocial"><span>RazÃ³n social</span></Label>
+                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span></Label>
                       <Input id="empresaRazonSocial" maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
@@ -459,15 +459,15 @@ function PerfilPageContent() {
                       <Input id="empresaNombreComercial" maxLength={200} value={nombreComercialEmpresa} onChange={(e) => setNombreComercialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaDireccion"><span>DirecciÃ³n fiscal</span></Label>
+                      <Label htmlFor="empresaDireccion"><span>Dirección fiscal</span></Label>
                       <Input id="empresaDireccion" maxLength={250} value={direccionFiscal} onChange={(e) => setDireccionFiscal(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaTelefono"><span>TelÃ©fono</span></Label>
+                      <Label htmlFor="empresaTelefono"><span>Teléfono</span></Label>
                       <Input id="empresaTelefono" maxLength={30} value={telefonoEmpresa} onChange={(e) => setTelefonoEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturaciÃ³n</span></Label>
+                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturación</span></Label>
                       <Input id="empresaEmailFacturacion" type="email" maxLength={200} value={emailFacturacion} onChange={(e) => setEmailFacturacion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
@@ -622,17 +622,17 @@ function PerfilPageContent() {
                       <Input id="repNombre" placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repPartida"><span>Partida electrÃ³nica (opcional)</span></Label>
+                      <Label htmlFor="repPartida"><span>Partida electrónica (opcional)</span></Label>
                       <Input id="repPartida" placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repDireccion"><span>DirecciÃ³n</span></Label>
+                      <Label htmlFor="repDireccion"><span>Dirección</span></Label>
                       <Input id="repDireccion" placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCorreo"><span>Correo</span></Label>
                       <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
-                      <p className="text-[11px] text-muted-foreground">Se usarÃ¡ en el contrato, como usuario del sistema y para las notificaciones.</p>
+                      <p className="text-[11px] text-muted-foreground">Se usará en el contrato, como usuario del sistema y para las notificaciones.</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCelular"><span>Celular</span></Label>
@@ -710,7 +710,7 @@ function PerfilPageContent() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG de tu firma con fondo claro. Se usarÃ¡ para firmar digitalmente tus contratos.</p>
+                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG de tu firma con fondo claro. Se usará para firmar digitalmente tus contratos.</p>
                 </div>
               </CardContent>
             </Card>
@@ -764,7 +764,7 @@ function PerfilPageContent() {
                 {!notifDatosCompletos ? (
                   <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
                     <p className="text-xs text-foreground">
-                      Para elegir el correo de notificaciones primero completa el correo del representante y el correo de facturaciÃ³n en los datos de tu empresa.
+                      Para elegir el correo de notificaciones primero completa el correo del representante y el correo de facturación en los datos de tu empresa.
                     </p>
                     <Button type="button" size="sm" onClick={() => router.push("/auth/validar-datos")}>
                       <span>Completar datos de la empresa</span>

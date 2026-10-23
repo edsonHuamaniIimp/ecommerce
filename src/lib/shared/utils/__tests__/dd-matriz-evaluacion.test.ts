@@ -10,6 +10,7 @@ import {
   normalizarResultadoFinal,
   normalizarSiNoNa,
   normalizarTextoMatriz,
+  resolverPais,
 } from "../dd-matriz-evaluacion";
 import {
   DD_MATRIZ_AMBITOS,
@@ -92,6 +93,32 @@ describe("derivarAmbito", () => {
 
   it("sin datos asume nacional", () => {
     expect(derivarAmbito({})).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+  });
+
+  it("usa el pais ISO conocido (Empresa.pais): PE nacional, otro extranjero", () => {
+    expect(derivarAmbito({ paisIso: "PE" })).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+    expect(derivarAmbito({ paisIso: "CL" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ paisIso: "CL", pais: "Perú" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+  });
+
+  it("acepta los dos formatos de tipo de documento: texto del expediente y codigos 1/4/7", () => {
+    expect(derivarAmbito({ tipoDocumento: "Carnet de extranjería" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ tipoDocumento: "Pasaporte" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ tipoDocumento: "4" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ tipoDocumento: "7" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ tipoDocumento: "1" })).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+  });
+
+  it("nacionalidad no reconocida no decide: cae al tipo de documento o a nacional", () => {
+    expect(derivarAmbito({ nacionalidad: "Atlantida", tipoDocumento: "CE" })).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(derivarAmbito({ nacionalidad: "Atlantida" })).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+  });
+
+  it("resolverPais prioriza el ISO conocido y luego pais/nacionalidad", () => {
+    expect(resolverPais({ paisIso: "CL", nacionalidad: "Peruana" })).toBe("CL");
+    expect(resolverPais({ pais: "Perú" })).toBe("PE");
+    expect(resolverPais({ nacionalidad: "Argentina" })).toBe("AR");
+    expect(resolverPais({})).toBeNull();
   });
 });
 

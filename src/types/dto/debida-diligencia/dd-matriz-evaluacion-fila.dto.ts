@@ -15,6 +15,8 @@ export interface DdMatrizEvaluacionFilaDTO {
   documento: string | null;
   cargo: string | null;
   ambito: string;
+  /** Pais ISO alpha-2; null si no se conoce. */
+  pais: string | null;
   sigResultado: string | null;
   sigConclusion: string | null;
   repResultado: string | null;

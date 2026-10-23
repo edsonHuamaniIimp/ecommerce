@@ -22,7 +22,7 @@ import {
   type DdMatrizSiNoNa,
 } from "@/lib/shared/constants";
 
-const SIN_DATO = <span className="text-[11px] text-muted-foreground">—</span>;
+const SIN_DATO = <span className="text-[11px] text-muted-foreground">Pendiente</span>;
 
 function Etiqueta({ texto, estilo }: { texto: string; estilo: string }) {
   return (

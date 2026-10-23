@@ -3,9 +3,9 @@ info:
   title: ContratosStands API (IIMP)
   version: 0.1.0-draft
   description: >
-    API del sistema **ContratosStands** â€” handler/procesador de reservas de stands
+    API del sistema **ContratosStands** — handler/procesador de reservas de stands
     para eventos IIMP (Perumin, ProExplo, WMC, GESS). BORRADOR derivado del onboarding
-    tÃ©cnico; los contratos con el sistema de facturaciÃ³n (John/SAP) estÃ¡n **por
+    técnico; los contratos con el sistema de facturación (John/SAP) están **por
     confirmar**. Este documento es la fuente de verdad (Swagger/OpenAPI) de la API.
   contact:
     name: Equipo ContratosStands
@@ -22,13 +22,13 @@ tags:
   - name: Plano
     description: Plano interactivo y stands
   - name: Gess
-    description: Stands del evento (catÃ¡logo local) e integraciÃ³n con el API de stands del IIMP (liststand)
+    description: Stands del evento (catálogo local) e integración con el API de stands del IIMP (liststand)
   - name: Reservas
     description: Registro y consulta de reservas
   - name: Aprobaciones
-    description: Flujo Legal -> LogÃ­stica -> Eventos/Asociados
+    description: Flujo Legal -> Logística -> Eventos/Asociados
   - name: Facturacion
-    description: Interoperabilidad con facturaciÃ³n (SAP/John)
+    description: Interoperabilidad con facturación (SAP/John)
   - name: Empresas
     description: Consumo (proxy) de empresas/personas
   - name: Usuarios
@@ -36,7 +36,7 @@ tags:
   - name: DebidaDiligencia
     description: Formulario, revision de Logistica, revision reputacional de Comunicaciones y panel del modulo
   - name: SGC
-    description: IntegraciÃ³n con el Sistema de GestiÃ³n de Contratos (expediente, documentos, descarga, webhooks)
+    description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
 security:
   - bearerAuth: []
 paths:
@@ -75,7 +75,7 @@ paths:
   /eventos/{eventoId}/plano:
     get:
       tags: [Plano]
-      summary: Devuelve los stands con posiciÃ³n X/Y y estado para el plano interactivo
+      summary: Devuelve los stands con posición X/Y y estado para el plano interactivo
       parameters:
         - $ref: "#/components/parameters/EventoId"
       responses:
@@ -115,7 +115,7 @@ paths:
             type: string
         - name: bloqueId
           in: query
-          description: ID del bloque del plano isomÃ©trico (EXT-IZQ-01, ...)
+          description: ID del bloque del plano isométrico (EXT-IZQ-01, ...)
           schema:
             type: string
       responses:
@@ -132,7 +132,7 @@ paths:
                   - type: "null"
     patch:
       tags: [Gess]
-      summary: Vincula o desvincula un stand GESS a un bloque del plano isomÃ©trico
+      summary: Vincula o desvincula un stand GESS a un bloque del plano isométrico
       requestBody:
         required: true
         content:
@@ -148,7 +148,7 @@ paths:
                   description: ID del bloque 3D o null para desvincular
       responses:
         "200":
-          description: VÃ­nculo actualizado
+          description: Vínculo actualizado
           content:
             application/json:
               schema:
@@ -158,9 +158,9 @@ paths:
       tags: [Gess]
       summary: Sincroniza stands del API de stands del IIMP (liststand) hacia la BD local (upsert por eventoId+standApiId)
       description: |
-        Actualiza `tipoStand`, `medidas`, `pabellon` y `rawData`. En re-importaciÃ³n conserva el
+        Actualiza `tipoStand`, `medidas`, `pabellon` y `rawData`. En re-importación conserva el
         estado local (`en_evaluacion`/`reservado`) si el API reporta `LIBRE`, no pisa la empresa
-        con vacÃ­o y no toca `bloqueId`, documentos ni imÃ¡genes. Ver
+        con vacío y no toca `bloqueId`, documentos ni imágenes. Ver
         `docs/05-integraciones/integracion-liststand.md`.
       requestBody:
         required: true
@@ -173,10 +173,10 @@ paths:
                 eventoId: { type: string }
                 tipoEvento:
                   type: integer
-                  description: TipEvCod del evento versiÃ³n (API del IIMP)
+                  description: TipEvCod del evento versión (API del IIMP)
                 codigoEvento:
                   type: integer
-                  description: EvenCod del evento versiÃ³n (API del IIMP)
+                  description: EvenCod del evento versión (API del IIMP)
                 seleccionadas:
                   type: array
                   items:
@@ -184,7 +184,7 @@ paths:
                     additionalProperties: true
       responses:
         "200":
-          description: Resultado de la sincronizaciÃ³n
+          description: Resultado de la sincronización
           content:
             application/json:
               schema:
@@ -192,11 +192,11 @@ paths:
   /gess/pre-reservar:
     post:
       tags: [Gess]
-      summary: Pre-reserva stands disponibles en lote (empresa o tÃ­tulo; bloqueo sin solicitud ni contrato)
+      summary: Pre-reserva stands disponibles en lote (empresa o título; bloqueo sin solicitud ni contrato)
       description: |
-        Todo o nada: si algÃºn stand no estÃ¡ `disponible` responde 409 y no modifica ninguno.
+        Todo o nada: si algún stand no está `disponible` responde 409 y no modifica ninguno.
         El estado pasa a `pre_reservado` (se comporta como reservado en el plano) y se guarda
-        el snapshot de la empresa (razÃ³n social, RUC, SIE) **o** el tÃ­tulo libre, ademÃ¡s de nota
+        el snapshot de la empresa (razón social, RUC, SIE) **o** el título libre, además de nota
         y autor. Al menos uno de `razonSocial`/`titulo` es obligatorio; lo registrado se muestra
         en el hover del plano.
       requestBody:
@@ -215,7 +215,7 @@ paths:
                 razonSocial: { type: string, nullable: true, maxLength: 200 }
                 titulo: { type: string, nullable: true, maxLength: 200, description: Alternativa libre a la empresa; se muestra en el hover }
                 ruc: { type: string, nullable: true, maxLength: 20 }
-                sie: { type: string, nullable: true, maxLength: 20, description: CÃ³digo SIE de entidades (ej. E0000003804) }
+                sie: { type: string, nullable: true, maxLength: 20, description: Código SIE de entidades (ej. E0000003804) }
                 nota: { type: string, nullable: true, maxLength: 300 }
       responses:
         "200":
@@ -227,16 +227,16 @@ paths:
                 properties:
                   preReservados: { type: integer }
         "400":
-          description: Datos invÃ¡lidos (sin stands o sin razÃ³n social/tÃ­tulo)
+          description: Datos inválidos (sin stands o sin razón social/título)
         "403":
           description: Sin permisos para gestionar pre-reservas
         "409":
-          description: AlgÃºn stand no estÃ¡ disponible (no se modificÃ³ ninguno)
+          description: Algún stand no está disponible (no se modificó ninguno)
   /gess/liberar:
     post:
       tags: [Gess]
       summary: Libera pre-reservas en lote (vuelven a `disponible` y se limpia la empresa asignada)
-      description: "Todo o nada: si algÃºn stand no estÃ¡ `pre_reservado` responde 409 y no modifica ninguno."
+      description: "Todo o nada: si algún stand no está `pre_reservado` responde 409 y no modifica ninguno."
       requestBody:
         required: true
         content:
@@ -262,11 +262,11 @@ paths:
         "403":
           description: Sin permisos para gestionar pre-reservas
         "409":
-          description: AlgÃºn stand no estÃ¡ pre-reservado (no se modificÃ³ ninguno)
+          description: Algún stand no está pre-reservado (no se modificó ninguno)
   /gess/pre-reserva:
     patch:
       tags: [Gess]
-      summary: Edita empresa/tÃ­tulo/logo/nota de una pre-reserva vigente (stand `pre_reservado`)
+      summary: Edita empresa/título/logo/nota de una pre-reserva vigente (stand `pre_reservado`)
       requestBody:
         required: true
         content:
@@ -296,13 +296,13 @@ paths:
         "404":
           description: Stand no encontrado
         "409":
-          description: El stand no estÃ¡ pre-reservado
+          description: El stand no está pre-reservado
   /planogess/fetch:
     post:
       tags: [Gess]
-      summary: Lista los stands del evento desde el API del IIMP (liststand) para el preview de VinculaciÃ³n
+      summary: Lista los stands del evento desde el API del IIMP (liststand) para el preview de Vinculación
       description: |
-        Login con cuenta tÃ©cnica (acceso VTA) + `POST /stands/liststand`. Devuelve filas aplanadas
+        Login con cuenta técnica (acceso VTA) + `POST /stands/liststand`. Devuelve filas aplanadas
         (`stand`, `pabellon`, `tipo`, `area`, `precio`, `estado`, `moneda`, `orden`). Solo lectura.
         Ver `docs/05-integraciones/integracion-liststand.md`.
       requestBody:
@@ -315,10 +315,10 @@ paths:
               properties:
                 tipoEvento:
                   type: integer
-                  description: TipEvCod del evento versiÃ³n
+                  description: TipEvCod del evento versión
                 codigoEvento:
                   type: integer
-                  description: EvenCod del evento versiÃ³n
+                  description: EvenCod del evento versión
       responses:
         "200":
           description: Filas de stands del evento
@@ -347,7 +347,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Reserva"
         "409":
-          description: Uno o mÃ¡s stands ya no estÃ¡n disponibles
+          description: Uno o más stands ya no están disponibles
           content:
             application/json:
               schema:
@@ -393,7 +393,7 @@ paths:
   /reservas/{reservaId}/contrato:
     get:
       tags: [Reservas]
-      summary: Descarga el formato de contrato (PDF) segÃºn el tipo de stand
+      summary: Descarga el formato de contrato (PDF) según el tipo de stand
       parameters:
         - $ref: "#/components/parameters/ReservaId"
       responses:
@@ -407,7 +407,7 @@ paths:
   /reservas/{reservaId}/aprobaciones:
     post:
       tags: [Aprobaciones]
-      summary: Registra la resoluciÃ³n de un Ã¡rea (Legal/LogÃ­stica/Eventos)
+      summary: Registra la resolución de un área (Legal/Logística/Eventos)
       parameters:
         - $ref: "#/components/parameters/ReservaId"
       requestBody:
@@ -418,7 +418,7 @@ paths:
               $ref: "#/components/schemas/AprobacionInput"
       responses:
         "200":
-          description: AprobaciÃ³n registrada
+          description: Aprobación registrada
           content:
             application/json:
               schema:
@@ -426,13 +426,13 @@ paths:
   /reservas/{reservaId}/facturacion:
     post:
       tags: [Facturacion]
-      summary: EnvÃ­a la reserva al mÃ³dulo de facturaciÃ³n (SAP/John)
+      summary: Envía la reserva al módulo de facturación (SAP/John)
       description: Interoperabilidad. Contrato de datos **por confirmar** con John.
       parameters:
         - $ref: "#/components/parameters/ReservaId"
       responses:
         "202":
-          description: Enviado a facturaciÃ³n (procesamiento asÃ­ncrono)
+          description: Enviado a facturación (procesamiento asíncrono)
           content:
             application/json:
               schema:
@@ -440,7 +440,7 @@ paths:
   /interop/facturacion/callback:
     post:
       tags: [Facturacion]
-      summary: Callback de facturaciÃ³n (SAP/John) con el resultado
+      summary: Callback de facturación (SAP/John) con el resultado
       description: Recibe orden de venta/comprobante y estado ocupado/no ocupado.
       requestBody:
         required: true
@@ -454,11 +454,11 @@ paths:
   /empresas:
     get:
       tags: [Empresas]
-      summary: Busca empresas (proxy hacia la fuente Ãºnica / John / Niel)
+      summary: Busca empresas (proxy hacia la fuente única / John / Niel)
       parameters:
         - name: q
           in: query
-          description: RazÃ³n social o RUC
+          description: Razón social o RUC
           schema:
             type: string
       responses:
@@ -483,7 +483,7 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
         - name: search
           in: query
-          description: RazÃ³n social o RUC
+          description: Razón social o RUC
           schema: { type: string }
         - name: estado
           in: query
@@ -548,13 +548,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmpresaRegistrada"
         "400":
-          description: Datos invÃ¡lidos (RUC, razÃ³n social, correos o comprobante)
+          description: Datos inválidos (RUC, razón social, correos o comprobante)
         "409":
           description: RUC ya registrado
   /empresas/actualizar:
     post:
       tags: [Empresas]
-      summary: EdiciÃ³n parcial de una empresa (solo campos enviados)
+      summary: Edición parcial de una empresa (solo campos enviados)
       requestBody:
         required: true
         content:
@@ -572,7 +572,7 @@ paths:
   /empresas/estado:
     post:
       tags: [Empresas]
-      summary: Activa o desactiva una empresa (baja lÃ³gica)
+      summary: Activa o desactiva una empresa (baja lógica)
       requestBody:
         required: true
         content:
@@ -589,7 +589,7 @@ paths:
   /empresas/carga-masiva/previsualizar:
     post:
       tags: [Empresas]
-      summary: Valida un archivo Excel/CSV de empresas (validaciÃ³n previa por fila)
+      summary: Valida un archivo Excel/CSV de empresas (validación previa por fila)
       requestBody:
         required: true
         content:
@@ -607,11 +607,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/PrevisualizacionCargaEmpresas"
         "400":
-          description: Formato/tamaÃ±o invÃ¡lido o archivo sin filas
+          description: Formato/tamaño inválido o archivo sin filas
   /empresas/carga-masiva/importar:
     post:
       tags: [Empresas]
-      summary: Importa las filas vÃ¡lidas de la carga masiva (omite las que tienen error)
+      summary: Importa las filas válidas de la carga masiva (omite las que tienen error)
       requestBody:
         required: true
         content:
@@ -705,7 +705,7 @@ paths:
   /empresas/reenviar-credenciales:
     post:
       tags: [Empresas]
-      summary: Regenera la contraseÃ±a temporal y reenvÃ­a las credenciales
+      summary: Regenera la contraseña temporal y reenvía las credenciales
       requestBody:
         required: true
         content:
@@ -924,7 +924,7 @@ paths:
   /auth/cambiar-password:
     post:
       tags: [Auth]
-      summary: Cambia la contraseÃ±a temporal (primer ingreso) y reemite la sesiÃ³n
+      summary: Cambia la contraseña temporal (primer ingreso) y reemite la sesión
       requestBody:
         required: true
         content:
@@ -945,9 +945,9 @@ paths:
                 required: [ok, requiereValidarDatos]
                 properties:
                   ok: { type: boolean }
-                  requiereValidarDatos: { type: boolean, description: "La empresa aÃºn debe validar sus datos" }
+                  requiereValidarDatos: { type: boolean, description: "La empresa aún debe validar sus datos" }
         "400":
-          description: ContraseÃ±a actual incorrecta o nueva invÃ¡lida
+          description: Contraseña actual incorrecta o nueva inválida
   /portal/empresa/mis-datos:
     get:
       tags: [Portal]
@@ -1192,11 +1192,11 @@ paths:
       tags: [Usuarios]
       summary: Actualiza el acceso local (correo del login, estado y/o empresa)
       description: |
-        ActualizaciÃ³n parcial: enviar al menos uno de `email`, `flgActivo` o la
+        Actualización parcial: enviar al menos uno de `email`, `flgActivo` o la
         pareja `idEmpresa`+`nombreEmpresa`. `flgActivo: false` deshabilita la
-        cuenta (bloquea el login y corta su sesiÃ³n activa); un admin no puede
-        deshabilitar su propia cuenta. Al cambiar `email` tambiÃ©n cambia el
-        `userId` (`user|<email>`) y la sesiÃ³n activa del usuario se cierra.
+        cuenta (bloquea el login y corta su sesión activa); un admin no puede
+        deshabilitar su propia cuenta. Al cambiar `email` también cambia el
+        `userId` (`user|<email>`) y la sesión activa del usuario se cierra.
       requestBody:
         required: true
         content:
@@ -1450,7 +1450,7 @@ paths:
   /integracion/factura:
     post:
       tags: [Integracion]
-      summary: API entrante M2M del sistema de facturacion (SIE) â€” documento y estado de pago de una cuota
+      summary: API entrante M2M del sistema de facturacion (SIE) — documento y estado de pago de una cuota
       description: >
         Autenticacion por header `x-api-key` (clave compartida; en local/tunel no se exige).
         Localiza la cuota por `numeroSolicitud` (o `contrato`) + numero de cuota.
@@ -1530,7 +1530,7 @@ paths:
   /sgc/sincronizar:
     post:
       tags: [SGC]
-      summary: ReconciliaciÃ³n â€” refresca el estado de los expedientes creados
+      summary: Reconciliación — refresca el estado de los expedientes creados
       responses:
         "200":
           description: OK
@@ -1544,7 +1544,7 @@ paths:
   /sgc/subsanar:
     post:
       tags: [SGC]
-      summary: Empuja una versiÃ³n corregida del contrato (subsanaciÃ³n)
+      summary: Empuja una versión corregida del contrato (subsanación)
       requestBody:
         required: true
         content:
@@ -1563,12 +1563,12 @@ paths:
   /sgc/subsanacion-motivo:
     post:
       tags: [SGC]
-      summary: Declara la casuÃ­stica de subsanaciÃ³n (el admin elige el flujo de correcciÃ³n)
+      summary: Declara la casuística de subsanación (el admin elige el flujo de corrección)
       description: |
-        Cuando el SGC devuelve (observed) o rechaza (rejected) el trÃ¡mite, el administrador
-        declara quÃ© corregir. El `modo` define el flujo del cliente:
-        - `nuevo_contrato`: el admin subirÃ¡ una versiÃ³n corregida; el cliente **espera**
-          (no puede firmar el contrato observado) hasta que el contrato nuevo estÃ© adjunto.
+        Cuando el SGC devuelve (observed) o rechaza (rejected) el trámite, el administrador
+        declara qué corregir. El `modo` define el flujo del cliente:
+        - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera**
+          (no puede firmar el contrato observado) hasta que el contrato nuevo esté adjunto.
         - `mismo_contrato`: el cliente vuelve a firmar el contrato vigente de inmediato.
         Sin `modo` (null) el cliente puede firmar (comportamiento legacy).
       requestBody:
@@ -1593,7 +1593,7 @@ paths:
   /sgc/reenviar:
     post:
       tags: [SGC]
-      summary: ReenvÃ­a al SGC con el contrato firmado del cliente (reabre la ronda)
+      summary: Reenvía al SGC con el contrato firmado del cliente (reabre la ronda)
       requestBody:
         required: true
         content:
@@ -1630,7 +1630,7 @@ paths:
         "200":
           description: Recibido
         "401":
-          description: Firma invÃ¡lida
+          description: Firma inválida
   /debida-diligencia/mi-expediente:
     get:
       tags: [DebidaDiligencia]
@@ -2023,6 +2023,8 @@ paths:
         - { name: search, in: query, schema: { type: string } }
         - { name: tipo, in: query, schema: { type: string, enum: [empresa, representante, beneficiario, vinculado] } }
         - { name: ambito, in: query, schema: { type: string, enum: [nacional, extranjero] } }
+        - { name: pais, in: query, description: Pais ISO alpha-2 exacto, schema: { type: string, minLength: 2, maxLength: 2 } }
+        - { name: sinPais, in: query, description: Solo vinculos sin pais conocido, schema: { type: boolean } }
         - { name: resultadoFinal, in: query, schema: { type: string } }
         - { name: sinEvaluar, in: query, schema: { type: boolean } }
       responses:
@@ -2112,6 +2114,7 @@ paths:
                 nacionalidad: { type: string, nullable: true }
                 cargo: { type: string, nullable: true }
                 ambito: { type: string, enum: [nacional, extranjero] }
+                pais: { type: string, nullable: true, description: ISO, nombre o gentilicio; si falta se deriva de la nacionalidad }
       responses:
         "200":
           description: Detalle del vinculo creado
@@ -2270,7 +2273,7 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
     ValidationError:
-      description: Error de validaciÃ³n (Zod)
+      description: Error de validación (Zod)
       content:
         application/json:
           schema:
@@ -2923,6 +2926,7 @@ components:
         nombre: { type: string }
         documento: { type: string, nullable: true }
         ambito: { type: string, enum: [nacional, extranjero] }
+        pais: { type: string, nullable: true, description: ISO 3166-1 alpha-2; null muestra "?" }
         sigResultado: { type: string, nullable: true, enum: [aceptado, observado, no_aplica] }
         sigConclusion: { type: string, nullable: true, enum: [sin_observaciones, requiere_dd_reforzada, en_revision] }
         repResultado: { type: string, nullable: true }
@@ -2962,6 +2966,8 @@ components:
         tipo: { type: string }
         nombre: { type: string }
         ambito: { type: string }
+        pais: { type: string, nullable: true }
+        paisEditado: { type: boolean }
         generales: { type: object }
         listas:
           type: array
@@ -2989,8 +2995,27 @@ components:
       required: [id]
       properties:
         id: { type: string }
-        identidad: { type: object }
-        generales: { type: object }
+        identidad:
+          type: object
+          description: >
+            En filas automaticas solo `pais` y `ambito`. `pais` acepta ISO, nombre o gentilicio y recalcula el
+            ambito; vacio restablece el valor automatico.
+          properties:
+            nombre: { type: string }
+            pais: { type: string, nullable: true }
+            ambito: { type: string, enum: [nacional, extranjero] }
+        generales:
+          type: object
+          description: Solo en la fila de la empresa.
+          properties:
+            fechaInicioActividades: { type: string, format: date, nullable: true }
+            estadoContribuyente: { type: string, nullable: true }
+            direccionLegal: { type: string, nullable: true }
+            actividadEconomica: { type: string, nullable: true }
+            motivo: { type: string, nullable: true }
+            eventoProyecto: { type: string, nullable: true }
+            historialIimp: { type: string, nullable: true }
+            beneficioMutuo: { type: string, nullable: true }
         listas:
           type: object
           additionalProperties: { type: string, nullable: true }
@@ -2998,9 +3023,13 @@ components:
         reputacional: { $ref: "#/components/schemas/DdMatrizBloqueRequest" }
         compliance: { $ref: "#/components/schemas/DdMatrizBloqueRequest" }
         resultadoFinal: { type: string, nullable: true }
+        finalFecha: { type: string, format: date, nullable: true, description: Si no se envia se registra la de hoy }
+        finalPor: { type: string, nullable: true, description: Si no se envia se registra el usuario que guarda }
     DdMatrizBloqueRequest:
       type: object
       properties:
+        fecha: { type: string, format: date, nullable: true, description: Fecha de evaluacion; si no se envia se registra la de hoy }
+        responsable: { type: string, nullable: true, description: Si no se envia se registra el usuario que guarda }
         resultado: { type: string, nullable: true }
         observaciones: { type: string, nullable: true }
         conclusion: { type: string, nullable: true }
@@ -3194,7 +3223,7 @@ components:
         x: { type: number }
         y: { type: number }
         estado: { $ref: "#/components/schemas/EstadoStand" }
-        empresa: { type: string, description: "Visible solo si estÃ¡ reservado" }
+        empresa: { type: string, description: "Visible solo si está reservado" }
     Cuota:
       type: object
       required: [numero, porcentaje]
@@ -3396,7 +3425,7 @@ components:
         email: { type: string, description: "Correo de la cuenta (provisional acceso-<ruc>@acceso.iimp si es solo-RUC)" }
         usuario: { type: string, description: "Usuario de acceso (RUC para cuentas solo-RUC)" }
         passwordTemporal: { type: string, description: "Contrasena temporal (se muestra una vez al administrador)" }
-        emailEnviado: { type: boolean, nullable: true, description: "True si el correo con las credenciales saliÃ³" }
+        emailEnviado: { type: boolean, nullable: true, description: "True si el correo con las credenciales salió" }
     ApiError:
       type: object
       required: [error]
@@ -3413,7 +3442,7 @@ components:
         id: { type: string }
         eventoId: { type: string }
         standApiId: { type: string, description: "UID del stand en el API externo" }
-        standCode: { type: string, description: "CÃ³digo visible (01, 02, ...)" }
+        standCode: { type: string, description: "Código visible (01, 02, ...)" }
         tipoStand: { type: string, nullable: true, example: "PREFERENCIAL" }
         medidas: { type: string, nullable: true, example: "3000.00 US$" }
         estado: { type: string, nullable: true, example: "Reservado" }

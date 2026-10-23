@@ -37,6 +37,7 @@
     "@react-three/fiber": "^9.6.1",
     "client-only": "^0.0.1",
     "clsx": "^2.1.1",
+    "country-flag-icons": "^1.6.20",
     "docxtemplater": "^3.71.0",
     "docxtemplater-image-module-free": "^1.1.1",
     "dotenv": "^17.4.2",

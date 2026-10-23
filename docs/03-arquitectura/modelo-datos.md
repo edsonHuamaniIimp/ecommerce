@@ -550,7 +550,7 @@ mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` �
 
 - **`dd_matriz_vinculo`** — una fila por vinculo (empresa, representante, beneficiario o vinculado)
   de un expediente DD. `@@unique([expedienteId, tipo, refKey])`; `origen` automatico (sincronizado) o
-  manual; `ambito` nacional/extranjero (`ambitoEditado` si SIG lo corrigio); `listas` JSONB
+  manual; `pais` ISO alpha-2 (`paisEditado` si SIG lo fijo) y `ambito` nacional/extranjero (`ambitoEditado` si SIG lo corrigio); `listas` JSONB
   `{codigo: si|no|na}`; bloques `sig_*`, `rep_*`, `cmp_*` (fecha, responsable, resultado,
   observaciones, conclusion) y `resultado_final`. Catalogos en `DD_MATRIZ_*`.
 - **`dd_matriz_adjunto`** — informe y sustento por vinculo (`categoria`: `sig_informe`,

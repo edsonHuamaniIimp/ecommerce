@@ -31,6 +31,11 @@ export interface DdMatrizGeneralesDTO {
   fechaInicioActividades: string | null;
   estadoContribuyente: string | null;
   direccionLegal: string | null;
+  actividadEconomica: string | null;
+  motivo: string | null;
+  eventoProyecto: string | null;
+  /** Pais ISO de la empresa (solo lectura; se edita en la seccion Pais y ambito). */
+  paisEmpresa: string | null;
   historialIimp: string | null;
   beneficioMutuo: string | null;
 }
@@ -80,6 +85,9 @@ export interface DdMatrizEvaluacionDetalleDTO {
   cargo: string | null;
   ambito: string;
   ambitoEditado: boolean;
+  /** Pais ISO alpha-2; null si no se conoce. */
+  pais: string | null;
+  paisEditado: boolean;
   expediente: DdMatrizExpedienteDTO;
   generales: DdMatrizGeneralesDTO;
   listas: DdMatrizListaDTO[];

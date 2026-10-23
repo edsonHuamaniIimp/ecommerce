@@ -1293,7 +1293,7 @@ export class EmpresaApplicationService {
   /** Envio best-effort del correo con las credenciales (no revierte la cuenta). */
   private async enviarCredenciales(empresa: Pick<EmpresaEntity, "razonSocial" | "representanteLegalNombre">, email: string, passwordTemporal: string): Promise<boolean> {
     try {
-      /* Nota: la empresa aun no tiene idioma propio; se envia en espaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±ol (default). */
+      /* Nota: la empresa aun no tiene idioma propio; se envia en español (default). */
       return await enviarEmailPlantilla({
         to: email,
         plantilla: "credenciales-empresa",

@@ -32,6 +32,8 @@ import {
   DdMatrizAmbitoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdPaisBandera } from "./dd-pais-bandera";
+import { PaisSelect } from "@/components/shared/pais-select";
 import { useConfirm } from "@/hooks/use-confirm";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
@@ -54,6 +56,8 @@ import {
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_SIN_VALOR,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
+  DD_IMPORTACION_REVISOR,
+  DD_IMPORTACION_REVISOR_LABEL,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_RUTAS,
   type DdMatrizAdjuntoCategoria,
@@ -63,6 +67,7 @@ import {
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { evaluarBloqueArea } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { nombrePais } from "@/lib/shared/utils/pais";
 
 /** Borde de acento por color de encabezado de la matriz oficial (lila / naranja / celeste). */
 const ACENTO_COLOR: Record<DdMatrizColor, string> = {
@@ -122,7 +127,7 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
   return (
     <div className="space-y-0.5">
       <p className="text-[10px] font-medium uppercase text-muted-foreground">{etiqueta}</p>
-      <p className="text-xs text-foreground">{valor || "—"}</p>
+      <p className="text-xs text-foreground">{valor || <span className="text-muted-foreground">Sin registrar</span>}</p>
     </div>
   );
 }
@@ -252,6 +257,15 @@ function Adjuntos({ vinculoId, adjuntos, categorias, puedeEditar, onCambio }: Ad
   );
 }
 
+/** Valor que un bloque envia al guardar; fecha y responsable solo si se escribieron a mano. */
+interface BloqueGuardar {
+  resultado: string | null;
+  observaciones: string | null;
+  conclusion: string | null;
+  fecha?: string | null;
+  responsable?: string | null;
+}
+
 interface BloqueAreaProps {
   area: DdMatrizArea;
   titulo: string;
@@ -263,18 +277,25 @@ interface BloqueAreaProps {
   /** Solo la conclusion editable (SIG sobre el bloque reputacional). */
   soloConclusion?: boolean;
   bloqueado?: { motivo: string } | null;
+  /** Valores a mostrar mientras el bloque no tiene fecha/responsable propios (datos ya existentes en la BD). */
+  fechaDefecto?: string | null;
+  responsableDefecto?: string | null;
   guardando: boolean;
-  onGuardar: (valor: { resultado: string | null; observaciones: string | null; conclusion: string | null }) => void;
+  onGuardar: (valor: BloqueGuardar) => void;
   children?: ReactNode;
 }
 
 /** Bloque de conclusiones de un area con las reglas del proceso evaluadas en vivo. */
 function BloqueArea({
-  area, titulo, descripcion, bloque, conclusionLabels, puedeEditar, soloConclusion = false, bloqueado = null, guardando, onGuardar, children,
+  area, titulo, descripcion, bloque, conclusionLabels, puedeEditar, soloConclusion = false, bloqueado = null, fechaDefecto = null, responsableDefecto = null, guardando, onGuardar, children,
 }: BloqueAreaProps) {
   const [resultado, setResultado] = useState<string | null>(bloque.resultado);
   const [observaciones, setObservaciones] = useState(bloque.observaciones ?? "");
   const [conclusion, setConclusion] = useState<string | null>(bloque.conclusion);
+  const [fechaEditada, setFechaEditada] = useState<string | null>(null);
+  const [responsableEditado, setResponsableEditado] = useState<string | null>(null);
+  const fechaValor = fechaEditada ?? bloque.fecha?.slice(0, 10) ?? fechaDefecto?.slice(0, 10) ?? "";
+  const responsableValor = responsableEditado ?? bloque.responsable ?? responsableDefecto ?? "";
 
   const editable = puedeEditar || soloConclusion;
   const evaluacion = useMemo(
@@ -289,7 +310,9 @@ function BloqueArea({
   const cambios =
     (resultado ?? "") !== (bloque.resultado ?? "") ||
     observaciones.trim() !== (bloque.observaciones ?? "") ||
-    (conclusion ?? "") !== (bloque.conclusion ?? "");
+    (conclusion ?? "") !== (bloque.conclusion ?? "") ||
+    fechaEditada !== null ||
+    responsableEditado !== null;
 
   const cambiarResultado = (valor: string | null) => {
     setResultado(valor);
@@ -307,7 +330,7 @@ function BloqueArea({
       color={DD_MATRIZ_COLORES.COMUN}
       acciones={
         editable ? (
-          <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!cambios || evaluacion.errores.length > 0 || guardando} onClick={() => onGuardar({ resultado, observaciones: observaciones.trim() || null, conclusion })}>
+          <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!cambios || evaluacion.errores.length > 0 || guardando} onClick={() => onGuardar({ resultado, observaciones: observaciones.trim() || null, conclusion, ...(fechaEditada !== null ? { fecha: fechaEditada } : {}), ...(responsableEditado !== null ? { responsable: responsableEditado } : {}) })}>
             {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             <span>Guardar</span>
           </Button>
@@ -334,10 +357,12 @@ function BloqueArea({
         <Campo etiqueta="Conclusión" id={`${area}-conclusion`}>
           <SelectCatalogo id={`${area}-conclusion`} valor={conclusion} opciones={opcionesConclusion} deshabilitado={!editable} onCambio={setConclusion} />
         </Campo>
-        <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-1">
-          <Dato etiqueta="Fecha de evaluación" valor={bloque.fecha ? dateUtils.format(bloque.fecha) : null} />
-          <Dato etiqueta="Responsable" valor={bloque.responsable} />
-        </div>
+        <Campo etiqueta="Fecha de evaluación" id={`${area}-fecha`}>
+          <Input id={`${area}-fecha`} type="date" className="h-8 text-xs" disabled={!puedeEditar} value={fechaValor} onChange={(e) => setFechaEditada(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Responsable" id={`${area}-responsable`}>
+          <Input id={`${area}-responsable`} className="h-8 text-xs" maxLength={200} disabled={!puedeEditar} placeholder="Nombre del responsable" value={responsableValor} onChange={(e) => setResponsableEditado(e.target.value)} />
+        </Campo>
       </div>
 
       <Campo etiqueta={esObservado ? "Observaciones (obligatorio)" : "Observaciones"} id={`${area}-observaciones`}>
@@ -364,6 +389,16 @@ function BloqueArea({
   );
 }
 
+interface IdentidadForm {
+  nombre: string;
+  tipoDocumento: string;
+  documento: string;
+  nacionalidad: string;
+  cargo: string;
+}
+
+const IDENTIDAD_VACIA: IdentidadForm = { nombre: "", tipoDocumento: "", documento: "", nacionalidad: "", cargo: "" };
+
 /** Detalle completo de un vinculo de la Matriz de evaluacion DD (vista a pantalla completa). */
 export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   const router = useRouter();
@@ -374,6 +409,9 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   const [generales, setGenerales] = useState<DdMatrizEvaluacionDetalleDTO["generales"] | null>(null);
   const [listas, setListas] = useState<Record<string, string | null>>({});
   const [final, setFinal] = useState<string | null>(null);
+  const [finalPor, setFinalPor] = useState("");
+  const [finalFecha, setFinalFecha] = useState("");
+  const [identidad, setIdentidad] = useState<IdentidadForm>(IDENTIDAD_VACIA);
   const idRef = useRef(id);
 
   const aplicar = useCallback((d: DdMatrizEvaluacionDetalleDTO) => {
@@ -381,6 +419,9 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
     setGenerales(d.generales);
     setListas(Object.fromEntries(d.listas.map((l) => [l.codigo, l.valor])));
     setFinal(d.resultadoFinal);
+    setFinalPor(d.finalPor ?? "");
+    setFinalFecha(d.finalFecha?.slice(0, 10) ?? "");
+    setIdentidad({ nombre: d.nombre, tipoDocumento: d.tipoDocumento ?? "", documento: d.documento ?? "", nacionalidad: d.nacionalidad ?? "", cargo: d.cargo ?? "" });
   }, []);
 
   const cargar = useCallback(async () => {
@@ -432,7 +473,18 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
 
   const { permisos } = detalle;
   const esEmpresa = detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA;
+  const { paisEmpresa: _paisEmpresa, ...generalesParaGuardar } = generales;
   const generalesCambiaron = JSON.stringify(generales) !== JSON.stringify(detalle.generales);
+  const finalCambio =
+    (final ?? "") !== (detalle.resultadoFinal ?? "") ||
+    finalPor !== (detalle.finalPor ?? "") ||
+    finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "");
+  const identidadCambio =
+    identidad.nombre !== detalle.nombre ||
+    identidad.tipoDocumento !== (detalle.tipoDocumento ?? "") ||
+    identidad.documento !== (detalle.documento ?? "") ||
+    identidad.nacionalidad !== (detalle.nacionalidad ?? "") ||
+    identidad.cargo !== (detalle.cargo ?? "");
   const listasCambiaron = detalle.listas.some((l) => (listas[l.codigo] ?? null) !== l.valor);
   const gruposListas: DdMatrizListaDTO[][] = [
     detalle.listas.filter((l) => l.color === DD_MATRIZ_COLORES.NACIONAL),
@@ -441,7 +493,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   ].filter((g) => g.length > 0);
 
   const guardarBloque = (clave: "sig" | "reputacional" | "compliance") =>
-    (valor: { resultado: string | null; observaciones: string | null; conclusion: string | null }) =>
+    (valor: BloqueGuardar) =>
       guardar(clave, { [clave]: valor }, "Evaluación guardada");
 
   return (
@@ -451,7 +503,10 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
           <Button asChild variant="ghost" size="sm" className="-ml-2 h-7 gap-1 text-xs text-muted-foreground">
             <Link href={DD_RUTAS.MATRIZ}><ArrowLeft className="h-3.5 w-3.5" /><span>Matriz de evaluación DD</span></Link>
           </Button>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{detalle.nombre}</h1>
+          <h1 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
+            <DdPaisBandera pais={detalle.pais} />
+            <span>{detalle.nombre}</span>
+          </h1>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}><span>{DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo}</span></Badge>
             <DdMatrizAmbitoBadge valor={detalle.ambito} />
@@ -478,7 +533,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
         color={DD_MATRIZ_COLORES.COMUN}
         acciones={
           permisos.editarGenerales ? (
-            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!generalesCambiaron || guardando === "generales"} onClick={() => { void guardar("generales", { generales }, "Datos generales guardados"); }}>
+            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!generalesCambiaron || guardando === "generales"} onClick={() => { void guardar("generales", { generales: generalesParaGuardar }, "Datos generales guardados"); }}>
               {guardando === "generales" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span>Guardar</span>
             </Button>
@@ -488,14 +543,23 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Dato etiqueta="Expediente" valor={detalle.expediente.codigo} />
           <Dato etiqueta="Fecha de ingreso de solicitud" valor={dateUtils.format(detalle.expediente.fechaIngreso)} />
-          <Dato etiqueta="Fecha de revisión por SIG" valor={detalle.expediente.fechaRevision ? dateUtils.format(detalle.expediente.fechaRevision) : null} />
-          <Dato etiqueta="Responsable de revisión" valor={detalle.expediente.revisadoPor} />
           <Dato etiqueta="Razón social" valor={detalle.expediente.empresaRazonSocial} />
           <Dato etiqueta="RUC / ID" valor={detalle.expediente.empresaRuc} />
-          <Dato etiqueta="País de constitución" valor={detalle.expediente.paisConstitucion} />
-          <Dato etiqueta="Actividad económica" valor={detalle.expediente.actividadEconomica} />
-          <Dato etiqueta="Motivo de la evaluación" valor={detalle.expediente.motivo} />
-          <Dato etiqueta="Evento o proyecto asociado" valor={detalle.expediente.eventoProyecto} />
+          <Dato
+            etiqueta="País de constitución"
+            valor={generales.paisEmpresa ? <DdPaisBandera pais={generales.paisEmpresa} mostrarNombre /> : "Sin país: complétalo en País y ámbito"}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Campo etiqueta="Actividad económica" id="gen-actividad">
+            <Input id="gen-actividad" className="h-8 text-xs" maxLength={200} disabled={!permisos.editarGenerales} placeholder="Ej. 6202 - Consultoría de informática" value={generales.actividadEconomica ?? ""} onChange={(e) => setGenerales({ ...generales, actividadEconomica: e.target.value || null })} />
+          </Campo>
+          <Campo etiqueta="Motivo de la evaluación" id="gen-motivo">
+            <Input id="gen-motivo" className="h-8 text-xs" maxLength={250} disabled={!permisos.editarGenerales} placeholder="Ej. Exhibidor" value={generales.motivo ?? ""} onChange={(e) => setGenerales({ ...generales, motivo: e.target.value || null })} />
+          </Campo>
+          <Campo etiqueta="Evento o proyecto asociado" id="gen-evento">
+            <Input id="gen-evento" className="h-8 text-xs" maxLength={120} disabled={!permisos.editarGenerales} placeholder="Ej. PERUMIN" value={generales.eventoProyecto ?? ""} onChange={(e) => setGenerales({ ...generales, eventoProyecto: e.target.value || null })} />
+          </Campo>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Campo etiqueta="Fecha de inicio de actividades" id="gen-inicio">
@@ -517,22 +581,53 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
       </Seccion>
 
       {!esEmpresa ? (
-        <Seccion titulo="Persona o entidad vinculada" descripcion="Datos del vínculo evaluado (representante, beneficiario u otra persona/empresa)." color={DD_MATRIZ_COLORES.COMUN}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Dato etiqueta="Nombre" valor={detalle.nombre} />
-            <Dato etiqueta="Documento de identidad" valor={[detalle.tipoDocumento, detalle.documento].filter(Boolean).join(" - ")} />
-            <Dato etiqueta="Nacionalidad" valor={detalle.nacionalidad} />
-            <Dato etiqueta="Cargo" valor={detalle.cargo} />
+        <Seccion
+          titulo="Persona o entidad vinculada"
+          descripcion="Datos del vínculo evaluado (representante, beneficiario u otra persona/empresa). Completa lo que falte."
+          color={DD_MATRIZ_COLORES.COMUN}
+          acciones={
+            permisos.editarIdentidad ? (
+              <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!identidadCambio || !identidad.nombre.trim() || guardando === "identidad"} onClick={() => { void guardar("identidad", { identidad: { nombre: identidad.nombre, tipoDocumento: identidad.tipoDocumento, documento: identidad.documento, nacionalidad: identidad.nacionalidad, cargo: identidad.cargo } }, "Datos del vínculo guardados"); }}>
+                {guardando === "identidad" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                <span>Guardar</span>
+              </Button>
+            ) : null
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Campo etiqueta="Nombre" id="vin-nombre">
+              <Input id="vin-nombre" className="h-8 text-xs" maxLength={250} disabled={!permisos.editarIdentidad} value={identidad.nombre} onChange={(e) => setIdentidad({ ...identidad, nombre: e.target.value })} />
+            </Campo>
+            <Campo etiqueta="Tipo de documento" id="vin-tipo-doc">
+              <Input id="vin-tipo-doc" className="h-8 text-xs" maxLength={30} disabled={!permisos.editarIdentidad} placeholder="DNI, CE, Pasaporte" value={identidad.tipoDocumento} onChange={(e) => setIdentidad({ ...identidad, tipoDocumento: e.target.value })} />
+            </Campo>
+            <Campo etiqueta="Número de documento" id="vin-documento">
+              <Input id="vin-documento" className="h-8 text-xs" maxLength={30} disabled={!permisos.editarIdentidad} value={identidad.documento} onChange={(e) => setIdentidad({ ...identidad, documento: e.target.value })} />
+            </Campo>
+            <Campo etiqueta="Nacionalidad" id="vin-nacionalidad">
+              <Input id="vin-nacionalidad" className="h-8 text-xs" maxLength={80} disabled={!permisos.editarIdentidad} placeholder="Ej. Peruana" value={identidad.nacionalidad} onChange={(e) => setIdentidad({ ...identidad, nacionalidad: e.target.value })} />
+            </Campo>
+            <Campo etiqueta="Cargo" id="vin-cargo">
+              <Input id="vin-cargo" className="h-8 text-xs" maxLength={120} disabled={!permisos.editarIdentidad} placeholder="Ej. Apoderado" value={identidad.cargo} onChange={(e) => setIdentidad({ ...identidad, cargo: e.target.value })} />
+            </Campo>
           </div>
         </Seccion>
       ) : null}
 
       <Seccion
-        titulo="Nacional o extranjera"
-        descripcion="Define qué listas restrictivas aplican. Se deriva del país o la nacionalidad; SIG puede corregirlo."
+        titulo="País y ámbito"
+        descripcion="El país define si el vínculo es nacional o extranjero y, con eso, qué listas restrictivas aplican. Sin país se asume nacional; SIG puede corregirlo."
         color={DD_MATRIZ_COLORES.COMUN}
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Campo etiqueta="País" id="pais">
+            <PaisSelect
+              id="pais"
+              value={detalle.pais ?? ""}
+              disabled={!permisos.editarIdentidad || guardando === "pais"}
+              onChange={(codigo) => { if (codigo !== detalle.pais) void guardar("pais", { identidad: { pais: codigo } }, "País actualizado"); }}
+            />
+          </Campo>
           <Campo etiqueta="Ámbito del vínculo" id="ambito">
             <SelectCatalogo
               id="ambito"
@@ -542,7 +637,23 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
               onCambio={(v) => { if (v && v !== detalle.ambito) void guardar("ambito", { identidad: { ambito: v } }, "Ámbito actualizado"); }}
             />
           </Campo>
-          <Dato etiqueta="Origen del dato" valor={detalle.ambitoEditado ? "Corregido manualmente" : "Derivado automáticamente"} />
+          <Dato
+            etiqueta="Origen del dato"
+            valor={
+              detalle.paisEditado || detalle.ambitoEditado
+                ? "Corregido manualmente"
+                : detalle.pais
+                  ? `Derivado automáticamente (${nombrePais(detalle.pais)})`
+                  : "Sin país registrado: se asume nacional"
+            }
+          />
+          {permisos.editarIdentidad && (detalle.paisEditado || detalle.ambitoEditado) ? (
+            <div className="flex items-end">
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={guardando === "pais"} onClick={() => { void guardar("pais", { identidad: { pais: "" } }, "Vuelve al valor automático"); }}>
+                <RefreshCw className="h-3.5 w-3.5" /><span>Restablecer automático</span>
+              </Button>
+            </div>
+          ) : null}
         </div>
       </Seccion>
 
@@ -577,7 +688,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
       </div>
 
       <BloqueArea
-        key={`sig|${detalle.sig.resultado}|${detalle.sig.observaciones}|${detalle.sig.conclusion}`}
+        key={`sig|${detalle.sig.resultado}|${detalle.sig.observaciones}|${detalle.sig.conclusion}|${detalle.sig.fecha}|${detalle.sig.responsable}`}
         area={DD_MATRIZ_AREAS.SIG}
         titulo="Conclusiones SIG (Logística)"
         descripcion="Resultado de la evaluación por SIG. Si queda OBSERVADO, indica la observación y si requiere debida diligencia reforzada."
@@ -585,6 +696,8 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
         conclusionLabels={DD_MATRIZ_CONCLUSION_LABELS}
         puedeEditar={permisos.editarSig}
         guardando={guardando === "sig"}
+        fechaDefecto={detalle.expediente.fechaRevision}
+        responsableDefecto={detalle.expediente.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : detalle.expediente.revisadoPor}
         onGuardar={guardarBloque("sig")}
       >
         <Adjuntos
@@ -597,7 +710,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
       </BloqueArea>
 
       <BloqueArea
-        key={`reputacional|${detalle.reputacional.resultado}|${detalle.reputacional.observaciones}|${detalle.reputacional.conclusion}`}
+        key={`reputacional|${detalle.reputacional.resultado}|${detalle.reputacional.observaciones}|${detalle.reputacional.conclusion}|${detalle.reputacional.fecha}|${detalle.reputacional.responsable}`}
         area={DD_MATRIZ_AREAS.REPUTACIONAL}
         titulo="Conclusiones reputacional (Comunicaciones)"
         descripcion="Resultado de la evaluación reputacional. SIG puede actualizar la conclusión según las evidencias de sustento."
@@ -618,7 +731,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
       </BloqueArea>
 
       <BloqueArea
-        key={`compliance|${detalle.compliance.resultado}|${detalle.compliance.observaciones}|${detalle.compliance.conclusion}`}
+        key={`compliance|${detalle.compliance.resultado}|${detalle.compliance.observaciones}|${detalle.compliance.conclusion}|${detalle.compliance.fecha}|${detalle.compliance.responsable}`}
         area={DD_MATRIZ_AREAS.COMPLIANCE}
         titulo="Conclusiones Compliance (Legal)"
         descripcion="Evaluación reforzada, solo para vínculos que SIG marcó como REQUIERE DEBIDA DILIGENCIA REFORZADA."
@@ -644,7 +757,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
         color={DD_MATRIZ_COLORES.EXTRANJERO}
         acciones={
           permisos.editarFinal ? (
-            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={(final ?? "") === (detalle.resultadoFinal ?? "") || guardando === "final"} onClick={() => { void guardar("final", { resultadoFinal: final ?? "" }, "Resultado final guardado"); }}>
+            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!finalCambio || guardando === "final"} onClick={() => { void guardar("final", { ...((final ?? "") !== (detalle.resultadoFinal ?? "") ? { resultadoFinal: final ?? "" } : {}), ...(finalPor !== (detalle.finalPor ?? "") ? { finalPor } : {}), ...(finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "") ? { finalFecha: finalFecha || null } : {}) }, "Resultado final guardado"); }}>
               {guardando === "final" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span>Guardar</span>
             </Button>
@@ -655,8 +768,12 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
           <Campo etiqueta="Resultado final" id="resultado-final">
             <SelectCatalogo id="resultado-final" valor={final} opciones={DD_MATRIZ_RESULTADO_FINAL_LABELS} deshabilitado={!permisos.editarFinal} onCambio={setFinal} />
           </Campo>
-          <Dato etiqueta="Registrado por" valor={detalle.finalPor} />
-          <Dato etiqueta="Fecha" valor={detalle.finalFecha ? dateUtils.format(detalle.finalFecha) : null} />
+          <Campo etiqueta="Registrado por" id="final-por">
+            <Input id="final-por" className="h-8 text-xs" maxLength={200} disabled={!permisos.editarFinal} placeholder="Nombre de quien registra" value={finalPor} onChange={(e) => setFinalPor(e.target.value)} />
+          </Campo>
+          <Campo etiqueta="Fecha" id="final-fecha">
+            <Input id="final-fecha" type="date" className="h-8 text-xs" disabled={!permisos.editarFinal} value={finalFecha} onChange={(e) => setFinalFecha(e.target.value)} />
+          </Campo>
         </div>
       </Seccion>
 

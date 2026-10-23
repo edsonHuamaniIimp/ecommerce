@@ -33,6 +33,7 @@ import {
   DdMatrizResultadoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdPaisBandera } from "./dd-pais-bandera";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   BADGE_STYLES,
@@ -40,6 +41,7 @@ import {
   DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
   DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_FILTRO_SIN_EVALUAR,
+  DD_MATRIZ_FILTRO_SIN_PAIS,
   DD_MATRIZ_FILTRO_TODOS,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
@@ -56,6 +58,7 @@ import {
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { nombrePais } from "@/lib/shared/utils/pais";
 import {
   exportarTablaCsv,
   exportarTablaExcel,
@@ -69,6 +72,7 @@ interface Filtros {
   search: string;
   tipo: string;
   ambito: string;
+  pais: string;
   resultadoFinal: string;
 }
 
@@ -78,6 +82,7 @@ const FILTROS_INICIALES: Filtros = {
   search: "",
   tipo: DD_MATRIZ_FILTRO_TODOS,
   ambito: DD_MATRIZ_FILTRO_TODOS,
+  pais: DD_MATRIZ_FILTRO_TODOS,
   resultadoFinal: DD_MATRIZ_FILTRO_TODOS,
 };
 
@@ -89,6 +94,7 @@ function consultaDe(filtros: Filtros, perPage = filtros.perPage, page = filtros.
     search: filtros.search.trim() || undefined,
     tipo: filtros.tipo !== DD_MATRIZ_FILTRO_TODOS ? filtros.tipo : undefined,
     ambito: filtros.ambito !== DD_MATRIZ_FILTRO_TODOS ? filtros.ambito : undefined,
+    sinPais: filtros.pais === DD_MATRIZ_FILTRO_SIN_PAIS || undefined,
     resultadoFinal:
       filtros.resultadoFinal !== DD_MATRIZ_FILTRO_TODOS && !sinEvaluar ? filtros.resultadoFinal : undefined,
     sinEvaluar: sinEvaluar || undefined,
@@ -129,7 +135,7 @@ export function DdMatrizEvaluacionLista() {
     void cargar(siguientes);
   };
 
-  const filtrosActivos = [filtros.tipo, filtros.ambito, filtros.resultadoFinal].filter(
+  const filtrosActivos = [filtros.tipo, filtros.ambito, filtros.pais, filtros.resultadoFinal].filter(
     (v) => v !== DD_MATRIZ_FILTRO_TODOS,
   ).length;
 
@@ -156,6 +162,7 @@ export function DdMatrizEvaluacionLista() {
         { encabezado: "Vínculo", valor: (r) => r.nombre },
         { encabezado: "Tipo de vínculo", valor: (r) => etiqueta<DdMatrizTipoVinculo>(DD_MATRIZ_TIPO_VINCULO_LABELS, r.tipo) },
         { encabezado: "Documento", valor: (r) => [r.tipoDocumento, r.documento].filter(Boolean).join(" - ") },
+        { encabezado: "País", valor: (r) => (r.pais ? nombrePais(r.pais) : "Sin registrar") },
         { encabezado: "Nacional o extranjera", valor: (r) => etiqueta<DdMatrizAmbito>(DD_MATRIZ_AMBITO_LABELS, r.ambito) },
         { encabezado: "Motivo", valor: (r) => r.motivo ?? "" },
         { encabezado: "Evento o proyecto", valor: (r) => r.eventoProyecto ?? "" },
@@ -241,7 +248,7 @@ export function DdMatrizEvaluacionLista() {
           </div>
 
           {filtersOpen ? (
-            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mx-filtro-tipo">Tipo de vínculo</label>
                 <Select value={filtros.tipo} onValueChange={(valor) => aplicar({ tipo: valor })}>
@@ -279,6 +286,16 @@ export function DdMatrizEvaluacionLista() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mx-filtro-pais">País</label>
+                <Select value={filtros.pais} onValueChange={(valor) => aplicar({ pais: valor })}>
+                  <SelectTrigger id="mx-filtro-pais" className="h-8 border-border text-xs"><SelectValue placeholder="País" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todos</span></SelectItem>
+                    <SelectItem value={DD_MATRIZ_FILTRO_SIN_PAIS}><span>Sin país registrado</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-end">
                 <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" disabled={filtrosActivos === 0 && !filtros.search} onClick={() => aplicar({ ...FILTROS_INICIALES, perPage: filtrosRef.current.perPage })}>
                   <X className="h-3.5 w-3.5" />
@@ -291,7 +308,7 @@ export function DdMatrizEvaluacionLista() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={filtros.perPage} columns={8} />
+            <TableSkeleton rows={filtros.perPage} columns={9} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay vínculos en este filtro.</p>
@@ -306,6 +323,7 @@ export function DdMatrizEvaluacionLista() {
                       <TableHead className="text-[10px] uppercase tracking-wide">Vínculo</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Ingreso</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">País</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Nac. / Extr.</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">SIG</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Reputacional</TableHead>
@@ -337,6 +355,12 @@ export function DdMatrizEvaluacionLista() {
                         </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground lg:table-cell">
                           {dateUtils.format(fila.fechaIngreso)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <DdPaisBandera pais={fila.pais} />
+                            {fila.pais ? <span className="hidden font-mono text-[11px] text-muted-foreground xl:inline">{fila.pais}</span> : null}
+                          </div>
                         </TableCell>
                         <TableCell><DdMatrizAmbitoBadge valor={fila.ambito} /></TableCell>
                         <TableCell className="hidden lg:table-cell">

@@ -22,12 +22,14 @@ import {
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
+  DD_VINCULO_LABELS,
   type DdMatrizAdjuntoCategoria,
   type DdMatrizAmbito,
   type DdMatrizOrigen,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
-import { derivarAmbito } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { derivarAmbito, resolverPais } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { esPaisNacional, paisDeTexto } from "@/lib/shared/utils/pais";
 
 /** Tamano de lote al crear filas automaticas. */
 const LOTE_CREACION = 500;
@@ -47,7 +49,7 @@ const include = {
       createdAt: true,
       revisadoPor: true,
       fechaRevision: true,
-      empresa: { select: { razonSocial: true, ruc: true, direccionFiscal: true } },
+      empresa: { select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, actividadEconomica: true } },
     },
   },
 } satisfies Prisma.DdMatrizVinculoInclude;
@@ -64,7 +66,12 @@ interface FilaDeseada {
   nacionalidad: string | null;
   cargo: string | null;
   ambito: DdMatrizAmbito;
+  pais: string | null;
   direccionLegal: string | null;
+  estadoContribuyente: string | null;
+  actividadEconomica: string | null;
+  motivo: string | null;
+  eventoProyecto: string | null;
 }
 
 function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto {
@@ -75,8 +82,9 @@ function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto 
     empresaRazonSocial: row.empresa.razonSocial,
     empresaRuc: row.empresa.ruc,
     empresaDireccionFiscal: row.empresa.direccionFiscal ?? null,
+    empresaPais: row.empresa.pais,
     paisConstitucion: row.paisConstitucion ?? null,
-    actividadEconomica: row.actividadEconomica ?? null,
+    actividadEconomica: row.actividadEconomica ?? row.empresa.actividadEconomica ?? null,
     tipoRelacionComercial: row.tipoRelacionComercial ?? null,
     motivo: row.motivoImportacion ?? row.tipoRelacionComercial ?? null,
     eventoProyecto: row.eventoProyecto ?? null,
@@ -109,9 +117,15 @@ function mapVinculo(row: VinculoRow): DdMatrizVinculoEntity {
     cargo: row.cargo,
     ambito: row.ambito as DdMatrizAmbito,
     ambitoEditado: row.ambitoEditado,
+    pais: row.pais,
+    paisEditado: row.paisEditado,
+    identidadEditada: row.identidadEditada,
     fechaInicioActividades: row.fechaInicioActividades,
     estadoContribuyente: row.estadoContribuyente,
     direccionLegal: row.direccionLegal,
+    actividadEconomica: row.actividadEconomica,
+    motivo: row.motivo,
+    eventoProyecto: row.eventoProyecto,
     historialIimp: row.historialIimp,
     beneficioMutuo: row.beneficioMutuo,
     listas: (row.listas ?? {}) as DdMatrizListasValor,
@@ -139,6 +153,7 @@ function mapFila(row: VinculoRow): DdMatrizFilaEntity {
     tipoDocumento: row.tipoDocumento,
     documento: row.documento,
     ambito: row.ambito as DdMatrizAmbito,
+    pais: row.pais,
     cargo: row.cargo,
     sigResultado: row.sigResultado,
     sigConclusion: row.sigConclusion,
@@ -196,11 +211,17 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       select: {
         id: true,
         paisConstitucion: true,
+        actividadEconomica: true,
+        motivoImportacion: true,
+        tipoRelacionComercial: true,
+        eventoProyecto: true,
         representanteNombre: true,
         representanteTipoDocumento: true,
         representanteDocumento: true,
         representanteNacionalidad: true,
-        empresa: { select: { razonSocial: true, ruc: true, direccionFiscal: true } },
+        empresa: {
+          select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, estadoContribuyente: true, actividadEconomica: true },
+        },
         beneficiarios: {
           select: { id: true, nombre: true, documento: true, nacionalidad: true, porcentaje: true },
           orderBy: { orden: "asc" },
@@ -211,6 +232,11 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
     const deseadas: FilaDeseada[] = [];
     for (const exp of expedientes) {
+      /* Una nacionalidad distinta de Peru gana: Empresa.pais nace en PE para todas las
+       * empresas, mientras que el pais de constitucion del expediente lo declara el cliente. */
+      const paisConstitucion = paisDeTexto(exp.paisConstitucion);
+      const paisEmpresa =
+        exp.empresa.pais && !esPaisNacional(exp.empresa.pais) ? exp.empresa.pais : (paisConstitucion ?? exp.empresa.pais);
       deseadas.push({
         expedienteId: exp.id,
         tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
@@ -220,10 +246,18 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         documento: exp.empresa.ruc,
         nacionalidad: exp.paisConstitucion,
         cargo: null,
-        ambito: derivarAmbito({ pais: exp.paisConstitucion, tipoDocumento: "RUC" }),
+        pais: paisEmpresa,
+        ambito: derivarAmbito({ paisIso: paisEmpresa, tipoDocumento: "RUC" }),
         direccionLegal: exp.empresa.direccionFiscal ?? null,
+        estadoContribuyente: exp.empresa.estadoContribuyente ?? null,
+        actividadEconomica: exp.actividadEconomica ?? exp.empresa.actividadEconomica ?? null,
+        motivo:
+          exp.motivoImportacion ??
+          (exp.tipoRelacionComercial ? (DD_VINCULO_LABELS[exp.tipoRelacionComercial] ?? exp.tipoRelacionComercial) : null),
+        eventoProyecto: exp.eventoProyecto ?? null,
       });
       if (exp.representanteNombre?.trim()) {
+        const pais = resolverPais({ nacionalidad: exp.representanteNacionalidad });
         deseadas.push({
           expedienteId: exp.id,
           tipo: DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE,
@@ -233,14 +267,17 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           documento: exp.representanteDocumento,
           nacionalidad: exp.representanteNacionalidad,
           cargo: DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE],
-          ambito: derivarAmbito({
-            nacionalidad: exp.representanteNacionalidad,
-            tipoDocumento: exp.representanteTipoDocumento,
-          }),
+          pais,
+          ambito: derivarAmbito({ paisIso: pais, tipoDocumento: exp.representanteTipoDocumento }),
           direccionLegal: null,
+          estadoContribuyente: null,
+          actividadEconomica: null,
+          motivo: null,
+          eventoProyecto: null,
         });
       }
       for (const b of exp.beneficiarios) {
+        const pais = resolverPais({ nacionalidad: b.nacionalidad });
         deseadas.push({
           expedienteId: exp.id,
           tipo: DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
@@ -250,8 +287,13 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           documento: b.documento,
           nacionalidad: b.nacionalidad,
           cargo: `${DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO]} (${b.porcentaje.toString()}%)`,
-          ambito: derivarAmbito({ nacionalidad: b.nacionalidad }),
+          pais,
+          ambito: derivarAmbito({ paisIso: pais }),
           direccionLegal: null,
+          estadoContribuyente: null,
+          actividadEconomica: null,
+          motivo: null,
+          eventoProyecto: null,
         });
       }
     }
@@ -271,6 +313,14 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         cargo: true,
         ambito: true,
         ambitoEditado: true,
+        pais: true,
+        paisEditado: true,
+        direccionLegal: true,
+        estadoContribuyente: true,
+        actividadEconomica: true,
+        motivo: true,
+        eventoProyecto: true,
+        identidadEditada: true,
         sigResultado: true,
         repResultado: true,
         cmpResultado: true,
@@ -299,7 +349,12 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           nacionalidad: d.nacionalidad,
           cargo: d.cargo,
           ambito: d.ambito,
+          pais: d.pais,
           direccionLegal: d.direccionLegal,
+          estadoContribuyente: d.estadoContribuyente,
+          actividadEconomica: d.actividadEconomica,
+          motivo: d.motivo,
+          eventoProyecto: d.eventoProyecto,
           creadoPor: usuario,
           /* Escalonado para que la empresa salga antes que sus personas vinculadas. */
           createdAt: new Date(base + i + indice),
@@ -308,32 +363,57 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       creadas += resultado.count;
     }
 
+    /* Refresca las filas existentes. Lo corregido a mano por SIG (pais / ambito) se respeta;
+     * direccion legal y estado de contribuyente solo se completan si siguen vacios. */
     const cambios = deseadas.flatMap((d) => {
       const actual = porClave.get(clave(d.expedienteId, d.tipo, d.refKey));
       if (!actual) return [];
-      const ambito = actual.ambitoEditado ? actual.ambito : d.ambito;
+      /* La identidad corregida por SIG se conserva; el resto se refresca desde el expediente. */
+      const identidad = actual.identidadEditada
+        ? {
+            nombre: actual.nombre,
+            tipoDocumento: actual.tipoDocumento,
+            documento: actual.documento,
+            nacionalidad: actual.nacionalidad,
+            cargo: actual.cargo,
+          }
+        : {
+            nombre: d.nombre,
+            tipoDocumento: d.tipoDocumento,
+            documento: d.documento,
+            nacionalidad: d.nacionalidad,
+            cargo: d.cargo,
+          };
+      const pais = actual.paisEditado ? actual.pais : d.pais;
+      const ambito = actual.ambitoEditado
+        ? (actual.ambito as DdMatrizAmbito)
+        : actual.paisEditado
+          ? derivarAmbito({ paisIso: actual.pais, tipoDocumento: identidad.tipoDocumento })
+          : d.ambito;
+      /* Datos generales: solo se completan si siguen vacios (lo escrito a mano manda). */
+      const completados = {
+        direccionLegal: actual.direccionLegal ?? d.direccionLegal,
+        estadoContribuyente: actual.estadoContribuyente ?? d.estadoContribuyente,
+        actividadEconomica: actual.actividadEconomica ?? d.actividadEconomica,
+        motivo: actual.motivo ?? d.motivo,
+        eventoProyecto: actual.eventoProyecto ?? d.eventoProyecto,
+      };
       const igual =
-        actual.nombre === d.nombre &&
-        actual.tipoDocumento === d.tipoDocumento &&
-        actual.documento === d.documento &&
-        actual.nacionalidad === d.nacionalidad &&
-        actual.cargo === d.cargo &&
-        actual.ambito === ambito;
+        actual.nombre === identidad.nombre &&
+        actual.tipoDocumento === identidad.tipoDocumento &&
+        actual.documento === identidad.documento &&
+        actual.nacionalidad === identidad.nacionalidad &&
+        actual.cargo === identidad.cargo &&
+        actual.ambito === ambito &&
+        actual.pais === pais &&
+        actual.direccionLegal === completados.direccionLegal &&
+        actual.estadoContribuyente === completados.estadoContribuyente &&
+        actual.actividadEconomica === completados.actividadEconomica &&
+        actual.motivo === completados.motivo &&
+        actual.eventoProyecto === completados.eventoProyecto;
       return igual
         ? []
-        : [
-            prisma.ddMatrizVinculo.update({
-              where: { id: actual.id },
-              data: {
-                nombre: d.nombre,
-                tipoDocumento: d.tipoDocumento,
-                documento: d.documento,
-                nacionalidad: d.nacionalidad,
-                cargo: d.cargo,
-                ambito,
-              },
-            }),
-          ];
+        : [prisma.ddMatrizVinculo.update({ where: { id: actual.id }, data: { ...identidad, ambito, pais, ...completados } })];
     });
     if (cambios.length > 0) await prisma.$transaction(cambios);
 
@@ -354,6 +434,8 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     ];
     if (params.tipo) and.push({ tipo: params.tipo });
     if (params.ambito) and.push({ ambito: params.ambito });
+    if (params.pais) and.push({ pais: params.pais });
+    if (params.sinPais) and.push({ pais: null });
     if (params.resultadoFinal) and.push({ resultadoFinal: params.resultadoFinal });
     if (params.sinEvaluar) and.push({ resultadoFinal: null });
     const texto = params.search?.trim();
@@ -423,12 +505,18 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     if (cambios.cargo !== undefined) data.cargo = cambios.cargo;
     if (cambios.ambito !== undefined) data.ambito = cambios.ambito;
     if (cambios.ambitoEditado !== undefined) data.ambitoEditado = cambios.ambitoEditado;
+    if (cambios.pais !== undefined) data.pais = cambios.pais;
+    if (cambios.paisEditado !== undefined) data.paisEditado = cambios.paisEditado;
+    if (cambios.identidadEditada !== undefined) data.identidadEditada = cambios.identidadEditada;
     if (cambios.listas !== undefined) data.listas = cambios.listas as Prisma.InputJsonValue;
     if (cambios.generales) {
       const g = cambios.generales;
       if (g.fechaInicioActividades !== undefined) data.fechaInicioActividades = g.fechaInicioActividades;
       if (g.estadoContribuyente !== undefined) data.estadoContribuyente = g.estadoContribuyente;
       if (g.direccionLegal !== undefined) data.direccionLegal = g.direccionLegal;
+      if (g.actividadEconomica !== undefined) data.actividadEconomica = g.actividadEconomica;
+      if (g.motivo !== undefined) data.motivo = g.motivo;
+      if (g.eventoProyecto !== undefined) data.eventoProyecto = g.eventoProyecto;
       if (g.historialIimp !== undefined) data.historialIimp = g.historialIimp;
       if (g.beneficioMutuo !== undefined) data.beneficioMutuo = g.beneficioMutuo;
     }
@@ -454,6 +542,8 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         cargo: data.cargo,
         ambito: data.ambito,
         ambitoEditado: true,
+        pais: data.pais,
+        paisEditado: data.paisEditado,
         creadoPor: data.creadoPor,
       },
       include,

@@ -29,9 +29,15 @@ function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoE
     cargo: "Representante legal",
     ambito: DD_MATRIZ_AMBITOS.NACIONAL,
     ambitoEditado: false,
+    pais: "PE",
+    paisEditado: false,
+    identidadEditada: false,
     fechaInicioActividades: null,
     estadoContribuyente: null,
     direccionLegal: null,
+    actividadEconomica: null,
+    motivo: null,
+    eventoProyecto: null,
     historialIimp: null,
     beneficioMutuo: null,
     listas: {},
@@ -52,6 +58,7 @@ function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoE
       empresaRazonSocial: "YURA S.A.",
       empresaRuc: "20100000001",
       empresaDireccionFiscal: null,
+      empresaPais: "PE",
       paisConstitucion: "Perú",
       actividadEconomica: null,
       tipoRelacionComercial: "exhibidor",
@@ -198,12 +205,26 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  it("filas automaticas: solo se corrige el ambito, no la identidad", async () => {
-    const { servicio, repo } = crear(vinculo());
-    await expect(
-      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { nombre: "OTRO" } }),
-    ).rejects.toMatchObject({ status: 400 });
+  it("filas automaticas: SIG puede completar la identidad y queda marcada para la sincronizacion", async () => {
+    const { servicio, repo } = crear(vinculo({ nacionalidad: null, cargo: null }));
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      identidad: { nacionalidad: "Chilena", cargo: "Apoderado" },
+    });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.nacionalidad).toBe("Chilena");
+    expect(cambios?.cargo).toBe("Apoderado");
+    expect(cambios?.identidadEditada).toBe(true);
+  });
 
+  it("filas manuales: editar la identidad no marca identidadEditada", async () => {
+    const { servicio, repo } = crear(vinculo({ origen: DD_MATRIZ_ORIGENES.MANUAL }));
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { cargo: "Socio" } });
+    expect(repo.actualizarVinculo.mock.calls[0]?.[1]).not.toHaveProperty("identidadEditada");
+  });
+
+  it("corregir solo el ambito no toca la identidad", async () => {
+    const { servicio, repo } = crear(vinculo());
     await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
       id: "v-1",
       identidad: { ambito: DD_MATRIZ_AMBITOS.EXTRANJERO },
@@ -211,6 +232,115 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
     expect(cambios?.ambito).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
     expect(cambios?.ambitoEditado).toBe(true);
+    expect(cambios).not.toHaveProperty("identidadEditada");
+  });
+
+  it("bloque: fecha y responsable escritos a mano mandan; si no, hoy y quien guarda", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      sig: { resultado: "ACEPTADO", fecha: "2026-10-19", responsable: "Gianella Neira" },
+    });
+    const manual = repo.actualizarVinculo.mock.calls[0]?.[1].sig;
+    expect(manual?.fecha?.toISOString().slice(0, 10)).toBe("2026-10-19");
+    expect(manual?.responsable).toBe("Gianella Neira");
+
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", sig: { resultado: "ACEPTADO" } });
+    const auto = repo.actualizarVinculo.mock.calls[1]?.[1].sig;
+    expect(auto?.responsable).toBe("usuario@iimp.org.pe");
+    expect(auto?.fecha).toBeInstanceOf(Date);
+  });
+
+  it("generales: actividad economica, motivo y evento se guardan (vacio los limpia)", async () => {
+    const { servicio, repo } = crear(vinculo({ tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA }));
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      generales: { actividadEconomica: " 6202 - Consultoria ", motivo: "Exhibidor", eventoProyecto: "" },
+    });
+    const g = repo.actualizarVinculo.mock.calls[0]?.[1].generales;
+    expect(g?.actividadEconomica).toBe("6202 - Consultoria");
+    expect(g?.motivo).toBe("Exhibidor");
+    expect(g?.eventoProyecto).toBeNull();
+  });
+
+  it("resultado final: quien registra y fecha escritos a mano prevalecen", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      resultadoFinal: "APTO",
+      finalPor: "Jasmin Obregon",
+      finalFecha: "2026-10-20",
+    });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.finalPor).toBe("Jasmin Obregon");
+    expect(cambios?.finalFecha?.toISOString().slice(0, 10)).toBe("2026-10-20");
+  });
+
+  it("pais: SIG fija el pais (acepta nombre o ISO) y el pais decide el ambito", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { pais: "Chile" } });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.pais).toBe("CL");
+    expect(cambios?.paisEditado).toBe(true);
+    expect(cambios?.ambito).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(cambios?.ambitoEditado).toBe(false);
+  });
+
+  it("pais: Peru deja el vinculo nacional y un pais desconocido se rechaza", async () => {
+    const { servicio, repo } = crear(vinculo({ ambito: DD_MATRIZ_AMBITOS.EXTRANJERO, pais: "CL" }));
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { pais: "PE" } });
+    expect(repo.actualizarVinculo.mock.calls[0]?.[1].ambito).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { pais: "Atlantida" } }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("pais: vaciarlo en una fila automatica deja que la sincronizacion lo recalcule", async () => {
+    const { servicio, repo } = crear(vinculo({ pais: "CL", paisEditado: true }));
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { pais: "" } });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.paisEditado).toBe(false);
+    expect(cambios?.ambitoEditado).toBe(false);
+    expect(cambios).not.toHaveProperty("pais");
+    expect(repo.sincronizarEvento).toHaveBeenCalledWith("evento-1", "usuario@iimp.org.pe");
+  });
+
+  it("pais: vaciarlo en una fila manual lo deriva de su nacionalidad", async () => {
+    const { servicio, repo } = crear(
+      vinculo({ origen: DD_MATRIZ_ORIGENES.MANUAL, nacionalidad: "Chilena", pais: "PE", paisEditado: true }),
+    );
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", identidad: { pais: "" } });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.pais).toBe("CL");
+    expect(cambios?.ambito).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(repo.sincronizarEvento).not.toHaveBeenCalled();
+  });
+
+  it("pais: si el mismo request fija el ambito, ese ambito manda", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      identidad: { pais: "CL", ambito: DD_MATRIZ_AMBITOS.NACIONAL },
+    });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.ambito).toBe(DD_MATRIZ_AMBITOS.NACIONAL);
+    expect(cambios?.ambitoEditado).toBe(true);
+  });
+
+  it("vinculo manual: deriva pais y ambito desde la nacionalidad (gentilicio)", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.crearVinculoManual.mockResolvedValue(vinculo({ id: "v-nuevo", origen: DD_MATRIZ_ORIGENES.MANUAL }));
+    await servicio.agregarVinculo(sesion([PERMISSIONS.DD_REVISION]), {
+      expedienteId: "exp-1",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.VINCULADO,
+      nombre: "ACME LTD",
+      nacionalidad: "Chilena",
+    });
+    const alta = repo.crearVinculoManual.mock.calls[0]?.[0];
+    expect(alta?.pais).toBe("CL");
+    expect(alta?.ambito).toBe(DD_MATRIZ_AMBITOS.EXTRANJERO);
+    expect(alta?.paisEditado).toBe(false);
   });
 
   it("listas: normaliza N.A y rechaza listas que no aplican al ambito", async () => {

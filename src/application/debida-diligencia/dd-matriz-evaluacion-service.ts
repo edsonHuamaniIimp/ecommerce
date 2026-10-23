@@ -36,7 +36,9 @@ import {
   normalizarSiNoNa,
   normalizarResultadoFinal,
   normalizarTextoMatriz,
+  resolverPais,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { paisDeTexto } from "@/lib/shared/utils/pais";
 
 /** Que puede hacer una sesion sobre un vinculo concreto. */
 export interface DdMatrizPermisos {
@@ -128,6 +130,23 @@ export class DdMatrizEvaluacionApplicationService {
     };
   }
 
+  /** Fecha `YYYY-MM-DD` del formulario a Date (mediodia UTC para no cambiar de dia por zona horaria). */
+  private fechaDe(valor: string | null | undefined): Date | null {
+    return valor ? new Date(`${valor}T12:00:00.000Z`) : null;
+  }
+
+  /** Fecha y responsable de un bloque: lo escrito a mano manda; si no, hoy y quien guarda. */
+  private sello(
+    entrada: { fecha?: string | null; responsable?: string | null },
+    ahora: Date,
+    email: string,
+  ): Pick<DdMatrizBloque, "fecha" | "responsable"> {
+    return {
+      fecha: this.fechaDe(entrada.fecha) ?? ahora,
+      responsable: entrada.responsable?.trim() || email,
+    };
+  }
+
   private prohibido(mensaje: string): never {
     throw new DomainError(mensaje, API_ERROR_CODES.FORBIDDEN, 403);
   }
@@ -153,6 +172,8 @@ export class DdMatrizEvaluacionApplicationService {
       search: query.search,
       tipo: query.tipo as DdMatrizTipoVinculo | undefined,
       ambito: query.ambito as DdMatrizAmbito | undefined,
+      pais: query.pais,
+      sinPais: query.sinPais,
       resultadoFinal: query.resultadoFinal,
       sinEvaluar: query.sinEvaluar,
     });
@@ -205,23 +226,42 @@ export class DdMatrizEvaluacionApplicationService {
     const permisos = this.calcularPermisos(session, vinculo, adjuntos);
     const ahora = new Date();
     const cambios: DdMatrizVinculoCambios = { actualizadoPor: session.email };
+    let reiniciarAutomatico = false;
 
     if (dto.identidad) {
       if (!permisos.editarIdentidad) this.prohibido("Sin permiso para editar los datos del vínculo");
-      const { ambito, ...datos } = dto.identidad;
-      const esAutomatico = vinculo.origen === DD_MATRIZ_ORIGENES.AUTOMATICO;
-      if (esAutomatico && Object.values(datos).some((v) => v !== undefined)) {
-        throw new DomainError(
-          "Los datos de una fila automática vienen del expediente; solo puedes corregir el ámbito.",
-          API_ERROR_CODES.VALIDATION,
-          400,
-        );
-      }
-      if (datos.nombre !== undefined) cambios.nombre = datos.nombre;
+      const { ambito, pais, ...datos } = dto.identidad;
+      const completaIdentidad = Object.values(datos).some((v) => v !== undefined);
+      /* En filas automaticas lo que SIG completa o corrige se conserva: la sincronizacion no lo pisa. */
+      if (completaIdentidad && vinculo.origen === DD_MATRIZ_ORIGENES.AUTOMATICO) cambios.identidadEditada = true;
+      if (datos.nombre !== undefined) cambios.nombre = datos.nombre.trim();
       if (datos.tipoDocumento !== undefined) cambios.tipoDocumento = datos.tipoDocumento?.trim() || null;
       if (datos.documento !== undefined) cambios.documento = datos.documento?.trim() || null;
       if (datos.nacionalidad !== undefined) cambios.nacionalidad = datos.nacionalidad?.trim() || null;
       if (datos.cargo !== undefined) cambios.cargo = datos.cargo?.trim() || null;
+      if (pais !== undefined) {
+        if (normalizarTextoMatriz(pais) === "") {
+          /* Vacio: vuelve al valor automatico. Las filas del expediente se recalculan con
+           * la sincronizacion; las manuales lo derivan de su nacionalidad. */
+          cambios.paisEditado = false;
+          cambios.ambitoEditado = false;
+          reiniciarAutomatico = vinculo.origen === DD_MATRIZ_ORIGENES.AUTOMATICO;
+          if (!reiniciarAutomatico) {
+            cambios.pais = resolverPais({ nacionalidad: vinculo.nacionalidad });
+            cambios.ambito = derivarAmbito({ paisIso: cambios.pais, tipoDocumento: vinculo.tipoDocumento });
+          }
+        } else {
+          const iso = paisDeTexto(pais);
+          if (!iso) throw new DomainError("País no reconocido: usa el código ISO o el nombre", API_ERROR_CODES.VALIDATION, 400);
+          cambios.pais = iso;
+          cambios.paisEditado = true;
+          /* El pais decide el ambito, salvo que el mismo request lo fije explicitamente. */
+          if (ambito === undefined) {
+            cambios.ambito = derivarAmbito({ paisIso: iso, tipoDocumento: vinculo.tipoDocumento });
+            cambios.ambitoEditado = false;
+          }
+        }
+      }
       if (ambito !== undefined) {
         cambios.ambito = ambito as DdMatrizAmbito;
         cambios.ambitoEditado = true;
@@ -243,13 +283,13 @@ export class DdMatrizEvaluacionApplicationService {
     if (dto.sig) {
       if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
       const evaluado = this.evaluar(DD_MATRIZ_AREAS.SIG, vinculo.sig, dto.sig);
-      cambios.sig = { ...evaluado, fecha: ahora, responsable: session.email };
+      cambios.sig = { ...evaluado, ...this.sello(dto.sig, ahora, session.email) };
     }
 
     if (dto.reputacional) {
       if (permisos.editarReputacional) {
         const evaluado = this.evaluar(DD_MATRIZ_AREAS.REPUTACIONAL, vinculo.reputacional, dto.reputacional);
-        cambios.reputacional = { ...evaluado, fecha: ahora, responsable: session.email };
+        cambios.reputacional = { ...evaluado, ...this.sello(dto.reputacional, ahora, session.email) };
       } else if (permisos.editarConclusionReputacional) {
         const { resultado, observaciones, conclusion } = dto.reputacional;
         const tocaOtrosCampos =
@@ -272,25 +312,34 @@ export class DdMatrizEvaluacionApplicationService {
         );
       }
       const evaluado = this.evaluar(DD_MATRIZ_AREAS.COMPLIANCE, vinculo.compliance, dto.compliance);
-      cambios.compliance = { ...evaluado, fecha: ahora, responsable: session.email };
+      cambios.compliance = { ...evaluado, ...this.sello(dto.compliance, ahora, session.email) };
     }
 
-    if (dto.resultadoFinal !== undefined) {
+    if (dto.resultadoFinal !== undefined || dto.finalFecha !== undefined || dto.finalPor !== undefined) {
       if (!permisos.editarFinal) this.prohibido("El resultado final lo registra SIG o Compliance");
-      if (normalizarTextoMatriz(dto.resultadoFinal) === "") {
-        cambios.resultadoFinal = null;
-        cambios.finalFecha = null;
-        cambios.finalPor = null;
-      } else {
-        const final = normalizarResultadoFinal(dto.resultadoFinal);
-        if (!final) throw new DomainError("Resultado final no reconocido", API_ERROR_CODES.VALIDATION, 400);
-        cambios.resultadoFinal = final;
-        cambios.finalFecha = ahora;
-        cambios.finalPor = session.email;
+      if (dto.resultadoFinal !== undefined) {
+        if (normalizarTextoMatriz(dto.resultadoFinal) === "") {
+          cambios.resultadoFinal = null;
+          cambios.finalFecha = null;
+          cambios.finalPor = null;
+        } else {
+          const final = normalizarResultadoFinal(dto.resultadoFinal);
+          if (!final) throw new DomainError("Resultado final no reconocido", API_ERROR_CODES.VALIDATION, 400);
+          cambios.resultadoFinal = final;
+          cambios.finalFecha = ahora;
+          cambios.finalPor = session.email;
+        }
       }
+      /* Lo escrito a mano (fecha / quien registra) prevalece sobre el sello automatico. */
+      if (dto.finalFecha !== undefined) cambios.finalFecha = this.fechaDe(dto.finalFecha);
+      if (dto.finalPor !== undefined) cambios.finalPor = dto.finalPor?.trim() || null;
     }
 
-    const actualizado = await this.repo.actualizarVinculo(dto.id, cambios);
+    let actualizado = await this.repo.actualizarVinculo(dto.id, cambios);
+    if (reiniciarAutomatico && session.eventoId) {
+      await this.repo.sincronizarEvento(session.eventoId, session.email);
+      actualizado = (await this.repo.findVinculo(dto.id)) ?? actualizado;
+    }
     await this.repo.registrarAuditoria(
       "matriz_guardar",
       vinculo.expediente.codigo,
@@ -327,9 +376,14 @@ export class DdMatrizEvaluacionApplicationService {
       throw new DomainError("Expediente no encontrado en el evento activo", API_ERROR_CODES.NOT_FOUND, 404);
     }
 
+    const paisTexto = normalizarTextoMatriz(dto.pais) === "" ? null : paisDeTexto(dto.pais);
+    if (normalizarTextoMatriz(dto.pais) !== "" && !paisTexto) {
+      throw new DomainError("País no reconocido: usa el código ISO o el nombre", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const pais = paisTexto ?? resolverPais({ nacionalidad: dto.nacionalidad });
     const ambito =
       (dto.ambito as DdMatrizAmbito | undefined) ??
-      derivarAmbito({ nacionalidad: dto.nacionalidad, tipoDocumento: dto.tipoDocumento });
+      derivarAmbito({ paisIso: pais, tipoDocumento: dto.tipoDocumento });
     const creado = await this.repo.crearVinculoManual({
       expedienteId: dto.expedienteId,
       tipo: dto.tipo as DdMatrizTipoVinculo,
@@ -339,6 +393,8 @@ export class DdMatrizEvaluacionApplicationService {
       nacionalidad: dto.nacionalidad?.trim() || null,
       cargo: dto.cargo?.trim() || null,
       ambito,
+      pais,
+      paisEditado: paisTexto !== null,
       creadoPor: session.email,
     });
     await this.repo.registrarAuditoria(
@@ -461,6 +517,11 @@ export class DdMatrizEvaluacionApplicationService {
       resultado.estadoContribuyente = generales.estadoContribuyente?.trim() || null;
     }
     if (generales.direccionLegal !== undefined) resultado.direccionLegal = generales.direccionLegal?.trim() || null;
+    if (generales.actividadEconomica !== undefined) {
+      resultado.actividadEconomica = generales.actividadEconomica?.trim() || null;
+    }
+    if (generales.motivo !== undefined) resultado.motivo = generales.motivo?.trim() || null;
+    if (generales.eventoProyecto !== undefined) resultado.eventoProyecto = generales.eventoProyecto?.trim() || null;
     for (const campo of ["historialIimp", "beneficioMutuo"] as const) {
       const valor = generales[campo];
       if (valor === undefined) continue;

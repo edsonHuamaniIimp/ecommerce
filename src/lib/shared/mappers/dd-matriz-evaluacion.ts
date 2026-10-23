@@ -31,6 +31,7 @@ export function mapDdMatrizEvaluacionFilaToDTO(fila: DdMatrizFilaEntity): DdMatr
     documento: fila.documento,
     cargo: fila.cargo,
     ambito: fila.ambito,
+    pais: fila.pais,
     sigResultado: fila.sigResultado,
     sigConclusion: fila.sigConclusion,
     repResultado: fila.repResultado,
@@ -83,6 +84,10 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     fechaInicioActividades: soloFecha(generalesOrigen.fechaInicioActividades),
     estadoContribuyente: generalesOrigen.estadoContribuyente,
     direccionLegal: generalesOrigen.direccionLegal ?? vinculo.expediente.empresaDireccionFiscal,
+    actividadEconomica: generalesOrigen.actividadEconomica ?? vinculo.expediente.actividadEconomica,
+    motivo: generalesOrigen.motivo ?? vinculo.expediente.motivo,
+    eventoProyecto: generalesOrigen.eventoProyecto ?? vinculo.expediente.eventoProyecto,
+    paisEmpresa: empresa?.pais ?? vinculo.expediente.empresaPais,
     historialIimp: generalesOrigen.historialIimp,
     beneficioMutuo: generalesOrigen.beneficioMutuo,
   };
@@ -104,6 +109,8 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     cargo: vinculo.cargo,
     ambito: vinculo.ambito,
     ambitoEditado: vinculo.ambitoEditado,
+    pais: vinculo.pais,
+    paisEditado: vinculo.paisEditado,
     expediente: {
       expedienteId: vinculo.expediente.expedienteId,
       codigo: vinculo.expediente.codigo,

@@ -34,6 +34,9 @@ export interface DdMatrizGenerales {
   fechaInicioActividades: Date | null;
   estadoContribuyente: string | null;
   direccionLegal: string | null;
+  actividadEconomica: string | null;
+  motivo: string | null;
+  eventoProyecto: string | null;
   historialIimp: string | null;
   beneficioMutuo: string | null;
 }
@@ -46,6 +49,8 @@ export interface DdMatrizExpedienteContexto {
   empresaRazonSocial: string;
   empresaRuc: string;
   empresaDireccionFiscal: string | null;
+  /** Pais ISO de la empresa (Empresa.pais). */
+  empresaPais: string;
   paisConstitucion: string | null;
   actividadEconomica: string | null;
   tipoRelacionComercial: string | null;
@@ -68,6 +73,11 @@ export interface DdMatrizVinculoEntity extends DdMatrizGenerales {
   cargo: string | null;
   ambito: DdMatrizAmbito;
   ambitoEditado: boolean;
+  /** Pais ISO alpha-2; null si no se conoce. */
+  pais: string | null;
+  paisEditado: boolean;
+  /** true si SIG completo/corrigio la identidad de una fila automatica. */
+  identidadEditada: boolean;
   listas: DdMatrizListasValor;
   sig: DdMatrizBloque;
   reputacional: DdMatrizBloque;
@@ -91,6 +101,7 @@ export interface DdMatrizFilaEntity {
   tipoDocumento: string | null;
   documento: string | null;
   ambito: DdMatrizAmbito;
+  pais: string | null;
   cargo: string | null;
   sigResultado: string | null;
   sigConclusion: string | null;
@@ -113,6 +124,10 @@ export interface DdMatrizListarParams {
   search?: string;
   tipo?: DdMatrizTipoVinculo;
   ambito?: DdMatrizAmbito;
+  /** Pais ISO alpha-2 exacto. */
+  pais?: string;
+  /** Solo vinculos sin pais conocido. */
+  sinPais?: boolean;
   resultadoFinal?: string;
   /** Solo filas sin ningun resultado final registrado. */
   sinEvaluar?: boolean;
@@ -132,6 +147,9 @@ export interface DdMatrizVinculoCambios {
   cargo?: string | null;
   ambito?: DdMatrizAmbito;
   ambitoEditado?: boolean;
+  pais?: string | null;
+  paisEditado?: boolean;
+  identidadEditada?: boolean;
   generales?: Partial<DdMatrizGenerales>;
   listas?: DdMatrizListasValor;
   sig?: Partial<DdMatrizBloque>;
@@ -152,6 +170,8 @@ export interface DdMatrizVinculoManual {
   nacionalidad: string | null;
   cargo: string | null;
   ambito: DdMatrizAmbito;
+  pais: string | null;
+  paisEditado: boolean;
   creadoPor: string;
 }
 

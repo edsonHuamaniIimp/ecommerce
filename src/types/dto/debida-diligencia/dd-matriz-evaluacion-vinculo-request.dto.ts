@@ -9,4 +9,6 @@ export interface DdMatrizEvaluacionVinculoRequestDTO {
   cargo?: string | null;
   /** Si no se envia se deriva de la nacionalidad / tipo de documento. */
   ambito?: string;
+  /** Pais (ISO, nombre o gentilicio); si falta se deriva de la nacionalidad. */
+  pais?: string | null;
 }

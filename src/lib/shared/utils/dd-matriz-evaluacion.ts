@@ -1,5 +1,4 @@
 import {
-  DD_MATRIZ_ALIAS_NACIONAL,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_AREAS,
   DD_MATRIZ_CONCLUSION_ALIAS,
@@ -28,20 +27,11 @@ import {
   type DdMatrizSiNoNa,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
+import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
+import { esPaisNacional, paisDeTexto } from "@/lib/shared/utils/pais";
 
-/**
- * Normaliza un texto para comparar: sin tildes, en mayusculas, sin puntuacion y con
- * espacios colapsados. "N.A." y "n/a" terminan ambos como "N A".
- */
-export function normalizarTextoMatriz(valor: unknown): string {
-  if (valor === null || valor === undefined) return "";
-  return String(valor)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim();
-}
+/** Normaliza un texto para comparar (ver `normalizarTexto`). */
+export const normalizarTextoMatriz = normalizarTexto;
 
 /**
  * Mapper de valores del catalogo: acepta la etiqueta de negocio ("EN REVISIÓN"), el
@@ -81,27 +71,38 @@ export const normalizarConclusionCompliance = (valor: unknown): DdMatrizConclusi
 export const normalizarResultadoFinal = (valor: unknown): DdMatrizResultadoFinal | null =>
   normalizarValorMatriz(valor, DD_MATRIZ_RESULTADO_FINAL_LABELS, DD_MATRIZ_RESULTADO_FINAL_ALIAS);
 
-/** Tipos de documento que implican persona extranjera (el DNI/RUC implican nacional). */
-const DOCUMENTOS_EXTRANJEROS = new Set(["CE", "PASAPORTE", "PTP", "CARNET DE EXTRANJERIA"]);
-const DOCUMENTOS_NACIONALES = new Set(["DNI", "RUC"]);
-
 /**
- * Deriva si el vinculo es nacional o extranjero mientras el campo de nacionalidad
- * definitivo no exista en todos los registros. Prioridad: pais/nacionalidad, luego
- * tipo de documento; sin datos se asume nacional. SIG puede corregirlo a mano.
+ * Tipos de documento que implican persona extranjera: texto del expediente DD
+ * ("Carnet de extranjería") y codigos de TIPOS_DOCUMENTO_PERSONA (4 = CE, 7 = pasaporte).
  */
-export function derivarAmbito(datos: {
+const DOCUMENTOS_EXTRANJEROS = new Set(["CE", "PASAPORTE", "PTP", "CARNET DE EXTRANJERIA", "4", "7"]);
+/** DNI y RUC (texto) o codigos 1 = DNI y 6 = RUC. */
+const DOCUMENTOS_NACIONALES = new Set(["DNI", "RUC", "1", "6"]);
+
+export interface DatosAmbito {
+  /** Pais ISO alpha-2 ya conocido (p. ej. `Empresa.pais`). */
+  paisIso?: string | null;
+  /** Pais de constitucion en texto libre. */
   pais?: string | null;
+  /** Nacionalidad en texto libre ("Peruana"). */
   nacionalidad?: string | null;
   tipoDocumento?: string | null;
-}): DdMatrizAmbito {
-  const origen = normalizarTextoMatriz(datos.pais || datos.nacionalidad);
-  if (origen) {
-    return (DD_MATRIZ_ALIAS_NACIONAL as readonly string[]).includes(origen)
-      ? DD_MATRIZ_AMBITOS.NACIONAL
-      : DD_MATRIZ_AMBITOS.EXTRANJERO;
-  }
-  const documento = normalizarTextoMatriz(datos.tipoDocumento);
+}
+
+/** Pais ISO del vinculo: el codigo conocido o el reconocido desde pais/nacionalidad. */
+export function resolverPais(datos: DatosAmbito): string | null {
+  return paisDeTexto(datos.paisIso) ?? paisDeTexto(datos.pais) ?? paisDeTexto(datos.nacionalidad);
+}
+
+/**
+ * Deriva si el vinculo es nacional o extranjero mientras la nacionalidad definitiva
+ * no exista en todos los registros. Prioridad: pais (PE nacional, otro extranjero),
+ * luego tipo de documento; sin datos se asume nacional. SIG puede corregirlo a mano.
+ */
+export function derivarAmbito(datos: DatosAmbito): DdMatrizAmbito {
+  const pais = resolverPais(datos);
+  if (pais) return esPaisNacional(pais) ? DD_MATRIZ_AMBITOS.NACIONAL : DD_MATRIZ_AMBITOS.EXTRANJERO;
+  const documento = normalizarTexto(datos.tipoDocumento);
   if (DOCUMENTOS_EXTRANJEROS.has(documento)) return DD_MATRIZ_AMBITOS.EXTRANJERO;
   if (DOCUMENTOS_NACIONALES.has(documento)) return DD_MATRIZ_AMBITOS.NACIONAL;
   return DD_MATRIZ_AMBITOS.NACIONAL;

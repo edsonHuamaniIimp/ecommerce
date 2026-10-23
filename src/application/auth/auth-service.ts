@@ -447,7 +447,7 @@ export class AuthApplicationService {
       { email: acceso, label: "Correo de acceso" },
       ...(representante ? [{ email: representante, label: "Correo del representante" }] : []),
       ...(contacto ? [{ email: contacto, label: "Correo de contacto de la empresa" }] : []),
-      ...(facturacion ? [{ email: facturacion, label: "Correo de facturaciÃ³n" }] : []),
+      ...(facturacion ? [{ email: facturacion, label: "Correo de facturación" }] : []),
     ];
     const vistos = new Set<string>();
     const emailActivo = (activo ?? acceso).trim().toLowerCase();
@@ -549,7 +549,7 @@ export class AuthApplicationService {
   }
 
   /**
-   * Idioma preferido del usuario para correos/documentos (BD -> cookie -> espaÃ±ol).
+   * Idioma preferido del usuario para correos/documentos (BD -> cookie -> español).
    * Expuesto a los controladores para no saltar capas.
    */
   async resolverIdiomaUsuario(email?: string | null): Promise<Idioma> {
