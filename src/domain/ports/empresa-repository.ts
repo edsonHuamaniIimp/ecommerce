@@ -11,6 +11,7 @@ export interface ActualizarEmpresaData {
   ruc?: string;
   /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
   tipoDocumento?: string;
+  pais?: string;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode?: string | null;
   razonSocial?: string;
@@ -21,13 +22,30 @@ export interface ActualizarEmpresaData {
   emailContacto?: string | null;
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
+  representanteLegalTipoDocumento?: string | null;
   representanteLegalDni?: string | null;
   representanteCorreo?: string | null;
   representanteCelular?: string | null;
   representanteDireccion?: string | null;
   /** Codigo SIE del representante en servicio-persona (se guarda al sincronizar). */
   representanteSieCode?: string | null;
+  representanteUserId?: string | null;
   partidaElectronica?: string | null;
+  /** Datos adicionales de la solicitud de participacion. */
+  nombreFriso?: string | null;
+  actividadEconomica?: string | null;
+  estadoContribuyente?: string | null;
+  facturarANombre?: string | null;
+  responsableExteminNombre?: string | null;
+  responsableExteminTelefono?: string | null;
+  responsableExteminTipoDocumento?: string | null;
+  responsableExteminDni?: string | null;
+  responsableExteminEmail?: string | null;
+  responsablePagosNombre?: string | null;
+  responsablePagosTelefono?: string | null;
+  responsablePagosTipoDocumento?: string | null;
+  responsablePagosDni?: string | null;
+  responsablePagosEmail?: string | null;
   /** Configuracion personalizada de cuotas (null = volver al cronograma estandar). */
   configCuotas?: ConfigCuotasEmpresa | null;
   tipoComprobante?: string;

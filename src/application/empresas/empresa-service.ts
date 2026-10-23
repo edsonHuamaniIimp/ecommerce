@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PERMISSIONS, REGEX_DNI, REGEX_EMAIL, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PAIS_DEFAULT, PERMISSIONS, REGEX_DNI, REGEX_EMAIL, REGEX_PAIS, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
@@ -13,7 +13,7 @@ import { configCuotasValida, normalizarConfigCuotas, type ConfigCuotasEmpresa } 
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { EmpresaApi, IEmpresaClient } from "@/domain/ports/empresa-client";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
-import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { ActualizarEmpresaData, IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
 import type {
@@ -87,6 +87,25 @@ export interface ResultadoRegistroEmpresa {
 function limpiar(valor?: string | null): string | null {
   const texto = (valor ?? "").trim();
   return texto.length > 0 ? texto : null;
+}
+
+/** Normaliza el pais ISO alpha-2; vacio usa Peru. */
+function normalizarPais(valor?: string | null): string {
+  const codigo = (valor ?? "").trim().toUpperCase() || PAIS_DEFAULT;
+  if (!REGEX_PAIS.test(codigo)) {
+    throw new DomainError("Pais invalido: usa el codigo ISO de 2 letras", API_ERROR_CODES.VALIDATION, 400);
+  }
+  return codigo;
+}
+
+/** Tipo de documento de persona; vacio usa DNI. */
+function normalizarTipoDocumentoPersona(valor?: string | null): string {
+  const codigo = (valor ?? "").trim() || TIPOS_DOCUMENTO_PERSONA.DNI;
+  const validos = Object.values(TIPOS_DOCUMENTO_PERSONA) as string[];
+  if (!validos.includes(codigo)) {
+    throw new DomainError("Tipo de documento de persona invalido", API_ERROR_CODES.VALIDATION, 400);
+  }
+  return codigo;
 }
 
 /** Valida tipo de comprobante (default factura). */
@@ -352,6 +371,7 @@ export class EmpresaApplicationService {
     ficha = await this.repo.create({
       ruc,
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      pais: PAIS_DEFAULT,
       sieCode,
       razonSocial: empresa.nombre,
       logoUrl: empresa.linkLogo ?? null,
@@ -361,6 +381,7 @@ export class EmpresaApplicationService {
       emailContacto: empresa.correo,
       emailFacturacion: null,
       representanteLegalNombre: null,
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
       representanteLegalDni: null,
       representanteCorreo: null,
       representanteCelular: null,
@@ -415,8 +436,9 @@ export class EmpresaApplicationService {
     }
 
     const passwordTemporal = generarPasswordTemporal();
+    const representanteUserId = randomUUID();
     await this.authRepo.crearUsuario({
-      userId: randomUUID(),
+      userId: representanteUserId,
       email,
       password: hashPassword(passwordTemporal),
       /* Solo referencia: la persona y la empresa viven en servicio-persona. */
@@ -431,8 +453,24 @@ export class EmpresaApplicationService {
       ruc: empresa.idTipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC ? empresa.documento : null,
       debeCambiarPassword: true,
     });
-    if (ficha && !ficha.cuentaCreada) {
-      await this.repo.update(ficha.id, { cuentaCreada: true });
+    if (ficha) {
+      const nombreRepresentante = [
+        String(input.persona.nombres ?? "").trim(),
+        String(input.persona.apellidoPaterno ?? "").trim(),
+        String(input.persona.apellidoMaterno ?? "").trim(),
+      ].filter(Boolean).join(" ");
+      const cambios: ActualizarEmpresaData = {};
+      if (!ficha.cuentaCreada) cambios.cuentaCreada = true;
+      if (!ficha.representanteUserId) cambios.representanteUserId = representanteUserId;
+      /* El usuario vive tambien en servicio-persona: conservar su sie_code en la ficha. */
+      if (!ficha.representanteSieCode) cambios.representanteSieCode = personaFuente.sieCode;
+      if (!ficha.representanteLegalNombre && nombreRepresentante) cambios.representanteLegalNombre = nombreRepresentante;
+      if (!ficha.representanteLegalDni) cambios.representanteLegalDni = String(input.persona.documento ?? "").trim() || null;
+      if (!ficha.representanteLegalDni && input.persona.tipoDocumento) cambios.representanteLegalTipoDocumento = input.persona.tipoDocumento;
+      if (!ficha.representanteCorreo) cambios.representanteCorreo = email;
+      if (!ficha.representanteCelular) cambios.representanteCelular = limpiar(input.persona.celular);
+      if (!ficha.representanteDireccion) cambios.representanteDireccion = limpiar(input.persona.direccion);
+      if (Object.keys(cambios).length > 0) await this.repo.update(ficha.id, cambios);
     }
 
     const emailEnviado = await this.enviarCredenciales(
@@ -564,9 +602,16 @@ export class EmpresaApplicationService {
       );
     }
 
+    const emailRepresentante = limpiar(input.representanteCorreo)?.toLowerCase() ?? null;
+    const cuentasRepresentante = emailRepresentante
+      ? await this.authRepo.findByEmail(emailRepresentante).catch(() => [])
+      : [];
+    const representanteUserId = cuentasRepresentante[0]?.userId ?? null;
+
     const data: CrearEmpresaData = {
       ruc,
       tipoDocumento,
+      pais: normalizarPais(input.pais),
       sieCode,
       razonSocial,
       logoUrl: limpiar(input.logoUrl),
@@ -576,12 +621,28 @@ export class EmpresaApplicationService {
       emailContacto: limpiar(input.emailContacto),
       emailFacturacion: limpiar(input.emailFacturacion),
       representanteLegalNombre: limpiar(input.representanteLegalNombre),
+      representanteLegalTipoDocumento: normalizarTipoDocumentoPersona(input.representanteLegalTipoDocumento),
       representanteLegalDni: limpiar(input.representanteLegalDni),
       representanteCorreo: limpiar(input.representanteCorreo),
       representanteCelular: limpiar(input.representanteCelular),
       representanteDireccion: limpiar(input.representanteDireccion),
       representanteSieCode,
+      representanteUserId,
       partidaElectronica: limpiar(input.partidaElectronica),
+      nombreFriso: limpiar(input.nombreFriso),
+      actividadEconomica: limpiar(input.actividadEconomica),
+      estadoContribuyente: limpiar(input.estadoContribuyente),
+      facturarANombre: limpiar(input.facturarANombre),
+      responsableExteminNombre: limpiar(input.responsableExteminNombre),
+      responsableExteminTelefono: limpiar(input.responsableExteminTelefono),
+      responsableExteminTipoDocumento: normalizarTipoDocumentoPersona(input.responsableExteminTipoDocumento),
+      responsableExteminDni: limpiar(input.responsableExteminDni),
+      responsableExteminEmail: limpiar(input.responsableExteminEmail),
+      responsablePagosNombre: limpiar(input.responsablePagosNombre),
+      responsablePagosTelefono: limpiar(input.responsablePagosTelefono),
+      responsablePagosTipoDocumento: normalizarTipoDocumentoPersona(input.responsablePagosTipoDocumento),
+      responsablePagosDni: limpiar(input.responsablePagosDni),
+      responsablePagosEmail: limpiar(input.responsablePagosEmail),
       tipoComprobante,
       sitioWeb: limpiar(input.sitioWeb),
       creadoPor: limpiar(creadoPor),
@@ -594,15 +655,11 @@ export class EmpresaApplicationService {
      * del representante ya tiene una cuenta local; el resto de relaciones se crean
      * en los flujos de Usuarios / Registro desde servicio-persona.
      */
-    const emailRepresentante = limpiar(input.representanteCorreo);
-    if (sincronizarFuente && emailRepresentante) {
-      const correo = emailRepresentante.toLowerCase();
-      const cuentas = await this.authRepo.findByEmail(correo).catch(() => []);
-      if (cuentas.length > 0) {
-        await this.authRepo
-          .updatePerfil(correo, { idEmpresa: sieCode, nombreEmpresa: razonSocial, empresaId: empresa.id })
-          .catch(() => {});
-      }
+    if (sincronizarFuente && emailRepresentante && cuentasRepresentante.length > 0) {
+      const correo = emailRepresentante;
+      await this.authRepo
+        .updatePerfil(correo, { idEmpresa: sieCode, nombreEmpresa: razonSocial, empresaId: empresa.id })
+        .catch(() => {});
     }
     return empresa;
   }
@@ -660,11 +717,31 @@ export class EmpresaApplicationService {
       cambios.tipoComprobante = validarTipoComprobante(input.tipoComprobante);
     }
 
-    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalDni", "representanteCorreo", "representanteCelular", "representanteDireccion", "partidaElectronica", "sitioWeb"] as const) {
+    if (input.pais !== undefined) {
+      cambios.pais = normalizarPais(input.pais);
+    }
+
+    for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalTipoDocumento", "representanteLegalDni", "representanteCorreo", "representanteCelular", "representanteUserId", "representanteDireccion", "partidaElectronica", "sitioWeb", "nombreFriso", "actividadEconomica", "estadoContribuyente", "facturarANombre", "responsableExteminNombre", "responsableExteminTelefono", "responsableExteminTipoDocumento", "responsableExteminDni", "responsableExteminEmail", "responsablePagosNombre", "responsablePagosTelefono", "responsablePagosTipoDocumento", "responsablePagosDni", "responsablePagosEmail"] as const) {
       if (input[campo] !== undefined) cambios[campo] = limpiar(input[campo]);
     }
 
-    return this.repo.update(id, cambios);
+    const actualizada = await this.repo.update(id, cambios);
+
+    /*
+     * Si cambia el correo del representante, la cuenta vinculada debe seguirlo.
+     * Solo se asigna una cuenta de la misma empresa (o sin empresa); si aun no
+     * existe, se limpia el vinculo anterior para no actualizar a la persona equivocada.
+     */
+    if (input.representanteCorreo !== undefined && input.representanteUserId === undefined) {
+      const correo = limpiar(input.representanteCorreo)?.toLowerCase() ?? null;
+      const cuentas = correo ? await this.authRepo.findByEmail(correo).catch(() => []) : [];
+      const cuenta = cuentas.find((c) => !c.empresaId || c.empresaId === id) ?? null;
+      if (cuenta?.userId !== actualizada.representanteUserId) {
+        return this.repo.update(id, { representanteUserId: cuenta?.userId ?? null });
+      }
+    }
+
+    return actualizada;
   }
 
   /** Activa o desactiva la empresa (baja logica). */
@@ -743,6 +820,8 @@ export class EmpresaApplicationService {
      */
     let correoNuevo: string | null = null;
     const correoRepresentante = limpiar(input.representanteCorreo)?.toLowerCase();
+    const cuentasActuales = await this.authRepo.findByEmail(email).catch(() => []);
+    const representanteUserId = cuentasActuales[0]?.userId ?? empresa.representanteUserId ?? null;
     if (correoRepresentante && empresa.ruc) {
       const provisional = emailProvisionalPorDocumento(empresa.ruc);
       const cuentas = await this.authRepo.findByEmail(provisional).catch(() => []);
@@ -763,12 +842,30 @@ export class EmpresaApplicationService {
       telefono: input.telefono,
       emailFacturacion: input.emailFacturacion,
       representanteLegalNombre: input.representanteLegalNombre,
+      representanteLegalTipoDocumento: input.representanteLegalTipoDocumento,
       representanteLegalDni: input.representanteLegalDni,
       representanteCorreo: input.representanteCorreo,
       representanteCelular: input.representanteCelular,
+      representanteUserId,
       representanteDireccion: input.representanteDireccion,
+      emailContacto: input.emailContacto,
       partidaElectronica: input.partidaElectronica,
+      nombreFriso: input.nombreFriso,
+      actividadEconomica: input.actividadEconomica,
+      estadoContribuyente: input.estadoContribuyente,
+      facturarANombre: input.facturarANombre,
+      responsableExteminNombre: input.responsableExteminNombre,
+      responsableExteminTelefono: input.responsableExteminTelefono,
+      responsableExteminTipoDocumento: input.responsableExteminTipoDocumento,
+      responsableExteminDni: input.responsableExteminDni,
+      responsableExteminEmail: input.responsableExteminEmail,
+      responsablePagosNombre: input.responsablePagosNombre,
+      responsablePagosTelefono: input.responsablePagosTelefono,
+      responsablePagosTipoDocumento: input.responsablePagosTipoDocumento,
+      responsablePagosDni: input.responsablePagosDni,
+      responsablePagosEmail: input.responsablePagosEmail,
       tipoComprobante: input.tipoComprobante,
+      pais: input.pais,
       sitioWeb: input.sitioWeb,
     });
     /*
@@ -1093,8 +1190,9 @@ export class EmpresaApplicationService {
       .slice(0, 20) || null;
 
     const passwordTemporal = generarPasswordTemporal();
+    const representanteUserId = randomUUID();
     await this.authRepo.crearUsuario({
-      userId: randomUUID(),
+      userId: representanteUserId,
       email: usuario,
       password: hashPassword(passwordTemporal),
       nombre: empresa.representanteLegalNombre ?? empresa.razonSocial,
@@ -1111,6 +1209,7 @@ export class EmpresaApplicationService {
     await this.repo.update(empresa.id, {
       cuentaCreada: true,
       ...(sieCode ? { representanteSieCode: sieCode } : {}),
+      ...(!empresa.representanteUserId ? { representanteUserId } : {}),
     });
     /* Sin envio de correo: las credenciales se muestran una vez al administrador. */
     return { email: usuario, usuario: empresa.ruc, passwordTemporal, emailEnviado: null };
@@ -1194,7 +1293,7 @@ export class EmpresaApplicationService {
   /** Envio best-effort del correo con las credenciales (no revierte la cuenta). */
   private async enviarCredenciales(empresa: Pick<EmpresaEntity, "razonSocial" | "representanteLegalNombre">, email: string, passwordTemporal: string): Promise<boolean> {
     try {
-      /* Nota: la empresa aun no tiene idioma propio; se envia en español (default). */
+      /* Nota: la empresa aun no tiene idioma propio; se envia en espaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±ol (default). */
       return await enviarEmailPlantilla({
         to: email,
         plantilla: "credenciales-empresa",

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { signToken } from "@/lib/server/auth";
 import { AuthApplicationService } from "../auth-service";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IRoleRepository } from "@/domain/ports/role-repository";
@@ -38,7 +39,7 @@ vi.mock("@/lib/server/utils/imagen-fuente", () => ({
 function filaLogin(overrides: Record<string, unknown> = {}) {
   return {
     id: "u1",
-    userId: "user|juan@empresa.com",
+    userId: "33333333-3333-4333-8333-333333333333",
     roleId: "r1",
     email: "juan@empresa.com",
     password: "hash:Secreta123",
@@ -93,6 +94,10 @@ describe("AuthApplicationService.login (cuenta deshabilitada)", () => {
     const r = await svc.login({ email: "juan@empresa.com", password: "Secreta123" });
 
     expect(r).toMatchObject({ token: "token-fake", email: "juan@empresa.com" });
+    expect(signToken).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: "33333333-3333-4333-8333-333333333333" }),
+      expect.any(String),
+    );
   });
 
   it("con contrasena incorrecta responde 401 sin revelar el estado de la cuenta", async () => {

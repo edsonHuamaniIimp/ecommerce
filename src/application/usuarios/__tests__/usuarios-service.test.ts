@@ -46,6 +46,7 @@ function fakeRepos() {
   const empresaRepo = {
     findById: vi.fn(async () => null),
     findByRuc: vi.fn(async () => null),
+    update: vi.fn(async () => null),
   } as unknown as IEmpresaRepository;
   const roleRepo = {
     findById: vi.fn(async () => ({ id: "rol-x", nombre: "x", descripcion: null, permisos: [] })),
@@ -128,6 +129,45 @@ describe("UsuariosApplicationService.crear (servicio-persona)", () => {
 
     expect(empresaRepo.findByRuc).toHaveBeenCalledWith("20123456789");
     expect(authRepo.crearUsuario).toHaveBeenCalledWith(expect.objectContaining({ empresaId: "emp-1" }));
+  });
+
+  it("vincula la cuenta como representante cuando su correo coincide con la ficha", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    const empresa = {
+      id: "emp-1",
+      razonSocial: "Gloria S.A.",
+      representanteCorreo: "juan@empresa.com",
+      representanteLegalDni: "12345678",
+      representanteUserId: null,
+    } as EmpresaEntity;
+    vi.mocked(empresaRepo.findByRuc).mockResolvedValue(empresa);
+    vi.mocked(empresaRepo.findById).mockResolvedValue(empresa);
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    await svc.crear(empresaAcceso, inputBase);
+
+    expect(empresaRepo.update).toHaveBeenCalledWith("emp-1", expect.objectContaining({
+      representanteUserId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      representanteSieCode: "P0000012345",
+    }));
+  });
+
+  it("no reemplaza al representante si el usuario no coincide con la ficha", async () => {
+    const { usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient } = fakeRepos();
+    const empresa = {
+      id: "emp-1",
+      razonSocial: "Gloria S.A.",
+      representanteCorreo: "otro@empresa.com",
+      representanteLegalDni: "87654321",
+      representanteUserId: "22222222-2222-4222-8222-222222222222",
+    } as EmpresaEntity;
+    vi.mocked(empresaRepo.findByRuc).mockResolvedValue(empresa);
+    vi.mocked(empresaRepo.findById).mockResolvedValue(empresa);
+    const svc = new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient);
+
+    await svc.crear(empresaAcceso, inputBase);
+
+    expect(empresaRepo.update).not.toHaveBeenCalled();
   });
 
   it("reutiliza la persona existente (no crea duplicado en la fuente)", async () => {

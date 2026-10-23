@@ -6,6 +6,12 @@ interface RucResponse {
   razonSocial?: string;
   nombre?: string;
   direccion?: string;
+  estado?: string;
+  condicion?: string;
+  actividadEconomica?: string;
+  distrito?: string;
+  provincia?: string;
+  departamento?: string;
   error?: string;
 }
 
@@ -30,6 +36,12 @@ function aRucResponse(data: Record<string, unknown>): RucResponse {
     razonSocial: texto(data.razonSocial),
     nombre: texto(data.nombre),
     direccion,
+    estado: texto(data.estado),
+    condicion: texto(data.condicion),
+    actividadEconomica: texto(data.actividadEconomica),
+    distrito: texto(data.distrito),
+    provincia: texto(data.provincia),
+    departamento: texto(data.departamento),
     error: texto(data.error),
   };
 }

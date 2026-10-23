@@ -7,11 +7,11 @@ import { PortalFooter, PortalHeader } from "./portal-stands";
  * Shell de las vistas de acceso del portal: header institucional + tarjeta centrada + footer.
  * `fondo` permite usar una foto a pantalla completa (login); sin el, usa la grilla del portal.
  */
-export function PortalAuthLayout({ children, ancho = "max-w-[460px]", fondo }: { children: ReactNode; ancho?: string; fondo?: string }) {
+export function PortalAuthLayout({ children, ancho = "max-w-[460px]", fondo, alinear = "center" }: { children: ReactNode; ancho?: string; fondo?: string; alinear?: "center" | "start" }) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <PortalHeader />
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-8">
+      <main className={`relative z-10 flex flex-1 justify-center px-4 py-8 ${alinear === "start" ? "items-start" : "items-center"}`}>
         {fondo ? (
           <>
             <Image src={fondo} alt="" fill sizes="100vw" preload className="object-cover" aria-hidden />

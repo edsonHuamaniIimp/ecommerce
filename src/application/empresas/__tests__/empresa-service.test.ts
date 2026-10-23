@@ -50,6 +50,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       id: data.id ?? `emp-${++this.seq}`,
       ruc: data.ruc,
       tipoDocumento: data.tipoDocumento ?? TIPOS_DOCUMENTO_EMPRESA.RUC,
+      pais: data.pais ?? "PE",
       sieCode: data.sieCode ?? null,
       razonSocial: data.razonSocial,
       logoUrl: data.logoUrl ?? null,
@@ -59,12 +60,28 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       emailContacto: data.emailContacto ?? null,
       emailFacturacion: data.emailFacturacion ?? null,
       representanteLegalNombre: data.representanteLegalNombre ?? null,
+      representanteLegalTipoDocumento: data.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
       representanteLegalDni: data.representanteLegalDni ?? null,
       representanteCorreo: data.representanteCorreo ?? null,
       representanteCelular: data.representanteCelular ?? null,
       representanteDireccion: data.representanteDireccion ?? null,
       representanteSieCode: data.representanteSieCode ?? null,
+      representanteUserId: data.representanteUserId ?? null,
       partidaElectronica: data.partidaElectronica ?? null,
+      nombreFriso: data.nombreFriso ?? null,
+      actividadEconomica: data.actividadEconomica ?? null,
+      estadoContribuyente: data.estadoContribuyente ?? null,
+      facturarANombre: data.facturarANombre ?? null,
+      responsableExteminNombre: data.responsableExteminNombre ?? null,
+      responsableExteminTelefono: data.responsableExteminTelefono ?? null,
+      responsableExteminTipoDocumento: data.responsableExteminTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
+      responsableExteminDni: data.responsableExteminDni ?? null,
+      responsableExteminEmail: data.responsableExteminEmail ?? null,
+      responsablePagosNombre: data.responsablePagosNombre ?? null,
+      responsablePagosTelefono: data.responsablePagosTelefono ?? null,
+      responsablePagosTipoDocumento: data.responsablePagosTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
+      responsablePagosDni: data.responsablePagosDni ?? null,
+      responsablePagosEmail: data.responsablePagosEmail ?? null,
       configCuotas: data.configCuotas ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
@@ -148,7 +165,7 @@ function fakeAuthRepo(overrides: {
     crearUsuario: vi.fn(async (data: unknown) => { llamadas.creados.push(data); }),
     findByEmail: vi.fn(async (email: string) => {
       if (overrides.cuentaProvisional && email === overrides.cuentaProvisional.email) return [overrides.cuentaProvisional];
-      return overrides.usuarioExistente ? [{ id: "ur-1", userId: "user|cuenta@empresa.pe", email: "cuenta@empresa.pe" }] : [];
+      return overrides.usuarioExistente ? [{ id: "ur-1", userId: "11111111-1111-4111-8111-111111111111", email: "cuenta@empresa.pe" }] : [];
     }),
     findByRuc: vi.fn(async () => (overrides.cuentaRuc ? [overrides.cuentaRuc] : [])),
     updatePerfil: vi.fn(async () => undefined),
@@ -344,6 +361,26 @@ describe("EmpresaApplicationService.crear", () => {
     expect(empresa.sieCode).toBe("E0000003804");
   });
 
+  it("guarda el pais ISO de la empresa y usa PE por defecto", async () => {
+    const repo = new FakeEmpresaRepo();
+    const service = crearServicio(repo);
+
+    const conPais = await service.crear({ ...INPUT_BASE, pais: "us" }, null);
+    const porDefecto = await service.crear({ ...INPUT_BASE, ruc: "20551122334", razonSocial: "Otra S.A.C." }, null);
+
+    expect(conPais.pais).toBe("US");
+    expect(porDefecto.pais).toBe("PE");
+  });
+
+  it("rechaza un pais que no sea codigo ISO de 2 letras", async () => {
+    const repo = new FakeEmpresaRepo();
+    const service = crearServicio(repo);
+
+    await expect(service.crear({ ...INPUT_BASE, pais: "Peru" }, null)).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
   it("asegura al representante: reutiliza (y actualiza si difiere) la persona existente por DNI", async () => {
     const repo = new FakeEmpresaRepo();
     const personas = fakePersonaClient({ existente: { sie_code: "P0000000009", documento: "45871233" } });
@@ -412,6 +449,7 @@ describe("EmpresaApplicationService.crear", () => {
     );
 
     expect(auth.findByEmail).toHaveBeenCalledWith("rep@empresa.pe");
+    expect(empresa.representanteUserId).toBe("11111111-1111-4111-8111-111111111111");
     expect(auth.updatePerfil).toHaveBeenCalledWith("rep@empresa.pe", expect.objectContaining({
       idEmpresa: "E1",
       nombreEmpresa: "Minera Cordillera S.A.C.",
@@ -451,6 +489,28 @@ describe("EmpresaApplicationService.actualizar", () => {
 
     expect(empresa.emailFacturacion).toBe("nuevo@mineracordillera.pe");
     expect(empresa.razonSocial).toBe("Minera Cordillera S.A.C.");
+  });
+
+  it("actualiza el pais de la empresa", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
+    const service = crearServicio(repo);
+
+    const empresa = await service.actualizar(creada.id, { pais: "cl" });
+
+    expect(empresa.pais).toBe("CL");
+  });
+
+  it("actualiza el vinculo del representante al cambiar su correo", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
+    const service = crearServicio(repo, fakeAuthRepo({ usuarioExistente: true }));
+
+    const empresa = await service.actualizar(creada.id, {
+      representanteCorreo: "nuevo.representante@mineracordillera.pe",
+    });
+
+    expect(empresa.representanteUserId).toBe("11111111-1111-4111-8111-111111111111");
   });
 
   it("rechaza cambiar el RUC al de otra empresa", async () => {
@@ -1105,6 +1165,7 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
 
     const { empresa, correoNuevo } = await service.validarDatosPortal("contacto@mineracordillera.pe", {
       ruc: "20601234567",
+      pais: "us",
       razonSocial: "Minera Cordillera S.A.C.",
       direccionFiscal: "Av. Los Ingenieros 245, Lima",
       representanteLegalNombre: "Jorge Quispe Ramos",
@@ -1117,6 +1178,7 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
     });
 
     expect(empresa.razonSocial).toBe("Minera Cordillera S.A.C.");
+    expect(empresa.pais).toBe("US");
     expect(empresa.direccionFiscal).toBe("Av. Los Ingenieros 245, Lima");
     expect(empresa.representanteLegalNombre).toBe("Jorge Quispe Ramos");
     expect(empresa.representanteCorreo).toBe("jorge.quispe@mineracordillera.pe");
@@ -1132,6 +1194,29 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
     });
     /* Sin cuenta provisional vinculada no hay adopcion de correo. */
     expect(correoNuevo).toBeNull();
+  });
+
+  it("validarDatosPortal vincula la cuenta que valida como representante legal", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera" });
+    const auth = fakeAuthRepo({
+      empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false },
+      usuarioExistente: true,
+    });
+    const service = crearServicio(repo, auth);
+
+    const { empresa } = await service.validarDatosPortal("cuenta@empresa.pe", {
+      ruc: "20601234567",
+      razonSocial: "Minera Cordillera S.A.C.",
+      representanteLegalNombre: "Jorge Quispe Ramos",
+      representanteCelular: "+51 987 654 321",
+    });
+
+    expect(empresa.representanteUserId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(auth.actualizarDatosUsuarioDeEmpresa).toHaveBeenCalledWith(creada.id, {
+      nombre: "Jorge Quispe Ramos",
+      telefono: "+51 987 654 321",
+    });
   });
 
   it("validarDatosPortal adopta el correo del representante en la cuenta provisional (usuario = RUC)", async () => {
@@ -1258,6 +1343,10 @@ describe("EmpresaApplicationService.registrarCuentaEmpresa", () => {
     expect(ficha?.sieCode).toBe("E0000000001");
     expect(ficha?.cuentaCreada).toBe(true);
     expect(ficha?.creadoPor).toBe("admin@iimp.org.pe");
+    const alta = vi.mocked(auth.crearUsuario).mock.calls[0]?.[0] as { userId: string };
+    expect(alta.userId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(ficha?.representanteUserId).toBe(alta.userId);
+    expect(ficha?.representanteSieCode).toBe("P0000000001");
   });
 
   it("crea la empresa en la fuente cuando no existe y usa el sie_code devuelto", async () => {

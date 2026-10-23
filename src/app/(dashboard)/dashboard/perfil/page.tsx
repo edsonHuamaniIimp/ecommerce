@@ -48,6 +48,19 @@ function PerfilPageContent() {
   const [notifSending, setNotifSending] = useState(false);
   const [notifConfirming, setNotifConfirming] = useState(false);
   const [emailFacturacion, setEmailFacturacion] = useState("");
+  const [emailContacto, setEmailContacto] = useState("");
+  const [nombreFriso, setNombreFriso] = useState("");
+  const [facturarANombre, setFacturarANombre] = useState("");
+  const [actividadEconomica, setActividadEconomica] = useState("");
+  const [estadoContribuyente, setEstadoContribuyente] = useState("");
+  const [exteminNombre, setExteminNombre] = useState("");
+  const [exteminTelefono, setExteminTelefono] = useState("");
+  const [exteminDni, setExteminDni] = useState("");
+  const [exteminEmail, setExteminEmail] = useState("");
+  const [pagosNombre, setPagosNombre] = useState("");
+  const [pagosTelefono, setPagosTelefono] = useState("");
+  const [pagosDni, setPagosDni] = useState("");
+  const [pagosEmail, setPagosEmail] = useState("");
 
   // Datos contractuales de la empresa
   const [razonSocialEmpresa, setRazonSocialEmpresa] = useState("");
@@ -72,7 +85,6 @@ function PerfilPageContent() {
   const [repCelular, setRepCelular] = useState("");
   const [repDniValidado, setRepDniValidado] = useState(false);
   /* Cuenta creada solo con RUC: el representante registra su correo la primera vez. */
-  const [repCorreoRegistrable, setRepCorreoRegistrable] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -99,6 +111,19 @@ function PerfilPageContent() {
       setDireccionFiscal(perfilData.empresa?.direccionFiscal ?? "");
       setTelefonoEmpresa(perfilData.empresa?.telefono ?? "");
       setEmailFacturacion(perfilData.empresa?.emailFacturacion ?? "");
+      setEmailContacto(perfilData.empresa?.emailContacto ?? "");
+      setNombreFriso(perfilData.empresa?.nombreFriso ?? "");
+      setFacturarANombre(perfilData.empresa?.facturarANombre ?? "");
+      setActividadEconomica(perfilData.empresa?.actividadEconomica ?? "");
+      setEstadoContribuyente(perfilData.empresa?.estadoContribuyente ?? "");
+      setExteminNombre(perfilData.empresa?.responsableExteminNombre ?? "");
+      setExteminTelefono(perfilData.empresa?.responsableExteminTelefono ?? "");
+      setExteminDni(perfilData.empresa?.responsableExteminDni ?? "");
+      setExteminEmail(perfilData.empresa?.responsableExteminEmail ?? "");
+      setPagosNombre(perfilData.empresa?.responsablePagosNombre ?? "");
+      setPagosTelefono(perfilData.empresa?.responsablePagosTelefono ?? "");
+      setPagosDni(perfilData.empresa?.responsablePagosDni ?? "");
+      setPagosEmail(perfilData.empresa?.responsablePagosEmail ?? "");
       setTipoComprobante(perfilData.empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA);
       setSitioWebEmpresa(perfilData.empresa?.sitioWeb ?? "");
       setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
@@ -106,7 +131,6 @@ function PerfilPageContent() {
       setRepPartida(perfilData.empresa?.representantePartida ?? "");
       setRepDireccion(perfilData.empresa?.representanteDireccion ?? "");
       setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
-      setRepCorreoRegistrable(Boolean(perfilData.empresa) && !(perfilData.empresa?.representanteCorreo ?? "").trim());
       setRepCelular(perfilData.empresa?.representanteCelular ?? "");
       const candidatos = perfilData.emailsNotificacion ?? [];
       setNotifCandidates(candidatos);
@@ -154,14 +178,6 @@ function PerfilPageContent() {
         nombreEmpresa,
         logoUrl: logoUrl || null,
         firmaUrl: firmaUrl || null,
-        ...(empresaVinculada ? {
-          representanteNombre: repNombre.trim() || null,
-          representanteDni: repDni.trim() || null,
-          representantePartida: repPartida.trim() || null,
-          representanteDireccion: repDireccion.trim() || null,
-          representanteCelular: repCelular.trim() || null,
-          ...(repCorreoRegistrable ? { representanteCorreo: repCorreo.trim() || null } : {}),
-        } : {}),
       });
       toast.success("Perfil actualizado");
     } catch { toast.error("Error al guardar"); }
@@ -183,6 +199,19 @@ function PerfilPageContent() {
         direccionFiscal: direccionFiscal.trim() || null,
         telefono: telefonoEmpresa.trim() || null,
         emailFacturacion: emailFacturacion.trim() || null,
+        emailContacto: emailContacto.trim() || null,
+        nombreFriso: nombreFriso.trim() || null,
+        facturarANombre: facturarANombre.trim() || null,
+        actividadEconomica: actividadEconomica.trim() || null,
+        estadoContribuyente: estadoContribuyente.trim() || null,
+        responsableExteminNombre: exteminNombre.trim() || null,
+        responsableExteminTelefono: exteminTelefono.trim() || null,
+        responsableExteminDni: exteminDni.trim() || null,
+        responsableExteminEmail: exteminEmail.trim() || null,
+        responsablePagosNombre: pagosNombre.trim() || null,
+        responsablePagosTelefono: pagosTelefono.trim() || null,
+        responsablePagosDni: pagosDni.trim() || null,
+        responsablePagosEmail: pagosEmail.trim() || null,
         representanteLegalNombre: repNombre.trim(),
         representanteLegalDni: repDni.trim(),
         representanteCorreo: repCorreo.trim(),
@@ -240,7 +269,7 @@ function PerfilPageContent() {
       return;
     }
     if (file.size > FIRMA_PERFIL_MAX_BYTES) {
-      toast.error(`La firma supera el máximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
+      toast.error(`La firma supera el mÃ¡ximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
       return;
     }
     setSubiendoFirma(true);
@@ -411,14 +440,14 @@ function PerfilPageContent() {
                   <span>Datos de la empresa</span>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Información fiscal y comercial que se usa en el contrato y el comprobante.
+                  InformaciÃ³n fiscal y comercial que se usa en el contrato y el comprobante.
                 </p>
               </CardHeader>
               <CardContent>
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span></Label>
+                      <Label htmlFor="empresaRazonSocial"><span>RazÃ³n social</span></Label>
                       <Input id="empresaRazonSocial" maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
@@ -430,15 +459,15 @@ function PerfilPageContent() {
                       <Input id="empresaNombreComercial" maxLength={200} value={nombreComercialEmpresa} onChange={(e) => setNombreComercialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaDireccion"><span>Dirección fiscal</span></Label>
+                      <Label htmlFor="empresaDireccion"><span>DirecciÃ³n fiscal</span></Label>
                       <Input id="empresaDireccion" maxLength={250} value={direccionFiscal} onChange={(e) => setDireccionFiscal(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaTelefono"><span>Teléfono</span></Label>
+                      <Label htmlFor="empresaTelefono"><span>TelÃ©fono</span></Label>
                       <Input id="empresaTelefono" maxLength={30} value={telefonoEmpresa} onChange={(e) => setTelefonoEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturación</span></Label>
+                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturaciÃ³n</span></Label>
                       <Input id="empresaEmailFacturacion" type="email" maxLength={200} value={emailFacturacion} onChange={(e) => setEmailFacturacion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
@@ -457,6 +486,94 @@ function PerfilPageContent() {
                       <Input id="empresaSitioWeb" maxLength={200} value={sitioWebEmpresa} onChange={(e) => setSitioWebEmpresa(e.target.value)} className="text-xs" />
                     </div>
                   </div>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                    No tienes una empresa vinculada.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  <span>Facturación y coordinación</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Datos usados en la factura y en la coordinación operativa del stand.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {empresaVinculada ? (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="empresaEmailContacto"><span>Correo de contacto</span></Label>
+                        <Input id="empresaEmailContacto" type="email" maxLength={200} value={emailContacto} onChange={(e) => setEmailContacto(e.target.value)} className="text-xs" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="empresaNombreFriso"><span>Nombre en el friso</span></Label>
+                        <Input id="empresaNombreFriso" maxLength={200} value={nombreFriso} onChange={(e) => setNombreFriso(e.target.value)} className="text-xs" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="empresaFacturarANombre"><span>Facturar a nombre de</span></Label>
+                        <Input id="empresaFacturarANombre" maxLength={200} value={facturarANombre} onChange={(e) => setFacturarANombre(e.target.value)} className="text-xs" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="empresaActividadEconomica"><span>Actividad económica</span></Label>
+                        <Input id="empresaActividadEconomica" maxLength={250} value={actividadEconomica} onChange={(e) => setActividadEconomica(e.target.value)} className="text-xs" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="empresaEstadoContribuyente"><span>Estado del contribuyente</span></Label>
+                        <Input id="empresaEstadoContribuyente" maxLength={100} value={estadoContribuyente} onChange={(e) => setEstadoContribuyente(e.target.value)} className="text-xs" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-foreground">Responsable de coordinación EXTEMIN</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="exteminNombre"><span>Nombre</span></Label>
+                          <Input id="exteminNombre" maxLength={200} value={exteminNombre} onChange={(e) => setExteminNombre(e.target.value)} className="text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="exteminTelefono"><span>Teléfono</span></Label>
+                          <Input id="exteminTelefono" maxLength={35} value={exteminTelefono} onChange={(e) => setExteminTelefono(e.target.value)} className="text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="exteminDni"><span>DNI</span></Label>
+                          <Input id="exteminDni" maxLength={15} value={exteminDni} onChange={(e) => setExteminDni(e.target.value)} className="font-mono text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="exteminEmail"><span>Correo</span></Label>
+                          <Input id="exteminEmail" type="email" maxLength={200} value={exteminEmail} onChange={(e) => setExteminEmail(e.target.value)} className="text-xs" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-foreground">Responsable de pagos</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="pagosNombre"><span>Nombre</span></Label>
+                          <Input id="pagosNombre" maxLength={200} value={pagosNombre} onChange={(e) => setPagosNombre(e.target.value)} className="text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="pagosTelefono"><span>Teléfono</span></Label>
+                          <Input id="pagosTelefono" maxLength={35} value={pagosTelefono} onChange={(e) => setPagosTelefono(e.target.value)} className="text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="pagosDni"><span>DNI</span></Label>
+                          <Input id="pagosDni" maxLength={15} value={pagosDni} onChange={(e) => setPagosDni(e.target.value)} className="font-mono text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="pagosEmail"><span>Correo</span></Label>
+                          <Input id="pagosEmail" type="email" maxLength={200} value={pagosEmail} onChange={(e) => setPagosEmail(e.target.value)} className="text-xs" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <p className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
                     No tienes una empresa vinculada.
@@ -505,17 +622,17 @@ function PerfilPageContent() {
                       <Input id="repNombre" placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repPartida"><span>Partida electrónica (opcional)</span></Label>
+                      <Label htmlFor="repPartida"><span>Partida electrÃ³nica (opcional)</span></Label>
                       <Input id="repPartida" placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repDireccion"><span>Dirección</span></Label>
+                      <Label htmlFor="repDireccion"><span>DirecciÃ³n</span></Label>
                       <Input id="repDireccion" placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCorreo"><span>Correo</span></Label>
                       <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
-                      <p className="text-[11px] text-muted-foreground">Se usará en el contrato, como usuario del sistema y para las notificaciones.</p>
+                      <p className="text-[11px] text-muted-foreground">Se usarÃ¡ en el contrato, como usuario del sistema y para las notificaciones.</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="repCelular"><span>Celular</span></Label>
@@ -593,7 +710,7 @@ function PerfilPageContent() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG de tu firma con fondo claro. Se usará para firmar digitalmente tus contratos.</p>
+                  <p className="text-[11px] text-muted-foreground">Sube una imagen PNG de tu firma con fondo claro. Se usarÃ¡ para firmar digitalmente tus contratos.</p>
                 </div>
               </CardContent>
             </Card>
@@ -647,7 +764,7 @@ function PerfilPageContent() {
                 {!notifDatosCompletos ? (
                   <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 p-4">
                     <p className="text-xs text-foreground">
-                      Para elegir el correo de notificaciones primero completa el correo del representante y el correo de facturación en los datos de tu empresa.
+                      Para elegir el correo de notificaciones primero completa el correo del representante y el correo de facturaciÃ³n en los datos de tu empresa.
                     </p>
                     <Button type="button" size="sm" onClick={() => router.push("/auth/validar-datos")}>
                       <span>Completar datos de la empresa</span>

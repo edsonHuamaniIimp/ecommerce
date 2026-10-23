@@ -15,6 +15,7 @@ interface EmpresaRow {
   id: string;
   ruc: string;
   tipoDocumento: string;
+  pais: string;
   sieCode: string | null;
   razonSocial: string;
   logoUrl: string | null;
@@ -24,12 +25,28 @@ interface EmpresaRow {
   emailContacto: string | null;
   emailFacturacion: string | null;
   representanteLegalNombre: string | null;
+  representanteLegalTipoDocumento: string;
   representanteLegalDni: string | null;
   representanteCorreo: string | null;
   representanteCelular: string | null;
   representanteDireccion: string | null;
   representanteSieCode: string | null;
+  representanteUserId: string | null;
   partidaElectronica: string | null;
+  nombreFriso: string | null;
+  actividadEconomica: string | null;
+  estadoContribuyente: string | null;
+  facturarANombre: string | null;
+  responsableExteminNombre: string | null;
+  responsableExteminTelefono: string | null;
+  responsableExteminTipoDocumento: string;
+  responsableExteminDni: string | null;
+  responsableExteminEmail: string | null;
+  responsablePagosNombre: string | null;
+  responsablePagosTelefono: string | null;
+  responsablePagosTipoDocumento: string;
+  responsablePagosDni: string | null;
+  responsablePagosEmail: string | null;
   configCuotas: unknown | null;
   tipoComprobante: string;
   sitioWeb: string | null;
@@ -55,6 +72,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     id: row.id,
     ruc: row.ruc,
     tipoDocumento: row.tipoDocumento,
+    pais: row.pais ?? "PE",
     sieCode: row.sieCode ?? null,
     razonSocial: row.razonSocial,
     logoUrl: row.logoUrl ?? null,
@@ -64,12 +82,28 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     emailContacto: row.emailContacto ?? null,
     emailFacturacion: row.emailFacturacion ?? null,
     representanteLegalNombre: row.representanteLegalNombre ?? null,
+    representanteLegalTipoDocumento: row.representanteLegalTipoDocumento ?? "1",
     representanteLegalDni: row.representanteLegalDni ?? null,
     representanteCorreo: row.representanteCorreo ?? null,
     representanteCelular: row.representanteCelular ?? null,
     representanteDireccion: row.representanteDireccion ?? null,
     representanteSieCode: row.representanteSieCode ?? null,
+    representanteUserId: row.representanteUserId ?? null,
     partidaElectronica: row.partidaElectronica ?? null,
+    nombreFriso: row.nombreFriso ?? null,
+    actividadEconomica: row.actividadEconomica ?? null,
+    estadoContribuyente: row.estadoContribuyente ?? null,
+    facturarANombre: row.facturarANombre ?? null,
+    responsableExteminNombre: row.responsableExteminNombre ?? null,
+    responsableExteminTelefono: row.responsableExteminTelefono ?? null,
+    responsableExteminTipoDocumento: row.responsableExteminTipoDocumento ?? "1",
+    responsableExteminDni: row.responsableExteminDni ?? null,
+    responsableExteminEmail: row.responsableExteminEmail ?? null,
+    responsablePagosNombre: row.responsablePagosNombre ?? null,
+    responsablePagosTelefono: row.responsablePagosTelefono ?? null,
+    responsablePagosTipoDocumento: row.responsablePagosTipoDocumento ?? "1",
+    responsablePagosDni: row.responsablePagosDni ?? null,
+    responsablePagosEmail: row.responsablePagosEmail ?? null,
     configCuotas: (row.configCuotas as ConfigCuotasEmpresa | null) ?? null,
     tipoComprobante: row.tipoComprobante as TipoComprobante,
     sitioWeb: row.sitioWeb ?? null,
