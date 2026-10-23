@@ -14,6 +14,8 @@ export interface EmpresaDTO {
   logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
+  /** Fecha de inicio de operaciones (YYYY-MM-DD). */
+  inicioOperaciones: string | null;
   telefono: string | null;
   emailContacto: string | null;
   emailFacturacion: string | null;

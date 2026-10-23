@@ -21,6 +21,7 @@ export interface EmpresaEntity {
   logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
+  inicioOperaciones: Date | null;
   telefono: string | null;
   emailContacto: string | null;
   emailFacturacion: string | null;
@@ -81,6 +82,8 @@ export interface EmpresaInput {
   logoUrl?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
+  /** Fecha ISO (YYYY-MM-DD) de inicio de operaciones de la empresa. */
+  inicioOperaciones?: string | null;
   telefono?: string | null;
   emailContacto?: string | null;
   emailFacturacion?: string | null;
@@ -129,6 +132,7 @@ export interface CrearEmpresaData {
   logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
+  inicioOperaciones: Date | null;
   telefono: string | null;
   emailContacto: string | null;
   emailFacturacion: string | null;

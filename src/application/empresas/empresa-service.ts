@@ -10,6 +10,7 @@ import { emailProvisionalPorDocumento, esEmailProvisional } from "@/lib/shared/u
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
 import { leerImagenFuente, tipoImagen } from "@/lib/server/utils/imagen-fuente";
 import { configCuotasValida, normalizarConfigCuotas, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { EmpresaApi, IEmpresaClient } from "@/domain/ports/empresa-client";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
@@ -377,6 +378,7 @@ export class EmpresaApplicationService {
       logoUrl: empresa.linkLogo ?? null,
       nombreComercial: null,
       direccionFiscal: empresa.direccion,
+      inicioOperaciones: null,
       telefono: empresa.telefono,
       emailContacto: empresa.correo,
       emailFacturacion: null,
@@ -617,6 +619,7 @@ export class EmpresaApplicationService {
       logoUrl: limpiar(input.logoUrl),
       nombreComercial: limpiar(input.nombreComercial),
       direccionFiscal: limpiar(input.direccionFiscal),
+      inicioOperaciones: dateUtils.toDate(input.inicioOperaciones),
       telefono: limpiar(input.telefono),
       emailContacto: limpiar(input.emailContacto),
       emailFacturacion: limpiar(input.emailFacturacion),
@@ -702,6 +705,10 @@ export class EmpresaApplicationService {
         throw new DomainError("El tipo de documento no es compatible con el documento registrado", API_ERROR_CODES.VALIDATION, 400);
       }
       cambios.tipoDocumento = tipoDocumento;
+    }
+
+    if (input.inicioOperaciones !== undefined) {
+      cambios.inicioOperaciones = dateUtils.toDate(input.inicioOperaciones);
     }
 
     if (input.emailContacto !== undefined || input.emailFacturacion !== undefined) {
@@ -836,9 +843,11 @@ export class EmpresaApplicationService {
     }
     await this.actualizar(empresa.id, {
       ruc: input.ruc,
+      tipoDocumento: input.tipoDocumento,
       razonSocial: input.razonSocial,
       nombreComercial: input.nombreComercial,
       direccionFiscal: input.direccionFiscal,
+      inicioOperaciones: input.inicioOperaciones,
       telefono: input.telefono,
       emailFacturacion: input.emailFacturacion,
       representanteLegalNombre: input.representanteLegalNombre,

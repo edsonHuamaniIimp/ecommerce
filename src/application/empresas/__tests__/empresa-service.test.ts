@@ -56,6 +56,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       logoUrl: data.logoUrl ?? null,
       nombreComercial: data.nombreComercial ?? null,
       direccionFiscal: data.direccionFiscal ?? null,
+      inicioOperaciones: data.inicioOperaciones ?? null,
       telefono: data.telefono ?? null,
       emailContacto: data.emailContacto ?? null,
       emailFacturacion: data.emailFacturacion ?? null,

@@ -244,8 +244,15 @@ export class SolicitudesApplicationService {
   async habilitarContrato(solicitudId: string): Promise<void> {
     const detalle = await this.repo.detalle(solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
-    if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) {
-      throw new DomainError("La solicitud ya no está pendiente", API_ERROR_CODES.CONFLICT, 409);
+    if (
+      detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE &&
+      detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO
+    ) {
+      throw new DomainError(
+        "La solicitud ya no admite habilitar la firma del contrato",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
     }
     if (detalle.contratoHabilitado === true) return;
     await this.repo.habilitarContrato(solicitudId);

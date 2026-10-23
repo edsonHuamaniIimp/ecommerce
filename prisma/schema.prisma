@@ -289,6 +289,8 @@ model Empresa {
   nombreComercial          String?   @map("nombre_comercial") @db.VarChar(200)
   /// Direccion fiscal; usada en el contrato.
   direccionFiscal          String?   @map("direccion_fiscal") @db.VarChar(250)
+  /// Fecha de inicio de operaciones/actividades de la empresa.
+  inicioOperaciones        DateTime? @map("inicio_operaciones") @db.Date
   /// Telefono de contacto de la empresa.
   telefono                 String?   @db.VarChar(30)
   /// Correo de contacto general.

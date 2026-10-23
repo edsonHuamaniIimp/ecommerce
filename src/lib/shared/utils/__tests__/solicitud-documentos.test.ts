@@ -11,6 +11,7 @@ import {
   hayContratoAdminNuevoParaFirmar,
   hayFirmadoPosteriorAlContratoCorregido,
   contratoClientePendienteFirma,
+  contratoFirmadoPendienteReemplazo,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
@@ -29,7 +30,7 @@ const base = {
   sgcLifecycleStatus: null as string | null,
   sgcDocumentosEnviados: false,
   sgcSubsanacionModo: null as string | null,
-  docsAdjuntos: [] as Array<{ categoria?: string | null; userId?: string | null; createdAt?: string | Date | null }>,
+  docsAdjuntos: [] as Array<{ categoria?: string | null; userId?: string | null; estado?: string | null; createdAt?: string | Date | null }>,
   revisiones: [{ area: REVISION_AREAS.ASOCIADO }],
 };
 
@@ -106,6 +107,29 @@ describe("hayContratoAdminNuevoParaFirmar", () => {
 
   it("false si no hay contrato del admin", () => {
     expect(hayContratoAdminNuevoParaFirmar({ ...base, docsAdjuntos: [firmado] })).toBe(false);
+  });
+});
+
+describe("contratoFirmadoPendienteReemplazo", () => {
+  const observado = {
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    userId: CLIENTE,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
+    createdAt: "2026-10-01T10:00:00Z",
+  };
+
+  it("true si el contrato firmado observado aun no tiene reemplazo activo", () => {
+    expect(contratoFirmadoPendienteReemplazo({ ...base, docsAdjuntos: [observado] })).toBe(true);
+  });
+
+  it("false si ya existe una firma activa posterior", () => {
+    const nuevo = { ...observado, estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO, createdAt: "2026-10-02T10:00:00Z" };
+    expect(contratoFirmadoPendienteReemplazo({ ...base, docsAdjuntos: [observado, nuevo] })).toBe(false);
+  });
+
+  it("false si el documento observado es un anexo", () => {
+    const anexo = { ...observado, categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO };
+    expect(contratoFirmadoPendienteReemplazo({ ...base, docsAdjuntos: [anexo] })).toBe(false);
   });
 });
 

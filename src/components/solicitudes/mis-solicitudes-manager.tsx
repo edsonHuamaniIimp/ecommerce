@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -75,9 +75,21 @@ function accionesObservacion(row: SolicitudRow) {
   const firmadoVigente = docs
     .filter((d) => activo(d) && d.userId === row.userId && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
     .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  const firmadoObservado = docs
+    .filter(
+      (d) =>
+        d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO &&
+        d.userId === row.userId &&
+        d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    )
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
   /* El admin ya subio una version corregida que el cliente aun no firma. */
+  const adminEsCorreccion = adminContratoVigente
+    ? (!firmadoObservado || dateUtils.isAfter(adminContratoVigente.createdAt, firmadoObservado.createdAt))
+    : false;
   const contratoCorregidoPendienteFirma = adminContratoVigente
-    ? (!firmadoVigente || dateUtils.isBefore(firmadoVigente.createdAt, adminContratoVigente.createdAt))
+    ? adminEsCorreccion &&
+      (!firmadoVigente || dateUtils.isBefore(firmadoVigente.createdAt, adminContratoVigente.createdAt))
     : false;
   const pendientesReemplazo = observados.filter(
     (obs) =>
@@ -89,17 +101,21 @@ function accionesObservacion(row: SolicitudRow) {
           dateUtils.isAfter(d.createdAt, obs.createdAt),
       ),
   );
+  const firmadoPendienteReemplazo = contratoFirmadoPendienteReemplazo(row);
+  const anexosPendientes = pendientesReemplazo.filter(
+    (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+  ).length;
   return {
     observados,
     pendientesReemplazo,
+    anexosPendientes,
     contratoAdminObservado,
     adminContratoVigente,
     contratoCorregidoPendienteFirma,
-    faltaFirmaContrato: contratoCorregidoPendienteFirma,
-    tieneAnexosObservados: observados.some(
-      (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
-    ),
-    tieneFirmadoObservado: observados.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO),
+    esperandoContratoCorregidoFirmado: firmadoPendienteReemplazo && !contratoCorregidoPendienteFirma,
+    faltaFirmaContrato: contratoCorregidoPendienteFirma || firmadoPendienteReemplazo,
+    tieneAnexosObservados: anexosPendientes > 0,
+    tieneFirmadoObservado: firmadoPendienteReemplazo,
   };
 }
 
@@ -521,13 +537,17 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         return (
                           <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
                             <span className="font-semibold">Accion requerida: </span>
-                            {a.contratoCorregidoPendienteFirma
-                              ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
-                              : a.contratoAdminObservado && !a.adminContratoVigente
-                                ? "El contrato fue observado. Espera la version corregida del administrador."
-                                : a.observados.length === 0
-                                  ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
-                                  : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
+                            {a.tieneAnexosObservados
+                              ? "El area revisora observo documentos. Sube las nuevas versiones y reenvia."
+                              : a.esperandoContratoCorregidoFirmado
+                                ? "El contrato firmado fue observado. Espera la version corregida del administrador."
+                                : a.contratoCorregidoPendienteFirma
+                                  ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
+                                  : a.contratoAdminObservado && !a.adminContratoVigente
+                                    ? "El contrato fue observado. Espera la version corregida del administrador."
+                                    : a.pendientesReemplazo.length === 0
+                                      ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
+                                      : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
                             {row.revisionAsociado?.comentario && (
                               <span className="mt-0.5 block text-[10px] text-muted-foreground">
                                 {row.revisionAsociado.comentario}
@@ -584,19 +604,19 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             const a = accionesObservacion(row);
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados || a.tieneFirmadoObservado) && (
+                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
                                     onClick={() => {
-                                      const modo = a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado ? "contrato" : "anexos";
+                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
                                       void openClienteUpload(row, modo);
                                     }}>
-                                    {a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado
-                                      ? <PenLine className="h-3.5 w-3.5" />
-                                      : <Upload className="h-3.5 w-3.5" />}
+                                    {a.tieneAnexosObservados
+                                      ? <Upload className="h-3.5 w-3.5" />
+                                      : <PenLine className="h-3.5 w-3.5" />}
                                     <span>Subsanar observacion</span>
                                   </Button>
                                 )}
-                                {a.contratoAdminObservado && !a.adminContratoVigente && (
+                                {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
                                   <Button size="sm" variant="outline" disabled className="w-full justify-center gap-1.5 sm:w-auto">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span>Esperando contrato corregido</span>
@@ -610,10 +630,10 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <span>
                                     {reenviandoObservacion
                                       ? "Reenviando..."
-                                      : a.faltaFirmaContrato
-                                        ? "Falta firmar contrato"
-                                        : a.pendientesReemplazo.length > 0
-                                          ? `Falta subir ${a.pendientesReemplazo.length}`
+                                      : a.anexosPendientes > 0
+                                        ? `Falta subir ${a.anexosPendientes}`
+                                        : a.faltaFirmaContrato
+                                          ? "Falta firmar contrato"
                                           : "Reenviar a revision"}
                                   </span>
                                 </Button>
@@ -711,19 +731,19 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             const a = accionesObservacion(row);
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados || a.tieneFirmadoObservado) && (
+                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
                                     onClick={() => {
-                                      const modo = a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado ? "contrato" : "anexos";
+                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
                                       void openClienteUpload(row, modo);
                                     }}>
-                                    {a.contratoCorregidoPendienteFirma || a.tieneFirmadoObservado
-                                      ? <PenLine className="h-3.5 w-3.5" />
-                                      : <Upload className="h-3.5 w-3.5" />}
+                                    {a.tieneAnexosObservados
+                                      ? <Upload className="h-3.5 w-3.5" />
+                                      : <PenLine className="h-3.5 w-3.5" />}
                                     <span>Subsanar observacion</span>
                                   </Button>
                                 )}
-                                {a.contratoAdminObservado && !a.adminContratoVigente && (
+                                {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
                                   <Button size="sm" variant="outline" disabled className="w-full justify-center gap-1.5 sm:w-auto">
                                     <Clock className="h-3.5 w-3.5" />
                                     <span>Esperando contrato corregido</span>
@@ -737,10 +757,10 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <span>
                                     {reenviandoObservacion
                                       ? "Reenviando..."
-                                      : a.faltaFirmaContrato
-                                        ? "Falta firmar contrato"
-                                        : a.pendientesReemplazo.length > 0
-                                          ? `Falta subir ${a.pendientesReemplazo.length}`
+                                      : a.anexosPendientes > 0
+                                        ? `Falta subir ${a.anexosPendientes}`
+                                        : a.faltaFirmaContrato
+                                          ? "Falta firmar contrato"
                                           : "Reenviar a revision"}
                                   </span>
                                 </Button>

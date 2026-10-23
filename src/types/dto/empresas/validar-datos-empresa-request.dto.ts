@@ -4,11 +4,15 @@
  */
 export interface ValidarDatosEmpresaRequestDTO {
   ruc: string;
+  /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
+  tipoDocumento?: string | null;
   razonSocial: string;
   /** Pais ISO 3166-1 alpha-2; omitido = PE. */
   pais?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
+  /** Fecha de inicio de operaciones (YYYY-MM-DD). */
+  inicioOperaciones?: string | null;
   telefono?: string | null;
   emailContacto?: string | null;
   emailFacturacion?: string | null;

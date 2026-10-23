@@ -25,7 +25,7 @@ import {
 } from "@/lib/shared/constants";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { anexosBloqueantesFaltantes, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoFirmadoPendienteReemplazo, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -157,7 +157,14 @@ export function SolicitudReview({
     setRegenerandoContrato(true);
     try {
       await contratosService.generar({ solicitudId: row.id });
-      toast.success("Contrato regenerado desde la plantilla");
+      if (
+        !row.contratoHabilitado &&
+        (row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE ||
+          row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO)
+      ) {
+        await solicitudesService.habilitarContrato({ solicitudId: row.id });
+      }
+      toast.success("Contrato regenerado y habilitado para firma");
       onSaved(row);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo regenerar el contrato");
@@ -240,6 +247,8 @@ export function SolicitudReview({
       d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
       d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
   );
+  /* El contrato firmado por el cliente fue observado y aun no tiene reemplazo. */
+  const contratoFirmadoObservadoPendiente = contratoFirmadoPendienteReemplazo(row);
 
   /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
      excluyendo el que ya se usa como contrato. */
@@ -572,10 +581,13 @@ export function SolicitudReview({
                   <span className="text-[11px] text-muted-foreground">{grupos.length} documento(s) {"\u00b7"} {unique.length} archivo(s)</span>
                 </div>
               </div>
-              {isAdmin && contratoAdminObservado && (
+              {(isAdmin || canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO) || canReviewArea(userPermissions, REVISION_AREAS.LEGAL)) &&
+                (contratoAdminObservado || contratoFirmadoObservadoPendiente) && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <p className="text-[11px] text-foreground">
-                    El contrato fue observado. Genera la version corregida para que el cliente la firme.
+                    {contratoAdminObservado
+                      ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
+                      : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
                   </p>
                   <Button
                     type="button"
@@ -586,7 +598,7 @@ export function SolicitudReview({
                     onClick={() => { void regenerarContratoGenerado(); }}
                   >
                     {regenerandoContrato ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    <span>Regenerar contrato (plantilla)</span>
+                    <span>Regenerar y enviar contrato</span>
                   </Button>
                 </div>
               )}

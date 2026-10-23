@@ -734,11 +734,25 @@ describe("SolicitudesApplicationService.habilitarContrato", () => {
     expect(repo.guardarPlanCuotas).not.toHaveBeenCalled();
   });
 
-  it("no habilita una solicitud que ya no esta pendiente", async () => {
+  it("habilita la firma tambien cuando la solicitud esta observada", async () => {
     const repo = repoMock();
     vi.mocked(repo.detalle).mockResolvedValue({
       userId: "user-1",
       estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      contratoHabilitado: false,
+    } as unknown as SolicitudRow);
+    const service = svc(repo);
+
+    await service.habilitarContrato(ID);
+
+    expect(repo.habilitarContrato).toHaveBeenCalledWith(ID);
+  });
+
+  it("no habilita una solicitud que ya no admite firma", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue({
+      userId: "user-1",
+      estadoSolicitud: ESTADOS_SOLICITUD.APROBADO,
     } as unknown as SolicitudRow);
     const service = svc(repo);
 

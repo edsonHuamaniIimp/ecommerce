@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, Building2, Loader2 } from "lucide-react";
+import { Button, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@nrivera-iimp/ui-kit-iimp";
+import { AlertTriangle, Building2, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { authService } from "@/lib/client/api/services/auth-service";
@@ -11,16 +11,31 @@ import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { PortalAuthCardHeader, PortalAuthLayout } from "@/components/layout/portal-auth-layout";
 import { PaisSelect } from "@/components/shared/pais-select";
 import { TelefonoInput } from "@/components/shared/telefono-input";
-import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS } from "@/lib/shared/constants";
+import {
+  REGEX_EMAIL,
+  TIPOS_COMPROBANTE,
+  TIPO_COMPROBANTE_LABELS,
+  TIPOS_DOCUMENTO_EMPRESA,
+  TIPOS_DOCUMENTO_EMPRESA_LABELS,
+  TIPOS_DOCUMENTO_PERSONA,
+  TIPOS_DOCUMENTO_PERSONA_LABELS,
+} from "@/lib/shared/constants";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import {
+  resolverTipoDocumentoEmpresa,
+  validarDocumentoEmpresa,
+} from "@/lib/shared/utils/documento-empresa";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface FormState {
   ruc: string;
+  tipoDocumento: string;
   pais: string;
   razonSocial: string;
   nombreComercial: string;
   direccionFiscal: string;
+  inicioOperaciones: string;
   telefono: string;
   emailContacto: string;
   emailFacturacion: string;
@@ -74,6 +89,8 @@ function Campo({
   requerido = false,
   error,
   telefono = false,
+  resaltado = false,
+  type = "text",
 }: {
   label: string;
   valor: string;
@@ -86,9 +103,15 @@ function Campo({
   requerido?: boolean;
   error?: string;
   telefono?: boolean;
+  resaltado?: boolean;
+  type?: "text" | "date" | "email";
 }) {
   return (
-    <div className={contractual ? "rounded-lg border border-warning/40 bg-warning/5 p-3" : ""}>
+    <div
+      className={resaltado
+        ? "rounded-lg border border-warning bg-warning/10 p-3 ring-2 ring-warning/20"
+        : contractual ? "rounded-lg border border-border bg-secondary/30 p-3" : ""}
+    >
       <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
         <Label className="text-xs font-semibold text-primary">
           {label} {requerido && <span className="text-destructive">*</span>}
@@ -109,14 +132,17 @@ function Campo({
         />
       ) : (
         <Input
+          type={type}
           value={valor}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={deshabilitado}
-          className={`h-10 text-sm ${mono ? "font-mono" : ""} ${deshabilitado ? "opacity-60" : ""} ${error ? "border-destructive" : ""}`}
+          className={`h-10 text-sm ${mono ? "font-mono" : ""} ${deshabilitado ? "opacity-60" : ""} ${
+            resaltado ? "border-warning ring-2 ring-warning/20" : error ? "border-destructive" : ""
+          }`}
         />
       )}
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
+      {error && <p className={`mt-1 text-[11px] ${resaltado ? "text-warning" : "text-destructive"}`}>{error}</p>}
       {nota && <p className="mt-1 text-[10px] text-muted-foreground">{nota}</p>}
     </div>
   );
@@ -148,6 +174,32 @@ function CampoTipoDocumento({
   );
 }
 
+function CampoTipoDocumentoEmpresa({
+  value,
+  onChange,
+  id,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  id?: string;
+}) {
+  return (
+    <div className="space-y-1 rounded-lg border border-border bg-secondary/30 p-3">
+      <Label className="text-xs font-semibold text-primary"><span>Tipo de documento</span></Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="h-10 text-sm"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {Object.values(TIPOS_DOCUMENTO_EMPRESA).map((tipo) => (
+            <SelectItem key={tipo} value={tipo}>
+              <span>{TIPOS_DOCUMENTO_EMPRESA_LABELS[tipo] ?? tipo}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 /**
  * Reglas de validacion del formulario (mismas que el endpoint). Los datos del
  * representante legal son obligatorios: contrato + sincronizacion + usuario del sistema.
@@ -156,7 +208,16 @@ function erroresDeFormulario(form: FormState): Partial<Record<keyof FormState, s
   const nuevos: Partial<Record<keyof FormState, string>> = {};
   if (!form.pais.trim()) nuevos.pais = "Selecciona el pais de la empresa";
   if (!form.razonSocial.trim()) nuevos.razonSocial = "La razon social es obligatoria";
-  if (!REGEX_RUC.test(form.ruc.trim())) nuevos.ruc = "El RUC debe tener 11 digitos";
+  const tipoDocumento = resolverTipoDocumentoEmpresa(form.tipoDocumento, form.ruc);
+  if (!tipoDocumento) {
+    nuevos.tipoDocumento = "Selecciona el tipo de documento";
+  } else {
+    const errorDocumento = validarDocumentoEmpresa(tipoDocumento, form.ruc);
+    if (errorDocumento) nuevos.ruc = errorDocumento;
+  }
+  if (form.inicioOperaciones.trim() && !dateUtils.isValid(form.inicioOperaciones)) {
+    nuevos.inicioOperaciones = "La fecha de inicio de operaciones es invalida";
+  }
   if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
     nuevos.emailFacturacion = "Correo invalido";
   }
@@ -204,6 +265,8 @@ function ValidarDatosContent() {
   const [empresa, setEmpresa] = useState<EmpresaDTO | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [confirmado, setConfirmado] = useState(false);
+  /** Al activarlo, los campos con error se resaltan para ubicarlos rápido. */
+  const [resaltarPendientes, setResaltarPendientes] = useState(false);
   /** Cuenta sin correo del representante: puede registrarlo en este primer ingreso (solo local). */
   const [repCorreoRegistrable, setRepCorreoRegistrable] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -218,10 +281,12 @@ function ValidarDatosContent() {
         setEmpresa(datos);
         setForm({
           ruc: datos.ruc,
+          tipoDocumento: datos.tipoDocumento ?? TIPOS_DOCUMENTO_EMPRESA.RUC,
           razonSocial: datos.razonSocial,
           nombreComercial: datos.nombreComercial ?? "",
           pais: datos.pais ?? "PE",
           direccionFiscal: datos.direccionFiscal ?? "",
+          inicioOperaciones: dateUtils.toInputValue(datos.inicioOperaciones),
           telefono: datos.telefono ?? "",
           emailContacto: datos.emailContacto ?? "",
           emailFacturacion: datos.emailFacturacion ?? "",
@@ -264,7 +329,7 @@ function ValidarDatosContent() {
   /** Autocompleta desde SUNAT al cargar o editar un RUC de 11 digitos. */
   useEffect(() => {
     const ruc = form?.ruc ?? "";
-    if (!form || !/^\d{11}$/.test(ruc)) return;
+    if (!form || form.tipoDocumento !== TIPOS_DOCUMENTO_EMPRESA.RUC || !/^\d{11}$/.test(ruc)) return;
     let vigente = true;
     void (async () => {
       setSunatCargando(true);
@@ -329,19 +394,36 @@ function ValidarDatosContent() {
     form?.responsablePagosDni,
   ]);
 
+  /** Errores actuales del formulario (incluye obligatorios vacios). */
+  const erroresFormulario = useMemo(
+    () => (form ? erroresDeFormulario(form) : ({} as Partial<Record<keyof FormState, string>>)),
+    [form],
+  );
   /** Validacion viva: el boton de guardar solo se habilita con los obligatorios completos. */
-  const formularioCompleto = useMemo(() => (form ? Object.keys(erroresDeFormulario(form)).length === 0 : false), [form]);
+  const formularioCompleto = Object.keys(erroresFormulario).length === 0;
 
-  /** Errores de formato en vivo (solo campos con contenido): los vacios se guian por el * y el aviso. */
-  const erroresVivos = useMemo(() => {
+  /**
+   * Errores visibles: solo los campos con contenido, para no marcar en rojo
+   * todo el formulario al cargar. Los vacios se resaltan con el switch.
+   */
+  const erroresVisibles = useMemo(() => {
     if (!form) return {} as Partial<Record<keyof FormState, string>>;
-    const nuevos = erroresDeFormulario(form);
     const visibles: Partial<Record<keyof FormState, string>> = {};
-    for (const [campo, mensaje] of Object.entries(nuevos) as Array<[keyof FormState, string]>) {
+    for (const [campo, mensaje] of Object.entries(erroresFormulario) as Array<[keyof FormState, string]>) {
       if (String(form[campo] ?? "").trim()) visibles[campo] = mensaje;
     }
     return visibles;
-  }, [form]);
+  }, [erroresFormulario, form]);
+
+  /** Marca en naranja el campo cuando el switch esta activo y el campo es pendiente. */
+  const marcarPendiente = (campo: keyof FormState) =>
+    resaltarPendientes && Boolean(erroresFormulario[campo]);
+
+  /** Pendientes reales para habilitar Guardar, incluida la confirmacion final. */
+  const pendientes = useMemo(() => {
+    const campos = Object.values(erroresFormulario);
+    return confirmado ? campos : [...campos, "Marca la confirmacion de que los datos son correctos."];
+  }, [erroresFormulario, confirmado]);
 
   const validar = (): boolean => (form ? Object.keys(erroresDeFormulario(form)).length === 0 : false);
 
@@ -356,10 +438,12 @@ function ValidarDatosContent() {
     try {
       await portalEmpresaService.validarDatos({
         ruc: form.ruc.trim(),
+        tipoDocumento: form.tipoDocumento,
         razonSocial: form.razonSocial.trim(),
         nombreComercial: form.nombreComercial.trim() || null,
         pais: form.pais,
         direccionFiscal: form.direccionFiscal.trim() || null,
+        inicioOperaciones: form.inicioOperaciones || null,
         telefono: form.telefono.trim() || null,
         emailContacto: form.emailContacto.trim() || null,
         emailFacturacion: form.emailFacturacion.trim() || null,
@@ -426,8 +510,8 @@ function ValidarDatosContent() {
           <div className="grid gap-4 lg:grid-cols-2">
           <SeccionFormulario titulo="Datos generales" className="lg:col-span-2">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Campo contractual requerido label="Razon social" valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} placeholder="Minera Cordillera S.A.C." error={erroresVivos.razonSocial} />
-              <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+              <Campo contractual requerido label="Razon social" valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} placeholder="Minera Cordillera S.A.C." error={erroresVisibles.razonSocial} resaltado={marcarPendiente("razonSocial")} />
+              <div className={`rounded-lg border p-3 ${marcarPendiente("pais") ? "border-warning bg-warning/10 ring-2 ring-warning/20" : "border-border bg-secondary/30"}`}>
                 <Label className="mb-1 block text-xs font-semibold text-primary">
                   <span>Pais</span> <span className="text-destructive">*</span>
                 </Label>
@@ -435,13 +519,14 @@ function ValidarDatosContent() {
                   id="empresaPais"
                   value={form.pais}
                   onChange={(v) => setCampo("pais", v)}
-                  error={erroresVivos.pais}
+                  error={erroresVisibles.pais}
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">Codigo ISO del pais de la empresa.</p>
               </div>
-              <Campo label="Email general" valor={form.emailContacto} onChange={(v) => setCampo("emailContacto", v)} placeholder="contacto@empresa.pe" error={erroresVivos.emailContacto} />
+              <Campo label="Email general" valor={form.emailContacto} onChange={(v) => setCampo("emailContacto", v)} placeholder="contacto@empresa.pe" error={erroresVisibles.emailContacto} resaltado={marcarPendiente("emailContacto")} />
               <Campo label="Actividad economica" valor={form.actividadEconomica} onChange={(v) => setCampo("actividadEconomica", v)} placeholder="Se completa al validar el RUC" />
               <Campo label="Estado de contribuyente" valor={form.estadoContribuyente} onChange={(v) => setCampo("estadoContribuyente", v)} placeholder="Se completa al validar el RUC" deshabilitado nota="Dato consultado en SUNAT." />
+              <Campo type="date" label="Inicio de operaciones" valor={form.inicioOperaciones} onChange={(v) => setCampo("inicioOperaciones", v)} nota="Fecha de inicio de actividades de la empresa." />
               <Campo label="Nombre comercial" valor={form.nombreComercial} onChange={(v) => setCampo("nombreComercial", v)} placeholder="Minera Cordillera" />
               <Campo telefono label="Telefono" valor={form.telefono} onChange={(v) => setCampo("telefono", v)} placeholder="+51 987 654 321" />
               <Campo label="Sitio web" valor={form.sitioWeb} onChange={(v) => setCampo("sitioWeb", v)} placeholder="www.empresa.pe" />
@@ -453,9 +538,9 @@ function ValidarDatosContent() {
             descripcion="Representante legal que firma el contrato de alquiler."
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo contractual requerido label="Nombre" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" error={erroresVivos.representanteLegalNombre} />
+              <Campo contractual requerido label="Nombre" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" error={erroresVisibles.representanteLegalNombre} resaltado={marcarPendiente("representanteLegalNombre")} />
               <CampoTipoDocumento value={form.representanteLegalTipoDocumento} onChange={(v) => setCampo("representanteLegalTipoDocumento", v)} id="repTipoDocumento" />
-              <Campo contractual requerido label="Numero de documento" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVivos.representanteLegalDni} />
+              <Campo contractual requerido label="Numero de documento" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.representanteLegalDni} resaltado={marcarPendiente("representanteLegalDni")} />
               <Campo
                 contractual
                 requerido
@@ -465,10 +550,11 @@ function ValidarDatosContent() {
                 placeholder="representante@empresa.pe"
                 deshabilitado={!repCorreoRegistrable}
                 nota={repCorreoRegistrable ? "Se usara en el contrato, como usuario del sistema y para las notificaciones." : "Para cambiar el correo, primero debe validarse."}
-                error={erroresVivos.representanteCorreo}
+                error={erroresVisibles.representanteCorreo}
+                resaltado={marcarPendiente("representanteCorreo")}
               />
-              <Campo telefono contractual requerido label="Telefono" valor={form.representanteCelular} onChange={(v) => setCampo("representanteCelular", v)} placeholder="+51 987 654 321" error={erroresVivos.representanteCelular} />
-              <Campo contractual requerido label="Direccion" valor={form.representanteDireccion} onChange={(v) => setCampo("representanteDireccion", v)} placeholder="Av. Arequipa 1250, Lince" error={erroresVivos.representanteDireccion} />
+              <Campo telefono contractual requerido label="Telefono" valor={form.representanteCelular} onChange={(v) => setCampo("representanteCelular", v)} placeholder="+51 987 654 321" error={erroresVisibles.representanteCelular} resaltado={marcarPendiente("representanteCelular")} />
+              <Campo contractual requerido label="Direccion" valor={form.representanteDireccion} onChange={(v) => setCampo("representanteDireccion", v)} placeholder="Av. Arequipa 1250, Lince" error={erroresVisibles.representanteDireccion} resaltado={marcarPendiente("representanteDireccion")} />
               <Campo contractual label="Partida electronica (opcional)" valor={form.partidaElectronica} onChange={(v) => setCampo("partidaElectronica", v)} placeholder="11014857" mono />
             </div>
           </SeccionFormulario>
@@ -478,8 +564,8 @@ function ValidarDatosContent() {
               <Campo label="Nombre" valor={form.responsableExteminNombre} onChange={(v) => setCampo("responsableExteminNombre", v)} placeholder="Nombre completo" />
               <Campo telefono label="Telefono" valor={form.responsableExteminTelefono} onChange={(v) => setCampo("responsableExteminTelefono", v)} placeholder="+51 987 654 321" />
               <CampoTipoDocumento value={form.responsableExteminTipoDocumento} onChange={(v) => setCampo("responsableExteminTipoDocumento", v)} id="exteminTipoDocumento" />
-              <Campo label="Numero de documento" valor={form.responsableExteminDni} onChange={(v) => setCampo("responsableExteminDni", form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono />
-              <Campo label="Email" valor={form.responsableExteminEmail} onChange={(v) => setCampo("responsableExteminEmail", v)} placeholder="extemin@empresa.pe" error={erroresVivos.responsableExteminEmail} />
+              <Campo label="Numero de documento" valor={form.responsableExteminDni} onChange={(v) => setCampo("responsableExteminDni", form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.responsableExteminDni} resaltado={marcarPendiente("responsableExteminDni")} />
+              <Campo label="Email" valor={form.responsableExteminEmail} onChange={(v) => setCampo("responsableExteminEmail", v)} placeholder="extemin@empresa.pe" error={erroresVisibles.responsableExteminEmail} resaltado={marcarPendiente("responsableExteminEmail")} />
             </div>
           </SeccionFormulario>
 
@@ -488,8 +574,8 @@ function ValidarDatosContent() {
               <Campo label="Nombre" valor={form.responsablePagosNombre} onChange={(v) => setCampo("responsablePagosNombre", v)} placeholder="Nombre completo" />
               <Campo telefono label="Telefono" valor={form.responsablePagosTelefono} onChange={(v) => setCampo("responsablePagosTelefono", v)} placeholder="+51 987 654 321" />
               <CampoTipoDocumento value={form.responsablePagosTipoDocumento} onChange={(v) => setCampo("responsablePagosTipoDocumento", v)} id="pagosTipoDocumento" />
-              <Campo label="Numero de documento" valor={form.responsablePagosDni} onChange={(v) => setCampo("responsablePagosDni", form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono />
-              <Campo label="Email" valor={form.responsablePagosEmail} onChange={(v) => setCampo("responsablePagosEmail", v)} placeholder="pagos@empresa.pe" error={erroresVivos.responsablePagosEmail} />
+              <Campo label="Numero de documento" valor={form.responsablePagosDni} onChange={(v) => setCampo("responsablePagosDni", form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.responsablePagosDni} resaltado={marcarPendiente("responsablePagosDni")} />
+              <Campo label="Email" valor={form.responsablePagosEmail} onChange={(v) => setCampo("responsablePagosEmail", v)} placeholder="pagos@empresa.pe" error={erroresVisibles.responsablePagosEmail} resaltado={marcarPendiente("responsablePagosEmail")} />
             </div>
           </SeccionFormulario>
 
@@ -499,25 +585,45 @@ function ValidarDatosContent() {
 
           <SeccionFormulario titulo="Datos de facturacion" className="lg:col-span-2">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <CampoTipoDocumentoEmpresa
+                value={form.tipoDocumento}
+                onChange={(v) => {
+                  setSunatValidado(false);
+                  setCampo("tipoDocumento", v);
+                  setCampo(
+                    "ruc",
+                    v === TIPOS_DOCUMENTO_EMPRESA.RUC
+                      ? form.ruc.replace(/\D/g, "").slice(0, 11)
+                      : form.ruc.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 20),
+                  );
+                }}
+                id="empresaTipoDocumento"
+              />
               <Campo
                 contractual
                 requerido
-                label="RUC"
+                label={form.tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC ? "RUC" : "RUT / No domiciliado"}
                 valor={form.ruc}
                 onChange={(v) => {
                   setSunatValidado(false);
-                  setCampo("ruc", v);
+                  setCampo(
+                    "ruc",
+                    form.tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC
+                      ? v.replace(/\D/g, "").slice(0, 11)
+                      : v.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 20),
+                  );
                 }}
-                placeholder="20601234567"
+                placeholder={form.tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC ? "20601234567" : "RUT o documento"}
                 mono
-                error={erroresVivos.ruc}
+                error={erroresVisibles.ruc}
+                resaltado={marcarPendiente("ruc")}
                 nota={sunatCargando ? "Consultando SUNAT..." : sunatValidado ? "Datos validados con SUNAT." : undefined}
               />
               <Campo contractual label="Facturar a nombre de" valor={form.facturarANombre} onChange={(v) => setCampo("facturarANombre", v)} placeholder={form.razonSocial || "Razon social"} />
               <Campo contractual label="Direccion de facturacion" valor={form.direccionFiscal} onChange={(v) => setCampo("direccionFiscal", v)} placeholder="Av. Los Ingenieros 245, Lima" />
-              <Campo contractual label="Correo de facturacion" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} placeholder="facturacion@empresa.pe" error={erroresVivos.emailFacturacion} />
+              <Campo contractual label="Correo de facturacion" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} placeholder="facturacion@empresa.pe" error={erroresVisibles.emailFacturacion} resaltado={marcarPendiente("emailFacturacion")} />
             </div>
-            <div className="mt-3 rounded-lg border border-warning/40 bg-warning/5 p-3">
+            <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-3">
               <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
                 <Label className="text-xs font-semibold text-primary">Tipo de comprobante</Label>
                 <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[9px] font-bold tracking-wide text-warning uppercase">
@@ -553,16 +659,44 @@ function ValidarDatosContent() {
             </span>
           </label>
 
+          <div aria-live="polite">
+            {pendientes.length === 0 ? (
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-success">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Todo listo para guardar.
+              </p>
+            ) : (
+              <div className="rounded-xl border border-warning/40 bg-warning/5 px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-warning">
+                    Faltan {pendientes.length} {pendientes.length === 1 ? "dato" : "datos"} para guardar
+                  </p>
+                  {Object.keys(erroresFormulario).length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="resaltar-pendientes" className="text-[11px] font-medium text-muted-foreground">
+                        <span>Resaltar campos</span>
+                      </Label>
+                      <Switch
+                        id="resaltar-pendientes"
+                        checked={resaltarPendientes}
+                        onCheckedChange={setResaltarPendientes}
+                      />
+                    </div>
+                  )}
+                </div>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                  {pendientes.map((mensaje, indice) => (
+                    <li key={`${indice}-${mensaje}`}>{mensaje}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
           {error && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
               {error}
             </div>
-          )}
-
-          {!formularioCompleto && (
-            <p className="text-right text-[11px] text-muted-foreground">
-              Completa los campos obligatorios (*) para guardar.
-            </p>
           )}
 
           <div className="flex items-center justify-end gap-2">

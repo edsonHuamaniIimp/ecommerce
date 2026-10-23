@@ -283,6 +283,24 @@ export function puedeClienteSubirDocumentos(s: SolicitudDocumentosGate): boolean
 }
 
 /**
+ * True si el contrato firmado observado sigue pendiente de reemplazo: no existe
+ * una firma activa posterior del mismo cliente. Evita que un firmado viejo
+ * observado bloquee la subsanacion despues de que el cliente ya volvio a firmar.
+ */
+export function contratoFirmadoPendienteReemplazo(s: SolicitudDocumentosGate): boolean {
+  const docs = s.docsAdjuntos ?? [];
+  const firmados = docs.filter((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+  return firmados.some((obs) => {
+    if (obs.estado !== ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO) return false;
+    return !firmados.some((d) =>
+      (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+      (d.userId ?? null) === (obs.userId ?? null) &&
+      dateUtils.isAfter(d.createdAt, obs.createdAt),
+    );
+  });
+}
+
+/**
  * El revisor habilito la firma y el cliente aun no firmo. El contrato se
  * genera recien al firmar desde Mis solicitudes.
  */

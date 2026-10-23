@@ -16,6 +16,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     logoUrl: entity.logoUrl,
     nombreComercial: entity.nombreComercial,
     direccionFiscal: entity.direccionFiscal,
+    inicioOperaciones: entity.inicioOperaciones ? entity.inicioOperaciones.toISOString().slice(0, 10) : null,
     telefono: entity.telefono,
     emailContacto: entity.emailContacto,
     emailFacturacion: entity.emailFacturacion,

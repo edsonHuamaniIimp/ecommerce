@@ -236,9 +236,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   });
   const otrosDocs = (esContrato ? firmados : anexos)
     .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
-  /** Contrato firmado observado por el revisor: se debe subir una nueva version. */
+  /** Contrato firmado observado sin reemplazo activo posterior: se debe volver a firmar. */
   const firmadoObservado = esContrato
-    ? firmados.find(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO)
+    ? firmados.find((obs) =>
+        obs.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO &&
+        !firmados.some((d) =>
+          (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+          dateUtils.isAfter(d.createdAt, obs.createdAt),
+        ),
+      )
     : null;
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 

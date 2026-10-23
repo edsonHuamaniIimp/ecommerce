@@ -18,6 +18,7 @@ export interface ActualizarEmpresaData {
   logoUrl?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;
+  inicioOperaciones?: Date | null;
   telefono?: string | null;
   emailContacto?: string | null;
   emailFacturacion?: string | null;

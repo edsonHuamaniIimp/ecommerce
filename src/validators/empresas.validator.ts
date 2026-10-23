@@ -22,6 +22,10 @@ const empresaBaseSchema = z.object({
   logoUrl: z.string().max(500).optional().nullable(),
   nombreComercial: z.string().trim().max(200).optional().nullable(),
   direccionFiscal: textoOpcional,
+  inicioOperaciones: z
+    .union([z.literal(""), z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha invalida")])
+    .optional()
+    .nullable(),
   telefono: z.string().trim().max(30).optional().nullable(),
   emailContacto: emailOpcional,
   emailFacturacion: emailOpcional,

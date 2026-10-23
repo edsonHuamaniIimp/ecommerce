@@ -21,6 +21,7 @@ interface EmpresaRow {
   logoUrl: string | null;
   nombreComercial: string | null;
   direccionFiscal: string | null;
+  inicioOperaciones: Date | null;
   telefono: string | null;
   emailContacto: string | null;
   emailFacturacion: string | null;
@@ -78,6 +79,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     logoUrl: row.logoUrl ?? null,
     nombreComercial: row.nombreComercial ?? null,
     direccionFiscal: row.direccionFiscal ?? null,
+    inicioOperaciones: row.inicioOperaciones ?? null,
     telefono: row.telefono ?? null,
     emailContacto: row.emailContacto ?? null,
     emailFacturacion: row.emailFacturacion ?? null,
