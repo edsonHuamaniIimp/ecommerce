@@ -546,6 +546,17 @@ mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` �
 - **Configuración contable** (centro de costo, cuentas contables, tipos de afectación,
   tasas) — origen: **SAP**. Fuera de este sistema.
 
+### Matriz de evaluacion DD (`dd_matriz_vinculo`, `dd_matriz_adjunto`)
+
+- **`dd_matriz_vinculo`** — una fila por vinculo (empresa, representante, beneficiario o vinculado)
+  de un expediente DD. `@@unique([expedienteId, tipo, refKey])`; `origen` automatico (sincronizado) o
+  manual; `ambito` nacional/extranjero (`ambitoEditado` si SIG lo corrigio); `listas` JSONB
+  `{codigo: si|no|na}`; bloques `sig_*`, `rep_*`, `cmp_*` (fecha, responsable, resultado,
+  observaciones, conclusion) y `resultado_final`. Catalogos en `DD_MATRIZ_*`.
+- **`dd_matriz_adjunto`** — informe y sustento por vinculo (`categoria`: `sig_informe`,
+  `sig_sustento`, `reputacional_sustento`, `compliance_sustento`).
+- Ver `docs/01-funcional/11-debida-diligencia.md` seccion 13.
+
 ## 6. Pendientes (PC)
 
 - ~~Confirmar **motor de BD** (relacional vs. documental) y ORM.~~ → **PostgreSQL + Prisma v7**.

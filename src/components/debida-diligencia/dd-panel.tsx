@@ -42,10 +42,14 @@ import { StatsCard } from "@/components/dashboard/stats-card";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
+import { DdMatrizBoton } from "./dd-matriz-boton";
+import { useSesion } from "@/hooks/use-sesion";
+import { tienePermiso } from "@/lib/shared/utils/permisos";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
+  PERMISSIONS,
   DD_FILTRO_TODAS,
   DD_MATRIZ_ESTADO_FILTROS,
   DD_MATRIZ_PER_PAGE_MAX,
@@ -167,6 +171,8 @@ function DonaVigencia({ vigencia }: { vigencia: DdPanelDTO["vigencia"] }) {
 
 /** Panel del modulo: KPIs, estado por vinculo, vigencia y matriz de empresas. */
 export function DdPanel() {
+  const { session } = useSesion();
+  const puedeMatriz = tienePermiso(session, PERMISSIONS.DD_MATRIZ);
   const [data, setData] = useState<DdPanelDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [matriz, setMatriz] = useState<DdMatrizResponseDTO | null>(null);
@@ -485,17 +491,20 @@ export function DdPanel() {
                           {fila.revisadoPor ?? "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 gap-1 text-[11px]"
-                            disabled={!fila.codigo}
-                            onClick={() => void verFicha(fila.id)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>Ver ficha</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              disabled={!fila.codigo}
+                              onClick={() => void verFicha(fila.id)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Ver ficha</span>
+                            </Button>
+                            {puedeMatriz ? <DdMatrizBoton expedienteId={fila.id} disabled={!fila.codigo || fila.estado === DD_ESTADOS.BORRADOR} /> : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

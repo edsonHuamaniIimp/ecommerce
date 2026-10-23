@@ -30,6 +30,8 @@ import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-d
 import { DdEstadoBadge, DdVigenciaBadge } from "./dd-estado-badge";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { DdImportModal } from "./dd-import-modal";
+import { DdMatrizBoton } from "./dd-matriz-boton";
+import { useSesion } from "@/hooks/use-sesion";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import {
   BADGE_STYLES,
@@ -51,8 +53,10 @@ import {
   DD_REPUTACION_ESTADO_LABELS,
   DD_SOLICITUDES_FILTRO,
   DD_VINCULO_LABELS,
+  PERMISSIONS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
+import { tienePermiso } from "@/lib/shared/utils/permisos";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import {
@@ -87,6 +91,8 @@ function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string 
 
 /** Bandeja de revision de Logistica del modulo Debida Diligencia. */
 export function DdBandeja() {
+  const { session } = useSesion();
+  const puedeMatriz = tienePermiso(session, PERMISSIONS.DD_MATRIZ);
   const [data, setData] = useState<DdBandejaResponseDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -601,18 +607,21 @@ export function DdBandeja() {
                           {fila.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (fila.revisadoPor ?? "Sin asignar")}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 gap-1 text-[11px]"
-                            disabled={!accion.puede}
-                            title={accion.puede ? "Revisar expediente" : accion.label}
-                            onClick={() => { if (accion.puede) setRevisando(fila); }}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>{accion.label}</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              disabled={!accion.puede}
+                              title={accion.puede ? "Revisar expediente" : accion.label}
+                              onClick={() => { if (accion.puede) setRevisando(fila); }}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>{accion.label}</span>
+                            </Button>
+                            {puedeMatriz ? <DdMatrizBoton expedienteId={fila.id} disabled={fila.estado === DD_ESTADOS.BORRADOR} /> : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                       );

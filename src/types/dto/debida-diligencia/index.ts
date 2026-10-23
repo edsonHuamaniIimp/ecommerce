@@ -48,3 +48,22 @@ export type {
 } from "./dd-reputacion.dto";
 export type { DdReputacionQueryDTO } from "./dd-reputacion-query.dto";
 export type { DdReputacionResolverRequestDTO } from "./dd-reputacion-resolver-request.dto";
+export type { DdMatrizEvaluacionQueryDTO } from "./dd-matriz-evaluacion-query.dto";
+export type { DdMatrizEvaluacionFilaDTO } from "./dd-matriz-evaluacion-fila.dto";
+export type { DdMatrizEvaluacionResponseDTO } from "./dd-matriz-evaluacion-response.dto";
+export type {
+  DdMatrizAdjuntoDTO,
+  DdMatrizBloqueDTO,
+  DdMatrizEvaluacionDetalleDTO,
+  DdMatrizExpedienteDTO,
+  DdMatrizGeneralesDTO,
+  DdMatrizListaDTO,
+  DdMatrizPermisosDTO,
+} from "./dd-matriz-evaluacion-detalle.dto";
+export type {
+  DdMatrizBloqueRequestDTO,
+  DdMatrizEvaluacionGuardarRequestDTO,
+} from "./dd-matriz-evaluacion-guardar-request.dto";
+export type { DdMatrizEvaluacionVinculoRequestDTO } from "./dd-matriz-evaluacion-vinculo-request.dto";
+export type { DdMatrizEvaluacionAdjuntoEliminarRequestDTO } from "./dd-matriz-evaluacion-adjunto-request.dto";
+export type { DdMatrizEvaluacionAdjuntoResponseDTO } from "./dd-matriz-evaluacion-adjunto-response.dto";

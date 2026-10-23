@@ -402,3 +402,80 @@ npx prisma validate
 Resultado: TypeScript sin errores, ESLint sin errores (solo un warning preexistente en
 `src/infrastructure/external/sgc-client.ts`), 711 tests aprobados y esquema Prisma
 valido.
+
+---
+
+## 13. Matriz de evaluacion DD (por vinculo)
+
+Registro de la **matriz oficial de evaluacion de debida diligencia** del area de Asociados.
+Es un modulo propio (`/dashboard/debida-diligencia/matriz`, permiso `dd:matriz`) y **solo
+registra**: no cambia el estado del expediente ni `puedeReservar` / `puedeAvanzar`.
+
+### 13.1 Unidad de evaluacion: el vinculo
+
+Cada fila es un **vinculo** de un expediente: la empresa, su representante legal, sus
+beneficiarios finales o cualquier persona/empresa vinculada agregada a mano. Las filas
+automaticas se **sincronizan desde el expediente** al abrir la lista (idempotente; solo
+expedientes enviados del evento activo); las manuales se agregan con el boton de vinculo
+y solo ellas se pueden eliminar. No se importa el Excel historico.
+
+### 13.2 Nacional o extranjero
+
+El ambito decide que listas restrictivas aplican y se deriva de `paisConstitucion` /
+nacionalidad / tipo de documento (sin datos se asume nacional). SIG puede corregirlo; una
+vez corregido la sincronizacion ya no lo recalcula.
+
+Colores de la matriz oficial: **lila** = nacional y extranjero, **naranja** = solo nacional,
+**celeste** = solo extranjero.
+
+### 13.3 Secciones y quien las edita
+
+| Seccion | Permiso | Notas |
+|---|---|---|
+| Datos generales (fecha de inicio, estado de contribuyente, direccion legal, historial IIMP, beneficio mutuo) | `dd:revision` | Solo en la fila de la empresa |
+| Listas restrictivas (SI / NO / N.A.) | `dd:revision` | 6 empresa nacional, 5 persona nacional, 11 extranjeras |
+| Conclusiones SIG | `dd:revision` | Resultado, observaciones, conclusion, informe y sustento |
+| Conclusiones reputacional | `dd:reputacion` | SIG solo puede ajustar la **conclusion** |
+| Conclusiones Compliance | `dd:legal` | Bloqueada hasta cumplir la regla 5 |
+| Resultado final | `dd:revision` o `dd:legal` | |
+
+Los permisos de cada area se pueden reasignar desde **Roles y Permisos**.
+
+### 13.3.1 Reglas del proceso (implementadas en `dd-matriz-evaluacion.ts`)
+
+1. Resultado **ACEPTADO** completa por defecto la conclusion (SIN OBSERVACIONES; en Compliance, ACEPTADO).
+2. Resultado **OBSERVADO** obliga a registrar la observacion y a elegir conclusion
+   (SIN OBSERVACIONES o REQUIERE DEBIDA DILIGENCIA REFORZADA).
+3. SIG puede actualizar la conclusion reputacional segun las evidencias.
+4. **EN REVISION** es solo informativo (el vinculo esta en SIG, Reputacional o Compliance).
+5. Compliance solo se habilita si SIG concluyo REQUIERE DEBIDA DILIGENCIA REFORZADA **y** adjunto
+   informe (`sig_informe`).
+6. El resultado final lo registra SIG o Compliance.
+
+### 13.4 Catalogos y mapper de valores
+
+Terminos exactos de la matriz oficial, definidos en `constants.ts` (`DD_MATRIZ_*`):
+
+- Listas y campos SI/NO: **SI / NO / N.A.**
+- Resultado por area: **ACEPTADO / OBSERVADO** (Compliance suma **NO APLICA**).
+- Conclusion SIG y reputacional: **SIN OBSERVACIONES / REQUIERE DEBIDA DILIGENCIA REFORZADA / EN REVISION**.
+- Conclusion Compliance: **ACEPTADO / ACEPTADO CON OBSERVACIONES / RECHAZADO**.
+- Resultado final: **APTO / APTO CON OBSERVACIONES / NO APTO / DOCUMENTACION OBSERVADA / EN REVISIÓN**.
+
+La base guarda el **codigo** (`en_revision`) y la UI muestra la etiqueta de negocio. El mapper
+`normalizarValorMatriz` acepta ambas formas y variantes del Excel real (con/sin tilde, `N.A` /
+`N.A.` / `NO APLICA`, `REQUIERE DEBIDA DILIGENCIA`, `PENDIENTE` como EN REVISION, etc.), de modo
+que si negocio y desarrollo usan terminos distintos el sistema soporta ambos.
+
+### 13.5 API y persistencia
+
+Endpoints `/api/debida-diligencia/matriz-evaluacion/*` (ver `openapi.yaml`). Tablas
+`dd_matriz_vinculo` (fila por vinculo con datos, listas JSONB, bloques de area y resultado final)
+y `dd_matriz_adjunto`. Toda accion queda en `audit_log` (tipo `debida_diligencia`).
+
+### 13.6 Pendientes
+
+- El campo definitivo de **nacionalidad** (en curso) reemplazara la derivacion provisional.
+- Los expedientes importados desde Excel no traen representante ni beneficiarios: sus
+  personas vinculadas se agregan a mano.
+

@@ -440,9 +440,10 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "dd:legal",
     "dd:reputacion",
     "dd:panel",
+    "dd:matriz",
   ],
   [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
-  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:panel", "dd:revision"],
+  [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:panel", "dd:revision", "dd:matriz"],
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"],
   [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"],
   [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
@@ -501,6 +502,7 @@ export const ALL_PERMISSIONS = [
   { key: "dd:legal", label: "Revisión legal de Debida Diligencia", descripcion: "Revisar expedientes derivados a Legal, adjuntar informe y resolver (Legal)", section: "debida_diligencia" },
   { key: "dd:reputacion", label: "Revision reputacional", descripcion: "Evaluar imagen y reputacion de los nombres derivados por Logistica (Comunicaciones)", section: "debida_diligencia" },
   { key: "dd:panel", label: "Panel de Debida Diligencia", descripcion: "Ver KPIs, vigencias y matriz de empresas del modulo", section: "debida_diligencia" },
+  { key: "dd:matriz", label: "Matriz de evaluacion DD", descripcion: "Registrar la matriz de evaluacion de debida diligencia por vinculo (empresa/persona)", section: "debida_diligencia" },
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
@@ -552,6 +554,7 @@ export const PERMISSIONS = {
   DD_LEGAL: "dd:legal",
   DD_REPUTACION: "dd:reputacion",
   DD_PANEL: "dd:panel",
+  DD_MATRIZ: "dd:matriz",
 } as const satisfies Record<string, Permission>;
 
 /**
@@ -1226,6 +1229,7 @@ export const DD_RUTAS = {
   BANDEJA: "/dashboard/debida-diligencia/bandeja",
   LEGAL: "/dashboard/debida-diligencia/legal",
   REPUTACION: "/dashboard/debida-diligencia/reputacion",
+  MATRIZ: "/dashboard/debida-diligencia/matriz",
 } as const;
 
 /** Etiqueta para empresas sin expediente de debida diligencia. */
@@ -1597,6 +1601,276 @@ export const DD_REPUTACION_FILTROS: { value: string; label: string }[] = [
   { value: DD_REPUTACION_ESTADOS.CON_HALLAZGOS, label: "Con hallazgos" },
   { value: DD_REPUTACION_ESTADOS.CERRADA, label: "Cerradas" },
 ];
+
+/** Tipo de evento de auditoria del modulo Debida Diligencia (`audit_log.tipo`). */
+export const DD_AUDITORIA_TIPO = "debida_diligencia";
+
+/* ===== Matriz de evaluacion DD (por vinculo empresa/persona) =====
+ * Cada catalogo guarda el CODIGO canonico (snake_case) y su etiqueta visible, que es
+ * el termino exacto que usa el area de Asociados en la matriz oficial. Los ALIAS
+ * permiten aceptar tambien la variante del Excel / de desarrollo (con o sin tilde,
+ * "N.A" / "N.A." / "NO APLICA", etc.); ver `normalizarValorMatriz`. */
+
+/** Tipo de vinculo evaluado: la propia empresa o una persona/entidad ligada a ella. */
+export const DD_MATRIZ_TIPOS_VINCULO = {
+  EMPRESA: "empresa",
+  REPRESENTANTE: "representante",
+  BENEFICIARIO: "beneficiario",
+  VINCULADO: "vinculado",
+} as const;
+export type DdMatrizTipoVinculo = (typeof DD_MATRIZ_TIPOS_VINCULO)[keyof typeof DD_MATRIZ_TIPOS_VINCULO];
+
+export const DD_MATRIZ_TIPO_VINCULO_LABELS: Record<DdMatrizTipoVinculo, string> = {
+  [DD_MATRIZ_TIPOS_VINCULO.EMPRESA]: "Empresa",
+  [DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE]: "Representante legal",
+  [DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO]: "Beneficiario final",
+  [DD_MATRIZ_TIPOS_VINCULO.VINCULADO]: "Persona / empresa vinculada",
+};
+
+/** Origen de la fila: calculada desde el expediente o agregada a mano. */
+export const DD_MATRIZ_ORIGENES = {
+  AUTOMATICO: "automatico",
+  MANUAL: "manual",
+} as const;
+export type DdMatrizOrigen = (typeof DD_MATRIZ_ORIGENES)[keyof typeof DD_MATRIZ_ORIGENES];
+
+/** Ambito del vinculo: define que listas restrictivas aplican (naranja vs celeste). */
+export const DD_MATRIZ_AMBITOS = {
+  NACIONAL: "nacional",
+  EXTRANJERO: "extranjero",
+} as const;
+export type DdMatrizAmbito = (typeof DD_MATRIZ_AMBITOS)[keyof typeof DD_MATRIZ_AMBITOS];
+
+export const DD_MATRIZ_AMBITO_LABELS: Record<DdMatrizAmbito, string> = {
+  [DD_MATRIZ_AMBITOS.NACIONAL]: "NACIONAL",
+  [DD_MATRIZ_AMBITOS.EXTRANJERO]: "EXTRANJERA",
+};
+
+/** Alias aceptados al derivar el ambito desde pais/nacionalidad (ya normalizados). */
+export const DD_MATRIZ_ALIAS_NACIONAL = ["PERU", "PERUANA", "PERUANO", "PE"] as const;
+
+/** Respuesta de cada lista restrictiva y de los campos SI / NO / N.A. de la matriz. */
+export const DD_MATRIZ_SI_NO_NA = {
+  SI: "si",
+  NO: "no",
+  NA: "na",
+} as const;
+export type DdMatrizSiNoNa = (typeof DD_MATRIZ_SI_NO_NA)[keyof typeof DD_MATRIZ_SI_NO_NA];
+
+export const DD_MATRIZ_SI_NO_NA_LABELS: Record<DdMatrizSiNoNa, string> = {
+  [DD_MATRIZ_SI_NO_NA.SI]: "SI",
+  [DD_MATRIZ_SI_NO_NA.NO]: "NO",
+  [DD_MATRIZ_SI_NO_NA.NA]: "N.A.",
+};
+
+export const DD_MATRIZ_SI_NO_NA_ALIAS: Record<string, DdMatrizSiNoNa> = {
+  "N A": DD_MATRIZ_SI_NO_NA.NA,
+  NA: DD_MATRIZ_SI_NO_NA.NA,
+  "NO APLICA": DD_MATRIZ_SI_NO_NA.NA,
+  S: DD_MATRIZ_SI_NO_NA.SI,
+};
+
+/** Resultado de la evaluacion de cada area (SIG, Reputacional, Compliance). */
+export const DD_MATRIZ_RESULTADOS = {
+  ACEPTADO: "aceptado",
+  OBSERVADO: "observado",
+  NO_APLICA: "no_aplica",
+} as const;
+export type DdMatrizResultado = (typeof DD_MATRIZ_RESULTADOS)[keyof typeof DD_MATRIZ_RESULTADOS];
+
+export const DD_MATRIZ_RESULTADO_LABELS: Record<DdMatrizResultado, string> = {
+  [DD_MATRIZ_RESULTADOS.ACEPTADO]: "ACEPTADO",
+  [DD_MATRIZ_RESULTADOS.OBSERVADO]: "OBSERVADO",
+  [DD_MATRIZ_RESULTADOS.NO_APLICA]: "NO APLICA",
+};
+
+/** Variantes historicas del Excel que el negocio usa en la columna de resultado. */
+export const DD_MATRIZ_RESULTADO_ALIAS: Record<string, DdMatrizResultado> = {
+  "SIN OBSERVACIONES": DD_MATRIZ_RESULTADOS.ACEPTADO,
+  APTO: DD_MATRIZ_RESULTADOS.ACEPTADO,
+  "APTO CON OBSERVACIONES": DD_MATRIZ_RESULTADOS.OBSERVADO,
+  "REQUIERE DEBIDA DILIGENCIA": DD_MATRIZ_RESULTADOS.OBSERVADO,
+  "REQUIERE DEBIDA DILIGENCIA REFORZADA": DD_MATRIZ_RESULTADOS.OBSERVADO,
+  "NO APLICA DD": DD_MATRIZ_RESULTADOS.NO_APLICA,
+  "N A": DD_MATRIZ_RESULTADOS.NO_APLICA,
+};
+
+/** Conclusion de SIG y de Comunicaciones (reputacional). */
+export const DD_MATRIZ_CONCLUSIONES = {
+  SIN_OBSERVACIONES: "sin_observaciones",
+  REQUIERE_DD_REFORZADA: "requiere_dd_reforzada",
+  EN_REVISION: "en_revision",
+} as const;
+export type DdMatrizConclusion = (typeof DD_MATRIZ_CONCLUSIONES)[keyof typeof DD_MATRIZ_CONCLUSIONES];
+
+export const DD_MATRIZ_CONCLUSION_LABELS: Record<DdMatrizConclusion, string> = {
+  [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES]: "SIN OBSERVACIONES",
+  [DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]: "REQUIERE DEBIDA DILIGENCIA REFORZADA",
+  [DD_MATRIZ_CONCLUSIONES.EN_REVISION]: "EN REVISION",
+};
+
+export const DD_MATRIZ_CONCLUSION_ALIAS: Record<string, DdMatrizConclusion> = {
+  "REQUIERE DEBIDA DILIGENCIA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
+  "REQUIERE DD REFORZADA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
+  "SIN OBSERVACION": DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+  NINGUNA: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+};
+
+/** Conclusion de Compliance (Legal). */
+export const DD_MATRIZ_CONCLUSIONES_COMPLIANCE = {
+  ACEPTADO: "aceptado",
+  ACEPTADO_CON_OBSERVACIONES: "aceptado_con_observaciones",
+  RECHAZADO: "rechazado",
+} as const;
+export type DdMatrizConclusionCompliance =
+  (typeof DD_MATRIZ_CONCLUSIONES_COMPLIANCE)[keyof typeof DD_MATRIZ_CONCLUSIONES_COMPLIANCE];
+
+export const DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS: Record<DdMatrizConclusionCompliance, string> = {
+  [DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO]: "ACEPTADO",
+  [DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES]: "ACEPTADO CON OBSERVACIONES",
+  [DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO]: "RECHAZADO",
+};
+
+export const DD_MATRIZ_CONCLUSION_COMPLIANCE_ALIAS: Record<string, DdMatrizConclusionCompliance> = {
+  APTO: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO,
+  "SIN OBSERVACIONES": DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO,
+  "APTO CON OBSERVACIONES": DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES,
+  "CON OBSERVACIONES": DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES,
+  "NO APTO": DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO,
+};
+
+/** Resultado final del vinculo (lo da SIG o Compliance). */
+export const DD_MATRIZ_RESULTADOS_FINALES = {
+  APTO: "apto",
+  APTO_CON_OBSERVACIONES: "apto_con_observaciones",
+  NO_APTO: "no_apto",
+  DOCUMENTACION_OBSERVADA: "documentacion_observada",
+  EN_REVISION: "en_revision",
+} as const;
+export type DdMatrizResultadoFinal = (typeof DD_MATRIZ_RESULTADOS_FINALES)[keyof typeof DD_MATRIZ_RESULTADOS_FINALES];
+
+export const DD_MATRIZ_RESULTADO_FINAL_LABELS: Record<DdMatrizResultadoFinal, string> = {
+  [DD_MATRIZ_RESULTADOS_FINALES.APTO]: "APTO",
+  [DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES]: "APTO CON OBSERVACIONES",
+  [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: "NO APTO",
+  [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: "DOCUMENTACION OBSERVADA",
+  [DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION]: "EN REVISIÓN",
+};
+
+/** El Excel usa tambien "PENDIENTE" como resultado final: se trata como EN REVISION. */
+export const DD_MATRIZ_RESULTADO_FINAL_ALIAS: Record<string, DdMatrizResultadoFinal> = {
+  PENDIENTE: DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
+  "DOCUMENTACION OBSERVADA": DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+};
+
+/** Areas que evaluan en la matriz (cada una escribe solo su seccion). */
+export const DD_MATRIZ_AREAS = {
+  SIG: "sig",
+  REPUTACIONAL: "reputacional",
+  COMPLIANCE: "compliance",
+} as const;
+export type DdMatrizArea = (typeof DD_MATRIZ_AREAS)[keyof typeof DD_MATRIZ_AREAS];
+
+export const DD_MATRIZ_AREA_LABELS: Record<DdMatrizArea, string> = {
+  [DD_MATRIZ_AREAS.SIG]: "SIG (Logística)",
+  [DD_MATRIZ_AREAS.REPUTACIONAL]: "Reputacional (Comunicaciones)",
+  [DD_MATRIZ_AREAS.COMPLIANCE]: "Compliance (Legal)",
+};
+
+/** Permiso `dd:*` que habilita editar la seccion de cada area (ademas de `dd:matriz`). */
+export const DD_MATRIZ_AREA_PERMISO: Record<DdMatrizArea, Permission> = {
+  [DD_MATRIZ_AREAS.SIG]: "dd:revision",
+  [DD_MATRIZ_AREAS.REPUTACIONAL]: "dd:reputacion",
+  [DD_MATRIZ_AREAS.COMPLIANCE]: "dd:legal",
+};
+
+/** Categorias de adjunto del vinculo. El informe de SIG habilita a Compliance. */
+export const DD_MATRIZ_ADJUNTO_CATEGORIAS = {
+  SIG_INFORME: "sig_informe",
+  SIG_SUSTENTO: "sig_sustento",
+  REPUTACIONAL_SUSTENTO: "reputacional_sustento",
+  COMPLIANCE_SUSTENTO: "compliance_sustento",
+} as const;
+export type DdMatrizAdjuntoCategoria =
+  (typeof DD_MATRIZ_ADJUNTO_CATEGORIAS)[keyof typeof DD_MATRIZ_ADJUNTO_CATEGORIAS];
+
+/** Colores de encabezado de la matriz: lila (comun), naranja (nacional), celeste (extranjero). */
+export const DD_MATRIZ_COLORES = {
+  COMUN: "comun",
+  NACIONAL: "nacional",
+  EXTRANJERO: "extranjero",
+} as const;
+export type DdMatrizColor = (typeof DD_MATRIZ_COLORES)[keyof typeof DD_MATRIZ_COLORES];
+
+export const DD_MATRIZ_COLOR_LABELS: Record<DdMatrizColor, string> = {
+  [DD_MATRIZ_COLORES.COMUN]: "Nacional y extranjero",
+  [DD_MATRIZ_COLORES.NACIONAL]: "Solo nacional",
+  [DD_MATRIZ_COLORES.EXTRANJERO]: "Solo extranjero",
+};
+
+/** Grupo de listas restrictivas segun a quien se aplican. */
+export const DD_MATRIZ_GRUPOS_LISTA = {
+  EMPRESA_NACIONAL: "empresa_nacional",
+  PERSONA_VINCULADA: "persona_vinculada",
+  EXTRANJERA: "extranjera",
+} as const;
+export type DdMatrizGrupoLista = (typeof DD_MATRIZ_GRUPOS_LISTA)[keyof typeof DD_MATRIZ_GRUPOS_LISTA];
+
+export interface DdMatrizListaDef {
+  codigo: string;
+  label: string;
+  grupo: DdMatrizGrupoLista;
+  color: DdMatrizColor;
+}
+
+/** Listas restrictivas de la matriz oficial (columnas Q-V, AA-AE y AF-AP). */
+export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
+  { codigo: "indecopi", label: "Quejas o reporte desde INDECOPI", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "corrupcion_empresa", label: "Reporte corrupción / soborno / lavado", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "oefa", label: "Reportes infracciones OEFA", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "peps_prp_empresa", label: "Reportes listas PEPs / PRP", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "central_riesgo_empresa", label: "Cumple en central de riesgo (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "bancarizado_empresa", label: "Bancarizado (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "corrupcion_persona", label: "Hay reportes de corrupción / soborno / lavado", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "peps_prp_persona", label: "Listas PEPs / PRP", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "central_riesgo_persona", label: "Cumple en central de riesgo (representante legal)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "conflicto_interes", label: "Hay conflictos de interés", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.COMUN },
+  { codigo: "bancarizado_persona", label: "Bancarizado (representantes legales u otros)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "ofac", label: "Registra antecedentes en OFAC", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "naciones_unidas", label: "Registra antecedentes Naciones Unidas", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "opensanctions", label: "Registra antecedentes OpenSanctions", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "ohmyfin", label: "Registra antecedentes OhMyFin", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "sanciones_canada", label: "Sanciones canadienses", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "sanciones_europa", label: "Sanciones europeas", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "sanciones_reino_unido", label: "Sanciones United Kingdom", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "sanciones_australia", label: "Sanciones australianas", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "banco_mundial", label: "Lista del Banco Mundial de firmas e individuos inelegibles", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "interpol", label: "Registra antecedentes en INTERPOL", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: "dea", label: "Registra antecedentes en DEA", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+];
+
+/** Limites de la matriz. */
+export const DD_MATRIZ_OBSERVACION_MAX = 2000;
+export const DD_MATRIZ_ADJUNTOS_MAX = 10;
+export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
+export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
+
+/** Filtros de la lista de la matriz de evaluacion. */
+export const DD_MATRIZ_FILTRO_TODOS = "todos";
+export const DD_MATRIZ_FILTRO_SIN_EVALUAR = "sin_evaluar";
+
+/** Valor centinela de los Select de la matriz para "sin seleccionar" (Radix no admite ""). */
+export const DD_MATRIZ_SIN_VALOR = "__sin_valor__";
+
+export const DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS: Record<DdMatrizAdjuntoCategoria, string> = {
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME]: "Informe de SIG",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO]: "Sustento de SIG",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO]: "Sustento reputacional",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO]: "Sustento de Compliance",
+};
+
+/** Formatos admitidos al adjuntar informe o sustento. */
+export const DD_MATRIZ_ADJUNTO_ACCEPT = ".pdf,.jpg,.jpeg,.png,.docx";
 
 /** Porcentaje minimo de participacion para declarar un beneficiario final. */
 export const DD_PORCENTAJE_PARTICIPACION_MIN = 10;

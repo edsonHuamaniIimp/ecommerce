@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, Settings, BarChart3, Megaphone, ShieldCheck, Scale, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, Map, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, Settings, BarChart3, Megaphone, ShieldCheck, Scale, Table2, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
 import Image from "next/image";
@@ -54,6 +54,7 @@ const navItems: NavItem[] = [
   { href: DD_RUTAS.BASE, label: "Mi debida diligencia", icon: ShieldCheck, permission: PERMISSIONS.DD_FORMULARIO, section: "Debida Diligencia", soloCliente: true },
   { href: DD_RUTAS.BASE, label: "Panel DD", icon: BarChart3, permission: PERMISSIONS.DD_PANEL, section: "Debida Diligencia" },
   { href: DD_RUTAS.BANDEJA, label: "Bandeja DD", icon: ClipboardCheck, permission: PERMISSIONS.DD_REVISION, section: "Debida Diligencia" },
+  { href: DD_RUTAS.MATRIZ, label: "Matriz DD", icon: Table2, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
   { href: DD_RUTAS.LEGAL, label: "Revisión legal", icon: Scale, permission: PERMISSIONS.DD_LEGAL, section: "Debida Diligencia" },
   { href: DD_RUTAS.REPUTACION, label: "Revisión reputacional", icon: Megaphone, permission: PERMISSIONS.DD_REPUTACION, section: "Debida Diligencia" },
 ];

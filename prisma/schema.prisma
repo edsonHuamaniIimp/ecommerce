@@ -1262,6 +1262,7 @@ model DebidaDiligencia {
   documentos    DebidaDiligenciaDocumento[]
   observaciones DebidaDiligenciaObservacion[]
   reputacion    DebidaDiligenciaReputacion[]
+  matrizVinculos DdMatrizVinculo[]
 
   @@unique([empresaId, eventoId])
   @@index([eventoId, estado])
@@ -1411,4 +1412,101 @@ model DebidaDiligenciaEmpresaEstado {
   @@index([fechaVencimiento])
   @@index([razonSocial])
   @@map("debida_diligencia_empresa_estado")
+}
+
+/// Matriz de evaluacion de debida diligencia: una fila por VINCULO (la empresa o una
+/// persona/entidad ligada a ella) de un expediente. Las filas automaticas se
+/// sincronizan desde el expediente (empresa, representante, beneficiarios); las
+/// manuales las agrega el usuario. Los catalogos viven en `DD_MATRIZ_*` (constants.ts).
+model DdMatrizVinculo {
+  id           String @id @default(uuid())
+  /// Expediente DD al que pertenece el vinculo.
+  expedienteId String @map("expediente_id")
+  /// Tipo de vinculo (DD_MATRIZ_TIPOS_VINCULO).
+  tipo         String @db.VarChar(20)
+  /// Clave estable dentro del expediente: "empresa", "representante", id del beneficiario o uuid manual.
+  refKey       String @map("ref_key") @db.VarChar(60)
+  /// Origen de la fila (DD_MATRIZ_ORIGENES): automatico o manual.
+  origen       String @default("automatico") @db.VarChar(15)
+
+  /// Identificacion del vinculo (razon social o nombre de la persona).
+  nombre        String  @db.VarChar(250)
+  tipoDocumento String? @map("tipo_documento") @db.VarChar(30)
+  documento     String? @db.VarChar(30)
+  nacionalidad  String? @db.VarChar(80)
+  cargo         String? @db.VarChar(120)
+  /// Ambito efectivo (DD_MATRIZ_AMBITOS): decide que listas restrictivas aplican.
+  ambito        String  @default("nacional") @db.VarChar(15)
+  /// true cuando SIG corrigio el ambito a mano: la sincronizacion ya no lo recalcula.
+  ambitoEditado Boolean @default(false) @map("ambito_editado")
+
+  /// Datos generales de la empresa (solo en el vinculo de tipo empresa).
+  fechaInicioActividades DateTime? @map("fecha_inicio_actividades") @db.Date
+  estadoContribuyente    String?   @map("estado_contribuyente") @db.VarChar(80)
+  direccionLegal         String?   @map("direccion_legal") @db.VarChar(400)
+  historialIimp          String?   @map("historial_iimp") @db.VarChar(5)
+  beneficioMutuo         String?   @map("beneficio_mutuo") @db.VarChar(5)
+
+  /// Respuesta SI/NO/N.A. de cada lista restrictiva: { codigo: "si" | "no" | "na" }.
+  listas Json @default("{}")
+
+  /// Bloque SIG (Logistica).
+  sigFecha         DateTime? @map("sig_fecha")
+  sigResponsable   String?   @map("sig_responsable") @db.VarChar(200)
+  sigResultado     String?   @map("sig_resultado") @db.VarChar(20)
+  sigObservaciones String?   @map("sig_observaciones") @db.VarChar(2000)
+  sigConclusion    String?   @map("sig_conclusion") @db.VarChar(40)
+
+  /// Bloque reputacional (Comunicaciones).
+  repFecha         DateTime? @map("rep_fecha")
+  repResponsable   String?   @map("rep_responsable") @db.VarChar(200)
+  repResultado     String?   @map("rep_resultado") @db.VarChar(20)
+  repObservaciones String?   @map("rep_observaciones") @db.VarChar(2000)
+  repConclusion    String?   @map("rep_conclusion") @db.VarChar(40)
+
+  /// Bloque Compliance (Legal).
+  cmpFecha         DateTime? @map("cmp_fecha")
+  cmpResponsable   String?   @map("cmp_responsable") @db.VarChar(200)
+  cmpResultado     String?   @map("cmp_resultado") @db.VarChar(20)
+  cmpObservaciones String?   @map("cmp_observaciones") @db.VarChar(2000)
+  cmpConclusion    String?   @map("cmp_conclusion") @db.VarChar(40)
+
+  /// Resultado final (DD_MATRIZ_RESULTADOS_FINALES); lo da SIG o Compliance.
+  resultadoFinal String?   @map("resultado_final") @db.VarChar(30)
+  finalFecha     DateTime? @map("final_fecha")
+  finalPor       String?   @map("final_por") @db.VarChar(200)
+
+  creadoPor      String   @map("creado_por") @db.VarChar(200)
+  actualizadoPor String?  @map("actualizado_por") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  expediente DebidaDiligencia   @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  adjuntos   DdMatrizAdjunto[]
+
+  @@unique([expedienteId, tipo, refKey])
+  @@index([expedienteId])
+  @@index([resultadoFinal])
+  @@index([sigConclusion])
+  @@index([expedienteId, ambito])
+  @@map("dd_matriz_vinculo")
+}
+
+/// Informe y sustento adjunto a un vinculo de la matriz (DD_MATRIZ_ADJUNTO_CATEGORIAS).
+model DdMatrizAdjunto {
+  id         String   @id @default(uuid())
+  vinculoId  String   @map("vinculo_id")
+  /// Categoria del adjunto; `sig_informe` habilita la seccion de Compliance.
+  categoria  String   @db.VarChar(30)
+  nombre     String   @db.VarChar(250)
+  url        String   @db.VarChar(500)
+  mimeType   String   @map("mime_type") @db.VarChar(100)
+  tamano     Int
+  creadoPor  String   @map("creado_por") @db.VarChar(200)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  vinculo DdMatrizVinculo @relation(fields: [vinculoId], references: [id], onDelete: Cascade)
+
+  @@index([vinculoId, categoria])
+  @@map("dd_matriz_adjunto")
 }

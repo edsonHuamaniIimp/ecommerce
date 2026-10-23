@@ -2009,6 +2009,168 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdMatrizResponse"
+  /debida-diligencia/matriz-evaluacion:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Lista de la Matriz de evaluacion DD (un vinculo empresa/persona por fila)
+      description: >
+        Requiere `dd:matriz` y un evento activo en la sesion. Antes de listar sincroniza las filas
+        automaticas (empresa, representante y beneficiarios de cada expediente enviado del evento);
+        la sincronizacion es idempotente y `nuevas` indica cuantas filas creo.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: perPage, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: tipo, in: query, schema: { type: string, enum: [empresa, representante, beneficiario, vinculado] } }
+        - { name: ambito, in: query, schema: { type: string, enum: [nacional, extranjero] } }
+        - { name: resultadoFinal, in: query, schema: { type: string } }
+        - { name: sinEvaluar, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMatrizEvaluacionResponse"
+  /debida-diligencia/matriz-evaluacion/abrir:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Id de la fila de la empresa de un expediente en la Matriz de evaluacion DD
+      description: Sincroniza la matriz del evento activo y devuelve el id para abrir el detalle (404 si el expediente aun es borrador).
+      parameters:
+        - { name: expedienteId, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+  /debida-diligencia/matriz-evaluacion/detalle:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Detalle completo de un vinculo de la Matriz de evaluacion DD
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMatrizEvaluacionDetalleResponse"
+  /debida-diligencia/matriz-evaluacion/guardar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Guarda secciones de un vinculo (cada una exige el permiso de su area)
+      description: >
+        Solo se procesan las secciones presentes. SIG (`dd:revision`): identidad (solo ambito en filas
+        automaticas), generales, listas, sig y conclusion reputacional. Reputacional (`dd:reputacion`):
+        reputacional completo. Compliance (`dd:legal`): compliance, solo si SIG concluyo REQUIERE DEBIDA
+        DILIGENCIA REFORZADA y adjunto informe. Resultado final: SIG o Compliance. Los valores de catalogo
+        aceptan la etiqueta de negocio ("EN REVISIÓN") o el codigo ("en_revision").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DdMatrizEvaluacionGuardarRequest"
+      responses:
+        "200":
+          description: Detalle actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMatrizEvaluacionDetalleResponse"
+        "400":
+          description: Regla del proceso incumplida (p. ej. OBSERVADO sin observacion)
+        "403":
+          description: Sin permiso para la seccion o Compliance bloqueado
+  /debida-diligencia/matriz-evaluacion/vinculo:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Agrega a mano una persona o empresa vinculada a un expediente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expedienteId, tipo, nombre]
+              properties:
+                expedienteId: { type: string }
+                tipo: { type: string, enum: [representante, beneficiario, vinculado] }
+                nombre: { type: string }
+                tipoDocumento: { type: string, nullable: true }
+                documento: { type: string, nullable: true }
+                nacionalidad: { type: string, nullable: true }
+                cargo: { type: string, nullable: true }
+                ambito: { type: string, enum: [nacional, extranjero] }
+      responses:
+        "200":
+          description: Detalle del vinculo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DdMatrizEvaluacionDetalleResponse"
+  /debida-diligencia/matriz-evaluacion/vinculo/eliminar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Elimina un vinculo agregado manualmente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: OK
+  /debida-diligencia/matriz-evaluacion/adjunto:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Carga informe o sustento de un vinculo (PDF, JPG, PNG o DOCX; maximo 10 MB)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, vinculoId, categoria]
+              properties:
+                file: { type: string, format: binary }
+                vinculoId: { type: string }
+                categoria:
+                  type: string
+                  enum: [sig_informe, sig_sustento, reputacional_sustento, compliance_sustento]
+      responses:
+        "200":
+          description: Adjunto registrado
+  /debida-diligencia/matriz-evaluacion/adjunto/eliminar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Elimina un adjunto de un vinculo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: string }
+      responses:
+        "200":
+          description: OK
   /debida-diligencia/reputacion/listar:
     get:
       tags: [DebidaDiligencia]
@@ -2748,6 +2910,100 @@ components:
                   type: integer
                 total:
                   type: integer
+    DdMatrizEvaluacionFila:
+      type: object
+      properties:
+        id: { type: string }
+        expedienteId: { type: string }
+        codigo: { type: string }
+        empresaRazonSocial: { type: string }
+        empresaRuc: { type: string }
+        tipo: { type: string, enum: [empresa, representante, beneficiario, vinculado] }
+        origen: { type: string, enum: [automatico, manual] }
+        nombre: { type: string }
+        documento: { type: string, nullable: true }
+        ambito: { type: string, enum: [nacional, extranjero] }
+        sigResultado: { type: string, nullable: true, enum: [aceptado, observado, no_aplica] }
+        sigConclusion: { type: string, nullable: true, enum: [sin_observaciones, requiere_dd_reforzada, en_revision] }
+        repResultado: { type: string, nullable: true }
+        repConclusion: { type: string, nullable: true }
+        cmpResultado: { type: string, nullable: true }
+        cmpConclusion: { type: string, nullable: true, enum: [aceptado, aceptado_con_observaciones, rechazado] }
+        resultadoFinal: { type: string, nullable: true, enum: [apto, apto_con_observaciones, no_apto, documentacion_observada, en_revision] }
+    DdMatrizEvaluacionResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/DdMatrizEvaluacionFila"
+            total: { type: integer }
+            page: { type: integer }
+            perPage: { type: integer }
+            totalPages: { type: integer }
+            nuevas: { type: integer }
+    DdMatrizBloque:
+      type: object
+      properties:
+        fecha: { type: string, format: date-time, nullable: true }
+        responsable: { type: string, nullable: true }
+        resultado: { type: string, nullable: true }
+        observaciones: { type: string, nullable: true }
+        conclusion: { type: string, nullable: true }
+    DdMatrizEvaluacionDetalle:
+      type: object
+      description: Vinculo con contexto del expediente, datos generales, listas aplicables, bloques por area, adjuntos y permisos del usuario.
+      properties:
+        id: { type: string }
+        tipo: { type: string }
+        nombre: { type: string }
+        ambito: { type: string }
+        generales: { type: object }
+        listas:
+          type: array
+          items:
+            type: object
+            properties:
+              codigo: { type: string }
+              label: { type: string }
+              color: { type: string, enum: [comun, nacional, extranjero] }
+              valor: { type: string, nullable: true, enum: [si, no, na] }
+        sig: { $ref: "#/components/schemas/DdMatrizBloque" }
+        reputacional: { $ref: "#/components/schemas/DdMatrizBloque" }
+        compliance: { $ref: "#/components/schemas/DdMatrizBloque" }
+        resultadoFinal: { type: string, nullable: true }
+        adjuntos: { type: array, items: { type: object } }
+        permisos: { type: object }
+    DdMatrizEvaluacionDetalleResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          $ref: "#/components/schemas/DdMatrizEvaluacionDetalle"
+    DdMatrizEvaluacionGuardarRequest:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        identidad: { type: object }
+        generales: { type: object }
+        listas:
+          type: object
+          additionalProperties: { type: string, nullable: true }
+        sig: { $ref: "#/components/schemas/DdMatrizBloqueRequest" }
+        reputacional: { $ref: "#/components/schemas/DdMatrizBloqueRequest" }
+        compliance: { $ref: "#/components/schemas/DdMatrizBloqueRequest" }
+        resultadoFinal: { type: string, nullable: true }
+    DdMatrizBloqueRequest:
+      type: object
+      properties:
+        resultado: { type: string, nullable: true }
+        observaciones: { type: string, nullable: true }
+        conclusion: { type: string, nullable: true }
     DdMatrizResponse:
       type: object
       properties:

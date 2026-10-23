@@ -51,6 +51,8 @@ import { ConfiguracionPrismaRepository } from "@/infrastructure/persistence/conf
 import { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import { DebidaDiligenciaPrismaRepository } from "@/infrastructure/persistence/debida-diligencia-repository";
 import { DebidaDiligenciaApplicationService } from "@/application/debida-diligencia/debida-diligencia-service";
+import { DdMatrizEvaluacionPrismaRepository } from "@/infrastructure/persistence/dd-matriz-evaluacion-repository";
+import { DdMatrizEvaluacionApplicationService } from "@/application/debida-diligencia/dd-matriz-evaluacion-service";
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
@@ -118,6 +120,7 @@ export const services = {
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
   configuracion: new ConfiguracionApplicationService(configuracionRepo),
   auditoria,
+  ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
   debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator),
   gessRepo,
   roleRepo,
