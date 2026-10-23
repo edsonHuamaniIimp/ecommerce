@@ -2,6 +2,8 @@ import { DomainError } from "@/domain/errors/domain-error";
 import type {
   DdMatrizAdjuntoEntity,
   DdMatrizBloque,
+  DdMatrizExportItem,
+  DdMatrizResumenEntity,
   DdMatrizFilaEntity,
   DdMatrizListasValor,
   DdMatrizVinculoCambios,
@@ -10,6 +12,7 @@ import type {
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
 import type {
+  DdMatrizEvaluacionExportarRequestDTO,
   DdMatrizEvaluacionGuardarRequestDTO,
   DdMatrizEvaluacionQueryDTO,
   DdMatrizEvaluacionVinculoRequestDTO,
@@ -19,6 +22,7 @@ import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_ADJUNTOS_MAX,
   DD_MATRIZ_AREAS,
+  DD_MATRIZ_EXPORT_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -60,6 +64,7 @@ export interface DdMatrizListarResultado {
   page: number;
   perPage: number;
   totalPages: number;
+  paises: { pais: string; total: number }[];
   nuevas: number;
 }
 
@@ -183,8 +188,46 @@ export class DdMatrizEvaluacionApplicationService {
       page,
       perPage,
       totalPages: Math.max(1, Math.ceil(resultado.total / perPage)),
+      paises: resultado.paises,
       nuevas,
     };
+  }
+
+  /** Indicadores de toda la matriz del evento activo. */
+  async resumen(session: DdSession): Promise<DdMatrizResumenEntity> {
+    this.exigirAcceso(session);
+    return this.repo.resumen(this.eventoRequerido(session));
+  }
+
+  /** Vinculos completos para el Excel de la matriz: los ids elegidos o los filtros de la lista. */
+  async exportar(session: DdSession, filtros: DdMatrizEvaluacionExportarRequestDTO): Promise<DdMatrizExportItem[]> {
+    this.exigirAcceso(session);
+    const eventoId = this.eventoRequerido(session);
+    const items = await this.repo.listarParaExportar({
+      eventoId,
+      ids: filtros.ids,
+      search: filtros.search,
+      tipo: filtros.tipo as DdMatrizTipoVinculo | undefined,
+      ambito: filtros.ambito as DdMatrizAmbito | undefined,
+      pais: filtros.pais,
+      sinPais: filtros.sinPais,
+      resultadoFinal: filtros.resultadoFinal,
+      sinEvaluar: filtros.sinEvaluar,
+    });
+    if (items.length > DD_MATRIZ_EXPORT_MAX) {
+      throw new DomainError(
+        `La exportación supera el máximo de ${DD_MATRIZ_EXPORT_MAX} vínculos: acota los filtros`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    await this.repo.registrarAuditoria(
+      "matriz_exportar",
+      eventoId,
+      session.email,
+      `Matriz DD: exportación de ${items.length} vínculo(s)${filtros.ids ? " (selección)" : ""}`,
+    );
+    return items;
   }
 
   /**

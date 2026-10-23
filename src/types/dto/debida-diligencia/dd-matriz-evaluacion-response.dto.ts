@@ -7,6 +7,8 @@ export interface DdMatrizEvaluacionResponseDTO {
   page: number;
   perPage: number;
   totalPages: number;
+  /** Paises con vinculos en el evento (opciones del filtro de pais). */
+  paises: { pais: string; total: number }[];
   /** Filas automaticas creadas al sincronizar con los expedientes en esta consulta. */
   nuevas: number;
 }

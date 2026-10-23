@@ -5,8 +5,11 @@ import type {
   DdMatrizEvaluacionAdjuntoEliminarRequestDTO,
   DdMatrizEvaluacionAdjuntoResponseDTO,
   DdMatrizEvaluacionDetalleDTO,
+  DdMatrizEvaluacionExportarRequestDTO,
+  DdMatrizEvaluacionExportarResponseDTO,
   DdMatrizEvaluacionGuardarRequestDTO,
   DdMatrizEvaluacionQueryDTO,
+  DdMatrizEvaluacionResumenDTO,
   DdMatrizEvaluacionResponseDTO,
   DdMatrizEvaluacionVinculoRequestDTO,
 } from "@/types/dto/debida-diligencia";
@@ -30,6 +33,11 @@ export const ddMatrizEvaluacionService = {
     return internalApi.get<DdMatrizEvaluacionResponseDTO>(`${BASE}${sufijo}`);
   },
 
+  /** Indicadores (stats) de toda la matriz del evento activo. */
+  resumen() {
+    return internalApi.get<DdMatrizEvaluacionResumenDTO>(`${BASE}/resumen`);
+  },
+
   /** Id de la fila de la empresa de un expediente (abre su detalle en la matriz). */
   abrir(expedienteId: string) {
     return internalApi.get<{ id: string }>(`${BASE}/abrir?expedienteId=${encodeURIComponent(expedienteId)}`);
@@ -37,6 +45,11 @@ export const ddMatrizEvaluacionService = {
 
   detalle(id: string) {
     return internalApi.get<DdMatrizEvaluacionDetalleDTO>(`${BASE}/detalle?id=${encodeURIComponent(id)}`);
+  },
+
+  /** Datos completos para el Excel oficial: ids elegidos o los filtros de la lista. */
+  exportar(body: DdMatrizEvaluacionExportarRequestDTO) {
+    return internalApi.post<DdMatrizEvaluacionExportarResponseDTO>(`${BASE}/exportar`, body);
   },
 
   guardar(body: DdMatrizEvaluacionGuardarRequestDTO) {

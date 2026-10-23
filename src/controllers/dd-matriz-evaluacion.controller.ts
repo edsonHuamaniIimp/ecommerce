@@ -4,15 +4,18 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { DomainError } from "@/domain/errors/domain-error";
 import { getSession } from "@/lib/server/auth";
+import type { DdMatrizEvaluacionResumenDTO } from "@/types/dto/debida-diligencia";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
 import {
   mapDdMatrizEvaluacionDetalleToDTO,
   mapDdMatrizEvaluacionListaToDTO,
+  mapDdMatrizExportFilaToDTO,
 } from "@/lib/shared/mappers/dd-matriz-evaluacion";
 import {
   ddMatrizEvaluacionAdjuntoEliminarSchema,
   ddMatrizEvaluacionAbrirQuerySchema,
   ddMatrizEvaluacionDetalleQuerySchema,
+  ddMatrizEvaluacionExportarSchema,
   ddMatrizEvaluacionGuardarSchema,
   ddMatrizEvaluacionQuerySchema,
   ddMatrizEvaluacionVinculoSchema,
@@ -60,6 +63,24 @@ export const ddMatrizEvaluacionController = {
     if (!parsed.success) return error(API_ERROR_CODES.VALIDATION, "Identificador inválido", 400);
     const detalle = await services.ddMatrizEvaluacion.detalle(session, parsed.data.id);
     return success(mapDdMatrizEvaluacionDetalleToDTO(detalle));
+  },
+
+  /** Indicadores (stats) de la matriz del evento activo. */
+  async resumen(): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const resumen = await services.ddMatrizEvaluacion.resumen(session);
+    return success<DdMatrizEvaluacionResumenDTO>(resumen);
+  },
+
+  /** Datos completos de los vinculos elegidos (o filtrados) para armar el Excel oficial. */
+  async exportar(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddMatrizEvaluacionExportarSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues[0]?.message ?? "Datos inválidos", 400);
+    }
+    const items = await services.ddMatrizEvaluacion.exportar(session, parsed.data);
+    return success({ data: items.map(mapDdMatrizExportFilaToDTO), total: items.length });
   },
 
   async guardar(request: Request): Promise<NextResponse> {

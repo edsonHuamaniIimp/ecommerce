@@ -1,7 +1,10 @@
 import type {
   DdMatrizAdjuntoCreacion,
   DdMatrizAdjuntoEntity,
+  DdMatrizExportarParams,
+  DdMatrizExportItem,
   DdMatrizListarParams,
+  DdMatrizResumenEntity,
   DdMatrizListarResult,
   DdMatrizVinculoCambios,
   DdMatrizVinculoEntity,
@@ -17,6 +20,10 @@ export interface IDdMatrizEvaluacionRepository {
    */
   sincronizarEvento(eventoId: string, usuario: string): Promise<number>;
   listar(params: DdMatrizListarParams): Promise<DdMatrizListarResult>;
+  /** Indicadores de toda la matriz del evento (para los stats). */
+  resumen(eventoId: string): Promise<DdMatrizResumenEntity>;
+  /** Vinculos completos (con datos de su empresa) para exportar a Excel. */
+  listarParaExportar(params: DdMatrizExportarParams): Promise<DdMatrizExportItem[]>;
   findVinculo(id: string): Promise<DdMatrizVinculoEntity | null>;
   /** Vinculos del mismo expediente (el de empresa aporta los datos generales). */
   findVinculoEmpresa(expedienteId: string): Promise<DdMatrizVinculoEntity | null>;

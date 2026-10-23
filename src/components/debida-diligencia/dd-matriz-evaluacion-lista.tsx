@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   CardHeader,
   Input,
   Select,
@@ -25,7 +26,11 @@ import { Eye, FileSpreadsheet, FileText, RefreshCw, Search, SlidersHorizontal, X
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
-import type { DdMatrizEvaluacionFilaDTO, DdMatrizEvaluacionResponseDTO } from "@/types/dto/debida-diligencia";
+import type {
+  DdMatrizEvaluacionExportarRequestDTO,
+  DdMatrizEvaluacionResponseDTO,
+  DdMatrizEvaluacionResumenDTO,
+} from "@/types/dto/debida-diligencia";
 import {
   DdMatrizAmbitoBadge,
   DdMatrizConclusionBadge,
@@ -33,38 +38,28 @@ import {
   DdMatrizResultadoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdMatrizResumen } from "./dd-matriz-resumen";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   BADGE_STYLES,
   DD_MATRIZ_AMBITO_LABELS,
-  DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
-  DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_FILTRO_SIN_EVALUAR,
   DD_MATRIZ_FILTRO_SIN_PAIS,
   DD_MATRIZ_FILTRO_TODOS,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
-  DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_RUTAS,
   PER_PAGE_OPCIONES,
-  type DdMatrizAmbito,
-  type DdMatrizConclusion,
-  type DdMatrizConclusionCompliance,
-  type DdMatrizResultado,
-  type DdMatrizResultadoFinal,
+  REGEX_PAIS,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
+import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import {
-  exportarTablaCsv,
-  exportarTablaExcel,
-  nombreArchivoExport,
-  type ColumnaExportacion,
-} from "@/lib/shared/utils/export-tabla";
 
 interface Filtros {
   page: number;
@@ -86,19 +81,23 @@ const FILTROS_INICIALES: Filtros = {
   resultadoFinal: DD_MATRIZ_FILTRO_TODOS,
 };
 
-function consultaDe(filtros: Filtros, perPage = filtros.perPage, page = filtros.page) {
+/** Filtros que comparten la lista y la exportacion (el pais ISO solo si se eligio uno concreto). */
+function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO {
   const sinEvaluar = filtros.resultadoFinal === DD_MATRIZ_FILTRO_SIN_EVALUAR;
   return {
-    page,
-    perPage,
     search: filtros.search.trim() || undefined,
     tipo: filtros.tipo !== DD_MATRIZ_FILTRO_TODOS ? filtros.tipo : undefined,
     ambito: filtros.ambito !== DD_MATRIZ_FILTRO_TODOS ? filtros.ambito : undefined,
+    pais: REGEX_PAIS.test(filtros.pais) ? filtros.pais : undefined,
     sinPais: filtros.pais === DD_MATRIZ_FILTRO_SIN_PAIS || undefined,
     resultadoFinal:
       filtros.resultadoFinal !== DD_MATRIZ_FILTRO_TODOS && !sinEvaluar ? filtros.resultadoFinal : undefined,
     sinEvaluar: sinEvaluar || undefined,
   };
+}
+
+function consultaDe(filtros: Filtros) {
+  return { ...filtrosComunes(filtros), page: filtros.page, perPage: filtros.perPage };
 }
 
 const etiqueta = <T extends string>(catalogo: Record<T, string>, valor: string | null): string =>
@@ -107,18 +106,24 @@ const etiqueta = <T extends string>(catalogo: Record<T, string>, valor: string |
 /** Lista de la Matriz de evaluacion DD: una fila por vinculo (empresa o persona ligada). */
 export function DdMatrizEvaluacionLista() {
   const [data, setData] = useState<DdMatrizEvaluacionResponseDTO | null>(null);
+  const [resumen, setResumen] = useState<DdMatrizEvaluacionResumenDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIALES);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exportando, setExportando] = useState<"csv" | "xlsx" | null>(null);
+  /** Vinculos marcados para exportar; persiste entre paginas y filtros. */
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const filtrosRef = useRef(filtros);
 
-  const cargar = useCallback(async (siguientes?: Filtros) => {
+  /** `conResumen` refresca tambien los stats (son del evento completo: no cambian con los filtros). */
+  const cargar = useCallback(async (siguientes?: Filtros, conResumen = false) => {
     const actual = siguientes ?? filtrosRef.current;
     filtrosRef.current = actual;
     try {
       const respuesta = await ddMatrizEvaluacionService.listar(consultaDe(actual));
       setData(respuesta);
+      /* Despues de listar: la lista sincroniza las filas automaticas que los stats cuentan. */
+      if (conResumen) setResumen(await ddMatrizEvaluacionService.resumen());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar la matriz");
     } finally {
@@ -126,60 +131,59 @@ export function DdMatrizEvaluacionLista() {
     }
   }, []);
 
-  useEffect(() => { void cargar(); }, [cargar]);
+  useEffect(() => { void cargar(undefined, true); }, [cargar]);
 
-  const aplicar = (cambios: Partial<Filtros>) => {
+  const aplicar = (cambios: Partial<Filtros>, conResumen = false) => {
     const siguientes = { ...filtrosRef.current, page: 1, ...cambios };
     setFiltros(siguientes);
     setLoading(true);
-    void cargar(siguientes);
+    void cargar(siguientes, conResumen);
   };
 
   const filtrosActivos = [filtros.tipo, filtros.ambito, filtros.pais, filtros.resultadoFinal].filter(
     (v) => v !== DD_MATRIZ_FILTRO_TODOS,
   ).length;
 
-  /** Exporta todas las paginas que cumplen los filtros aplicados. */
+  const alternar = (id: string, marcado: boolean) =>
+    setSeleccion((previa) => {
+      const siguiente = new Set(previa);
+      if (marcado) siguiente.add(id);
+      else siguiente.delete(id);
+      return siguiente;
+    });
+
+  const idsPagina = data?.data.map((f) => f.id) ?? [];
+  const marcadosPagina = idsPagina.filter((id) => seleccion.has(id)).length;
+  const estadoCabecera: boolean | "indeterminate" =
+    idsPagina.length > 0 && marcadosPagina === idsPagina.length ? true : marcadosPagina > 0 ? "indeterminate" : false;
+
+  const alternarPagina = (marcado: boolean) =>
+    setSeleccion((previa) => {
+      const siguiente = new Set(previa);
+      for (const id of idsPagina) {
+        if (marcado) siguiente.add(id);
+        else siguiente.delete(id);
+      }
+      return siguiente;
+    });
+
+  /** Exporta en el formato de la matriz oficial: los marcados o, si no hay, todo lo filtrado. */
   const exportar = async (formato: "csv" | "xlsx") => {
     setExportando(formato);
     try {
-      const actuales = filtrosRef.current;
-      const perPage = 100;
-      const primera = await ddMatrizEvaluacionService.listar(consultaDe(actuales, perPage, 1));
-      const filas: DdMatrizEvaluacionFilaDTO[] = [...primera.data];
-      for (let page = 2; page <= primera.totalPages; page += 1) {
-        filas.push(...(await ddMatrizEvaluacionService.listar(consultaDe(actuales, perPage, page))).data);
-      }
-      if (filas.length === 0) {
+      const respuesta = await ddMatrizEvaluacionService.exportar(
+        seleccion.size > 0 ? { ids: [...seleccion] } : filtrosComunes(filtrosRef.current),
+      );
+      if (respuesta.data.length === 0) {
         toast.error("No hay registros para exportar con los filtros actuales");
         return;
       }
-      const columnas: ColumnaExportacion<DdMatrizEvaluacionFilaDTO>[] = [
-        { encabezado: "Expediente", valor: (r) => r.codigo },
-        { encabezado: "Empresa", valor: (r) => r.empresaRazonSocial },
-        { encabezado: "RUC", valor: (r) => r.empresaRuc },
-        { encabezado: "Fecha de ingreso", valor: (r) => dateUtils.format(r.fechaIngreso) },
-        { encabezado: "Vínculo", valor: (r) => r.nombre },
-        { encabezado: "Tipo de vínculo", valor: (r) => etiqueta<DdMatrizTipoVinculo>(DD_MATRIZ_TIPO_VINCULO_LABELS, r.tipo) },
-        { encabezado: "Documento", valor: (r) => [r.tipoDocumento, r.documento].filter(Boolean).join(" - ") },
-        { encabezado: "País", valor: (r) => (r.pais ? nombrePais(r.pais) : "Sin registrar") },
-        { encabezado: "Nacional o extranjera", valor: (r) => etiqueta<DdMatrizAmbito>(DD_MATRIZ_AMBITO_LABELS, r.ambito) },
-        { encabezado: "Motivo", valor: (r) => r.motivo ?? "" },
-        { encabezado: "Evento o proyecto", valor: (r) => r.eventoProyecto ?? "" },
-        { encabezado: "Resultado SIG", valor: (r) => etiqueta<DdMatrizResultado>(DD_MATRIZ_RESULTADO_LABELS, r.sigResultado) },
-        { encabezado: "Conclusión SIG", valor: (r) => etiqueta<DdMatrizConclusion>(DD_MATRIZ_CONCLUSION_LABELS, r.sigConclusion) },
-        { encabezado: "Resultado reputacional", valor: (r) => etiqueta<DdMatrizResultado>(DD_MATRIZ_RESULTADO_LABELS, r.repResultado) },
-        { encabezado: "Conclusión reputacional", valor: (r) => etiqueta<DdMatrizConclusion>(DD_MATRIZ_CONCLUSION_LABELS, r.repConclusion) },
-        { encabezado: "Resultado Compliance", valor: (r) => etiqueta<DdMatrizResultado>(DD_MATRIZ_RESULTADO_LABELS, r.cmpResultado) },
-        { encabezado: "Conclusión Compliance", valor: (r) => etiqueta<DdMatrizConclusionCompliance>(DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS, r.cmpConclusion) },
-        { encabezado: "Resultado final", valor: (r) => etiqueta<DdMatrizResultadoFinal>(DD_MATRIZ_RESULTADO_FINAL_LABELS, r.resultadoFinal) },
-      ];
       if (formato === "csv") {
-        exportarTablaCsv(filas, columnas, nombreArchivoExport("dd-matriz-evaluacion", "csv"));
+        exportarTablaCsv(respuesta.data, COLUMNAS_MATRIZ_CSV, nombreArchivoExport("dd-matriz-evaluacion", "csv"));
       } else {
-        await exportarTablaExcel(filas, columnas, nombreArchivoExport("dd-matriz-evaluacion", "xlsx"), "Matriz DD");
+        await exportarMatrizExcel(respuesta.data, nombreArchivoExport("dd-matriz-evaluacion", "xlsx"));
       }
-      toast.success(`${filas.length} registro(s) exportado(s)`);
+      toast.success(`${respuesta.data.length} vínculo(s) exportado(s)`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo exportar la matriz");
     } finally {
@@ -206,18 +210,20 @@ export function DdMatrizEvaluacionLista() {
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={exportando !== null || loading} onClick={() => { void exportar("xlsx"); }}>
             <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "xlsx" ? "Exportando..." : "Excel"}</span>
+            <span>{exportando === "xlsx" ? "Exportando..." : seleccion.size > 0 ? `Excel (${seleccion.size})` : "Excel"}</span>
           </Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={exportando !== null || loading} onClick={() => { void exportar("csv"); }}>
             <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "csv" ? "Exportando..." : "CSV"}</span>
+            <span>{exportando === "csv" ? "Exportando..." : seleccion.size > 0 ? `CSV (${seleccion.size})` : "CSV"}</span>
           </Button>
-          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading} onClick={() => aplicar({ page: filtrosRef.current.page })}>
+          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading} onClick={() => aplicar({ page: filtrosRef.current.page }, true)}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Recargar</span>
           </Button>
         </div>
       </div>
+
+      <DdMatrizResumen resumen={resumen} />
 
       <Card className="overflow-hidden">
         <CardHeader className="space-y-3 border-b border-border pb-4">
@@ -293,6 +299,14 @@ export function DdMatrizEvaluacionLista() {
                   <SelectContent>
                     <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todos</span></SelectItem>
                     <SelectItem value={DD_MATRIZ_FILTRO_SIN_PAIS}><span>Sin país registrado</span></SelectItem>
+                    {(data?.paises ?? []).map((p) => (
+                      <SelectItem key={p.pais} value={p.pais}>
+                        <span className="flex items-center gap-2">
+                          <DdPaisBandera pais={p.pais} />
+                          <span>{nombrePais(p.pais)} ({p.total})</span>
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -308,7 +322,7 @@ export function DdMatrizEvaluacionLista() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={filtros.perPage} columns={9} />
+            <TableSkeleton rows={filtros.perPage} columns={10} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay vínculos en este filtro.</p>
@@ -316,10 +330,23 @@ export function DdMatrizEvaluacionLista() {
             </div>
           ) : (
             <>
+              {seleccion.size > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                  <span className="font-medium text-foreground">
+                    {seleccion.size} vínculo(s) seleccionado(s): Excel y CSV exportarán solo estos.
+                  </span>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setSeleccion(new Set())}>
+                    <X className="h-3.5 w-3.5" /><span>Limpiar selección</span>
+                  </Button>
+                </div>
+              ) : null}
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8">
+                        <Checkbox checked={estadoCabecera} aria-label="Seleccionar los vínculos de esta página" onCheckedChange={(v) => alternarPagina(v === true)} />
+                      </TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Vínculo</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Ingreso</TableHead>
@@ -334,7 +361,10 @@ export function DdMatrizEvaluacionLista() {
                   </TableHeader>
                   <TableBody>
                     {data.data.map((fila) => (
-                      <TableRow key={fila.id}>
+                      <TableRow key={fila.id} data-state={seleccion.has(fila.id) ? "selected" : undefined}>
+                        <TableCell className="w-8">
+                          <Checkbox checked={seleccion.has(fila.id)} aria-label={`Seleccionar ${fila.nombre}`} onCheckedChange={(v) => alternar(fila.id, v === true)} />
+                        </TableCell>
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.nombre}</p>
                           <p className="font-mono text-[11px] text-muted-foreground">

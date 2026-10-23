@@ -474,6 +474,19 @@ registran la fecha de hoy y el usuario que guarda.
    informe (`sig_informe`).
 6. El resultado final lo registra SIG o Compliance.
 
+### 13.3.2 Stats, seleccion y Excel
+
+- **Stats** sobre la lista (mismo estilo del Panel DD): aptos, en revision, los que requieren DD reforzada
+  (con los pendientes de Compliance) y sin evaluar; dona de resultado final, avance por area, nacional /
+  extranjera, tipo de vinculo y principales paises.
+- **Filtros:** tipo de vinculo, nacional/extranjera, resultado final y **pais** (opciones = paises que existen
+  en el evento, con su bandera y conteo; tambien "Sin pais registrado").
+- **Seleccion:** cada fila tiene checkbox (y uno por pagina); la seleccion persiste entre paginas. Excel y CSV
+  exportan **los marcados** o, si no hay ninguno, todo lo filtrado.
+- **Excel** con el formato de la matriz oficial de Asociados: 54 columnas (A-BB), titulos de grupo y
+  encabezados lila / naranja / celeste. Las listas que no aplican al ambito del vinculo salen como **N.A.**
+  (como en su matriz); las que aplican y aun no se evaluaron quedan vacias.
+
 ### 13.4 Catalogos y mapper de valores
 
 Terminos exactos de la matriz oficial, definidos en `constants.ts` (`DD_MATRIZ_*`):

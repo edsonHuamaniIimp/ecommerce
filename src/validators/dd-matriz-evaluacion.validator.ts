@@ -3,6 +3,7 @@ import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
+  DD_MATRIZ_EXPORT_MAX,
   DD_MATRIZ_OBSERVACION_MAX,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -60,6 +61,18 @@ export const ddMatrizEvaluacionQuerySchema = z.object({
     .enum(["true", "false"])
     .transform((v) => v === "true")
     .optional(),
+});
+
+/** Exportacion: ids elegidos o los filtros de la lista. */
+export const ddMatrizEvaluacionExportarSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(60)).min(1).max(DD_MATRIZ_EXPORT_MAX).optional(),
+  search: z.string().trim().max(200).optional(),
+  tipo: z.enum(valores(DD_MATRIZ_TIPOS_VINCULO)).optional(),
+  ambito: z.enum(valores(DD_MATRIZ_AMBITOS)).optional(),
+  pais: z.string().trim().toUpperCase().regex(REGEX_PAIS, "País inválido: usa el código ISO de 2 letras").optional(),
+  sinPais: z.boolean().optional(),
+  resultadoFinal: z.string().trim().max(40).optional(),
+  sinEvaluar: z.boolean().optional(),
 });
 
 export const ddMatrizEvaluacionAbrirQuerySchema = z.object({

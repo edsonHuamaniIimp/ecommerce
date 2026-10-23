@@ -2034,6 +2034,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdMatrizEvaluacionResponse"
+  /debida-diligencia/matriz-evaluacion/resumen:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Indicadores (stats) de la Matriz de evaluacion DD del evento activo
+      description: Conteos por resultado final, ambito, tipo de vinculo, pais y avance por area (SIG, Reputacional, Compliance).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      resultadoFinal: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      ambito: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      tipo: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      sig: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      reputacional: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      compliance: { type: array, items: { $ref: "#/components/schemas/DdMatrizConteo" } }
+                      paises:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            pais: { type: string }
+                            total: { type: integer }
+                      requierenReforzada: { type: integer }
+                      pendientesCompliance: { type: integer }
+                      enRevision: { type: integer }
+  /debida-diligencia/matriz-evaluacion/exportar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Datos completos de los vinculos para el Excel oficial de la matriz
+      description: >
+        Con `ids` devuelve solo esos vinculos; sin `ids` aplica los mismos filtros de la lista. Cada fila trae
+        los datos generales de la empresa y las respuestas de listas del vinculo; el cliente arma el .xlsx con
+        las 54 columnas (A-BB) de la matriz oficial. Maximo 5000 vinculos. Queda en auditoria.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids: { type: array, items: { type: string }, maxItems: 5000 }
+                search: { type: string }
+                tipo: { type: string, enum: [empresa, representante, beneficiario, vinculado] }
+                ambito: { type: string, enum: [nacional, extranjero] }
+                pais: { type: string, minLength: 2, maxLength: 2 }
+                sinPais: { type: boolean }
+                resultadoFinal: { type: string }
+                sinEvaluar: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      data: { type: array, items: { type: object } }
+                      total: { type: integer }
+        "400":
+          description: Supera el maximo de vinculos por exportacion
   /debida-diligencia/matriz-evaluacion/abrir:
     get:
       tags: [DebidaDiligencia]
@@ -2950,6 +3023,19 @@ components:
             perPage: { type: integer }
             totalPages: { type: integer }
             nuevas: { type: integer }
+            paises:
+              type: array
+              description: Paises con vinculos en el evento (opciones del filtro de pais), de mas a menos vinculos.
+              items:
+                type: object
+                properties:
+                  pais: { type: string }
+                  total: { type: integer }
+    DdMatrizConteo:
+      type: object
+      properties:
+        valor: { type: string, nullable: true }
+        total: { type: integer }
     DdMatrizBloque:
       type: object
       properties:

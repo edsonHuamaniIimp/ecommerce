@@ -133,9 +133,54 @@ export interface DdMatrizListarParams {
   sinEvaluar?: boolean;
 }
 
+/** Pais con vinculos en el evento y cuantos (opciones del filtro de pais). */
+export interface DdMatrizPaisFacet {
+  pais: string;
+  total: number;
+}
+
 export interface DdMatrizListarResult {
   data: DdMatrizFilaEntity[];
   total: number;
+  /** Paises presentes en el evento (sin aplicar los filtros), de mas a menos vinculos. */
+  paises: DdMatrizPaisFacet[];
+}
+
+/** Conteo por valor (null = sin dato). */
+export interface DdMatrizConteo {
+  valor: string | null;
+  total: number;
+}
+
+/** Indicadores de la matriz del evento activo (todos los vinculos enviados). */
+export interface DdMatrizResumenEntity {
+  total: number;
+  resultadoFinal: DdMatrizConteo[];
+  ambito: DdMatrizConteo[];
+  tipo: DdMatrizConteo[];
+  paises: DdMatrizPaisFacet[];
+  /** Resultado de la evaluacion por area (aceptado / observado / no_aplica / null = pendiente). */
+  sig: DdMatrizConteo[];
+  reputacional: DdMatrizConteo[];
+  compliance: DdMatrizConteo[];
+  /** SIG concluyo REQUIERE DEBIDA DILIGENCIA REFORZADA. */
+  requierenReforzada: number;
+  /** De esos, los que Compliance aun no evaluo. */
+  pendientesCompliance: number;
+  /** Final, SIG o reputacional en EN REVISION. */
+  enRevision: number;
+}
+
+/** Filtros de la exportacion: ids elegidos o los mismos filtros de la lista. */
+export interface DdMatrizExportarParams extends Omit<DdMatrizListarParams, "page" | "perPage"> {
+  /** Si viene, se exportan solo estos vinculos (y se ignoran los demas filtros). */
+  ids?: string[];
+}
+
+/** Vinculo completo y la fila de su empresa (aporta los datos generales). */
+export interface DdMatrizExportItem {
+  vinculo: DdMatrizVinculoEntity;
+  empresa: DdMatrizVinculoEntity | null;
 }
 
 /** Cambios parciales sobre un vinculo; solo se persisten los campos presentes. */

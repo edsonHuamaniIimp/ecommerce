@@ -64,6 +64,14 @@ export type {
   DdMatrizBloqueRequestDTO,
   DdMatrizEvaluacionGuardarRequestDTO,
 } from "./dd-matriz-evaluacion-guardar-request.dto";
+export type { DdMatrizEvaluacionExportarRequestDTO } from "./dd-matriz-evaluacion-exportar-request.dto";
+export type {
+  DdMatrizEvaluacionExportarResponseDTO,
+  DdMatrizEvaluacionExportFilaDTO,
+  DdMatrizExportEmpresaDTO,
+  DdMatrizExportVinculoDTO,
+} from "./dd-matriz-evaluacion-exportar-response.dto";
+export type { DdMatrizConteoDTO, DdMatrizEvaluacionResumenDTO } from "./dd-matriz-evaluacion-resumen.dto";
 export type { DdMatrizEvaluacionVinculoRequestDTO } from "./dd-matriz-evaluacion-vinculo-request.dto";
 export type { DdMatrizEvaluacionAdjuntoEliminarRequestDTO } from "./dd-matriz-evaluacion-adjunto-request.dto";
 export type { DdMatrizEvaluacionAdjuntoResponseDTO } from "./dd-matriz-evaluacion-adjunto-response.dto";

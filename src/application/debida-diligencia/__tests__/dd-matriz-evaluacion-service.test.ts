@@ -6,6 +6,7 @@ import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_CONCLUSIONES,
+  DD_MATRIZ_EXPORT_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
@@ -90,6 +91,8 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
   const repo = {
     sincronizarEvento: vi.fn().mockResolvedValue(0),
     listar: vi.fn(),
+    listarParaExportar: vi.fn().mockResolvedValue([]),
+    resumen: vi.fn(),
     findVinculo: vi.fn().mockResolvedValue(v),
     findVinculoEmpresa: vi.fn().mockResolvedValue(null),
     existeExpedienteEnEvento: vi.fn().mockResolvedValue(true),
@@ -382,6 +385,34 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     await expect(
       servicio.vinculoEmpresaDeExpediente({ email: "x", roles: [], permissions: [], eventoId: "e" }, "exp-1"),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("exportar: con ids ignora el resto, audita y exige dd:matriz y evento", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listarParaExportar.mockResolvedValue([{ vinculo: vinculo(), empresa: null }]);
+    const items = await servicio.exportar(sesion([]), { ids: ["v-1"], pais: "CL" });
+    expect(items).toHaveLength(1);
+    expect(repo.listarParaExportar).toHaveBeenCalledWith(expect.objectContaining({ eventoId: "evento-1", ids: ["v-1"] }));
+    expect(repo.registrarAuditoria).toHaveBeenCalledWith("matriz_exportar", "evento-1", "usuario@iimp.org.pe", expect.stringContaining("selección"));
+
+    await expect(
+      servicio.exportar({ email: "x", roles: [], permissions: [], eventoId: "e" }, {}),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(servicio.exportar({ ...sesion([]), eventoId: undefined }, {})).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("exportar: rechaza exportaciones por encima del maximo", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listarParaExportar.mockResolvedValue(Array.from({ length: DD_MATRIZ_EXPORT_MAX + 1 }, () => ({ vinculo: vinculo(), empresa: null })));
+    await expect(servicio.exportar(sesion([]), {})).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("resumen: consulta los indicadores del evento activo y exige permiso", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.resumen.mockResolvedValue({ total: 3 });
+    expect(await servicio.resumen(sesion([]))).toEqual({ total: 3 });
+    expect(repo.resumen).toHaveBeenCalledWith("evento-1");
+    await expect(servicio.resumen({ email: "x", roles: [], permissions: [], eventoId: "e" })).rejects.toMatchObject({ status: 403 });
   });
 
   it("administrador accede a todo sin permisos explicitos", async () => {

@@ -1851,6 +1851,8 @@ export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_ADJUNTOS_MAX = 10;
 export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
+/** Maximo de vinculos por exportacion a Excel. */
+export const DD_MATRIZ_EXPORT_MAX = 5000;
 
 /** Filtros de la lista de la matriz de evaluacion. */
 export const DD_MATRIZ_FILTRO_TODOS = "todos";

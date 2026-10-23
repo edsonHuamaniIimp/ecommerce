@@ -1,9 +1,11 @@
 import type { DdMatrizDetalleResultado, DdMatrizListarResultado } from "@/application/debida-diligencia/dd-matriz-evaluacion-service";
+import type { DdMatrizExportItem } from "@/domain/models/dd-matriz-evaluacion";
 import type { DdMatrizAdjuntoEntity, DdMatrizBloque, DdMatrizFilaEntity } from "@/domain/models/dd-matriz-evaluacion";
 import type {
   DdMatrizAdjuntoDTO,
   DdMatrizBloqueDTO,
   DdMatrizEvaluacionDetalleDTO,
+  DdMatrizEvaluacionExportFilaDTO,
   DdMatrizEvaluacionFilaDTO,
   DdMatrizEvaluacionResponseDTO,
   DdMatrizGeneralesDTO,
@@ -50,6 +52,7 @@ export function mapDdMatrizEvaluacionListaToDTO(resultado: DdMatrizListarResulta
     page: resultado.page,
     perPage: resultado.perPage,
     totalPages: resultado.totalPages,
+    paises: resultado.paises.map((p) => ({ pais: p.pais, total: p.total })),
     nuevas: resultado.nuevas,
   };
 }
@@ -137,5 +140,48 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     adjuntos: adjuntos.map(mapDdMatrizAdjuntoToDTO),
     permisos,
     updatedAt: vinculo.updatedAt.toISOString(),
+  };
+}
+
+/** Fila de exportacion en el formato de la matriz oficial; los datos generales salen de la fila de la empresa. */
+export function mapDdMatrizExportFilaToDTO(item: DdMatrizExportItem): DdMatrizEvaluacionExportFilaDTO {
+  const { vinculo, empresa } = item;
+  const origen = empresa ?? vinculo;
+  const ctx = vinculo.expediente;
+  return {
+    expedienteCodigo: ctx.codigo,
+    fechaIngreso: ctx.fechaIngreso.toISOString(),
+    fechaRevisionExpediente: iso(ctx.fechaRevision),
+    revisadoPor: ctx.revisadoPor,
+    empresa: {
+      razonSocial: ctx.empresaRazonSocial,
+      ruc: ctx.empresaRuc,
+      ambito: origen.ambito,
+      pais: origen.pais ?? ctx.empresaPais,
+      fechaInicioActividades: soloFecha(origen.fechaInicioActividades),
+      estadoContribuyente: origen.estadoContribuyente,
+      direccionLegal: origen.direccionLegal ?? ctx.empresaDireccionFiscal,
+      actividadEconomica: origen.actividadEconomica ?? ctx.actividadEconomica,
+      motivo: origen.motivo ?? ctx.motivo,
+      eventoProyecto: origen.eventoProyecto ?? ctx.eventoProyecto,
+      historialIimp: origen.historialIimp,
+      beneficioMutuo: origen.beneficioMutuo,
+      listas: origen.listas,
+    },
+    vinculo: {
+      tipo: vinculo.tipo,
+      nombre: vinculo.nombre,
+      tipoDocumento: vinculo.tipoDocumento,
+      documento: vinculo.documento,
+      nacionalidad: vinculo.nacionalidad,
+      cargo: vinculo.cargo,
+      ambito: vinculo.ambito,
+      pais: vinculo.pais,
+      listas: vinculo.listas,
+      sig: mapBloque(vinculo.sig),
+      reputacional: mapBloque(vinculo.reputacional),
+      compliance: mapBloque(vinculo.compliance),
+      resultadoFinal: vinculo.resultadoFinal,
+    },
   };
 }
