@@ -1,4 +1,4 @@
-import type { IKbServiciosClient } from "@/domain/ports/kbservicios-client";
+import type { ApiEvent, ApiEventType, IKbServiciosClient } from "@/domain/ports/kbservicios-client";
 import type { IEventoRepository, EventoMetadata } from "@/domain/ports/evento-repository";
 import type { EventoPadrePresalaDTO, EventoPresalaDTO } from "@/types/dto/eventos";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -14,8 +14,6 @@ const VERTICAL_BY_CODE: Record<number, string> = {
 function verticalFromCode(code: number): string {
   return VERTICAL_BY_CODE[code] ?? "eventos";
 }
-
-interface ApiEvent { codeEvent: number; event: string; inicio: string; fin: string; active: boolean; }
 
 export class PresalaApplicationService {
   constructor(
@@ -49,10 +47,19 @@ export class PresalaApplicationService {
       if (!eventoIdMap.has(key)) eventoIdMap.set(key, ev.id);
     }
 
+    const tiposUnicos = new Map<number, ApiEventType>();
     for (const tipo of tipos) {
+      if (!tiposUnicos.has(tipo.code)) tiposUnicos.set(tipo.code, tipo);
+    }
+
+    for (const tipo of tiposUnicos.values()) {
       try {
         const eventos = await this.kbApi.listarEventos(tipo.code);
-        const filtrados = filter(eventos);
+        const porCodigo = new Map<number, ApiEvent>();
+        for (const evento of filter(eventos)) {
+          if (!porCodigo.has(evento.codeEvent)) porCodigo.set(evento.codeEvent, evento);
+        }
+        const filtrados = [...porCodigo.values()];
         if (filtrados.length === 0) continue;
 
         result.push({

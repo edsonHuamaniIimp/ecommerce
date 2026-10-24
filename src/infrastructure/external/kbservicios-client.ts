@@ -33,7 +33,11 @@ export class KbServiciosClient implements IKbServiciosClient {
     try {
       const data = await fetchApi<unknown>("/rest/listeventtype");
       return (extractArray(data) ?? []) as ApiEventType[];
-    } catch {
+    } catch (err) {
+      console.error(
+        "[kbServicios] Error tipos de evento:",
+        err instanceof Error ? err.message : err,
+      );
       return [];
     }
   }
