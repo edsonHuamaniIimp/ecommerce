@@ -15,40 +15,6 @@ export class EventoApplicationService {
     return this.repo.findAll(activos);
   }
 
-  /**
-   * Catalogo local de eventos para filtros internos (DD, bandejas, panel).
-   * No depende del API externo de presala y no duplica opciones.
-   */
-  async listarCatalogoLocal() {
-    const padres = await this.repo.findPadresConVersiones({});
-    return padres
-      .map((padre) => {
-        const vistos = new Set<string>();
-        const versiones = padre.versiones
-          .filter((version) => {
-            if (vistos.has(version.id)) return false;
-            vistos.add(version.id);
-            return true;
-          })
-          .sort((a, b) => b.anio.localeCompare(a.anio))
-          .map((version) => ({
-            id: version.id,
-            anio: version.anio,
-            tipoEvento: version.tipoEvento,
-            codigoEvento: version.codigoEvento,
-            estado: version.estado,
-            fecha_inicio: version.fechaInicio?.toISOString() ?? null,
-            fecha_fin: version.fechaFin?.toISOString() ?? null,
-            imagen: version.imagen,
-            plano: version.plano,
-            flgVisible: version.flgVisible,
-            modal_info: null,
-          }));
-        return { ...padre, versiones };
-      })
-      .filter((padre) => padre.versiones.length > 0);
-  }
-
   async obtenerPorId(id: string) {
     return this.repo.findById(id);
   }

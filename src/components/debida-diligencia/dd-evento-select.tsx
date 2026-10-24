@@ -53,7 +53,7 @@ export function DdEventoSelect({ value, onChange, incluirTodos = false }: Props)
   useEffect(() => {
     let activo = true;
     eventosServiceClient
-      .listarCatalogo()
+      .listar()
       .then((data) => {
         if (activo) setPadres(normalizarPadres(data));
       })
@@ -68,22 +68,19 @@ export function DdEventoSelect({ value, onChange, incluirTodos = false }: Props)
     };
   }, []);
 
-  const opciones = useMemo(() => {
-    const unicos = new Map<string, { id: string; label: string; anio: string }>();
-    for (const padre of padres) {
-      for (const version of padre.versiones) {
-        if (!version.id || unicos.has(version.id)) continue;
-        unicos.set(version.id, {
-          id: version.id,
-          label: `${TIPOS_EVENTO_LABELS[version.tipoEvento ?? -1] ?? padre.nombre} ${version.anio}`,
-          anio: version.anio,
-        });
-      }
-    }
-    return [...unicos.values()].sort(
-      (a, b) => b.anio.localeCompare(a.anio) || a.label.localeCompare(b.label),
-    );
-  }, [padres]);
+  const opciones = useMemo(
+    () =>
+      padres
+        .flatMap((padre) =>
+          padre.versiones.map((version) => ({
+            id: version.id,
+            label: `${TIPOS_EVENTO_LABELS[version.tipoEvento ?? -1] ?? padre.nombre} ${version.anio}`,
+            anio: version.anio,
+          })),
+        )
+        .sort((a, b) => b.anio.localeCompare(a.anio) || a.label.localeCompare(b.label)),
+    [padres],
+  );
 
   const seleccionado = value === DD_EVENTO_TODOS
     ? DD_EVENTO_TODOS_LABEL
