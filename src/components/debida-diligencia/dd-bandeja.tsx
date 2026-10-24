@@ -281,7 +281,6 @@ export function DdBandeja() {
         { encabezado: "Motivo importación", valor: (r) => r.motivoImportacion ?? "" },
         { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
         { encabezado: "Inicio solicitud", valor: (r) => (r.fechaInicio ? dateUtils.format(r.fechaInicio) : "") },
-        { encabezado: "Creado en BD", valor: (r) => (r.fechaCreacion ? dateUtils.format(r.fechaCreacion) : "") },
         { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
         { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
         { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
@@ -554,7 +553,7 @@ export function DdBandeja() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={perPage} columns={12} />
+            <TableSkeleton rows={perPage} columns={11} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
@@ -572,7 +571,6 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Inicio solicitud</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Creado en BD</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Evento</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
@@ -596,9 +594,6 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaInicio ? dateUtils.format(fila.fechaInicio) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground xl:table-cell">
-                          {fila.fechaCreacion ? dateUtils.format(fila.fechaCreacion) : "—"}
                         </TableCell>
                         <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">
                           {fila.eventoNombre}

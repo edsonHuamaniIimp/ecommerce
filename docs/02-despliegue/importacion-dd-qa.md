@@ -32,8 +32,9 @@ fecha de revision/aprobacion.
 
 `FECHA DE INGRESO SOLICITUD` se conserva como **inicio de la solicitud**
 (`fechaEnvio`). No debe confundirse con `createdAt`, que es la fecha en que el
-registro se creo en la base local durante la importacion. La bandeja muestra ambas
-fechas por separado: **Inicio solicitud** y **Creado en BD**.
+registro se creo en la base local durante la importacion. La bandeja muestra solo
+**Inicio solicitud**; `createdAt` queda como dato interno y no se presenta como fecha
+de la solicitud.
 
 ### Fuente de respuestas del formulario
 
