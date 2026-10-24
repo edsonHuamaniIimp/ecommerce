@@ -215,7 +215,12 @@ function erroresDeFormulario(form: FormState): Partial<Record<keyof FormState, s
     const errorDocumento = validarDocumentoEmpresa(tipoDocumento, form.ruc);
     if (errorDocumento) nuevos.ruc = errorDocumento;
   }
-  if (form.inicioOperaciones.trim() && !dateUtils.isValid(form.inicioOperaciones)) {
+  if (tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC && !form.partidaElectronica.trim()) {
+    nuevos.partidaElectronica = "La partida electronica es obligatoria para empresas con RUC";
+  }
+  if (!form.inicioOperaciones.trim()) {
+    nuevos.inicioOperaciones = "La fecha de inicio de operaciones es obligatoria";
+  } else if (!dateUtils.isValid(form.inicioOperaciones)) {
     nuevos.inicioOperaciones = "La fecha de inicio de operaciones es invalida";
   }
   if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
@@ -401,6 +406,9 @@ function ValidarDatosContent() {
   );
   /** Validacion viva: el boton de guardar solo se habilita con los obligatorios completos. */
   const formularioCompleto = Object.keys(erroresFormulario).length === 0;
+  const esRucEmpresa = form
+    ? resolverTipoDocumentoEmpresa(form.tipoDocumento, form.ruc) === TIPOS_DOCUMENTO_EMPRESA.RUC
+    : false;
 
   /**
    * Errores visibles: solo los campos con contenido, para no marcar en rojo
@@ -526,7 +534,16 @@ function ValidarDatosContent() {
               <Campo label="Email general" valor={form.emailContacto} onChange={(v) => setCampo("emailContacto", v)} placeholder="contacto@empresa.pe" error={erroresVisibles.emailContacto} resaltado={marcarPendiente("emailContacto")} />
               <Campo label="Actividad economica" valor={form.actividadEconomica} onChange={(v) => setCampo("actividadEconomica", v)} placeholder="Se completa al validar el RUC" />
               <Campo label="Estado de contribuyente" valor={form.estadoContribuyente} onChange={(v) => setCampo("estadoContribuyente", v)} placeholder="Se completa al validar el RUC" deshabilitado nota="Dato consultado en SUNAT." />
-              <Campo type="date" label="Inicio de operaciones" valor={form.inicioOperaciones} onChange={(v) => setCampo("inicioOperaciones", v)} nota="Fecha de inicio de actividades de la empresa." />
+              <Campo
+                type="date"
+                requerido
+                label="Inicio de operaciones"
+                valor={form.inicioOperaciones}
+                onChange={(v) => setCampo("inicioOperaciones", v)}
+                nota="Fecha de inicio de actividades de la empresa."
+                error={erroresVisibles.inicioOperaciones}
+                resaltado={marcarPendiente("inicioOperaciones")}
+              />
               <Campo label="Nombre comercial" valor={form.nombreComercial} onChange={(v) => setCampo("nombreComercial", v)} placeholder="Minera Cordillera" />
               <Campo telefono label="Telefono" valor={form.telefono} onChange={(v) => setCampo("telefono", v)} placeholder="+51 987 654 321" />
               <Campo label="Sitio web" valor={form.sitioWeb} onChange={(v) => setCampo("sitioWeb", v)} placeholder="www.empresa.pe" />
@@ -555,7 +572,17 @@ function ValidarDatosContent() {
               />
               <Campo telefono contractual requerido label="Telefono" valor={form.representanteCelular} onChange={(v) => setCampo("representanteCelular", v)} placeholder="+51 987 654 321" error={erroresVisibles.representanteCelular} resaltado={marcarPendiente("representanteCelular")} />
               <Campo contractual requerido label="Direccion" valor={form.representanteDireccion} onChange={(v) => setCampo("representanteDireccion", v)} placeholder="Av. Arequipa 1250, Lince" error={erroresVisibles.representanteDireccion} resaltado={marcarPendiente("representanteDireccion")} />
-              <Campo contractual label="Partida electronica (opcional)" valor={form.partidaElectronica} onChange={(v) => setCampo("partidaElectronica", v)} placeholder="11014857" mono />
+              <Campo
+                contractual
+                requerido={esRucEmpresa}
+                label={esRucEmpresa ? "Partida electronica" : "Partida electronica (opcional)"}
+                valor={form.partidaElectronica}
+                onChange={(v) => setCampo("partidaElectronica", v)}
+                placeholder="11014857"
+                mono
+                error={erroresVisibles.partidaElectronica}
+                resaltado={marcarPendiente("partidaElectronica")}
+              />
             </div>
           </SeccionFormulario>
 

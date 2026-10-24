@@ -50,15 +50,37 @@ describe("actualizarEmpresaSchema (parcial)", () => {
 });
 
 describe("validarDatosEmpresaSchema", () => {
+  const base = {
+    ruc: "20601234567",
+    razonSocial: "Minera Demo S.A.C.",
+    inicioOperaciones: "2020-01-15",
+    representanteLegalNombre: "Juan Perez",
+    representanteLegalDni: "45871233",
+    representanteCorreo: "juan@minera.pe",
+    representanteCelular: "999888777",
+    representanteDireccion: "Av. Los Ingenieros 245",
+  };
+
   it("sigue exigiendo los datos del representante", () => {
+    const r = validarDatosEmpresaSchema.safeParse({ ...base, partidaElectronica: "11014857" });
+    expect(r.success).toBe(true);
+  });
+
+  it("exige la partida electronica cuando la empresa tiene RUC", () => {
+    expect(validarDatosEmpresaSchema.safeParse(base).success).toBe(false);
+    expect(validarDatosEmpresaSchema.safeParse({ ...base, partidaElectronica: "  " }).success).toBe(false);
+  });
+
+  it("exige la fecha de inicio de operaciones", () => {
+    expect(validarDatosEmpresaSchema.safeParse({ ...base, inicioOperaciones: null }).success).toBe(false);
+    expect(validarDatosEmpresaSchema.safeParse({ ...base, inicioOperaciones: "" }).success).toBe(false);
+  });
+
+  it("no exige partida electronica para RUT/no domiciliado", () => {
     const r = validarDatosEmpresaSchema.safeParse({
-      ruc: "20601234567",
-      razonSocial: "Minera Demo S.A.C.",
-      representanteLegalNombre: "Juan Perez",
-      representanteLegalDni: "45871233",
-      representanteCorreo: "juan@minera.pe",
-      representanteCelular: "999888777",
-      representanteDireccion: "Av. Los Ingenieros 245",
+      ...base,
+      ruc: "FR48305461063",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
     });
     expect(r.success).toBe(true);
   });

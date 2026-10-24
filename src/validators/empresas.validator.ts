@@ -173,6 +173,18 @@ export const validarDatosEmpresaSchema = crearEmpresaSchema
   .refine((v) => Boolean(v.representanteDireccion?.trim()), {
     message: "La direccion del representante legal es obligatoria",
     path: ["representanteDireccion"],
+  })
+  .refine((v) => {
+    const tipo = resolverTipoDocumentoEmpresa(v.tipoDocumento, v.ruc);
+    if (tipo !== TIPOS_DOCUMENTO_EMPRESA.RUC) return true;
+    return Boolean(String(v.partidaElectronica ?? "").trim());
+  }, {
+    message: "La partida electronica es obligatoria para empresas con RUC",
+    path: ["partidaElectronica"],
+  })
+  .refine((v) => Boolean(String(v.inicioOperaciones ?? "").trim()), {
+    message: "La fecha de inicio de operaciones es obligatoria",
+    path: ["inicioOperaciones"],
   });
 
 /** Cambio del idioma preferido del usuario. */
