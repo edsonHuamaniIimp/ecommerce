@@ -295,10 +295,13 @@ export function DdBandeja() {
         { encabezado: "Nacionalidad beneficiario", valor: (r) => r.beneficiariosNacionalidades },
         { encabezado: "Participación beneficiario", valor: (r) => r.beneficiariosPorcentajes },
       ];
+      const columnasVisibles = columnas.filter(
+        (columna) => columna.encabezado !== "Evento" || filtros.eventoId === DD_EVENTO_TODOS,
+      );
       if (formato === "csv") {
-        exportarTablaCsv(filasExportacion, columnas, nombreArchivoExport("dd-bandeja", "csv"));
+        exportarTablaCsv(filasExportacion, columnasVisibles, nombreArchivoExport("dd-bandeja", "csv"));
       } else {
-        await exportarTablaExcel(filasExportacion, columnas, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
+        await exportarTablaExcel(filasExportacion, columnasVisibles, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
       }
       toast.success(`${filasExportacion.length} fila(s) exportada(s)`);
     } catch (err) {
@@ -554,7 +557,10 @@ export function DdBandeja() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={perPage} columns={11} />
+            <TableSkeleton
+              rows={perPage}
+              columns={eventoId === DD_EVENTO_TODOS ? 11 : 10}
+            />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
@@ -572,7 +578,9 @@ export function DdBandeja() {
                     <TableRow>
                       <TableHead className="sticky left-0 z-30 w-[260px] min-w-[260px] border-r border-border bg-card text-[10px] uppercase tracking-wide">Empresa</TableHead>
                       <TableHead className="sticky left-[260px] z-30 hidden w-[120px] min-w-[120px] border-r border-border bg-card text-[10px] uppercase tracking-wide md:table-cell">Inicio solicitud</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Evento</TableHead>
+                      {eventoId === DD_EVENTO_TODOS ? (
+                        <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Evento</TableHead>
+                      ) : null}
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
@@ -596,9 +604,11 @@ export function DdBandeja() {
                         <TableCell className="sticky left-[260px] z-20 hidden w-[120px] min-w-[120px] border-r border-border bg-card whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaInicio ? dateUtils.format(fila.fechaInicio) : "—"}
                         </TableCell>
-                        <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">
-                          {fila.eventoNombre}
-                        </TableCell>
+                        {eventoId === DD_EVENTO_TODOS ? (
+                          <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">
+                            {fila.eventoNombre}
+                          </TableCell>
+                        ) : null}
                         <TableCell className="hidden max-w-[180px] truncate text-xs md:table-cell">
                           {ddUtils.etiquetaVinculos(fila.tipoRelacionComercial) || "—"}
                         </TableCell>
