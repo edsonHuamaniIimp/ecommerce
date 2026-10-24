@@ -5,10 +5,12 @@ import { API_ERROR_CODES } from "@/lib/shared/constants";
 import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS } from "@/lib/shared/constants";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 import { requestMetadata } from "@/lib/server/request-metadata";
+import { auditarVerComo } from "@/lib/server/ver-como-audit";
+import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
 
 /** Registra un evento de auditoria sin tocar una solicitud concreta. */
 async function auditarEntidad(
@@ -78,6 +80,13 @@ export const solicitudesController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
     const url = new URL(request.url);
+    const esAdmin = session.permissions.includes(PERMISSIONS.ADMIN_FULL);
+    const empresaIdRaw = url.searchParams.get("empresaId") ?? undefined;
+    /* Solo admin puede consultar la bandeja completa de otra empresa. */
+    if (empresaIdRaw && !esAdmin) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Ver como requiere permisos de administrador", 403);
+    }
+    const empresaId = esAdmin ? empresaIdRaw : undefined;
     const parsed = solicitudesListarSchema.parse({
       eventoId: url.searchParams.get("eventoId") ?? "",
       page: url.searchParams.get("page") ?? "1",
@@ -85,6 +94,7 @@ export const solicitudesController = {
       search: url.searchParams.get("search") ?? undefined,
       estado: url.searchParams.get("estado") ?? undefined,
       empresa: url.searchParams.get("empresa") ?? undefined,
+      empresaId,
       standCode: url.searchParams.get("standCode") ?? undefined,
       areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
       sgc: url.searchParams.get("sgc") ?? undefined,
@@ -94,7 +104,42 @@ export const solicitudesController = {
       orden: url.searchParams.get("orden") ?? undefined,
     });
     /* Scoping de dueno: el cliente solo ve sus solicitudes; el staff puede filtrar. */
-    const userId = puedeVerTodas(session) ? (url.searchParams.get("userId") ?? undefined) : session.sub;
+    const userId = puedeVerTodas(session)
+      ? (empresaId ? undefined : (url.searchParams.get("userId") ?? undefined))
+      : session.sub;
+    if (empresaId) {
+      const requestMeta = requestMetadata(request);
+      exigirLimiteVerComo(
+        session.sub,
+        requestMeta.ip,
+        VER_COMO.ACCION_VER_SOLICITUDES,
+        VER_COMO.LIMITE_ACCESOS,
+      );
+      const empresa = await services.empresas.obtener(empresaId);
+      await auditarVerComo(
+        request,
+        session,
+        VER_COMO.ACCION_VER_SOLICITUDES,
+        `Consultó las solicitudes de ${empresa.razonSocial} (${empresa.ruc}) en Ver como.`,
+        {
+          empresaId: empresa.id,
+          ruc: empresa.ruc,
+          razonSocial: empresa.razonSocial,
+          page: parsed.page,
+          perPage: parsed.per_page,
+          search: parsed.search ?? null,
+          estado: parsed.estado ?? null,
+          empresa: parsed.empresa ?? null,
+          standCode: parsed.standCode ?? null,
+          areaPendiente: parsed.areaPendiente ?? null,
+          sgc: parsed.sgc ?? null,
+          docsObservados: parsed.docsObservados === "true",
+          desde: parsed.desde ?? null,
+          hasta: parsed.hasta ?? null,
+          orden: parsed.orden,
+        },
+      );
+    }
     const result = await services.solicitudes.listar({
       eventoId: parsed.eventoId,
       page: parsed.page,
@@ -103,6 +148,7 @@ export const solicitudesController = {
       userId,
       estado: parsed.estado,
       empresa: parsed.empresa,
+      empresaId: parsed.empresaId,
       standCode: parsed.standCode,
       areaPendiente: parsed.areaPendiente,
       sgc: parsed.sgc as SolicitudesFiltroSgc | undefined,
@@ -123,7 +169,9 @@ export const solicitudesController = {
         return row;
       }
     }));
-    return success({ ...result, data });
+    const response = success({ ...result, data });
+    if (empresaId) response.headers.set("Cache-Control", "no-store");
+    return response;
   },
 
   async detalle(request: Request): Promise<NextResponse> {

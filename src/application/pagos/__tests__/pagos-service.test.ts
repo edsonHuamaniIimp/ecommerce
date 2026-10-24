@@ -74,6 +74,16 @@ describe("PagosApplicationService", () => {
     expect(repo.listarPorCliente).toHaveBeenCalledWith({ userId: "u1", email: "a@b.com", page: 2, perPage: 10 });
   });
 
+  it("listar propaga el filtro de empresa del modo Ver como", async () => {
+    const repo = mockRepo();
+    repo.listarPorCliente = vi.fn().mockResolvedValue({ data: [], total: 0 });
+    const svc = new PagosApplicationService(repo);
+    await svc.listar(ident, { page: 1, perPage: 10, empresaId: "empresa-1" });
+    expect(repo.listarPorCliente).toHaveBeenCalledWith({
+      userId: "u1", email: "a@b.com", page: 1, perPage: 10, empresaId: "empresa-1",
+    });
+  });
+
   it("detalle lanza 404 si la facturacion no existe", async () => {
     const repo = mockRepo();
     repo.detalle = vi.fn().mockResolvedValue(null);

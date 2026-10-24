@@ -85,10 +85,11 @@ export interface ArchivoCuentaDTO {
 
 /** Fachada cliente de la vista de pagos del exhibidor. */
 export const pagosService = {
-  listar(params: { page?: number; per_page?: number } = {}) {
+  listar(params: { page?: number; per_page?: number; empresaId?: string } = {}) {
     const q = new URLSearchParams();
     if (params.page) q.set("page", String(params.page));
     if (params.per_page) q.set("per_page", String(params.per_page));
+    if (params.empresaId) q.set("empresaId", params.empresaId);
     const qs = q.toString();
     return internalApi.get<PagosListResult>(`/api/pagos/listar${qs ? `?${qs}` : ""}`);
   },

@@ -20,6 +20,8 @@ interface RevisionSalidaDTO {
 export interface SolicitudesListFiltros {
   estado?: string;
   empresa?: string;
+  /** Empresa exacta del modo "Ver como" (solo admin). */
+  empresaId?: string;
   standCode?: string;
   areaPendiente?: string;
   sgc?: string;
@@ -44,6 +46,7 @@ export const solicitudesService = {
     if (filtros) {
       if (filtros.estado) qs.set("estado", filtros.estado);
       if (filtros.empresa) qs.set("empresa", filtros.empresa);
+      if (filtros.empresaId) qs.set("empresaId", filtros.empresaId);
       if (filtros.standCode) qs.set("standCode", filtros.standCode);
       if (filtros.areaPendiente) qs.set("areaPendiente", filtros.areaPendiente);
       if (filtros.sgc) qs.set("sgc", filtros.sgc);

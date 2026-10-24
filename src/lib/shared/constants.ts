@@ -2287,6 +2287,24 @@ export const MAESTRA_TABLAS = {
 export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
 
 /* ================================================================
+   Modo "Ver como" (admin consulta datos de una empresa)
+   ================================================================ */
+export const VER_COMO = {
+  TIPO_AUDITORIA: "ver_como",
+  ACCION_BUSCAR_EMPRESA: "buscar_empresa",
+  ACCION_SELECCIONAR_EMPRESA: "seleccionar_empresa",
+  ACCION_VER_SOLICITUDES: "ver_solicitudes",
+  ACCION_VER_PAGOS: "ver_pagos",
+  ACCION_ACCESO_DENEGADO: "acceso_denegado",
+  MAX_BUSQUEDA: 120,
+  MAX_RESULTADOS: 20,
+  LIMITE_BUSQUEDAS: 60,
+  LIMITE_SELECCIONES: 30,
+  LIMITE_ACCESOS: 120,
+  VENTANA_MS: 60_000,
+} as const;
+
+/* ================================================================
    Codigos de error API
    ================================================================ */
 export const API_ERROR_CODES = {

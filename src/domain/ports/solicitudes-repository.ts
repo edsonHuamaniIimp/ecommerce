@@ -11,6 +11,8 @@ export interface SolicitudesListParams {
   estado?: string;
   /** Filtro por empresa (contiene, case-insensitive). */
   empresa?: string;
+  /** Empresa exacta del modo "Ver como" (solo admin). */
+  empresaId?: string;
   /** Filtro por codigo de stand (contiene, case-insensitive). */
   standCode?: string;
   /** Area de revision con estado pendiente (REVISION_AREAS). */

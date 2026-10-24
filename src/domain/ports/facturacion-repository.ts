@@ -74,6 +74,8 @@ export interface ClienteIdent {
 export interface FacturacionClienteParams extends ClienteIdent {
   page: number;
   perPage: number;
+  /** Empresa exacta del modo "Ver como" (solo admin). */
+  empresaId?: string;
 }
 
 /** Datos editables de una cuota por el cliente/admin. */

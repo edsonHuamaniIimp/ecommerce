@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
 import { services } from "@/lib/server/services";
-import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS, VER_COMO } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
+import { requestMetadata } from "@/lib/server/request-metadata";
+import { auditarVerComo } from "@/lib/server/ver-como-audit";
+import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { PagosApplicationService } from "@/application/pagos/pagos-service";
 import type { ClienteIdent } from "@/domain/ports/facturacion-repository";
 import type { ReservaIimpArchivoInput } from "@/domain/ports/reserva-iimp-client";
+import { verComoEmpresaIdSchema } from "@/validators/ver-como.validator";
 
 const service = new PagosApplicationService(facturacionRepo);
 
@@ -26,8 +30,46 @@ export const pagosController = {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("per_page") ?? "10");
+    /* "Ver como": solo un admin puede consultar los pagos de otra empresa. */
+    const empresaIdSolicitada = searchParams.get("empresaId")?.trim() || undefined;
+    if (empresaIdSolicitada && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Ver como requiere permisos de administrador", 403);
+    }
+    const empresaIdRaw = session.permissions.includes(PERMISSIONS.ADMIN_FULL)
+      ? empresaIdSolicitada
+      : undefined;
+    const empresaIdParsed = verComoEmpresaIdSchema.safeParse(empresaIdRaw);
+    if (empresaIdRaw && !empresaIdParsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, "empresaId invalido", 400);
+    }
+    const empresaId = empresaIdParsed.success ? empresaIdParsed.data : undefined;
+    if (empresaId) {
+      const requestMeta = requestMetadata(request);
+      exigirLimiteVerComo(
+        session.sub,
+        requestMeta.ip,
+        VER_COMO.ACCION_VER_PAGOS,
+        VER_COMO.LIMITE_ACCESOS,
+      );
+      const empresa = await services.empresas.obtener(empresaId);
+      await auditarVerComo(
+        request,
+        session,
+        VER_COMO.ACCION_VER_PAGOS,
+        `Consultó los pagos de ${empresa.razonSocial} (${empresa.ruc}) en Ver como.`,
+        {
+          empresaId: empresa.id,
+          ruc: empresa.ruc,
+          razonSocial: empresa.razonSocial,
+          page,
+          perPage,
+        },
+      );
+    }
     /* Sin filtro por evento activo: el cliente ve todos sus planes (el admin ve todos los eventos). */
-    return success(await service.listar(ident(session), { page, perPage }));
+    const response = success(await service.listar(ident(session), { page, perPage, empresaId }));
+    if (empresaId) response.headers.set("Cache-Control", "no-store");
+    return response;
   },
 
   async detalle(request: Request): Promise<NextResponse> {

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 
@@ -216,7 +216,7 @@ function Dato({ label, valor }: { label: string; valor: string | null | undefine
   return (
     <div className="min-w-0">
       <p className="text-[9px] font-semibold tracking-wider text-muted-foreground uppercase">{label}</p>
-      <p className="truncate text-xs text-foreground">{valor && valor.trim() ? valor : "—"}</p>
+      <p className="truncate text-xs text-foreground">{valor && valor.trim() ? valor : "-"}</p>
     </div>
   );
 }
@@ -242,8 +242,9 @@ function VerDetalleButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; userId: string }) {
+function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { eventoId: string; userId: string; empresaVerComoId?: string }) {
   const searchParams = useSearchParams();
+  const soloLectura = Boolean(empresaVerComoId);
   const autoOpenId = searchParams.get("id");
 
   const [rows, setRows] = useState<SolicitudRow[]>([]);
@@ -276,6 +277,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
   const { session: sesion } = useSesion();
+  const puedePagar = (row: SolicitudRow) => !soloLectura && puedePagarNiubizz(row);
+  const puedeReevaluar = (row: SolicitudRow) => !soloLectura && puedeSolicitarReevaluacion(row);
 
   const pageRef = useRef(page);
   const perPageRef = useRef(perPage);
@@ -339,7 +342,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
     const ok = await confirm({
       title: "Reenviar solicitud a revision",
       description:
-        "Se validaran las nuevas versiones de los documentos observados y la solicitud volvera a la revision del area Asociado. ¿Continuar?",
+        "Se validarán las nuevas versiones de los documentos observados y la solicitud volverá a la revisión del área Asociado. ¿Continuar?",
       confirmLabel: "Reenviar",
     });
     if (!ok) return;
@@ -359,7 +362,14 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   const load = useCallback(async (p?: number, s?: string, pp?: number) => {
     setLoading(true);
     try {
-      const data = await solicitudesService.listar(eventoId, p ?? pageRef.current, pp ?? perPageRef.current, s, userId);
+      const data = await solicitudesService.listar(
+        eventoId,
+        p ?? pageRef.current,
+        pp ?? perPageRef.current,
+        s,
+        empresaVerComoId ? undefined : userId,
+        { empresaId: empresaVerComoId },
+      );
       setRows(data.data ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
 
@@ -372,7 +382,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [eventoId, userId]);
+  }, [eventoId, userId, empresaVerComoId]);
 
   useEffect(() => {
     (async () => { await load(); })();
@@ -386,11 +396,17 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
 
   return (
     <>
+      {soloLectura && (
+        <p className="mb-3 flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
+          <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>Vista de solo lectura: estás viendo las solicitudes de la empresa seleccionada.</span>
+        </p>
+      )}
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-col gap-3 border-b border-border pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-sm font-semibold text-primary">Tus solicitudes</span>
+              <span className="text-sm font-semibold text-primary">{soloLectura ? "Solicitudes de la empresa" : "Tus solicitudes"}</span>
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                 {pagination.total} {pagination.total === 1 ? "registrada" : "registradas"}
               </span>
@@ -442,7 +458,9 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
             <TableSkeleton rows={perPage} columns={6} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">No tienes solicitudes de alquiler.</p>
+              <p className="text-sm text-muted-foreground">
+                {soloLectura ? "Esta empresa no tiene solicitudes de alquiler." : "No tienes solicitudes de alquiler."}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">Cuando realices una reserva desde el plano interactivo, aparecera aqui.</p>
             </div>
           ) : (
@@ -477,7 +495,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
-                        <Dato label="Ubicacion" valor={row.ubicacion} />
+                        <Dato label="Ubicación" valor={row.ubicacion} />
                         <Dato label="Tipo" valor={row.tipoStand} />
                       </div>
 
@@ -532,7 +550,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         </p>
                       )}
 
-                      {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                      {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
                         return (
                           <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
@@ -563,7 +581,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                           {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                         </span>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          {puedePagarNiubizz(row) && (
+                          {puedePagar(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-gold font-bold text-gold-foreground hover:bg-gold/90 sm:w-auto"
                               onClick={() => {
                                 if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
@@ -573,21 +591,21 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Pagar ahora</span>
                             </Button>
                           )}
-                          {contratoClientePendienteFirma(row) && (
+                          {!soloLectura && contratoClientePendienteFirma(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <PenLine className="h-3.5 w-3.5" />
                               <span>Firmar contrato</span>
                             </Button>
                           )}
-                          {enVentanaLegalSgc(row) && (
+                          {!soloLectura && enVentanaLegalSgc(row) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 border-border sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "anexos"); }}>
                               <Upload className="h-3.5 w-3.5" />
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                          {enVentanaSubsanacionSgc(row) && (
+                          {!soloLectura && enVentanaSubsanacionSgc(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
@@ -600,7 +618,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                               <span>Esperando contrato corregido</span>
                             </Badge>
                           )}
-                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                          {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
                             return (
                               <>
@@ -672,8 +690,8 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                             <span className="ml-1 font-normal text-muted-foreground">({row.standCodes.join(", ")})</span>
                           )}
                         </TableCell>
-                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
-                        <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "—"}</TableCell>
+                        <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "-"}</TableCell>
+                        <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "-"}</TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
@@ -690,7 +708,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap items-center justify-end gap-2">
-                            {puedePagarNiubizz(row) && (
+                            {puedePagar(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-gold text-xs font-bold text-gold-foreground hover:bg-gold/90"
                                 onClick={() => {
                                   if (!row.facturacionId) { toast.error("No se encontro facturacion"); return; }
@@ -700,21 +718,21 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Pagar ahora</span>
                               </Button>
                             )}
-                            {contratoClientePendienteFirma(row) && (
+                            {!soloLectura && contratoClientePendienteFirma(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <PenLine className="h-3.5 w-3.5" />
                                 <span>Firmar contrato</span>
                               </Button>
                             )}
-                            {enVentanaLegalSgc(row) && (
+                            {!soloLectura && enVentanaLegalSgc(row) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 border-border text-xs"
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                            {enVentanaSubsanacionSgc(row) && (
+                            {!soloLectura && enVentanaSubsanacionSgc(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
@@ -727,7 +745,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                 <span>Esperando contrato corregido</span>
                               </Badge>
                             )}
-                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                          {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
                             return (
                               <>
@@ -778,7 +796,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados — pagina {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados — página {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
               </div>
@@ -810,7 +828,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   </div>
                   <div className="space-y-0.5">
                     <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>
-                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "—"}</span>
+                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "-"}</span>
                   </div>
                 </div>
                 {(detailRow.standCodes?.length ?? 0) > 1 && (
@@ -987,7 +1005,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  {puedeEliminarDocumentoActual(detailRow, doc) && (
+                                  {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
                                     <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
                                       onClick={(e) => {
                                         e.preventDefault();
@@ -1019,7 +1037,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
-                                  {puedeEliminarDocumentoActual(detailRow, doc) && (
+                                  {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
                                     <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
                                       onClick={(e) => {
                                         e.preventDefault();
@@ -1053,7 +1071,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Contrato disponible: el cliente debe firmar y subirlo */}
-              {detailRow && contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && (
+              {!soloLectura && detailRow && contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Firma del contrato">
                   <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1088,7 +1106,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Ventana Legal (SGC): adjuntar anexos antes del envio al SGC */}
-              {detailRow && enVentanaLegalSgc(detailRow) && detailRow.flgActivo !== false && (
+              {!soloLectura && detailRow && enVentanaLegalSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1111,7 +1129,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               )}
 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
-              {detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
+              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1252,7 +1270,7 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
               </ModalSection>
 
               {/* Documentos requeridos */}
-              {faltanDocumentosMultiStand(detailRow) && (
+              {!soloLectura && faltanDocumentosMultiStand(detailRow) && (
                 <ModalSection title="Documentos requeridos">
                   <div className="text-center mb-3">
                     <p className="text-xs text-warning">Para solicitar una re-evaluacion, primero debes adjuntar al menos un documento.</p>
@@ -1294,16 +1312,16 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
           )}
           </div>
           {/* Footer */}
-          {detailRow && (puedePagarNiubizz(detailRow) || puedeSolicitarReevaluacion(detailRow)) && (
+          {detailRow && (puedePagar(detailRow) || puedeReevaluar(detailRow)) && (
             <DialogFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border pt-3">
-              {puedePagarNiubizz(detailRow) && (
+              {puedePagar(detailRow) && (
                 <Button size="sm" variant="default" className="gap-1.5 text-xs font-semibold"
                   onClick={() => toast.info("Redirigiendo a la pasarela de pago Niubizz...")}>
                   <CreditCard className="h-3.5 w-3.5" />
                   <span>Pagar con Niubizz</span>
                 </Button>
               )}
-              {puedeSolicitarReevaluacion(detailRow) && (
+              {puedeReevaluar(detailRow) && (
                 <Button size="sm" variant="default" className="gap-1.5 text-xs font-semibold"
                   onClick={() => { setModificarOpen(true); setModificarError(null); }}>
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -1416,10 +1434,12 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
                   <Button variant="outline" size="sm" className="rounded-full text-xs" onClick={() => setRecorteBloque(null)}>
                     <span>Cerrar</span>
                   </Button>
-                  <Button size="sm" className="rounded-full text-xs" disabled={guardandoRecorte} onClick={() => { void guardarRecortePng(); }}>
-                    {guardandoRecorte ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImageDown className="mr-1.5 h-3.5 w-3.5" />}
-                    <span>Guardar imagen</span>
-                  </Button>
+                  {!soloLectura && (
+                    <Button size="sm" className="rounded-full text-xs" disabled={guardandoRecorte} onClick={() => { void guardarRecortePng(); }}>
+                      {guardandoRecorte ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImageDown className="mr-1.5 h-3.5 w-3.5" />}
+                      <span>Guardar imagen</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </DialogFooter>
@@ -1431,10 +1451,10 @@ function MisSolicitudesManagerContent({ eventoId, userId }: { eventoId: string; 
   );
 }
 
-export function MisSolicitudesManager({ eventoId, userId }: { eventoId: string; userId: string }) {
+export function MisSolicitudesManager({ eventoId, userId, empresaVerComoId }: { eventoId: string; userId: string; empresaVerComoId?: string }) {
   return (
     <Suspense fallback={null}>
-      <MisSolicitudesManagerContent eventoId={eventoId} userId={userId} />
+      <MisSolicitudesManagerContent eventoId={eventoId} userId={userId} empresaVerComoId={empresaVerComoId} />
     </Suspense>
   );
 }

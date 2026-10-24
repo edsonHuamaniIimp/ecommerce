@@ -9,6 +9,8 @@ export const solicitudesListarSchema = z.object({
   search: z.string().max(200).optional(),
   estado: z.enum(Object.values(ESTADOS_SOLICITUD) as [string, ...string[]]).optional(),
   empresa: z.string().max(200).optional(),
+  /** Empresa seleccionada en el modo "Ver como" (solo admin). */
+  empresaId: z.string().uuid().optional(),
   standCode: z.string().max(50).optional(),
   areaPendiente: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]).optional(),
   sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),

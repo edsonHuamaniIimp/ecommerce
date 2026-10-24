@@ -36,7 +36,9 @@ tags:
   - name: DebidaDiligencia
     description: Formulario, revision de Logistica, revision reputacional de Comunicaciones y panel del modulo
   - name: SGC
-    description: Integración con el Sistema de Gestión de Contratos (expediente, documentos, descarga, webhooks)
+    description: Integraci��n con el Sistema de Gesti��n de Contratos (expediente, documentos, descarga, webhooks)
+  - name: VerComo
+    description: Consulta auditada de empresas por un administrador (solo lectura)
 security:
   - bearerAuth: []
 paths:
@@ -2437,6 +2439,90 @@ paths:
               schema:
                 type: string
                 format: binary
+  /ver-como/empresas:
+    get:
+      tags: [VerComo]
+      summary: Busca empresas para el selector Ver como (solo admin)
+      description: |
+        Requiere `admin:full`. Cada busqueda se registra en `audit_log`
+        (tipo `ver_como`) con actor, termino, cantidad de resultados, IP y user agent.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        "200":
+          description: Resultados minimos; no se aplica cache
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EmpresaVerComo"
+                      total:
+                        type: integer
+        "401":
+          description: Sin sesion
+        "403":
+          description: El usuario no es administrador
+        "429":
+          description: Demasiadas busquedas en la ventana permitida
+  /ver-como/seleccionar:
+    post:
+      tags: [VerComo]
+      summary: Valida y registra la empresa seleccionada para Ver como (solo admin)
+      description: |
+        Requiere `admin:full`. Valida que la empresa exista y registra la seleccion
+        en `audit_log` antes de devolver el resumen. No otorga permisos de escritura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [empresaId]
+              properties:
+                empresaId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Empresa validada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/EmpresaVerComo"
+        "400":
+          description: empresaId invalido
+        "401":
+          description: Sin sesion
+        "403":
+          description: El usuario no es administrador
+        "404":
+          description: Empresa no encontrada
+        "429":
+          description: Demasiadas selecciones en la ventana permitida
 components:
   securitySchemes:
     bearerAuth:
@@ -3867,3 +3953,14 @@ components:
             type: { type: string }
             code: { type: string, nullable: true }
         data: { type: object, additionalProperties: true }
+    EmpresaVerComo:
+      type: object
+      required: [id, ruc, razonSocial, estado]
+      properties:
+        id: { type: string, format: uuid }
+        ruc: { type: string }
+        razonSocial: { type: string }
+        nombreComercial: { type: string, nullable: true }
+        estado:
+          type: string
+          enum: [activa, inactiva]

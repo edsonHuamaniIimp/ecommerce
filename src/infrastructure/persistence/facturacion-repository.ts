@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { prisma } from "@/lib/server/db";
+import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
 import type {
   IFacturacionRepository,
@@ -126,7 +127,21 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
 
   async listarPorCliente(params: FacturacionClienteParams): Promise<FacturacionListResult> {
     /* Todos los eventos: ocultar por evento activo dejaba al cliente sin ver planes pendientes de otros eventos. */
-    const solicitudWhere: Record<string, unknown> = { flgActivo: true, OR: identOr(params) };
+    let solicitudWhere: Record<string, unknown> = { flgActivo: true, OR: identOr(params) };
+    if (params.empresaId) {
+      /* "Ver como": incluye a todos los usuarios vinculados a la empresa. */
+      const { userIds, emails } = await usuariosDeEmpresa(params.empresaId);
+      solicitudWhere =
+        userIds.length > 0 || emails.length > 0
+          ? {
+              flgActivo: true,
+              OR: [
+                ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+                ...(emails.length > 0 ? [{ email: { in: emails } }] : []),
+              ],
+            }
+          : { flgActivo: true, id: "__sin_empresa__" };
+    }
     const where: Record<string, unknown> = { flgActivo: true, solicitud: solicitudWhere };
     return this.paginar(where, params);
   }

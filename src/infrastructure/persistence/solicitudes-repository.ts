@@ -9,6 +9,7 @@ import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
+import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { nombreCompleto } from "@/lib/shared/utils/nombre";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -297,6 +298,20 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     }
     if (params.userId) {
       and.push({ userId: params.userId });
+    }
+    if (params.empresaId) {
+      /* "Ver como": incluye a todos los usuarios vinculados a la empresa. */
+      const { userIds, emails } = await usuariosDeEmpresa(params.empresaId);
+      and.push(
+        userIds.length > 0 || emails.length > 0
+          ? {
+              OR: [
+                ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+                ...(emails.length > 0 ? [{ email: { in: emails } }] : []),
+              ],
+            }
+          : { id: "__sin_empresa__" },
+      );
     }
     if (params.search) {
       const q = params.search;

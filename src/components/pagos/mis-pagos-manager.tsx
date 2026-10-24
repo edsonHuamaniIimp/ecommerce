@@ -48,8 +48,9 @@ interface DialogCuota {
 }
 
 /** Bandeja de pagos del exhibidor, con vista en cuadricula/lista persistida. */
-export function MisPagosManager() {
+export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: string }) {
   const { session } = useSesion();
+  const soloLectura = Boolean(empresaVerComoId);
   const { vista, setVista } = useVistaBandeja("mis-pagos");
   const { confirm, confirmDialog } = useConfirm();
   const [rows, setRows] = useState<PagoRowDTO[]>([]);
@@ -72,7 +73,7 @@ export function MisPagosManager() {
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
   const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number } | null>(null);
 
-  const puedeGestionar = Boolean(
+  const puedeGestionar = !soloLectura && Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
     session?.permissions?.includes(PERMISSIONS.ADMIN_FULL),
   );
@@ -80,7 +81,7 @@ export function MisPagosManager() {
   const load = useCallback(async (p: number, pp: number) => {
     setLoading(true);
     try {
-      const res = await pagosService.listar({ page: p, per_page: pp });
+      const res = await pagosService.listar({ page: p, per_page: pp, empresaId: empresaVerComoId });
       setRows(res.data ?? []);
       setTotal(res.total ?? 0);
     } catch {
@@ -88,7 +89,7 @@ export function MisPagosManager() {
       setTotal(0);
     }
     setLoading(false);
-  }, []);
+  }, [empresaVerComoId]);
 
   useEffect(() => {
     void (async () => { await load(page, perPage); })();
@@ -247,7 +248,7 @@ export function MisPagosManager() {
                       <span>Factura {cuota.iimpDocumento.serie}-{cuota.iimpDocumento.numero} emitida el {cuota.iimpDocumento.fechaEmision} (descarga desde el IIMP pendiente)</span>
                     </TooltipContent>
                   </Tooltip>
-                ) : row.iimpContrato ? (
+                ) : !soloLectura && row.iimpContrato ? (
                   cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -263,7 +264,7 @@ export function MisPagosManager() {
                     <TooltipContent side="top"><span>Documentos de la cuenta corriente (OC, HES, detracción)</span></TooltipContent>
                   </Tooltip>
                   )
-                ) : (
+                ) : !soloLectura ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -277,7 +278,7 @@ export function MisPagosManager() {
                     </TooltipTrigger>
                     <TooltipContent side="top"><span>Registrar reserva en el IIMP</span></TooltipContent>
                   </Tooltip>
-                )}
+                ) : null}
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -355,8 +356,8 @@ export function MisPagosManager() {
       {row.planCliente && (
         <p className="text-[11px] text-muted-foreground">
           <span>
-            Las cuotas las definió el cliente en el contrato; no son editables. Aquí solo puedes adjuntar el
-            voucher de pago de cada cuota.
+            Las cuotas las definió el cliente en el contrato; no son editables.{" "}
+            {soloLectura ? "Vista de solo lectura." : "Aquí solo puedes adjuntar el voucher de pago de cada cuota."}
           </span>
         </p>
       )}
@@ -380,8 +381,16 @@ export function MisPagosManager() {
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
             <Wallet className="h-6 w-6" />
           </span>
+          {soloLectura && (
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-info">
+              <Eye className="h-3.5 w-3.5" />
+              <span>Vista de solo lectura</span>
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
-            Aun no tienes planes de pago. Se generan cuando la administracion aprueba tu solicitud.
+            {soloLectura
+              ? "Esta empresa aun no tiene planes de pago."
+              : "Aun no tienes planes de pago. Se generan cuando la administracion aprueba tu solicitud."}
           </p>
         </CardContent>
       </Card>
@@ -390,6 +399,12 @@ export function MisPagosManager() {
 
   return (
     <div className="space-y-4">
+      {soloLectura && (
+        <p className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
+          <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar vouchers ni registrar reservas.</span>
+        </p>
+      )}
       <div className="flex items-center justify-end gap-1">
         <Button
           type="button"
@@ -502,23 +517,27 @@ export function MisPagosManager() {
 
       {confirmDialog}
 
-      <EnviarReservaIimp
-        open={reservaCuota !== null}
-        onOpenChange={(v) => { if (!v) setReservaCuota(null); }}
-        cuotaId={reservaCuota?.cuotaId ?? ""}
-        cuotas={reservaCuota?.cuotas ?? 0}
-        standCode={reservaCuota?.standCode}
-        onEnviado={() => { void load(page, perPage); }}
-      />
+      {!soloLectura && (
+        <>
+          <EnviarReservaIimp
+            open={reservaCuota !== null}
+            onOpenChange={(v) => { if (!v) setReservaCuota(null); }}
+            cuotaId={reservaCuota?.cuotaId ?? ""}
+            cuotas={reservaCuota?.cuotas ?? 0}
+            standCode={reservaCuota?.standCode}
+            onEnviado={() => { void load(page, perPage); }}
+          />
 
-      <ArchivosCuentaCorriente
-        open={archivosCuota !== null}
-        onOpenChange={(v) => { if (!v) setArchivosCuota(null); }}
-        cuotaId={archivosCuota?.cuotaId ?? ""}
-        cuotas={archivosCuota?.cuotas ?? 0}
-        standCode={archivosCuota?.standCode}
-        cuotaNumero={archivosCuota?.numero}
-      />
+          <ArchivosCuentaCorriente
+            open={archivosCuota !== null}
+            onOpenChange={(v) => { if (!v) setArchivosCuota(null); }}
+            cuotaId={archivosCuota?.cuotaId ?? ""}
+            cuotas={archivosCuota?.cuotas ?? 0}
+            standCode={archivosCuota?.standCode}
+            cuotaNumero={archivosCuota?.numero}
+          />
+        </>
+      )}
 
       <Dialog open={dialog !== null} onOpenChange={(v) => { if (!v) setDialog(null); }}>
         <DialogContent className="rounded-xl border-border sm:max-w-sm">
