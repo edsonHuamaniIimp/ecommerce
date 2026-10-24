@@ -95,6 +95,7 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
     resumen: vi.fn(),
     findVinculo: vi.fn().mockResolvedValue(v),
     findVinculoEmpresa: vi.fn().mockResolvedValue(null),
+    findEventoIdDeExpediente: vi.fn().mockResolvedValue("evento-1"),
     existeExpedienteEnEvento: vi.fn().mockResolvedValue(true),
     actualizarVinculo: vi.fn().mockImplementation(async (_id: string, cambios: Record<string, unknown>) => ({ ...v, ...cambios, sig: { ...v.sig, ...(cambios.sig as object) } })),
     crearVinculoManual: vi.fn(),
@@ -376,6 +377,15 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     const id = await servicio.vinculoEmpresaDeExpediente(sesion([]), "exp-1");
     expect(id).toBe("v-empresa");
     expect(repo.sincronizarEvento).toHaveBeenCalledWith("evento-1", "usuario@iimp.org.pe");
+  });
+
+  it("vinculoEmpresaDeExpediente sincroniza el evento del expediente cuando la bandeja esta en Todos", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.findEventoIdDeExpediente.mockResolvedValue("evento-2");
+    repo.findVinculoEmpresa.mockResolvedValue(vinculo({ id: "v-otro-evento", tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA }));
+    const id = await servicio.vinculoEmpresaDeExpediente(sesion([]), "exp-otro");
+    expect(id).toBe("v-otro-evento");
+    expect(repo.sincronizarEvento).toHaveBeenCalledWith("evento-2", "usuario@iimp.org.pe");
   });
 
   it("vinculoEmpresaDeExpediente: 404 si el expediente no esta en la matriz y 403 sin dd:matriz", async () => {

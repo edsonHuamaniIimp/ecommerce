@@ -236,12 +236,21 @@ export class DdMatrizEvaluacionApplicationService {
    */
   async vinculoEmpresaDeExpediente(session: DdSession, expedienteId: string): Promise<string> {
     this.exigirAcceso(session);
-    const eventoId = this.eventoRequerido(session);
+    /* La bandeja puede estar en "Todos los eventos": sincroniza el evento del
+     * expediente, no el evento activo de la sesion. */
+    const eventoId = await this.repo.findEventoIdDeExpediente(expedienteId);
+    if (!eventoId) {
+      throw new DomainError(
+        "El expediente aún no está en la matriz (debe haber sido enviado a revisión)",
+        API_ERROR_CODES.NOT_FOUND,
+        404,
+      );
+    }
     await this.repo.sincronizarEvento(eventoId, session.email);
     const empresa = await this.repo.findVinculoEmpresa(expedienteId);
     if (!empresa) {
       throw new DomainError(
-        "El expediente aún no está en la matriz (debe haber sido enviado en el evento activo)",
+        "El expediente aún no está en la matriz (debe haber sido enviado a revisión)",
         API_ERROR_CODES.NOT_FOUND,
         404,
       );

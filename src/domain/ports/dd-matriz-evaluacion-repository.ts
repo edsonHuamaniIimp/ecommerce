@@ -27,6 +27,8 @@ export interface IDdMatrizEvaluacionRepository {
   findVinculo(id: string): Promise<DdMatrizVinculoEntity | null>;
   /** Vinculos del mismo expediente (el de empresa aporta los datos generales). */
   findVinculoEmpresa(expedienteId: string): Promise<DdMatrizVinculoEntity | null>;
+  /** Evento al que pertenece el expediente; null si no existe o es borrador. */
+  findEventoIdDeExpediente(expedienteId: string): Promise<string | null>;
   existeExpedienteEnEvento(expedienteId: string, eventoId: string): Promise<boolean>;
   actualizarVinculo(id: string, cambios: DdMatrizVinculoCambios): Promise<DdMatrizVinculoEntity>;
   crearVinculoManual(data: DdMatrizVinculoManual): Promise<DdMatrizVinculoEntity>;

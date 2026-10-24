@@ -598,6 +598,15 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     return row ? mapVinculo(row) : null;
   }
 
+  async findEventoIdDeExpediente(expedienteId: string): Promise<string | null> {
+    const row = await prisma.debidaDiligencia.findUnique({
+      where: { id: expedienteId },
+      select: { eventoId: true, estado: true },
+    });
+    if (!row || row.estado === DD_ESTADOS.BORRADOR) return null;
+    return row.eventoId;
+  }
+
   async existeExpedienteEnEvento(expedienteId: string, eventoId: string): Promise<boolean> {
     const total = await prisma.debidaDiligencia.count({
       where: { id: expedienteId, eventoId, estado: { not: DD_ESTADOS.BORRADOR } },
