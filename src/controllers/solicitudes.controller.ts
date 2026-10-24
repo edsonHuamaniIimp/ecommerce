@@ -3,9 +3,11 @@ import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
+import type { SolicitudRow } from "@/domain/models/entities";
+import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, VER_COMO } from "@/lib/shared/constants";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 import { requestMetadata } from "@/lib/server/request-metadata";
@@ -74,6 +76,29 @@ function puedeVerTodas(session: { permissions: string[] }): boolean {
   );
 }
 
+type SolicitudConDd = SolicitudRow & { ddEstado?: SolicitudDdEstadoDTO };
+
+/** Calcula el estado DD de las filas que se devuelven al cliente. */
+async function evaluarDdSolicitudes(
+  rows: SolicitudRow[],
+  eventoId: string,
+): Promise<SolicitudConDd[]> {
+  return Promise.all(
+    rows.map(async (row) => {
+      try {
+        const evaluacion = await services.debidaDiligencia.evaluacionDeUsuario(
+          row.email,
+          eventoId,
+          row.empresa,
+        );
+        return { ...row, ddEstado: mapDdEvaluacionSolicitudToDTO(row.id, evaluacion) };
+      } catch {
+        return row;
+      }
+    }),
+  );
+}
+
 export const solicitudesController = {
   async listar(request: Request): Promise<NextResponse> {
     const session = await getSession();
@@ -93,6 +118,7 @@ export const solicitudesController = {
       per_page: url.searchParams.get("per_page") ?? "10",
       search: url.searchParams.get("search") ?? undefined,
       estado: url.searchParams.get("estado") ?? undefined,
+      dd: url.searchParams.get("dd") ?? undefined,
       empresa: url.searchParams.get("empresa") ?? undefined,
       empresaId,
       standCode: url.searchParams.get("standCode") ?? undefined,
@@ -129,6 +155,7 @@ export const solicitudesController = {
           perPage: parsed.per_page,
           search: parsed.search ?? null,
           estado: parsed.estado ?? null,
+          dd: parsed.dd ?? null,
           empresa: parsed.empresa ?? null,
           standCode: parsed.standCode ?? null,
           areaPendiente: parsed.areaPendiente ?? null,
@@ -140,10 +167,8 @@ export const solicitudesController = {
         },
       );
     }
-    const result = await services.solicitudes.listar({
+    const baseParams = {
       eventoId: parsed.eventoId,
-      page: parsed.page,
-      perPage: parsed.per_page,
       search: parsed.search,
       userId,
       estado: parsed.estado,
@@ -156,19 +181,48 @@ export const solicitudesController = {
       desde: parsed.desde,
       hasta: parsed.hasta,
       orden: parsed.orden as SolicitudesOrden,
+    };
+
+    if (parsed.dd) {
+      const allRows: SolicitudRow[] = [];
+      let currentPage = 1;
+      let totalPages = 1;
+      do {
+        const chunk = await services.solicitudes.listar({
+          ...baseParams,
+          page: currentPage,
+          perPage: 500,
+        });
+        allRows.push(...chunk.data);
+        totalPages = chunk.totalPages;
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      const evaluated = await evaluarDdSolicitudes(allRows, parsed.eventoId);
+      const filtered = evaluated.filter((row) =>
+        parsed.dd === SOLICITUDES_FILTRO_DD.APTAS
+          ? row.ddEstado?.aptoParaContratar === true
+          : row.ddEstado?.aptoParaContratar !== true,
+      );
+      const start = (parsed.page - 1) * parsed.per_page;
+      const data = filtered.slice(start, start + parsed.per_page);
+      const response = success({
+        data,
+        total: filtered.length,
+        page: parsed.page,
+        perPage: parsed.per_page,
+        totalPages: Math.ceil(filtered.length / parsed.per_page),
+      });
+      if (empresaId) response.headers.set("Cache-Control", "no-store");
+      return response;
+    }
+
+    const result = await services.solicitudes.listar({
+      ...baseParams,
+      page: parsed.page,
+      perPage: parsed.per_page,
     });
-    const data = await Promise.all(result.data.map(async (row) => {
-      try {
-        const evaluacion = await services.debidaDiligencia.evaluacionDeUsuario(
-          row.email,
-          parsed.eventoId,
-          row.empresa,
-        );
-        return { ...row, ddEstado: mapDdEvaluacionSolicitudToDTO(row.id, evaluacion) };
-      } catch {
-        return row;
-      }
-    }));
+    const data = await evaluarDdSolicitudes(result.data, parsed.eventoId);
     const response = success({ ...result, data });
     if (empresaId) response.headers.set("Cache-Control", "no-store");
     return response;

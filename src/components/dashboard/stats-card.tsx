@@ -11,6 +11,8 @@ interface StatsCardProps {
   chip?: { texto: string; variante?: "primary" | "muted" | "gold" };
   /** Linea inferior con un dato contextual (ej. "7 en evaluacion"). */
   footer?: { texto: string; destacado?: string };
+  onClick?: () => void;
+  active?: boolean;
 }
 
 const CHIP_ESTILOS = {
@@ -19,9 +21,9 @@ const CHIP_ESTILOS = {
   gold: "bg-gold/15 text-gold",
 } as const;
 
-export function StatsCard({ title, value, icon, chip, footer }: StatsCardProps) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40">
+export function StatsCard({ title, value, icon, chip, footer, onClick, active = false }: StatsCardProps) {
+  const contenido = (
+    <>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{title}</span>
         {icon && (
@@ -49,6 +51,23 @@ export function StatsCard({ title, value, icon, chip, footer }: StatsCardProps) 
           {footer.destacado && <span className="shrink-0 font-medium text-primary">{footer.destacado}</span>}
         </div>
       )}
-    </div>
+    </>
   );
+
+  const clases = cn(
+    "flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-colors",
+    onClick && "w-full cursor-pointer text-left hover:border-primary/60 hover:bg-secondary/20",
+    !onClick && "hover:border-primary/40",
+    active && "border-primary bg-primary/5 ring-1 ring-primary/20",
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" className={clases} onClick={onClick} aria-pressed={active}>
+        {contenido}
+      </button>
+    );
+  }
+
+  return <div className={clases}>{contenido}</div>;
 }

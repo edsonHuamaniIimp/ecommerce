@@ -782,6 +782,14 @@ export const SOLICITUDES_FILTRO_SGC = {
   RECHAZADO: "rechazado",
 } as const;
 
+/** Filtros de aptitud DD de la bandeja de solicitudes. */
+export const SOLICITUDES_FILTRO_DD = {
+  APTAS: "aptas",
+  NO_APTAS: "no_aptas",
+} as const;
+
+export type SolicitudesFiltroDd = (typeof SOLICITUDES_FILTRO_DD)[keyof typeof SOLICITUDES_FILTRO_DD];
+
 export type SolicitudesFiltroSgc = (typeof SOLICITUDES_FILTRO_SGC)[keyof typeof SOLICITUDES_FILTRO_SGC];
 
 export const SOLICITUDES_FILTRO_SGC_LABELS: Record<SolicitudesFiltroSgc, string> = {

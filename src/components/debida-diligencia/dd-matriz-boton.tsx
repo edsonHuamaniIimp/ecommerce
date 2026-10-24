@@ -23,7 +23,8 @@ export function DdMatrizBoton({ expedienteId, disabled = false }: Props) {
     setAbriendo(true);
     try {
       const { id } = await ddMatrizEvaluacionService.abrir(expedienteId);
-      router.push(`${DD_RUTAS.MATRIZ}/${id}`);
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      router.push(`${DD_RUTAS.MATRIZ}/${id}?returnTo=${encodeURIComponent(returnTo)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo abrir la matriz");
       setAbriendo(false);

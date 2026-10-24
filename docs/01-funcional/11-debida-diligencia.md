@@ -475,6 +475,16 @@ Constantes: `DD_REPUTACION_ESTADOS` y `DD_REPUTACION_RESULTADO_A_ESTADO`.
   bloquea la revision. Aplica para declaracion ausente, `cargado` u `observado`.
   Las DD aprobadas del evento actual no se bloquean por este motivo. Solo
   `admin:full` puede omitir el bloqueo.
+- La columna **DD** de Solicitudes no muestra `APTO` cuando falta la declaración:
+  muestra solo el badge **Declaración de vigencia pendiente**.
+- La bandeja de Solicitudes muestra cards **DD APTAS** y **DD NO APTAS**. El segundo
+  incluye todos los estados no utilizables: sin DD, pendientes, observadas,
+  rechazadas, vencidas y pendientes de validación de declaración.
+- Los cards son clickeables y aplican su filtro correspondiente. **DD APTAS** usa
+  `dd=aptas` y **DD NO APTAS** usa `dd=no_aptas`; los cards de estado de solicitud
+  usan el filtro `estado`. Solo puede quedar activo un filtro de card a la vez:
+  elegir otro card reemplaza el anterior, y un segundo click sobre el mismo card lo
+  quita.
 - El bloqueo automatico del pipeline de reservas/solicitudes sigue como integracion
   pendiente.
 - Un expediente solo se puede editar en `borrador` u `observada`.

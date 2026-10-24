@@ -10,7 +10,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
@@ -37,6 +37,8 @@ function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTAD
 /** Flujo homologado: individual y multiple usan la misma accion de revision. */
 function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row); }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
+function ddPendienteValidacion(row: SolicitudRow) { return row.ddEstado?.requiereDeclaracionVigencia === true; }
+function ddApta(row: SolicitudRow) { return row.ddEstado?.aptoParaContratar === true; }
 
 /** Columnas de la exportacion avanzada (CSV/Excel) de la bandeja filtrada. */
 const SOLICITUDES_EXPORT_COLUMNAS = [
@@ -137,6 +139,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [resumen, setResumen] = useState({ pendientes: 0, enRevision: 0, observadas: 0, aprobadas: 0 });
+  const [ddResumen, setDdResumen] = useState({ aptas: 0, noAptas: 0, pendientesValidacion: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -230,6 +233,31 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     }
   }, [eventoId]);
 
+  const loadDdResumen = useCallback(async () => {
+    if (!eventoId) return;
+    try {
+      let page = 1;
+      let totalPages = 1;
+      let aptas = 0;
+      let noAptas = 0;
+      let pendientesValidacion = 0;
+      do {
+        const data = await solicitudesService.listar(eventoId, page, 500);
+        for (const row of data.data ?? []) {
+          const pendienteDeclaracion = ddPendienteValidacion(row);
+          if (ddApta(row) && !pendienteDeclaracion) aptas += 1;
+          else noAptas += 1;
+          if (pendienteDeclaracion) pendientesValidacion += 1;
+        }
+        totalPages = data.totalPages;
+        page += 1;
+      } while (page <= totalPages);
+      setDdResumen({ aptas, noAptas, pendientesValidacion });
+    } catch {
+      /* El resumen DD es informativo; no bloquea la bandeja. */
+    }
+  }, [eventoId]);
+
   const load = useCallback(async (p?: number, s?: string, pp?: number, f?: SolicitudesListFiltros) => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
@@ -247,6 +275,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       setRows(data.data?.filter((r) => r.flgActivo !== false) ?? []);
       setPagination({ page: data.page, total: data.total, totalPages: data.totalPages });
       void loadResumen();
+      void loadDdResumen();
 
       if (autoOpenIdRef.current && !reviewOpenRef.current) {
         const found = data.data?.find((r) => r.id === autoOpenIdRef.current);
@@ -259,7 +288,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     } catch { /* ignore */ } finally {
       if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [eventoId, loadResumen]);
+  }, [eventoId, loadResumen, loadDdResumen]);
 
   useEffect(() => {
     (async () => { await load(); })();
@@ -281,10 +310,27 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     void load(1, search, perPage, next);
   };
 
+  const alternarEstado = (estado: string) => {
+    aplicarFiltros({
+      ...filters,
+      dd: undefined,
+      estado: filters.estado === estado ? undefined : estado,
+    });
+  };
+
+  const alternarDd = (dd: string) => {
+    aplicarFiltros({
+      ...filters,
+      estado: undefined,
+      dd: filters.dd === dd ? undefined : dd,
+    });
+  };
+
   const limpiarFiltros = () => aplicarFiltros({});
 
   const filtrosActivos = [
     filters.estado,
+    filters.dd,
     filters.areaPendiente,
     filters.sgc,
     filters.docsObservados ? "observados" : undefined,
@@ -458,11 +504,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Sin iniciar revision", variante: "muted" }} />
-        <StatsCard title="En revision" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decision", variante: "primary" }} />
-        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} />
-        <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Listas para continuar", variante: "primary" }} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Sin iniciar revision", variante: "muted" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.PENDIENTE)} active={filters.estado === ESTADOS_SOLICITUD.PENDIENTE} />
+        <StatsCard title="En revision" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decision", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.EN_PROCESO)} active={filters.estado === ESTADOS_SOLICITUD.EN_PROCESO} />
+        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.OBSERVADO)} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO} />
+        <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Listas para continuar", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.APROBADO)} active={filters.estado === ESTADOS_SOLICITUD.APROBADO} />
+        <StatsCard title="DD APTAS" value={ddResumen.aptas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Aptas para contratar", variante: "primary" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.APTAS} />
+        <StatsCard title="DD NO APTAS" value={ddResumen.noAptas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: ddResumen.pendientesValidacion > 0 ? `${ddResumen.pendientesValidacion} por declaracion` : "No aptas o pendientes", variante: "gold" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.NO_APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.NO_APTAS} />
       </div>
 
       <Card className="overflow-hidden">
@@ -683,12 +731,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                           </TableCell>
                           <TableCell className="min-w-[170px] align-top">
                             <div className="space-y-1">
-                              <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
-                              {row.ddEstado?.requiereDeclaracionVigencia ? (
+                              {ddPendienteValidacion(row) ? (
                                 <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
                                   <span>Declaración de vigencia pendiente</span>
                                 </Badge>
-                              ) : null}
+                              ) : (
+                                <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="min-w-[170px] max-w-[230px] align-top text-xs text-foreground" title={row.nombreUsuario ?? row.email ?? ""}>

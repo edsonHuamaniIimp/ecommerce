@@ -412,6 +412,13 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   const [finalPor, setFinalPor] = useState("");
   const [finalFecha, setFinalFecha] = useState("");
   const [identidad, setIdentidad] = useState<IdentidadForm>(IDENTIDAD_VACIA);
+  const [returnTo] = useState<string>(() => {
+    if (typeof window === "undefined") return DD_RUTAS.MATRIZ;
+    const value = new URLSearchParams(window.location.search).get("returnTo");
+    return value && value.startsWith("/") && !value.startsWith("//")
+      ? value
+      : DD_RUTAS.MATRIZ;
+  });
   const idRef = useRef(id);
 
   const aplicar = useCallback((d: DdMatrizEvaluacionDetalleDTO) => {
@@ -455,7 +462,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
     try {
       await ddMatrizEvaluacionService.eliminarVinculo(id);
       toast.success("Vínculo eliminado");
-      router.push(DD_RUTAS.MATRIZ);
+      router.push(returnTo);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo eliminar el vínculo");
     }
@@ -492,6 +499,8 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
     detalle.listas.filter((l) => l.color === DD_MATRIZ_COLORES.COMUN),
   ].filter((g) => g.length > 0);
 
+  const volverABandeja = returnTo.includes("/debida-diligencia/bandeja");
+
   const guardarBloque = (clave: "sig" | "reputacional" | "compliance") =>
     (valor: BloqueGuardar) =>
       guardar(clave, { [clave]: valor }, "Evaluación guardada");
@@ -501,7 +510,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <Button asChild variant="ghost" size="sm" className="-ml-2 h-7 gap-1 text-xs text-muted-foreground">
-            <Link href={DD_RUTAS.MATRIZ}><ArrowLeft className="h-3.5 w-3.5" /><span>Matriz de evaluación DD</span></Link>
+            <Link href={returnTo}><ArrowLeft className="h-3.5 w-3.5" /><span>{volverABandeja ? "Volver a la bandeja" : "Matriz de evaluación DD"}</span></Link>
           </Button>
           <h1 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
             <DdPaisBandera pais={detalle.pais} />

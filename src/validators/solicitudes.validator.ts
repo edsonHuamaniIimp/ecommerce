@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
@@ -8,6 +8,7 @@ export const solicitudesListarSchema = z.object({
   per_page: z.coerce.number().int().min(1).max(500).default(10),
   search: z.string().max(200).optional(),
   estado: z.enum(Object.values(ESTADOS_SOLICITUD) as [string, ...string[]]).optional(),
+  dd: z.enum(Object.values(SOLICITUDES_FILTRO_DD) as [string, ...string[]]).optional(),
   empresa: z.string().max(200).optional(),
   /** Empresa seleccionada en el modo "Ver como" (solo admin). */
   empresaId: z.string().uuid().optional(),

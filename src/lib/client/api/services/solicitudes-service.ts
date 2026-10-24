@@ -19,6 +19,7 @@ interface RevisionSalidaDTO {
 /** Filtros avanzados de la bandeja de solicitudes (server-side). */
 export interface SolicitudesListFiltros {
   estado?: string;
+  dd?: string;
   empresa?: string;
   /** Empresa exacta del modo "Ver como" (solo admin). */
   empresaId?: string;
@@ -45,6 +46,7 @@ export const solicitudesService = {
     if (userId) qs.set("userId", userId);
     if (filtros) {
       if (filtros.estado) qs.set("estado", filtros.estado);
+      if (filtros.dd) qs.set("dd", filtros.dd);
       if (filtros.empresa) qs.set("empresa", filtros.empresa);
       if (filtros.empresaId) qs.set("empresaId", filtros.empresaId);
       if (filtros.standCode) qs.set("standCode", filtros.standCode);

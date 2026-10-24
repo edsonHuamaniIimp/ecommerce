@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Badge, Button, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
 import { ExternalLink, FileText, Paperclip } from "lucide-react";
 import type { DdMatrizBloqueDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
@@ -142,6 +143,11 @@ function BloqueMatriz({
 }
 
 export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props) {
+  const [returnTo] = useState<string>(() => {
+    if (typeof window === "undefined") return DD_RUTAS.MATRIZ;
+    return `${window.location.pathname}${window.location.search}`;
+  });
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -159,7 +165,7 @@ export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props
         <p className="mt-1 text-[11px] text-muted-foreground">{error ?? "El expediente aún no cuenta con una fila en la matriz."}</p>
         {matrizId ? (
           <Button asChild variant="outline" size="sm" className="mt-3 h-8 gap-1.5 text-xs">
-            <Link href={`${DD_RUTAS.MATRIZ}/${matrizId}`}>
+            <Link href={`${DD_RUTAS.MATRIZ}/${matrizId}?returnTo=${encodeURIComponent(returnTo)}`}>
               <ExternalLink className="h-3.5 w-3.5" />
               <span>Abrir matriz</span>
             </Link>
@@ -191,7 +197,7 @@ export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props
           </div>
         </div>
         <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-          <Link href={`${DD_RUTAS.MATRIZ}/${detalle.id}`}>
+          <Link href={`${DD_RUTAS.MATRIZ}/${detalle.id}?returnTo=${encodeURIComponent(returnTo)}`}>
             <ExternalLink className="h-3.5 w-3.5" />
             <span>Abrir matriz completa</span>
           </Link>
