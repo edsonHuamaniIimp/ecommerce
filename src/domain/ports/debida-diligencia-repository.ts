@@ -26,7 +26,7 @@ import type {
   DdReputacionResult,
   DdRevisionData,
 } from "@/domain/models/debida-diligencia";
-import type { DdDocumentoTipo, DdEstado } from "@/lib/shared/constants";
+import type { DdDocumentoEstado, DdDocumentoTipo, DdEstado } from "@/lib/shared/constants";
 
 /** Estado al que se lleva un expediente luego de una revision. */
 export interface DdEstadoExpedienteData {
@@ -126,12 +126,30 @@ export interface IDebidaDiligenciaRepository {
     observados: DdDocumentoTipo[],
     observacion: string | null,
   ): Promise<void>;
+  /** Actualiza solo la declaracion de vigencia, sin tocar el estado de la DD. */
+  marcarDeclaracionVigencia(
+    expedienteId: string,
+    estado: DdDocumentoEstado,
+    observacion: string | null,
+  ): Promise<void>;
+  /** Resuelve las observaciones abiertas de un tipo de documento. */
+  resolverObservacionesDocumento(
+    expedienteId: string,
+    documentoTipo: DdDocumentoTipo,
+  ): Promise<void>;
   /** Observaciones abiertas del expediente. */
   listarObservaciones(expedienteId: string): Promise<DdObservacionEntity[]>;
   /** Crea las observaciones de una revision. */
   crearObservaciones(
     expedienteId: string,
     observaciones: DdObservacionCreacion[],
+    creadoPor: string,
+  ): Promise<void>;
+  /** Crea o actualiza la observacion abierta de un documento. */
+  guardarObservacionDocumento(
+    expedienteId: string,
+    documentoTipo: DdDocumentoTipo,
+    texto: string,
     creadoPor: string,
   ): Promise<void>;
   /** Cierra las observaciones abiertas (el cliente corrigio y reenvio). */

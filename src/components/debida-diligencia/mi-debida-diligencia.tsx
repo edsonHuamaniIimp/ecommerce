@@ -274,6 +274,25 @@ export function MiDebidaDiligencia() {
               </AlertDescription>
             </Alert>
           ) : null}
+          {!esOtroEvento && puedeRegularizarDeclaracionVigencia ? (
+            <Alert className="border-warning/30 bg-warning/5 lg:col-span-3">
+              <AlertCircle className="h-4 w-4 text-warning" />
+              <AlertDescription>
+                Tu DD está aprobada, pero falta cargar o corregir la Declaración jurada de vigencia de información.
+                La vigencia original no cambia.
+                <span className="mt-3 block">
+                  <Button asChild size="sm" className="gap-1.5 text-xs">
+                    <Link
+                      href={`${DD_RUTAS.REGULARIZAR_VIGENCIA}?expedienteId=${expediente.id}`}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>Subir Declaración de vigencia de información</span>
+                    </Link>
+                  </Button>
+                </span>
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {ddVencida ? (
             <Card className="border-warning/50 bg-warning/5 lg:col-span-3">
               <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">

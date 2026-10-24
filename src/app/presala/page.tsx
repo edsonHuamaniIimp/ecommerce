@@ -95,8 +95,8 @@ function PresalaPageContent() {
           const returnTo = searchParams.get("returnTo");
           if (!returnTo || returnTo === "/dashboard" || returnTo === "/presala") {
             router.replace("/dashboard");
+            return;
           }
-          return;
         }
         setIsAdmin(session.roles?.includes(ROLES.ADMIN) ?? false);
 

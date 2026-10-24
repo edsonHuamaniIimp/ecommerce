@@ -66,7 +66,10 @@ export function mapDdEmpresaToDTO(empresa: DdEmpresaResumen): DdEmpresaDTO {
   };
 }
 
-export function mapDdExpedienteToDTO(expediente: DdExpedienteEntity): DdExpedienteDTO {
+export function mapDdExpedienteToDTO(
+  expediente: DdExpedienteEntity,
+  eventoActivoId?: string,
+): DdExpedienteDTO {
   return {
     id: expediente.id,
     empresaId: expediente.empresaId,
@@ -114,6 +117,8 @@ export function mapDdExpedienteToDTO(expediente: DdExpedienteEntity): DdExpedien
     empresa: mapDdEmpresaToDTO(expediente.empresa),
     evento: expediente.evento,
     beneficiarios: expediente.beneficiarios.map((b) => ({ ...b })),
+    requiereRevalidacion: ddUtils.requiereRevalidacionDeclaracion(expediente, eventoActivoId),
+    declaracionVigenciaEstado: ddUtils.estadoDeclaracionVigencia(expediente.documentos),
     documentos: expediente.documentos.map((d) => ({
       id: d.id,
       tipo: d.tipo,
@@ -227,10 +232,13 @@ export function mapDdHistorialToDTO(
   };
 }
 
-export function mapDdClientesToDTO(resultado: DdClientesResult): DdClientesResponseDTO {
+export function mapDdClientesToDTO(
+  resultado: DdClientesResult,
+  eventoActivoId?: string,
+): DdClientesResponseDTO {
   return {
     items: resultado.data.map((item) => ({
-      expediente: mapDdExpedienteToDTO(item.expediente),
+      expediente: mapDdExpedienteToDTO(item.expediente, eventoActivoId),
       resultado: item.resultado,
       resultadoLabel: DD_RESULTADO_LABELS[item.resultado],
       estadoEvaluacion: item.estadoEvaluacion,
@@ -291,6 +299,7 @@ export function mapDdEvaluacionSolicitudToDTO(
     vigente: evaluacion.vigente,
     aptoParaContratar: evaluacion.aptoParaContratar,
     requiereDeclaracionVigencia: evaluacion.requiereDeclaracionVigencia,
+    declaracionVigenciaEstado: evaluacion.declaracionVigenciaEstado,
     mensaje: evaluacion.mensaje,
   };
 }
@@ -346,6 +355,8 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     id: row.id,
     codigo: row.codigo,
     estado: row.estado,
+    requiereRevalidacion: row.requiereRevalidacion,
+    declaracionVigenciaEstado: row.declaracionVigenciaEstado,
     origen: row.origen,
     estadoOrigen: row.estadoOrigen,
     eventoProyecto: row.eventoProyecto,

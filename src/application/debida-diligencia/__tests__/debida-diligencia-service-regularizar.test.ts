@@ -5,13 +5,14 @@ import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligenc
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
-import { DD_DOCUMENTOS, DD_ESTADOS, PERMISSIONS } from "@/lib/shared/constants";
+import { DD_DOCUMENTOS, DD_ESTADOS, DD_ORIGENES, PERMISSIONS } from "@/lib/shared/constants";
 
 const EXPEDIENTE = {
   id: "exp-otro",
   empresaId: "emp-1",
   eventoId: "evento-2",
   estado: DD_ESTADOS.APROBADA,
+  origen: DD_ORIGENES.IMPORTADO,
   tipoRelacionComercial: ["exhibidor"],
   actividadEconomica: "Servicios",
   actividadEconomicaOtro: null,
@@ -95,7 +96,7 @@ describe("regularizarDeclaracionVigencia", () => {
     );
   });
 
-  it("rechaza regularizar una DD del evento activo", async () => {
+  it("rechaza regularizar una DD importada del evento activo", async () => {
     const { servicio } = crearServicio();
 
     await expect(

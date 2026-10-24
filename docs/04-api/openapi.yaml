@@ -1711,7 +1711,8 @@ paths:
       tags: [DebidaDiligencia]
       summary: Adjunta la declaracion de vigencia a una DD aprobada de otro evento
       description: |
-        Solo aplica a una DD aprobada y vigente de un evento distinto al activo.
+        Aplica a una DD importada, aprobada y vigente de un evento distinto al activo.
+        Permite cargar la declaracion si no existe o si esta observada.
         No cambia el estado ni la vigencia del expediente.
       requestBody:
         required: true
@@ -1732,7 +1733,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DdExpedienteResponse"
         "409":
-          description: La DD no es aprobada, esta vencida o ya tiene la declaracion
+          description: La DD no es importada/aprobada, esta vencida o la declaracion ya esta cargada/aprobada
   /debida-diligencia/enviar:
     post:
       tags: [DebidaDiligencia]
@@ -2753,6 +2754,13 @@ components:
           type: string
         estado:
           type: string
+        requiereRevalidacion:
+          type: boolean
+          description: La DD aprobada/vigente de otro evento depende de validar la declaracion de vigencia.
+        declaracionVigenciaEstado:
+          type: string
+          nullable: true
+          description: cargado, observado o aprobado; null si la declaracion aun no existe.
         tipoRelacionComercial:
           type: array
           items:
@@ -2939,10 +2947,14 @@ components:
               description: La DD mostrada pertenece a un evento distinto del evento activo.
             requiereDeclaracionVigencia:
               type: boolean
-              description: Obligatoria cuando la empresa mantiene una DD importada vigente.
+              description: La DD importada aprobada/vigente de otro evento no tiene la declaracion en estado aprobado.
+            declaracionVigenciaEstado:
+              type: string
+              nullable: true
+              description: cargado, observado o aprobado; null si la declaracion aun no existe.
             puedeRegularizarDeclaracionVigencia:
               type: boolean
-              description: DD vigente de otro evento a la que le falta la declaracion de vigencia.
+              description: La DD aprobada/vigente de otro evento no tiene declaracion o la tiene observada.
     DdMisExpedientesResponse:
       type: object
       properties:
@@ -3031,9 +3043,19 @@ components:
     DdRevisarRequest:
       type: object
       required: [expedienteId, accion]
+      description: |
+        Si `alcance` es `declaracion_vigencia`, la accion solo actualiza el documento
+        de declaracion: no cambia estado ni fechas de la DD. Para aprobar u observar
+        la declaracion se requiere que exista en estado `cargado`; observar exige
+        `motivo` o una observacion con texto.
       properties:
         expedienteId:
           type: string
+        alcance:
+          type: string
+          enum: [expediente, declaracion_vigencia]
+          default: expediente
+          description: Alcance de la decision de revision.
         accion:
           type: string
           enum: [aprobar, observar, rechazar]
@@ -3087,6 +3109,13 @@ components:
           type: string
         estado:
           type: string
+        requiereRevalidacion:
+          type: boolean
+          description: La DD aprobada/vigente de otro evento depende de validar la declaracion de vigencia.
+        declaracionVigenciaEstado:
+          type: string
+          nullable: true
+          description: cargado, observado o aprobado; null si la declaracion aun no existe.
         tipoRelacionComercial:
           type: array
           items:
@@ -3255,6 +3284,8 @@ components:
                 observadas:
                   type: integer
                 aprobadas:
+                  type: integer
+                revalidacionPendiente:
                   type: integer
                 vencidas:
                   type: integer

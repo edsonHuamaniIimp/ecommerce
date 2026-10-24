@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
+  DD_ALCANCES_REVISION,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
   DD_MAX_DOCUMENTOS_EXPEDIENTE,
@@ -109,6 +110,7 @@ export const ddEnviarSchema = z.object({}).optional();
 export const ddRevisarSchema = z
   .object({
     expedienteId: z.string().min(1, "expedienteId requerido"),
+    alcance: z.enum(valores(DD_ALCANCES_REVISION)).default(DD_ALCANCES_REVISION.EXPEDIENTE),
     accion: z.enum(valores(DD_ACCIONES_REVISION)),
     motivo: textoNullable(1000),
     informeLogisticaUrl: z.string().trim().url("Ingrese un link válido").max(500).nullable().default(null),

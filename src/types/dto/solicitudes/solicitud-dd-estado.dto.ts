@@ -13,5 +13,6 @@ export interface SolicitudDdEstadoDTO {
   vigente: boolean;
   aptoParaContratar: boolean;
   requiereDeclaracionVigencia: boolean;
+  declaracionVigenciaEstado: string | null;
   mensaje: string | null;
 }

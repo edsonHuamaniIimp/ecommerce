@@ -10,6 +10,7 @@ import { debidaDiligenciaService } from "@/lib/client/api/services/debida-dilige
 import {
   BYTES_POR_MB,
   DD_DOCUMENTO_ACCEPT_VIGENCIA,
+  DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTO_MAX_BYTES,
   DD_DOCUMENTO_VIGENCIA,
   DD_DOCUMENTOS,
@@ -49,9 +50,12 @@ function ContenidoRegularizacion() {
     };
   }, [expedienteId]);
 
-  const yaCargada = expediente?.documentos.some(
+  const declaracionVigencia = expediente?.documentos.find(
     (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
   );
+  const yaCargada =
+    declaracionVigencia?.estado === DD_DOCUMENTO_ESTADOS.CARGADO ||
+    declaracionVigencia?.estado === DD_DOCUMENTO_ESTADOS.APROBADO;
 
   const seleccionarArchivo = async (file: File) => {
     if (!expediente) return;

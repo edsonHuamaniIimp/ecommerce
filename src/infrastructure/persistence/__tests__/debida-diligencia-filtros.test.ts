@@ -179,8 +179,12 @@ describe("filtros de bandeja", () => {
     const where = whereBandeja();
 
     expect(where.estado).toBe(DD_ESTADOS.APROBADA);
+    expect(where.origen).toBe(DD_ORIGENES.IMPORTADO);
     expect(where.documentos).toEqual({
-      none: { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA },
+      none: {
+        tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+        estado: "aprobado",
+      },
     });
     expect(Array.isArray(where.OR)).toBe(true);
   });

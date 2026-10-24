@@ -4,6 +4,8 @@ export interface DdBandejaRowDTO {
   id: string;
   codigo: string;
   estado: string;
+  requiereRevalidacion: boolean;
+  declaracionVigenciaEstado: string | null;
   origen: string;
   estadoOrigen: string | null;
   eventoProyecto: string | null;
@@ -37,6 +39,7 @@ export interface DdBandejaResumenDTO {
   enRevision: number;
   observadas: number;
   aprobadas: number;
+  revalidacionPendiente: number;
   vencidas: number;
   rechazadas: number;
 }

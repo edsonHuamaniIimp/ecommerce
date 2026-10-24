@@ -40,6 +40,7 @@ import {
   API_ERROR_CODES,
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
+  DD_ALCANCES_REVISION,
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
@@ -79,6 +80,7 @@ interface DdMiExpedienteResultado {
   esOtroEvento: boolean;
   requiereDeclaracionVigencia: boolean;
   puedeRegularizarDeclaracionVigencia: boolean;
+  declaracionVigenciaEstado: string | null;
 }
 
 /**
@@ -309,26 +311,19 @@ export class DebidaDiligenciaApplicationService {
         esOtroEvento = vigente.eventoId !== eventoId;
       }
     }
-    const requiereDeclaracionVigencia =
-      expedienteActivo && ddUtils.puedeEditar(expedienteActivo.estado)
-        ? await this.requiereDeclaracionVigencia(empresaId)
-        : false;
+    const requiereDeclaracionVigencia = expediente
+      ? ddUtils.requiereRevalidacionDeclaracion(expediente, eventoId)
+      : false;
+    const declaracionVigenciaEstado = expediente
+      ? ddUtils.estadoDeclaracionVigencia(expediente.documentos)
+      : null;
     const estadoExterno = await this.repo.findEmpresaEstado(
       empresa?.ruc ?? null,
       empresa?.razonSocial ?? null,
     );
-    const puedeRegularizarDeclaracionVigencia =
-      esOtroEvento &&
-      expediente?.estado === DD_ESTADOS.APROBADA &&
-      ddUtils.estadoVigencia(
-        expediente.estado,
-        expediente.fechaVencimiento,
-        undefined,
-        expediente.fechaAprobacion,
-      ) !== DD_VIGENCIAS.VENCIDA &&
-      !expediente.documentos.some(
-        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-      );
+    const puedeRegularizarDeclaracionVigencia = expediente
+      ? ddUtils.puedeCargarDeclaracionVigencia(expediente, eventoId)
+      : false;
     return {
       expediente,
       empresa,
@@ -336,15 +331,8 @@ export class DebidaDiligenciaApplicationService {
       esOtroEvento,
       requiereDeclaracionVigencia,
       puedeRegularizarDeclaracionVigencia,
+      declaracionVigenciaEstado,
     };
-  }
-
-  /**
-   * La declaracion de vigencia solo es obligatoria cuando la empresa ya tiene
-   * una DD importada aprobada y vigente.
-   */
-  private async requiereDeclaracionVigencia(empresaId: string): Promise<boolean> {
-    return this.repo.tieneExpedienteImportadoAprobadoVigente(empresaId, dateUtils.now());
   }
 
   /** Historial paginado de todas las DD de la empresa del usuario. */
@@ -542,7 +530,8 @@ export class DebidaDiligenciaApplicationService {
     if (faltantes.length > 0) {
       throw new DomainError("Faltan documentos obligatorios", API_ERROR_CODES.VALIDATION, 400);
     }
-    const requiereDeclaracionVigencia = await this.requiereDeclaracionVigencia(empresaId);
+    const requiereDeclaracionVigencia =
+      await this.repo.tieneExpedienteImportadoAprobadoVigente(empresaId, dateUtils.now());
     if (
       requiereDeclaracionVigencia &&
       !expediente.documentos.some(
@@ -664,6 +653,7 @@ export class DebidaDiligenciaApplicationService {
         : params.eventoId ?? this.eventoRequerido(session);
     return this.repo.listarBandeja({
       eventoId,
+      eventoActivoId: this.eventoRequerido(session),
       page: Math.max(1, params.page),
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
@@ -688,6 +678,7 @@ export class DebidaDiligenciaApplicationService {
     const eventoId = this.eventoRequerido(session);
     return this.repo.listarBandeja({
       eventoId,
+      eventoActivoId: this.eventoRequerido(session),
       page: Math.max(1, params.page),
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
@@ -806,25 +797,30 @@ export class DebidaDiligenciaApplicationService {
       ? vigenteEvento
       : await this.repo.findExpedienteAprobadoVigentePorEmpresa(empresaId, dateUtils.now());
     const expediente = actualVigente ? actual : vigente ?? actual;
-    const esOtroEvento = Boolean(vigente && vigente.eventoId !== eventoId);
-    const sinDeclaracionVigencia = Boolean(
-      expediente &&
-        !(expediente.documentos ?? []).some(
-          (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-        ),
-    );
-    const interna = this.evaluacionDeEmpresa(expediente, empresa);
+    const declaracionVigenciaEstado = expediente
+      ? ddUtils.estadoDeclaracionVigencia(expediente.documentos)
+      : null;
+    const requiereDeclaracionVigencia = expediente
+      ? ddUtils.requiereRevalidacionDeclaracion(expediente, eventoId)
+      : false;
+    const interna = this.evaluacionDeEmpresa(expediente, empresa, eventoId);
+    if (requiereDeclaracionVigencia) {
+      const mensaje =
+        declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.OBSERVADO
+          ? "La Declaración jurada de vigencia de información está observada. La solicitud no puede revisarse hasta que sea corregida y aprobada."
+          : declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.CARGADO
+            ? "La Declaración jurada de vigencia de información está pendiente de validación. La solicitud no puede revisarse hasta que sea aprobada."
+            : "La empresa tiene una DD APTA y vigente, pero le falta la Declaración jurada de vigencia de información. La solicitud no puede revisarse hasta que sea cargada y aprobada.";
+      return {
+        ...interna,
+        vigente: true,
+        aptoParaContratar: false,
+        requiereDeclaracionVigencia: true,
+        declaracionVigenciaEstado,
+        mensaje,
+      };
+    }
     if (interna.aptoParaContratar) {
-      if (esOtroEvento && sinDeclaracionVigencia) {
-        return {
-          ...interna,
-          vigente: true,
-          aptoParaContratar: false,
-          requiereDeclaracionVigencia: true,
-          mensaje:
-            "La empresa tiene una DD APTA y vigente, pero está pendiente de cargar la Declaración jurada de vigencia de información. La solicitud no puede revisarse.",
-        };
-      }
       return interna;
     }
 
@@ -869,6 +865,7 @@ export class DebidaDiligenciaApplicationService {
       vigente,
       aptoParaContratar,
       requiereDeclaracionVigencia: false,
+      declaracionVigenciaEstado: null,
       observacionesAbiertas: 0,
       mensaje,
     };
@@ -878,6 +875,7 @@ export class DebidaDiligenciaApplicationService {
   private evaluacionDeEmpresa(
     expediente: DdExpedienteEntity | null,
     empresa: DdEmpresaResumen | null,
+    eventoActivoId?: string,
   ): DdEvaluacionEmpresa {
     if (!expediente) {
       return {
@@ -888,6 +886,7 @@ export class DebidaDiligenciaApplicationService {
         vigente: false,
         aptoParaContratar: false,
         requiereDeclaracionVigencia: false,
+        declaracionVigenciaEstado: null,
         observacionesAbiertas: 0,
         mensaje:
           "La empresa no ha pasado por Debida Diligencia. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.",
@@ -908,16 +907,30 @@ export class DebidaDiligenciaApplicationService {
       expediente.fechaAprobacion,
     );
     const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
-    const aptoParaContratar = ddUtils.aptoParaContratar(
-      resultado,
-      estadoEvaluacion,
-      expediente.declaraVerdad,
-      expediente.origen === DD_ORIGENES.IMPORTADO,
+    const declaracionVigenciaEstado = ddUtils.estadoDeclaracionVigencia(expediente.documentos);
+    const requiereDeclaracionVigencia = ddUtils.requiereRevalidacionDeclaracion(
+      expediente,
+      eventoActivoId,
     );
+    const aptoParaContratar =
+      !requiereDeclaracionVigencia &&
+      ddUtils.aptoParaContratar(
+        resultado,
+        estadoEvaluacion,
+        expediente.declaraVerdad,
+        expediente.origen === DD_ORIGENES.IMPORTADO,
+      );
 
     let mensaje: string | null = null;
     if (!aptoParaContratar) {
-      if (expediente.estado === DD_ESTADOS.RECHAZADA) {
+      if (requiereDeclaracionVigencia) {
+        mensaje =
+          declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.OBSERVADO
+            ? "La Declaración jurada de vigencia de información está observada. La solicitud no puede revisarse hasta que sea corregida y aprobada."
+            : declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.CARGADO
+              ? "La Declaración jurada de vigencia de información está pendiente de validación. La solicitud no puede revisarse hasta que sea aprobada."
+              : "La empresa tiene una DD APTA y vigente, pero le falta la Declaración jurada de vigencia de información. La solicitud no puede revisarse hasta que sea cargada y aprobada.";
+      } else if (expediente.estado === DD_ESTADOS.RECHAZADA) {
         mensaje =
           "La Debida Diligencia de la empresa fue rechazada. La solicitud no puede revisarse hasta que cuente con una DD APTA y vigente.";
       } else if (expediente.estado === DD_ESTADOS.APROBADA) {
@@ -939,7 +952,8 @@ export class DebidaDiligenciaApplicationService {
       estadoEvaluacion,
       vigente,
       aptoParaContratar,
-      requiereDeclaracionVigencia: false,
+      requiereDeclaracionVigencia,
+      declaracionVigenciaEstado,
       observacionesAbiertas,
       mensaje,
     };
@@ -1183,7 +1197,14 @@ export class DebidaDiligenciaApplicationService {
     }
     if (expediente.eventoId === this.eventoRequerido(session)) {
       throw new DomainError(
-        "Esta DD pertenece al evento activo; usa el flujo regular.",
+        "Esta DD pertenece al evento activo; no requiere revalidación de vigencia.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (expediente.origen !== DD_ORIGENES.IMPORTADO) {
+      throw new DomainError(
+        "Solo las DD importadas de otro evento requieren declaración de vigencia",
         API_ERROR_CODES.CONFLICT,
         409,
       );
@@ -1198,11 +1219,10 @@ export class DebidaDiligenciaApplicationService {
     ) {
       throw new DomainError("La DD ya no está vigente", API_ERROR_CODES.CONFLICT, 409);
     }
-    if (
-      expediente.documentos.some(
-        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-      )
-    ) {
+    const declaracion = expediente.documentos.find(
+      (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+    );
+    if (declaracion && declaracion.estado !== DD_DOCUMENTO_ESTADOS.OBSERVADO) {
       throw new DomainError(
         "La declaración de vigencia ya está cargada",
         API_ERROR_CODES.CONFLICT,
@@ -1238,12 +1258,14 @@ export class DebidaDiligenciaApplicationService {
         porcentaje: beneficiario.porcentaje,
       })),
       documentos: [
-        ...expediente.documentos.map((documento) => ({
-          tipo: documento.tipo,
-          nombre: documento.nombre,
-          url: documento.url,
-          estado: documento.estado,
-        })),
+        ...expediente.documentos
+          .filter((documento) => documento.tipo !== DD_DOCUMENTOS.DECLARACION_VIGENCIA)
+          .map((documento) => ({
+            tipo: documento.tipo,
+            nombre: documento.nombre,
+            url: documento.url,
+            estado: documento.estado,
+          })),
         {
           tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
           nombre: dto.nombre,
@@ -1256,34 +1278,147 @@ export class DebidaDiligenciaApplicationService {
     return this.repo.guardarFormulario(expediente.id, data, session.email);
   }
 
+  /**
+   * Revisa unicamente la declaracion de vigencia de una DD aprobada.
+   * No modifica estado, fechaAprobacion ni fechaVencimiento del expediente.
+   */
+  private async revisarDeclaracionVigencia(
+    expediente: DdExpedienteEntity,
+    dto: DdRevisarRequestDTO,
+    session: DdSession,
+  ): Promise<DdExpedienteEntity> {
+    if (expediente.origen !== DD_ORIGENES.IMPORTADO) {
+      throw new DomainError(
+        "Solo las DD importadas requieren revalidación de vigencia",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (expediente.estado !== DD_ESTADOS.APROBADA) {
+      throw new DomainError(
+        "La declaración de vigencia solo se revisa en una DD aprobada",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (expediente.eventoId === this.eventoRequerido(session)) {
+      throw new DomainError(
+        "La DD del evento activo no requiere revalidación de vigencia",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (
+      ddUtils.estadoVigencia(
+        expediente.estado,
+        expediente.fechaVencimiento,
+        undefined,
+        expediente.fechaAprobacion,
+      ) === DD_VIGENCIAS.VENCIDA
+    ) {
+      throw new DomainError("La DD ya no está vigente", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (dto.accion === DD_ACCIONES_REVISION.RECHAZAR) {
+      throw new DomainError(
+        "La declaración de vigencia no se rechaza; se observa o se deriva la DD a Legal",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+
+    const declaracion = expediente.documentos.find(
+      (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+    );
+    if (dto.accion === DD_ACCIONES_REVISION.APROBAR) {
+      if (!declaracion) {
+        throw new DomainError(
+          "La declaración de vigencia aún no está cargada",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (declaracion.estado !== DD_DOCUMENTO_ESTADOS.CARGADO) {
+        throw new DomainError(
+          "Solo se aprueba una declaración de vigencia cargada",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      await this.repo.marcarDeclaracionVigencia(
+        expediente.id,
+        DD_DOCUMENTO_ESTADOS.APROBADO,
+        null,
+      );
+      await this.repo.resolverObservacionesDocumento(
+        expediente.id,
+        DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      );
+      await this.registrarHistorial(expediente.id, {
+        tipo: DD_HISTORIAL_TIPOS.REVALIDACION_APROBADA,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        estado: expediente.estado,
+        titulo: "Declaración de vigencia aprobada",
+        detalle: "Logística validó la declaración sin modificar la vigencia original de la DD.",
+        actor: session.email,
+      });
+      return (await this.repo.findExpedientePorId(expediente.id)) ?? expediente;
+    }
+
+    if (declaracion?.estado === DD_DOCUMENTO_ESTADOS.APROBADO) {
+      throw new DomainError(
+        "La declaración de vigencia ya está aprobada",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    const texto =
+      dto.motivo?.trim() ||
+      dto.observaciones.find(
+        (observacion) => observacion.documentoTipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      )?.texto.trim() ||
+      "La declaración jurada de vigencia de información requiere corrección.";
+    if (declaracion) {
+      await this.repo.marcarDeclaracionVigencia(
+        expediente.id,
+        DD_DOCUMENTO_ESTADOS.OBSERVADO,
+        texto,
+      );
+    }
+    await this.repo.guardarObservacionDocumento(
+      expediente.id,
+      DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+      texto,
+      session.email,
+    );
+    await this.registrarHistorial(expediente.id, {
+      tipo: DD_HISTORIAL_TIPOS.REVALIDACION_OBSERVADA,
+      area: DD_OBSERVACION_AREAS.LOGISTICA,
+      estado: expediente.estado,
+      titulo: "Declaración de vigencia observada",
+      detalle: texto,
+      actor: session.email,
+    });
+    return (await this.repo.findExpedientePorId(expediente.id)) ?? expediente;
+  }
+
   /** Resolucion de Logistica: aprobar, observar o rechazar. */
   async revisar(dto: DdRevisarRequestDTO, session: DdSession): Promise<DdExpedienteEntity> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
     const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
     if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    if (dto.alcance === DD_ALCANCES_REVISION.DECLARACION_VIGENCIA) {
+      return this.revisarDeclaracionVigencia(expediente, dto, session);
+    }
     const enRevision =
       expediente.estado === DD_ESTADOS.EN_REVISION || expediente.estado === DD_ESTADOS.OBSERVADA;
     const derivarExistente =
       (expediente.estado === DD_ESTADOS.APROBADA ||
         (expediente.estado === DD_ESTADOS.RECHAZADA && !expediente.decisionLegal)) &&
       dto.accion === DD_ACCIONES_REVISION.RECHAZAR;
-    const observarVigenteSinDeclaracion =
-      expediente.estado === DD_ESTADOS.APROBADA &&
-      dto.accion === DD_ACCIONES_REVISION.OBSERVAR &&
-      ddUtils.estadoVigencia(
-        expediente.estado,
-        expediente.fechaVencimiento,
-        undefined,
-        expediente.fechaAprobacion,
-      ) !== DD_VIGENCIAS.VENCIDA &&
-      !(expediente.documentos ?? []).some(
-        (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-      );
-
-    if (!enRevision && !derivarExistente && !observarVigenteSinDeclaracion) {
+    if (!enRevision && !derivarExistente) {
       throw new DomainError(
         expediente.estado === DD_ESTADOS.APROBADA
-          ? "La debida diligencia ya está aprobada. Solo se puede observar si falta la declaración de vigencia o derivar a revisión legal."
+          ? "La debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."
           : expediente.estado === DD_ESTADOS.RECHAZADA
             ? "La debida diligencia ya fue rechazada por Legal y no puede derivarse nuevamente."
             : "Solo se pueden revisar expedientes enviados a revisión u observados",

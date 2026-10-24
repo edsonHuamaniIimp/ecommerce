@@ -51,12 +51,13 @@ export const debidaDiligenciaController = {
       soloEvento: params.get("soloEvento") === "1",
     });
     const data: DdMiExpedienteDTO = {
-      expediente: resultado.expediente ? mapDdExpedienteToDTO(resultado.expediente) : null,
+      expediente: resultado.expediente ? mapDdExpedienteToDTO(resultado.expediente, session.eventoId) : null,
       empresa: resultado.empresa ? mapDdEmpresaToDTO(resultado.empresa) : null,
       estadoExterno: mapDdEstadoExternoToDTO(resultado.estadoExterno),
       esOtroEvento: resultado.esOtroEvento,
       requiereDeclaracionVigencia: resultado.requiereDeclaracionVigencia,
       puedeRegularizarDeclaracionVigencia: resultado.puedeRegularizarDeclaracionVigencia,
+      declaracionVigenciaEstado: resultado.declaracionVigenciaEstado,
     };
     return success(data);
   },
@@ -85,7 +86,7 @@ export const debidaDiligenciaController = {
       session,
     );
     return success({
-      items: resultado.data.map(mapDdExpedienteToDTO),
+      items: resultado.data.map((item) => mapDdExpedienteToDTO(item, session.eventoId)),
       pagination: {
         page: resultado.page,
         perPage: resultado.perPage,
@@ -103,21 +104,21 @@ export const debidaDiligenciaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const expediente = await services.debidaDiligencia.guardar(parsed.data, session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Inicia una nueva DD cuando la ultima esta vencida o rechazada. */
   async iniciarNueva(): Promise<NextResponse> {
     const session = await sesionRequerida();
     const expediente = await services.debidaDiligencia.iniciarNueva(session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Envia el expediente a revision de Logistica. */
   async enviar(): Promise<NextResponse> {
     const session = await sesionRequerida();
     const expediente = await services.debidaDiligencia.enviar(session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Adjunta la declaracion de vigencia a una DD aprobada de otro evento. */
@@ -131,7 +132,7 @@ export const debidaDiligenciaController = {
       parsed.data,
       session,
     );
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Bandeja paginada de Logistica. */
@@ -188,7 +189,7 @@ export const debidaDiligenciaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const expediente = await services.debidaDiligencia.resolverLegal(parsed.data, session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Empresas con su estado consolidado de DD. */
@@ -232,7 +233,7 @@ export const debidaDiligenciaController = {
       );
     }
     const resultado = await services.debidaDiligencia.clientes(parsed.data, session);
-    return success(mapDdClientesToDTO(resultado));
+    return success(mapDdClientesToDTO(resultado, session.eventoId));
   },
 
   /** Detalle de un expediente. */
@@ -241,7 +242,7 @@ export const debidaDiligenciaController = {
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
     const expediente = await services.debidaDiligencia.detalle(id, session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Historial de observaciones y eventos del expediente. */
@@ -261,7 +262,7 @@ export const debidaDiligenciaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const expediente = await services.debidaDiligencia.revisar(parsed.data, session);
-    return success(mapDdExpedienteToDTO(expediente));
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
   },
 
   /** Deriva manualmente empresa, representante y beneficiarios a Comunicaciones. */

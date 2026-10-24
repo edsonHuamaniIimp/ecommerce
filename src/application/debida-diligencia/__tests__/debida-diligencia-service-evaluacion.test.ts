@@ -5,7 +5,14 @@ import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligenc
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
-import { DD_ESTADOS, DD_RESULTADOS, PERMISSIONS } from "@/lib/shared/constants";
+import {
+  DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTOS,
+  DD_ESTADOS,
+  DD_ORIGENES,
+  DD_RESULTADOS,
+  PERMISSIONS,
+} from "@/lib/shared/constants";
 
 const EMPRESA = {
   id: "emp-1",
@@ -66,6 +73,7 @@ describe("obtenerMiExpediente", () => {
       id: "exp-otro",
       eventoId: "evento-2",
       estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
       fechaAprobacion: new Date(),
       fechaVencimiento: new Date("2099-01-01"),
     } as DdExpedienteEntity;
@@ -83,6 +91,31 @@ describe("obtenerMiExpediente", () => {
     expect(resultado.esOtroEvento).toBe(true);
     expect(resultado.expediente?.id).toBe("exp-otro");
     expect(resultado.puedeRegularizarDeclaracionVigencia).toBe(true);
+  });
+
+  it("no exige revalidación para una DD importada del evento activo", async () => {
+    const activa = {
+      ...EXPEDIENTE_BASE,
+      id: "exp-activa-importada",
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      fechaAprobacion: new Date("2026-06-03"),
+      fechaVencimiento: new Date("2099-01-01"),
+      documentos: [],
+    } as DdExpedienteEntity;
+    const { servicio } = crearServicio(activa);
+
+    const resultado = await servicio.obtenerMiExpediente({
+      email: "cliente@iimp.org.pe",
+      roles: [],
+      permissions: [PERMISSIONS.DD_FORMULARIO],
+      eventoId: "evento-1",
+    });
+
+    expect(resultado.esOtroEvento).toBe(false);
+    expect(resultado.requiereDeclaracionVigencia).toBe(false);
+    expect(resultado.puedeRegularizarDeclaracionVigencia).toBe(false);
+    expect(resultado.declaracionVigenciaEstado).toBeNull();
   });
 
   it("prioriza una DD vigente sobre un borrador del evento activo", async () => {
@@ -165,6 +198,7 @@ describe("evaluacionDeUsuario", () => {
       id: "exp-otro",
       eventoId: "evento-2",
       estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
       fechaAprobacion: new Date("2026-06-16"),
       fechaVencimiento: new Date("2026-12-16"),
       documentos: [],
@@ -181,6 +215,28 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.mensaje).toContain("Declaración jurada de vigencia");
   });
 
+  it("permite contratar cuando la declaracion ya esta aprobada", async () => {
+    const aprobada = {
+      ...EXPEDIENTE_BASE,
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      fechaAprobacion: new Date("2026-06-03"),
+      fechaVencimiento: new Date("2099-01-01"),
+      documentos: [
+        {
+          tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          estado: DD_DOCUMENTO_ESTADOS.APROBADO,
+        },
+      ],
+    } as DdExpedienteEntity;
+    const { servicio } = crearServicio(aprobada);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(true);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(false);
+    expect(evaluacion.declaracionVigenciaEstado).toBe(DD_DOCUMENTO_ESTADOS.APROBADO);
+  });
+
   it("permite revisar con una DD aprobada y vigente", async () => {
     const aprobada = {
       ...EXPEDIENTE_BASE,
@@ -193,6 +249,72 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.aptoParaContratar).toBe(true);
     expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
     expect(evaluacion.mensaje).toBeNull();
+  });
+
+  it("no bloquea una DD importada aprobada del evento activo", async () => {
+    const aprobada = {
+      ...EXPEDIENTE_BASE,
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      fechaAprobacion: new Date("2026-10-19"),
+      fechaVencimiento: new Date("2099-04-19"),
+      documentos: [],
+    } as DdExpedienteEntity;
+    const { servicio } = crearServicio(aprobada);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(true);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(false);
+    expect(evaluacion.declaracionVigenciaEstado).toBeNull();
+  });
+
+  it("bloquea una DD importada mientras la declaracion esta cargada", async () => {
+    const aprobada = {
+      ...EXPEDIENTE_BASE,
+      eventoId: "evento-2",
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      fechaAprobacion: new Date("2026-06-03"),
+      fechaVencimiento: new Date("2099-01-01"),
+      documentos: [
+        {
+          tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          estado: DD_DOCUMENTO_ESTADOS.CARGADO,
+        },
+      ],
+    } as DdExpedienteEntity;
+    const { servicio } = crearServicio(aprobada);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.resultado).toBe(DD_RESULTADOS.APTO);
+    expect(evaluacion.aptoParaContratar).toBe(false);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(true);
+    expect(evaluacion.declaracionVigenciaEstado).toBe(DD_DOCUMENTO_ESTADOS.CARGADO);
+    expect(evaluacion.mensaje).toContain("pendiente de validación");
+  });
+
+  it("bloquea una DD importada mientras la declaracion esta observada", async () => {
+    const aprobada = {
+      ...EXPEDIENTE_BASE,
+      eventoId: "evento-2",
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      fechaAprobacion: new Date("2026-06-03"),
+      fechaVencimiento: new Date("2099-01-01"),
+      documentos: [
+        {
+          tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          estado: DD_DOCUMENTO_ESTADOS.OBSERVADO,
+        },
+      ],
+    } as DdExpedienteEntity;
+    const { servicio } = crearServicio(aprobada);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(false);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(true);
+    expect(evaluacion.declaracionVigenciaEstado).toBe(DD_DOCUMENTO_ESTADOS.OBSERVADO);
+    expect(evaluacion.mensaje).toContain("observada");
   });
 
   it("usa la DD aprobada vigente aunque exista un borrador posterior", async () => {

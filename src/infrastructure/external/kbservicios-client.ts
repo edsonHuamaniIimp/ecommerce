@@ -1,4 +1,9 @@
 import type { IKbServiciosClient, ApiEventType, ApiEvent } from "@/domain/ports/kbservicios-client";
+import { LOCAL_MOCK_EVENTS, LOCAL_MOCK_EVENT_TYPES } from "./kbservicios-local-mock";
+
+function usarMockLocal(): boolean {
+  return process.env.NEXT_PUBLIC_APP_ENV === "local";
+}
 
 async function fetchApi<T>(path: string, body?: Record<string, unknown>): Promise<T> {
   const baseUrl = process.env.KBSERVICIOS_URL;
@@ -30,6 +35,7 @@ function extractArray(data: unknown): unknown[] | null {
 
 export class KbServiciosClient implements IKbServiciosClient {
   async listarTiposEvento(): Promise<ApiEventType[]> {
+    if (usarMockLocal()) return LOCAL_MOCK_EVENT_TYPES;
     try {
       const data = await fetchApi<unknown>("/rest/listeventtype");
       return (extractArray(data) ?? []) as ApiEventType[];
@@ -43,6 +49,7 @@ export class KbServiciosClient implements IKbServiciosClient {
   }
 
   async listarEventos(code: number): Promise<ApiEvent[]> {
+    if (usarMockLocal()) return LOCAL_MOCK_EVENTS[code] ?? [];
     try {
       const data = await fetchApi<unknown>("/rest/events", { code });
       return (extractArray(data) ?? []) as ApiEvent[];

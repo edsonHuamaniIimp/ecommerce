@@ -80,6 +80,13 @@ JWT_SECRET="dev-secret-cambiar-en-produccion"
 > `docker compose` publica PostgreSQL en `localhost:5433` (mapeo `5433:5432`). Si tu
 > `.env` apunta a `5432`, ajústalo para no chocar con un PostgreSQL local.
 
+**Mock local de eventos:** con `NEXT_PUBLIC_APP_ENV=local`, `KbServiciosClient` usa el
+snapshot estático `src/infrastructure/external/kbservicios-local-mock.ts` y no llama
+a KBServicios. El snapshot se capturó de producción el **2026-10-24** y contiene los
+tipos/versiones que tienen metadata local. QA y producción siguen usando la API real.
+Para actualizarlo, reemplazar los arreglos del snapshot con una nueva captura de
+`/rest/listeventtype` y `/rest/events`.
+
 ### 3.2 QA
 
 ```env

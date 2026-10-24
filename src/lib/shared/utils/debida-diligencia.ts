@@ -8,6 +8,7 @@ import {
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_MENSAJES,
+  DD_ORIGENES,
   DD_RESULTADOS,
   DD_PORCENTAJE_MAX,
   DD_PORCENTAJE_PARTICIPACION_MIN,
@@ -267,6 +268,65 @@ export const ddUtils = {
     if (resultado === DD_RESULTADOS.APTO) return "general";
     if (resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES) return "vinculo_especifico";
     return null;
+  },
+
+  /** Estado del documento de declaracion de vigencia (null si aun no existe). */
+  estadoDeclaracionVigencia(
+    documentos: { tipo: string; estado: string }[] | null | undefined,
+  ): string | null {
+    return (
+      documentos?.find((documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA)
+        ?.estado ?? null
+    );
+  },
+
+  /** La DD aprobada/vigente requiere validar su declaracion de vigencia. */
+  requiereRevalidacionDeclaracion(
+    expediente: {
+      eventoId: string;
+      estado: string;
+      origen: string;
+      fechaAprobacion: Date | string | null;
+      fechaVencimiento: Date | string | null;
+      documentos: { tipo: string; estado: string }[];
+    },
+    eventoActivoId?: string,
+    ahora: Date = dateUtils.now(),
+  ): boolean {
+    if (!eventoActivoId || expediente.eventoId === eventoActivoId) return false;
+    if (expediente.origen !== DD_ORIGENES.IMPORTADO) return false;
+    if (expediente.estado !== DD_ESTADOS.APROBADA) return false;
+    if (
+      ddUtils.estadoVigencia(
+        expediente.estado,
+        expediente.fechaVencimiento,
+        ahora,
+        expediente.fechaAprobacion,
+      ) === DD_VIGENCIAS.VENCIDA
+    ) {
+      return false;
+    }
+    return (
+      ddUtils.estadoDeclaracionVigencia(expediente.documentos) !==
+      DD_DOCUMENTO_ESTADOS.APROBADO
+    );
+  },
+
+  /** El cliente puede subir la declaracion cuando falta o quedo observada. */
+  puedeCargarDeclaracionVigencia(
+    expediente: {
+      eventoId: string;
+      estado: string;
+      origen: string;
+      fechaAprobacion: Date | string | null;
+      fechaVencimiento: Date | string | null;
+      documentos: { tipo: string; estado: string }[];
+    },
+    eventoActivoId?: string,
+  ): boolean {
+    if (!ddUtils.requiereRevalidacionDeclaracion(expediente, eventoActivoId)) return false;
+    const estado = ddUtils.estadoDeclaracionVigencia(expediente.documentos);
+    return estado === null || estado === DD_DOCUMENTO_ESTADOS.OBSERVADO;
   },
 
   /** true si la evaluacion permite contratar en el evento consultado. */

@@ -187,8 +187,10 @@ export interface DdEvaluacionEmpresa {
   estadoEvaluacion: DdEstadoEvaluacion | null;
   vigente: boolean;
   aptoParaContratar: boolean;
-  /** DD APTA/vigente de otro evento a la que le falta la declaracion de vigencia. */
+  /** DD APTA/vigente a la que le falta validar la declaracion de vigencia. */
   requiereDeclaracionVigencia: boolean;
+  /** Estado del documento declaracion_vigencia; null si aun no existe. */
+  declaracionVigenciaEstado: string | null;
   observacionesAbiertas: number;
   mensaje: string | null;
 }
@@ -214,6 +216,8 @@ export interface DdBandejaRow {
   id: string;
   codigo: string;
   estado: DdEstado;
+  requiereRevalidacion: boolean;
+  declaracionVigenciaEstado: string | null;
   origen: string;
   estadoOrigen: string | null;
   eventoProyecto: string | null;
@@ -245,6 +249,8 @@ export interface DdBandejaRow {
 export interface DdBandejaParams {
   /** null/undefined = todos los eventos. */
   eventoId?: string;
+  /** Evento activo de la sesion; solo contextualiza la revalidacion, no filtra. */
+  eventoActivoId?: string;
   page: number;
   perPage: number;
   search?: string;
@@ -265,6 +271,7 @@ export interface DdBandejaResumen {
   enRevision: number;
   observadas: number;
   aprobadas: number;
+  revalidacionPendiente: number;
   vencidas: number;
   rechazadas: number;
 }

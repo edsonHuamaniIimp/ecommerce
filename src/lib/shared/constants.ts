@@ -1394,7 +1394,7 @@ export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
   { value: DD_ESTADOS.RECHAZADA, label: "NO APTO" },
   { value: DD_FILTRO_POR_VENCER, label: "Por vencer" },
   { value: DD_FILTRO_VENCIDA, label: "Vencidas" },
-  { value: DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA, label: "Vigentes sin declaración de vigencia" },
+  { value: DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA, label: "Revalidación pendiente" },
 ];
 
 /** Filtros de estado de la matriz del panel (incluye empresas sin expediente). */
@@ -1619,9 +1619,19 @@ export const DD_HISTORIAL_TIPOS = {
   LEGAL_APROBACION: "legal_aprobacion",
   LEGAL_RECHAZO: "legal_rechazo",
   DERIVACION_COMUNICACIONES: "derivacion_comunicaciones",
+  REVALIDACION_APROBADA: "revalidacion_aprobada",
+  REVALIDACION_OBSERVADA: "revalidacion_observada",
 } as const;
 
 export type DdHistorialTipo = (typeof DD_HISTORIAL_TIPOS)[keyof typeof DD_HISTORIAL_TIPOS];
+
+/** Alcance de una decision de revision: expediente completo o declaracion. */
+export const DD_ALCANCES_REVISION = {
+  EXPEDIENTE: "expediente",
+  DECLARACION_VIGENCIA: "declaracion_vigencia",
+} as const;
+
+export type DdAlcanceRevision = (typeof DD_ALCANCES_REVISION)[keyof typeof DD_ALCANCES_REVISION];
 
 export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
   [DD_HISTORIAL_TIPOS.OBSERVACION]: "Observación",
@@ -1634,6 +1644,8 @@ export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
   [DD_HISTORIAL_TIPOS.LEGAL_APROBACION]: "Aprobación de Legal",
   [DD_HISTORIAL_TIPOS.LEGAL_RECHAZO]: "Rechazo de Legal",
   [DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES]: "Derivación a Comunicaciones",
+  [DD_HISTORIAL_TIPOS.REVALIDACION_APROBADA]: "Declaración de vigencia aprobada",
+  [DD_HISTORIAL_TIPOS.REVALIDACION_OBSERVADA]: "Declaración de vigencia observada",
 };
 
 /** Acciones que puede tomar Logística al revisar un expediente. */

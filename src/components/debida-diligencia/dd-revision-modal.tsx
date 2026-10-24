@@ -33,6 +33,7 @@ import {
   BADGE_STYLES,
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
+  DD_ALCANCES_REVISION,
   DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTO_VIGENCIA,
@@ -53,7 +54,7 @@ import {
   type DdAccionRevision,
   type DdDocumentoTipo,
 } from "@/lib/shared/constants";
-import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type {
   DdBandejaRowDTO,
@@ -83,6 +84,11 @@ const ACCIONES = [
   { value: DD_ACCIONES_REVISION.RECHAZAR, label: "Derivar a Legal", detalle: "Legal revisará la solicitud y emitirá un informe antes de notificar al cliente." },
 ] as const;
 
+const REVALIDACION_ESTADO_LABELS: Record<string, string> = {
+  [DD_DOCUMENTO_ESTADOS.CARGADO]: "Pendiente de validación",
+  [DD_DOCUMENTO_ESTADOS.OBSERVADO]: "Observada",
+};
+
 /** Revision de Logistica: resumen, documentos y decision en un modal con tabs. */
 export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
   const { confirm, confirmDialog } = useConfirm();
@@ -98,6 +104,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
   const [informeLogisticaUrl, setInformeLogisticaUrl] = useState("");
   const [derivando, setDerivando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [revalidacionGuardando, setRevalidacionGuardando] = useState(false);
+  const [textoRevalidacion, setTextoRevalidacion] = useState("");
+  const [revalidacionError, setRevalidacionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
 
@@ -111,24 +120,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
         const derivable =
           r.estado === DD_ESTADOS.APROBADA ||
           (r.estado === DD_ESTADOS.RECHAZADA && !r.decisionLegal);
-        const vigenteSinDeclaracion =
-          r.estado === DD_ESTADOS.APROBADA &&
-          ddUtils.estadoVigencia(
-            r.estado,
-            r.fechaVencimiento,
-            undefined,
-            r.fechaAprobacion,
-          ) !== DD_VIGENCIAS.VENCIDA &&
-          !r.documentos.some(
-            (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-          );
-        if (vigenteSinDeclaracion) {
-          setAccion(DD_ACCIONES_REVISION.OBSERVAR);
-          setDocumentosObservados([DD_DOCUMENTOS.DECLARACION_VIGENCIA]);
-        } else if (derivable) {
+        if (derivable) {
           setAccion(DD_ACCIONES_REVISION.RECHAZAR);
         }
         if (
+          r.estado !== DD_ESTADOS.APROBADA &&
           r.reputacion.some(
             (caso) =>
               caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
@@ -208,23 +204,25 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
     rechazada && detalle?.decisionLegal === DD_ACCIONES_LEGAL.RECHAZAR;
   const rechazadaCerrada = rechazada && Boolean(detalle?.decisionLegal);
   const puedeDerivar = esAprobada || (rechazada && !detalle?.decisionLegal);
-  const puedeObservarVigente =
-    esAprobada === true &&
-    ddUtils.estadoVigencia(
-      detalle?.estado ?? "",
-      detalle?.fechaVencimiento,
-      undefined,
-      detalle?.fechaAprobacion,
-    ) !== DD_VIGENCIAS.VENCIDA &&
-    !detalle?.documentos.some(
+  const declaracionVigencia =
+    detalle?.documentos.find(
       (documento) => documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-    );
+    ) ?? null;
+  const requiereRevalidacion = Boolean(detalle?.requiereRevalidacion);
+  const declaracionVigenciaEstado = detalle?.declaracionVigenciaEstado ?? null;
+  const mostrarRevalidacion =
+    requiereRevalidacion && declaracionVigenciaEstado !== DD_DOCUMENTO_ESTADOS.APROBADO;
+  const puedeAprobarDeclaracion =
+    declaracionVigencia?.estado === DD_DOCUMENTO_ESTADOS.CARGADO;
+  const etiquetaRevalidacion =
+    REVALIDACION_ESTADO_LABELS[declaracionVigenciaEstado ?? ""] ?? "No cargada";
+  const acciones = esAprobada
+    ? ACCIONES.filter((opcion) => opcion.value === DD_ACCIONES_REVISION.RECHAZAR)
+    : ACCIONES;
   const sinDecision = enLegal || rechazadaCerrada;
   const accionPermitida =
     !sinDecision &&
-    (!puedeDerivar ||
-      accion === DD_ACCIONES_REVISION.RECHAZAR ||
-      (puedeObservarVigente && accion === DD_ACCIONES_REVISION.OBSERVAR)) &&
+    (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
     !(reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR);
 
   /** Deriva explicitamente los nombres a Comunicaciones (accion independiente de la decision). */
@@ -259,14 +257,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
       setError("Este expediente ya no admite una decisión de Logística.");
       return;
     }
-    if (
-      puedeDerivar &&
-      valor !== DD_ACCIONES_REVISION.RECHAZAR &&
-      !(puedeObservarVigente && valor === DD_ACCIONES_REVISION.OBSERVAR)
-    ) {
+    if (puedeDerivar && valor !== DD_ACCIONES_REVISION.RECHAZAR) {
       setError(
         esAprobada
-          ? "La debida diligencia ya está aprobada. Solo se puede observar si falta la declaración de vigencia o derivar a revisión legal."
+          ? "La debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."
           : "El expediente ya está rechazado. Solo se puede derivar a revisión legal.",
       );
       return;
@@ -285,6 +279,49 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
       prev.includes(tipo) ? prev.filter((t) => t !== tipo) : [...prev, tipo],
     );
     setError(null);
+  };
+
+  const guardarRevalidacion = async (accionDeclaracion: "aprobar" | "observar") => {
+    if (revalidacionGuardando) return;
+    const comentario = textoRevalidacion.trim();
+    if (accionDeclaracion === "observar" && !comentario) {
+      setRevalidacionError("Describe qué debe corregir el cliente en la declaración.");
+      return;
+    }
+    setRevalidacionGuardando(true);
+    setRevalidacionError(null);
+    setError(null);
+    try {
+      const actualizado = await debidaDiligenciaService.revisar({
+        expedienteId: fila.id,
+        alcance: DD_ALCANCES_REVISION.DECLARACION_VIGENCIA,
+        accion:
+          accionDeclaracion === "aprobar"
+            ? DD_ACCIONES_REVISION.APROBAR
+            : DD_ACCIONES_REVISION.OBSERVAR,
+        motivo: comentario || null,
+        documentosObservados:
+          accionDeclaracion === "observar"
+            ? [DD_DOCUMENTOS.DECLARACION_VIGENCIA]
+            : [],
+        observaciones: [],
+      });
+      setDetalle(actualizado);
+      setTextoRevalidacion("");
+      toast.success(
+        accionDeclaracion === "aprobar"
+          ? "Declaración de vigencia aprobada"
+          : "Declaración de vigencia observada",
+      );
+      onDone();
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : "No se pudo registrar la revalidación";
+      setRevalidacionError(mensaje);
+      setError(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setRevalidacionGuardando(false);
+    }
   };
 
   const guardar = async () => {
@@ -536,6 +573,112 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                 </TabsContent>
 
                 <TabsContent value="documentos" className="mt-0 space-y-4">
+                  {mostrarRevalidacion ? (
+                    <section className="space-y-3 rounded-lg border border-warning/40 bg-warning/5 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-warning">
+                            Revalidación de declaración de vigencia
+                          </h3>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            La DD sigue aprobada y conserva su vigencia original. Solo se valida el documento.
+                          </p>
+                        </div>
+                        <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                          <span>{etiquetaRevalidacion}</span>
+                        </Badge>
+                      </div>
+
+                      {declaracionVigencia ? (
+                        <div className="rounded-md border border-border bg-card px-3 py-2">
+                          <p className="truncate text-xs font-medium text-foreground">
+                            {declaracionVigencia.nombre}
+                          </p>
+                          {declaracionVigencia.observacion ? (
+                            <p className="mt-1 text-[11px] text-warning">
+                              {declaracionVigencia.observacion}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          La empresa aún no ha cargado la declaración jurada de vigencia de información.
+                        </p>
+                      )}
+
+                      {declaracionVigenciaEstado !== DD_DOCUMENTO_ESTADOS.OBSERVADO ? (
+                        <div className="space-y-1">
+                          <Label htmlFor="revalidacion-comentario" className="text-[11px]">
+                            <span>Comentario para el cliente</span>
+                          </Label>
+                          <Textarea
+                            id="revalidacion-comentario"
+                            value={textoRevalidacion}
+                            onChange={(event) => {
+                              setTextoRevalidacion(event.target.value);
+                              setRevalidacionError(null);
+                            }}
+                            placeholder="Indica qué debe corregir el cliente en la declaración"
+                            className="min-h-20 text-sm"
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Obligatorio al observar la declaración.
+                          </p>
+                          {revalidacionError ? (
+                            <p className="text-[11px] font-medium text-destructive">
+                              {revalidacionError}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="flex flex-wrap gap-2">
+                        {!declaracionVigencia ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={revalidacionGuardando || !textoRevalidacion.trim()}
+                            onClick={() => void guardarRevalidacion("observar")}
+                          >
+                            Solicitar carga de declaración
+                          </Button>
+                        ) : null}
+                        {puedeAprobarDeclaracion ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={revalidacionGuardando}
+                            onClick={() => void guardarRevalidacion("aprobar")}
+                          >
+                            Aprobar declaración
+                          </Button>
+                        ) : null}
+                        {declaracionVigencia &&
+                        declaracionVigenciaEstado !== DD_DOCUMENTO_ESTADOS.APROBADO &&
+                        declaracionVigenciaEstado !== DD_DOCUMENTO_ESTADOS.OBSERVADO ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            disabled={revalidacionGuardando || !textoRevalidacion.trim()}
+                            onClick={() => void guardarRevalidacion("observar")}
+                          >
+                            Observar declaración
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      {declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.OBSERVADO ? (
+                        <p className="text-[11px] font-medium text-warning">
+                          El cliente debe subir una nueva versión antes de que se pueda aprobar.
+                        </p>
+                      ) : null}
+                    </section>
+                  ) : null}
+
                   {observacionesAbiertas.length > 0 ? (
                     <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
                       <p className="text-[11px] font-semibold text-warning">Observaciones abiertas ({observacionesAbiertas.length})</p>
@@ -786,8 +929,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                           ? rechazadaPorLegal
                             ? "El expediente fue rechazado por Legal. No admite nuevas decisiones de Logística."
                             : "El expediente fue rechazado por Logística después de la revisión legal. No admite nuevas decisiones."
-                          : puedeObservarVigente
-                            ? "Esta DD está aprobada y vigente, pero le falta la Declaración jurada de vigencia de información. Puedes solicitar esa corrección o derivar a Legal."
+                          : mostrarRevalidacion
+                            ? "Esta DD está aprobada y vigente, pero depende de la validación de la Declaración jurada de vigencia de información. Usa el bloque de revalidación o deriva a Legal."
                             : "Esta debida diligencia ya está aprobada. Solo se puede derivar a revisión legal."}
                     </p>
                   ) : rechazada ? (
@@ -801,13 +944,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                     </p>
                   ) : null}
                   <RadioGroup value={accion} onValueChange={cambiarAccion} className="space-y-2">
-                    {ACCIONES.map((opcion) => {
+                    {acciones.map((opcion) => {
                       const permitida =
                         !sinDecision &&
-                        (!puedeDerivar ||
-                          opcion.value === DD_ACCIONES_REVISION.RECHAZAR ||
-                          (puedeObservarVigente &&
-                            opcion.value === DD_ACCIONES_REVISION.OBSERVAR)) &&
+                        (!puedeDerivar || opcion.value === DD_ACCIONES_REVISION.RECHAZAR) &&
                         !(reputacionConHallazgos && opcion.value === DD_ACCIONES_REVISION.APROBAR);
                       return (
                       <label

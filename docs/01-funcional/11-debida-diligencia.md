@@ -198,35 +198,50 @@ Muestra KPIs, estado por vinculo, vigencia y matriz de empresas. La matriz es
 server-side y permite buscar, filtrar por estado DD y vinculo, cambiar `perPage`,
 recargar y exportar el resultado filtrado.
 
-### 4.7 Expedientes APTO que vienen de otro evento
+La bandeja muestra los cards **Pendientes**, **En revision**, **Observadas**,
+**APTO**, **Revalidacion pendiente** y **Caducadas**. `Revalidacion pendiente`
+cuenta las DD importadas aprobadas y vigentes **de otro evento** cuya declaracion no
+esta aprobada. Las DD aprobadas del evento activo no requieren revalidacion.
+
+El selector de evento de la bandeja filtra la vista; no cambia el evento activo de la
+sesion. El contexto activo se elige en `/presala?change=1` y queda en la sesion/JWT.
+La revalidacion se calcula contra ese evento activo, no contra el filtro visual.
+
+### 4.7 Expedientes APTO y revalidación de la declaración de vigencia
 
 Una empresa puede reutilizar una DD **aprobada y vigente de otro evento** para el
 evento actual. La validez del expediente prevalece sobre el evento: el evento solo
 define el contexto comercial.
 
-La regla aplica cuando:
+La revalidación aplica cuando:
 
-- no existe una DD aprobada y vigente del evento actual; o
-- la DD del evento actual no esta vigente, esta observada, rechazada o en proceso;
-- existe otra DD de la empresa en estado `aprobada`, con vigencia de 6 meses
-  calculada desde su aprobacion.
+- la DD es **importada**, está **aprobada** y sigue vigente;
+- la DD pertenece a un **evento distinto** del evento activo;
+- la declaración de vigencia no existe o no está en estado `aprobado`.
 
-Si la DD del evento actual esta aprobada y vigente, esa DD prevalece y no se usa la
-de otro evento.
+Si la DD del evento actual está aprobada y vigente, no requiere revalidación de
+declaración: es la DD del propio evento.
+
+> **Producción:** la data histórica aún no está homologada. Esta lógica no corrige
+> eventos, fechas, empresas, representantes ni beneficiarios mal importados. Antes
+> de usarla en producción se debe auditar y aprobar la data de origen; ver
+> [`docs/02-despliegue/importacion-dd-qa.md`](../02-despliegue/importacion-dd-qa.md).
 
 #### Que muestra el sistema
 
 - La evaluacion de la empresa en Solicitudes y en el Portal muestra el resultado
   como **APTO**.
-- El calculo interno marca `esOtroEvento = true`; el expediente visible sigue
-  siendo la DD del evento de origen.
-- Si la DD de origen no tiene la **Declaracion jurada de vigencia de informacion**,
-  la evaluacion devuelve:
+- El calculo interno marca `esOtroEvento = true` cuando la DD viene de otro evento;
+  el expediente visible sigue siendo la DD aprobada de origen.
+- Si la declaración no está **aprobada**, la evaluacion devuelve:
   - `requiereDeclaracionVigencia = true`;
   - `aptoParaContratar = false`;
-  - mensaje: la DD es APTA y vigente, pero falta la declaracion de vigencia.
-- En el Portal, el expediente de origen devuelve
-  `puedeRegularizarDeclaracionVigencia = true`.
+  - `declaracionVigenciaEstado` con `null`, `cargado` u `observado`;
+  - mensaje: la DD es APTA y vigente, pero falta cargar, validar o corregir la
+    declaración.
+- En el Portal, la DD de otro evento devuelve
+  `puedeRegularizarDeclaracionVigencia = true` cuando la declaración falta o está
+  observada.
 - La revision de la solicitud queda bloqueada para usuarios normales. Solo
   `admin:full` puede omitir ese bloqueo.
 
@@ -242,15 +257,32 @@ subir:
 - La empresa la completa, la firma y la sube **solo en PDF**.
 - Tamano maximo: 10 MB.
 - Ruta del flujo: `/dashboard/debida-diligencia/declaracion-vigencia`.
-- El documento se adjunta a la DD aprobada del otro evento.
+- El documento se adjunta a la DD aprobada de otro evento.
 - No se crea una DD nueva.
 - No cambia el estado, la fecha de aprobacion ni la fecha de vencimiento de la DD
   original.
-- Una vez cargado, el evento actual puede usar la DD y la revision de Solicitudes
-  se desbloquea.
+- Una vez cargado y aprobado por Logistica, el evento actual puede usar la DD y la
+  revision de Solicitudes se desbloquea.
 
-Si la DD de origen ya tiene la declaracion de vigencia, la empresa no debe subir
-nada. La DD se reutiliza directamente.
+La revision se hace en el mismo modal de Logistica. Cuando la DD esta aprobada y
+la declaracion requiere validacion, se muestra un bloque especifico con
+**Aprobar declaracion** u **Observar declaracion**. Los botones globales de
+aprobar o solicitar correcciones de la DD no se usan para este documento.
+
+Si la declaracion se observa, el documento queda `observado`, se registra la
+observacion y el cliente puede subir una nueva version. La DD sigue aprobada y
+conserva sus fechas.
+
+El revisor debe escribir un **Comentario para el cliente** antes de observar o
+solicitar la carga. Ese comentario es obligatorio y se guarda como observacion del
+documento. Si ya existe una observacion abierta para la declaracion, se actualiza
+en lugar de crear otra y se resuelven las duplicadas.
+
+La declaracion usa el estado del documento (`cargado`, `observado`, `aprobado`). No
+se crea una tabla ni un estado adicional de la DD.
+
+Si la DD de origen ya tiene la declaracion de vigencia aprobada, la empresa no debe
+subir nada. La DD se reutiliza directamente.
 
 #### Que pasa si no aplica la reutilizacion
 
@@ -267,13 +299,93 @@ los cuatro documentos obligatorios:
 
 | Situacion | Que sube la empresa |
 |---|---|
-| DD aprobada y vigente de otro evento, sin declaracion de vigencia | Solo la declaracion jurada de vigencia de informacion |
-| DD aprobada y vigente de otro evento, con declaracion de vigencia | Nada; se reutiliza |
-| DD vencida, rechazada, observada o en proceso | DD nueva completa: 4 documentos obligatorios |
-| DD aprobada y vigente del evento actual | Nada adicional; prevalece la DD del evento actual |
+| DD importada aprobada y vigente **de otro evento**, sin declaracion | Solo la declaracion jurada de vigencia de informacion |
+| DD importada aprobada y vigente **de otro evento**, con declaracion cargada u observada | Corregir o esperar la validacion de la declaracion |
+| DD importada aprobada y vigente **de otro evento**, con declaracion aprobada | Nada; se reutiliza |
+| DD importada aprobada y vigente **del evento actual** | Nada; no requiere revalidacion |
+| DD importada vencida, rechazada, observada o en proceso | DD nueva completa: 4 documentos obligatorios |
+| DD regular aprobada y vigente del evento actual | Nada adicional; prevalece la DD del evento actual |
 
-La declaracion de vigencia se conserva como documento de la DD de origen. No
-reemplaza los documentos del expediente ni cambia su resultado.
+La declaracion de vigencia se conserva como documento de la DD aprobada del evento
+de origen. No reemplaza los documentos del expediente ni cambia su resultado.
+
+#### Modelo de estados de la declaracion
+
+La revalidación **no crea un estado nuevo de la DD ni una tabla nueva**. Usa:
+
+| Elemento | Valores |
+|---|---|
+| `DebidaDiligencia.estado` | `aprobada` siempre durante la revalidación |
+| `DebidaDiligenciaDocumento.estado` | `null` (no existe), `cargado`, `observado`, `aprobado` |
+| `DebidaDiligencia.fechaAprobacion` | no se modifica |
+| `DebidaDiligencia.fechaVencimiento` | no se modifica |
+
+Las fechas de la DD representan la aprobación histórica y su vigencia de 6 meses.
+La fecha de validación de la declaración se conserva en el documento, la observación
+y el historial; nunca se reemplaza la fecha de aprobación.
+
+#### Flujo de revisión
+
+1. El usuario elige el evento activo en `/presala?change=1`.
+2. El backend compara `expediente.eventoId` con `session.eventoId`.
+3. Si la DD es importada, aprobada, vigente y de otro evento, se calcula
+   `requiereRevalidacion`.
+4. La bandeja muestra el badge y el filtro **Revalidación pendiente**.
+5. El revisor abre el mismo modal de revisión; no usa los botones globales de
+   aprobar/corregir la DD.
+6. En el bloque de revalidación:
+   - si la declaración no existe: **Solicitar carga de declaración**;
+   - si está `cargado`: **Aprobar declaración** u **Observar declaración**;
+   - si está `observado`: el cliente debe subir una nueva versión.
+7. Toda observación o solicitud de carga exige un **Comentario para el cliente**.
+8. Al aprobar, el documento pasa a `aprobado` y se resuelven sus observaciones.
+9. Al observar, el documento pasa a `observado`; se actualiza la observación
+   abierta del mismo documento y se resuelven duplicados.
+10. La DD sigue `aprobada`, con las mismas fechas, y queda habilitada solo cuando la
+    declaración está `aprobado`.
+
+#### Reglas de bloqueo
+
+| Caso | Bloquea uso/contratación | Cambia estado DD |
+|---|---:|---:|
+| DD importada aprobada del evento activo | No | No |
+| DD importada aprobada de otro evento, sin declaración | Sí | No |
+| DD importada aprobada de otro evento, declaración `cargado` | Sí | No |
+| DD importada aprobada de otro evento, declaración `observado` | Sí | No |
+| DD importada aprobada de otro evento, declaración `aprobado` | No | No |
+| DD vencida, rechazada, observada o en proceso | Sí | No aplica reutilización |
+| DD regular aprobada del evento activo | No | No |
+
+`aptoParaContratar` exige que la DD esté aprobada, vigente y, cuando sea de otro
+evento, que la declaración esté `aprobado`. La UI puede mostrar `APTO`, pero
+`aptoParaContratar = false` mientras falte la revalidación.
+
+#### Contrato API
+
+- `GET /detalle?id=` devuelve `requiereRevalidacion` y
+  `declaracionVigenciaEstado`.
+- `GET /mi-expediente` devuelve el estado de la declaración y
+  `puedeRegularizarDeclaracionVigencia` solo para una DD de otro evento con
+  declaración ausente u observada.
+- `GET /bandeja` devuelve los campos de revalidación por fila y el resumen
+  `revalidacionPendiente`, calculado contra el evento activo de la sesión.
+- `POST /revisar` con `alcance: "declaracion_vigencia"` aprueba u observa solo la
+  declaración. No actualiza `estado`, `fechaAprobacion` ni `fechaVencimiento`.
+- `POST /regularizar-vigencia` solo acepta una DD aprobada y vigente de **otro
+  evento**; rechaza el evento activo y una declaración ya cargada.
+
+#### Validación de la fuente importada
+
+La fuente de verdad para el estado, las fechas y el evento es el CSV oficial. La
+matriz solo enriquece datos. En la validación local:
+
+- el CSV contiene 484 filas y 484 empresas;
+- todas tienen una DD local en el evento esperado;
+- no se encontraron discrepancias de evento en el CSV;
+- CCI y COFEINCA figuran como `IIMP`, que se mapea a PERUMIN;
+- MAPEI figura como `PERUMIN`;
+- la matriz tiene una diferencia de fuente para ARIAS TALAVERA (matriz
+  `RECONOCIMIENTO`, CSV `GESS`); se conserva el CSV oficial.
 
 ---
 
@@ -335,11 +447,19 @@ Constantes: `DD_REPUTACION_ESTADOS` y `DD_REPUTACION_RESULTADO_A_ESTADO`.
 - En la portada del cliente, una DD **aprobada y vigente** prevalece sobre el evento
   activo: si no existe DD del evento actual pero hay una vigente de otro evento, se
   muestra esa DD con su linea de tiempo y no se ofrece iniciar una nueva.
-- Si la DD vigente es de otro evento y no tiene la **Declaracion jurada de vigencia
-  de informacion**, se ofrece un boton para regularizarla en el paso 4 de documentos.
-  Si la DD vigente es del evento activo, no se muestra ese input.
+- Si la DD aprobada es importada, pertenece a **otro evento** y no tiene la
+  **Declaracion jurada de vigencia de informacion aprobada**, se ofrece un boton
+  para regularizarla.
 - La declaracion de vigencia es un documento adicional opcional del flujo regular;
-  solo es obligatoria cuando la empresa mantiene una DD importada aprobada y vigente.
+  solo es obligatoria cuando la empresa mantiene una DD importada aprobada y vigente
+  de otro evento.
+- La revalidacion se hace en el mismo modal de revision. El revisor puede aprobar u
+  observar el documento con un comentario obligatorio. No se usan los botones
+  globales de aprobar/corregir la DD y no se modifican `estado`, `fechaAprobacion`
+  ni `fechaVencimiento`.
+- La declaracion observada usa `DdDocumento.estado = observado`; al reenviar vuelve a
+  `cargado` y queda pendiente de validacion. Una observacion abierta del mismo
+  documento se actualiza, no se duplica.
 - La vigencia de una debida diligencia aprobada es de **6 meses**, contados desde
   que queda **APTA/aprobada** (aprobacion final de Logistica o fecha de revision APTA
   importada), no desde el envio de la solicitud. Si falta la fecha de cese, se calcula
@@ -350,9 +470,11 @@ Constantes: `DD_REPUTACION_ESTADOS` y `DD_REPUTACION_RESULTADO_A_ESTADO`.
   Legal devuelve el expediente a Logistica y no activa la vigencia.
 - Una empresa pendiente puede reservar un stand, pero no debe avanzar en aprobaciones
   hasta quedar aprobada.
-- En Solicitudes, una DD **APTA y vigente de otro evento** sin la Declaracion jurada
-  de vigencia de informacion se muestra como **APTO pendiente de declaracion** y
-  bloquea la revision. Solo `admin:full` puede omitir el bloqueo.
+- En Solicitudes, una DD **APTA y vigente de otro evento** cuya declaracion de
+  vigencia no esta aprobada se muestra como **APTO pendiente de declaracion** y
+  bloquea la revision. Aplica para declaracion ausente, `cargado` u `observado`.
+  Las DD aprobadas del evento actual no se bloquean por este motivo. Solo
+  `admin:full` puede omitir el bloqueo.
 - El bloqueo automatico del pipeline de reservas/solicitudes sigue como integracion
   pendiente.
 - Un expediente solo se puede editar en `borrador` u `observada`.
@@ -397,7 +519,7 @@ Todas las rutas viven bajo `/api/debida-diligencia` y requieren sesion.
 | GET | `/empresas` | `dd:ver` | Registro externo de empresas con estado DD y permiso de avance |
 | POST | `/empresas/importar` | `dd:ver` | Carga masiva XLSX/CSV de la lista oficial |
 | GET | `/bandeja` | `dd:revision` | Bandeja paginada de Logistica |
-| POST | `/revisar` | `dd:revision` | Aprobar, solicitar correcciones o derivar a Legal |
+| POST | `/revisar` | `dd:revision` | Aprobar, solicitar correcciones, derivar a Legal o validar la declaracion (`alcance: declaracion_vigencia`) |
 | GET | `/panel` | `dd:panel` | KPIs, vinculos y vigencia |
 | GET | `/matriz` | `dd:panel` | Matriz paginada de empresas |
 | GET | `/legal/bandeja` | `dd:legal` | Bandeja de expedientes derivados a Legal |
@@ -409,6 +531,11 @@ Todas las rutas viven bajo `/api/debida-diligencia` y requieren sesion.
 
 Los contratos estan documentados en
 [`docs/04-api/openapi.yaml`](../04-api/openapi.yaml).
+
+El detalle del expediente y la bandeja exponen `requiereRevalidacion` y
+`declaracionVigenciaEstado` (`null`, `cargado`, `observado` o `aprobado`). El
+endpoint `POST /revisar` acepta `alcance: declaracion_vigencia` para actualizar
+solo la declaracion.
 
 Parametros de paginacion y filtros:
 

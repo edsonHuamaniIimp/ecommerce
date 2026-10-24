@@ -136,6 +136,10 @@ export interface DdExpedienteDTO {
   evento: DdEventoDTO;
   beneficiarios: DdBeneficiarioDTO[];
   documentos: DdDocumentoDTO[];
+  /** La DD aprobada/vigente depende de validar la declaracion de vigencia. */
+  requiereRevalidacion: boolean;
+  /** Estado del documento declaracion_vigencia; null si aun no existe. */
+  declaracionVigenciaEstado: string | null;
   observaciones: DdObservacionDTO[];
   reputacion: DdReputacionCasoDTO[];
 }
@@ -151,4 +155,6 @@ export interface DdMiExpedienteDTO {
   requiereDeclaracionVigencia: boolean;
   /** DD vigente de otro evento sin la declaracion de vigencia. */
   puedeRegularizarDeclaracionVigencia: boolean;
+  /** Estado del documento declaracion_vigencia; null si aun no existe. */
+  declaracionVigenciaEstado: string | null;
 }

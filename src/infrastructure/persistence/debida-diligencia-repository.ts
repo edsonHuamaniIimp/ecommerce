@@ -60,6 +60,7 @@ import {
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_ESTADOS_PENDIENTES,
+  DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
   DD_ORIGENES,
   DD_REPUTACION_ESTADOS,
@@ -68,6 +69,7 @@ import {
   DD_VINCULOS,
   DD_VINCULO_LABELS,
   ESTADOS_EMPRESA,
+  type DdDocumentoEstado,
   type DdDocumentoTipo,
   type DdEstado,
 } from "@/lib/shared/constants";
@@ -634,6 +636,31 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     return mapExpediente(row);
   }
 
+  async marcarDeclaracionVigencia(
+    expedienteId: string,
+    estado: DdDocumentoEstado,
+    observacion: string | null,
+  ): Promise<void> {
+    await prisma.debidaDiligenciaDocumento.updateMany({
+      where: { expedienteId, tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA },
+      data: { estado, observacion },
+    });
+  }
+
+  async resolverObservacionesDocumento(
+    expedienteId: string,
+    documentoTipo: DdDocumentoTipo,
+  ): Promise<void> {
+    await prisma.debidaDiligenciaObservacion.updateMany({
+      where: {
+        expedienteId,
+        documentoTipo,
+        estado: DD_OBSERVACION_ESTADOS.ABIERTA,
+      },
+      data: { estado: DD_OBSERVACION_ESTADOS.RESUELTA, fechaResolucion: dateUtils.now() },
+    });
+  }
+
   async resolverDocumentos(
     expedienteId: string,
     observados: DdDocumentoTipo[],
@@ -694,6 +721,48 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         estado: DD_OBSERVACION_ESTADOS.ABIERTA,
         creadoPor,
       })),
+    });
+  }
+
+  async guardarObservacionDocumento(
+    expedienteId: string,
+    documentoTipo: DdDocumentoTipo,
+    texto: string,
+    creadoPor: string,
+  ): Promise<void> {
+    const existentes = await prisma.debidaDiligenciaObservacion.findMany({
+      where: {
+        expedienteId,
+        documentoTipo,
+        estado: DD_OBSERVACION_ESTADOS.ABIERTA,
+      },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const [existente] = existentes;
+    if (existente) {
+      await prisma.debidaDiligenciaObservacion.update({
+        where: { id: existente.id },
+        data: { texto, creadoPor },
+      });
+      const duplicadas = existentes.slice(1).map((observacion) => observacion.id);
+      if (duplicadas.length > 0) {
+        await prisma.debidaDiligenciaObservacion.updateMany({
+          where: { id: { in: duplicadas } },
+          data: { estado: DD_OBSERVACION_ESTADOS.RESUELTA, fechaResolucion: dateUtils.now() },
+        });
+      }
+      return;
+    }
+    await prisma.debidaDiligenciaObservacion.create({
+      data: {
+        expedienteId,
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        documentoTipo,
+        texto,
+        estado: DD_OBSERVACION_ESTADOS.ABIERTA,
+        creadoPor,
+      },
     });
   }
 
@@ -802,13 +871,20 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       ];
     } else if (params.estado === DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA) {
       where.estado = DD_ESTADOS.APROBADA;
+      where.origen = DD_ORIGENES.IMPORTADO;
       where.OR = [
         { fechaVencimiento: { gt: ahora } },
         { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
       ];
       where.documentos = {
-        none: { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA },
+        none: {
+          tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+          estado: DD_DOCUMENTO_ESTADOS.APROBADO,
+        },
       };
+      if (params.eventoActivoId) {
+        condicionesAnd.push({ eventoId: { not: params.eventoActivoId } });
+      }
     } else if (params.estado === DD_ESTADOS.PENDIENTE) {
       where.estado = { in: [...DD_ESTADOS_PENDIENTES] };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
@@ -880,7 +956,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       ? { createdAt: "desc" as const }
       : { updatedAt: "desc" as const };
 
-    const [rows, total, grupos, vencidas] = await Promise.all([
+    const [rows, total, grupos, vencidas, revalidacionPendiente] = await Promise.all([
       prisma.debidaDiligencia.findMany({
         where,
         orderBy,
@@ -918,6 +994,29 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           ],
         },
       }),
+      prisma.debidaDiligencia.count({
+        where: {
+          ...(params.eventoId ? { eventoId: params.eventoId } : {}),
+          ...(params.eventoActivoId
+            ? { AND: [{ eventoId: { not: params.eventoActivoId } }] }
+            : {}),
+          estado: DD_ESTADOS.APROBADA,
+          origen: DD_ORIGENES.IMPORTADO,
+          OR: [
+            { fechaVencimiento: { gt: ahora } },
+            {
+              fechaVencimiento: null,
+              fechaAprobacion: { gt: limiteAprobacion },
+            },
+          ],
+          documentos: {
+            none: {
+              tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA,
+              estado: DD_DOCUMENTO_ESTADOS.APROBADO,
+            },
+          },
+        },
+      }),
     ]);
 
     const porEstado = new Map(grupos.map((g) => [g.estado, g._count._all]));
@@ -927,6 +1026,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       enRevision: porEstado.get(DD_ESTADOS.EN_REVISION) ?? 0,
       observadas: porEstado.get(DD_ESTADOS.OBSERVADA) ?? 0,
       aprobadas: porEstado.get(DD_ESTADOS.APROBADA) ?? 0,
+      revalidacionPendiente,
       vencidas,
       rechazadas: porEstado.get(DD_ESTADOS.RECHAZADA) ?? 0,
     };
@@ -993,6 +1093,11 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         id: row.id,
         codigo: row.codigo,
         estado: row.estado as DdEstado,
+        requiereRevalidacion: ddUtils.requiereRevalidacionDeclaracion(
+          row,
+          params.eventoActivoId,
+        ),
+        declaracionVigenciaEstado: ddUtils.estadoDeclaracionVigencia(row.documentos),
         origen: row.origen,
         estadoOrigen: row.estadoOrigen ?? null,
         eventoProyecto: row.eventoProyecto ?? null,

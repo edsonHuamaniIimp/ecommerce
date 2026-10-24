@@ -85,6 +85,7 @@ const RESUMEN_VACIO = {
   enRevision: 0,
   observadas: 0,
   aprobadas: 0,
+  revalidacionPendiente: 0,
   vencidas: 0,
   rechazadas: 0,
 };
@@ -390,11 +391,12 @@ export function DdBandeja() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Borradores y sin iniciar", variante: "muted" }} />
         <StatsCard title="En revisión" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisión", variante: "primary" }} />
         <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando corrección", variante: "gold" }} />
         <StatsCard title="APTO" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Vigencia de 6 meses", variante: "primary" }} />
+        <StatsCard title="Revalidación pendiente" value={resumen.revalidacionPendiente} icon={<RefreshCw className="h-4 w-4" />} chip={{ texto: "Declaración por validar", variante: "gold" }} />
         <StatsCard title="Caducadas" value={resumen.vencidas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Vigencia vencida", variante: "gold" }} />
       </div>
 
@@ -626,7 +628,14 @@ export function DdBandeja() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <DdEstadoBadge estado={fila.estado} />
+                          <div className="flex flex-wrap items-center gap-1">
+                            <DdEstadoBadge estado={fila.estado} />
+                            {fila.requiereRevalidacion ? (
+                              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                <span>Revalidación pendiente</span>
+                              </Badge>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Link

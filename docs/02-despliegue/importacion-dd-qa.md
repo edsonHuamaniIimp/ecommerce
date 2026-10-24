@@ -420,3 +420,163 @@ ejecutarse sobre QA o local por error.
   paridad con local.
 - Pendiente operativo: ejecutar la carga en producción solo después de la
   autorización y el respaldo.
+
+## 12. Advertencia: la data de producción aún no está homologada
+
+**La base de producción no debe tratarse como equivalente a local o QA.**
+
+La información histórica de producción todavía no está homologada de punta a punta.
+Antes de cualquier carga o regularización masiva se debe validar y aprobar:
+
+- que cada registro tenga el evento correcto;
+- que el estado y las fechas de aprobación/revisión provengan de la fuente oficial;
+- que la empresa, RUC y razón social no estén duplicados;
+- que representantes, vínculos y beneficiarios estén conciliados;
+- que las filas de la matriz que no existen en el CSV oficial estén aprobadas por
+  negocio;
+- que los conflictos entre CSV y matriz tengan una decisión documentada.
+
+Ejemplo de conflicto ya detectado en local: ARIAS TALAVERA figura como `GESS` en el
+CSV y como `RECONOCIMIENTO` en la matriz. En local se conservó el CSV. En producción
+se debe repetir la auditoría y resolver el caso antes de importar.
+
+La revalidación de la declaración de vigencia no corrige esa falta de homologación:
+solo controla el uso de una DD de otro evento. No se debe usar la revalidación para
+“arreglar” eventos, fechas o beneficiarios mal importados.
+
+Tampoco se deben copiar conteos de local/QA a producción. Los conteos de origen
+pueden variar por ambiente.
+
+## 13. QA: preflight y pruebas funcionales
+
+### 13.1 Preflight
+
+1. Desplegar en QA el commit que contenga esta lógica y la migración vigente.
+2. Tomar respaldo `pg_dump -Fc` de QA antes de cualquier cambio de datos.
+3. Confirmar los IDs de evento de PERUMIN, WMC, GESS y PROEXPLO en QA.
+4. Confirmar que existe al menos un usuario con contexto PERUMIN y otro con contexto
+   WMC/GESS para probar el cambio de evento desde `/presala?change=1`.
+5. Verificar que un usuario `admin@iimp.org.pe` no se use para validar bloqueos
+   normales, porque `admin:full` puede omitirlos.
+6. Confirmar que la bandeja usa `session.eventoId` como evento activo, no el filtro
+   visual de la tabla.
+7. Confirmar que el selector de bandeja sigue siendo solo un filtro.
+
+### 13.2 Casos mínimos de QA
+
+| Caso | Resultado esperado |
+|---|---|
+| DD importada aprobada y vigente del evento activo | Sin card de revalidación, APTO y `aptoParaContratar=true` |
+| DD importada aprobada y vigente de otro evento, sin declaración | Badge/card **Revalidación pendiente**, `aptoParaContratar=false` |
+| Misma DD con declaración `cargado` | Pendiente de validación; no permite aprobar la DD global |
+| Revisor solicita carga sin declaración | Exige **Comentario para el cliente** |
+| Declaración cargada y correcta | Revisor aprueba declaración; DD sigue `aprobada` con las mismas fechas |
+| Declaración cargada e incorrecta | Revisor observa con comentario; cliente puede reemplazarla |
+| Declaración `observado` | No se puede aprobar hasta subir nueva versión |
+| Declaración aprobada | Card desaparece; `aptoParaContratar=true` si sigue vigente |
+| DD vencida | No se reutiliza; se inicia una DD nueva |
+| DD regular aprobada del evento activo | Sin card ni bloqueo por declaración |
+| Bandeja filtrada por PERUMIN con sesión PERUMIN | `revalidacionPendiente=0` |
+| Bandeja con “Todos los eventos” | Solo suma DD de eventos distintos al activo |
+| Cambio de contexto en `/presala?change=1` | Cambia `session.eventoId` y recalcula la revalidación |
+| Observación duplicada | Se actualiza la observación abierta y se resuelven duplicados |
+| Evento actual con declaración cargada | No se muestra bloque de revalidación |
+
+### 13.3 Verificación de datos
+
+Para encontrar casos de prueba en QA:
+
+```sql
+select d.codigo, e.ruc, e.razon_social, ev.evento_padre_id, d.evento_id,
+       d.estado, d.origen, d.fecha_aprobacion, d.fecha_vencimiento
+from debida_diligencia d
+join empresa e on e.id = d.empresa_id
+where d.origen = 'importado'
+  and d.estado = 'aprobada'
+  and d.fecha_vencimiento > now()
+order by d.evento_id, d.codigo;
+```
+
+Para revisar la declaración:
+
+```sql
+select d.codigo, doc.tipo, doc.estado, doc.observacion
+from debida_diligencia d
+left join debida_diligencia_documento doc
+  on doc.expediente_id = d.id and doc.tipo = 'declaracion_vigencia'
+where d.origen = 'importado';
+```
+
+Para buscar observaciones duplicadas abiertas:
+
+```sql
+select expediente_id, documentoTipo, count(*)
+from debida_diligencia_observacion
+where estado = 'abierta' and documentoTipo = 'declaracion_vigencia'
+group by expediente_id, documentoTipo
+having count(*) > 1;
+```
+
+En QA no se deben importar documentos. Las DD históricas pueden seguir con 0/4
+documentos; eso es esperado.
+
+### 13.4 Criterios de aceptación
+
+- El estado `aprobada` no cambia al aprobar u observar la declaración.
+- `fechaAprobacion` y `fechaVencimiento` no cambian.
+- No se crea una DD nueva ni se duplican beneficiarios.
+- La declaración `observado` bloquea el uso y permite una nueva versión.
+- La declaración `aprobado` desbloquea Solicitudes.
+- No se crean observaciones abiertas duplicadas.
+- La bandeja y el modal respetan el evento activo de la sesión.
+- Una DD del evento activo no muestra revalidación.
+- La API y la UI devuelven los mismos flags.
+
+## 14. Producción: orden de ejecución
+
+### 14.1 Antes de tocar producción
+
+1. Confirmar autorización explícita y ventana de cambio.
+2. Confirmar que la data histórica fue auditada y aprobada por negocio.
+3. Confirmar que los conflictos CSV/matriz están resueltos.
+4. Confirmar que el deploy de código y las migraciones están aprobados.
+5. Tomar respaldo `pg_dump -Fc` y probar la restauración.
+6. Registrar conteos iniciales de empresas, DD, DD importadas, beneficiarios,
+   documentos y eventos.
+7. No ejecutar `prisma migrate reset`, `prisma db push` ni borrados masivos.
+
+### 14.2 Separar código de datos
+
+El deploy del código de revalidación **no importa ni homologa datos por sí solo**.
+La carga histórica y el enriquecimiento de matriz son operaciones de datos separadas,
+con su propio respaldo, autorización y validación.
+
+### 14.3 Ejecución
+
+1. Ejecutar la importación de estado/evento desde el CSV oficial.
+2. Ejecutar el enriquecimiento de matriz en una transacción.
+3. No copiar archivos de documentos desde local/QA.
+4. Verificar los conteos y la distribución por evento.
+5. Validar en UI los casos de evento actual y evento distinto.
+6. Validar que una DD del evento actual no requiere revalidación.
+7. Validar que una DD de otro evento sí la requiere cuando corresponde.
+8. Confirmar que no se modificaron DD regulares.
+9. Ejecutar pruebas de aprobación, observación y reenvío de declaración.
+10. Cerrar con validación funcional de Solicitudes y bandeja.
+
+### 14.4 Rollback
+
+Si falla una transacción, no debe quedar carga parcial. Si falla la validación después
+del commit, restaurar el respaldo, validar conteos y documentar el incidente. La
+restauración de producción requiere autorización explícita.
+
+## 15. Pendientes antes de producción
+
+- Homologar la data histórica de producción y resolver diferencias CSV/matriz.
+- Decidir si las DD importadas sin documentos se marcan como legado pendiente de
+  regularización.
+- Definir el tratamiento visible de beneficiarios con 0%.
+- Confirmar que los casos del evento actual no se bloquearán por una declaración
+  faltante.
+- Validar en QA la matriz enriquecida si se requiere paridad con local.
+- Aprobar cualquier importación o regularización masiva antes de ejecutarla.
