@@ -26,6 +26,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, RefreshCw, Search, SlidersHorizontal, Upload, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -689,16 +692,23 @@ export function DdBandeja() {
                         </TableCell>
                         <TableCell className="sticky right-0 z-20 w-[260px] min-w-[260px] border-l border-border bg-card text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 gap-1 text-[11px]"
-                              onClick={() => setHistorialId(fila.id)}
-                            >
-                              <History className="h-3.5 w-3.5" />
-                              <span>Ver historial</span>
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  aria-label="Ver historial"
+                                  onClick={() => setHistorialId(fila.id)}
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <span>Ver Historial</span>
+                              </TooltipContent>
+                            </Tooltip>
                             <Button
                               type="button"
                               variant="outline"
