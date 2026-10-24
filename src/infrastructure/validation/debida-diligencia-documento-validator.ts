@@ -66,7 +66,9 @@ export class DebidaDiligenciaDocumentoValidator implements IDebidaDiligenciaDocu
       },
       {
         permitirDocx: documento.tipo === DD_DOCUMENTOS.DECLARACION_JURADA,
-        soloPdf: documento.tipo === DD_DOCUMENTOS.ADICIONAL,
+        soloPdf:
+          documento.tipo === DD_DOCUMENTOS.ADICIONAL ||
+          documento.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
       },
     );
     if (error) {

@@ -1564,7 +1564,7 @@ export const DD_DOCUMENTO_ACCEPT = DD_DOCUMENTO_EXTENSIONES.map((e) => `.${e}`).
 /** La declaracion jurada tambien admite el formato oficial DOCX. */
 export const DD_DOCUMENTO_EXTENSIONES_DECLARACION = [...DD_DOCUMENTO_EXTENSIONES, "docx"] as const;
 export const DD_DOCUMENTO_ACCEPT_DECLARACION = DD_DOCUMENTO_EXTENSIONES_DECLARACION.map((e) => `.${e}`).join(",");
-export const DD_DOCUMENTO_EXTENSIONES_VIGENCIA = DD_DOCUMENTO_EXTENSIONES_DECLARACION;
+export const DD_DOCUMENTO_EXTENSIONES_VIGENCIA = ["pdf"] as const;
 export const DD_DOCUMENTO_ACCEPT_VIGENCIA = DD_DOCUMENTO_EXTENSIONES_VIGENCIA.map((e) => `.${e}`).join(",");
 
 /** Tamaño máximo de cada documento del expediente (10 MB). */

@@ -466,18 +466,21 @@ export function DdWizard({
 
   const subirDocumento = async (tipo: DdDocumentoTipo, file: File) => {
     const esDeclaracion = tipo === DD_DOCUMENTOS.DECLARACION_JURADA;
+    const esVigencia = tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA;
     const esAdicional = tipo === DD_DOCUMENTOS.ADICIONAL;
     const extensiones = esDeclaracion
       ? DD_DOCUMENTO_EXTENSIONES_DECLARACION
-      : esAdicional
-        ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
-        : DD_DOCUMENTO_EXTENSIONES;
+      : esVigencia
+        ? DD_DOCUMENTO_EXTENSIONES_VIGENCIA
+        : esAdicional
+          ? DD_DOCUMENTO_EXTENSIONES_ADICIONAL
+          : DD_DOCUMENTO_EXTENSIONES;
     if (!archivoUtils.extensionPermitida(file.name, extensiones)) {
       toast.error(
         esDeclaracion
           ? "Formato no permitido. Use PDF, DOCX, JPG o PNG."
-          : esAdicional
-            ? "El documento adicional solicitado debe ser PDF."
+          : esVigencia || esAdicional
+            ? "Formato no permitido. Use PDF."
             : "Formato no permitido. Use PDF, JPG o PNG.",
       );
       return;

@@ -23,6 +23,27 @@ describe("ddArchivoUtils.validar", () => {
     ).toBeNull();
   });
 
+  it("solo acepta PDF cuando la declaracion de vigencia lo exige", () => {
+    expect(
+      ddArchivoUtils.validar(
+        { nombre: "vigencia.pdf", size: PDF.length, bytes: PDF },
+        { soloPdf: true },
+      ),
+    ).toBeNull();
+    expect(
+      ddArchivoUtils.validar(
+        { nombre: "vigencia.jpg", size: JPG.length, bytes: JPG },
+        { soloPdf: true },
+      ),
+    ).toContain("Formato no permitido");
+    expect(
+      ddArchivoUtils.validar(
+        { nombre: "vigencia.docx", size: DOCX.length, bytes: DOCX },
+        { soloPdf: true },
+      ),
+    ).toContain("Formato no permitido");
+  });
+
   it("rechaza DOCX por defecto y extensiones no admitidas", () => {
     expect(
       ddArchivoUtils.validar({ nombre: "declaracion.docx", size: DOCX.length, bytes: DOCX }),

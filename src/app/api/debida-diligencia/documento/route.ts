@@ -56,10 +56,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       bytes,
     },
     {
-      permitirDocx:
-        tipo === DD_DOCUMENTOS.DECLARACION_JURADA ||
+      permitirDocx: tipo === DD_DOCUMENTOS.DECLARACION_JURADA,
+      soloPdf:
+        tipo === DD_DOCUMENTOS.ADICIONAL ||
         tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA,
-      soloPdf: tipo === DD_DOCUMENTOS.ADICIONAL,
     },
   );
   if (errorArchivo) {

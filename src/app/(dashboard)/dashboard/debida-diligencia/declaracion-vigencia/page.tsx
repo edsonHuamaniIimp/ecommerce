@@ -58,7 +58,7 @@ function ContenidoRegularizacion() {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const error = ddArchivoUtils.validar(
       { nombre: file.name, size: bytes.byteLength, bytes },
-      { permitirDocx: true },
+      { soloPdf: true },
     );
     if (error) {
       toast.error(error);
@@ -151,7 +151,7 @@ function ContenidoRegularizacion() {
                   </a>
                 </Button>
                 <span className="text-[11px] text-muted-foreground">
-                  PDF, JPG, PNG o DOCX. Máximo {DD_DOCUMENTO_MAX_BYTES / BYTES_POR_MB} MB.
+                  Solo PDF. Máximo {DD_DOCUMENTO_MAX_BYTES / BYTES_POR_MB} MB.
                 </span>
               </div>
 
