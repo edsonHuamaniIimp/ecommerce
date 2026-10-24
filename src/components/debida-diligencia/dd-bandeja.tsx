@@ -290,8 +290,7 @@ export function DdBandeja() {
         { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
         { encabezado: "Enviado", valor: (r) => (r.fechaEnvio ? dateUtils.format(r.fechaEnvio) : "") },
         { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
-        { encabezado: "Vence", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
-        { encabezado: "Asignado", valor: (r) => r.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (r.revisadoPor ?? "") },
+        { encabezado: "Fecha a caducar", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
         { encabezado: "Beneficiarios finales", valor: (r) => r.beneficiariosNombres },
         { encabezado: "Documento beneficiario", valor: (r) => r.beneficiariosDocumentos },
         { encabezado: "Nacionalidad beneficiario", valor: (r) => r.beneficiariosNacionalidades },
@@ -581,7 +580,7 @@ export function DdBandeja() {
                       <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
+                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Fecha a caducar</TableHead>
                       <TableHead className="sticky right-0 z-30 w-[260px] min-w-[260px] border-l border-border bg-card text-center text-[10px] uppercase tracking-wide">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -676,19 +675,14 @@ export function DdBandeja() {
                           ) : null}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
-                          <div className="space-y-1">
-                            <DdVigenciaBadge
-                              estado={fila.estado}
-                              fechaVencimiento={fila.fechaVencimiento}
-                              fechaAprobacion={fila.fechaAprobacion}
-                            />
-                            {fila.fechaVencimiento ? (
-                              <p className="text-[10px] text-muted-foreground">Vence {dateUtils.format(fila.fechaVencimiento)}</p>
-                            ) : null}
-                          </div>
+                          <DdVigenciaBadge
+                            estado={fila.estado}
+                            fechaVencimiento={fila.fechaVencimiento}
+                            fechaAprobacion={fila.fechaAprobacion}
+                          />
                         </TableCell>
-                        <TableCell className="hidden max-w-[160px] truncate text-[11px] text-muted-foreground xl:table-cell">
-                          {fila.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (fila.revisadoPor ?? "Sin asignar")}
+                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground lg:table-cell">
+                          {fila.fechaVencimiento ? dateUtils.format(fila.fechaVencimiento) : "—"}
                         </TableCell>
                         <TableCell className="sticky right-0 z-20 w-[260px] min-w-[260px] border-l border-border bg-card text-right">
                           <div className="flex items-center justify-end gap-1.5">
