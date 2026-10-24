@@ -582,7 +582,7 @@ export function DdBandeja() {
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
-                      <TableHead className="sticky right-0 z-30 w-[260px] min-w-[260px] border-l border-border bg-card text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
+                      <TableHead className="sticky right-0 z-30 w-[260px] min-w-[260px] border-l border-border bg-card text-center text-[10px] uppercase tracking-wide">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
