@@ -849,6 +849,27 @@ describe("ContratoApplicationService.generar — contrato posterior", () => {
     })).resolves.toBeDefined();
   });
 
+  it("bloquea al cliente re-firmar hasta que el revisor regenere y habilite el contrato", async () => {
+    const { svc } = build({
+      detalle: {
+        contratoHabilitado: false,
+        docsAdminCount: 1,
+        estadoSolicitud: "observado",
+        docsAdjuntos: [
+          { categoria: "contrato", userId: null, estado: "activo", createdAt: new Date("2026-10-13T14:28:39Z") },
+          { categoria: "contrato_firmado", userId: "user-1", estado: "observado", createdAt: new Date("2026-10-13T14:37:12Z") },
+        ] as never,
+      },
+    });
+
+    await expect(svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(2),
+      userSub: "user-1",
+      userPermissions: [],
+    })).rejects.toMatchObject({ status: 409 });
+  });
+
   it("bloquea al cliente regenerar cuando ya existe contrato y el revisor no habilito la firma", async () => {
     const { svc } = build({
       detalle: {

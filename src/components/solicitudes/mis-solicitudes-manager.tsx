@@ -102,6 +102,7 @@ function accionesObservacion(row: SolicitudRow) {
       ),
   );
   const firmadoPendienteReemplazo = contratoFirmadoPendienteReemplazo(row);
+  const contratoAdminPendienteCorreccion = contratoAdminObservado && !adminContratoVigente;
   const anexosPendientes = pendientesReemplazo.filter(
     (d) => d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
   ).length;
@@ -111,6 +112,7 @@ function accionesObservacion(row: SolicitudRow) {
     anexosPendientes,
     contratoAdminObservado,
     adminContratoVigente,
+    contratoAdminPendienteCorreccion,
     contratoCorregidoPendienteFirma,
     esperandoContratoCorregidoFirmado: firmadoPendienteReemplazo && !contratoCorregidoPendienteFirma,
     faltaFirmaContrato: contratoCorregidoPendienteFirma || firmadoPendienteReemplazo,
@@ -550,7 +552,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </p>
                       )}
 
-                      {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                      {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
                         return (
                           <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
@@ -561,7 +563,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 ? "El contrato firmado fue observado. Espera la version corregida del administrador."
                                 : a.contratoCorregidoPendienteFirma
                                   ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
-                                  : a.contratoAdminObservado && !a.adminContratoVigente
+                                  : a.contratoAdminPendienteCorreccion
                                     ? "El contrato fue observado. Espera la version corregida del administrador."
                                     : a.pendientesReemplazo.length === 0
                                       ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
@@ -618,12 +620,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Esperando contrato corregido</span>
                             </Badge>
                           )}
-                          {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
                             return (
                               <>
                                 {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
-                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
+                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
                                     onClick={() => {
                                       const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
                                       void openClienteUpload(row, modo);
@@ -631,7 +633,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observacion</span>
+                                    <span>Subsanar observación</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -642,7 +644,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  disabled={soloLectura || reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -745,12 +747,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Esperando contrato corregido</span>
                               </Badge>
                             )}
-                          {!soloLectura && row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
+                          {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
                             return (
                               <>
                                 {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
-                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto"
+                                  <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
                                     onClick={() => {
                                       const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
                                       void openClienteUpload(row, modo);
@@ -758,7 +760,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observacion</span>
+                                    <span>Subsanar observación</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -769,7 +771,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  disabled={soloLectura || reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
