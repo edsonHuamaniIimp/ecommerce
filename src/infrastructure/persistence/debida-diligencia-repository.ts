@@ -59,6 +59,7 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_ESTADOS_PENDIENTES,
   DD_OBSERVACION_ESTADOS,
   DD_ORIGENES,
   DD_REPUTACION_ESTADOS,
@@ -808,6 +809,8 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       where.documentos = {
         none: { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA },
       };
+    } else if (params.estado === DD_ESTADOS.PENDIENTE) {
+      where.estado = { in: [...DD_ESTADOS_PENDIENTES] };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
       where.estado = params.estado;
     }
@@ -1201,6 +1204,9 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     } else if (params.estado === DD_FILTRO_POR_VENCER) {
       ddWhere.estado = DD_ESTADOS.APROBADA;
       ddWhere.fechaVencimiento = { gte: ahora, lte: limite };
+      where.debidasDiligencias = { some: ddWhere };
+    } else if (params.estado === DD_ESTADOS.PENDIENTE) {
+      ddWhere.estado = { in: [...DD_ESTADOS_PENDIENTES] };
       where.debidasDiligencias = { some: ddWhere };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
       ddWhere.estado = params.estado;

@@ -1306,6 +1306,12 @@ export const DD_ESTADOS = {
   RECHAZADA: "rechazada",
 } as const;
 
+/** Estados agrupados en el filtro/card "Pendientes". */
+export const DD_ESTADOS_PENDIENTES = [
+  DD_ESTADOS.BORRADOR,
+  DD_ESTADOS.PENDIENTE,
+] as const;
+
 /** Origen de un registro de Debida Diligencia. */
 export const DD_ORIGENES = {
   FLUJO_REGULAR: "flujo_regular",
