@@ -30,6 +30,11 @@ Esta fuente define el resultado (`APTO`, `APTO CON OBSERVACIONES`, `NO APTO`,
 `PENDIENTE`), las fechas y el evento. La vigencia de 6 meses se calcula desde la
 fecha de revision/aprobacion.
 
+`FECHA DE INGRESO SOLICITUD` se conserva como **inicio de la solicitud**
+(`fechaEnvio`). No debe confundirse con `createdAt`, que es la fecha en que el
+registro se creo en la base local durante la importacion. La bandeja muestra ambas
+fechas por separado: **Inicio solicitud** y **Creado en BD**.
+
 ### Fuente de respuestas del formulario
 
 `Proceso de Debida Diligencia Instituto de Ingenieros de Minas del Perú (respuestas).xlsx`

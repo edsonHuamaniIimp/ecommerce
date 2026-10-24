@@ -12,6 +12,7 @@ export interface DdBandejaRowDTO {
   tipoRelacionComercial: string[];
   empresa: DdEmpresaDTO;
   beneficiarios: DdBeneficiarioDTO[];
+  fechaInicio: string | null;
   fechaCreacion: string | null;
   solicitudesAlquiler: number;
   documentoCargados: number;

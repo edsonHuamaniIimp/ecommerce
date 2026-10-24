@@ -1005,6 +1005,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           nacionalidad: beneficiario.nacionalidad,
           porcentaje: Number(beneficiario.porcentaje),
         })),
+        fechaInicio: row.origen === DD_ORIGENES.IMPORTADO ? row.fechaEnvio : row.createdAt,
         fechaCreacion: row.createdAt,
         solicitudesAlquiler: solicitudesPorDocumento.get(normalizarDocumentoEmpresa(row.empresa.ruc)) ?? 0,
         documentoCargados: row.documentos.filter(

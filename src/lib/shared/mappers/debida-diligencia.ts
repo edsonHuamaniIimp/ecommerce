@@ -354,6 +354,7 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     tipoRelacionComercial: row.tipoRelacionComercial,
     empresa: mapDdEmpresaToDTO(row.empresa),
     beneficiarios: row.beneficiarios,
+    fechaInicio: fecha(row.fechaInicio),
     fechaCreacion: fecha(row.fechaCreacion),
     solicitudesAlquiler: row.solicitudesAlquiler,
     documentoCargados: row.documentoCargados,

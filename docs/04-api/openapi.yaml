@@ -3110,6 +3110,16 @@ components:
           type: integer
         documentoTotal:
           type: integer
+        fechaInicio:
+          type: string
+          format: date-time
+          nullable: true
+          description: Inicio real de la solicitud; para importados viene de la fuente.
+        fechaCreacion:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha de creacion del registro en la base local.
         fechaEnvio:
           type: string
           format: date-time

@@ -222,6 +222,8 @@ export interface DdBandejaRow {
   tipoRelacionComercial: DdVinculo[];
   empresa: DdEmpresaResumen;
   beneficiarios: DdBeneficiarioEntity[];
+  /** Inicio real de la solicitud: fecha fuente para importados, createdAt para regulares. */
+  fechaInicio: Date | null;
   fechaCreacion: Date;
   solicitudesAlquiler: number;
   documentoCargados: number;
