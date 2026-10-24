@@ -84,6 +84,29 @@ describe("PagosApplicationService", () => {
     });
   });
 
+  it("factura resuelve la URL del documento IIMP para una cuota propia", async () => {
+    vi.stubEnv("FACTURAS_PDF_URL_TEMPLATE", "https://cdn.example/pdf/{ruc}-{tipo}-{serie}-{numero}.pdf");
+    vi.stubEnv("FACTURAS_EMISOR_RUC", "20107972090");
+    const repo = mockRepo();
+    const row = rowConCuotas(1000, [1000]);
+    row.cuotas[0] = {
+      ...row.cuotas[0]!,
+      iimpDocumento: {
+        tipoDocumento: "01", serie: "FRS1", numero: 4, fechaEmision: "2026-10-06",
+        tipoCambio: "3.435", igv: "1339.20", total: "8779.20",
+      },
+    };
+    repo.esPropietarioDeCuota = vi.fn().mockResolvedValue(true);
+    repo.facturacionDeCuota = vi.fn().mockResolvedValue(row);
+    const svc = new PagosApplicationService(repo);
+
+    await expect(svc.factura("c1", ident)).resolves.toEqual({
+      url: "https://cdn.example/pdf/20107972090-01-FRS1-4.pdf",
+      nombre: "FRS1-4.pdf",
+    });
+    vi.unstubAllEnvs();
+  });
+
   it("detalle lanza 404 si la facturacion no existe", async () => {
     const repo = mockRepo();
     repo.detalle = vi.fn().mockResolvedValue(null);

@@ -4,6 +4,7 @@ import { pagosController } from "@/controllers/pagos.controller";
 export const { GET, POST } = createRouter({
   GET: {
     listar: (req) => pagosController.listar(req),
+    factura: (req) => pagosController.factura(req),
     detalle: (req) => pagosController.detalle(req),
     archivos: (req) => pagosController.listarArchivos(req),
   },

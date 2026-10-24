@@ -1,6 +1,7 @@
 import type { IFacturacionRepository, FacturacionListResult, FacturacionRow, ClienteIdent, CuotaUpdate } from "@/domain/ports/facturacion-repository";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { nombreFacturaIimp, urlFacturaIimp } from "@/lib/server/facturas-pdf";
 
 /** Tolerancia para comparar montos decimales. */
 const EPS = 0.001;
@@ -17,6 +18,40 @@ export class PagosApplicationService {
     params: { page: number; perPage: number; empresaId?: string },
   ): Promise<FacturacionListResult> {
     return this.repo.listarPorCliente({ ...ident, ...params });
+  }
+
+  /** URL y nombre del comprobante fiscal de una cuota propia. */
+  async factura(cuotaId: string, ident: ClienteIdent): Promise<{ url: string; nombre: string }> {
+    const { cuota } = await this.cuotaPropia(cuotaId, ident);
+    if (cuota.documentoSieAnulado) {
+      throw new DomainError(
+        "La factura de esta cuota fue anulada o rechazada por el IIMP",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (cuota.comprobanteFiscal?.url) {
+      return {
+        url: cuota.comprobanteFiscal.url,
+        nombre: `${cuota.comprobanteFiscal.tipo}-${cuota.comprobanteFiscal.numero}.pdf`,
+      };
+    }
+    if (cuota.iimpDocumento) {
+      const url = urlFacturaIimp(cuota.iimpDocumento);
+      if (!url) {
+        throw new DomainError(
+          "La descarga de facturas del IIMP no esta configurada",
+          API_ERROR_CODES.SERVICE_UNAVAILABLE,
+          503,
+        );
+      }
+      return { url, nombre: nombreFacturaIimp(cuota.iimpDocumento) };
+    }
+    throw new DomainError(
+      "La factura aun no fue emitida o publicada",
+      API_ERROR_CODES.NOT_FOUND,
+      404,
+    );
   }
 
   async detalle(id: string, ident: ClienteIdent): Promise<FacturacionRow> {

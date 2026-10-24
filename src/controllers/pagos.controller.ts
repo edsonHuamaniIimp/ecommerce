@@ -72,6 +72,43 @@ export const pagosController = {
     return response;
   },
 
+  /** Descarga proxy del comprobante fiscal de una cuota propia. */
+  async factura(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const cuotaId = new URL(request.url).searchParams.get("cuotaId");
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+
+    const factura = await service.factura(cuotaId, ident(session));
+    let destino: URL;
+    try {
+      destino = new URL(factura.url, process.env.APP_URL ?? request.url);
+    } catch {
+      return error(API_ERROR_CODES.INTERNAL, "URL de factura invalida", 500);
+    }
+    if (destino.protocol !== "http:" && destino.protocol !== "https:") {
+      return error(API_ERROR_CODES.INTERNAL, "URL de factura invalida", 500);
+    }
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(destino, { cache: "no-store", redirect: "follow" });
+    } catch {
+      return error(API_ERROR_CODES.BAD_GATEWAY, "No se pudo obtener la factura", 502);
+    }
+    if (!upstream.ok) {
+      return error(API_ERROR_CODES.NOT_FOUND, "La factura aun no esta publicada", 404);
+    }
+
+    const nombre = factura.nombre.replace(/[^\w.-]+/g, "_");
+    const headers = new Headers({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${nombre}"`,
+      "Cache-Control": "private, no-store",
+    });
+    return new NextResponse(upstream.body, { status: 200, headers });
+  },
+
   async detalle(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);

@@ -224,28 +224,25 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                     <span>Voucher</span>
                   </a>
                 )}
-                {cuota.comprobanteFiscal ? (
+                {(cuota.comprobanteFiscal || cuota.iimpDocumento) && !cuota.documentoSieAnulado ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
-                        <a href={cuota.comprobanteFiscal.url} target="_blank" rel="noreferrer">
+                        <a
+                          href={`/api/pagos/factura?cuotaId=${cuota.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           <FileDown className="h-3.5 w-3.5" />
                         </a>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <span>Descargar factura ({cuota.comprobanteFiscal.tipo} {cuota.comprobanteFiscal.numero})</span>
-                    </TooltipContent>
-                  </Tooltip>
-                ) : cuota.iimpDocumento ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
-                        <FileDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>Factura {cuota.iimpDocumento.serie}-{cuota.iimpDocumento.numero} emitida el {cuota.iimpDocumento.fechaEmision} (descarga desde el IIMP pendiente)</span>
+                      <span>
+                        {cuota.comprobanteFiscal
+                          ? `Descargar factura (${cuota.comprobanteFiscal.tipo} ${cuota.comprobanteFiscal.numero})`
+                          : `Descargar factura IIMP ${cuota.iimpDocumento?.serie}-${cuota.iimpDocumento?.numero}`}
+                      </span>
                     </TooltipContent>
                   </Tooltip>
                 ) : !soloLectura && row.iimpContrato ? (
