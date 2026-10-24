@@ -759,6 +759,7 @@ export function DdBandeja() {
       {revisando ? (
         <DdRevisionModal
           fila={revisando}
+          puedeMatriz={puedeMatriz}
           onClose={() => setRevisando(null)}
           onDone={() => recargar()}
         />

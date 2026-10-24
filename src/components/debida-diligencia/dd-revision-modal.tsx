@@ -25,8 +25,10 @@ import { toast } from "sonner";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
 import { DdRadioIndicator } from "./dd-radio-indicator";
+import { DdRevisionMatrizTab } from "./dd-revision-matriz-tab";
 import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
+import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   BADGE_STYLES,
   DD_ACCIONES_LEGAL,
@@ -53,7 +55,11 @@ import {
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
-import type { DdBandejaRowDTO, DdExpedienteDTO } from "@/types/dto/debida-diligencia";
+import type {
+  DdBandejaRowDTO,
+  DdExpedienteDTO,
+  DdMatrizEvaluacionDetalleDTO,
+} from "@/types/dto/debida-diligencia";
 
 function DatoResumen({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -66,6 +72,7 @@ function DatoResumen({ label, children }: { label: string; children: ReactNode }
 
 interface Props {
   fila: DdBandejaRowDTO;
+  puedeMatriz: boolean;
   onClose: () => void;
   onDone: () => void;
 }
@@ -77,9 +84,13 @@ const ACCIONES = [
 ] as const;
 
 /** Revision de Logistica: resumen, documentos y decision en un modal con tabs. */
-export function DdRevisionModal({ fila, onClose, onDone }: Props) {
+export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [detalle, setDetalle] = useState<DdExpedienteDTO | null>(null);
+  const [matriz, setMatriz] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
+  const [matrizId, setMatrizId] = useState<string | null>(null);
+  const [matrizLoading, setMatrizLoading] = useState(true);
+  const [matrizError, setMatrizError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accion, setAccion] = useState<DdAccionRevision>(DD_ACCIONES_REVISION.APROBAR);
   const [documentosObservados, setDocumentosObservados] = useState<DdDocumentoTipo[]>([]);
@@ -133,6 +144,28 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
       .finally(() => { if (activo) setLoading(false); });
     return () => { activo = false; };
   }, [fila.id]);
+
+  useEffect(() => {
+    if (!puedeMatriz) return;
+    let activo = true;
+    ddMatrizEvaluacionService
+      .abrir(fila.id)
+      .then(({ id }) => {
+        if (!activo) return null;
+        setMatrizId(id);
+        return ddMatrizEvaluacionService.detalle(id);
+      })
+      .then((respuesta) => {
+        if (activo && respuesta) setMatriz(respuesta);
+      })
+      .catch((e) => {
+        if (activo) setMatrizError(e instanceof Error ? e.message : "No se pudo cargar la matriz");
+      })
+      .finally(() => {
+        if (activo) setMatrizLoading(false);
+      });
+    return () => { activo = false; };
+  }, [fila.id, puedeMatriz]);
 
   const observacionesAbiertas = (detalle?.observaciones ?? []).filter((observacion) => {
     if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
@@ -369,7 +402,7 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
           <div className="min-h-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_350px] lg:overflow-hidden">
             <div className="p-5 lg:min-h-0 lg:overflow-y-auto">
               <Tabs defaultValue="documentos" className="flex flex-col gap-4">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className={`grid w-full ${puedeMatriz ? "grid-cols-4" : "grid-cols-3"}`}>
                   <TabsTrigger value="resumen"><span>Resumen</span></TabsTrigger>
                   <TabsTrigger value="documentos" className="gap-1.5">
                     <span>Documentos</span>
@@ -383,6 +416,9 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                       <span>{reputacion.length}</span>
                     </Badge>
                   </TabsTrigger>
+                  {puedeMatriz ? (
+                    <TabsTrigger value="matriz"><span>Matriz</span></TabsTrigger>
+                  ) : null}
                 </TabsList>
 
                 <TabsContent value="resumen" className="mt-0 space-y-4">
@@ -720,6 +756,15 @@ export function DdRevisionModal({ fila, onClose, onDone }: Props) {
                       </div>
                     )}
                   </section>
+                </TabsContent>
+
+                <TabsContent value="matriz" className="mt-0">
+                  <DdRevisionMatrizTab
+                    detalle={matriz}
+                    loading={matrizLoading}
+                    error={matrizError}
+                    matrizId={matrizId}
+                  />
                 </TabsContent>
               </Tabs>
             </div>

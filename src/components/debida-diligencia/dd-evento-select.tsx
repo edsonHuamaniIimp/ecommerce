@@ -44,6 +44,8 @@ function normalizar(valor: string): string {
     .toLowerCase();
 }
 
+const ID_EVENTO_LOCAL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Selector buscable de version de evento para las bandejas y el panel de DD. */
 export function DdEventoSelect({ value, onChange, incluirTodos = false }: Props) {
   const [padres, setPadres] = useState<EventoPadrePresalaDTO[]>([]);
@@ -68,19 +70,22 @@ export function DdEventoSelect({ value, onChange, incluirTodos = false }: Props)
     };
   }, []);
 
-  const opciones = useMemo(
-    () =>
-      padres
-        .flatMap((padre) =>
-          padre.versiones.map((version) => ({
-            id: version.id,
-            label: `${TIPOS_EVENTO_LABELS[version.tipoEvento ?? -1] ?? padre.nombre} ${version.anio}`,
-            anio: version.anio,
-          })),
-        )
-        .sort((a, b) => b.anio.localeCompare(a.anio) || a.label.localeCompare(b.label)),
-    [padres],
-  );
+  const opciones = useMemo(() => {
+    const unicas = new Map<string, { id: string; label: string; anio: string }>();
+    for (const padre of padres) {
+      for (const version of padre.versiones) {
+        if (!ID_EVENTO_LOCAL.test(version.id)) continue;
+        const label = `${TIPOS_EVENTO_LABELS[version.tipoEvento ?? -1] ?? padre.nombre} ${version.anio}`;
+        const clave = `${label}|${version.anio}`;
+        if (!unicas.has(clave)) {
+          unicas.set(clave, { id: version.id, label, anio: version.anio });
+        }
+      }
+    }
+    return [...unicas.values()].sort(
+      (a, b) => b.anio.localeCompare(a.anio) || a.label.localeCompare(b.label),
+    );
+  }, [padres]);
 
   const seleccionado = value === DD_EVENTO_TODOS
     ? DD_EVENTO_TODOS_LABEL
