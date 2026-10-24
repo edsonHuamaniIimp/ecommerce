@@ -8,6 +8,9 @@ export const eventosServiceClient = {
   listar() {
     return internalApi.get<EventoPadrePresalaDTO[]>("/api/eventos/listar");
   },
+  listarCatalogo() {
+    return internalApi.get<EventoPadrePresalaDTO[]>("/api/eventos/listar?catalogo=1");
+  },
   /** Version de evento por id (incluye tipoEvento/codigoEvento para las APIs externas). */
   obtener(id: string) {
     return internalApi.get<Record<string, unknown>>(`/api/eventos/listar?id=${encodeURIComponent(id)}`);

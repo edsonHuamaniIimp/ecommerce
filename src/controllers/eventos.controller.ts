@@ -14,6 +14,10 @@ export const eventosController = {
   async listar(request: Request): Promise<NextResponse> {
     const { searchParams } = new URL(request.url);
 
+    if (searchParams.get("catalogo") === "1") {
+      return success(await services.eventos.listarCatalogoLocal());
+    }
+
     if (searchParams.get("presala") === "1") {
       return success(await services.presala.listarPresala());
     }
