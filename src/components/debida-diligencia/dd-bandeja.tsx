@@ -569,8 +569,8 @@ export function DdBandeja() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Empresa</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Inicio solicitud</TableHead>
+                      <TableHead className="sticky left-0 z-30 w-[260px] min-w-[260px] border-r border-border bg-card text-[10px] uppercase tracking-wide">Empresa</TableHead>
+                      <TableHead className="sticky left-[260px] z-30 hidden w-[120px] min-w-[120px] border-r border-border bg-card text-[10px] uppercase tracking-wide md:table-cell">Inicio solicitud</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Evento</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
@@ -579,7 +579,7 @@ export function DdBandeja() {
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Asignado</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
+                      <TableHead className="sticky right-0 z-30 w-[260px] min-w-[260px] border-l border-border bg-card text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -587,12 +587,12 @@ export function DdBandeja() {
                       const accion = accionRevision(fila);
                       return (
                       <TableRow key={fila.id}>
-                        <TableCell className="max-w-[260px]">
+                        <TableCell className="sticky left-0 z-20 w-[260px] min-w-[260px] max-w-[260px] border-r border-border bg-card">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.empresa.razonSocial}</p>
                           <p className="font-mono text-[11px] text-muted-foreground">{etiquetaTipoDocumentoEmpresa(fila.empresa.tipoDocumento, fila.empresa.ruc)} {fila.empresa.ruc}</p>
                           <p className="text-[10px] text-muted-foreground">{fila.codigo}</p>
                         </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
+                        <TableCell className="sticky left-[260px] z-20 hidden w-[120px] min-w-[120px] border-r border-border bg-card whitespace-nowrap text-[11px] text-muted-foreground md:table-cell">
                           {fila.fechaInicio ? dateUtils.format(fila.fechaInicio) : "—"}
                         </TableCell>
                         <TableCell className="hidden max-w-[150px] truncate text-[11px] text-muted-foreground lg:table-cell">
@@ -687,7 +687,7 @@ export function DdBandeja() {
                         <TableCell className="hidden max-w-[160px] truncate text-[11px] text-muted-foreground xl:table-cell">
                           {fila.revisadoPor === DD_IMPORTACION_REVISOR ? DD_IMPORTACION_REVISOR_LABEL : (fila.revisadoPor ?? "Sin asignar")}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="sticky right-0 z-20 w-[260px] min-w-[260px] border-l border-border bg-card text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <Button
                               type="button"
