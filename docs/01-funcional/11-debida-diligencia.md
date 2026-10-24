@@ -179,6 +179,19 @@ npx tsx scripts/import-dd-excel.ts "C:\ruta\RESULTADO DEBIDA DILIGENCIA.xlsx"
 El import es idempotente por RUC/DNI/ID y no elimina registros que dejen de aparecer
 en el archivo.
 
+Fechas y evento de los registros importados:
+
+- `FECHA DE INGRESO SOLICITUD` se guarda como `fechaEnvio` y representa el
+  **inicio real de la solicitud**.
+- `createdAt` es la fecha en que el registro se creo en la base local durante la
+  importacion. No debe mostrarse como inicio de la solicitud.
+- La bandeja y el export muestran ambas fechas: **Inicio solicitud** y
+  **Creado en BD**.
+- `EVENTO O PROYECTO ASOCIADO` determina la version de evento. PROEXPLO, WMC y
+  GESS se separan; los valores operativos o sin evento permanecen en PERUMIN.
+- La estrategia detallada de QA esta en
+  [`docs/02-despliegue/importacion-dd-qa.md`](../02-despliegue/importacion-dd-qa.md).
+
 ### 4.6 Panel del modulo
 
 Muestra KPIs, estado por vinculo, vigencia y matriz de empresas. La matriz es
