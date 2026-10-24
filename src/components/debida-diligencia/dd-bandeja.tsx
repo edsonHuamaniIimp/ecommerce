@@ -283,7 +283,7 @@ export function DdBandeja() {
         { encabezado: "Motivo importación", valor: (r) => r.motivoImportacion ?? "" },
         { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
         { encabezado: "Inicio solicitud", valor: (r) => (r.fechaInicio ? dateUtils.format(r.fechaInicio) : "") },
-        { encabezado: "Solicitudes", valor: (r) => r.solicitudesAlquiler },
+        { encabezado: "Solicitudes de reserva", valor: (r) => r.solicitudesAlquiler },
         { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
         { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
         { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
@@ -486,7 +486,7 @@ export function DdBandeja() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-solicitudes">Solicitudes</label>
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="dd-filtro-solicitudes">Solicitudes de reserva</label>
                 <Select value={solicitudes} onValueChange={(valor) => { setSolicitudes(valor); setPage(1); recargar({ solicitudes: valor, page: 1 }); }}>
                   <SelectTrigger id="dd-filtro-solicitudes" className="h-8 border-border text-xs"><SelectValue placeholder="Solicitudes" /></SelectTrigger>
                   <SelectContent>
@@ -576,7 +576,7 @@ export function DdBandeja() {
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Vínculos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Documentos</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Solicitudes de reserva</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Reputación</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Vigencia</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Fecha a caducar</TableHead>
