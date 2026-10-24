@@ -198,6 +198,83 @@ Muestra KPIs, estado por vinculo, vigencia y matriz de empresas. La matriz es
 server-side y permite buscar, filtrar por estado DD y vinculo, cambiar `perPage`,
 recargar y exportar el resultado filtrado.
 
+### 4.7 Expedientes APTO que vienen de otro evento
+
+Una empresa puede reutilizar una DD **aprobada y vigente de otro evento** para el
+evento actual. La validez del expediente prevalece sobre el evento: el evento solo
+define el contexto comercial.
+
+La regla aplica cuando:
+
+- no existe una DD aprobada y vigente del evento actual; o
+- la DD del evento actual no esta vigente, esta observada, rechazada o en proceso;
+- existe otra DD de la empresa en estado `aprobada`, con vigencia de 6 meses
+  calculada desde su aprobacion.
+
+Si la DD del evento actual esta aprobada y vigente, esa DD prevalece y no se usa la
+de otro evento.
+
+#### Que muestra el sistema
+
+- La evaluacion de la empresa en Solicitudes y en el Portal muestra el resultado
+  como **APTO**.
+- El calculo interno marca `esOtroEvento = true`; el expediente visible sigue
+  siendo la DD del evento de origen.
+- Si la DD de origen no tiene la **Declaracion jurada de vigencia de informacion**,
+  la evaluacion devuelve:
+  - `requiereDeclaracionVigencia = true`;
+  - `aptoParaContratar = false`;
+  - mensaje: la DD es APTA y vigente, pero falta la declaracion de vigencia.
+- En el Portal, el expediente de origen devuelve
+  `puedeRegularizarDeclaracionVigencia = true`.
+- La revision de la solicitud queda bloqueada para usuarios normales. Solo
+  `admin:full` puede omitir ese bloqueo.
+
+#### Que debe subir la empresa
+
+La empresa **no vuelve a subir los cuatro documentos obligatorios**. La DD de
+origen se reutiliza aunque sea importada y no tenga archivos cargados. Solo debe
+subir:
+
+**Declaracion jurada de vigencia de informacion**
+
+- Plantilla: `plantillas/declaracion-jurada-vigencia-informacion.docx`.
+- La empresa la completa, la firma y la sube **solo en PDF**.
+- Tamano maximo: 10 MB.
+- Ruta del flujo: `/dashboard/debida-diligencia/declaracion-vigencia`.
+- El documento se adjunta a la DD aprobada del otro evento.
+- No se crea una DD nueva.
+- No cambia el estado, la fecha de aprobacion ni la fecha de vencimiento de la DD
+  original.
+- Una vez cargado, el evento actual puede usar la DD y la revision de Solicitudes
+  se desbloquea.
+
+Si la DD de origen ya tiene la declaracion de vigencia, la empresa no debe subir
+nada. La DD se reutiliza directamente.
+
+#### Que pasa si no aplica la reutilizacion
+
+Si la DD de otro evento esta vencida, rechazada, observada o en proceso, no se
+considera APTA. La empresa debe iniciar una DD nueva para el evento actual y subir
+los cuatro documentos obligatorios:
+
+1. ficha RUC o identificacion fiscal;
+2. vigencia de poderes del representante legal;
+3. documento de identidad del representante legal;
+4. declaracion jurada de compromiso de actualizacion de informacion.
+
+#### Resumen
+
+| Situacion | Que sube la empresa |
+|---|---|
+| DD aprobada y vigente de otro evento, sin declaracion de vigencia | Solo la declaracion jurada de vigencia de informacion |
+| DD aprobada y vigente de otro evento, con declaracion de vigencia | Nada; se reutiliza |
+| DD vencida, rechazada, observada o en proceso | DD nueva completa: 4 documentos obligatorios |
+| DD aprobada y vigente del evento actual | Nada adicional; prevalece la DD del evento actual |
+
+La declaracion de vigencia se conserva como documento de la DD de origen. No
+reemplaza los documentos del expediente ni cambia su resultado.
+
 ---
 
 ## 5. Diagrama de actividades (UML con swimlanes)
