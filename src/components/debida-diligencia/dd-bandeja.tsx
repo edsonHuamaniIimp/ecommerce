@@ -100,7 +100,7 @@ const ESTADOS_REVISABLES = new Set<string>([
 function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string } {
   /* Los importados siguen las mismas reglas por estado que los del portal. */
   if (fila.estado === DD_ESTADOS.EN_LEGAL) return { puede: false, label: "En Legal" };
-  if (!ESTADOS_REVISABLES.has(fila.estado)) return { puede: false, label: "No enviado" };
+  if (!ESTADOS_REVISABLES.has(fila.estado)) return { puede: false, label: "Sin enviar" };
   return { puede: true, label: "Revisar" };
 }
 
