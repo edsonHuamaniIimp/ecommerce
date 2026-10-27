@@ -413,12 +413,20 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
 
   async siguienteCodigo(anio: string): Promise<string> {
     const prefijo = `${DD_CODIGO_PREFIJO}-${anio}-`;
-    const ultimo = await prisma.debidaDiligencia.findFirst({
+    /*
+     * Los codigos importados usan `I` (DD-2026-I1009) y rompen el orden
+     * lexicografico: `I...` queda despues de los numericos y Number() da NaN.
+     * Solo los correlativos regulares (sufijo numerico) cuentan para el maximo.
+     */
+    const filas = await prisma.debidaDiligencia.findMany({
       where: { codigo: { startsWith: prefijo } },
-      orderBy: { codigo: "desc" },
       select: { codigo: true },
     });
-    const consecutivo = ultimo ? Number(ultimo.codigo.slice(prefijo.length)) || 0 : 0;
+    const consecutivo = filas.reduce((maximo, fila) => {
+      const sufijo = fila.codigo.slice(prefijo.length);
+      if (!/^\d+$/.test(sufijo)) return maximo;
+      return Math.max(maximo, Number(sufijo));
+    }, 0);
     return `${prefijo}${String(consecutivo + 1).padStart(DD_CODIGO_DIGITOS, "0")}`;
   }
 
