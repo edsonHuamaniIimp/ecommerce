@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Llamar al endpoint de reconciliacion
+        # El endpoint sincroniza expedientes contra el SGC real (~1.6 s c/u, hasta
+        # SGC_RECONCILIAR_MAX_POR_CORRIDA=50). El ALB tiene idle_timeout=120 s.
         run: |
           curl -fsS -X POST "${{ secrets.SGC_RECONCILE_URL }}" \
             -H "x-cron-secret: ${{ secrets.SGC_CRON_SECRET }}" \
-            --max-time 30
+            --max-time 110
