@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularImportes, redondear2 } from "../importes";
+import { calcularImportes, redondear2, sumarMontos } from "../importes";
 
 describe("calcularImportes", () => {
   it("agrega IGV 18% al total (precios netos)", () => {
@@ -21,5 +21,19 @@ describe("calcularImportes", () => {
   it("mantiene consistencia en montos minimos (IGV redondea a 0.00)", () => {
     const r = calcularImportes(0.01);
     expect(r).toEqual({ valorVenta: 0.01, igv: 0, total: 0.01 });
+  });
+});
+
+describe("sumarMontos", () => {
+  it("suma el plan 40/30/30 con IGV (contrato MAESTRANZA / 2 stands)", () => {
+    expect(sumarMontos([{ monto: 13735.2 }, { monto: 10301.4 }, { monto: 10301.4 }])).toBe(34338);
+  });
+
+  it("redondea a centavos", () => {
+    expect(sumarMontos([{ monto: 0.1 }, { monto: 0.2 }])).toBe(0.3);
+  });
+
+  it("devuelve 0 con lista vacia", () => {
+    expect(sumarMontos([])).toBe(0);
   });
 });

@@ -24,3 +24,11 @@ export function calcularImportes(neto: number): ImportesContrato {
   const igv = redondear2(valorVenta * IGV_PORCENTAJE);
   return { valorVenta, igv, total: redondear2(valorVenta + igv) };
 }
+
+/**
+ * Suma de montos de cuotas (redondeada a centavos). Es el total que debe reflejar la
+ * facturacion cuando existe un plan del contrato: sus montos ya incluyen IGV.
+ */
+export function sumarMontos(cuotas: Array<{ monto: number }>): number {
+  return redondear2(cuotas.reduce((sum, c) => sum + (Number.isFinite(c.monto) ? c.monto : 0), 0));
+}

@@ -8,6 +8,7 @@ import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { sumarMontos } from "@/lib/shared/utils/importes";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -664,7 +665,19 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     const stands = sol?.gessStandId
       ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
       : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
-    const montoTotal = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+    /*
+     * RF-10: el plan de pagos lo definio el cliente en el contrato (`solicitud.plan_cuotas`)
+     * y es la fuente de verdad de Facturacion. Sus montos YA incluyen IGV: el total a facturar
+     * debe ser la SUMA DE CUOTAS (el precio base del stand es neto). Sin plan (legacy/manual)
+     * se mantiene el comportamiento anterior (precio base del stand).
+     */
+    const plan = sol?.planCuotas as
+      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }> }
+      | null;
+    const cuotasPlan = plan?.cuotas ?? [];
+    const montoTotal = cuotasPlan.length > 0
+      ? sumarMontos(cuotasPlan)
+      : stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
 
     const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
     const facturacion = existing
@@ -674,14 +687,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         });
 
     /*
-     * RF-10: el plan de pagos lo definio el cliente en el contrato (`solicitud.plan_cuotas`).
-     * Se copia a la facturacion como fuente de verdad: Facturacion solo confirma pagos.
      * Las cuotas ya pagadas no se tocan; las pendientes se alinean al plan.
      */
-    const plan = sol?.planCuotas as
-      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }> }
-      | null;
-    const cuotasPlan = plan?.cuotas ?? [];
     if (cuotasPlan.length > 0) {
       const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
       await prisma.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
