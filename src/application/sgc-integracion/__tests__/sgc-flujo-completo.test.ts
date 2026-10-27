@@ -7,6 +7,8 @@ vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
   enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
 }));
+vi.stubEnv("SGC_ENABLED", "1");
+
 vi.mock("@/lib/server/idioma", () => ({
   resolverIdiomaUsuario: vi.fn().mockResolvedValue("es"),
   resolverIdiomaPeticion: vi.fn().mockResolvedValue("es"),
