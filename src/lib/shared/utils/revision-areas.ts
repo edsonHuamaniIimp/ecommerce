@@ -8,14 +8,17 @@ interface RevisionLike {
 /**
  * Devuelve las áreas de revisión **local** a considerar/lograr para una solicitud.
  *
- * Criterio de compatibilidad: se parte del orden vigente (`logistica → comunicacion`,
- * porque Legal se delegó al SGC) y se agrega **Legal** solo si la solicitud tiene una
- * revisión Legal persistida (datos legacy del flujo anterior). Así:
- *  - Solicitudes nuevas: `[logistica, comunicacion]` → Legal la cubre el SGC.
- *  - Solicitudes antiguas con Legal: `[logistica, comunicacion, legal]` → se sigue exigiendo.
+ * Criterio de compatibilidad:
+ *  - Si la solicitud tiene una revisión Legal persistida (legacy), se exige.
+ *  - Si el SGC está deshabilitado, Legal se revisa localmente (fallback QA/dev).
+ *  - Con SGC habilitado, Legal se delega al SGC.
  */
-export function areasRevisionLocal(revisiones: RevisionLike[]): RevisionArea[] {
-  return tieneLegalLocal(revisiones)
+export function areasRevisionLocal(
+  revisiones: RevisionLike[],
+  opciones?: { sgcEnabled?: boolean },
+): RevisionArea[] {
+  const incluirLegal = tieneLegalLocal(revisiones) || opciones?.sgcEnabled === false;
+  return incluirLegal
     ? [...REVISION_AREA_ORDER, REVISION_AREAS.LEGAL]
     : [...REVISION_AREA_ORDER];
 }

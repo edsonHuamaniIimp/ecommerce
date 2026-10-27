@@ -10,6 +10,7 @@ import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSc
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { requestMetadata } from "@/lib/server/request-metadata";
 import { auditarVerComo } from "@/lib/server/ver-como-audit";
 import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
@@ -366,7 +367,7 @@ export const solicitudesController = {
     if (detalle.userId && detalle.userId !== session.sub && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
       return error(API_ERROR_CODES.FORBIDDEN, "No puedes modificar solicitudes de otro usuario", 403);
     }
-    if (!areasRevisionLocal(detalle.revisiones).every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
+    if (!areasRevisionLocal(detalle.revisiones, { sgcEnabled: isSgcEnabled() }).every((area) => detalle.revisiones.find((r) => r.area === area)?.estado !== RESULTADOS_APROBACION.PENDIENTE)) {
       return error(API_ERROR_CODES.CONFLICT, "La solicitud aun esta en revision", 409);
     }
     for (const rev of detalle.revisiones) {

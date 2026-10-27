@@ -1079,7 +1079,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               {/* Estado de revision */}
               <DetailSection id="revision" title="Estado de revision" open={accordionOpen === "revision"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="space-y-1.5">
-                  {areasRevisionLocal(detailRow.revisiones).map((area) => {
+                  {areasRevisionLocal(detailRow.revisiones, { sgcEnabled: detailRow.sgcEnabled }).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
                     return (

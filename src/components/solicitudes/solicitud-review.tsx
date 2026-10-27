@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
@@ -137,7 +137,7 @@ export function SolicitudReview({
   const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
-  const areas = areasRevisionLocal(row.revisiones);
+  const areas = areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
   const legalDelegada = legalDelegadaAlSgc(row.revisiones);
   const mostrarSgc = row.sgcEnabled && legalDelegada;

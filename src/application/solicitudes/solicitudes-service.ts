@@ -1,14 +1,15 @@
-﻿import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
+import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, REVISION_AREA_ORDER, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos, enVentanaAnexosReserva } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import type { JwtPayload } from "@/lib/server/auth";
@@ -54,7 +55,7 @@ export class SolicitudesApplicationService {
     const detalle = await this.detalle(params.solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
 
-    const faltaRevision = areasRevisionLocal(detalle.revisiones).some(
+    const faltaRevision = areasRevisionLocal(detalle.revisiones, { sgcEnabled: isSgcEnabled() }).some(
       (area) =>
         (detalle.revisiones.find((r) => r.area === area)?.estado ?? RESULTADOS_APROBACION.PENDIENTE) ===
         RESULTADOS_APROBACION.PENDIENTE,
@@ -199,13 +200,16 @@ export class SolicitudesApplicationService {
     // Only send alerts when transitioning FROM pendiente (first review)
     if (!revision.fuePrimeraRevision) return revision;
 
-    if (data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
+    const sgcHabilitado = isSgcEnabled();
+    if (sgcHabilitado && data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
       /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
        * "Enviar al SGC para revisión". Best-effort: no rompe la aprobacion si el SGC falla. */
       await this.sgcIntegracion?.enviarExpedienteAlSgc(data.solicitudId, data.reviewerEmail);
     }
-    const nextRole = REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
+    const nextRole = !sgcHabilitado && data.area === REVISION_AREAS.ASOCIADO && data.estado === RESULTADOS_APROBACION.APROBADO
+      ? ROLES.LEGAL
+      : REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
     if (nextRole) {
       const detalle = await this.repo.detalle(data.solicitudId);
       if (detalle) {
@@ -232,7 +236,7 @@ export class SolicitudesApplicationService {
   }
 
   async inicializarRevisiones(solicitudId: string): Promise<void> {
-    for (const area of REVISION_AREA_ORDER) {
+    for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
       await this.repo.crearRevisionInicial(solicitudId, area);
     }
   }

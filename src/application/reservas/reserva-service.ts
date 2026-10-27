@@ -4,7 +4,9 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, REVISION_AREA_ORDER, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
@@ -246,7 +248,7 @@ export class ReservaApplicationService {
           snapshot,
           { actor: request.userSub ?? null, ip: request.ip ?? null },
         );
-        for (const area of REVISION_AREA_ORDER) {
+        for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
         }
 

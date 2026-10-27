@@ -7,6 +7,7 @@ import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVIS
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
@@ -14,7 +15,6 @@ import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios
 import { dateUtils } from "@/lib/shared/utils/date";
 import { nombreCompleto } from "@/lib/shared/utils/nombre";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
-import { isSgcEnabled } from "@/lib/server/sgc-config";
 
 type SolicitudConRelaciones = Prisma.SolicitudGetPayload<{
   include: {
@@ -62,7 +62,7 @@ function computeEstadoSolicitud(revisiones: RevisionEntity[]): string {
   /* Observacion local: el flujo se detiene hasta que el cliente reemplace y reenvie. */
   if (revisiones.some((r) => r.estado === ESTADOS_REVISION.OBSERVADO)) return ESTADOS_SOLICITUD.OBSERVADO;
   const algunaRespondio = revisiones.some((r) => r.estado !== ESTADOS_REVISION.PENDIENTE);
-  const todasRespondieron = areasRevisionLocal(revisiones).every((area) => {
+  const todasRespondieron = areasRevisionLocal(revisiones, { sgcEnabled: isSgcEnabled() }).every((area) => {
     const rev = revisiones.find((r) => r.area === area);
     return rev && rev.estado !== "pendiente";
   });

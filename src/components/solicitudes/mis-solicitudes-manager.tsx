@@ -197,7 +197,7 @@ function FlujoRevision({ row }: { row: SolicitudRow }) {
   if (!(row.revisiones?.length > 0)) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
-      {areasRevisionLocal(row.revisiones).map((area) => {
+      {areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled }).map((area) => {
         const rev = row.revisiones.find((r) => r.area === area);
         const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
         return (
@@ -1239,7 +1239,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               {/* Estado de revision */}
               <ModalSection title="Estado de revision">
                 {(() => {
-                  const areas = areasRevisionLocal(detailRow.revisiones).map((area) => {
+                  const areas = areasRevisionLocal(detailRow.revisiones, { sgcEnabled: detailRow.sgcEnabled }).map((area) => {
                     const rev = detailRow.revisiones.find((r) => r.area === area);
                     const estado = rev?.estado ?? RESULTADOS_APROBACION.PENDIENTE;
                     return { key: area, label: REVISION_AREA_LABELS[area], estado, etiqueta: etiquetaEstadoArea(estado), badge: claseEstadoArea(estado), comentario: rev?.comentario ?? null };

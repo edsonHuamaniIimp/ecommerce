@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SolicitudesApplicationService } from "../solicitudes-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { ISgcRepository } from "@/domain/ports/sgc-repository";
@@ -10,6 +10,8 @@ import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMEN
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
 }));
+vi.stubEnv("SGC_ENABLED", "1");
+
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
   enviarEmailPlantilla: vi.fn().mockResolvedValue(true),

@@ -26,4 +26,12 @@ describe("revision-areas (flujo local Asociado vs SGC, RF-14/15)", () => {
     expect(areasRevisionLocal([])).toEqual([REVISION_AREAS.ASOCIADO]);
     expect(legalDelegadaAlSgc([])).toBe(true);
   });
+
+  it("agrega Legal local cuando el SGC esta deshabilitado", () => {
+    expect(areasRevisionLocal([{ area: REVISION_AREAS.ASOCIADO }], { sgcEnabled: false })).toEqual([
+      REVISION_AREAS.ASOCIADO,
+      REVISION_AREAS.LEGAL,
+    ]);
+    expect(areasRevisionLocal([], { sgcEnabled: true })).toEqual([REVISION_AREAS.ASOCIADO]);
+  });
 });
