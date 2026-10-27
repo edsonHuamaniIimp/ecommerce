@@ -161,6 +161,7 @@ export function mapDdExpedienteToDTO(
     reputacion: expediente.reputacion.map((r) => ({
       id: r.id,
       nombreARevisar: r.nombreARevisar,
+      nacionalidad: r.nacionalidad,
       sitioWeb: r.sitioWeb,
       estado: r.estado,
       resultado: r.resultado,
@@ -434,6 +435,7 @@ export function mapDdReputacionRowToDTO(row: DdReputacionGrupo["casos"][number])
     codigo: row.codigo,
     empresa: { razonSocial: row.empresa.razonSocial },
     nombreARevisar: row.nombreARevisar,
+    nacionalidad: row.nacionalidad,
     sitioWeb: row.sitioWeb,
     estado: row.estado,
     resultado: row.resultado,

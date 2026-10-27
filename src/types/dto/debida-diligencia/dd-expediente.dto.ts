@@ -74,6 +74,8 @@ export interface DdObservacionDTO {
 export interface DdReputacionCasoDTO {
   id: string;
   nombreARevisar: string;
+  /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
+  nacionalidad: string | null;
   sitioWeb: string | null;
   estado: string;
   resultado: string | null;

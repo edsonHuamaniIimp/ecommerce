@@ -5,6 +5,7 @@ import countries from "i18n-iso-countries";
 import es from "i18n-iso-countries/langs/es.json";
 import { Button, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, Popover, PopoverContent, PopoverTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { paisDeTexto } from "@/lib/shared/utils/pais";
 
 countries.registerLocale(es);
 
@@ -21,15 +22,36 @@ interface PaisSelectProps {
   onChange: (pais: string) => void;
   error?: string;
   disabled?: boolean;
+  /**
+   * Valor que entrega `onChange`: código ISO por defecto o nombre del país.
+   * En modo nombre también reconoce un código ISO ya guardado.
+   */
+  valueMode?: "codigo" | "nombre";
+  mostrarCodigo?: boolean;
 }
 
-/** Selector buscable de pais; guarda el codigo ISO alpha-2. */
-export function PaisSelect({ id, value, onChange, error, disabled = false }: PaisSelectProps) {
+/** Selector buscable de país; por defecto guarda el código ISO alpha-2. */
+export function PaisSelect({
+  id,
+  value,
+  onChange,
+  error,
+  disabled = false,
+  valueMode = "codigo",
+  mostrarCodigo = true,
+}: PaisSelectProps) {
   const [open, setOpen] = useState(false);
-  const seleccionado = useMemo(
-    () => PAISES.find((pais) => pais.codigo === value),
-    [value],
-  );
+  const seleccionado = useMemo(() => {
+    const buscado = value.trim();
+    const codigoLegacy = paisDeTexto(buscado);
+    return PAISES.find(
+      (pais) =>
+        pais.codigo === codigoLegacy ||
+        pais.codigo === buscado ||
+        (valueMode === "nombre" && normalizar(pais.nombre) === normalizar(buscado)),
+    );
+  }, [value, valueMode]);
+  const valorAnterior = value.trim();
 
   return (
     <div className="space-y-1">
@@ -41,12 +63,16 @@ export function PaisSelect({ id, value, onChange, error, disabled = false }: Pai
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            aria-label="Pais"
+            aria-label="País"
             disabled={disabled}
             className={`h-10 w-full justify-between px-3 text-sm font-normal ${error ? "border-destructive" : ""}`}
           >
             <span className="truncate">
-              {seleccionado ? `${seleccionado.codigo} - ${seleccionado.nombre}` : "Selecciona pais"}
+              {seleccionado
+                ? mostrarCodigo
+                  ? `${seleccionado.codigo} - ${seleccionado.nombre}`
+                  : seleccionado.nombre
+                : valorAnterior || "Selecciona país"}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -57,7 +83,7 @@ export function PaisSelect({ id, value, onChange, error, disabled = false }: Pai
               normalizar(itemValue).includes(normalizar(search)) ? 1 : 0
             }
           >
-            <CommandInput placeholder="Buscar pais o codigo..." />
+            <CommandInput placeholder="Buscar país o código..." />
             <CommandList>
               <CommandEmpty>Sin resultados.</CommandEmpty>
               <CommandGroup>
@@ -67,11 +93,11 @@ export function PaisSelect({ id, value, onChange, error, disabled = false }: Pai
                     value={`${pais.codigo} ${pais.nombre}`}
                     keywords={[pais.codigo, pais.nombre]}
                     onSelect={() => {
-                      onChange(pais.codigo);
+                      onChange(valueMode === "nombre" ? pais.nombre : pais.codigo);
                       setOpen(false);
                     }}
                   >
-                    <Check className={`mr-2 h-4 w-4 ${value === pais.codigo ? "opacity-100" : "opacity-0"}`} />
+                    <Check className={`mr-2 h-4 w-4 ${seleccionado?.codigo === pais.codigo ? "opacity-100" : "opacity-0"}`} />
                     <span className="mr-2 font-mono text-xs">{pais.codigo}</span>
                     <span>{pais.nombre}</span>
                   </CommandItem>
@@ -81,6 +107,11 @@ export function PaisSelect({ id, value, onChange, error, disabled = false }: Pai
           </Command>
         </PopoverContent>
       </Popover>
+      {!seleccionado && valorAnterior ? (
+        <p className="text-[10px] text-muted-foreground">
+          Se conserva el valor anterior. Selecciona un país para actualizarlo.
+        </p>
+      ) : null}
       {error && <p className="text-[11px] text-destructive">{error}</p>}
     </div>
   );

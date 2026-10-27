@@ -466,6 +466,25 @@ export const ddUtils = {
     return roles.length > 0 ? roles : [DD_REPUTACION_TIPOS.NOMBRE];
   },
 
+  /** Nacionalidad del representante o beneficiario detras de un nombre derivado. */
+  nacionalidadNombreARevisar(
+    expediente: {
+      representanteNombre: string | null;
+      representanteNacionalidad?: string | null;
+      beneficiarios: { nombre: string; nacionalidad: string }[];
+    },
+    nombre: string,
+  ): string | null {
+    const buscado = nombre.trim();
+    if (expediente.representanteNombre?.trim() === buscado) {
+      return expediente.representanteNacionalidad?.trim() || null;
+    }
+    return (
+      expediente.beneficiarios.find((beneficiario) => beneficiario.nombre.trim() === buscado)
+        ?.nacionalidad.trim() || null
+    );
+  },
+
   /** Estado persistido de un caso reputacional segun el resultado elegido. */
   estadoReputacion(resultado: string, cerrar: boolean): DdReputacionEstado | undefined {
     return cerrar

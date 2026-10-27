@@ -2888,6 +2888,10 @@ components:
           type: string
         nombreARevisar:
           type: string
+        nacionalidad:
+          type: string
+          nullable: true
+          description: Nacionalidad del representante o beneficiario; null para la empresa o sin coincidencia.
         sitioWeb:
           type: string
           nullable: true
@@ -3543,6 +3547,10 @@ components:
               type: string
         nombreARevisar:
           type: string
+        nacionalidad:
+          type: string
+          nullable: true
+          description: Nacionalidad del representante o beneficiario; null para la empresa o sin coincidencia.
         sitioWeb:
           type: string
           nullable: true

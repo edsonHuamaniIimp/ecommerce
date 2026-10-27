@@ -36,6 +36,7 @@ import { AlertTriangle, CheckCircle2, Info, Loader2, Search, ShieldAlert } from 
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { DdPaisBandera } from "./dd-pais-bandera";
 import { DdReputacionBadge } from "./dd-estado-badge";
 import { DdRadioIndicator } from "./dd-radio-indicator";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
@@ -50,6 +51,7 @@ import {
   type DdReputacionResultado,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { paisDeTexto } from "@/lib/shared/utils/pais";
 import type { DdReputacionResponseDTO, DdReputacionRowDTO } from "@/types/dto/debida-diligencia";
 
 /** Bandeja de revision reputacional del area de Comunicaciones. */
@@ -225,7 +227,7 @@ export function DdReputacion() {
 
           <CardContent className="space-y-3 pt-4">
             {loading ? (
-              <TableSkeleton rows={perPage} columns={6} />
+              <TableSkeleton rows={perPage} columns={7} />
             ) : !data || data.data.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-sm text-muted-foreground">No hay solicitudes en este filtro.</p>
@@ -272,7 +274,8 @@ export function DdReputacion() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead className="text-[10px] uppercase tracking-wide">Nombre</TableHead>
-                                <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Sitio web</TableHead>
+                                <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Nacionalidad</TableHead>
+                                <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Sitio web</TableHead>
                                 <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Derivado por</TableHead>
                                 <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Fecha</TableHead>
                                 <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
@@ -285,7 +288,17 @@ export function DdReputacion() {
                                   <TableCell className="max-w-[250px]">
                                     <p className="truncate text-xs font-semibold text-foreground">{fila.nombreARevisar}</p>
                                   </TableCell>
-                                  <TableCell className="hidden max-w-[160px] truncate text-xs md:table-cell">
+                                  <TableCell className="hidden max-w-[130px] text-[11px] text-muted-foreground md:table-cell">
+                                    {fila.nacionalidad ? (
+                                      <span className="inline-flex items-center gap-1.5">
+                                        <DdPaisBandera pais={paisDeTexto(fila.nacionalidad)} />
+                                        <span className="truncate">{fila.nacionalidad}</span>
+                                      </span>
+                                    ) : (
+                                      <span>—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">
                                     {fila.sitioWeb ? (
                                       <a href={fila.sitioWeb} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
                                         {fila.sitioWeb.replace(/^https?:\/\//, "")}
@@ -368,6 +381,19 @@ export function DdReputacion() {
                   <p className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Nombre a evaluar</span>
                     <span className="text-right font-medium text-foreground">{seleccionado.nombreARevisar}</span>
+                  </p>
+                  <p className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Nacionalidad</span>
+                    <span className="inline-flex items-center gap-1.5 text-right font-medium text-foreground">
+                      {seleccionado.nacionalidad ? (
+                        <>
+                          <DdPaisBandera pais={paisDeTexto(seleccionado.nacionalidad)} />
+                          <span>{seleccionado.nacionalidad}</span>
+                        </>
+                      ) : (
+                        "Sin dato"
+                      )}
+                    </span>
                   </p>
                   <p className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Sitio web</span>

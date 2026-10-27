@@ -24,6 +24,7 @@ import { AlertCircle, CheckCircle2, Eye, FileText, Loader2, XCircle } from "luci
 import { toast } from "sonner";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
+import { DdPaisBandera } from "./dd-pais-bandera";
 import { DdRadioIndicator } from "./dd-radio-indicator";
 import { DdRevisionMatrizTab } from "./dd-revision-matriz-tab";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -56,6 +57,7 @@ import {
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { paisDeTexto } from "@/lib/shared/utils/pais";
 import type {
   DdBandejaRowDTO,
   DdExpedienteDTO,
@@ -464,7 +466,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                     <div className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-4 sm:grid-cols-2">
                       <DatoResumen label="Razón social">{detalle.empresa.razonSocial}</DatoResumen>
                       <DatoResumen label="RUC"><span className="font-mono">{detalle.empresa.ruc}</span></DatoResumen>
-                      <DatoResumen label="País de constitución">{detalle.paisConstitucion ?? "—"}</DatoResumen>
+                      <DatoResumen label="País de constitución">
+                        {detalle.paisConstitucion ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <DdPaisBandera pais={paisDeTexto(detalle.paisConstitucion)} />
+                            <span>{detalle.paisConstitucion}</span>
+                          </span>
+                        ) : "—"}
+                      </DatoResumen>
                       <DatoResumen label="Actividad económica">
                         {detalle.actividadEconomica ?? "—"}
                         {detalle.actividadEconomicaOtro ? ` (${detalle.actividadEconomicaOtro})` : ""}
@@ -506,7 +515,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                       <DatoResumen label="Nombre">{detalle.representanteNombre ?? "—"}</DatoResumen>
                       <DatoResumen label="Tipo de documento">{detalle.representanteTipoDocumento ?? "—"}</DatoResumen>
                       <DatoResumen label="Número de documento">{detalle.representanteDocumento ?? "—"}</DatoResumen>
-                      <DatoResumen label="Nacionalidad">{detalle.representanteNacionalidad ?? "—"}</DatoResumen>
+                      <DatoResumen label="Nacionalidad">
+                        {detalle.representanteNacionalidad ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <DdPaisBandera pais={paisDeTexto(detalle.representanteNacionalidad)} />
+                            <span>{detalle.representanteNacionalidad}</span>
+                          </span>
+                        ) : "—"}
+                      </DatoResumen>
                     </div>
                   </section>
 
@@ -524,9 +540,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                           <div key={beneficiario.id} className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium text-foreground">{beneficiario.nombre}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                              Documento: {beneficiario.documento} · Nacionalidad: {beneficiario.nacionalidad}
-                            </p>
+                              <p className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                                <span>Documento: {beneficiario.documento}</span>
+                                <span aria-hidden="true">·</span>
+                                <span className="inline-flex items-center gap-1">
+                                  <DdPaisBandera pais={paisDeTexto(beneficiario.nacionalidad)} />
+                                  <span>Nacionalidad: {beneficiario.nacionalidad}</span>
+                                </span>
+                              </p>
                             </div>
                             <span className="shrink-0 text-xs font-semibold text-primary">{beneficiario.porcentaje}%</span>
                           </div>
@@ -849,6 +870,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                                       </Badge>
                                     ))}
                                   </div>
+                                  {caso.nacionalidad ? (
+                                    <p className="mt-1 inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                      <DdPaisBandera pais={paisDeTexto(caso.nacionalidad)} />
+                                      <span>{caso.nacionalidad}</span>
+                                    </p>
+                                  ) : null}
                                   {caso.sitioWeb ? (
                                     <a
                                       href={caso.sitioWeb}

@@ -34,12 +34,12 @@ import {
   Loader2,
   Lock,
   Plus,
-  Search,
   ShieldCheck,
   Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PaisSelect } from "@/components/shared/pais-select";
 import { DdStepper } from "./dd-stepper";
 import { DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
@@ -77,6 +77,8 @@ import {
   DD_RUTAS,
   DD_VINCULO_LABELS,
   DD_VINCULOS,
+  REGEX_DNI,
+  REGEX_RUC,
   type DdDocumentoEstado,
   type DdDocumentoTipo,
   type DdVinculo,
@@ -215,7 +217,12 @@ export function DdWizard({
   const [enviando, setEnviando] = useState(false);
   const [subiendo, setSubiendo] = useState<string | null>(null);
   const [buscandoBeneficiario, setBuscandoBeneficiario] = useState<string | null>(null);
+  const [buscandoRepresentante, setBuscandoRepresentante] = useState(false);
   const lookupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lookupSeq = useRef<Record<string, number>>({});
+  const representanteLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const representanteLookupSeq = useRef(0);
+  const [representanteValidado, setRepresentanteValidado] = useState<"DNI" | "RUC" | null>(null);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
   const [beneficiariosValidados, setBeneficiariosValidados] = useState<Record<string, "DNI" | "RUC">>({});
   const inputsArchivo = useRef<Record<string, HTMLInputElement | null>>({});
@@ -280,6 +287,11 @@ export function DdWizard({
     document.getElementById(`dd-doc-${primero.tipo}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [paso, documentos]);
 
+  useEffect(() => () => {
+    if (representanteLookupTimer.current) clearTimeout(representanteLookupTimer.current);
+    Object.values(lookupTimers.current).forEach((temporizador) => clearTimeout(temporizador));
+  }, []);
+
   const setCampo = <K extends keyof FormState>(campo: K, valor: FormState[K]) => {
     setForm((prev) => ({ ...prev, [campo]: valor }));
     setError(null);
@@ -299,44 +311,60 @@ export function DdWizard({
     setError(null);
   };
 
-  const consultarBeneficiario = async (beneficiario: BeneficiarioForm) => {
-    if (buscandoBeneficiario === beneficiario.id) return;
-    const documento = beneficiario.documento.trim();
-    const esDni = /^\d{8}$/.test(documento);
-    const esRuc = /^\d{11}$/.test(documento);
-    if (!esDni && !esRuc) {
-      toast.error("Ingrese un DNI de 8 dígitos o un RUC de 11 dígitos para buscar.");
-      return;
+  const consultarDocumento = async (
+    documento: string,
+  ): Promise<{ tipo: "DNI" | "RUC"; nombre: string }> => {
+    if (REGEX_DNI.test(documento)) {
+      const resultado = await sunatService.consultarDni(documento);
+      const nombre = (
+        resultado.nombreCompleto ??
+        [resultado.nombres, resultado.apellidoPaterno, resultado.apellidoMaterno]
+          .filter(Boolean)
+          .join(" ")
+      ).trim();
+      if (resultado.error || !nombre) {
+        throw new Error(resultado.error ?? "No se encontró el DNI.");
+      }
+      return { tipo: "DNI", nombre };
     }
+
+    if (REGEX_RUC.test(documento)) {
+      const resultado = await sunatService.consultarRuc(documento);
+      if (resultado.error || !resultado.razonSocial) {
+        throw new Error(resultado.error ?? "No se encontró el RUC.");
+      }
+      return { tipo: "RUC", nombre: resultado.razonSocial };
+    }
+
+    throw new Error("Ingrese un DNI de 8 dígitos o un RUC de 11 dígitos para buscar.");
+  };
+
+  const consultarBeneficiario = async (beneficiario: BeneficiarioForm, secuencia: number) => {
+    if (secuencia !== (lookupSeq.current[beneficiario.id] ?? 0)) return;
+    const documento = beneficiario.documento.trim();
+    if (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento)) return;
+
     setBuscandoBeneficiario(beneficiario.id);
     try {
-      if (esDni) {
-        const resultado = await sunatService.consultarDni(documento);
-        if (resultado.error || !resultado.nombreCompleto) {
-          toast.error(resultado.error ?? "No se encontró el DNI.");
-          return;
-        }
-        setBeneficiarios((prev) =>
-          prev.map((b) => (b.id === beneficiario.id ? { ...b, nombre: resultado.nombreCompleto ?? b.nombre } : b)),
-        );
-        setBeneficiariosValidados((prev) => ({ ...prev, [beneficiario.id]: "DNI" }));
-        toast.success("Nombre validado con RENIEC.");
-      } else {
-        const resultado = await sunatService.consultarRuc(documento);
-        if (resultado.error || !resultado.razonSocial) {
-          toast.error(resultado.error ?? "No se encontró el RUC.");
-          return;
-        }
-        setBeneficiarios((prev) =>
-          prev.map((b) => (b.id === beneficiario.id ? { ...b, nombre: resultado.razonSocial ?? b.nombre } : b)),
-        );
-        setBeneficiariosValidados((prev) => ({ ...prev, [beneficiario.id]: "RUC" }));
-        toast.success("Razón social validada con SUNAT.");
-      }
+      const resultado = await consultarDocumento(documento);
+      if (secuencia !== (lookupSeq.current[beneficiario.id] ?? 0)) return;
+      setBeneficiarios((prev) =>
+        prev.map((b) => (b.id === beneficiario.id ? { ...b, nombre: resultado.nombre } : b)),
+      );
+      setBeneficiariosValidados((prev) => ({ ...prev, [beneficiario.id]: resultado.tipo }));
+      toast.success(
+        resultado.tipo === "DNI"
+          ? "Nombre validado con RENIEC."
+          : "Razón social validada con SUNAT.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo consultar el documento.");
+      if (secuencia === (lookupSeq.current[beneficiario.id] ?? 0)) {
+        toast.error(err instanceof Error ? err.message : "No se pudo consultar el documento.");
+      }
     } finally {
-      setBuscandoBeneficiario(null);
+      if (secuencia === (lookupSeq.current[beneficiario.id] ?? 0)) {
+        setBuscandoBeneficiario(null);
+      }
     }
   };
 
@@ -345,11 +373,49 @@ export function DdWizard({
     cambiarBeneficiario(beneficiario.id, "documento", documento);
     const temporizador = lookupTimers.current[beneficiario.id];
     if (temporizador) clearTimeout(temporizador);
-    if (/^\d{8}$|^\d{11}$/.test(documento)) {
+    const secuencia = (lookupSeq.current[beneficiario.id] ?? 0) + 1;
+    lookupSeq.current[beneficiario.id] = secuencia;
+    setBuscandoBeneficiario(null);
+    if (REGEX_DNI.test(documento) || REGEX_RUC.test(documento)) {
       lookupTimers.current[beneficiario.id] = setTimeout(() => {
-        void consultarBeneficiario({ ...beneficiario, documento });
+        void consultarBeneficiario({ ...beneficiario, documento }, secuencia);
       }, 500);
     }
+  };
+
+  const actualizarDocumentoRepresentante = (valor: string) => {
+    const documento = valor.trim();
+    setCampo("representanteDocumento", documento);
+    setRepresentanteValidado(null);
+    setBuscandoRepresentante(false);
+    representanteLookupSeq.current += 1;
+    const secuencia = representanteLookupSeq.current;
+    if (representanteLookupTimer.current) clearTimeout(representanteLookupTimer.current);
+    if (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento)) return;
+
+    representanteLookupTimer.current = setTimeout(() => {
+      void (async () => {
+        if (secuencia !== representanteLookupSeq.current) return;
+        setBuscandoRepresentante(true);
+        try {
+          const resultado = await consultarDocumento(documento);
+          if (secuencia !== representanteLookupSeq.current) return;
+          setCampo("representanteNombre", resultado.nombre);
+          setRepresentanteValidado(resultado.tipo);
+          toast.success(
+            resultado.tipo === "DNI"
+              ? "Nombre validado con RENIEC."
+              : "Razón social validada con SUNAT.",
+          );
+        } catch (err) {
+          if (secuencia === representanteLookupSeq.current) {
+            toast.error(err instanceof Error ? err.message : "No se pudo consultar el documento.");
+          }
+        } finally {
+          if (secuencia === representanteLookupSeq.current) setBuscandoRepresentante(false);
+        }
+      })();
+    }, 500);
   };
 
   const documentoDe = (tipo: string) => documentos.find((d) => d.tipo === tipo) ?? null;
@@ -533,6 +599,10 @@ export function DdWizard({
   };
 
   const quitarBeneficiario = (id: string) => {
+    const temporizador = lookupTimers.current[id];
+    if (temporizador) clearTimeout(temporizador);
+    delete lookupTimers.current[id];
+    delete lookupSeq.current[id];
     setBeneficiarios((prev) => prev.filter((b) => b.id !== id));
     setBeneficiariosValidados((prev) => {
       const siguiente = { ...prev };
@@ -854,7 +924,10 @@ export function DdWizard({
                     <Label className="text-xs"><span>Tipo de documento *</span></Label>
                     <Select
                       value={form.representanteTipoDocumento}
-                      onValueChange={(valor) => setCampo("representanteTipoDocumento", valor)}
+                      onValueChange={(valor) => {
+                        setCampo("representanteTipoDocumento", valor);
+                        setRepresentanteValidado(null);
+                      }}
                     >
                       <SelectTrigger className="mt-1 h-9 w-full text-sm">
                         <SelectValue />
@@ -870,16 +943,30 @@ export function DdWizard({
                     <Label className="text-xs"><span>Número de documento *</span></Label>
                     <Input
                       value={form.representanteDocumento}
-                      onChange={(e) => setCampo("representanteDocumento", e.target.value)}
+                      onChange={(e) => actualizarDocumentoRepresentante(e.target.value)}
                       className="mt-1 h-9 text-sm"
+                      inputMode="numeric"
+                      autoComplete="off"
                     />
+                    {buscandoRepresentante ? (
+                      <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Consultando RENIEC / SUNAT...</span>
+                      </p>
+                    ) : representanteValidado ? (
+                      <p className="mt-1 text-[10px] font-medium text-success">
+                        Validado con {representanteValidado === "DNI" ? "RENIEC" : "SUNAT"}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <Label className="text-xs"><span>Nacionalidad *</span></Label>
-                    <Input
+                    <PaisSelect
+                      id="representanteNacionalidad"
                       value={form.representanteNacionalidad}
-                      onChange={(e) => setCampo("representanteNacionalidad", e.target.value)}
-                      className="mt-1 h-9 text-sm"
+                      onChange={(valor) => setCampo("representanteNacionalidad", valor)}
+                      valueMode="nombre"
+                      mostrarCodigo={false}
                     />
                   </div>
                 </div>
@@ -938,22 +1025,13 @@ export function DdWizard({
                                 autoComplete="off"
                                 maxLength={11}
                               />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8 w-8 shrink-0 p-0"
-                                disabled={buscandoBeneficiario === b.id}
-                                onClick={() => void consultarBeneficiario(b)}
-                                title="Buscar DNI o RUC"
-                                aria-label={`Buscar documento del beneficiario ${indice + 1}`}
-                              >
-                                {buscandoBeneficiario === b.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <Search className="h-3.5 w-3.5" />}
-                              </Button>
                             </div>
-                            {beneficiariosValidados[b.id] ? (
+                            {buscandoBeneficiario === b.id ? (
+                              <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <span>Consultando RENIEC / SUNAT...</span>
+                              </p>
+                            ) : beneficiariosValidados[b.id] ? (
                               <p className="mt-1 text-[10px] font-medium text-success">
                                 Validado con {beneficiariosValidados[b.id] === "DNI" ? "RENIEC" : "SUNAT"}
                               </p>
@@ -969,10 +1047,12 @@ export function DdWizard({
                           </div>
                           <div className="lg:col-span-2">
                             <Label className="text-[11px]"><span>Nacionalidad *</span></Label>
-                            <Input
+                            <PaisSelect
+                              id={`beneficiarioNacionalidad-${b.id}`}
                               value={b.nacionalidad}
-                              onChange={(e) => cambiarBeneficiario(b.id, "nacionalidad", e.target.value)}
-                              className="mt-1 h-8 text-xs"
+                              onChange={(valor) => cambiarBeneficiario(b.id, "nacionalidad", valor)}
+                              valueMode="nombre"
+                              mostrarCodigo={false}
                             />
                           </div>
                           <div className="lg:col-span-2">

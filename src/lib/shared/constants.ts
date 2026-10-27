@@ -2038,8 +2038,11 @@ export const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const NOTIFICACION_EMAIL_CODIGO_MINUTOS = 10;
 export const NOTIFICACION_EMAIL_CODIGO_LONGITUD = 6;
 
-/** Nacionalidad: solo letras, espacios, apóstrofes, puntos y guiones. */
-export const REGEX_NACIONALIDAD = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s.'-]+$/;
+/**
+ * Nacionalidad o país. Acepta letras Unicode, números y signos de nombres
+ * oficiales; los números se conservan por compatibilidad con registros legacy.
+ */
+export const REGEX_NACIONALIDAD = /^[\p{L}\p{N}\s.'’(),/#-]+$/u;
 
 /** Fecha ISO sin hora (AAAA-MM-DD) que exige el IIMP en el plan de cuotas. */
 export const REGEX_FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;

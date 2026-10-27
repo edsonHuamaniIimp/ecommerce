@@ -198,6 +198,8 @@ export interface DdEvaluacionEmpresa {
 export interface DdReputacionCasoEntity {
   id: string;
   nombreARevisar: string;
+  /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
+  nacionalidad: string | null;
   sitioWeb: string | null;
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;
@@ -355,6 +357,8 @@ export interface DdReputacionRow {
   codigo: string;
   empresa: DdEmpresaResumen;
   nombreARevisar: string;
+  /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
+  nacionalidad: string | null;
   sitioWeb: string | null;
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;

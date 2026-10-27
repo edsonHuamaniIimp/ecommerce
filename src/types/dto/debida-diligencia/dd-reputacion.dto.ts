@@ -11,6 +11,8 @@ export interface DdReputacionRowDTO {
   codigo: string;
   empresa: DdReputacionEmpresaDTO;
   nombreARevisar: string;
+  /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
+  nacionalidad: string | null;
   sitioWeb: string | null;
   estado: DdReputacionEstado;
   resultado: DdReputacionResultado | null;

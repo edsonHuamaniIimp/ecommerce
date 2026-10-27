@@ -116,6 +116,9 @@ const reputacionInclude = {
     select: {
       codigo: true,
       empresa: { select: empresaSelect },
+      representanteNombre: true,
+      representanteNacionalidad: true,
+      beneficiarios: { select: { nombre: true, nacionalidad: true } },
       observaciones: { where: { estado: DD_OBSERVACION_ESTADOS.ABIERTA } },
     },
   },
@@ -228,6 +231,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     reputacion: row.reputacion.map((r) => ({
       id: r.id,
       nombreARevisar: r.nombreARevisar,
+      nacionalidad: ddUtils.nacionalidadNombreARevisar(row, r.nombreARevisar),
       sitioWeb: r.sitioWeb ?? null,
       estado: r.estado as DdReputacionCasoEntity["estado"],
       resultado: r.resultado as DdReputacionCasoEntity["resultado"],
@@ -250,6 +254,7 @@ function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
     codigo: row.expediente.codigo,
     empresa: mapEmpresa(row.expediente.empresa),
     nombreARevisar: row.nombreARevisar,
+    nacionalidad: ddUtils.nacionalidadNombreARevisar(row.expediente, row.nombreARevisar),
     sitioWeb: row.sitioWeb ?? null,
     estado: row.estado as DdReputacionGrupo["casos"][number]["estado"],
     resultado: row.resultado as DdReputacionGrupo["casos"][number]["resultado"],
