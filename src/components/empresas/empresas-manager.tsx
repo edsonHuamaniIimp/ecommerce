@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { BadgeCheck, Building2, CalendarCog, CloudUpload, KeyRound, Loader2, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
+import { BadgeCheck, Building2, CalendarCog, CloudUpload, Eye, KeyRound, Loader2, Mail, Pencil, Plus, Power, RefreshCw, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -12,6 +12,7 @@ import { BADGE_STYLES, ESTADOS_EMPRESA, PER_PAGE_OPCIONES, TIPO_COMPROBANTE_LABE
 import { dateUtils } from "@/lib/shared/utils/date";
 import { esEmailProvisional } from "@/lib/shared/utils/email";
 import type { EmpresaDTO } from "@/types/dto/empresas";
+import { EmpresaDetalleModal } from "./empresa-detalle-modal";
 import { EmpresaFormModal } from "./empresa-form-modal";
 import { EmpresaCargaMasivaModal } from "./empresa-carga-masiva-modal";
 import { RegistrarEmpresaFuenteModal } from "./registrar-empresa-fuente-modal";
@@ -41,6 +42,7 @@ export function EmpresasManager() {
   const [fuenteOpen, setFuenteOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
   const [cuotasEmpresa, setCuotasEmpresa] = useState<EmpresaDTO | null>(null);
+  const [detalleEmpresa, setDetalleEmpresa] = useState<EmpresaDTO | null>(null);
   /* Credenciales generadas: se muestran una vez (no se envian correos). */
   const [credenciales, setCredenciales] = useState<{ razonSocial: string; usuario: string; passwordTemporal: string } | null>(null);
   /** Empresa cuyo representante se esta sincronizando con servicio-persona (bloquea su icono). */
@@ -355,6 +357,21 @@ export function EmpresasManager() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-0.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-primary hover:text-primary"
+                                title="Ver información validada"
+                                aria-label="Ver información validada"
+                                onClick={() => setDetalleEmpresa(empresa)}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top"><span>Ver información validada</span></TooltipContent>
+                          </Tooltip>
                           {!empresa.cuentaCreada ? (
                             !empresa.representanteLegalNombre?.trim() ? (
                               <Tooltip>
@@ -506,6 +523,12 @@ export function EmpresasManager() {
           empresa={cuotasEmpresa}
           onClose={() => setCuotasEmpresa(null)}
           onSaved={() => void load()}
+        />
+      )}
+      {detalleEmpresa && (
+        <EmpresaDetalleModal
+          empresa={detalleEmpresa}
+          onClose={() => setDetalleEmpresa(null)}
         />
       )}
       {credenciales && (
