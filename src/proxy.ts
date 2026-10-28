@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getTokenFromRequest, verifyToken, estadoAcceso } from "@/lib/server/auth";
 import { tieneAccesoRuta } from "@/lib/shared/utils/proxy-acceso";
-import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS, DD_RUTAS, API_SOLICITUDES_PERMISOS } from "@/lib/shared/constants";
+import { PUBLIC_ROUTES, PUBLIC_API_PREFIXES, PUBLIC_API_ROUTES, PERMISSIONS, ROLES, RUTAS_PERMITIDAS_CAMBIO_PASSWORD, RUTAS_PERMITIDAS_VALIDAR_DATOS, DD_RUTAS, API_SOLICITUDES_PERMISOS, API_SGC_PERMISOS } from "@/lib/shared/constants";
 
 interface ProtectedRoute {
   /** Prefijo de ruta (startsWith) */
@@ -52,7 +52,7 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/api/eventos", permission: PERMISSIONS.EVENTS_MANAGE },
   /* API compartida: staff (gestion) y cliente (sus propias solicitudes). El controller aplica scoping/permisos. */
   { path: "/api/solicitudes", anyOf: API_SOLICITUDES_PERMISOS },
-  { path: "/api/sgc", permission: PERMISSIONS.SOLICITUDES_VIEW },
+  { path: "/api/sgc", anyOf: API_SGC_PERMISOS },
   { path: "/api/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
   { path: "/api/entidades" },
   { path: "/api/exhibidoras" },

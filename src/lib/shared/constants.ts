@@ -458,7 +458,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
   [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:panel", "dd:revision", "dd:matriz"],
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"],
   [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"],
-  [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
+  [ROLES.CLIENTE]: ["eventos:datos", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
   [ROLES.CONTABILIDAD]: ["dashboard:view", "eventos:datos", "facturacion:view"],
 };
 
@@ -578,6 +578,21 @@ export const PERMISSIONS = {
 export const API_SOLICITUDES_PERMISOS = [
   PERMISSIONS.SOLICITUDES_VIEW,
   PERMISSIONS.MIS_RESERVAS_VIEW,
+] as const;
+
+/**
+ * Permisos que habilitan `/api/sgc`. Es staff-only: no incluye
+ * `solicitudes:view` porque el rol cliente lo tuvo historicamente.
+ */
+export const API_SGC_PERMISOS = [
+  PERMISSIONS.SOLICITUDES_GESTION,
+  PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO,
+  PERMISSIONS.SOLICITUDES_REVIEW_LEGAL,
+  PERMISSIONS.SOLICITUDES_NOTIFY,
+  PERMISSIONS.SOLICITUDES_UPLOAD,
+  PERMISSIONS.APPROVE_LOGISTICA,
+  PERMISSIONS.APPROVE_LEGAL,
+  PERMISSIONS.APPROVE_COMUNICACION,
 ] as const;
 
 export const PERMISSION_SECTIONS = {
