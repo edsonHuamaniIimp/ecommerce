@@ -19,6 +19,8 @@ export interface FacturacionRow {
   planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
+  /** Razon social de la empresa indicada en la facturacion de la reserva (snapshot). */
+  empresaFacturacion: string | null;
   /** Contrato y cuenta corriente del IIMP cuando la reserva ya se registro alli. */
   iimpContrato: string | null;
   iimpCuentaCorriente: string | null;
@@ -57,6 +59,12 @@ export interface FacturacionListParams {
   page: number;
   perPage: number;
   eventoId?: string;
+  /** Filtro por estado (ESTADOS_FACTURACION). */
+  estado?: string;
+  /** Busqueda por stand, correo del solicitante, empresa o contrato IIMP. */
+  search?: string;
+  /** Filtro por tipo de pago (TIPOS_FACTURACION). */
+  tipo?: string;
 }
 
 export interface FacturacionListResult {

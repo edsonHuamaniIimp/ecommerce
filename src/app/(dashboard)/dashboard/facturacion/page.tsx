@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, ExternalLink, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, ExternalLink, Eye, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
+import { StatsCard } from "@/components/dashboard/stats-card";
 import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 
 interface ComprobanteFiscalItem {
@@ -42,6 +43,8 @@ interface FacturacionItem {
   standCode: string;
   /** Correo del usuario cliente que registro la reserva. */
   correoSolicitante: string | null;
+  /** Razon social de la empresa indicada en la facturacion de la reserva. */
+  empresaFacturacion: string | null;
   solicitudEstado: string;
   createdAt: string;
   cuotas: CuotaItem[];
@@ -180,18 +183,50 @@ export default function FacturacionPage() {
   const [addingCuota, setAddingCuota] = useState(false);
   const [eventoId, setEventoId] = useState<string | null>(null);
 
+  // Filtros de la bandeja: busqueda, estado (cards) y tipo de pago.
+  const [search, setSearch] = useState("");
+  const [estado, setEstado] = useState<string | null>(null);
+  const [tipo, setTipo] = useState<string | null>(null);
+  // Indicadores por estado (patron de otras bandejas: un listar por estado).
+  const [stats, setStats] = useState<{ total: number; pendiente: number; pagado: number; archivado: number; cancelado: number } | null>(null);
+
   const load = useCallback(async (p = 1) => {
     setLoading(true);
     try {
       const qs = new URLSearchParams({ page: String(p), per_page: String(ITEMS_PER_PAGE) });
       if (eventoId) qs.set("eventoId", eventoId);
+      if (estado) qs.set("estado", estado);
+      if (search.trim()) qs.set("search", search.trim());
+      if (tipo) qs.set("tipo", tipo);
       const data = await internalApi.get<{ data: FacturacionItem[]; total: number }>(`/api/facturacion/listar?${qs.toString()}`);
       setRows(data.data ?? []);
       setTotal(data.total ?? 0);
       setPage(p);
     } catch { }
     setLoading(false);
-  }, [eventoId]);
+  }, [eventoId, estado, search, tipo]);
+
+  /** Indicadores: cuenta total y por estado (patron de otras bandejas). */
+  const loadStats = useCallback(async (ev: string) => {
+    const contador = async (filtro?: string) => {
+      const qs = new URLSearchParams({ page: "1", per_page: "1", eventoId: ev });
+      if (filtro) qs.set("estado", filtro);
+      try {
+        const data = await internalApi.get<{ total: number }>(`/api/facturacion/listar?${qs.toString()}`);
+        return data.total ?? 0;
+      } catch {
+        return 0;
+      }
+    };
+    const [total, pendiente, pagado, archivado, cancelado] = await Promise.all([
+      contador(),
+      contador(ESTADOS_FACTURACION.PENDIENTE),
+      contador(ESTADOS_FACTURACION.PAGADO),
+      contador(ESTADOS_FACTURACION.ARCHIVADO),
+      contador(ESTADOS_FACTURACION.CANCELADO),
+    ]);
+    setStats({ total, pendiente, pagado, archivado, cancelado });
+  }, []);
 
   useEffect(() => {
     authService.getSession().then((s) => setEventoId(s.eventoId ?? null));
@@ -199,7 +234,14 @@ export default function FacturacionPage() {
 
   useEffect(() => {
     if (eventoId === null) return;
-    (async () => { await load(); })();
+    void (async () => { await loadStats(eventoId); })();
+  }, [eventoId, loadStats]);
+
+  useEffect(() => {
+    if (eventoId === null) return;
+    /* Debounce: la busqueda libre y los filtros recargan la tabla con retardo corto. */
+    const t = setTimeout(() => { void (async () => { await load(1); })(); }, 300);
+    return () => clearTimeout(t);
   }, [eventoId, load]);
 
   const cargarExpediente = async (solicitudId: string) => {
@@ -304,6 +346,45 @@ export default function FacturacionPage() {
 
   return (
     <main className="flex-1 py-6">
+      {/* Indicadores: clic para filtrar por estado */}
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <StatsCard
+          title="Total"
+          value={stats?.total ?? 0}
+          icon={<CreditCard className="h-4 w-4" />}
+          onClick={() => setEstado(null)}
+          active={estado === null}
+        />
+        <StatsCard
+          title="Pendientes"
+          value={stats?.pendiente ?? 0}
+          icon={<Clock className="h-4 w-4" />}
+          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.PENDIENTE ? null : ESTADOS_FACTURACION.PENDIENTE))}
+          active={estado === ESTADOS_FACTURACION.PENDIENTE}
+        />
+        <StatsCard
+          title="Pagadas"
+          value={stats?.pagado ?? 0}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.PAGADO ? null : ESTADOS_FACTURACION.PAGADO))}
+          active={estado === ESTADOS_FACTURACION.PAGADO}
+        />
+        <StatsCard
+          title="Archivadas"
+          value={stats?.archivado ?? 0}
+          icon={<Archive className="h-4 w-4" />}
+          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.ARCHIVADO ? null : ESTADOS_FACTURACION.ARCHIVADO))}
+          active={estado === ESTADOS_FACTURACION.ARCHIVADO}
+        />
+        <StatsCard
+          title="Canceladas"
+          value={stats?.cancelado ?? 0}
+          icon={<XCircle className="h-4 w-4" />}
+          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.CANCELADO ? null : ESTADOS_FACTURACION.CANCELADO))}
+          active={estado === ESTADOS_FACTURACION.CANCELADO}
+        />
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -313,6 +394,32 @@ export default function FacturacionPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Filtros de la bandeja */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-9 pl-8 text-xs"
+                placeholder="Buscar stand, correo, RUC o contrato IIMP"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Select value={tipo ?? "todos"} onValueChange={(v) => setTipo(v === "todos" ? null : v)}>
+              <SelectTrigger className="h-9 w-40 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos"><span>Todos los tipos</span></SelectItem>
+                <SelectItem value={TIPOS_FACTURACION.MANUAL}><span>Manual</span></SelectItem>
+                <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
+              </SelectContent>
+            </Select>
+            {(search || estado || tipo) && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setEstado(null); setTipo(null); }}>
+                <X className="h-3.5 w-3.5" />
+                <span>Limpiar</span>
+              </Button>
+            )}
+          </div>
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
           ) : rows.length === 0 ? (
@@ -326,7 +433,7 @@ export default function FacturacionPage() {
                     <TableHead className="text-xs">Estado</TableHead>
                     <TableHead className="text-xs">Monto</TableHead>
                     <TableHead className="text-xs hidden sm:table-cell">Tipo</TableHead>
-                    <TableHead className="text-xs hidden lg:table-cell">Usuario cliente</TableHead>
+                    <TableHead className="text-xs hidden lg:table-cell">Empresa</TableHead>
                     <TableHead className="text-xs hidden md:table-cell">Fecha</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
@@ -342,7 +449,10 @@ export default function FacturacionPage() {
                       </TableCell>
                       <TableCell className="text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
                       <TableCell className="text-xs hidden sm:table-cell">{row.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</TableCell>
-                      <TableCell className="hidden max-w-[200px] truncate text-xs lg:table-cell" title={row.correoSolicitante ?? undefined}>{row.correoSolicitante ?? "—"}</TableCell>
+                      <TableCell className="hidden max-w-[220px] lg:table-cell">
+                        <p className="truncate text-xs font-medium text-slate-700" title={row.empresaFacturacion ?? undefined}>{row.empresaFacturacion ?? "—"}</p>
+                        <p className="truncate text-[10px] text-slate-400" title={row.correoSolicitante ?? undefined}>{row.correoSolicitante ?? "—"}</p>
+                      </TableCell>
                       <TableCell className="text-xs text-slate-400 hidden md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
                       <TableCell>
                         <div className="flex gap-0.5">

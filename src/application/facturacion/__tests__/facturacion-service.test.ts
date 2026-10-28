@@ -75,7 +75,7 @@ function mockRepo(): IFacturacionRepository {
 
 const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
-  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
+  montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", empresaFacturacion: null, iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
     { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
     { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
@@ -454,5 +454,16 @@ describe("FacturacionApplicationService.expediente", () => {
     vi.mocked(solicitudes.detalle).mockResolvedValue(null);
 
     await expect(crearSvc(mockRepo(), solicitudes).expediente("nope")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("FacturacionApplicationService.listar con filtros", () => {
+  it("delega estado, busqueda y tipo al repositorio", async () => {
+    const repo = mockRepo();
+    repo.listar = vi.fn().mockResolvedValue({ data: [], total: 0 });
+
+    await crearSvc(repo).listar({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual" });
+
+    expect(repo.listar).toHaveBeenCalledWith({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual" });
   });
 });

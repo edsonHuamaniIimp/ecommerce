@@ -16,7 +16,10 @@ export const facturacionController = {
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("per_page") ?? "10");
     const eventoId = searchParams.get("eventoId") ?? undefined;
-    return success(await service.listar({ page, perPage, eventoId }));
+    const estado = searchParams.get("estado") ?? undefined;
+    const search = searchParams.get("search") ?? undefined;
+    const tipo = searchParams.get("tipo") ?? undefined;
+    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo }));
   },
 
   async detalle(request: Request): Promise<NextResponse> {

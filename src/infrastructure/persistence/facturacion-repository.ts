@@ -47,6 +47,7 @@ interface FacturacionRaw {
     planCuotas: unknown | null;
     iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
+    datosFacturacion: unknown | null;
     gessStand: { standCode: string } | null;
     stands: Array<{ gessStand: { standCode: string } | null }>;
   };
@@ -57,6 +58,7 @@ const SOLICITUD_SELECT = {
   planCuotas: true,
   iimpContrato: true,
   iimpCuentaCorriente: true,
+  datosFacturacion: true,
   gessStand: { select: { standCode: true } },
   stands: { include: { gessStand: { select: { standCode: true } } } },
 };
@@ -78,6 +80,7 @@ function toRow(r: FacturacionRaw): FacturacionRow {
     planCliente: r.solicitud.planCuotas !== null && r.solicitud.planCuotas !== undefined,
     standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || undefined) ?? "â€”",
     correoSolicitante: r.solicitud.email,
+    empresaFacturacion: ((r.solicitud.datosFacturacion as { razonSocial?: string | null } | null)?.razonSocial ?? null),
     iimpContrato: r.solicitud.iimpContrato ?? null,
     iimpCuentaCorriente: r.solicitud.iimpCuentaCorriente ?? null,
     createdAt: r.createdAt.toISOString(),
@@ -114,14 +117,43 @@ function identOr(ident: ClienteIdent): Record<string, unknown>[] {
 export class FacturacionPrismaRepository implements IFacturacionRepository {
   async listar(params: FacturacionListParams): Promise<FacturacionListResult> {
     const where: Record<string, unknown> = { flgActivo: true };
+    if (params.estado) where.estado = params.estado;
+    if (params.tipo) where.tipo = params.tipo;
+
+    const condicionesSolicitud: Record<string, unknown>[] = [];
     if (params.eventoId) {
-      where.solicitud = {
+      condicionesSolicitud.push({
         OR: [
           { gessStand: { eventoId: params.eventoId } },
           { stands: { some: { gessStand: { eventoId: params.eventoId } } } },
         ],
-      };
+      });
     }
+    const busqueda = params.search?.trim();
+    if (busqueda) {
+      /* RUC de la empresa: cuentas de usuario cuyo RUC coincide (empresa vinculada). */
+      const cuentas = await prisma.userRole.findMany({
+        where: { ruc: { contains: busqueda, mode: "insensitive" } },
+        select: { email: true },
+        take: 200,
+      });
+      const emailsPorRuc = cuentas.map((c) => c.email).filter((e): e is string => Boolean(e));
+
+      condicionesSolicitud.push({
+        OR: [
+          { email: { contains: busqueda, mode: "insensitive" } },
+          { iimpContrato: { contains: busqueda, mode: "insensitive" } },
+          { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } },
+          { stands: { some: { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } } } },
+          /* RUC/DNI capturado en el snapshot de facturacion de la reserva. */
+          { datosFacturacion: { path: ["numeroDocumento"], string_contains: busqueda } },
+          ...(emailsPorRuc.length > 0 ? [{ email: { in: emailsPorRuc } }] : []),
+        ],
+      });
+    }
+    if (condicionesSolicitud.length === 1) where.solicitud = condicionesSolicitud[0];
+    if (condicionesSolicitud.length > 1) where.solicitud = { AND: condicionesSolicitud };
+
     return this.paginar(where, params);
   }
 
