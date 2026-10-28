@@ -407,6 +407,7 @@ export const ROLES = {
   LEGAL: "legal",
   COMUNICACION: "comunicacion",
   CLIENTE: "cliente",
+  CONTABILIDAD: "contabilidad",
 } as const;
 
 export type Rol = (typeof ROLES)[keyof typeof ROLES];
@@ -458,6 +459,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"],
   [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"],
   [ROLES.CLIENTE]: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
+  [ROLES.CONTABILIDAD]: ["dashboard:view", "eventos:datos", "facturacion:view"],
 };
 
 export const ALL_PERMISSIONS = [

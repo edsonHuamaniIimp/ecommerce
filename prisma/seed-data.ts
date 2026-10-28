@@ -11,6 +11,7 @@ export const ROLES_SEED: { nombre: string; descripcion: string; permisos: string
   { nombre: "legal", descripcion: "Area Legal", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"], modulos: MODULOS_TODOS },
   { nombre: "comunicacion", descripcion: "Area de Comunicacion", permisos: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"], modulos: MODULOS_TODOS },
   { nombre: "cliente", descripcion: "Cliente expositor", permisos: ["eventos:datos", "solicitudes:view", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"], modulos: MODULOS_TODOS },
+  { nombre: "contabilidad", descripcion: "Gestion de facturacion y pagos", permisos: ["dashboard:view", "eventos:datos", "facturacion:view"], modulos: ["dashboard", "facturacion"] },
 ];
 
 export const USUARIOS_SEED: { email: string; role: string; password: string; nombre: string; apellidos: string }[] = [
