@@ -100,13 +100,31 @@ export const pagosController = {
       return error(API_ERROR_CODES.NOT_FOUND, "La factura aun no esta publicada", 404);
     }
 
+    /* Solo se entrega un PDF real del repositorio (no se reenvia contenido inesperado). */
+    let contenido: ArrayBuffer;
+    try {
+      contenido = await upstream.arrayBuffer();
+    } catch {
+      return error(API_ERROR_CODES.BAD_GATEWAY, "No se pudo leer la factura", 502);
+    }
+    const firma = new Uint8Array(contenido.slice(0, 5));
+    const esPdf = firma.length === 5 && firma[0] === 0x25 && firma[1] === 0x50 && firma[2] === 0x44 && firma[3] === 0x46 && firma[4] === 0x2d;
+    if (!esPdf) {
+      return error(API_ERROR_CODES.BAD_GATEWAY, "El repositorio no devolvio un PDF valido", 502);
+    }
+
+    /* `inline=1` abre el PDF en el navegador (preview); por defecto se descarga. */
+    const disposicion = new URL(request.url).searchParams.get("inline") === "1" ? "inline" : "attachment";
     const nombre = factura.nombre.replace(/[^\w.-]+/g, "_");
     const headers = new Headers({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${nombre}"`,
+      "Content-Disposition": `${disposicion}; filename="${nombre}"`,
+      "Content-Length": String(contenido.byteLength),
       "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
     });
-    return new NextResponse(upstream.body, { status: 200, headers });
+    return new NextResponse(contenido, { status: 200, headers });
   },
 
   async detalle(request: Request): Promise<NextResponse> {

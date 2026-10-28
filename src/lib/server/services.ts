@@ -111,7 +111,7 @@ export const services = {
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion, getStorage()),
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
-  facturacion: new FacturacionApplicationService(facturacionRepo, authRepo),
+  facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),

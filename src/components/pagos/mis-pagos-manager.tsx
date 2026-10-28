@@ -258,7 +258,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         <Files className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Documentos de la cuenta corriente (OC, HES, detracción)</span></TooltipContent>
+                    <TooltipContent side="top"><span>Documentos para tu factura (OC, HES y pagos)</span></TooltipContent>
                   </Tooltip>
                   )
                 ) : !soloLectura ? (
@@ -279,12 +279,14 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="flex h-7 w-7 cursor-default items-center justify-center text-primary">
-                        <FileText className="h-3.5 w-3.5" />
-                      </span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
+                        <a href={`/api/pagos/factura?cuotaId=${encodeURIComponent(cuota.id)}&inline=1`} target="_blank" rel="noreferrer" title="Ver factura">
+                          <FileDown className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <span>Documento notificado por el IIMP: {cuota.documentoSie}{cuota.estado === ESTADOS_CUOTA.PAGADO ? " (pagado)" : " (pendiente de pago)"}</span>
+                      <span>Ver factura del IIMP: {cuota.documentoSie}{cuota.estado === ESTADOS_CUOTA.PAGADO ? " (pagado)" : " (pendiente de pago)"} — abre en otra pestaña</span>
                     </TooltipContent>
                   </Tooltip>
                 )}

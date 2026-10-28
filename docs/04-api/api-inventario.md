@@ -192,6 +192,7 @@
 |---|---|---|
 | `/api/facturacion/listar` | GET | Lista facturaciones paginadas por `eventoId` |
 | `/api/facturacion/detalle` | GET | Detalle de facturaciÃ³n con cuotas |
+| `/api/facturacion/expediente` | GET | Expediente de la solicitud para Facturacion (`solicitudId`): datos, documentos (contrato, firmado, anexos) y enlace al contrato firmado del SGC |
 | `/api/facturacion/agregar-cuota` | POST | Agrega cuota con monto y vencimiento |
 | `/api/facturacion/pagar-cuota` | POST | Marca cuota como pagada (comprobante opcional) |
 | `/api/facturacion/adjuntar-comprobante` | POST | Adjunta el comprobante fiscal (boleta/factura) de una cuota pagada y notifica al cliente |
@@ -209,6 +210,7 @@ Vista del cliente (`pagos:view`); cada acciÃ³n valida propiedad de la facturac
 |---|---|---|
 | `/api/pagos/listar` | GET | Facturaciones del cliente (paginadas) con sus cuotas |
 | `/api/pagos/detalle` | GET | Detalle de una facturaciÃ³n propia (404/403 si no aplica) |
+| `/api/pagos/factura` | GET | Descarga/visualiza (proxy) la factura de una cuota propia desde el repositorio del IIMP (`cuotaId`; `inline=1` para abrir en el navegador). El frontend nunca accede al repositorio directamente; valida propiedad, anulación y que el contenido sea un PDF |
 | `/api/pagos/agregar-cuota` | POST | Agrega cuota (`facturacionId`, `monto`, `fechaVencimiento?`) |
 | `/api/pagos/actualizar-cuota` | POST | Edita monto/vencimiento (`cuotaId`) |
 | `/api/pagos/adjuntar-voucher` | POST | Adjunta/reemplaza el voucher (`cuotaId`, `comprobante`) sin cambiar estado |

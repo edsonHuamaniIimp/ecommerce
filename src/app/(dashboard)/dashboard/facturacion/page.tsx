@@ -1,15 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
+import { CreditCard, ExternalLink, Eye, Loader2, Check, Plus, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 
 interface ComprobanteFiscalItem {
   tipo: string;
@@ -47,6 +47,79 @@ interface FacturacionItem {
   cuotas: CuotaItem[];
 }
 
+/** Documento del expediente de la solicitud (contrato, firmado, anexos). */
+interface ExpedienteDocumento {
+  id: string;
+  categoria: string | null;
+  requisito: string | null;
+  nombre: string | null;
+  url: string;
+  estado: string | null;
+  createdAt: string;
+}
+
+/** Empresa y contactos del expediente (ficha que la empresa cargo previamente). */
+interface EmpresaExpediente {
+  ruc: string;
+  razonSocial: string;
+  nombreComercial: string | null;
+  direccionFiscal: string | null;
+  telefono: string | null;
+  emailContacto: string | null;
+  emailFacturacion: string | null;
+  actividadEconomica: string | null;
+  estadoContribuyente: string | null;
+  facturarANombre: string | null;
+  representanteLegal: {
+    nombre: string | null;
+    tipoDocumento: string;
+    documento: string | null;
+    correo: string | null;
+    celular: string | null;
+    direccion: string | null;
+  };
+  responsables: {
+    extemin: { nombre: string | null; telefono: string | null; email: string | null };
+    pagos: { nombre: string | null; telefono: string | null; email: string | null };
+  };
+}
+
+/** Expediente que ve Facturacion: empresa, reserva y documentos + contrato firmado del SGC. */
+interface ExpedienteItem {
+  solicitudId: string;
+  empresaNombre: string | null;
+  email: string | null;
+  estadoSolicitud: string;
+  contrato: string | null;
+  cuentaCorriente: string | null;
+  reservaAt: string | null;
+  planCuotas: unknown;
+  empresa: EmpresaExpediente | null;
+  documentos: ExpedienteDocumento[];
+  contratoFirmadoSgc: { url: string; expiresInSeconds: number } | null;
+}
+
+/** Par etiqueta/valor del expediente. */
+function Dato({ label, valor, mono = false }: { label: string; valor: string | null | undefined; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`truncate text-xs text-slate-800 ${mono ? "font-mono" : ""}`} title={valor ?? undefined}>
+        {valor || "—"}
+      </p>
+    </div>
+  );
+}
+
+/** Titulo legible del documento: requisito del anexo, categoria o nombre. */
+function tituloDocumento(d: ExpedienteDocumento): string {
+  return (
+    ANEXOS_REQUERIDOS.find((r) => r.key === d.requisito)?.label
+    ?? TIPOS_DOCUMENTO_SOLICITUD_LABELS[d.categoria ?? ""]
+    ?? "Documento"
+  );
+}
+
 const ITEMS_PER_PAGE = 10;
 
 export default function FacturacionPage() {
@@ -69,6 +142,10 @@ export default function FacturacionPage() {
   const [payCuotaId, setPayCuotaId] = useState<string | null>(null);
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
   const [uploadingComprobante, setUploadingComprobante] = useState(false);
+
+  // Expediente de la solicitud (contrato firmado del SGC, contrato generado y anexos).
+  const [expediente, setExpediente] = useState<ExpedienteItem | null>(null);
+  const [cargandoExpediente, setCargandoExpediente] = useState(false);
 
   // Comprobante fiscal (boleta/factura) que adjunta Facturacion a una cuota pagada.
   const [fiscalCuotaId, setFiscalCuotaId] = useState<string | null>(null);
@@ -105,11 +182,23 @@ export default function FacturacionPage() {
     (async () => { await load(); })();
   }, [eventoId, load]);
 
+  const cargarExpediente = async (solicitudId: string) => {
+    setCargandoExpediente(true);
+    setExpediente(null);
+    try {
+      setExpediente(await internalApi.get<ExpedienteItem>(`/api/facturacion/expediente?solicitudId=${encodeURIComponent(solicitudId)}`));
+    } catch {
+      setExpediente(null);
+    }
+    setCargandoExpediente(false);
+  };
+
   const handleOpenDetail = async (row: FacturacionItem) => {
     try {
       const data = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${row.id}`);
       setDetailRow(data);
       setDetailOpen(true);
+      void cargarExpediente(data.solicitudId);
     } catch { toast.error("Error al cargar detalle"); }
   };
 
@@ -287,47 +376,176 @@ export default function FacturacionPage() {
 
       {/* Detail dialog — solo lectura */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col !px-0 !py-0 overflow-hidden">
-          <div className="shrink-0 px-5 pt-4 pb-2 border-b border-slate-100 !pr-12">
-            <h3 className="text-sm font-semibold text-slate-800">Detalle de facturacion</h3>
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col !px-0 !py-0 overflow-hidden">
+          <div className="shrink-0 border-b border-slate-100 px-5 pb-3 pt-4 !pr-12">
+            <h3 className="text-sm font-semibold text-slate-800">Detalle de facturación{detailRow ? ` · ${detailRow.standCode}` : ""}</h3>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 lg:overflow-hidden">
           {detailRow && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3 text-xs">
+            <div className="grid grid-cols-1 gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[40fr_60fr]">
+              {/* Columna izquierda: facturación y pagos */}
+              <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+              <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-2">
                 <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span></div>
                 <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${detailRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.INDIGO}`}>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</Badge></div>
                 <div><span className="text-muted-foreground">Monto total:</span> <span className="font-medium">{detailRow.montoTotal.toFixed(2)} {detailRow.moneda}</span></div>
                 <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</span></div>
-                <div className="col-span-2"><span className="text-muted-foreground">Modo:</span> <span>{detailRow.modoPago === "completo" ? "Pago completo" : "Pago por cuotas"}</span></div>
+                <div><span className="text-muted-foreground">Modo:</span> <span>{detailRow.modoPago === "completo" ? "Pago completo" : "Pago por cuotas"}</span></div>
+                <div><span className="text-muted-foreground">Registrado:</span> <span>{dateUtils.formatDateTime(detailRow.createdAt)}</span></div>
               </div>
               {detailRow.cuotas.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 mb-2">Cuotas ({detailRow.cuotas.length}) — Total: {detailRow.cuotas.reduce((s,c) => s + c.monto, 0).toFixed(2)} {detailRow.moneda}</p>
-                  <div className="space-y-1">
+                  <p className="mb-2 text-[11px] font-semibold text-slate-600">Cuotas ({detailRow.cuotas.length}) · Total: {detailRow.cuotas.reduce((s,c) => s + c.monto, 0).toFixed(2)} {detailRow.moneda}</p>
+                  <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border">
                     {detailRow.cuotas.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs">
-                        <span className="font-mono font-medium text-slate-600">#{c.numero}</span>
-                        <span className="flex-1">{c.monto.toFixed(2)} {detailRow.moneda}</span>
-                        {c.fechaVencimiento && <span className="text-[10px] text-slate-400">{dateUtils.formatDateTime(c.fechaVencimiento)}</span>}
-                        <Badge className={`text-[9px] pointer-events-none ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>
-                          {c.estado === ESTADOS_CUOTA.PAGADO ? "Pagado" : "Pendiente"}
-                        </Badge>
-                        {c.comprobante && (
-                          <a href={c.comprobante} target="_blank" className="text-slate-400 hover:text-slate-600" title="Ver voucher">
-                            <FileText className="h-3 w-3" />
-                          </a>
-                        )}
-                        {c.comprobanteFiscal && (
-                          <a href={c.comprobanteFiscal.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title={`Comprobante fiscal: ${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero}`}>
-                            <Receipt className="h-3 w-3" />
-                          </a>
-                        )}
+                      <div key={c.id} className="flex items-start gap-3 px-3 py-2">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{c.numero}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-800">{c.monto.toFixed(2)} {detailRow.moneda}</p>
+                          <p className="text-[10px] text-slate-500">{c.fechaVencimiento ? `Vence: ${dateUtils.formatDateTime(c.fechaVencimiento)}` : "Sin vencimiento"}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {c.comprobante && (
+                            <a href={c.comprobante} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title="Ver voucher del cliente">
+                              <FileText className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                          {c.comprobanteFiscal && (
+                            <a href={c.comprobanteFiscal.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title={`Comprobante fiscal: ${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero}`}>
+                              <Receipt className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                          <Badge className={`pointer-events-none text-[9px] ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>
+                            <span>{c.estado === ESTADOS_CUOTA.PAGADO ? "Pagado" : "Pendiente"}</span>
+                          </Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              </div>
+              {/* Columna derecha: expediente, contactos y documentos */}
+              <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-slate-500">Expediente del contrato</p>
+                {cargandoExpediente ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-28 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                    <Skeleton className="h-40 w-full rounded-lg" />
+                  </div>
+                ) : expediente ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Empresa</p>
+                      {expediente.empresa ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+                          <Dato label="Razón social" valor={expediente.empresa.razonSocial} />
+                          <Dato label="RUC" valor={expediente.empresa.ruc} mono />
+                          <Dato label="Dirección fiscal" valor={expediente.empresa.direccionFiscal} />
+                          <Dato label="Teléfono" valor={expediente.empresa.telefono} />
+                          <Dato label="Correo de contacto" valor={expediente.empresa.emailContacto} />
+                          <Dato label="Correo de facturación" valor={expediente.empresa.emailFacturacion} />
+                          <Dato label="Actividad económica" valor={expediente.empresa.actividadEconomica} />
+                          <Dato label="Estado SUNAT" valor={expediente.empresa.estadoContribuyente} />
+                          <Dato label="Facturar a nombre de" valor={expediente.empresa.facturarANombre} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400">La empresa no está registrada en Empresas.</p>
+                      )}
+                    </div>
+
+                    {expediente.empresa?.representanteLegal.nombre && (
+                      <div className="rounded-lg border p-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Representante legal</p>
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.representanteLegal.nombre} />
+                          <Dato label="Documento" valor={expediente.empresa.representanteLegal.documento} />
+                          <Dato label="Correo" valor={expediente.empresa.representanteLegal.correo} />
+                          <Dato label="Celular" valor={expediente.empresa.representanteLegal.celular} />
+                        </div>
+                      </div>
+                    )}
+
+                    {(expediente.empresa?.responsables.extemin.nombre || expediente.empresa?.responsables.pagos.nombre) && (
+                      <div className="rounded-lg border p-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contactos de la empresa</p>
+                        <div className="space-y-2">
+                          {expediente.empresa?.responsables.extemin.nombre && (
+                            <Dato
+                              label="Coordinación EXTEMIN"
+                              valor={[expediente.empresa.responsables.extemin.nombre, expediente.empresa.responsables.extemin.telefono, expediente.empresa.responsables.extemin.email].filter(Boolean).join(" · ")}
+                            />
+                          )}
+                          {expediente.empresa?.responsables.pagos.nombre && (
+                            <Dato
+                              label="Responsable de pagos"
+                              valor={[expediente.empresa.responsables.pagos.nombre, expediente.empresa.responsables.pagos.telefono, expediente.empresa.responsables.pagos.email].filter(Boolean).join(" · ")}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Datos de la reserva</p>
+                      <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+                        <Dato label="Contrato IIMP" valor={expediente.contrato} mono />
+                        <Dato label="Cuenta corriente" valor={expediente.cuentaCorriente} mono />
+                        <Dato label="Estado de la solicitud" valor={ESTADOS_SOLICITUD_LABELS[expediente.estadoSolicitud as EstadoSolicitud] ?? expediente.estadoSolicitud} />
+                        <Dato label="Reserva registrada" valor={expediente.reservaAt ? dateUtils.formatDateTime(expediente.reservaAt) : null} />
+                        <Dato label="Empresa (solicitud)" valor={expediente.empresaNombre} />
+                        <Dato label="Correo del solicitante" valor={expediente.email} />
+                      </div>
+                    </div>
+
+                    {expediente.contratoFirmadoSgc && (
+                      <Button size="sm" variant="outline" className="w-full" asChild>
+                        <a href={expediente.contratoFirmadoSgc.url} target="_blank" rel="noreferrer">
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          <span>Ver contrato firmado (SGC)</span>
+                        </a>
+                      </Button>
+                    )}
+
+                    <div className="overflow-hidden rounded-lg border">
+                      <p className="border-b bg-muted/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Documentos ({expediente.documentos.length})
+                      </p>
+                      {expediente.documentos.length === 0 ? (
+                        <p className="px-3 py-3 text-xs text-slate-400">Sin documentos adjuntos en la solicitud.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2">
+                          {expediente.documentos.map((d) => (
+                            <a key={d.id} href={d.url} target="_blank" rel="noreferrer" className="flex items-start gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-muted/40">
+                              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-slate-700">{tituloDocumento(d)}</p>
+                                <p className="truncate text-[10px] text-slate-400">{d.nombre ?? d.url}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-1">
+                                  {d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
+                                    <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}><span>Observado</span></Badge>
+                                  )}
+                                  <Badge variant="secondary" className="pointer-events-none text-[9px]">
+                                    <span>{TIPOS_DOCUMENTO_SOLICITUD_LABELS[d.categoria ?? ""] ?? "Documento"}</span>
+                                  </Badge>
+                                </div>
+                              </div>
+                              <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">No se pudo cargar el expediente.</p>
+                )}
+              </div>
+              </div>
             </div>
           )}
           </div>

@@ -1,5 +1,7 @@
 import type { IFacturacionRepository, FacturacionListParams, FacturacionListResult, FacturacionRow, DatosComprobanteFiscal } from "@/domain/ports/facturacion-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_CUOTA, PERMISSIONS, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -12,6 +14,8 @@ export class FacturacionApplicationService {
   constructor(
     private readonly repo: IFacturacionRepository,
     private readonly authRepo: IAuthRepository,
+    private readonly solicitudes: Pick<ISolicitudesRepository, "detalle">,
+    private readonly empresas: Pick<IEmpresaRepository, "findById">,
   ) {}
 
   /** Permiso de gestion de Facturacion (o admin total). */
@@ -29,6 +33,75 @@ export class FacturacionApplicationService {
 
   async detalle(id: string): Promise<FacturacionRow | null> {
     return this.repo.detalle(id);
+  }
+
+  /**
+   * Expediente de la solicitud para la vista de Facturacion: datos de la empresa
+   * (contactos y responsables), datos de la reserva y documentos (contrato
+   * generado, contrato firmado y anexos), para que Facturacion pueda revisarlos.
+   */
+  async expediente(solicitudId: string) {
+    const solicitud = await this.solicitudes.detalle(solicitudId);
+    if (!solicitud) {
+      throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+
+    const empresaId = solicitud.email ? await this.authRepo.findEmpresaIdDeUsuario(solicitud.email).catch(() => null) : null;
+    const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+
+    return {
+      solicitudId: solicitud.id,
+      empresaNombre: solicitud.empresa,
+      email: solicitud.email,
+      estadoSolicitud: solicitud.estadoSolicitud,
+      contrato: solicitud.iimpContrato,
+      cuentaCorriente: solicitud.iimpCuentaCorriente,
+      reservaAt: solicitud.iimpReservaAt,
+      planCuotas: solicitud.planCuotas,
+      empresa: empresa
+        ? {
+            ruc: empresa.ruc,
+            razonSocial: empresa.razonSocial,
+            nombreComercial: empresa.nombreComercial,
+            direccionFiscal: empresa.direccionFiscal,
+            telefono: empresa.telefono,
+            emailContacto: empresa.emailContacto,
+            emailFacturacion: empresa.emailFacturacion,
+            actividadEconomica: empresa.actividadEconomica ?? null,
+            estadoContribuyente: empresa.estadoContribuyente ?? null,
+            facturarANombre: empresa.facturarANombre ?? null,
+            representanteLegal: {
+              nombre: empresa.representanteLegalNombre,
+              tipoDocumento: empresa.representanteLegalTipoDocumento,
+              documento: empresa.representanteLegalDni,
+              correo: empresa.representanteCorreo,
+              celular: empresa.representanteCelular,
+              direccion: empresa.representanteDireccion,
+            },
+            responsables: {
+              extemin: {
+                nombre: empresa.responsableExteminNombre ?? null,
+                telefono: empresa.responsableExteminTelefono ?? null,
+                email: empresa.responsableExteminEmail ?? null,
+              },
+              pagos: {
+                nombre: empresa.responsablePagosNombre ?? null,
+                telefono: empresa.responsablePagosTelefono ?? null,
+                email: empresa.responsablePagosEmail ?? null,
+              },
+            },
+          }
+        : null,
+      documentos: solicitud.docsAdjuntos.map((d) => ({
+        id: d.id,
+        categoria: d.categoria,
+        requisito: d.requisito ?? null,
+        nombre: d.nombre,
+        url: d.url,
+        estado: d.estado,
+        createdAt: d.createdAt,
+      })),
+    };
   }
 
   /** El plan de pago lo definio el cliente en el contrato: la configuracion no es editable. */

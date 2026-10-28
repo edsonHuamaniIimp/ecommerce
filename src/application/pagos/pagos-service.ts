@@ -1,7 +1,7 @@
 import type { IFacturacionRepository, FacturacionListResult, FacturacionRow, ClienteIdent, CuotaUpdate } from "@/domain/ports/facturacion-repository";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
-import { nombreFacturaIimp, urlFacturaIimp } from "@/lib/server/facturas-pdf";
+import { nombreFacturaIimp, urlDocumentoSie, urlFacturaIimp } from "@/lib/server/facturas-pdf";
 
 /** Tolerancia para comparar montos decimales. */
 const EPS = 0.001;
@@ -46,6 +46,18 @@ export class PagosApplicationService {
         );
       }
       return { url, nombre: nombreFacturaIimp(cuota.iimpDocumento) };
+    }
+    /* Documento notificado por el SIE (solo nombre): se resuelve contra el repositorio del IIMP. */
+    if (cuota.documentoSie) {
+      const url = urlDocumentoSie(cuota.documentoSie);
+      if (!url) {
+        throw new DomainError(
+          "La descarga de facturas del IIMP no esta configurada",
+          API_ERROR_CODES.SERVICE_UNAVAILABLE,
+          503,
+        );
+      }
+      return { url, nombre: cuota.documentoSie };
     }
     throw new DomainError(
       "La factura aun no fue emitida o publicada",

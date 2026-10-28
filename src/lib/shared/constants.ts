@@ -2746,6 +2746,13 @@ export const TIPOS_DOCUMENTO_SOLICITUD = {
 } as const;
 export type TipoDocumentoSolicitud = (typeof TIPOS_DOCUMENTO_SOLICITUD)[keyof typeof TIPOS_DOCUMENTO_SOLICITUD];
 
+/** Etiquetas de las categorias de documento de la solicitud (TIPOS_DOCUMENTO_SOLICITUD). */
+export const TIPOS_DOCUMENTO_SOLICITUD_LABELS: Record<string, string> = {
+  [TIPOS_DOCUMENTO_SOLICITUD.CONTRATO]: "Contrato",
+  [TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO]: "Contrato firmado",
+  [TIPOS_DOCUMENTO_SOLICITUD.ANEXO]: "Anexo",
+};
+
 /** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano. */
 export const ORIGENES_DOCUMENTO = {
   GENERADO: "generado",

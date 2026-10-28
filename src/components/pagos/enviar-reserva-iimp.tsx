@@ -62,14 +62,14 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-xl border-border sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border-border sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             <span>Registrar reserva en el IIMP{standCode ? ` · ${standCode}` : ""}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           <p className="text-xs text-muted-foreground">
             <span>
               Adjunta la <strong>orden de compra (OC)</strong> y la <strong>hoja de entrada de servicio (HES)</strong> de la

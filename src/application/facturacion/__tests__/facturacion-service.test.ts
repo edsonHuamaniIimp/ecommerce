@@ -1,8 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { FacturacionApplicationService } from "../facturacion-service";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IFacturacionRepository, FacturacionRow, FacturacionListResult } from "@/domain/ports/facturacion-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { EmpresaEntity } from "@/domain/models/empresa";
 import { PERMISSIONS } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
@@ -22,11 +25,27 @@ vi.mock("@/lib/server/idioma", () => ({
 }));
 
 function mockAuthRepo(): IAuthRepository {
-  return { findPerfilByEmail: vi.fn().mockResolvedValue(null) } as unknown as IAuthRepository;
+  return {
+    findPerfilByEmail: vi.fn().mockResolvedValue(null),
+    findEmpresaIdDeUsuario: vi.fn().mockResolvedValue(null),
+  } as unknown as IAuthRepository;
 }
 
-function crearSvc(repo: IFacturacionRepository): FacturacionApplicationService {
-  return new FacturacionApplicationService(repo, mockAuthRepo());
+function solicitudesMock() {
+  return { detalle: vi.fn() } as unknown as Pick<ISolicitudesRepository, "detalle">;
+}
+
+function empresasMock() {
+  return { findById: vi.fn() } as unknown as Pick<IEmpresaRepository, "findById">;
+}
+
+function crearSvc(
+  repo: IFacturacionRepository,
+  solicitudes = solicitudesMock(),
+  auth = mockAuthRepo(),
+  empresas = empresasMock(),
+): FacturacionApplicationService {
+  return new FacturacionApplicationService(repo, auth, solicitudes, empresas);
 }
 
 function mockRepo(): IFacturacionRepository {
@@ -360,5 +379,64 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
       await svc.pagarCuota("c2", "f@iimp.org.pe", "/uploads/voucher.pdf");
       expect(repo.pagarCuota).toHaveBeenCalledWith("c2", "f@iimp.org.pe", "/uploads/voucher.pdf");
     });
+  });
+});
+
+describe("FacturacionApplicationService.expediente", () => {
+  it("devuelve empresa, contactos y documentos con su requisito", async () => {
+    const auth = mockAuthRepo();
+    vi.mocked(auth.findEmpresaIdDeUsuario).mockResolvedValue("emp-1");
+    const empresas = empresasMock();
+    vi.mocked(empresas.findById).mockResolvedValue({
+      ruc: "20107972090",
+      razonSocial: "CIDELSA",
+      nombreComercial: null,
+      direccionFiscal: "Av. Argentina 123",
+      telefono: "01-5555555",
+      emailContacto: "contacto@cidelsa.pe",
+      emailFacturacion: "facturas@cidelsa.pe",
+      actividadEconomica: "Fabricacion",
+      estadoContribuyente: "ACTIVO",
+      facturarANombre: null,
+      representanteLegalNombre: "Juan Perez",
+      representanteLegalTipoDocumento: "1",
+      representanteLegalDni: "12345678",
+      representanteCorreo: "juan@cidelsa.pe",
+      representanteCelular: "999888777",
+      representanteDireccion: null,
+      responsablePagosNombre: "Ana Pagos",
+      responsablePagosTelefono: "999111222",
+      responsablePagosEmail: "pagos@cidelsa.pe",
+    } as unknown as EmpresaEntity);
+    const solicitudes = solicitudesMock();
+    vi.mocked(solicitudes.detalle).mockResolvedValue({
+      id: "s1",
+      empresa: "CIDELSA",
+      email: "correo12412@correo.com",
+      estadoSolicitud: "pendiente_pago",
+      iimpContrato: "0000000001",
+      iimpCuentaCorriente: "1",
+      iimpReservaAt: new Date("2026-10-27T22:15:58.000Z"),
+      planCuotas: null,
+      docsAdjuntos: [
+        { id: "d1", categoria: "anexo", requisito: "ficha-ruc", nombre: "1792.pdf", url: "https://x/1792.pdf", estado: "activo", createdAt: new Date("2026-10-20T00:00:00.000Z") },
+        { id: "d2", categoria: "contrato_firmado", requisito: null, nombre: "contrato-136.pdf", url: "https://x/contrato.pdf", estado: "activo", createdAt: new Date("2026-10-21T00:00:00.000Z") },
+      ],
+    } as unknown as Awaited<ReturnType<ISolicitudesRepository["detalle"]>>);
+
+    const r = await crearSvc(mockRepo(), solicitudes, auth, empresas).expediente("s1");
+
+    expect(r).toMatchObject({ empresaNombre: "CIDELSA", contrato: "0000000001", cuentaCorriente: "1" });
+    expect(r.empresa).toMatchObject({ ruc: "20107972090", razonSocial: "CIDELSA" });
+    expect(r.empresa?.responsables.pagos).toMatchObject({ nombre: "Ana Pagos", email: "pagos@cidelsa.pe" });
+    expect(r.documentos[0]).toMatchObject({ categoria: "anexo", requisito: "ficha-ruc" });
+    expect(r.documentos[1]).toMatchObject({ categoria: "contrato_firmado" });
+  });
+
+  it("responde 404 si la solicitud no existe", async () => {
+    const solicitudes = solicitudesMock();
+    vi.mocked(solicitudes.detalle).mockResolvedValue(null);
+
+    await expect(crearSvc(mockRepo(), solicitudes).expediente("nope")).rejects.toMatchObject({ status: 404 });
   });
 });

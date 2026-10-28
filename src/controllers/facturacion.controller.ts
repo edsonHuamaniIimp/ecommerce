@@ -30,6 +30,20 @@ export const facturacionController = {
     return success(row);
   },
 
+  /** Expediente de la solicitud (datos + documentos + contrato firmado del SGC). */
+  async expediente(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const { searchParams } = new URL(request.url);
+    const solicitudId = searchParams.get("solicitudId");
+    if (!solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+
+    const expediente = await service.expediente(solicitudId);
+    /* Contrato firmado vigente del SGC (enlace de descarga de vida corta); null si no aplica. */
+    const contratoFirmadoSgc = await services.sgc.obtenerDescargaContrato(solicitudId).catch(() => null);
+    return success({ ...expediente, contratoFirmadoSgc });
+  },
+
   async agregarCuota(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
