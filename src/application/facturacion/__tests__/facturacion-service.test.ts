@@ -32,7 +32,10 @@ function mockAuthRepo(): IAuthRepository {
 }
 
 function solicitudesMock() {
-  return { detalle: vi.fn() } as unknown as Pick<ISolicitudesRepository, "detalle">;
+  return {
+    detalle: vi.fn(),
+    datosReservaIImp: vi.fn().mockResolvedValue(null),
+  } as unknown as Pick<ISolicitudesRepository, "detalle" | "datosReservaIImp">;
 }
 
 function empresasMock() {
@@ -423,12 +426,25 @@ describe("FacturacionApplicationService.expediente", () => {
         { id: "d2", categoria: "contrato_firmado", requisito: null, nombre: "contrato-136.pdf", url: "https://x/contrato.pdf", estado: "activo", createdAt: new Date("2026-10-21T00:00:00.000Z") },
       ],
     } as unknown as Awaited<ReturnType<ISolicitudesRepository["detalle"]>>);
+    vi.mocked(solicitudes.datosReservaIImp).mockResolvedValue({
+      datosFacturacion: {
+        tipoComprobante: "factura",
+        tipoDocumento: "RUC",
+        numeroDocumento: "20100022142",
+        razonSocial: "ABB SA",
+        direccion: "AV JAVIER PRADO ESTE 444",
+        telefono: "918874873",
+        contacto: "Jorge robles",
+        email: "rosa@abb.com",
+      },
+    } as unknown as Awaited<ReturnType<ISolicitudesRepository["datosReservaIImp"]>>);
 
     const r = await crearSvc(mockRepo(), solicitudes, auth, empresas).expediente("s1");
 
     expect(r).toMatchObject({ empresaNombre: "CIDELSA", contrato: "0000000001", cuentaCorriente: "1" });
     expect(r.empresa).toMatchObject({ ruc: "20107972090", razonSocial: "CIDELSA" });
     expect(r.empresa?.responsables.pagos).toMatchObject({ nombre: "Ana Pagos", email: "pagos@cidelsa.pe" });
+    expect(r.facturacion).toMatchObject({ razonSocial: "ABB SA", contacto: "Jorge robles" });
     expect(r.documentos[0]).toMatchObject({ categoria: "anexo", requisito: "ficha-ruc" });
     expect(r.documentos[1]).toMatchObject({ categoria: "contrato_firmado" });
   });

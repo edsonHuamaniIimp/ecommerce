@@ -14,7 +14,7 @@ export class FacturacionApplicationService {
   constructor(
     private readonly repo: IFacturacionRepository,
     private readonly authRepo: IAuthRepository,
-    private readonly solicitudes: Pick<ISolicitudesRepository, "detalle">,
+    private readonly solicitudes: Pick<ISolicitudesRepository, "detalle" | "datosReservaIImp">,
     private readonly empresas: Pick<IEmpresaRepository, "findById">,
   ) {}
 
@@ -48,6 +48,9 @@ export class FacturacionApplicationService {
 
     const empresaId = solicitud.email ? await this.authRepo.findEmpresaIdDeUsuario(solicitud.email).catch(() => null) : null;
     const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    /* Snapshot de facturacion capturado en el wizard (puede diferir de la ficha de la empresa). */
+    const reservaIimp = await this.solicitudes.datosReservaIImp(solicitudId);
+    const datos = reservaIimp?.datosFacturacion ?? null;
 
     return {
       solicitudId: solicitud.id,
@@ -58,18 +61,37 @@ export class FacturacionApplicationService {
       cuentaCorriente: solicitud.iimpCuentaCorriente,
       reservaAt: solicitud.iimpReservaAt,
       planCuotas: solicitud.planCuotas,
+      facturacion: datos
+        ? {
+            tipoComprobante: datos.tipoComprobante ?? null,
+            tipoDocumento: datos.tipoDocumento ?? null,
+            numeroDocumento: datos.numeroDocumento ?? null,
+            razonSocial: datos.razonSocial ?? null,
+            direccion: datos.direccion ?? null,
+            telefono: datos.telefono ?? null,
+            contacto: datos.contacto ?? null,
+            email: datos.email ?? null,
+          }
+        : null,
       empresa: empresa
         ? {
             ruc: empresa.ruc,
+            tipoDocumento: empresa.tipoDocumento,
+            pais: empresa.pais,
             razonSocial: empresa.razonSocial,
             nombreComercial: empresa.nombreComercial,
+            nombreFriso: empresa.nombreFriso ?? null,
             direccionFiscal: empresa.direccionFiscal,
+            inicioOperaciones: empresa.inicioOperaciones ? empresa.inicioOperaciones.toISOString().slice(0, 10) : null,
             telefono: empresa.telefono,
             emailContacto: empresa.emailContacto,
             emailFacturacion: empresa.emailFacturacion,
+            sitioWeb: empresa.sitioWeb,
+            partidaElectronica: empresa.partidaElectronica,
             actividadEconomica: empresa.actividadEconomica ?? null,
             estadoContribuyente: empresa.estadoContribuyente ?? null,
             facturarANombre: empresa.facturarANombre ?? null,
+            tipoComprobante: empresa.tipoComprobante,
             representanteLegal: {
               nombre: empresa.representanteLegalNombre,
               tipoDocumento: empresa.representanteLegalTipoDocumento,
@@ -81,11 +103,15 @@ export class FacturacionApplicationService {
             responsables: {
               extemin: {
                 nombre: empresa.responsableExteminNombre ?? null,
+                tipoDocumento: empresa.responsableExteminTipoDocumento ?? null,
+                documento: empresa.responsableExteminDni ?? null,
                 telefono: empresa.responsableExteminTelefono ?? null,
                 email: empresa.responsableExteminEmail ?? null,
               },
               pagos: {
                 nombre: empresa.responsablePagosNombre ?? null,
+                tipoDocumento: empresa.responsablePagosTipoDocumento ?? null,
+                documento: empresa.responsablePagosDni ?? null,
                 telefono: empresa.responsablePagosTelefono ?? null,
                 email: empresa.responsablePagosEmail ?? null,
               },

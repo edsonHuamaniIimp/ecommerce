@@ -9,7 +9,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 
 interface ComprobanteFiscalItem {
   tipo: string;
@@ -61,15 +61,22 @@ interface ExpedienteDocumento {
 /** Empresa y contactos del expediente (ficha que la empresa cargo previamente). */
 interface EmpresaExpediente {
   ruc: string;
+  tipoDocumento: string;
+  pais: string;
   razonSocial: string;
   nombreComercial: string | null;
+  nombreFriso: string | null;
   direccionFiscal: string | null;
+  inicioOperaciones: string | null;
   telefono: string | null;
   emailContacto: string | null;
   emailFacturacion: string | null;
+  sitioWeb: string | null;
+  partidaElectronica: string | null;
   actividadEconomica: string | null;
   estadoContribuyente: string | null;
   facturarANombre: string | null;
+  tipoComprobante: string;
   representanteLegal: {
     nombre: string | null;
     tipoDocumento: string;
@@ -79,9 +86,21 @@ interface EmpresaExpediente {
     direccion: string | null;
   };
   responsables: {
-    extemin: { nombre: string | null; telefono: string | null; email: string | null };
-    pagos: { nombre: string | null; telefono: string | null; email: string | null };
+    extemin: { nombre: string | null; tipoDocumento: string | null; documento: string | null; telefono: string | null; email: string | null };
+    pagos: { nombre: string | null; tipoDocumento: string | null; documento: string | null; telefono: string | null; email: string | null };
   };
+}
+
+/** Snapshot de facturacion capturado en el wizard de reserva. */
+interface FacturacionSnapshot {
+  tipoComprobante: string | null;
+  tipoDocumento: string | null;
+  numeroDocumento: string | null;
+  razonSocial: string | null;
+  direccion: string | null;
+  telefono: string | null;
+  contacto: string | null;
+  email: string | null;
 }
 
 /** Expediente que ve Facturacion: empresa, reserva y documentos + contrato firmado del SGC. */
@@ -94,6 +113,7 @@ interface ExpedienteItem {
   cuentaCorriente: string | null;
   reservaAt: string | null;
   planCuotas: unknown;
+  facturacion: FacturacionSnapshot | null;
   empresa: EmpresaExpediente | null;
   documentos: ExpedienteDocumento[];
   contratoFirmadoSgc: { url: string; expiresInSeconds: number } | null;
@@ -380,11 +400,11 @@ export default function FacturacionPage() {
           <div className="shrink-0 border-b border-slate-100 px-5 pb-3 pt-4 !pr-12">
             <h3 className="text-sm font-semibold text-slate-800">Detalle de facturación{detailRow ? ` · ${detailRow.standCode}` : ""}</h3>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 lg:overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
           {detailRow && (
-            <div className="grid grid-cols-1 gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[40fr_60fr]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[40fr_60fr]">
               {/* Columna izquierda: facturación y pagos */}
-              <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+              <div className="space-y-4">
               <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-2">
                 <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span></div>
                 <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${detailRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.INDIGO}`}>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</Badge></div>
@@ -427,7 +447,7 @@ export default function FacturacionPage() {
 
               </div>
               {/* Columna derecha: expediente, contactos y documentos */}
-              <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+              <div className="space-y-4">
               <div className="space-y-3">
                 <p className="text-xs font-semibold text-slate-500">Expediente del contrato</p>
                 {cargandoExpediente ? (
@@ -442,19 +462,44 @@ export default function FacturacionPage() {
                     <div className="rounded-lg border p-3">
                       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Empresa</p>
                       {expediente.empresa ? (
-                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                           <Dato label="Razón social" valor={expediente.empresa.razonSocial} />
+                          <Dato label="Nombre comercial" valor={expediente.empresa.nombreComercial} />
                           <Dato label="RUC" valor={expediente.empresa.ruc} mono />
+                          <Dato label="Tipo de documento" valor={TIPOS_DOCUMENTO_EMPRESA_LABELS[expediente.empresa.tipoDocumento] ?? expediente.empresa.tipoDocumento} />
+                          <Dato label="País" valor={expediente.empresa.pais} />
+                          <Dato label="Inicio de operaciones" valor={expediente.empresa.inicioOperaciones ? dateUtils.format(expediente.empresa.inicioOperaciones) : null} />
                           <Dato label="Dirección fiscal" valor={expediente.empresa.direccionFiscal} />
                           <Dato label="Teléfono" valor={expediente.empresa.telefono} />
                           <Dato label="Correo de contacto" valor={expediente.empresa.emailContacto} />
                           <Dato label="Correo de facturación" valor={expediente.empresa.emailFacturacion} />
+                          <Dato label="Sitio web" valor={expediente.empresa.sitioWeb} />
+                          <Dato label="Partida electrónica" valor={expediente.empresa.partidaElectronica} mono />
                           <Dato label="Actividad económica" valor={expediente.empresa.actividadEconomica} />
                           <Dato label="Estado SUNAT" valor={expediente.empresa.estadoContribuyente} />
                           <Dato label="Facturar a nombre de" valor={expediente.empresa.facturarANombre} />
+                          <Dato label="Nombre para friso" valor={expediente.empresa.nombreFriso} />
+                          <Dato label="Comprobante" valor={TIPO_COMPROBANTE_LABELS[expediente.empresa.tipoComprobante] ?? expediente.empresa.tipoComprobante} />
                         </div>
                       ) : (
                         <p className="text-xs text-slate-400">La empresa no está registrada en Empresas.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Datos de facturación (reserva)</p>
+                      {expediente.facturacion ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Razón social" valor={expediente.facturacion.razonSocial} />
+                          <Dato label="Documento" valor={[expediente.facturacion.tipoDocumento, expediente.facturacion.numeroDocumento].filter(Boolean).join(" ")} />
+                          <Dato label="Dirección" valor={expediente.facturacion.direccion} />
+                          <Dato label="Teléfono" valor={expediente.facturacion.telefono} />
+                          <Dato label="Contacto de pagos" valor={expediente.facturacion.contacto} />
+                          <Dato label="Correo" valor={expediente.facturacion.email} />
+                          <Dato label="Comprobante" valor={TIPO_COMPROBANTE_LABELS[expediente.facturacion.tipoComprobante ?? ""] ?? expediente.facturacion.tipoComprobante} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400">La solicitud no tiene datos de facturación registrados.</p>
                       )}
                     </div>
 
@@ -463,29 +508,34 @@ export default function FacturacionPage() {
                         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Representante legal</p>
                         <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                           <Dato label="Nombre" valor={expediente.empresa.representanteLegal.nombre} />
-                          <Dato label="Documento" valor={expediente.empresa.representanteLegal.documento} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.representanteLegal.tipoDocumento] ?? "", expediente.empresa.representanteLegal.documento].filter(Boolean).join(" ")} />
                           <Dato label="Correo" valor={expediente.empresa.representanteLegal.correo} />
                           <Dato label="Celular" valor={expediente.empresa.representanteLegal.celular} />
+                          <Dato label="Dirección" valor={expediente.empresa.representanteLegal.direccion} />
                         </div>
                       </div>
                     )}
 
-                    {(expediente.empresa?.responsables.extemin.nombre || expediente.empresa?.responsables.pagos.nombre) && (
+                    {expediente.empresa?.responsables.pagos.nombre && (
                       <div className="rounded-lg border p-3">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Contactos de la empresa</p>
-                        <div className="space-y-2">
-                          {expediente.empresa?.responsables.extemin.nombre && (
-                            <Dato
-                              label="Coordinación EXTEMIN"
-                              valor={[expediente.empresa.responsables.extemin.nombre, expediente.empresa.responsables.extemin.telefono, expediente.empresa.responsables.extemin.email].filter(Boolean).join(" · ")}
-                            />
-                          )}
-                          {expediente.empresa?.responsables.pagos.nombre && (
-                            <Dato
-                              label="Responsable de pagos"
-                              valor={[expediente.empresa.responsables.pagos.nombre, expediente.empresa.responsables.pagos.telefono, expediente.empresa.responsables.pagos.email].filter(Boolean).join(" · ")}
-                            />
-                          )}
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Responsable de pagos</p>
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.responsables.pagos.nombre} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.pagos.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.pagos.documento].filter(Boolean).join(" ")} />
+                          <Dato label="Teléfono" valor={expediente.empresa.responsables.pagos.telefono} />
+                          <Dato label="Correo" valor={expediente.empresa.responsables.pagos.email} />
+                        </div>
+                      </div>
+                    )}
+
+                    {expediente.empresa?.responsables.extemin.nombre && (
+                      <div className="rounded-lg border p-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Coordinación EXTEMIN</p>
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.responsables.extemin.nombre} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.extemin.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.extemin.documento].filter(Boolean).join(" ")} />
+                          <Dato label="Teléfono" valor={expediente.empresa.responsables.extemin.telefono} />
+                          <Dato label="Correo" valor={expediente.empresa.responsables.extemin.email} />
                         </div>
                       </div>
                     )}

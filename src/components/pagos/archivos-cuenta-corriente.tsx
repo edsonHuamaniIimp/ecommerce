@@ -86,11 +86,11 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
           </h3>
         </div>
 
-        {/* Body: formulario (70%) + bandeja (30%); en desktop cada columna scrollea sola */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 lg:overflow-hidden">
-          <div className="grid grid-cols-1 gap-5 lg:h-full lg:min-h-0 lg:grid-cols-[65fr_35fr]">
+        {/* Body: formulario (65%) + bandeja (35%) */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[65fr_35fr]">
             {/* Formulario */}
-            <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
                 <span>
                   Sube los documentos que respaldan tu compra y tus pagos: orden de compra (OC), hoja de
@@ -111,8 +111,8 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
               />
             </div>
 
-            {/* Bandeja de documentos (scroll propio con muchos documentos) */}
-            <div className="space-y-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            {/* Bandeja de documentos */}
+            <div className="space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                 Documentos subidos ({archivos.length})
               </p>
