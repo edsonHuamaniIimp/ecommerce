@@ -96,9 +96,8 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
                   Sube los documentos que respaldan tu compra y tus pagos: orden de compra (OC), hoja de
                   entrada de servicio (HES) y constancias de pago (detracción o del saldo de la cuota).
                   Se registran en tu cuenta del IIMP y el área de facturación los revisa para emitir tu
-                  factura. Puedes subir varios documentos de cada tipo. Si tu cuota supera S/ 700 aplica la
-                  detracción SPOT: puedes subir la constancia de detracción y la del saldo en cualquier
-                  orden (la detracción, hasta 1 mes después).
+                  factura. Puedes subir varios documentos de cada tipo. La carga de constancias es
+                  referencial: Facturación y Cobranzas valida los pagos por los canales formales.
                 </span>
               </p>
 

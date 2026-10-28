@@ -62,6 +62,18 @@ export interface ArchivoIImpInputDTO {
   nombre?: string | null;
 }
 
+/** Declaracion de requisitos de facturacion (checklist del modal de solicitar factura). */
+export interface RequisitosFacturacionDTO {
+  oc?: boolean;
+  hes?: boolean;
+  plataforma?: boolean;
+  plataformaNombre?: string | null;
+  plataformaUrl?: string | null;
+  valorizacion?: boolean;
+  otros?: string | null;
+  ninguna?: boolean;
+}
+
 /** Resultado de "Solicitar factura": reserva registrada en el IIMP (cuenta corriente creada). */
 export interface ResultadoSolicitudFacturaDTO {
   numeroSolicitud: string;
@@ -109,10 +121,11 @@ export const pagosService = {
     return internalApi.post<{ ok: boolean }>("/api/pagos/adjuntar-voucher", body);
   },
   /** "Solicitar factura": registra la reserva en el IIMP con sus documentos (el IIMP factura cada cuota en su fecha). */
-  solicitarFactura(cuotaId: string, archivos: ArchivoIImpInputDTO[] = []) {
+  solicitarFactura(cuotaId: string, archivos: ArchivoIImpInputDTO[] = [], requisitos?: RequisitosFacturacionDTO | null) {
     return internalApi.post<ResultadoSolicitudFacturaDTO>("/api/pagos/solicitar-factura", {
       cuotaId,
       ...(archivos.length > 0 ? { archivos } : {}),
+      ...(requisitos ? { requisitos } : {}),
     });
   },
   /** Archivos (links) de la cuenta corriente del IIMP asociada a la cuota. */

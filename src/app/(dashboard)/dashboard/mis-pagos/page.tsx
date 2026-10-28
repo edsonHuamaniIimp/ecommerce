@@ -18,7 +18,7 @@ export default function MisPagosPage() {
     <main className="flex-1 py-6">
       <div className="mx-auto w-full max-w-7xl space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mis pagos</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Mis documentos</h1>
           <p className="text-sm text-muted-foreground">
             {empresaVerComo
               ? `Plan de pagos de ${empresaVerComo.razonSocial} (solo lectura).`

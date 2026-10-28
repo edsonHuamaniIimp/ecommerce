@@ -61,6 +61,7 @@ export class FacturacionApplicationService {
       cuentaCorriente: solicitud.iimpCuentaCorriente,
       reservaAt: solicitud.iimpReservaAt,
       planCuotas: solicitud.planCuotas,
+      requisitos: reservaIimp?.requisitosFacturacion ?? null,
       facturacion: datos
         ? {
             tipoComprobante: datos.tipoComprobante ?? null,

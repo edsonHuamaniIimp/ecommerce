@@ -437,6 +437,7 @@ describe("FacturacionApplicationService.expediente", () => {
         contacto: "Jorge robles",
         email: "rosa@abb.com",
       },
+      requisitosFacturacion: { oc: true, hes: true, plataforma: false, valorizacion: true, otros: null, ninguna: false, cuota: 1 },
     } as unknown as Awaited<ReturnType<ISolicitudesRepository["datosReservaIImp"]>>);
 
     const r = await crearSvc(mockRepo(), solicitudes, auth, empresas).expediente("s1");
@@ -445,6 +446,7 @@ describe("FacturacionApplicationService.expediente", () => {
     expect(r.empresa).toMatchObject({ ruc: "20107972090", razonSocial: "CIDELSA" });
     expect(r.empresa?.responsables.pagos).toMatchObject({ nombre: "Ana Pagos", email: "pagos@cidelsa.pe" });
     expect(r.facturacion).toMatchObject({ razonSocial: "ABB SA", contacto: "Jorge robles" });
+    expect(r.requisitos).toMatchObject({ oc: true, cuota: 1 });
     expect(r.documentos[0]).toMatchObject({ categoria: "anexo", requisito: "ficha-ruc" });
     expect(r.documentos[1]).toMatchObject({ categoria: "contrato_firmado" });
   });

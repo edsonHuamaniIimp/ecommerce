@@ -402,3 +402,33 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(input?.archivos).toEqual(ADJUNTOS);
   });
 });
+
+describe("SolicitarFacturaApplicationService.requisitos de facturacion", () => {
+  it("permite solicitar sin OC/HES cuando el cliente declara ninguna de las anteriores", async () => {
+    const m = mocks();
+    await expect(servicio(m).solicitar("c1", ident, [], { ninguna: true })).resolves.toMatchObject({ numeroSolicitud: "CTRS-s1" });
+    expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      requisitos: expect.objectContaining({ ninguna: true, cuota: 1 }),
+    }));
+  });
+
+  it("guarda la declaracion de requisitos con la cuota de origen", async () => {
+    const m = mocks();
+    await servicio(m).solicitar("c1", ident, ADJUNTOS, {
+      oc: true, hes: true, plataforma: true, plataformaNombre: "SAP Ariba", plataformaUrl: "https://ariba.example.com",
+      valorizacion: true, otros: "Carta de conformidad",
+    });
+    expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      requisitos: {
+        oc: true, hes: true, plataforma: true, plataformaNombre: "SAP Ariba", plataformaUrl: "https://ariba.example.com",
+        valorizacion: true, otros: "Carta de conformidad", ninguna: false, cuota: 1,
+      },
+    }));
+  });
+
+  it("rechaza un enlace de plataforma que no es http(s) (400)", async () => {
+    const m = mocks();
+    await expect(servicio(m).solicitar("c1", ident, ADJUNTOS, { plataforma: true, plataformaUrl: "ftp://x/a" })).rejects.toMatchObject({ status: 400 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+});

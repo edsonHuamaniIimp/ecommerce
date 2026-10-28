@@ -106,6 +106,19 @@ interface FacturacionSnapshot {
   email: string | null;
 }
 
+/** Declaracion de requisitos de facturacion hecha por el cliente al solicitar. */
+interface RequisitosExpediente {
+  oc?: boolean;
+  hes?: boolean;
+  plataforma?: boolean;
+  plataformaNombre?: string | null;
+  plataformaUrl?: string | null;
+  valorizacion?: boolean;
+  otros?: string | null;
+  ninguna?: boolean;
+  cuota?: number;
+}
+
 /** Expediente que ve Facturacion: empresa, reserva y documentos + contrato firmado del SGC. */
 interface ExpedienteItem {
   solicitudId: string;
@@ -116,6 +129,7 @@ interface ExpedienteItem {
   cuentaCorriente: string | null;
   reservaAt: string | null;
   planCuotas: unknown;
+  requisitos: RequisitosExpediente | null;
   facturacion: FacturacionSnapshot | null;
   empresa: EmpresaExpediente | null;
   documentos: ExpedienteDocumento[];
@@ -612,6 +626,27 @@ export default function FacturacionPage() {
                         <p className="text-xs text-slate-400">La solicitud no tiene datos de facturación registrados.</p>
                       )}
                     </div>
+
+                    {expediente.requisitos && (
+                      <div className="rounded-lg border p-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Requisitos declarados{expediente.requisitos.cuota ? ` · cuota ${expediente.requisitos.cuota}` : ""}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {expediente.requisitos.oc && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Orden de compra (OC)</span></Badge>}
+                          {expediente.requisitos.hes && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Hoja de entrada (HES)</span></Badge>}
+                          {expediente.requisitos.valorizacion && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Valorización / cotización</span></Badge>}
+                          {expediente.requisitos.plataforma && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Plataforma: {expediente.requisitos.plataformaNombre ?? "—"}</span></Badge>}
+                          {expediente.requisitos.otros && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Otros: {expediente.requisitos.otros}</span></Badge>}
+                          {expediente.requisitos.ninguna && <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}><span>Ninguna de las anteriores</span></Badge>}
+                          {expediente.requisitos.plataformaUrl && (
+                            <a href={expediente.requisitos.plataformaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline">
+                              <ExternalLink className="h-3 w-3" /><span>{expediente.requisitos.plataformaUrl}</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {expediente.empresa?.representanteLegal.nombre && (
                       <div className="rounded-lg border p-3">

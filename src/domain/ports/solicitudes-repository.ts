@@ -89,6 +89,8 @@ export interface ISolicitudesRepository {
     clienteCodigo: string | null;
     reserva: unknown;
     at: Date;
+    /** Declaracion de requisitos de facturacion del cliente (checklist por solicitud). */
+    requisitos: unknown | null;
   }): Promise<void>;
   /** Datos para armar el payload de `POST /stands/reserva` del IIMP. */
   datosReservaIImp(solicitudId: string): Promise<{
@@ -101,6 +103,8 @@ export interface ISolicitudesRepository {
     planCuotas: PlanCuotasSolicitud | null;
     /** Datos comerciales/fiscales del paso 1 del wizard (solicitudes nuevas). */
     datosFacturacion: DatosFacturacionSolicitud | null;
+    /** Declaracion del cliente sobre requisitos de facturacion (checklist). */
+    requisitosFacturacion: unknown | null;
   } | null>;
   /** Id de la solicitud cuyo `NumeroSolicitud` del IIMP (determinista) coincide. */
   findSolicitudIdPorNumeroIImp(numeroSolicitud: string): Promise<string | null>;

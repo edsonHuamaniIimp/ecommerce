@@ -10,6 +10,7 @@ import { facturacionRepo } from "@/infrastructure/persistence/facturacion-reposi
 import { PagosApplicationService } from "@/application/pagos/pagos-service";
 import type { ClienteIdent } from "@/domain/ports/facturacion-repository";
 import type { ReservaIimpArchivoInput } from "@/domain/ports/reserva-iimp-client";
+import type { RequisitosFacturacionInput } from "@/application/facturacion-iimp/solicitar-factura-service";
 import { verComoEmpresaIdSchema } from "@/validators/ver-como.validator";
 
 const service = new PagosApplicationService(facturacionRepo);
@@ -180,10 +181,14 @@ export const pagosController = {
   async solicitarFactura(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    const { cuotaId, archivos } = (await request.json()) as { cuotaId: string; archivos?: unknown };
+    const { cuotaId, archivos, requisitos } = (await request.json()) as {
+      cuotaId: string;
+      archivos?: unknown;
+      requisitos?: RequisitosFacturacionInput | null;
+    };
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
     const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
-    return success(await services.solicitarFactura.solicitar(cuotaId, ident(session), lista));
+    return success(await services.solicitarFactura.solicitar(cuotaId, ident(session), lista, requisitos ?? null));
   },
 
   /** Archivos (links) de la cuenta corriente del IIMP de una cuota propia del cliente. */

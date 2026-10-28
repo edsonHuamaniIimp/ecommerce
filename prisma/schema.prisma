@@ -500,6 +500,8 @@ model Solicitud {
   planCuotas          Json?     @map("plan_cuotas")
   /// Datos comerciales/fiscales capturados en el paso 1 del wizard (payload del IIMP).
   datosFacturacion    Json?     @map("datos_facturacion")
+  /// Declaracion del cliente sobre los requisitos de facturacion (checklist de la solicitud).
+  requisitosFacturacion Json?   @map("requisitos_facturacion")
   /// Reserva oficial en el API del IIMP: contrato (10 digitos), cuenta corriente y cliente.
   iimpContrato        String?   @map("iimp_contrato") @db.VarChar(20)
   iimpCuentaCorriente String?   @map("iimp_cuenta_corriente") @db.VarChar(20)

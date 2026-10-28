@@ -1,0 +1,1 @@
+ALTER TABLE "solicitud" ADD COLUMN "requisitos_facturacion" JSONB;

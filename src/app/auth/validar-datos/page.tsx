@@ -12,7 +12,6 @@ import { PortalAuthCardHeader, PortalAuthLayout } from "@/components/layout/port
 import { PaisSelect } from "@/components/shared/pais-select";
 import { TelefonoInput } from "@/components/shared/telefono-input";
 import {
-  REGEX_EMAIL,
   TIPOS_COMPROBANTE,
   TIPO_COMPROBANTE_LABELS,
   TIPOS_DOCUMENTO_EMPRESA,
@@ -20,12 +19,9 @@ import {
   TIPOS_DOCUMENTO_PERSONA,
   TIPOS_DOCUMENTO_PERSONA_LABELS,
 } from "@/lib/shared/constants";
-import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
-import {
-  resolverTipoDocumentoEmpresa,
-  validarDocumentoEmpresa,
-} from "@/lib/shared/utils/documento-empresa";
+import { resolverTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { erroresFormularioEmpresa } from "@/lib/shared/utils/empresa-form-validacion";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface FormState {
@@ -200,70 +196,6 @@ function CampoTipoDocumentoEmpresa({
   );
 }
 
-/**
- * Reglas de validacion del formulario (mismas que el endpoint). Los datos del
- * representante legal son obligatorios: contrato + sincronizacion + usuario del sistema.
- */
-function erroresDeFormulario(form: FormState): Partial<Record<keyof FormState, string>> {
-  const nuevos: Partial<Record<keyof FormState, string>> = {};
-  if (!form.pais.trim()) nuevos.pais = "Selecciona el pais de la empresa";
-  if (!form.razonSocial.trim()) nuevos.razonSocial = "La razon social es obligatoria";
-  const tipoDocumento = resolverTipoDocumentoEmpresa(form.tipoDocumento, form.ruc);
-  if (!tipoDocumento) {
-    nuevos.tipoDocumento = "Selecciona el tipo de documento";
-  } else {
-    const errorDocumento = validarDocumentoEmpresa(tipoDocumento, form.ruc);
-    if (errorDocumento) nuevos.ruc = errorDocumento;
-  }
-  if (tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.RUC && !form.partidaElectronica.trim()) {
-    nuevos.partidaElectronica = "La partida electronica es obligatoria para empresas con RUC";
-  }
-  if (!form.inicioOperaciones.trim()) {
-    nuevos.inicioOperaciones = "La fecha de inicio de operaciones es obligatoria";
-  } else if (!dateUtils.isValid(form.inicioOperaciones)) {
-    nuevos.inicioOperaciones = "La fecha de inicio de operaciones es invalida";
-  }
-  if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
-    nuevos.emailFacturacion = "Correo invalido";
-  }
-  if (form.emailContacto.trim() && !REGEX_EMAIL.test(form.emailContacto.trim())) {
-    nuevos.emailContacto = "Correo invalido";
-  }
-  if (form.responsableExteminEmail.trim() && !REGEX_EMAIL.test(form.responsableExteminEmail.trim())) {
-    nuevos.responsableExteminEmail = "Correo invalido";
-  }
-  if (form.responsablePagosEmail.trim() && !REGEX_EMAIL.test(form.responsablePagosEmail.trim())) {
-    nuevos.responsablePagosEmail = "Correo invalido";
-  }
-  if (!form.representanteLegalNombre.trim()) {
-    nuevos.representanteLegalNombre = "El nombre del representante legal es obligatorio";
-  }
-  const dni = form.representanteLegalDni.trim();
-  if (!dni) {
-    nuevos.representanteLegalDni = "El documento del representante legal es obligatorio";
-  } else {
-    const errorDni = validarDocumentoPersona(form.representanteLegalTipoDocumento, dni);
-    if (errorDni) nuevos.representanteLegalDni = errorDni;
-  }
-  const validarDocumentoOpcional = (tipo: string, documento: string, campo: "responsableExteminDni" | "responsablePagosDni") => {
-    const valor = documento.trim();
-    if (!valor) return;
-    const error = validarDocumentoPersona(tipo, valor);
-    if (error) nuevos[campo] = error;
-  };
-  validarDocumentoOpcional(form.responsableExteminTipoDocumento, form.responsableExteminDni, "responsableExteminDni");
-  validarDocumentoOpcional(form.responsablePagosTipoDocumento, form.responsablePagosDni, "responsablePagosDni");
-  const correoRep = form.representanteCorreo.trim();
-  if (!correoRep) {
-    nuevos.representanteCorreo = "El correo del representante legal es obligatorio";
-  } else if (!REGEX_EMAIL.test(correoRep)) {
-    nuevos.representanteCorreo = "Correo invalido";
-  }
-  if (!form.representanteCelular.trim()) nuevos.representanteCelular = "El celular del representante legal es obligatorio";
-  if (!form.representanteDireccion.trim()) nuevos.representanteDireccion = "La direccion del representante legal es obligatoria";
-  return nuevos;
-}
-
 function ValidarDatosContent() {
   const router = useRouter();
   const [cargando, setCargando] = useState(true);
@@ -401,7 +333,7 @@ function ValidarDatosContent() {
 
   /** Errores actuales del formulario (incluye obligatorios vacios). */
   const erroresFormulario = useMemo(
-    () => (form ? erroresDeFormulario(form) : ({} as Partial<Record<keyof FormState, string>>)),
+    () => (form ? erroresFormularioEmpresa(form) : ({} as Partial<Record<keyof FormState, string>>)),
     [form],
   );
   /** Validacion viva: el boton de guardar solo se habilita con los obligatorios completos. */
@@ -433,7 +365,7 @@ function ValidarDatosContent() {
     return confirmado ? campos : [...campos, "Marca la confirmacion de que los datos son correctos."];
   }, [erroresFormulario, confirmado]);
 
-  const validar = (): boolean => (form ? Object.keys(erroresDeFormulario(form)).length === 0 : false);
+  const validar = (): boolean => (form ? Object.keys(erroresFormularioEmpresa(form)).length === 0 : false);
 
   const guardar = async () => {
     if (!form || !confirmado) return;
@@ -647,7 +579,7 @@ function ValidarDatosContent() {
                 nota={sunatCargando ? "Consultando SUNAT..." : sunatValidado ? "Datos validados con SUNAT." : undefined}
               />
               <Campo contractual label="Facturar a nombre de" valor={form.facturarANombre} onChange={(v) => setCampo("facturarANombre", v)} placeholder={form.razonSocial || "Razon social"} />
-              <Campo contractual label="Direccion de facturacion" valor={form.direccionFiscal} onChange={(v) => setCampo("direccionFiscal", v)} placeholder="Av. Los Ingenieros 245, Lima" />
+                  <Campo contractual label="Domicilio fiscal (no sitio web)" valor={form.direccionFiscal} onChange={(v) => setCampo("direccionFiscal", v)} placeholder="Av. Los Ingenieros 245, Lima" />
               <Campo contractual label="Correo de facturacion" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} placeholder="facturacion@empresa.pe" error={erroresVisibles.emailFacturacion} resaltado={marcarPendiente("emailFacturacion")} />
             </div>
             <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-3">

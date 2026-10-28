@@ -956,6 +956,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     clienteCodigo: string | null;
     reserva: unknown;
     at: Date;
+    requisitos: unknown | null;
   }): Promise<void> {
     await prisma.solicitud.update({
       where: { id: solicitudId },
@@ -965,6 +966,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         iimpClienteCodigo: data.clienteCodigo,
         iimpReserva: data.reserva as never,
         iimpReservaAt: data.at,
+        requisitosFacturacion: (data.requisitos ?? null) as never,
       },
     });
   }
@@ -990,6 +992,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),
       planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
       datosFacturacion: (row.datosFacturacion ?? null) as DatosFacturacionSolicitud | null,
+      requisitosFacturacion: (row.requisitosFacturacion ?? null) as unknown,
     };
   }
 

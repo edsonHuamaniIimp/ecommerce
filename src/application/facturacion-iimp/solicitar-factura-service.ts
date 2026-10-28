@@ -34,6 +34,23 @@ export interface ResultadoSolicitudFactura {
   payloadEnviado: ReservaIimpInput;
 }
 
+/**
+ * Declaracion del cliente sobre los requisitos de facturacion de su empresa
+ * (checklist acordado): OC, HES, registro en plataforma de proveedores (con
+ * nombre y enlace), valorizacion/cotizacion, otros o "ninguna de las anteriores".
+ */
+export interface RequisitosFacturacionInput {
+  oc?: boolean;
+  hes?: boolean;
+  plataforma?: boolean;
+  plataformaNombre?: string | null;
+  plataformaUrl?: string | null;
+  valorizacion?: boolean;
+  otros?: string | null;
+  /** Mi empresa no requiere estos documentos (extranjeras o sin orden de compra). */
+  ninguna?: boolean;
+}
+
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
 function digitos(valor: string | null | undefined): string {
   return (valor ?? "").replace(/\D/g, "");
@@ -59,7 +76,7 @@ export class SolicitarFacturaApplicationService {
     private readonly consultaDocumento: IConsultaDocumentoClient,
   ) {}
 
-  async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = []): Promise<ResultadoSolicitudFactura> {
+  async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = [], requisitos: RequisitosFacturacionInput | null = null): Promise<ResultadoSolicitudFactura> {
     const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
     if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
@@ -122,12 +139,19 @@ export class SolicitarFacturaApplicationService {
       validarArchivoIImp(archivo, cuotasPlan.length);
     }
 
-    /* Requisito del flujo: la 1ra cuota exige al menos una OC y una HES (en las cuotas 2-3
-       son opcionales). Cuentan tambien los documentos generales de la cuenta (sin cuota). */
-    const esDePrimeraCuota = (a: (typeof archivosNormalizados)[number]) => a.cuota == null || a.cuota === 1;
-    const tiposPrimeraCuota = new Set(archivosNormalizados.filter(esDePrimeraCuota).map((a) => a.tipo));
-    if (!tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.OC) || !tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.HES)) {
-      throw new DomainError("La primera cuota requiere adjuntar al menos una OC y una HES", API_ERROR_CODES.VALIDATION, 400);
+    /* Requisitos declarados por el cliente: la 1ra cuota exige OC y HES salvo que
+       declare "ninguna de las anteriores" (empresas extranjeras o sin orden de compra). */
+    const requisitosDeclarados = requisitos ? this.normalizarRequisitos(requisitos) : null;
+    if (!requisitosDeclarados?.ninguna) {
+      const esDePrimeraCuota = (a: (typeof archivosNormalizados)[number]) => a.cuota == null || a.cuota === 1;
+      const tiposPrimeraCuota = new Set(archivosNormalizados.filter(esDePrimeraCuota).map((a) => a.tipo));
+      if (!tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.OC) || !tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.HES)) {
+        throw new DomainError(
+          "La primera cuota requiere adjuntar al menos una OC y una HES (o marcar 'Ninguna de las anteriores')",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
     }
 
     const numeroSolicitud = numeroSolicitudIImp(fact.solicitudId);
@@ -148,6 +172,7 @@ export class SolicitarFacturaApplicationService {
       clienteCodigo: respuesta.cliente.codigo || null,
       reserva: respuesta,
       at: new Date(),
+      requisitos: requisitosDeclarados ? { ...requisitosDeclarados, cuota: fact.cuotas.find((c) => c.id === cuotaId)?.numero ?? null } : null,
     });
 
     const documento = respuesta.cuotas.find((c) => c.cuota === 1)?.documento ?? null;
@@ -161,6 +186,24 @@ export class SolicitarFacturaApplicationService {
       cuentaCorriente: respuesta.cuentaCorriente,
       documento,
       payloadEnviado: input,
+    };
+  }
+
+  /** Normaliza la declaracion de requisitos y valida el enlace de la plataforma. */
+  private normalizarRequisitos(input: RequisitosFacturacionInput): RequisitosFacturacionInput {
+    const enlace = (input.plataformaUrl ?? "").trim();
+    if (enlace && !/^https?:\/\/\S+$/i.test(enlace)) {
+      throw new DomainError("El enlace de la plataforma debe ser una URL http(s) valida", API_ERROR_CODES.VALIDATION, 400);
+    }
+    return {
+      oc: input.oc === true,
+      hes: input.hes === true,
+      plataforma: input.plataforma === true,
+      plataformaNombre: (input.plataformaNombre ?? "").trim() || null,
+      plataformaUrl: enlace || null,
+      valorizacion: input.valorizacion === true,
+      otros: (input.otros ?? "").trim() || null,
+      ninguna: input.ninguna === true,
     };
   }
 
