@@ -21,8 +21,8 @@ export default function MisPagosPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Mis documentos</h1>
           <p className="text-sm text-muted-foreground">
             {empresaVerComo
-              ? `Plan de pagos de ${empresaVerComo.razonSocial} (solo lectura).`
-              : "Plan de pagos (cuotas) de tus solicitudes de stands. Puedes ver y configurar los numeros de pago."}
+              ? `Documentos de ${empresaVerComo.razonSocial} por cuota (solo lectura).`
+              : "Documentos de tus solicitudes de stands. Consulta, adjunta y descarga los documentos de cada cuota: comprobantes, constancias y facturas."}
           </p>
         </div>
         {esAdmin && (
