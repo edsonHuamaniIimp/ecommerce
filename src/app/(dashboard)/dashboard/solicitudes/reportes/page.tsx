@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { BarChart3, Globe2, Loader2, RefreshCw } from "lucide-react";
+import { Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
+import { Building2, CircleAlert, ClipboardList, Globe2, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { MapaMundialPaises } from "@/components/reportes/mapa-mundial-paises";
@@ -107,6 +107,7 @@ export default function ReportesSolicitudesPage() {
   const totalSolicitudes = data.reduce((total, fila) => total + fila.solicitudes, 0);
   const totalEmpresas = data.reduce((total, fila) => total + fila.empresas, 0);
   const totalPaises = data.filter((fila) => fila.pais).length;
+  const totalSinPais = data.filter((fila) => !fila.pais).reduce((total, fila) => total + fila.empresas, 0);
 
   return (
     <PaginaDashboard
@@ -116,60 +117,112 @@ export default function ReportesSolicitudesPage() {
       tieneEvento
       ancho="amplio"
     >
-      <Card>
-        <CardHeader className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              <span>Mapa de calor por país</span>
-            </CardTitle>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {totalPaises} países · {totalEmpresas} empresas · {totalSolicitudes} solicitudes
-            </p>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-primary/10" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Globe2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Países</p>
+              <p className="text-2xl font-semibold tracking-tight text-foreground">{totalPaises}</p>
+              <p className="text-[10px] text-muted-foreground">con solicitudes</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Select value={alcance} onValueChange={(valor) => setAlcance(valor as Alcance)}>
-              <SelectTrigger className="h-8 w-[170px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="activas"><span>Solicitudes activas</span></SelectItem>
-                <SelectItem value="todas"><span>Todas las solicitudes</span></SelectItem>
-              </SelectContent>
-            </Select>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-gold/10" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold">
+              <Building2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Empresas</p>
+              <p className="text-2xl font-semibold tracking-tight text-foreground">{totalEmpresas}</p>
+              <p className="text-[10px] text-muted-foreground">con actividad</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-info/10" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-info/10 text-info">
+              <ClipboardList className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Solicitudes</p>
+              <p className="text-2xl font-semibold tracking-tight text-foreground">{totalSolicitudes}</p>
+              <p className="text-[10px] text-muted-foreground">{alcance === "activas" ? "activas" : "históricas"}</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-warning/30 bg-warning/5 p-4 shadow-sm">
+          <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-warning/10" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/15 text-warning">
+              <CircleAlert className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Sin país</p>
+              <p className="text-2xl font-semibold tracking-tight text-foreground">{totalSinPais}</p>
+              <p className="text-[10px] text-muted-foreground">por confirmar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Cobertura geográfica</p>
+          <h2 className="mt-0.5 text-base font-semibold tracking-tight text-foreground">Mapa de calor por país</h2>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Intensidad según solicitudes registradas.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={alcance} onValueChange={(valor) => setAlcance(valor as Alcance)}>
+            <SelectTrigger className="h-8 w-[170px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="activas"><span>Solicitudes activas</span></SelectItem>
+              <SelectItem value="todas"><span>Todas las solicitudes</span></SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Actualizar reporte"
+            aria-label="Actualizar reporte"
+            onClick={() => void cargar(alcance)}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          {puedeSincronizar ? (
             <Button
               variant="outline"
               size="sm"
-              className="h-8 w-8 p-0"
-              title="Actualizar reporte"
-              aria-label="Actualizar reporte"
-              onClick={() => void cargar(alcance)}
-              disabled={loading}
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => void abrirSync()}
+              disabled={syncLoading}
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <Globe2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sincronizar países</span>
             </Button>
-            {puedeSincronizar ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
-                onClick={() => void abrirSync()}
-                disabled={syncLoading}
-              >
-                <Globe2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Sincronizar países</span>
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {loading ? (
-            <div className="flex h-80 items-center justify-center text-sm text-muted-foreground">Cargando mapa...</div>
-          ) : (
-            <MapaMundialPaises data={data} />
-          )}
-        </CardContent>
-      </Card>
+          ) : null}
+        </div>
+      </div>
+
+      {loading ? (
+        <Card className="border-border/70">
+          <CardContent className="flex h-80 items-center justify-center text-sm text-muted-foreground">
+            Cargando mapa...
+          </CardContent>
+        </Card>
+      ) : (
+        <MapaMundialPaises data={data} />
+      )}
 
       <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
