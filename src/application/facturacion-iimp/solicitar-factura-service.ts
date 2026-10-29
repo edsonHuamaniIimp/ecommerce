@@ -11,7 +11,6 @@ import {
   TIPOS_COMPROBANTE,
   TIPOS_DOCUMENTO_FACTURACION_IIMP,
   TIPOS_DOCUMENTO_PERSONA,
-  TIPOS_ARCHIVO_IIMP,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { ClienteIdent, IFacturacionRepository } from "@/domain/ports/facturacion-repository";
@@ -139,20 +138,9 @@ export class SolicitarFacturaApplicationService {
       validarArchivoIImp(archivo, cuotasPlan.length);
     }
 
-    /* Requisitos declarados por el cliente: la 1ra cuota exige OC y HES salvo que
-       declare "ninguna de las anteriores" (empresas extranjeras o sin orden de compra). */
+    /* Requisitos de facturacion: la declaracion del cliente es referencial (no bloquea
+       la solicitud); se guarda con la cuota de origen para Facturacion. */
     const requisitosDeclarados = requisitos ? this.normalizarRequisitos(requisitos) : null;
-    if (!requisitosDeclarados?.ninguna) {
-      const esDePrimeraCuota = (a: (typeof archivosNormalizados)[number]) => a.cuota == null || a.cuota === 1;
-      const tiposPrimeraCuota = new Set(archivosNormalizados.filter(esDePrimeraCuota).map((a) => a.tipo));
-      if (!tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.OC) || !tiposPrimeraCuota.has(TIPOS_ARCHIVO_IIMP.HES)) {
-        throw new DomainError(
-          "La primera cuota requiere adjuntar al menos una OC y una HES (o marcar 'Ninguna de las anteriores')",
-          API_ERROR_CODES.VALIDATION,
-          400,
-        );
-      }
-    }
 
     const numeroSolicitud = numeroSolicitudIImp(fact.solicitudId);
     const input = await this.armarPayload(snapshot, empresa, {

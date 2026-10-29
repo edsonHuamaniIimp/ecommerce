@@ -168,20 +168,10 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(r.documento?.serie).toBe("FRS1");
   });
 
-  it("exige al menos una OC y una HES para la primera cuota (400)", async () => {
+  it("permite solicitar sin OC/HES: la declaracion de requisitos es referencial", async () => {
     const m = mocks();
-    /* Sin documentos. */
-    await expect(servicio(m).solicitar("c1", ident)).rejects.toMatchObject({ status: 400 });
-    /* Solo OC. */
-    await expect(servicio(m).solicitar("c1", ident, [ADJUNTO_OC])).rejects.toMatchObject({ status: 400 });
-    /* Solo HES. */
-    await expect(servicio(m).solicitar("c1", ident, [ADJUNTO_HES])).rejects.toMatchObject({ status: 400 });
-    /* OC y HES solo de la cuota 2: la primera cuota sigue sin sus documentos. */
-    await expect(servicio(m).solicitar("c1", ident, [
-      { tipo: "OC", cuota: 2, link: "https://web.iimp.org/archivos/oc-2.pdf" },
-      { tipo: "HES", cuota: 2, link: "https://web.iimp.org/archivos/hes-2.pdf" },
-    ])).rejects.toMatchObject({ status: 400 });
-    expect(m.reserva.reservar).not.toHaveBeenCalled();
+    await expect(servicio(m).solicitar("c1", ident)).resolves.toMatchObject({ numeroSolicitud: "CTRS-s1" });
+    expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ requisitos: null }));
   });
 
   it("acepta la OC y la HES asociadas a la primera cuota", async () => {
