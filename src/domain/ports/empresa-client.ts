@@ -9,6 +9,7 @@ export interface EmpresaApi {
   telefono?: string;
   link_logo?: string;
   pais?: number;
+  pais_nombre?: string;
 }
 
 /** Datos para crear una empresa en servicio-persona (documento y tipo van juntos). */

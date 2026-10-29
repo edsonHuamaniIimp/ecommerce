@@ -64,6 +64,18 @@ export const empresaController = {
     return success(mapEmpresaToDTO(empresa));
   },
 
+  /** Previsualiza/aplica el pais de empresas no domiciliadas usando SIE. */
+  async sincronizarPaises(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    services.empresas.autorizarGestion(session.permissions);
+
+    const body = await request.json().catch(() => ({})) as { aplicar?: unknown; limite?: unknown };
+    const aplicar = body.aplicar === true;
+    const limite = Number.isFinite(Number(body.limite)) ? Number(body.limite) : 50;
+    const resultado = await services.empresas.sincronizarPaises({ aplicar, limite });
+    return success(resultado);
+  },
+
   /** Alta individual de empresa (backoffice). */
   async crear(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();

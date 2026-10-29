@@ -15,6 +15,8 @@ interface ProtectedRoute {
 const PROTECTED: ProtectedRoute[] = [
   { path: "/dashboard/vinculacion", permission: PERMISSIONS.STANDS_VINCULACION },
   { path: "/dashboard/datos-evento", permission: PERMISSIONS.EVENTOS_DATOS },
+  { path: "/dashboard/solicitudes/reportes", permission: PERMISSIONS.REPORTES_VIEW },
+  { path: "/api/reportes", permission: PERMISSIONS.REPORTES_VIEW },
   { path: "/dashboard/solicitudes", permission: PERMISSIONS.SOLICITUDES_GESTION },
   { path: "/dashboard/mis-solicitudes", permission: PERMISSIONS.MIS_RESERVAS_VIEW },
   { path: "/dashboard/mis-pagos", permission: PERMISSIONS.PAGOS_VIEW },

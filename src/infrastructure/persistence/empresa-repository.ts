@@ -8,6 +8,7 @@ import type {
   EmpresasListParams,
   EmpresasPaginatedResult,
 } from "@/domain/models/empresa";
+import { PAIS_DEFAULT, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
 import type { EstadoEmpresa, TipoComprobante } from "@/lib/shared/constants";
 import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
@@ -153,6 +154,18 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
   async findById(id: string): Promise<EmpresaEntity | null> {
     const row = await prisma.empresa.findUnique({ where: { id } });
     return row ? mapRow(row as EmpresaRow) : null;
+  }
+
+  async findPaisesPendientes(limite = 50): Promise<EmpresaEntity[]> {
+    const rows = await prisma.empresa.findMany({
+      where: {
+        tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+        pais: PAIS_DEFAULT,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: limite,
+    });
+    return rows.map((row) => mapRow(row as EmpresaRow));
   }
 
   async findByRuc(ruc: string): Promise<EmpresaEntity | null> {

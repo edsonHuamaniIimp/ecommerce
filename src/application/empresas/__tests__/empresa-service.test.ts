@@ -114,6 +114,12 @@ class FakeEmpresaRepo implements IEmpresaRepository {
     return this.items.get(id) ?? null;
   }
 
+  async findPaisesPendientes(limite = 50): Promise<EmpresaEntity[]> {
+    return [...this.items.values()]
+      .filter((empresa) => empresa.tipoDocumento === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && empresa.pais === "PE")
+      .slice(0, limite);
+  }
+
   async findByRuc(ruc: string): Promise<EmpresaEntity | null> {
     return [...this.items.values()].find((e) => e.ruc === ruc) ?? null;
   }

@@ -36,6 +36,8 @@ import { SolicitudesApplicationService } from "@/application/solicitudes/solicit
 import { PlanoApplicationService } from "@/application/planos/planos-service";
 import { EmpresaPrismaRepository } from "@/infrastructure/persistence/empresa-repository";
 import { EmpresaApplicationService } from "@/application/empresas/empresa-service";
+import { ReportesSolicitudesPrismaRepository } from "@/infrastructure/persistence/reportes-solicitudes-repository";
+import { ReportesSolicitudesApplicationService } from "@/application/reportes/reportes-solicitudes-service";
 import { UsuarioPrismaRepository } from "@/infrastructure/persistence/usuario-repository";
 import { UsuariosApplicationService } from "@/application/usuarios/usuarios-service";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
@@ -68,6 +70,7 @@ const solicitudCuentaRepo = new SolicitudCuentaPrismaRepository();
 const solicitudesRepo = new SolicitudesPrismaRepository();
 const planoRepo = new PlanoPrismaRepository();
 const empresaRepo = new EmpresaPrismaRepository();
+const reportesSolicitudesRepo = new ReportesSolicitudesPrismaRepository();
 const usuarioRepo = new UsuarioPrismaRepository();
 const configuracionRepo = new ConfiguracionPrismaRepository();
 const debidaDiligenciaRepo = new DebidaDiligenciaPrismaRepository();
@@ -111,6 +114,7 @@ export const services = {
   solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion, getStorage()),
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
+  reportesSolicitudes: new ReportesSolicitudesApplicationService(reportesSolicitudesRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),

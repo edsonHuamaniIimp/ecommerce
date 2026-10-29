@@ -281,6 +281,10 @@ model Empresa {
   sieCode                  String?   @map("sie_code") @db.VarChar(20)
   /// Pais de la empresa (ISO 3166-1 alpha-2; por defecto PE).
   pais                     String    @default("PE") @map("pais") @db.VarChar(2)
+  /// Origen del pais: cliente | sie | manual | default.
+  paisOrigen               String?   @map("pais_origen") @db.VarChar(20)
+  /// Ultima sincronizacion del pais contra servicio-persona.
+  paisSincronizadoEn       DateTime? @map("pais_sincronizado_en")
   /// Razon social; usada en el cuerpo del contrato.
   razonSocial              String    @map("razon_social") @db.VarChar(200)
   /// Logo de la empresa (URL en /uploads/*); se pinta en sus stands reservados del mapa.

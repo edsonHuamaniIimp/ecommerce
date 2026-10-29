@@ -20,6 +20,8 @@ interface NavItem {
   section?: string;
   /** Solo se muestra al Portal del Cliente. */
   soloCliente?: boolean;
+  /** La ruta debe coincidir exactamente para marcarse activa. */
+  exact?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -31,7 +33,8 @@ const navItems: NavItem[] = [
   { href: "/dashboard/pre-reservas", label: "Pre-reservas", icon: Bookmark, permission: PERMISSIONS.STANDS_PRE_RESERVAR, section: "Gestión de Stands" },
   { href: "/mapa", label: "Plano de Stands", icon: Building2, permission: PERMISSIONS.STANDS_PLANO, section: "Gestión de Stands" },
 
-  { href: "/dashboard/solicitudes", label: "Solicitudes de alquiler", icon: ClipboardCheck, permission: PERMISSIONS.SOLICITUDES_GESTION, section: "Solicitudes de alquiler" },
+  { href: "/dashboard/solicitudes", label: "Solicitudes de alquiler", icon: ClipboardCheck, permission: PERMISSIONS.SOLICITUDES_GESTION, section: "Solicitudes de alquiler", exact: true },
+  { href: "/dashboard/solicitudes/reportes", label: "Reportes", icon: BarChart3, permission: PERMISSIONS.REPORTES_VIEW, section: "Solicitudes de alquiler" },
 
   { href: "/dashboard/mis-solicitudes", label: "Mis reservas", icon: FolderOpen, permission: PERMISSIONS.MIS_RESERVAS_VIEW, section: "Reservas" },
   { href: "/dashboard/reservas", label: "Reservas", icon: ClipboardList, permission: PERMISSIONS.READ_RESERVAS, section: "Reservas" },
@@ -125,7 +128,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
           if (item.permission && !canSee(item.permission)) return null;
           if (item.soloCliente && !esCliente) return null;
           const inicioSeccion = Boolean(item.section) && items[index - 1]?.section !== item.section;
-          const active = item.href === "/dashboard" || item.href === DD_RUTAS.BASE
+          const active = item.exact || item.href === "/dashboard" || item.href === DD_RUTAS.BASE
             ? pathname === item.href
             : pathname.startsWith(item.href);
           const btn = (

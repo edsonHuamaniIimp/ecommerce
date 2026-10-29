@@ -12,6 +12,8 @@ export interface ActualizarEmpresaData {
   /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
   tipoDocumento?: string;
   pais?: string;
+  paisOrigen?: string | null;
+  paisSincronizadoEn?: Date | null;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode?: string | null;
   razonSocial?: string;
@@ -60,6 +62,7 @@ export interface ActualizarEmpresaData {
 export interface IEmpresaRepository {
   listarPaginated(params: EmpresasListParams): Promise<EmpresasPaginatedResult>;
   findById(id: string): Promise<EmpresaEntity | null>;
+  findPaisesPendientes(limite?: number): Promise<EmpresaEntity[]>;
   /** Busca por RUC exacto (para validar duplicados). */
   findByRuc(ruc: string): Promise<EmpresaEntity | null>;
   /** Busca por codigo SIE (servicio-persona/entidades); null si la ficha no lo tiene guardado. */

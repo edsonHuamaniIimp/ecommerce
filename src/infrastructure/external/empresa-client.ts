@@ -20,6 +20,7 @@ function mapearEmpresa(raw: Record<string, unknown>): EmpresaApi {
     telefono: texto(raw.telefono),
     link_logo: texto(raw.link_logo),
     pais: typeof raw.pais === "number" ? raw.pais : undefined,
+    pais_nombre: texto(raw.pais_nombre),
   };
 }
 

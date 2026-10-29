@@ -5,6 +5,7 @@ import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { paisDeTexto } from "@/lib/shared/utils/pais";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { emailProvisionalPorDocumento, esEmailProvisional } from "@/lib/shared/utils/email";
 import { actualizarPersonaSiDifiere } from "@/lib/server/utils/persona-fuente";
@@ -159,6 +160,76 @@ export class EmpresaApplicationService {
   /** Busca una persona en la fuente (servicio-persona) por documento exacto (padron interno). */
   buscarPersonaEnFuente(numeroDocumento: string, tipoDocumento: string) {
     return this.personaClient.buscarPorDocumento(numeroDocumento, tipoDocumento);
+  }
+
+  /**
+   * Previsualiza o aplica el pais de empresas no domiciliadas que hoy tienen el
+   * valor por defecto. La fuente manda; si no devuelve un pais reconocible no se
+   * escribe nada.
+   */
+  async sincronizarPaises(opciones: { aplicar?: boolean; limite?: number } = {}) {
+    const limite = Math.min(Math.max(opciones.limite ?? 50, 1), 200);
+    const pendientes = await this.repo.findPaisesPendientes(limite);
+    const resultados: Array<{
+      id: string;
+      ruc: string;
+      razonSocial: string;
+      paisActual: string;
+      paisSie: string | null;
+      paisNombreSie: string | null;
+      estado: "sin_dato" | "por_actualizar" | "actualizado" | "igual" | "error";
+      error?: string;
+    }> = [];
+    let actualizados = 0;
+
+    for (const empresa of pendientes) {
+      try {
+        const fuente = await this.empresaClient.buscarPorDocumento(empresa.tipoDocumento, empresa.ruc);
+        const paisSie = fuente
+          ? (paisDeTexto(fuente.pais_nombre) ?? (fuente.pais === UBIGEO_PAIS_PERU ? PAIS_DEFAULT : null))
+          : null;
+        let estado: "sin_dato" | "por_actualizar" | "actualizado" | "igual" = "sin_dato";
+
+        if (paisSie) {
+          if (paisSie === empresa.pais) {
+            estado = "igual";
+          } else if (opciones.aplicar) {
+            await this.repo.update(empresa.id, {
+              pais: paisSie,
+              paisOrigen: "sie",
+              paisSincronizadoEn: new Date(),
+            });
+            actualizados += 1;
+            estado = "actualizado";
+          } else {
+            estado = "por_actualizar";
+          }
+        }
+
+        resultados.push({
+          id: empresa.id,
+          ruc: empresa.ruc,
+          razonSocial: empresa.razonSocial,
+          paisActual: empresa.pais,
+          paisSie,
+          paisNombreSie: fuente?.pais_nombre ?? null,
+          estado,
+        });
+      } catch (error) {
+        resultados.push({
+          id: empresa.id,
+          ruc: empresa.ruc,
+          razonSocial: empresa.razonSocial,
+          paisActual: empresa.pais,
+          paisSie: null,
+          paisNombreSie: null,
+          estado: "error",
+          error: error instanceof Error ? error.message : "No se pudo consultar SIE",
+        });
+      }
+    }
+
+    return { total: pendientes.length, actualizados, resultados };
   }
 
   /**
