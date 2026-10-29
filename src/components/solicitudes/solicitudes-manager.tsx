@@ -700,36 +700,36 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <Table className="min-w-[1280px]">
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table className="w-full min-w-0 sm:min-w-[560px] md:min-w-[820px] lg:min-w-[920px] xl:min-w-[1296px]">
                   <TableHeader>
                     <TableRow className="bg-secondary">
-                      <TableHead className="min-w-[100px]"><span className="text-[10px] uppercase">Stand</span></TableHead>
-                      <TableHead className="min-w-[190px]"><span className="text-[10px] uppercase">Empresa</span></TableHead>
-                      <TableHead className="min-w-[170px]"><span className="text-[10px] uppercase">Debida diligencia</span></TableHead>
-                      <TableHead className="min-w-[170px]"><span className="text-[10px] uppercase">Usuario</span></TableHead>
-                      <TableHead className="min-w-[220px]"><span className="text-[10px] uppercase">Correo</span></TableHead>
-                      <TableHead className="min-w-[110px]"><span className="text-[10px] uppercase">Tipo</span></TableHead>
-                      <TableHead className="min-w-[120px]"><span className="text-[10px] uppercase">Revision</span></TableHead>
-                      <TableHead className="min-w-[80px]"><span className="text-[10px] uppercase">Docs</span></TableHead>
-                      <TableHead className="min-w-[150px]"><span className="text-[10px] uppercase">Fecha</span></TableHead>
-                      <TableHead className="min-w-[120px] text-right"><span className="text-[10px] uppercase">Accion</span></TableHead>
+                      <TableHead className="w-[70px] min-w-[70px] bg-secondary sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-20 lg:border-r lg:border-border"><span className="text-[10px] uppercase">Stand</span></TableHead>
+                      <TableHead className="w-[140px] min-w-[140px] bg-secondary sm:w-[180px] sm:min-w-[180px] lg:sticky lg:left-[92px] lg:z-20 lg:border-r lg:border-border"><span className="text-[10px] uppercase">Empresa</span></TableHead>
+                      <TableHead className="hidden w-[126px] min-w-[126px] md:table-cell"><span className="text-[10px] uppercase">Debida diligencia</span></TableHead>
+                      <TableHead className="hidden w-[126px] min-w-[126px] xl:table-cell"><span className="text-[10px] uppercase">Usuario</span></TableHead>
+                      <TableHead className="hidden w-[166px] min-w-[166px] xl:table-cell"><span className="text-[10px] uppercase">Correo</span></TableHead>
+                      <TableHead className="hidden w-[110px] min-w-[110px] px-3 lg:table-cell"><span className="text-[10px] uppercase">Tipo</span></TableHead>
+                      <TableHead className="hidden w-[136px] min-w-[136px] px-3 md:table-cell"><span className="text-[10px] uppercase">Revision</span></TableHead>
+                      <TableHead className="hidden w-[90px] min-w-[90px] bg-secondary px-3 sm:table-cell lg:sticky lg:right-[160px] lg:z-20 lg:border-l lg:border-border"><span className="text-[10px] uppercase">Docs</span></TableHead>
+                      <TableHead className="hidden w-[110px] min-w-[110px] xl:table-cell"><span className="text-[10px] uppercase">Fecha</span></TableHead>
+                      <TableHead className="w-[144px] min-w-[144px] bg-secondary px-1 text-right sm:w-[160px] sm:min-w-[160px] lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border"><span className="text-[10px] uppercase">Accion</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => {
                       return (
-                        <TableRow key={row.id} className="transition-colors hover:bg-secondary/60">
-                          <TableCell className="min-w-[100px] align-top font-medium">
+                        <TableRow key={row.id} className="group transition-colors hover:bg-secondary/60">
+                          <TableCell className="w-[70px] min-w-[70px] align-top bg-card font-medium sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary/60">
                             <span className="inline-flex items-center rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                               {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
                             </span>
                             {row.bloqueId && <span className="mt-0.5 block font-mono text-[10px] font-normal text-muted-foreground">{row.bloqueId}</span>}
                           </TableCell>
-                          <TableCell className="min-w-[190px] max-w-[260px] align-top text-xs text-foreground" title={row.empresa ?? ""}>
+                          <TableCell className="w-[140px] max-w-[140px] truncate align-top bg-card text-xs text-foreground sm:w-[180px] sm:max-w-[180px] lg:sticky lg:left-[92px] lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary/60" title={row.empresa ?? ""}>
                             {row.empresa ?? "—"}
                           </TableCell>
-                          <TableCell className="min-w-[170px] align-top">
+                          <TableCell className="hidden w-[126px] max-w-[126px] align-top md:table-cell">
                             <div className="space-y-1">
                               {ddPendienteValidacion(row) ? (
                                 <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
@@ -740,14 +740,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[170px] max-w-[230px] align-top text-xs text-foreground" title={row.nombreUsuario ?? row.email ?? ""}>
+                          <TableCell className="hidden w-[126px] max-w-[126px] truncate align-top text-xs text-foreground xl:table-cell" title={row.nombreUsuario ?? row.email ?? ""}>
                             {row.nombreUsuario ?? "—"}
                           </TableCell>
-                          <TableCell className="min-w-[220px] max-w-[280px] align-top text-xs text-muted-foreground" title={row.email ?? ""}>
+                          <TableCell className="hidden w-[166px] max-w-[166px] truncate align-top text-xs text-muted-foreground xl:table-cell" title={row.email ?? ""}>
                             {row.email ?? "—"}
                           </TableCell>
-                          <TableCell className="min-w-[110px] align-top text-xs text-muted-foreground">{row.tipoStand ?? "—"}</TableCell>
-                          <TableCell className="min-w-[120px] align-top">
+                          <TableCell className="hidden w-[110px] max-w-[110px] px-3 align-top text-xs text-muted-foreground lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
+                          <TableCell className="hidden w-[136px] max-w-[136px] px-3 align-top whitespace-nowrap md:table-cell">
                              {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
@@ -785,14 +785,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                </Badge>
                              )}
                           </TableCell>
-                          <TableCell className="min-w-[80px] align-top text-xs">
+                          <TableCell className="hidden w-[90px] min-w-[90px] bg-card px-3 align-top text-xs sm:table-cell lg:sticky lg:right-[160px] lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary/60">
                             {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                           </TableCell>
-                          <TableCell className="min-w-[150px] align-top text-xs text-muted-foreground">
+                          <TableCell className="hidden w-[110px] min-w-[110px] whitespace-nowrap align-top text-xs text-muted-foreground xl:table-cell">
                             {dateUtils.formatDateTime(row.createdAt)}
                           </TableCell>
-                          <TableCell className="min-w-[120px] text-right align-top">
-                            <div className="flex gap-0.5 justify-end">
+                          <TableCell className="w-[144px] min-w-[144px] bg-card px-1 text-right align-top sm:w-[160px] sm:min-w-[160px] lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary/60">
+                            <div className="flex flex-wrap gap-0.5 justify-end">
                               {row.revisiones.some((r) => r.updatedBy) && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>

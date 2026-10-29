@@ -14,6 +14,7 @@ export default function SolicitudesPage() {
       descripcion="Revision de solicitudes de alquiler (Asociado y Legal)."
       cargando={cargando}
       tieneEvento={Boolean(eventoId)}
+      ancho="amplio"
     >
       <SolicitudesManager eventoId={eventoId} />
     </PaginaDashboard>
