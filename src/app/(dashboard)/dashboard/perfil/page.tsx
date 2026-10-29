@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { Card, CardContent, CardHeader, CardTitle, Button, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Building2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, LockKeyhole, Bell } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, Image as ImageIcon, Upload, PenLine, ShieldCheck, UserRound, LockKeyhole, Bell } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
@@ -13,14 +13,62 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-service";
 import type { PerfilDTO } from "@/lib/client/api/services/perfil-service";
-import { FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, MAESTRA_TABLAS, TIPO_COMPROBANTE_LABELS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, VALIDACIONES } from "@/lib/shared/constants";
+import { FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, MAESTRA_TABLAS, TIPO_COMPROBANTE_LABELS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, VALIDACIONES } from "@/lib/shared/constants";
+import { PaisSelect } from "@/components/shared/pais-select";
+import { TelefonoInput } from "@/components/shared/telefono-input";
+import { erroresFormularioEmpresa, type EmpresaFormErrores, type EmpresaFormValidacionLike } from "@/lib/shared/utils/empresa-form-validacion";
+import { camposAutocompletadosDni, camposAutocompletadosRuc, nombreCompletoDesdeDni } from "@/lib/shared/utils/autocompletado-empresa";
+import { resolverTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 
+function CampoError({ error, resaltado = false }: { error?: string; resaltado?: boolean }) {
+  return error ? <p className={`text-[11px] ${resaltado ? "text-warning" : "text-destructive"}`}>{error}</p> : null;
+}
+
+function InputEmpresa({
+  error,
+  resaltado = false,
+  autocompletado = false,
+  nota,
+  className,
+  ...props
+}: ComponentProps<typeof Input> & { error?: string; resaltado?: boolean; autocompletado?: boolean; nota?: string }) {
+  const estado = error
+    ? "border-destructive"
+    : resaltado
+      ? "border-warning bg-warning/10 ring-2 ring-warning/20"
+      : autocompletado
+        ? "border-success bg-success/10 ring-2 ring-success/20 transition-colors duration-500"
+        : "";
+  return (
+    <>
+      <Input {...props} aria-invalid={Boolean(error)} className={`${className ?? ""} ${estado}`} />
+      <CampoError error={error} resaltado={resaltado} />
+      {nota && <p className="text-[10px] text-muted-foreground">{nota}</p>}
+    </>
+  );
+}
+function TelefonoEmpresa({
+  error,
+  resaltado = false,
+  autocompletado = false,
+  ...props
+}: ComponentProps<typeof TelefonoInput> & { error?: string; resaltado?: boolean; autocompletado?: boolean }) {
+  return (
+    <>
+      <TelefonoInput {...props} error={error} resaltado={resaltado} autocompletado={autocompletado} />
+      <CampoError error={error} resaltado={resaltado} />
+    </>
+  );
+}
 function PerfilPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resetToken = searchParams.get("reset");
+  const tabsPerfil = ["cuenta", "empresa", "recursos", "seguridad", "notificaciones"] as const;
+  const tabParam = searchParams.get("tab") ?? "";
+  const [activeTab, setActiveTab] = useState<string>(tabsPerfil.includes(tabParam as never) ? tabParam : "cuenta");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [nombre, setNombre] = useState("");
@@ -69,7 +117,12 @@ function PerfilPageContent() {
   const [telefonoEmpresa, setTelefonoEmpresa] = useState("");
   const [tipoComprobante, setTipoComprobante] = useState<string>(TIPOS_COMPROBANTE.FACTURA);
   const [sitioWebEmpresa, setSitioWebEmpresa] = useState("");
+  const [tipoDocumentoEmpresa, setTipoDocumentoEmpresa] = useState<string>(TIPOS_DOCUMENTO_EMPRESA.RUC);
+  const [paisEmpresa, setPaisEmpresa] = useState("PE");
+  const [inicioOperaciones, setInicioOperaciones] = useState("");
   const [savingEmpresa, setSavingEmpresa] = useState(false);
+  const [confirmadoEmpresa, setConfirmadoEmpresa] = useState(false);
+  const [resaltarPendientesEmpresa, setResaltarPendientesEmpresa] = useState(false);
 
   // Empresa
   const [idEmpresa, setIdEmpresa] = useState<string | null>(null);
@@ -84,16 +137,84 @@ function PerfilPageContent() {
   const [repCorreo, setRepCorreo] = useState("");
   const [repCelular, setRepCelular] = useState("");
   const [repDniValidado, setRepDniValidado] = useState(false);
+  const [repDniConsultando, setRepDniConsultando] = useState(false);
+  const [exteminDniConsultando, setExteminDniConsultando] = useState(false);
+  const [exteminDniValidado, setExteminDniValidado] = useState(false);
+  const [pagosDniConsultando, setPagosDniConsultando] = useState(false);
+  const [pagosDniValidado, setPagosDniValidado] = useState(false);
+  const [sunatCargandoEmpresa, setSunatCargandoEmpresa] = useState(false);
+  const [sunatValidadoEmpresa, setSunatValidadoEmpresa] = useState(false);
+  const [repTipoDocumento, setRepTipoDocumento] = useState<string>(TIPOS_DOCUMENTO_PERSONA.DNI);
+  const [exteminTipoDocumento, setExteminTipoDocumento] = useState<string>(TIPOS_DOCUMENTO_PERSONA.DNI);
+  const [pagosTipoDocumento, setPagosTipoDocumento] = useState<string>(TIPOS_DOCUMENTO_PERSONA.DNI);
   /* Cuenta creada solo con RUC: el representante registra su correo la primera vez. */
 
+  const [camposAutocompletados, setCamposAutocompletados] = useState<string[]>([]);
+  const autocompletadoTimer = useRef<number | null>(null);
+  const marcarAutocompletados = useCallback((campos: string[]) => {
+    const unicos = Array.from(new Set(campos.filter(Boolean)));
+    if (unicos.length === 0) return;
+    setCamposAutocompletados(unicos);
+    if (autocompletadoTimer.current !== null) window.clearTimeout(autocompletadoTimer.current);
+    autocompletadoTimer.current = window.setTimeout(() => setCamposAutocompletados([]), 3000);
+  }, []);
+  const estaAutocompletado = (campo: string) => camposAutocompletados.includes(campo);
+  useEffect(() => () => {
+    if (autocompletadoTimer.current !== null) window.clearTimeout(autocompletadoTimer.current);
+  }, []);
+  const datosValidacionEmpresa: EmpresaFormValidacionLike = {
+    ruc: rucEmpresa ?? "",
+    tipoDocumento: tipoDocumentoEmpresa,
+    pais: paisEmpresa,
+    razonSocial: razonSocialEmpresa,
+    nombreComercial: nombreComercialEmpresa,
+    telefono: telefonoEmpresa,
+    tipoComprobante,
+    sitioWeb: sitioWebEmpresa,
+    nombreFriso,
+    facturarANombre,
+    actividadEconomica,
+    estadoContribuyente,
+    inicioOperaciones,
+    partidaElectronica: repPartida,
+    emailContacto,
+    emailFacturacion,
+    direccionFiscal,
+    representanteLegalNombre: repNombre,
+    representanteLegalTipoDocumento: repTipoDocumento,
+    representanteLegalDni: repDni,
+    representanteCorreo: repCorreo,
+    representanteCelular: repCelular,
+    representanteDireccion: repDireccion,
+    responsableExteminNombre: exteminNombre,
+    responsableExteminTelefono: exteminTelefono,
+    responsableExteminTipoDocumento: exteminTipoDocumento,
+    responsableExteminDni: exteminDni,
+    responsableExteminEmail: exteminEmail,
+    responsablePagosNombre: pagosNombre,
+    responsablePagosTelefono: pagosTelefono,
+    responsablePagosTipoDocumento: pagosTipoDocumento,
+    responsablePagosDni: pagosDni,
+    responsablePagosEmail: pagosEmail,
+  };
+  const erroresEmpresa: EmpresaFormErrores = erroresFormularioEmpresa(datosValidacionEmpresa, { requerirTodos: true });
+  const pendientesEmpresa = Object.values(erroresEmpresa);
+  const puedeGuardarEmpresa = pendientesEmpresa.length === 0 && confirmadoEmpresa;
+  const marcarPendienteEmpresa = (campo: keyof EmpresaFormValidacionLike) =>
+    resaltarPendientesEmpresa && Boolean(erroresEmpresa[campo]);
+  const errorVisibleEmpresa = (campo: keyof EmpresaFormValidacionLike) => {
+    if (!String(datosValidacionEmpresa[campo] ?? "").trim()) return undefined;
+    return erroresEmpresa[campo];
+  };
   useEffect(() => {
     (async () => {
       const session = await authService.getSession();
       setEmail(session.email ?? "");
 
-      const [perfilData] = await Promise.all([
+      const [perfilData, , empresaPortal] = await Promise.all([
         perfilService.get().catch(() => ({} as PerfilDTO)),
         maestraService.listar(MAESTRA_TABLAS.USUARIO_TIPO).then(setTiposUsuario).catch(() => {}),
+        portalEmpresaService.misDatos().catch(() => null),
       ]);
       setEmail(session.email ?? perfilData.email ?? "");
       setNombre(perfilData.nombre ?? "");
@@ -104,8 +225,11 @@ function PerfilPageContent() {
       setTipoUsuarioId(perfilData.tipoUsuarioId ?? null);
       setIdEmpresa(perfilData.idEmpresa ?? null);
       setNombreEmpresa(perfilData.nombreEmpresa ?? null);
-      setRucEmpresa(perfilData.empresa?.ruc ?? perfilData.ruc ?? null);
-      setEmpresaVinculada(Boolean(perfilData.empresa));
+      setRucEmpresa(empresaPortal?.ruc ?? perfilData.empresa?.ruc ?? perfilData.ruc ?? null);
+      setTipoDocumentoEmpresa(empresaPortal?.tipoDocumento ?? TIPOS_DOCUMENTO_EMPRESA.RUC);
+      setPaisEmpresa(empresaPortal?.pais ?? "PE");
+      setInicioOperaciones(empresaPortal?.inicioOperaciones ?? "");
+      setEmpresaVinculada(Boolean(empresaPortal ?? perfilData.empresa));
       setRazonSocialEmpresa(perfilData.empresa?.razonSocial ?? perfilData.nombreEmpresa ?? "");
       setNombreComercialEmpresa(perfilData.empresa?.nombreComercial ?? "");
       setDireccionFiscal(perfilData.empresa?.direccionFiscal ?? "");
@@ -128,7 +252,10 @@ function PerfilPageContent() {
       setSitioWebEmpresa(perfilData.empresa?.sitioWeb ?? "");
       setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
       setRepDni(perfilData.empresa?.representanteLegalDni ?? "");
-      setRepPartida(perfilData.empresa?.representantePartida ?? "");
+      setRepPartida(empresaPortal?.partidaElectronica ?? perfilData.empresa?.representantePartida ?? "");
+      setRepTipoDocumento(empresaPortal?.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
+      setExteminTipoDocumento(empresaPortal?.responsableExteminTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
+      setPagosTipoDocumento(empresaPortal?.responsablePagosTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
       setRepDireccion(perfilData.empresa?.representanteDireccion ?? "");
       setRepCorreo(perfilData.empresa?.representanteCorreo ?? "");
       setRepCelular(perfilData.empresa?.representanteCelular ?? "");
@@ -142,6 +269,35 @@ function PerfilPageContent() {
     })();
   }, []);
 
+  /* Autocompleta los datos de la empresa desde SUNAT al tener un RUC de 11 digitos. */
+  useEffect(() => {
+    if (!empresaVinculada) return;
+    const ruc = (rucEmpresa ?? "").trim();
+    if (tipoDocumentoEmpresa !== TIPOS_DOCUMENTO_EMPRESA.RUC || !/^\d{11}$/.test(ruc)) return;
+    let vigente = true;
+    void (async () => {
+      setSunatCargandoEmpresa(true);
+      setSunatValidadoEmpresa(false);
+      try {
+        const r = await sunatService.consultarRuc(ruc);
+        if (!vigente || !r.razonSocial) return;
+        setRazonSocialEmpresa((prev) => r.razonSocial || prev);
+        setNombreComercialEmpresa((prev) => (prev.trim() ? prev : (r.nombreComercial || r.razonSocial || prev)));
+        setDireccionFiscal((prev) => r.direccion || prev);
+        setActividadEconomica((prev) => r.actividadEconomica || prev);
+        setEstadoContribuyente((prev) => [r.estado, r.condicion].filter(Boolean).join(" / ") || prev);
+        setFacturarANombre((prev) => (prev.trim() ? prev : (r.razonSocial || prev)));
+        const autos = camposAutocompletadosRuc(r);
+        marcarAutocompletados(autos);
+        setSunatValidadoEmpresa(true);
+      } catch {
+        if (vigente) setSunatValidadoEmpresa(false);
+      } finally {
+        if (vigente) setSunatCargandoEmpresa(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [empresaVinculada, tipoDocumentoEmpresa, rucEmpresa, marcarAutocompletados]);
   /* Llena los datos del representante con la API cuando hay DNI completo:
      RENIEC (nombre oficial) + servicio-persona (prellenado propio, solo el del usuario). La fuente sobrescribe. */
   useEffect(() => {
@@ -149,23 +305,79 @@ function PerfilPageContent() {
     const dni = repDni.trim();
     if (dni.length !== VALIDACIONES.DNI_LONGITUD) return;
     let vigente = true;
-    Promise.allSettled([
-      sunatService.consultarDni(dni),
-      reservaDatosService.prellenar(TIPOS_DOCUMENTO_PERSONA.DNI, dni),
-    ]).then(([ren, pre]) => {
-      if (!vigente) return;
-      const r = ren.status === "fulfilled" ? ren.value : null;
-      const p = pre.status === "fulfilled" ? pre.value : null;
-      const nombreOficial = p?.contacto || r?.nombreCompleto || r?.nombres || "";
-      if (nombreOficial) setRepNombre(nombreOficial);
-      if (r?.nombreCompleto || p?.contacto) setRepDniValidado(true);
-      if (p?.correo) setRepCorreo(p.correo);
-      if (p?.telefono) setRepCelular(p.telefono);
-      if (p?.direccion) setRepDireccion(p.direccion);
-    });
+    void (async () => {
+      setRepDniConsultando(true);
+      setRepDniValidado(false);
+      try {
+        const [ren, pre] = await Promise.allSettled([
+          sunatService.consultarDni(dni),
+          reservaDatosService.prellenar(TIPOS_DOCUMENTO_PERSONA.DNI, dni),
+        ]);
+        if (!vigente) return;
+        const r = ren.status === "fulfilled" ? ren.value : null;
+        const p = pre.status === "fulfilled" ? pre.value : null;
+        const nombreOficial = p?.contacto || r?.nombreCompleto || r?.nombres || "";
+        if (nombreOficial) setRepNombre(nombreOficial);
+        if (r?.nombreCompleto || p?.contacto) setRepDniValidado(true);
+        const autos = (r?.nombreCompleto || p?.contacto)
+          ? camposAutocompletadosDni("representante", Boolean(nombreOficial))
+          : [];
+        if (p?.correo) { setRepCorreo(p.correo); autos.push("representanteCorreo"); }
+        if (p?.telefono) { setRepCelular(p.telefono); autos.push("representanteCelular"); }
+        if (p?.direccion) { setRepDireccion(p.direccion); autos.push("representanteDireccion"); }
+        marcarAutocompletados(autos);
+      } finally {
+        if (vigente) setRepDniConsultando(false);
+      }
+    })();
     return () => { vigente = false; };
-  }, [empresaVinculada, repDni]);
+  }, [empresaVinculada, repDni, marcarAutocompletados]);
 
+  /* Consulta RENIEC solo para el DNI de EXTEMIN. */
+  useEffect(() => {
+    if (!empresaVinculada || exteminTipoDocumento !== TIPOS_DOCUMENTO_PERSONA.DNI) return;
+    const dni = exteminDni.trim();
+    if (!/^\d{8}$/.test(dni)) return;
+    let vigente = true;
+    void (async () => {
+      setExteminDniConsultando(true);
+      setExteminDniValidado(false);
+      try {
+        const r = await sunatService.consultarDni(dni);
+        if (!vigente || r.error) return;
+        const nombre = nombreCompletoDesdeDni(r);
+        if (nombre) setExteminNombre(nombre);
+        setExteminDniValidado(true);
+        marcarAutocompletados(camposAutocompletadosDni("extemin", Boolean(nombre)));
+      } finally {
+        if (vigente) setExteminDniConsultando(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [empresaVinculada, exteminTipoDocumento, exteminDni, marcarAutocompletados]);
+
+  /* Consulta RENIEC solo para el DNI del responsable de pagos. */
+  useEffect(() => {
+    if (!empresaVinculada || pagosTipoDocumento !== TIPOS_DOCUMENTO_PERSONA.DNI) return;
+    const dni = pagosDni.trim();
+    if (!/^\d{8}$/.test(dni)) return;
+    let vigente = true;
+    void (async () => {
+      setPagosDniConsultando(true);
+      setPagosDniValidado(false);
+      try {
+        const r = await sunatService.consultarDni(dni);
+        if (!vigente || r.error) return;
+        const nombre = nombreCompletoDesdeDni(r);
+        if (nombre) setPagosNombre(nombre);
+        setPagosDniValidado(true);
+        marcarAutocompletados(camposAutocompletadosDni("pagos", Boolean(nombre)));
+      } finally {
+        if (vigente) setPagosDniConsultando(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [empresaVinculada, pagosTipoDocumento, pagosDni, marcarAutocompletados]);
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -185,15 +397,14 @@ function PerfilPageContent() {
   };
 
   const handleSaveEmpresa = async () => {
-    if (!rucEmpresa || !razonSocialEmpresa.trim() || !repNombre.trim() || !repDni.trim() ||
-      !repCorreo.trim() || !repCelular.trim() || !repDireccion.trim()) {
-      toast.error("Completa los datos obligatorios de la empresa y del representante.");
-      return;
-    }
+    if (!puedeGuardarEmpresa) return;
     setSavingEmpresa(true);
     try {
       await portalEmpresaService.validarDatos({
-        ruc: rucEmpresa,
+        ruc: rucEmpresa ?? "",
+        tipoDocumento: tipoDocumentoEmpresa,
+        pais: paisEmpresa,
+        inicioOperaciones: inicioOperaciones || null,
         razonSocial: razonSocialEmpresa.trim(),
         nombreComercial: nombreComercialEmpresa.trim() || null,
         direccionFiscal: direccionFiscal.trim() || null,
@@ -213,6 +424,7 @@ function PerfilPageContent() {
         responsablePagosDni: pagosDni.trim() || null,
         responsablePagosEmail: pagosEmail.trim() || null,
         representanteLegalNombre: repNombre.trim(),
+        representanteLegalTipoDocumento: repTipoDocumento,
         representanteLegalDni: repDni.trim(),
         representanteCorreo: repCorreo.trim(),
         representanteCelular: repCelular.trim(),
@@ -229,6 +441,8 @@ function PerfilPageContent() {
       setSavingEmpresa(false);
     }
   };
+
+  const esRucEmpresa = resolverTipoDocumentoEmpresa(tipoDocumentoEmpresa, rucEmpresa ?? "") === TIPOS_DOCUMENTO_EMPRESA.RUC;
 
   const notifDatosCompletos = Boolean(
     empresaVinculada && repCorreo.trim() && emailFacturacion.trim(),
@@ -366,7 +580,7 @@ function PerfilPageContent() {
           </p>
         </div>
 
-        <Tabs defaultValue="cuenta" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
             <TabsTrigger value="cuenta" className="gap-1.5 text-xs">
               <UserRound className="h-3.5 w-3.5" />
@@ -447,31 +661,73 @@ function PerfilPageContent() {
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span></Label>
-                      <Input id="empresaRazonSocial" maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaRazonSocial" error={errorVisibleEmpresa("razonSocial")} resaltado={marcarPendienteEmpresa("razonSocial")} autocompletado={estaAutocompletado("razonSocial")} maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaRuc"><span>RUC</span></Label>
-                      <Input id="empresaRuc" value={rucEmpresa ?? ""} disabled className="font-mono text-xs opacity-60" />
+                      <Label htmlFor="empresaTipoDocumento"><span>Tipo de documento</span> <span className="text-destructive">*</span></Label>
+                      <Select value={tipoDocumentoEmpresa} onValueChange={(v) => {
+                        setTipoDocumentoEmpresa(v);
+                        setSunatValidadoEmpresa(false);
+                        setSunatCargandoEmpresa(false);
+                        setRucEmpresa((prev) => v === TIPOS_DOCUMENTO_EMPRESA.RUC
+                          ? String(prev ?? "").replace(/\D/g, "").slice(0, 11)
+                          : String(prev ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 20));
+                      }}>
+                        <SelectTrigger id="empresaTipoDocumento" className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(TIPOS_DOCUMENTO_EMPRESA_LABELS).map(([valor, etiqueta]) => (
+                            <SelectItem key={valor} value={valor}><span>{etiqueta}</span></SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaNombreComercial"><span>Nombre comercial</span></Label>
-                      <Input id="empresaNombreComercial" maxLength={200} value={nombreComercialEmpresa} onChange={(e) => setNombreComercialEmpresa(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaRuc">
+                        <span>{tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC ? "RUC" : "RUT / No domiciliado"}</span> <span className="text-destructive">*</span>
+                      </Label>
+                      <InputEmpresa
+                        id="empresaRuc"
+                        error={errorVisibleEmpresa("ruc")} resaltado={marcarPendienteEmpresa("ruc")} autocompletado={estaAutocompletado("ruc")}
+                        nota={sunatCargandoEmpresa ? "Consultando SUNAT..." : sunatValidadoEmpresa ? "Datos validados con SUNAT." : undefined}
+                        value={rucEmpresa ?? ""}
+                        onChange={(e) => {
+                          setSunatValidadoEmpresa(false);
+                          setSunatCargandoEmpresa(false);
+                          setRucEmpresa(tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC
+                            ? e.target.value.replace(/\D/g, "").slice(0, 11)
+                            : e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 20));
+                        }}
+                        placeholder={tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC ? "20601234567" : "RUT o documento"}
+                        className="font-mono text-xs"
+                      />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaDireccion"><span>Dirección fiscal</span></Label>
-                      <Input id="empresaDireccion" maxLength={250} value={direccionFiscal} onChange={(e) => setDireccionFiscal(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaPais"><span>Pais</span> <span className="text-destructive">*</span></Label>
+                      <PaisSelect id="empresaPais" value={paisEmpresa} onChange={setPaisEmpresa} error={errorVisibleEmpresa("pais")} resaltado={marcarPendienteEmpresa("pais")} />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaTelefono"><span>Teléfono</span></Label>
-                      <Input id="empresaTelefono" maxLength={30} value={telefonoEmpresa} onChange={(e) => setTelefonoEmpresa(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaInicioOperaciones"><span>Inicio de operaciones</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaInicioOperaciones" error={errorVisibleEmpresa("inicioOperaciones")} resaltado={marcarPendienteEmpresa("inicioOperaciones")} type="date" value={inicioOperaciones} onChange={(e) => setInicioOperaciones(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturación</span></Label>
-                      <Input id="empresaEmailFacturacion" type="email" maxLength={200} value={emailFacturacion} onChange={(e) => setEmailFacturacion(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaNombreComercial"><span>Nombre comercial</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaNombreComercial" error={errorVisibleEmpresa("nombreComercial")} resaltado={marcarPendienteEmpresa("nombreComercial")} autocompletado={estaAutocompletado("nombreComercial")} maxLength={200} value={nombreComercialEmpresa} onChange={(e) => setNombreComercialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaTipoComprobante"><span>Tipo de comprobante</span></Label>
+                      <Label htmlFor="empresaDireccion"><span>Dirección fiscal</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaDireccion" error={errorVisibleEmpresa("direccionFiscal")} resaltado={marcarPendienteEmpresa("direccionFiscal")} autocompletado={estaAutocompletado("direccionFiscal")} maxLength={250} value={direccionFiscal} onChange={(e) => setDireccionFiscal(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaTelefono"><span>Teléfono</span> <span className="text-destructive">*</span></Label>
+                      <TelefonoEmpresa id="empresaTelefono" error={errorVisibleEmpresa("telefono")} resaltado={marcarPendienteEmpresa("telefono")} value={telefonoEmpresa} onChange={setTelefonoEmpresa} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaEmailFacturacion"><span>Correo de facturación</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaEmailFacturacion" error={errorVisibleEmpresa("emailFacturacion")} resaltado={marcarPendienteEmpresa("emailFacturacion")} type="email" maxLength={200} value={emailFacturacion} onChange={(e) => setEmailFacturacion(e.target.value)} className="text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaTipoComprobante"><span>Tipo de comprobante</span> <span className="text-destructive">*</span></Label>
                       <Select value={tipoComprobante} onValueChange={setTipoComprobante}>
                         <SelectTrigger id="empresaTipoComprobante" className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -482,8 +738,8 @@ function PerfilPageContent() {
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaSitioWeb"><span>Sitio web</span></Label>
-                      <Input id="empresaSitioWeb" maxLength={200} value={sitioWebEmpresa} onChange={(e) => setSitioWebEmpresa(e.target.value)} className="text-xs" />
+                      <Label htmlFor="empresaSitioWeb"><span>Sitio web</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaSitioWeb" error={errorVisibleEmpresa("sitioWeb")} resaltado={marcarPendienteEmpresa("sitioWeb")} maxLength={200} value={sitioWebEmpresa} onChange={(e) => setSitioWebEmpresa(e.target.value)} className="text-xs" />
                     </div>
                   </div>
                 ) : (
@@ -509,24 +765,24 @@ function PerfilPageContent() {
                   <>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="empresaEmailContacto"><span>Correo de contacto</span></Label>
-                        <Input id="empresaEmailContacto" type="email" maxLength={200} value={emailContacto} onChange={(e) => setEmailContacto(e.target.value)} className="text-xs" />
+                        <Label htmlFor="empresaEmailContacto"><span>Correo de contacto</span> <span className="text-destructive">*</span></Label>
+                        <InputEmpresa id="empresaEmailContacto" error={errorVisibleEmpresa("emailContacto")} resaltado={marcarPendienteEmpresa("emailContacto")} type="email" maxLength={200} value={emailContacto} onChange={(e) => setEmailContacto(e.target.value)} className="text-xs" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="empresaNombreFriso"><span>Nombre en el friso</span></Label>
-                        <Input id="empresaNombreFriso" maxLength={200} value={nombreFriso} onChange={(e) => setNombreFriso(e.target.value)} className="text-xs" />
+                        <Label htmlFor="empresaNombreFriso"><span>Nombre en el friso</span> <span className="text-destructive">*</span></Label>
+                        <InputEmpresa id="empresaNombreFriso" error={errorVisibleEmpresa("nombreFriso")} resaltado={marcarPendienteEmpresa("nombreFriso")} maxLength={200} value={nombreFriso} onChange={(e) => setNombreFriso(e.target.value)} className="text-xs" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="empresaFacturarANombre"><span>Facturar a nombre de</span></Label>
-                        <Input id="empresaFacturarANombre" maxLength={200} value={facturarANombre} onChange={(e) => setFacturarANombre(e.target.value)} className="text-xs" />
+                        <Label htmlFor="empresaFacturarANombre"><span>Facturar a nombre de</span> <span className="text-destructive">*</span></Label>
+                        <InputEmpresa id="empresaFacturarANombre" error={errorVisibleEmpresa("facturarANombre")} resaltado={marcarPendienteEmpresa("facturarANombre")} autocompletado={estaAutocompletado("facturarANombre")} maxLength={200} value={facturarANombre} onChange={(e) => setFacturarANombre(e.target.value)} className="text-xs" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="empresaActividadEconomica"><span>Actividad económica</span></Label>
-                        <Input id="empresaActividadEconomica" maxLength={250} value={actividadEconomica} onChange={(e) => setActividadEconomica(e.target.value)} className="text-xs" />
+                        <Label htmlFor="empresaActividadEconomica"><span>Actividad económica</span> <span className="text-destructive">*</span></Label>
+                        <InputEmpresa id="empresaActividadEconomica" error={errorVisibleEmpresa("actividadEconomica")} resaltado={marcarPendienteEmpresa("actividadEconomica")} autocompletado={estaAutocompletado("actividadEconomica")} maxLength={250} value={actividadEconomica} onChange={(e) => setActividadEconomica(e.target.value)} className="text-xs" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="empresaEstadoContribuyente"><span>Estado del contribuyente</span></Label>
-                        <Input id="empresaEstadoContribuyente" maxLength={100} value={estadoContribuyente} onChange={(e) => setEstadoContribuyente(e.target.value)} className="text-xs" />
+                        <Label htmlFor="empresaEstadoContribuyente"><span>Estado del contribuyente</span> <span className="text-destructive">*</span></Label>
+                        <InputEmpresa id="empresaEstadoContribuyente" error={errorVisibleEmpresa("estadoContribuyente")} resaltado={marcarPendienteEmpresa("estadoContribuyente")} autocompletado={estaAutocompletado("estadoContribuyente")} maxLength={100} value={estadoContribuyente} onChange={(e) => setEstadoContribuyente(e.target.value)} className="text-xs" />
                       </div>
                     </div>
 
@@ -534,20 +790,20 @@ function PerfilPageContent() {
                       <p className="text-xs font-semibold text-foreground">Responsable de coordinación EXTEMIN</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label htmlFor="exteminNombre"><span>Nombre</span></Label>
-                          <Input id="exteminNombre" maxLength={200} value={exteminNombre} onChange={(e) => setExteminNombre(e.target.value)} className="text-xs" />
+                          <Label htmlFor="exteminNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="exteminNombre" error={errorVisibleEmpresa("responsableExteminNombre")} resaltado={marcarPendienteEmpresa("responsableExteminNombre")} autocompletado={estaAutocompletado("responsableExteminNombre")} maxLength={200} value={exteminNombre} onChange={(e) => setExteminNombre(e.target.value)} className="text-xs" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="exteminTelefono"><span>Teléfono</span></Label>
-                          <Input id="exteminTelefono" maxLength={35} value={exteminTelefono} onChange={(e) => setExteminTelefono(e.target.value)} className="text-xs" />
+                          <Label htmlFor="exteminTelefono"><span>Teléfono</span> <span className="text-destructive">*</span></Label>
+                          <TelefonoEmpresa id="exteminTelefono" error={errorVisibleEmpresa("responsableExteminTelefono")} resaltado={marcarPendienteEmpresa("responsableExteminTelefono")} value={exteminTelefono} onChange={setExteminTelefono} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="exteminDni"><span>DNI</span></Label>
-                          <Input id="exteminDni" maxLength={15} value={exteminDni} onChange={(e) => setExteminDni(e.target.value)} className="font-mono text-xs" />
+                          <Label htmlFor="exteminDni"><span>DNI</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="exteminDni" error={errorVisibleEmpresa("responsableExteminDni")} resaltado={marcarPendienteEmpresa("responsableExteminDni")} autocompletado={estaAutocompletado("responsableExteminDni")} nota={exteminDniConsultando ? "Consultando RENIEC..." : exteminDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={exteminDni} onChange={(e) => { setExteminDniValidado(false); setExteminDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="exteminEmail"><span>Correo</span></Label>
-                          <Input id="exteminEmail" type="email" maxLength={200} value={exteminEmail} onChange={(e) => setExteminEmail(e.target.value)} className="text-xs" />
+                          <Label htmlFor="exteminEmail"><span>Correo</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa id="exteminEmail" error={errorVisibleEmpresa("responsableExteminEmail")} resaltado={marcarPendienteEmpresa("responsableExteminEmail")} type="email" maxLength={200} value={exteminEmail} onChange={(e) => setExteminEmail(e.target.value)} className="text-xs" />
                         </div>
                       </div>
                     </div>
@@ -556,20 +812,20 @@ function PerfilPageContent() {
                       <p className="text-xs font-semibold text-foreground">Responsable de pagos</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label htmlFor="pagosNombre"><span>Nombre</span></Label>
-                          <Input id="pagosNombre" maxLength={200} value={pagosNombre} onChange={(e) => setPagosNombre(e.target.value)} className="text-xs" />
+                          <Label htmlFor="pagosNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="pagosNombre" error={errorVisibleEmpresa("responsablePagosNombre")} resaltado={marcarPendienteEmpresa("responsablePagosNombre")} autocompletado={estaAutocompletado("responsablePagosNombre")} maxLength={200} value={pagosNombre} onChange={(e) => setPagosNombre(e.target.value)} className="text-xs" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="pagosTelefono"><span>Teléfono</span></Label>
-                          <Input id="pagosTelefono" maxLength={35} value={pagosTelefono} onChange={(e) => setPagosTelefono(e.target.value)} className="text-xs" />
+                          <Label htmlFor="pagosTelefono"><span>Teléfono</span> <span className="text-destructive">*</span></Label>
+                          <TelefonoEmpresa id="pagosTelefono" error={errorVisibleEmpresa("responsablePagosTelefono")} resaltado={marcarPendienteEmpresa("responsablePagosTelefono")} value={pagosTelefono} onChange={setPagosTelefono} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="pagosDni"><span>DNI</span></Label>
-                          <Input id="pagosDni" maxLength={15} value={pagosDni} onChange={(e) => setPagosDni(e.target.value)} className="font-mono text-xs" />
+                          <Label htmlFor="pagosDni"><span>DNI</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="pagosDni" error={errorVisibleEmpresa("responsablePagosDni")} resaltado={marcarPendienteEmpresa("responsablePagosDni")} autocompletado={estaAutocompletado("responsablePagosDni")} nota={pagosDniConsultando ? "Consultando RENIEC..." : pagosDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={pagosDni} onChange={(e) => { setPagosDniValidado(false); setPagosDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="pagosEmail"><span>Correo</span></Label>
-                          <Input id="pagosEmail" type="email" maxLength={200} value={pagosEmail} onChange={(e) => setPagosEmail(e.target.value)} className="text-xs" />
+                          <Label htmlFor="pagosEmail"><span>Correo</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa id="pagosEmail" error={errorVisibleEmpresa("responsablePagosEmail")} resaltado={marcarPendienteEmpresa("responsablePagosEmail")} type="email" maxLength={200} value={pagosEmail} onChange={(e) => setPagosEmail(e.target.value)} className="text-xs" />
                         </div>
                       </div>
                     </div>
@@ -596,8 +852,27 @@ function PerfilPageContent() {
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
+                      <Label htmlFor="repTipoDocumento"><span>Tipo de documento</span> <span className="text-destructive">*</span></Label>
+                      <Select value={repTipoDocumento} onValueChange={(v) => {
+                        setRepDniValidado(false);
+                        setRepTipoDocumento(v);
+                        setRepDni((prev) => v === TIPOS_DOCUMENTO_PERSONA.DNI
+                          ? prev.replace(/\D/g, "").slice(0, 8)
+                          : prev.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15));
+                      }}>
+                        <SelectTrigger id="repTipoDocumento" className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(TIPOS_DOCUMENTO_PERSONA_LABELS).map(([valor, etiqueta]) => (
+                            <SelectItem key={valor} value={valor}><span>{etiqueta}</span></SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor="repDni"><span>DNI del representante</span></Label>
+                        <Label htmlFor="repDni">
+                          <span>{repTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "DNI del representante" : "Documento del representante"}</span> <span className="text-destructive">*</span>
+                        </Label>
                         {repDniValidado && (
                           <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "rgb(220 252 231)", color: "rgb(21 128 61)" }}>
                             <ShieldCheck className="h-3 w-3" />
@@ -605,38 +880,43 @@ function PerfilPageContent() {
                           </span>
                         )}
                       </div>
-                      <Input
+                      <InputEmpresa
+                        autoComplete="off"
                         id="repDni"
-                        placeholder="45871233"
-                        maxLength={15}
+                        error={errorVisibleEmpresa("representanteLegalDni")} resaltado={marcarPendienteEmpresa("representanteLegalDni")} autocompletado={estaAutocompletado("representanteLegalDni")}
+                        nota={repDniConsultando ? "Consultando RENIEC..." : repDniValidado ? "Datos validados con RENIEC." : undefined}
+                        placeholder={repTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"}
+                        maxLength={repTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? 8 : 15}
                         value={repDni}
                         onChange={(e) => {
                           setRepDniValidado(false);
-                          setRepDni(e.target.value.replace(/[^\dA-Za-z]/g, "").slice(0, 15));
+                          setRepDni(repTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
+                            ? e.target.value.replace(/\D/g, "").slice(0, 8)
+                            : e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15));
                         }}
                         className="font-mono text-xs"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repNombre"><span>Nombre completo</span></Label>
-                      <Input id="repNombre" placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
+                      <Label htmlFor="repNombre"><span>Nombre completo</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa autoComplete="off" id="repNombre" error={errorVisibleEmpresa("representanteLegalNombre")} resaltado={marcarPendienteEmpresa("representanteLegalNombre")} autocompletado={estaAutocompletado("representanteLegalNombre")} placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repPartida"><span>Partida electrónica (opcional)</span></Label>
-                      <Input id="repPartida" placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
+                      <Label htmlFor="repPartida"><span>{esRucEmpresa ? "Partida electronica" : "Partida electronica (opcional)"}</span>{esRucEmpresa && <span className="text-destructive"> *</span>}</Label>
+                      <InputEmpresa id="repPartida" error={errorVisibleEmpresa("partidaElectronica")} resaltado={marcarPendienteEmpresa("partidaElectronica")} placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repDireccion"><span>Dirección</span></Label>
-                      <Input id="repDireccion" placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
+                      <Label htmlFor="repDireccion"><span>Dirección</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="repDireccion" error={errorVisibleEmpresa("representanteDireccion")} resaltado={marcarPendienteEmpresa("representanteDireccion")} autocompletado={estaAutocompletado("representanteDireccion")} placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repCorreo"><span>Correo</span></Label>
-                      <Input id="repCorreo" type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
+                      <Label htmlFor="repCorreo"><span>Correo</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="repCorreo" error={errorVisibleEmpresa("representanteCorreo")} resaltado={marcarPendienteEmpresa("representanteCorreo")} autocompletado={estaAutocompletado("representanteCorreo")} type="email" placeholder="representante@empresa.pe" maxLength={101} value={repCorreo} onChange={(e) => setRepCorreo(e.target.value)} className="text-xs" />
                       <p className="text-[11px] text-muted-foreground">Se usará en el contrato, como usuario del sistema y para las notificaciones.</p>
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repCelular"><span>Celular</span></Label>
-                      <Input id="repCelular" placeholder="+51 987 654 321" maxLength={35} value={repCelular} onChange={(e) => setRepCelular(e.target.value)} className="text-xs" />
+                      <Label htmlFor="repCelular"><span>Celular</span> <span className="text-destructive">*</span></Label>
+                      <TelefonoEmpresa id="repCelular" error={errorVisibleEmpresa("representanteCelular")} resaltado={marcarPendienteEmpresa("representanteCelular")} autocompletado={estaAutocompletado("representanteCelular")} placeholder="+51 987 654 321" value={repCelular} onChange={setRepCelular} />
                     </div>
                   </div>
                 ) : (
@@ -647,8 +927,56 @@ function PerfilPageContent() {
               </CardContent>
             </Card>
 
+            <div aria-live="polite" className="space-y-3">
+              {pendientesEmpresa.length > 0 ? (
+                <div className="rounded-xl border border-warning/40 bg-warning/5 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-warning">
+                      Faltan {pendientesEmpresa.length} {pendientesEmpresa.length === 1 ? "dato" : "datos"} para guardar
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="resaltar-pendientes-empresa" className="text-[11px] font-medium text-muted-foreground">
+                        <span>Resaltar campos</span>
+                      </Label>
+                      <Switch
+                        id="resaltar-pendientes-empresa"
+                        checked={resaltarPendientesEmpresa}
+                        onCheckedChange={setResaltarPendientesEmpresa}
+                      />
+                    </div>
+                  </div>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                    {pendientesEmpresa.map((mensaje, indice) => (
+                      <li key={`${indice}-${mensaje}`}>{mensaje}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className={`flex items-center gap-1.5 text-[11px] font-medium ${confirmadoEmpresa ? "text-success" : "text-warning"}`}>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    {confirmadoEmpresa
+                      ? "Todo listo para guardar."
+                      : "Marca la confirmacion de que los datos son correctos para guardar."}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <label className="flex items-start gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5">
+              <Checkbox
+                checked={confirmadoEmpresa}
+                onCheckedChange={(v) => setConfirmadoEmpresa(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-[11px] leading-relaxed text-muted-foreground">
+                Confirmo que estos datos son correctos y autorizo que se usen para generar el contrato de alquiler
+                y el comprobante de pago de mi empresa.
+              </span>
+            </label>
+
             <div className="flex justify-end">
-              <Button onClick={() => void handleSaveEmpresa()} disabled={savingEmpresa}>
+              <Button onClick={() => void handleSaveEmpresa()} disabled={savingEmpresa || !puedeGuardarEmpresa}>
                 <span>{savingEmpresa ? "Guardando..." : "Guardar datos de la empresa y representante"}</span>
               </Button>
             </div>

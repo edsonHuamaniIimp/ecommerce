@@ -4,6 +4,7 @@ import { internalApi } from "./internal-api";
 
 interface RucResponse {
   razonSocial?: string;
+  nombreComercial?: string;
   nombre?: string;
   direccion?: string;
   estado?: string;
@@ -34,6 +35,7 @@ function aRucResponse(data: Record<string, unknown>): RucResponse {
   const direccion = texto(data.direccion) ?? (partes.length > 0 ? partes.join(", ") : undefined);
   return {
     razonSocial: texto(data.razonSocial),
+    nombreComercial: texto(data.nombreComercial),
     nombre: texto(data.nombre),
     direccion,
     estado: texto(data.estado),

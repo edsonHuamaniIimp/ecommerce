@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
-import { LogOut, User, Bell } from "lucide-react";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, Popover, PopoverTrigger, PopoverContent } from "@nrivera-iimp/ui-kit-iimp";
+import { LogOut, User, Bell, AlertCircle } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { alertasService } from "@/lib/client/api/services/alertas-service";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
-import { LS_KEYS } from "@/lib/shared/constants";
+import { LS_KEYS, ROLES } from "@/lib/shared/constants";
+import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
+import { empresaPerfilPendiente } from "@/lib/shared/utils/empresa-perfil";
 import { dateUtils } from "@/lib/shared/utils/date";
 
 interface AlertaItem {
@@ -31,6 +34,9 @@ export function DashboardHeader() {
   const [idioma, setIdioma] = useState<string | null>(null);
   const [alertas, setAlertas] = useState<AlertaItem[]>([]);
   const [noLeidas, setNoLeidas] = useState(0);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [perfilPendiente, setPerfilPendiente] = useState(false);
+  const [perfilAvisoOpen, setPerfilAvisoOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -40,12 +46,39 @@ export function DashboardHeader() {
           setEventoNombre(json.eventoNombre ?? null);
           setEventoPadreNombre(json.eventoPadreNombre ?? null);
           setEmail(json.email ?? null);
+          setRoles(json.roles ?? []);
           setIdioma(json.idioma ?? null);
         }
       } catch { /* ignore */ }
     })();
   }, []);
 
+  /* Aviso de perfil de empresa incompleto (solo clientes con empresa vinculada). */
+  useEffect(() => {
+    let activo = true;
+    const esCliente = roles.includes(ROLES.CLIENTE) && !roles.includes(ROLES.ADMIN);
+    if (!esCliente) return () => { activo = false; };
+    portalEmpresaService.misDatos()
+      .then((empresa) => {
+        if (activo) setPerfilPendiente(empresaPerfilPendiente(empresa).pendiente);
+      })
+      .catch(() => {
+        if (activo) setPerfilPendiente(false);
+      });
+    return () => { activo = false; };
+  }, [roles]);
+
+  /* Apertura automatica del aviso una vez por sesion de navegador. */
+  useEffect(() => {
+    if (!perfilPendiente) return;
+    try {
+      if (sessionStorage.getItem("dashboard-perfil-aviso-visto") === "1") return;
+      sessionStorage.setItem("dashboard-perfil-aviso-visto", "1");
+    } catch {
+      /* sessionStorage no disponible */
+    }
+    queueMicrotask(() => setPerfilAvisoOpen(true));
+  }, [perfilPendiente]);
   const loadAlertas = useCallback(async () => {
     try {
       const data = await alertasService.listar();
@@ -145,30 +178,82 @@ export function DashboardHeader() {
       </DropdownMenu>
 
       {/* User dropdown */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1.5 h-8 max-w-[200px]">
-            <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline text-xs truncate">{email ?? "Usuario"}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          {email && (
-            <div className="px-2 py-1.5 text-[10px] text-muted-foreground border-b mb-1 truncate">{email}</div>
-          )}
-          <DropdownMenuItem asChild className="text-xs cursor-pointer">
-            <Link href="/dashboard/perfil">
-              <User className="h-3.5 w-3.5 mr-2" />
-              <span>Perfil</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-xs cursor-pointer text-red-600">
-            <LogOut className="h-3.5 w-3.5 mr-2" />
-            <span>Cerrar sesion</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="relative">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 h-8 max-w-[200px]">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline text-xs truncate">{email ?? "Usuario"}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {email && (
+              <div className="px-2 py-1.5 text-[10px] text-muted-foreground border-b mb-1 truncate">{email}</div>
+            )}
+            <DropdownMenuItem asChild className="text-xs cursor-pointer">
+              <Link href="/dashboard/perfil">
+                <User className="h-3.5 w-3.5 mr-2" />
+                <span>Perfil</span>
+              </Link>
+            </DropdownMenuItem>
+            {perfilPendiente && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="text-xs cursor-pointer bg-amber-50 text-amber-800 focus:bg-amber-100">
+                  <Link href="/dashboard/perfil?tab=empresa">
+                    <AlertCircle className="h-3.5 w-3.5 mr-2" />
+                    <span>Completar datos de empresa</span>
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-xs cursor-pointer text-red-600">
+              <LogOut className="h-3.5 w-3.5 mr-2" />
+              <span>Cerrar sesion</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {perfilPendiente && perfilAvisoOpen && typeof document !== "undefined" && createPortal(
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]"
+            onClick={() => setPerfilAvisoOpen(false)}
+          />,
+          document.body,
+        )}
+
+        {perfilPendiente && (
+          <Popover modal open={perfilAvisoOpen} onOpenChange={setPerfilAvisoOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Completar datos de la empresa"
+                className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-amber-500 ring-2 ring-background"
+              />
+            </PopoverTrigger>
+            <PopoverContent align="end" side="left" sideOffset={8} collisionPadding={16} className="z-[60] w-80">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-foreground">Completa los datos de tu empresa</p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Tienes solicitudes en curso. Para poder avanzar, completa toda la informacion de tu empresa y del representante legal.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPerfilAvisoOpen(false)}>
+                    <span>Ahora no</span>
+                  </Button>
+                  <Button size="sm" className="h-7 text-xs" asChild>
+                    <Link href="/dashboard/perfil?tab=empresa" onClick={() => setPerfilAvisoOpen(false)}>
+                      <span>Completar informacion</span>
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
     </>
   );
 }

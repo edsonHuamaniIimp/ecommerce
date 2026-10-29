@@ -332,8 +332,8 @@ function ValidarDatosContent() {
   ]);
 
   /** Errores actuales del formulario (incluye obligatorios vacios). */
-  const erroresFormulario = useMemo(
-    () => (form ? erroresFormularioEmpresa(form) : ({} as Partial<Record<keyof FormState, string>>)),
+  const erroresFormulario = useMemo<Partial<Record<keyof FormState, string>>>(
+    () => (form ? erroresFormularioEmpresa(form) : {}),
     [form],
   );
   /** Validacion viva: el boton de guardar solo se habilita con los obligatorios completos. */

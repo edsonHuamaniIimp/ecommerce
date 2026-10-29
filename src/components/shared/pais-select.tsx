@@ -21,6 +21,7 @@ interface PaisSelectProps {
   value: string;
   onChange: (pais: string) => void;
   error?: string;
+  resaltado?: boolean;
   disabled?: boolean;
   /**
    * Valor que entrega `onChange`: código ISO por defecto o nombre del país.
@@ -36,6 +37,7 @@ export function PaisSelect({
   value,
   onChange,
   error,
+  resaltado = false,
   disabled = false,
   valueMode = "codigo",
   mostrarCodigo = true,
@@ -65,7 +67,7 @@ export function PaisSelect({
             aria-expanded={open}
             aria-label="País"
             disabled={disabled}
-            className={`h-10 w-full justify-between px-3 text-sm font-normal ${error ? "border-destructive" : ""}`}
+            className={`h-10 w-full justify-between px-3 text-sm font-normal ${resaltado ? "border-warning bg-warning/10 ring-2 ring-warning/20" : error ? "border-destructive" : ""}`}
           >
             <span className="truncate">
               {seleccionado
@@ -112,7 +114,7 @@ export function PaisSelect({
           Se conserva el valor anterior. Selecciona un país para actualizarlo.
         </p>
       ) : null}
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      {error && <p className={`text-[11px] ${resaltado ? "text-warning" : "text-destructive"}`}>{error}</p>}
     </div>
   );
 }

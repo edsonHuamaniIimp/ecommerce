@@ -8,6 +8,8 @@ interface TelefonoInputProps {
   value: string;
   onChange: (telefono: string) => void;
   error?: string;
+  resaltado?: boolean;
+  autocompletado?: boolean;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -18,6 +20,8 @@ export function TelefonoInput({
   value,
   onChange,
   error,
+  resaltado = false,
+  autocompletado = false,
   disabled = false,
   placeholder = "+51 987 654 321",
 }: TelefonoInputProps) {
@@ -37,7 +41,7 @@ export function TelefonoInput({
       searchPlaceholder="Buscar pais o codigo..."
       searchNotFound="Sin resultados"
       inputProps={{ id, "aria-label": "Telefono" }}
-      containerClass="w-full"
+      containerClass={`w-full ${resaltado ? "rounded-md ring-2 ring-warning/20" : autocompletado ? "rounded-md ring-2 ring-success/20" : ""}`}
       inputClass="!h-10 !text-sm"
       buttonClass="!border-input"
       dropdownClass="!z-[80]"
@@ -48,13 +52,13 @@ export function TelefonoInput({
         fontSize: "14px",
         backgroundColor: "var(--background)",
         color: "var(--foreground)",
-        borderColor: error ? "var(--destructive)" : "var(--input)",
+        borderColor: error ? "var(--destructive)" : resaltado ? "var(--warning)" : autocompletado ? "var(--success)" : "var(--input)",
         borderRadius: "6px",
         paddingLeft: "52px",
       }}
       buttonStyle={{
         backgroundColor: "var(--background)",
-        borderColor: error ? "var(--destructive)" : "var(--input)",
+        borderColor: error ? "var(--destructive)" : resaltado ? "var(--warning)" : autocompletado ? "var(--success)" : "var(--input)",
         borderRadius: "6px 0 0 6px",
         zIndex: 2,
       }}

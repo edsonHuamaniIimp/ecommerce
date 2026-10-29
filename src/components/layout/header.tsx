@@ -3,11 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, Popover, PopoverTrigger, PopoverContent } from "@nrivera-iimp/ui-kit-iimp";
 import { useEffect, useState, useRef } from "react";
-import { LogOut, LogIn, Menu, User, ChevronDown } from "lucide-react";
+import { LogOut, LogIn, Menu, User, ChevronDown, AlertCircle } from "lucide-react";
 import { authService } from "@/lib/client/api/services/auth-service";
-import { LS_KEYS } from "@/lib/shared/constants";
+import { LS_KEYS, ROLES } from "@/lib/shared/constants";
+import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
+import { empresaPerfilPendiente } from "@/lib/shared/utils/empresa-perfil";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 
 const links = [
@@ -18,7 +20,9 @@ const links = [
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const [session, setSession] = useState<{ authenticated: boolean; email?: string; eventoNombre?: string | null } | null>(null);
+  const [session, setSession] = useState<{ authenticated: boolean; userId?: string; email?: string; roles?: string[]; eventoNombre?: string | null } | null>(null);
+  const [perfilPendiente, setPerfilPendiente] = useState(false);
+  const [perfilAvisoOpen, setPerfilAvisoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -63,10 +67,35 @@ export function Header() {
     })();
   }, []);
 
+  /* Aviso de perfil de empresa incompleto (solo clientes con empresa vinculada). */
+  useEffect(() => {
+    let activo = true;
+    const esCliente = Boolean(session?.authenticated && session.roles?.includes(ROLES.CLIENTE) && !session.roles?.includes(ROLES.ADMIN));
+    if (!esCliente) return () => { activo = false; };
+    portalEmpresaService.misDatos()
+      .then((empresa) => {
+        if (activo) setPerfilPendiente(empresaPerfilPendiente(empresa).pendiente);
+      })
+      .catch(() => {
+        if (activo) setPerfilPendiente(false);
+      });
+    return () => { activo = false; };
+  }, [session?.authenticated, session?.userId, session?.roles, pathname]);
   useEffect(() => {
     queueMicrotask(() => setMenuOpen(false));
   }, [pathname]);
 
+  /* Apertura automatica del aviso (una vez por sesion de navegador). */
+  useEffect(() => {
+    if (!perfilPendiente) return;
+    try {
+      if (sessionStorage.getItem("perfil-aviso-visto") === "1") return;
+      sessionStorage.setItem("perfil-aviso-visto", "1");
+    } catch {
+      /* sessionStorage no disponible */
+    }
+    queueMicrotask(() => setPerfilAvisoOpen(true));
+  }, [perfilPendiente]);
   const handleLogout = async () => {
     await authService.logout();
     localStorage.removeItem(LS_KEYS.EVENTO_PUBLICO);
@@ -126,8 +155,46 @@ export function Header() {
               <User className="h-3.5 w-3.5" />
               <ChevronDown className="h-3 w-3 hidden sm:block" />
             </Button>
+            {perfilPendiente && (
+              <Popover open={perfilAvisoOpen} onOpenChange={setPerfilAvisoOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Completar datos de la empresa"
+                    className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-amber-500 ring-2 ring-background"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </PopoverTrigger>
+                <PopoverContent align="end" side="bottom" className="w-80">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-foreground">Completa los datos de tu empresa</p>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Necesitamos la informacion de la empresa y del representante legal para generar correctamente tu contrato y tus comprobantes.
+                    </p>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPerfilAvisoOpen(false)}>
+                        <span>Ahora no</span>
+                      </Button>
+                      <Button size="sm" className="h-7 text-xs" asChild>
+                        <Link href="/dashboard/perfil?tab=empresa" onClick={() => setPerfilAvisoOpen(false)}>
+                          <span>Completar informacion</span>
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             {userMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-44 rounded-lg border bg-white shadow-lg z-50 py-1">
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-lg border bg-white shadow-lg z-50 py-1">
+                {perfilPendiente && (
+                  <Link href="/dashboard/perfil?tab=empresa"
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100"
+                    onClick={() => setUserMenuOpen(false)}>
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span>Completar datos de empresa</span>
+                  </Link>
+                )}
                 <Link href="/dashboard/perfil"
                   className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
                   onClick={() => setUserMenuOpen(false)}>
@@ -179,6 +246,12 @@ export function Header() {
               <span>{l.label}</span>
             </Link>
           ))}
+          {perfilPendiente && (
+            <Link href="/dashboard/perfil?tab=empresa" className="flex items-center gap-2 rounded bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+              <AlertCircle className="h-3.5 w-3.5" />
+              <span>Completar datos de empresa</span>
+            </Link>
+          )}
         </div>
       )}
     </header>
