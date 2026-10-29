@@ -73,11 +73,21 @@ export const rolesController = {
     return success(await services.roleRepo.addUser(body.email, body.roleId), { status: 201 });
   },
 
-  /** @request { userId: string, roleId: string } */
+  /** @request query o body { userId: string, roleId: string } */
   async removeUser(request: Request): Promise<NextResponse> {
-    const body = await request.json() as { userId?: string; roleId?: string };
-    if (!body.userId || !body.roleId) return error(API_ERROR_CODES.VALIDATION, "userId y roleId requeridos", 400);
-    await services.roleRepo.removeUser(body.userId, body.roleId);
+    const params = new URL(request.url).searchParams;
+    let body: { userId?: string; roleId?: string } = {};
+    if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+      try {
+        body = await request.json() as { userId?: string; roleId?: string };
+      } catch {
+        body = {};
+      }
+    }
+    const userId = params.get("userId") ?? body.userId;
+    const roleId = params.get("roleId") ?? body.roleId;
+    if (!userId || !roleId) return error(API_ERROR_CODES.VALIDATION, "userId y roleId requeridos", 400);
+    await services.roleRepo.removeUser(userId, roleId);
     return success({ ok: true });
   },
 };

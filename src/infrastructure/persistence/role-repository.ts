@@ -91,7 +91,12 @@ export class RolePrismaRepository implements IRoleRepository {
   }
 
   async removeUser(userId: string, roleId: string) {
-    await prisma.userRole.deleteMany({ where: { id: userId, roleId } });
+    await prisma.userRole.deleteMany({
+      where: {
+        roleId,
+        OR: [{ userId }, { id: userId }],
+      },
+    });
   }
 
   async updatePermisos(id: string, permisos: string[]) {
