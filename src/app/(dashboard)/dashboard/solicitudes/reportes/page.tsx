@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Building2, CircleAlert, ClipboardList, Globe2, Loader2, RefreshCw } from "lucide-react";
+import { Building2, CircleAlert, ClipboardList, FileSpreadsheet, Globe2, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { MapaMundialPaises } from "@/components/reportes/mapa-mundial-paises";
 import { useSesion } from "@/hooks/use-sesion";
 import { internalApi } from "@/lib/client/api/services/internal-api";
-import { PERMISSIONS } from "@/lib/shared/constants";
+import { PERMISSIONS, TIPOS_DOCUMENTO_EMPRESA_LABELS } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
+import { exportarTablaExcel, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import type { ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { EmpresaPaisReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
 
 type Alcance = "activas" | "todas";
 
@@ -39,6 +41,7 @@ export default function ReportesSolicitudesPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncData, setSyncData] = useState<RespuestaSyncPaises | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const cargar = useCallback(
     async (valor: Alcance) => {
@@ -98,6 +101,43 @@ export default function ReportesSolicitudesPage() {
       toast.error(error instanceof Error ? error.message : "No se pudo aplicar la sincronización");
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const exportarExcel = async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (alcance === "todas") qs.set("incluirInactivas", "1");
+      const response = await internalApi.get<{ data: EmpresaPaisReporte[] }>(
+        `/api/reportes/empresas-por-pais?${qs.toString()}`,
+      );
+      if (!response.data?.length) {
+        toast.error("No hay empresas para exportar con los filtros actuales");
+        return;
+      }
+      await exportarTablaExcel(
+        response.data,
+        [
+          { encabezado: "País", valor: (fila) => (fila.pais ? nombrePais(fila.pais) : "Sin país") },
+          { encabezado: "Código país", valor: (fila) => fila.pais ?? "" },
+          { encabezado: "RUC / RUT", valor: (fila) => fila.ruc ?? "" },
+          { encabezado: "Tipo documento", valor: (fila) => TIPOS_DOCUMENTO_EMPRESA_LABELS[fila.tipoDocumento ?? ""] ?? fila.tipoDocumento ?? "" },
+          { encabezado: "Razón social", valor: (fila) => fila.razonSocial },
+          { encabezado: "Estado", valor: (fila) => fila.estado ?? "" },
+          { encabezado: "Solicitudes", valor: (fila) => fila.solicitudes },
+          { encabezado: "Activas", valor: (fila) => fila.solicitudesActivas },
+          { encabezado: "Inactivas", valor: (fila) => fila.solicitudesInactivas },
+          { encabezado: "Datos validados", valor: (fila) => fila.datosValidadosEn ? dateUtils.formatDateTime(fila.datosValidadosEn) : "" },
+        ],
+        nombreArchivoExport("empresas-por-pais", "xlsx"),
+        "Empresas",
+      );
+      toast.success(`${response.data.length} empresas exportadas`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo descargar el Excel");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -198,6 +238,16 @@ export default function ReportesSolicitudesPage() {
             disabled={loading}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => void exportarExcel()}
+            disabled={exporting || loading}
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{exporting ? "Generando..." : "Descargar Excel"}</span>
           </Button>
           {puedeSincronizar ? (
             <Button

@@ -1,5 +1,6 @@
-import type { ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { EmpresaPaisReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
 
 export interface IReportesSolicitudesRepository {
   resumenPorPais(params: { eventoId?: string; incluirInactivas?: boolean }): Promise<ResumenPaisSolicitudes[]>;
+  empresasPorPais(params: { eventoId?: string; incluirInactivas?: boolean }): Promise<EmpresaPaisReporte[]>;
 }

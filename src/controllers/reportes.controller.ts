@@ -19,4 +19,19 @@ export const reportesController = {
     );
     return success({ data });
   },
+
+  async empresasPorPais(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const params = new URL(request.url).searchParams;
+    const eventoId = params.get("eventoId")?.trim() || undefined;
+    const incluirInactivas = params.get("incluirInactivas") === "1";
+
+    const data = await services.reportesSolicitudes.empresasPorPais(
+      { eventoId, incluirInactivas },
+      session.permissions,
+    );
+    return success({ data });
+  },
 };

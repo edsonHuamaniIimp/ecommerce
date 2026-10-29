@@ -6,6 +6,7 @@ import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-sol
 function repoFake(): IReportesSolicitudesRepository {
   return {
     resumenPorPais: vi.fn().mockResolvedValue([{ pais: "PE", empresas: 2, solicitudes: 3 }]),
+    empresasPorPais: vi.fn().mockResolvedValue([]),
   };
 }
 
