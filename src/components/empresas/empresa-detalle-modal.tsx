@@ -81,13 +81,13 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
             <Building2 className="h-4 w-4 text-primary" />
             <span>Información de la empresa</span>
           </DialogTitle>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>{empresa.razonSocial}</span>
             <span className="font-mono">{empresa.ruc}</span>
             <Badge className={`pointer-events-none text-[10px] ${activa ? BADGE_STYLES.SUCCESS : BADGE_STYLES.NEUTRAL}`}>
               <span>{activa ? "Activa" : "Inactiva"}</span>
             </Badge>
-          </p>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
