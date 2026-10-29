@@ -41,7 +41,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         WHERE true ${filtroActivo} ${filtroEvento}
       )
       SELECT
-        COALESCE(e.pais, 'SIN_PAIS') AS pais,
+        COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS') AS pais,
         COUNT(DISTINCT COALESCE(sb.empresa, sb.email, sb.id::text))::int AS empresas,
         COUNT(DISTINCT sb.id)::int AS solicitudes
       FROM sol_base sb
@@ -99,7 +99,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       )
       SELECT
         e.id AS empresa_id,
-        COALESCE(e.pais, 'SIN_PAIS') AS pais,
+        COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS') AS pais,
         e.ruc,
         e.tipo_documento,
         COALESCE(e.razon_social, sb.company_name, sb.email, 'Sin empresa') AS razon_social,
@@ -110,7 +110,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         COUNT(DISTINCT sb.id) FILTER (WHERE NOT sb.flg_activo)::int AS solicitudes_inactivas
       FROM sol_base sb
       LEFT JOIN empresa e ON e.id = sb.empresa_id
-      GROUP BY e.id, COALESCE(e.pais, 'SIN_PAIS'), e.ruc, e.tipo_documento, e.estado, e.datos_validados_en,
+      GROUP BY e.id, COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS'), e.ruc, e.tipo_documento, e.estado, e.datos_validados_en,
         COALESCE(e.razon_social, sb.company_name, sb.email, 'Sin empresa')
       ORDER BY solicitudes DESC, razon_social ASC
     `);
