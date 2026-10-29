@@ -797,6 +797,8 @@ export class EmpresaApplicationService {
 
     if (input.pais !== undefined) {
       cambios.pais = normalizarPais(input.pais);
+      cambios.paisOrigen = "manual";
+      cambios.paisSincronizadoEn = null;
     }
 
     for (const campo of ["logoUrl", "nombreComercial", "direccionFiscal", "telefono", "representanteLegalNombre", "representanteLegalTipoDocumento", "representanteLegalDni", "representanteCorreo", "representanteCelular", "representanteUserId", "representanteDireccion", "partidaElectronica", "sitioWeb", "nombreFriso", "actividadEconomica", "estadoContribuyente", "facturarANombre", "responsableExteminNombre", "responsableExteminTelefono", "responsableExteminTipoDocumento", "responsableExteminDni", "responsableExteminEmail", "responsablePagosNombre", "responsablePagosTelefono", "responsablePagosTipoDocumento", "responsablePagosDni", "responsablePagosEmail"] as const) {

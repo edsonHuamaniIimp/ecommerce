@@ -161,6 +161,7 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
       where: {
         tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
         pais: PAIS_DEFAULT,
+        OR: [{ paisOrigen: null }, { paisOrigen: { not: "manual" } }],
       },
       orderBy: { updatedAt: "desc" },
       take: limite,
