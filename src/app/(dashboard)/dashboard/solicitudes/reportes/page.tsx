@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { MapaMundialPaises } from "@/components/reportes/mapa-mundial-paises";
 import { useSesion } from "@/hooks/use-sesion";
+import { useConfirm } from "@/hooks/use-confirm";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { PERMISSIONS, TIPOS_DOCUMENTO_EMPRESA_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -42,6 +43,7 @@ export default function ReportesSolicitudesPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncData, setSyncData] = useState<RespuestaSyncPaises | null>(null);
   const [exporting, setExporting] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const cargar = useCallback(
     async (valor: Alcance) => {
@@ -70,6 +72,13 @@ export default function ReportesSolicitudesPage() {
   }, [cargando, alcance, cargar]);
 
   const abrirSync = async () => {
+    const confirmado = await confirm({
+      title: "Sincronizar países desde SIE",
+      description: "Se consultará el servicio SIE y, si después aplicas los cambios, se actualizará el país de las empresas no domiciliadas que tengan país pendiente. Esta acción modifica datos de empresas.",
+      confirmLabel: "Consultar SIE",
+      cancelLabel: "Cancelar",
+    });
+    if (!confirmado) return;
     setSyncOpen(true);
     setSyncLoading(true);
     setSyncData(null);
@@ -87,6 +96,19 @@ export default function ReportesSolicitudesPage() {
   };
 
   const aplicarSync = async () => {
+    const porAplicar = syncData?.resultados.filter((fila) => fila.estado === "por_actualizar").length ?? 0;
+    if (porAplicar === 0) {
+      toast.info("No hay cambios de país para aplicar");
+      return;
+    }
+    const confirmado = await confirm({
+      title: "Aplicar cambios de país",
+      description: `Se actualizarán ${porAplicar} empresa(s) con el país devuelto por SIE. Esta acción modificará sus datos. ¿Deseas continuar?`,
+      confirmLabel: "Aplicar cambios",
+      cancelLabel: "Cancelar",
+      destructive: true,
+    });
+    if (!confirmado) return;
     setSyncLoading(true);
     try {
       const response = await internalApi.post<RespuestaSyncPaises>("/api/empresas/sincronizar-paises", {
@@ -332,6 +354,7 @@ export default function ReportesSolicitudesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </PaginaDashboard>
   );
 }
