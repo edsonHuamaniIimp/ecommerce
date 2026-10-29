@@ -6,6 +6,7 @@ import worldData from "world-atlas/countries-110m.json";
 import countries from "i18n-iso-countries";
 import { Card, CardContent, CardHeader, CardTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { ArrowUpRight, Globe2 } from "lucide-react";
+import { DdPaisBandera } from "@/components/debida-diligencia/dd-pais-bandera";
 import { nombrePais } from "@/lib/shared/utils/pais";
 import type { ResumenPaisSolicitudes } from "@/domain/models/reportes";
 
@@ -56,7 +57,10 @@ export function MapaMundialPaises({ data }: Props) {
           <div className="absolute right-4 top-4 z-10 min-w-[170px] rounded-xl border border-border/80 bg-background/90 px-3 py-2 text-right shadow-lg backdrop-blur">
             {hover ? (
               <>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-primary">{nombrePais(hover.pais)}</p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <DdPaisBandera pais={hover.pais} />
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-primary">{nombrePais(hover.pais)}</p>
+                </div>
                 <p className="mt-0.5 text-xs font-semibold text-foreground">
                   {hover.empresas} empresas · {hover.solicitudes} solicitudes
                 </p>
@@ -152,7 +156,10 @@ export function MapaMundialPaises({ data }: Props) {
                         {index + 1}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-foreground">{fila.pais ? nombrePais(fila.pais) : "Sin país"}</p>
+                        <div className="flex items-center gap-1.5">
+                          <DdPaisBandera pais={fila.pais} />
+                          <p className="truncate text-xs font-semibold text-foreground">{fila.pais ? nombrePais(fila.pais) : "Sin país"}</p>
+                        </div>
                         <p className="text-[10px] text-muted-foreground">{fila.empresas} empresas</p>
                       </div>
                     </div>
