@@ -11,6 +11,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { etiquetaTipoDocumentoEmpresa, normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
+import { PaisSelect } from "@/components/shared/pais-select";
 import { RepresentanteLegalModal } from "./representante-legal-modal";
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 interface FormState {
   ruc: string;
   razonSocial: string;
+  pais: string;
   logoUrl: string;
   nombreComercial: string;
   direccionFiscal: string;
@@ -44,6 +46,7 @@ function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
   return {
     ruc: empresa?.ruc ?? "",
     razonSocial: empresa?.razonSocial ?? "",
+    pais: empresa?.pais ?? "PE",
     logoUrl: empresa?.logoUrl ?? "",
     nombreComercial: empresa?.nombreComercial ?? "",
     direccionFiscal: empresa?.direccionFiscal ?? "",
@@ -334,6 +337,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         ruc: documentoEmpresa,
         tipoDocumento: tipoDocumentoEmpresa,
         razonSocial: form.razonSocial.trim(),
+        pais: form.pais,
         sieCode: sieCodeFuente,
         logoUrl: form.logoUrl || null,
         nombreComercial: form.nombreComercial.trim() || null,
@@ -538,6 +542,15 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Telefono" valor={form.telefono} onChange={(v) => setCampo("telefono", v)} placeholder="+51 987 654 321" />
             <CampoForm label="Sitio web" valor={form.sitioWeb} onChange={(v) => setCampo("sitioWeb", v)} placeholder="www.empresa.pe" />
+          </div>
+          <div>
+            <Label className="text-xs">País de la empresa</Label>
+            <PaisSelect
+              id="empresa-pais"
+              value={form.pais}
+              onChange={(valor) => setCampo("pais", valor)}
+              error={errores.pais}
+            />
           </div>
           {controlRepresentante}
           <div>
