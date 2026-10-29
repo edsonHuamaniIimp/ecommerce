@@ -1308,21 +1308,31 @@ export class EmpresaApplicationService {
     }
 
     const porRuc = empresa.ruc ? await this.authRepo.findByRuc(empresa.ruc).catch(() => []) : [];
-    const email = (limpiar(empresa.representanteCorreo) ?? empresa.emailContacto ?? empresa.emailFacturacion ?? "").trim().toLowerCase();
+    const correoRepresentante = limpiar(empresa.representanteCorreo)?.toLowerCase() ?? "";
+    const email = (correoRepresentante || empresa.emailContacto || empresa.emailFacturacion || "").trim().toLowerCase();
     const porEmail = email ? await this.authRepo.findByEmail(email) : [];
     const principal = porRuc[0] ?? porEmail[0];
     if (!principal) {
       throw new DomainError("No se encontro la cuenta de la empresa", API_ERROR_CODES.NOT_FOUND, 404);
     }
 
+    let emailDestino = principal.email;
+    if (correoRepresentante && !esEmailProvisional(principal.email) && correoRepresentante !== principal.email.trim().toLowerCase()) {
+      if (await this.authRepo.existeEmail(correoRepresentante)) {
+        throw new DomainError(`El correo ${correoRepresentante} ya pertenece a otra cuenta del Portal`, API_ERROR_CODES.CONFLICT, 409);
+      }
+      await this.authRepo.actualizarEmailCuenta(principal.userId, correoRepresentante);
+      emailDestino = correoRepresentante;
+    }
+
     const passwordTemporal = generarPasswordTemporal();
     await this.authRepo.updatePassword(principal.id, hashPassword(passwordTemporal));
-    await this.authRepo.marcarCambioPasswordRequerido(principal.email, true);
+    await this.authRepo.marcarCambioPasswordRequerido(emailDestino, true);
     await this.repo.update(id, { cuentaCreada: true, primerAccesoCompletado: false });
 
-    const esProvisional = esEmailProvisional(principal.email);
-    const emailEnviado = esProvisional ? null : await this.enviarCredenciales(empresa, principal.email, passwordTemporal);
-    return { email: principal.email, usuario: empresa.ruc, passwordTemporal, emailEnviado };
+    const esProvisional = esEmailProvisional(emailDestino);
+    const emailEnviado = esProvisional ? null : await this.enviarCredenciales(empresa, emailDestino, passwordTemporal);
+    return { email: emailDestino, usuario: empresa.ruc, passwordTemporal, emailEnviado };
   }
 
   /**

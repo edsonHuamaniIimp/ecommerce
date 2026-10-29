@@ -989,6 +989,46 @@ describe("EmpresaApplicationService.reenviarCredenciales", () => {
     expect((await repo.findById(creada.id))?.primerAccesoCompletado).toBe(false);
   });
 
+  it("sincroniza la cuenta con el correo actual del representante antes de reenviar", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ruc: "20512780114",
+      razonSocial: "CICSA PERU S.A.C.",
+      representanteCorreo: "Kuyllur.marketing@gmail.com",
+      cuentaCreada: true,
+    });
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-1", userId: "user-1", email: "m.medinam@condumex.com.mx" },
+    });
+    const service = crearServicio(repo, auth);
+
+    const resultado = await service.reenviarCredenciales(creada.id);
+
+    expect(auth.actualizarEmailCuenta).toHaveBeenCalledWith("user-1", "kuyllur.marketing@gmail.com");
+    expect(auth.llamadas.flags).toEqual([true]);
+    expect(resultado.email).toBe("kuyllur.marketing@gmail.com");
+    expect(resultado.emailEnviado).toBe(true);
+  });
+
+  it("409 si el correo actual del representante ya pertenece a otra cuenta", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ruc: "20512780114",
+      razonSocial: "CICSA PERU S.A.C.",
+      representanteCorreo: "Kuyllur.marketing@gmail.com",
+      cuentaCreada: true,
+    });
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-1", userId: "user-1", email: "m.medinam@condumex.com.mx" },
+      existeEmail: true,
+    });
+    const service = crearServicio(repo, auth);
+
+    await expect(service.reenviarCredenciales(creada.id)).rejects.toMatchObject({ status: 409 });
+    expect(auth.actualizarEmailCuenta).not.toHaveBeenCalled();
+    expect(auth.llamadas.passwords).toHaveLength(0);
+  });
+
   it("409 si la empresa aun no tiene cuenta y 404 si la cuenta no existe", async () => {
     const repo = new FakeEmpresaRepo();
     const sinCuenta = repo.seed({ ruc: "20601234567", razonSocial: "Sin Cuenta S.A.C.", emailContacto: "x@empresa.pe" });
