@@ -21,7 +21,7 @@ import {
 } from "@/lib/shared/constants";
 import { resolverTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { erroresFormularioEmpresa } from "@/lib/shared/utils/empresa-form-validacion";
+import { erroresFormularioEmpresa, paisInicialValidacion } from "@/lib/shared/utils/empresa-form-validacion";
 import { RepresentantesAdicionalesEditor } from "@/components/empresa/representantes-adicionales-editor";
 import { erroresRepresentantesAdicionales, representanteAdicionalDesdeDTO, representanteAdicionalPayload, type RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 import type { EmpresaDTO } from "@/types/dto/empresas";
@@ -224,7 +224,7 @@ function ValidarDatosContent() {
           tipoDocumento: datos.tipoDocumento ?? TIPOS_DOCUMENTO_EMPRESA.RUC,
           razonSocial: datos.razonSocial,
           nombreComercial: datos.nombreComercial ?? "",
-          pais: datos.pais ?? "PE",
+          pais: paisInicialValidacion(datos),
           direccionFiscal: datos.direccionFiscal ?? "",
           inicioOperaciones: dateUtils.toInputValue(datos.inicioOperaciones),
           telefono: datos.telefono ?? "",

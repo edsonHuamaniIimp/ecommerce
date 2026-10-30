@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
-import { actualizarEmpresaSchema, crearEmpresaSchema, guardarRepresentantesAdicionalesSchema, validarDatosEmpresaSchema } from "../empresas.validator";
+import { actualizarEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
 
 describe("crearEmpresaSchema (documento RUC o RUT)", () => {
   it("acepta un RUC de 11 digitos (autodetectado)", () => {
@@ -52,6 +52,7 @@ describe("actualizarEmpresaSchema (parcial)", () => {
 describe("validarDatosEmpresaSchema", () => {
   const base = {
     ruc: "20601234567",
+    pais: "PE",
     razonSocial: "Minera Demo S.A.C.",
     inicioOperaciones: "2020-01-15",
     representanteLegalNombre: "Juan Perez",
@@ -60,6 +61,11 @@ describe("validarDatosEmpresaSchema", () => {
     representanteCelular: "999888777",
     representanteDireccion: "Av. Los Ingenieros 245",
   };
+
+  it("exige el pais aunque sea el valor por defecto", () => {
+    expect(validarDatosEmpresaSchema.safeParse({ ...base, pais: undefined, partidaElectronica: "11014857" }).success).toBe(false);
+    expect(validarDatosEmpresaSchema.safeParse({ ...base, pais: "", partidaElectronica: "11014857" }).success).toBe(false);
+  });
 
   it("sigue exigiendo los datos del representante", () => {
     const r = validarDatosEmpresaSchema.safeParse({ ...base, partidaElectronica: "11014857" });

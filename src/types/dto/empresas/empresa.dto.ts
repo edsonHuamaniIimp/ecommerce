@@ -18,6 +18,8 @@ export interface EmpresaDTO {
   tipoDocumento: string;
   /** Pais de la empresa (ISO 3166-1 alpha-2). */
   pais: string;
+  /** Origen del pais (manual | sie | cliente); null = valor heredado/default. */
+  paisOrigen?: string | null;
   /** Identificador de la empresa en servicio-persona (sie_code). */
   sieCode: string | null;
   razonSocial: string;

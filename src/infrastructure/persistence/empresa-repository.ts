@@ -19,6 +19,7 @@ interface EmpresaRow {
   ruc: string;
   tipoDocumento: string;
   pais: string;
+  paisOrigen: string | null;
   sieCode: string | null;
   razonSocial: string;
   logoUrl: string | null;
@@ -78,6 +79,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     ruc: row.ruc,
     tipoDocumento: row.tipoDocumento,
     pais: row.pais ?? "PE",
+    paisOrigen: row.paisOrigen ?? null,
     sieCode: row.sieCode ?? null,
     razonSocial: row.razonSocial,
     logoUrl: row.logoUrl ?? null,

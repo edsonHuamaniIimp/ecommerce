@@ -172,6 +172,10 @@ const validarDatosEmpresaExtrasSchema = z.object({
  * correo (usuario del sistema), celular y direccion. La partida es opcional.
  */
 export const validarDatosEmpresaSchema = crearEmpresaSchema.and(validarDatosEmpresaExtrasSchema)
+  .refine((v) => Boolean(String(v.pais ?? "").trim()), {
+    message: "Selecciona el pais de la empresa",
+    path: ["pais"],
+  })
   .refine((v) => Boolean(v.representanteLegalNombre?.trim()), {
     message: "El nombre del representante legal es obligatorio",
     path: ["representanteLegalNombre"],

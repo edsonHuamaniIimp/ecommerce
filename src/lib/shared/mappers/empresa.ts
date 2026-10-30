@@ -11,6 +11,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     ruc: entity.ruc,
     tipoDocumento: entity.tipoDocumento,
     pais: entity.pais,
+    paisOrigen: entity.paisOrigen ?? null,
     sieCode: entity.sieCode,
     razonSocial: entity.razonSocial,
     logoUrl: entity.logoUrl,

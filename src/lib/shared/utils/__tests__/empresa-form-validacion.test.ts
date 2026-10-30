@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erroresFormularioEmpresa, type EmpresaFormValidacionLike } from "../empresa-form-validacion";
+import { erroresFormularioEmpresa, paisInicialValidacion, type EmpresaFormValidacionLike } from "../empresa-form-validacion";
 
 const base: EmpresaFormValidacionLike = {
   ruc: "20601234567",
@@ -154,5 +154,18 @@ describe("perfil: todos los campos son obligatorios", () => {
     );
     expect(errores.responsableExteminDni).toBeTruthy();
     expect(errores.responsablePagosDni).toBeTruthy();
+  });
+});
+describe("paisInicialValidacion", () => {
+  it("precarga el pais solo cuando tiene origen confirmado", () => {
+    expect(paisInicialValidacion({ pais: "PE", paisOrigen: "manual" })).toBe("PE");
+    expect(paisInicialValidacion({ pais: "CL", paisOrigen: "sie" })).toBe("CL");
+    expect(paisInicialValidacion({ pais: "US", paisOrigen: "cliente" })).toBe("US");
+  });
+
+  it("deja vacio el pais heredado o sin origen para obligar a elegirlo", () => {
+    expect(paisInicialValidacion({ pais: "PE", paisOrigen: null })).toBe("");
+    expect(paisInicialValidacion({ pais: "PE" })).toBe("");
+    expect(paisInicialValidacion({ pais: "PE", paisOrigen: "default" })).toBe("");
   });
 });

@@ -17,7 +17,7 @@ export interface ValidarDatosEmpresaRequestDTO {
   /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
   tipoDocumento?: string | null;
   razonSocial: string;
-  /** Pais ISO 3166-1 alpha-2; omitido = PE. */
+  /** Pais ISO 3166-1 alpha-2; obligatorio al validar los datos del Portal. */
   pais?: string | null;
   nombreComercial?: string | null;
   direccionFiscal?: string | null;

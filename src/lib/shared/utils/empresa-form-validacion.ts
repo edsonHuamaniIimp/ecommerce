@@ -48,6 +48,15 @@ export interface EmpresaFormValidacionOpciones {
 }
 
 /**
+ * Pais que debe mostrarse al abrir la validacion de datos: solo se precarga
+ * cuando existe un origen confirmado; si es el default heredado, se deja vacio
+ * para obligar al usuario a elegirlo.
+ */
+export function paisInicialValidacion(datos: { pais: string; paisOrigen?: string | null }): string {
+  return datos.paisOrigen && datos.paisOrigen !== "default" ? datos.pais : "";
+}
+
+/**
  * Reglas de validacion compartidas por /auth/validar-datos y el perfil.
  * Deben coincidir con el endpoint de validacion de la empresa.
  */
