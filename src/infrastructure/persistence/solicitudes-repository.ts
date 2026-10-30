@@ -194,12 +194,20 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     // Empresa vinculada y nombre del usuario solicitante (user_role)
     const solicitudUserId = row.userId;
     let nombreUsuario: string | null = null;
+    let paisEmpresa: string | null = null;
     if (solicitudUserId) {
       const userRole = await prisma.userRole.findFirst({
         where: { userId: solicitudUserId },
-        select: { nombreEmpresa: true, nombre: true, apellidos: true },
+        select: { nombreEmpresa: true, nombre: true, apellidos: true, empresaId: true },
       });
       if (!empresa && userRole?.nombreEmpresa) empresa = userRole.nombreEmpresa;
+      if (userRole?.empresaId) {
+        const empresaVinculada = await prisma.empresa.findUnique({
+          where: { id: userRole.empresaId },
+          select: { pais: true },
+        });
+        paisEmpresa = empresaVinculada?.pais ?? null;
+      }
       nombreUsuario = nombreCompleto(userRole?.nombre, userRole?.apellidos);
     }
 
@@ -213,9 +221,10 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       if (documento) {
         const empresaProvisional = await prisma.empresa.findFirst({
           where: { ruc: documento },
-          select: { razonSocial: true, representanteLegalNombre: true },
+          select: { razonSocial: true, representanteLegalNombre: true, pais: true },
         });
         if (!empresa && empresaProvisional?.razonSocial) empresa = empresaProvisional.razonSocial;
+        if (!paisEmpresa) paisEmpresa = empresaProvisional?.pais ?? null;
         if (!nombreUsuario) nombreUsuario = empresaProvisional?.representanteLegalNombre ?? null;
       }
     }
@@ -229,6 +238,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     tipoStand,
     medidas,
     empresa,
+    pais: paisEmpresa,
     email: row.email,
     userId: row.userId,
     nombreUsuario,

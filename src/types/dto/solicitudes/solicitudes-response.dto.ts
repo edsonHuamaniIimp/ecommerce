@@ -37,6 +37,8 @@ export interface SolicitudDTO {
   /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
   precio: number;
   empresa: string | null;
+  /** Pais ISO alpha-2 de la empresa vinculada. */
+  pais?: string | null;
   email: string | null;
   userId: string | null;
   /** Nombre del usuario solicitante (user_role.nombre + apellidos). */

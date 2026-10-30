@@ -20,6 +20,8 @@ import type { SolicitudesListFiltros } from "@/lib/client/api/services/solicitud
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdEstadoBadge } from "@/components/debida-diligencia/dd-estado-badge";
+import { DdPaisBandera } from "@/components/debida-diligencia/dd-pais-bandera";
+import { nombrePais } from "@/lib/shared/utils/pais";
 import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
@@ -45,6 +47,7 @@ const SOLICITUDES_EXPORT_COLUMNAS = [
   "Stand(s)",
   "Bloque",
   "Empresa",
+  "País",
   "Usuario",
   "Correo",
   "Tipo stand",
@@ -71,6 +74,7 @@ function filaExportacion(row: SolicitudRow, estadoLabels: Record<string, string>
     row.standCodes?.length ? row.standCodes.join(", ") : row.standCode,
     row.bloqueId ?? "",
     row.empresa ?? "",
+    row.pais ? nombrePais(row.pais) : "",
     row.nombreUsuario ?? "",
     row.email ?? "",
     row.tipoStand ?? "",
@@ -701,11 +705,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           ) : (
             <>
               <div className="overflow-x-auto rounded-lg border border-border">
-                <Table className="w-full min-w-0 sm:min-w-[560px] md:min-w-[820px] lg:min-w-[920px] xl:min-w-[1296px]">
+                <Table className="w-full min-w-0 sm:min-w-[560px] md:min-w-[916px] lg:min-w-[1016px] xl:min-w-[1392px]">
                   <TableHeader>
                     <TableRow className="bg-secondary">
                       <TableHead className="w-[70px] min-w-[70px] bg-secondary sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-20 lg:border-r lg:border-border"><span className="text-[10px] uppercase">Stand</span></TableHead>
                       <TableHead className="w-[140px] min-w-[140px] bg-secondary sm:w-[180px] sm:min-w-[180px] lg:sticky lg:left-[92px] lg:z-20 lg:border-r lg:border-border"><span className="text-[10px] uppercase">Empresa</span></TableHead>
+                      <TableHead className="hidden w-[96px] min-w-[96px] md:table-cell"><span className="text-[10px] uppercase">País</span></TableHead>
                       <TableHead className="hidden w-[126px] min-w-[126px] md:table-cell"><span className="text-[10px] uppercase">Debida diligencia</span></TableHead>
                       <TableHead className="hidden w-[126px] min-w-[126px] xl:table-cell"><span className="text-[10px] uppercase">Usuario</span></TableHead>
                       <TableHead className="hidden w-[166px] min-w-[166px] xl:table-cell"><span className="text-[10px] uppercase">Correo</span></TableHead>
@@ -720,14 +725,20 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     {rows.map((row) => {
                       return (
                         <TableRow key={row.id} className="group transition-colors hover:bg-secondary/60">
-                          <TableCell className="w-[70px] min-w-[70px] align-top bg-card font-medium sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary/60">
+                          <TableCell className="w-[70px] min-w-[70px] align-top bg-card font-medium sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary">
                             <span className="inline-flex items-center rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary">
                               {row.standCodes?.length > 1 ? `${row.standCodes.length} stands` : row.standCode}
                             </span>
                             {row.bloqueId && <span className="mt-0.5 block font-mono text-[10px] font-normal text-muted-foreground">{row.bloqueId}</span>}
                           </TableCell>
-                          <TableCell className="w-[140px] max-w-[140px] truncate align-top bg-card text-xs text-foreground sm:w-[180px] sm:max-w-[180px] lg:sticky lg:left-[92px] lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary/60" title={row.empresa ?? ""}>
-                            {row.empresa ?? "—"}
+                          <TableCell className="w-[140px] max-w-[140px] truncate align-top bg-card text-xs text-foreground sm:w-[180px] sm:max-w-[180px] lg:sticky lg:left-[92px] lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary" title={row.empresa ?? ""}>
+                            {row.empresa ?? "-"}
+                          </TableCell>
+                          <TableCell className="hidden w-[96px] min-w-[96px] align-top md:table-cell">
+                            <span className="flex items-center gap-1.5 text-xs text-foreground">
+                              <DdPaisBandera pais={row.pais} />
+                              <span className="truncate">{row.pais ? nombrePais(row.pais) : "Sin país"}</span>
+                            </span>
                           </TableCell>
                           <TableCell className="hidden w-[126px] max-w-[126px] align-top md:table-cell">
                             <div className="space-y-1">
@@ -785,13 +796,13 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                </Badge>
                              )}
                           </TableCell>
-                          <TableCell className="hidden w-[90px] min-w-[90px] bg-card px-3 align-top text-xs sm:table-cell lg:sticky lg:right-[160px] lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary/60">
+                          <TableCell className="hidden w-[90px] min-w-[90px] bg-card px-3 align-top text-xs sm:table-cell lg:sticky lg:right-[160px] lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary">
                             {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                           </TableCell>
                           <TableCell className="hidden w-[110px] min-w-[110px] whitespace-nowrap align-top text-xs text-muted-foreground xl:table-cell">
                             {dateUtils.formatDateTime(row.createdAt)}
                           </TableCell>
-                          <TableCell className="w-[144px] min-w-[144px] bg-card px-1 text-right align-top sm:w-[160px] sm:min-w-[160px] lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary/60">
+                          <TableCell className="w-[144px] min-w-[144px] bg-card px-1 text-right align-top sm:w-[160px] sm:min-w-[160px] lg:sticky lg:right-0 lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary">
                             <div className="flex flex-wrap gap-0.5 justify-end">
                               {row.revisiones.some((r) => r.updatedBy) && (
                                 <Tooltip>
