@@ -38,6 +38,7 @@ export interface PabellonMapaReporte {
 export interface BloqueMapaReporte {
   planoCodigo: string;
   bloqueId: string;
+  standCode: string | null;
   empresas: number;
   solicitudes: number;
   paises: PaisMetricaPabellon[];

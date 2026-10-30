@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { MapPin } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { MapPin, Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import BanderaSvg from "@/components/debida-diligencia/dd-pais-bandera-svg";
 import { DdPaisBandera } from "@/components/debida-diligencia/dd-pais-bandera";
 import { REPORTES_MODOS_MAPA, type ReporteMetrica, type ReporteModoMapa } from "@/lib/shared/constants";
@@ -73,6 +73,9 @@ interface Props {
 
 export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado }: Props) {
   const [hover, setHover] = useState<BloqueMapaReporteDTO | null>(null);
+  const [seleccionado, setSeleccionado] = useState<BloqueMapaReporteDTO | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const mapaRef = useRef<HTMLDivElement>(null);
 
   const metricasPorBloque = useMemo(
     () => new Map(bloques.filter((b) => b.planoCodigo === plano.codigo).map((b) => [b.bloqueId, b])),
@@ -121,6 +124,7 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
 
   const paises = useMemo(() => resumenPaises(bloques.filter((b) => b.planoCodigo === plano.codigo), metrica), [bloques, metrica, plano.codigo]);
   const conDatos = bloques.filter((b) => b.planoCodigo === plano.codigo && valorMetrica(b, metrica, paisSeleccionado) > 0).length;
+  const detalle = hover ?? seleccionado;
 
   if (!dimensiones) {
     return (
@@ -145,17 +149,35 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
             <MapPin className="h-4 w-4 text-primary" />
             <span>{plano.nombre} - mapa 2D</span>
           </CardTitle>
-          <span className="text-[10px] font-medium text-muted-foreground">
-            {conDatos} de {items.length} stands con actividad
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-medium text-muted-foreground">
+              {conDatos} de {items.length} stands con actividad
+            </span>
+            <div className="flex items-center gap-0.5 rounded-full border border-border bg-background p-0.5">
+              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0" aria-label="Alejar mapa" title="Alejar" onClick={() => setZoom((valor) => Math.max(1, valor - 0.5))}>
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="w-8 text-center font-mono text-[10px] font-semibold text-muted-foreground">{zoom}x</span>
+              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0" aria-label="Acercar mapa" title="Acercar" onClick={() => setZoom((valor) => Math.min(8, valor + 0.5))}>
+                <Plus className="h-3 w-3" />
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0" aria-label="Restablecer zoom" title="Restablecer zoom" onClick={() => setZoom(1)}>
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0" aria-label="Pantalla completa" title="Pantalla completa" onClick={() => { const elemento = mapaRef.current; if (elemento?.requestFullscreen) void elemento.requestFullscreen(); }}>
+                <Maximize2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
           {paisSeleccionado ? `Resaltando ${nombrePais(paisSeleccionado)}.` : "Concentración de la métrica seleccionada por stand."}
         </p>
       </CardHeader>
       <CardContent className="space-y-3 pt-4">
-        <div className="overflow-hidden rounded-lg border border-border bg-slate-50 p-2">
-          <svg viewBox={viewBox} className="h-auto max-h-[680px] w-full" role="img" aria-label={`Mapa 2D de ${plano.nombre}`}>
+        <div ref={mapaRef} className="overflow-auto rounded-lg border border-border bg-slate-50 p-2 [&:fullscreen]:rounded-none [&:fullscreen]:border-0 [&:fullscreen]:p-6">
+          <div style={{ width: `${zoom * 100}%` }}>
+          <svg viewBox={viewBox} className={`h-auto w-full ${zoom === 1 ? "max-h-[680px]" : "max-h-none"}`} role="img" aria-label={`Mapa 2D de ${plano.nombre}`}>
             <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="#f8fafc" />
             {items.map((item) => {
               const fila = metricasPorBloque.get(item.bloqueId);
@@ -168,12 +190,17 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
                   ? paisSeleccionado && !esPaisSeleccionado ? "#cbd5e1" : colorPais(pais)
                   : colorCalor(valor / maximo);
               const mostrarBandera = Boolean(fila && valor > 0);
+              const codigoVisible = fila?.standCode ?? item.bloqueId;
+              const esVertical = item.d > item.w;
+              const banderaAncho = esVertical ? item.d : item.w;
+              const banderaAlto = esVertical ? item.w : item.d;
               return (
                 <g
                   key={item.bloqueId}
                   transform={`rotate(${(item.rot * 180) / Math.PI} ${item.x} ${item.z})`}
                   onMouseEnter={() => setHover(fila ?? null)}
                   onMouseLeave={() => setHover(null)}
+                  onClick={() => setSeleccionado(fila ?? null)}
                   className="cursor-pointer"
                 >
                   <rect
@@ -187,24 +214,26 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
                     strokeWidth={Math.max(0.08, Math.max(maxX - minX, maxY - minY) * 0.002)}
                   />
                   {mostrarBandera && pais ? (
-                    <g transform={`rotate(${-(item.rot * 180) / Math.PI} ${item.x} ${item.z})`}>
+                    <g transform={esVertical ? `rotate(90 ${item.x} ${item.z})` : undefined}>
                       <svg
-                        x={item.x - Math.min(item.w, item.d) * 0.3}
-                        y={item.z - Math.min(item.w, item.d) * 0.2}
-                        width={Math.min(item.w, item.d) * 0.6}
-                        height={Math.min(item.w, item.d) * 0.4}
+                        x={item.x - banderaAncho / 2}
+                        y={item.z - banderaAlto / 2}
+                        width={banderaAncho}
+                        height={banderaAlto}
                         viewBox="0 0 3 2"
+                        preserveAspectRatio="xMidYMid meet"
                         pointerEvents="none"
                       >
                         <BanderaSvg codigo={pais} titulo={nombrePais(pais)} className="h-full w-full" />
                       </svg>
                     </g>
                   ) : null}
-                  <title>{`${item.bloqueId}: ${fila ? `${numero(valor)} ${metrica}` : "Sin datos"}`}</title>
+                  <title>{`${codigoVisible}: ${fila ? `${numero(valor)} ${metrica}` : "Sin datos"}`}</title>
                 </g>
               );
             })}
           </svg>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -232,12 +261,12 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
             )}
           </div>
           <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-right text-[11px]">
-            {hover ? (
+            {detalle ? (
               <>
-                <p className="font-mono font-semibold text-foreground">{hover.bloqueId}</p>
+                <p className="font-mono font-semibold text-foreground">{detalle.standCode ?? detalle.bloqueId}</p>
                 <p className="text-muted-foreground">
-                  {numero(valorMetrica(hover, metrica, paisSeleccionado))} {metrica}
-                  {hover.paises[0]?.pais ? ` - ${nombrePais(hover.paises[0].pais)}` : ""}
+                  {numero(valorMetrica(detalle, metrica, paisSeleccionado))} {metrica}
+                  {detalle.paises[0]?.pais ? ` - ${nombrePais(detalle.paises[0].pais)}` : ""}
                 </p>
               </>
             ) : (

@@ -35,6 +35,7 @@ export interface PabellonMapaReporteDTO {
 export interface BloqueMapaReporteDTO {
   planoCodigo: string;
   bloqueId: string;
+  standCode: string | null;
   empresas: number;
   solicitudes: number;
   paises: PaisMetricaPabellonDTO[];

@@ -154,6 +154,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           r.user_id,
           gs.id AS stand_id,
           gs.bloque_id,
+          gs.stand_code,
           gs.pabellon,
           p.codigo AS plan_codigo,
           p.nombre AS plano_nombre,
@@ -201,6 +202,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       prisma.$queryRaw<Array<{
         plan_codigo: string;
         bloque_id: string;
+        stand_code: string | null;
         pais: string;
         solicitudes: number;
         empresas: number;
@@ -209,6 +211,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         SELECT
           plan_codigo,
           bloque_id,
+          MIN(stand_code) AS stand_code,
           pais,
           COUNT(DISTINCT solicitud_id)::int AS solicitudes,
           COUNT(DISTINCT empresa_key)::int AS empresas
@@ -246,6 +249,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       const actual = bloques.get(key) ?? {
         planoCodigo: fila.plan_codigo,
         bloqueId: fila.bloque_id,
+        standCode: fila.stand_code,
         empresas: 0,
         solicitudes: 0,
         paises: [],

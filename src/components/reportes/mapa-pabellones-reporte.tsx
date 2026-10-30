@@ -1,8 +1,8 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { BarChart3, Layers, Loader2, MapPin } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
+import { BarChart3, Layers, Loader2, MapPin, Maximize2 } from "lucide-react";
 import { PdfCanvas } from "@/components/plano/pdf-canvas";
 import { MapaPabellon2D } from "@/components/reportes/mapa-pabellon-2d";
 import { planosService } from "@/lib/client/api/services/planos-service";
@@ -94,6 +94,7 @@ export function MapaPabellonesReporte({ data, paises, eventoId, tipoEvento, codi
   const [metrica, setMetrica] = useState<ReporteMetrica>(REPORTES_METRICAS.SOLICITUDES);
   const [modo, setModo] = useState<ReporteModoMapa>(REPORTES_MODOS_MAPA.CALOR);
   const [paisSeleccionado, setPaisSeleccionado] = useState<string>(REPORTES_TODOS_LOS_PAISES);
+  const macroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let activo = true;
@@ -253,9 +254,25 @@ export function MapaPabellonesReporte({ data, paises, eventoId, tipoEvento, codi
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Vista general</p>
-              <span className="text-[10px] text-muted-foreground">Clic en un pabellón</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground">Clic en un pabellón</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  aria-label="Pantalla completa del mapa general"
+                  title="Pantalla completa"
+                  onClick={() => {
+                    const elemento = macroRef.current;
+                    if (elemento?.requestFullscreen) void elemento.requestFullscreen();
+                  }}
+                >
+                  <Maximize2 className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
-            <div className="relative overflow-hidden rounded-xl border border-border bg-slate-100">
+            <div ref={macroRef} className="relative overflow-hidden rounded-xl border border-border bg-slate-100 [&:fullscreen]:rounded-none [&:fullscreen]:border-0">
               {macro.imagenFondo ? (
                 archivoUtils.esPdf(macro.imagenFondo) ? (
                   <PdfCanvas url={macro.imagenFondo} className="w-full" alt={`Mapa de pabellones ${macro.nombre}`} />
