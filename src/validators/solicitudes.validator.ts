@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
@@ -13,12 +13,17 @@ export const solicitudesListarSchema = z.object({
   /** Empresa seleccionada en el modo "Ver como" (solo admin). */
   empresaId: z.string().uuid().optional(),
   standCode: z.string().max(50).optional(),
+  pais: z.string().regex(REGEX_PAIS, "Pais invalido").optional(),
   areaPendiente: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]).optional(),
   sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),
   docsObservados: z.enum(["true", "false"]).optional(),
   desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   orden: z.enum(Object.values(SOLICITUDES_ORDEN) as [string, ...string[]]).default(SOLICITUDES_ORDEN.RECIENTES),
+});
+
+export const solicitudesPaisesSchema = z.object({
+  eventoId: z.string().uuid(),
 });
 
 export const solicitudesDetalleSchema = z.object({

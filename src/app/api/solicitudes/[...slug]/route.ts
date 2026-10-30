@@ -5,6 +5,7 @@ export const { GET, POST } = createRouter({
   GET: {
     listar: (req) => solicitudesController.listar(req),
     detalle: (req) => solicitudesController.detalle(req),
+    paises: (req) => solicitudesController.paisesConteo(req),
     "dd-estado": (req) => solicitudesController.ddEstado(req),
     historial: (req) => solicitudesController.historial(req),
   },

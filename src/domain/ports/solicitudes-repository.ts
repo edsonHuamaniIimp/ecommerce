@@ -1,6 +1,12 @@
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "../models/entities";
 import type { AlertaClave, AlertaDatos } from "@/lib/shared/alert-templates";
 
+export interface PaisConteo {
+  /** Pais ISO alpha-2; null cuando la empresa no tiene pais. */
+  pais: string | null;
+  solicitudes: number;
+}
+
 export interface SolicitudesListParams {
   eventoId: string;
   page: number;
@@ -15,6 +21,8 @@ export interface SolicitudesListParams {
   empresaId?: string;
   /** Filtro por codigo de stand (contiene, case-insensitive). */
   standCode?: string;
+  /** Pais ISO alpha-2 de la empresa vinculada. */
+  pais?: string;
   /** Area de revision con estado pendiente (REVISION_AREAS). */
   areaPendiente?: string;
   /** Situacion del expediente SGC. */
@@ -37,6 +45,8 @@ export interface SolicitudesPaginatedResult {
 
 export interface ISolicitudesRepository {
   listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult>;
+  /** Conteo por pais para ordenar el filtro sin alterar la paginacion de la bandeja. */
+  paisesConteo?(params: { eventoId: string; incluirInactivas?: boolean }): Promise<PaisConteo[]>;
   detalle(solicitudId: string): Promise<SolicitudRow | null>;
   crearOActualizarRevision(data: {
     solicitudId: string;

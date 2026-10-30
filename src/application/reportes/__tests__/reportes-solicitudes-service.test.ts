@@ -8,6 +8,7 @@ function repoFake(): IReportesSolicitudesRepository {
     resumenPorPais: vi.fn().mockResolvedValue([{ pais: "PE", empresas: 2, solicitudes: 3 }]),
     empresasPorPais: vi.fn().mockResolvedValue([]),
     mapaPabellones: vi.fn().mockResolvedValue({ pabellones: [], bloques: [] }),
+    exportacion: vi.fn().mockResolvedValue({ empresas: [], solicitudes: [], stands: [] }),
   };
 }
 
@@ -20,6 +21,11 @@ describe("ReportesSolicitudesApplicationService", () => {
   it("exige permiso tambien para el mapa de pabellones", async () => {
     const service = new ReportesSolicitudesApplicationService(repoFake());
     await expect(service.mapaPabellones({}, [])).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("exige permiso tambien para exportar", async () => {
+    const service = new ReportesSolicitudesApplicationService(repoFake());
+    await expect(service.exportacion({}, [])).rejects.toMatchObject({ status: 403 });
   });
 
   it("permite admin:full y reportes:view", async () => {

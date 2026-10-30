@@ -49,3 +49,43 @@ export interface MapaPabellonesReporte {
   pabellones: PabellonMapaReporte[];
   bloques: BloqueMapaReporte[];
 }
+
+/** Datos exportables de una solicitud. */
+export interface ReporteExportacionSolicitud {
+  id: string;
+  empresa: string | null;
+  ruc: string | null;
+  pais: string | null;
+  estado: string | null;
+  activa: boolean;
+  createdAt: string;
+  updatedAt: string;
+  usuario: string | null;
+  email: string | null;
+  standCodes: string[];
+  pabellones: string[];
+  tipoStand: string | null;
+  precio: number;
+}
+
+/** Datos exportables de un stand vinculado a una solicitud. */
+export interface ReporteExportacionStand {
+  solicitudId: string;
+  empresa: string | null;
+  ruc: string | null;
+  pais: string | null;
+  standCode: string | null;
+  bloqueId: string | null;
+  pabellon: string | null;
+  estadoSolicitud: string | null;
+  activa: boolean;
+  tipoStand: string | null;
+  precio: number;
+}
+
+/** Dataset completo para el Excel de reportes. */
+export interface ReporteExportacion {
+  empresas: EmpresaPaisReporte[];
+  solicitudes: ReporteExportacionSolicitud[];
+  stands: ReporteExportacionStand[];
+}

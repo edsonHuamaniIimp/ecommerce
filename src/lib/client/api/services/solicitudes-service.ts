@@ -17,6 +17,11 @@ interface RevisionSalidaDTO {
 }
 
 /** Filtros avanzados de la bandeja de solicitudes (server-side). */
+export interface PaisConteoDTO {
+  pais: string | null;
+  solicitudes: number;
+}
+
 export interface SolicitudesListFiltros {
   estado?: string;
   dd?: string;
@@ -24,6 +29,7 @@ export interface SolicitudesListFiltros {
   /** Empresa exacta del modo "Ver como" (solo admin). */
   empresaId?: string;
   standCode?: string;
+  pais?: string;
   areaPendiente?: string;
   sgc?: string;
   docsObservados?: boolean;
@@ -50,6 +56,7 @@ export const solicitudesService = {
       if (filtros.empresa) qs.set("empresa", filtros.empresa);
       if (filtros.empresaId) qs.set("empresaId", filtros.empresaId);
       if (filtros.standCode) qs.set("standCode", filtros.standCode);
+      if (filtros.pais) qs.set("pais", filtros.pais);
       if (filtros.areaPendiente) qs.set("areaPendiente", filtros.areaPendiente);
       if (filtros.sgc) qs.set("sgc", filtros.sgc);
       if (filtros.docsObservados) qs.set("docsObservados", "true");
@@ -58,6 +65,13 @@ export const solicitudesService = {
       if (filtros.orden) qs.set("orden", filtros.orden);
     }
     return internalApi.get<SolicitudesPaginatedDTO>(`/api/solicitudes/listar?${qs.toString()}`);
+  },
+
+  async paisesConteo(eventoId: string): Promise<PaisConteoDTO[]> {
+    const response = await internalApi.get<{ data: PaisConteoDTO[] }>(
+      `/api/solicitudes/paises?eventoId=${encodeURIComponent(eventoId)}`,
+    );
+    return response.data ?? [];
   },
 
   detalle(id: string) {

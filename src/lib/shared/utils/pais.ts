@@ -96,6 +96,27 @@ export function paisDeTexto(valor: string | null | undefined): string | null {
   return INDICE.get(normalizarTexto(texto)) ?? null;
 }
 
+/** Opcion de pais para filtros con conteo opcional de registros. */
+export interface PaisOpcion {
+  codigo: string;
+  nombre: string;
+  conteo?: number;
+}
+
+/**
+ * Ordena paises para un filtro: primero los que tienen registros (mayor conteo
+ * primero) y luego los que no. Los empates se resuelven alfabeticamente.
+ */
+export function ordenarPaisesPorConteo<T extends PaisOpcion>(paises: T[]): T[] {
+  return [...paises].sort((a, b) => {
+    const conteoA = a.conteo ?? 0;
+    const conteoB = b.conteo ?? 0;
+    if ((conteoA > 0) !== (conteoB > 0)) return conteoA > 0 ? -1 : 1;
+    if (conteoA !== conteoB) return conteoB - conteoA;
+    return a.nombre.localeCompare(b.nombre, "es");
+  });
+}
+
 /** Nombre del pais en espanol; si el codigo no existe devuelve el propio codigo. */
 export function nombrePais(codigo: string | null | undefined): string {
   if (!codigo) return "";

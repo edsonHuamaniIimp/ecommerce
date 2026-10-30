@@ -6,5 +6,6 @@ export const { GET } = createRouter({
     "solicitudes-por-pais": (request) => reportesController.solicitudesPorPais(request),
     "empresas-por-pais": (request) => reportesController.empresasPorPais(request),
     "mapa-pabellones": (request) => reportesController.mapaPabellones(request),
+    "exportar": (request) => reportesController.exportar(request),
   },
 });

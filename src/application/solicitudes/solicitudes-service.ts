@@ -31,6 +31,10 @@ export class SolicitudesApplicationService {
     return this.repo.listar(params);
   }
 
+  async paisesConteo(params: { eventoId: string; incluirInactivas?: boolean }) {
+    return this.repo.paisesConteo?.(params) ?? [];
+  }
+
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
     return this.repo.detalle(solicitudId);
   }

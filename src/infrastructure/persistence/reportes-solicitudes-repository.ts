@@ -3,8 +3,34 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
-import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ReporteExportacion, ReporteExportacionSolicitud, ReporteExportacionStand, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { REPORTES_SIN_PAIS, TIPOS_PLANO } from "@/lib/shared/constants";
+
+interface FilaExportacion {
+  solicitud_id: string;
+  email: string | null;
+  user_id: string | null;
+  estado: string | null;
+  flg_activo: boolean;
+  created_at: Date;
+  updated_at: Date;
+  stand_id: string | null;
+  stand_code: string | null;
+  bloque_id: string | null;
+  pabellon: string | null;
+  tipo_stand: string | null;
+  medidas: string | null;
+  raw_data: unknown;
+  stand_empresa: string | null;
+  razon_social: string | null;
+  ruc: string | null;
+  pais: string | null;
+  usuario_nombre: string | null;
+  usuario_apellidos: string | null;
+  usuario_empresa: string | null;
+}
 
 interface FilaResumenPais {
   pais: string;
@@ -275,5 +301,121 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       })),
     };
   }
+  async exportacion(params: { eventoId?: string; incluirInactivas?: boolean }): Promise<ReporteExportacion> {
+    const filtroActivo = params.incluirInactivas ? Prisma.empty : Prisma.sql`AND s.flg_activo = true`;
+    const filtroEvento = params.eventoId ? Prisma.sql`AND gs.evento_id = ${params.eventoId}` : Prisma.empty;
+    const filas = await prisma.$queryRaw<FilaExportacion[]>(Prisma.sql`
+      WITH rel AS (
+        SELECT s.id AS solicitud_id, s.email, s.user_id, s.gess_stand_id
+        FROM solicitud s
+        WHERE true ${filtroActivo}
+        UNION
+        SELECT s.id AS solicitud_id, s.email, s.user_id, ss.gess_stand_id
+        FROM solicitud s
+        JOIN solicitud_stand ss ON ss.solicitud_id = s.id
+        WHERE true ${filtroActivo}
+      ),
+      base AS (
+        SELECT
+          s.id AS solicitud_id,
+          s.email,
+          s.user_id,
+          s.estado,
+          s.flg_activo,
+          s.created_at,
+          s.updated_at,
+          gs.id AS stand_id,
+          gs.stand_code,
+          gs.bloque_id,
+          gs.pabellon,
+          gs.tipo_stand,
+          gs.medidas,
+          gs.raw_data,
+          gs.empresa AS stand_empresa,
+          e.razon_social,
+          e.ruc,
+          NULLIF(e.pais, '') AS pais,
+          ur.nombre AS usuario_nombre,
+          ur.apellidos AS usuario_apellidos,
+          ur.nombre_empresa AS usuario_empresa
+        FROM rel r
+        JOIN solicitud s ON s.id = r.solicitud_id
+        LEFT JOIN gess_stand gs ON gs.id = r.gess_stand_id
+        LEFT JOIN LATERAL (
+          SELECT x.empresa_id, x.nombre, x.apellidos, x.nombre_empresa
+          FROM user_role x
+          WHERE x.user_id = r.user_id
+          LIMIT 1
+        ) ur ON true
+        LEFT JOIN empresa e ON e.id = ur.empresa_id
+        WHERE true ${filtroEvento}
+      )
+      SELECT * FROM base ORDER BY created_at DESC, solicitud_id, stand_code
+    `);
+
+    const solicitudes = new Map<string, ReporteExportacionSolicitud>();
+    const stands = new Map<string, ReporteExportacionStand>();
+
+    for (const fila of filas) {
+      const empresa = fila.razon_social ?? fila.stand_empresa ?? fila.usuario_empresa ?? null;
+      const usuario = [fila.usuario_nombre, fila.usuario_apellidos].filter(Boolean).join(" ") || null;
+      let solicitud = solicitudes.get(fila.solicitud_id);
+      if (!solicitud) {
+        solicitud = {
+          id: fila.solicitud_id,
+          empresa,
+          ruc: fila.ruc,
+          pais: fila.pais,
+          estado: fila.estado,
+          activa: fila.flg_activo,
+          createdAt: fila.created_at.toISOString(),
+          updatedAt: fila.updated_at.toISOString(),
+          usuario,
+          email: fila.email,
+          standCodes: [],
+          pabellones: [],
+          tipoStand: null,
+          precio: 0,
+        };
+        solicitudes.set(fila.solicitud_id, solicitud);
+      } else {
+        solicitud.empresa ??= empresa;
+        solicitud.ruc ??= fila.ruc;
+        solicitud.pais ??= fila.pais;
+        solicitud.usuario ??= usuario;
+        solicitud.email ??= fila.email;
+      }
+
+      const claveStand = fila.stand_id ? `${fila.solicitud_id}|${fila.stand_id}` : `${fila.solicitud_id}|sin-stand`;
+      if (!stands.has(claveStand)) {
+        const precio = fila.stand_id ? resolverPrecioStand({ tipoStand: fila.tipo_stand, medidas: fila.medidas, rawData: fila.raw_data }) : 0;
+        const standCode = fila.stand_code ? codigoComercialStand(fila.stand_code) : null;
+        stands.set(claveStand, {
+          solicitudId: fila.solicitud_id,
+          empresa,
+          ruc: fila.ruc,
+          pais: fila.pais,
+          standCode,
+          bloqueId: fila.bloque_id,
+          pabellon: fila.pabellon,
+          estadoSolicitud: fila.estado,
+          activa: fila.flg_activo,
+          tipoStand: fila.tipo_stand,
+          precio,
+        });
+        solicitud.precio += precio;
+        if (standCode && !solicitud.standCodes.includes(standCode)) solicitud.standCodes.push(standCode);
+        if (fila.pabellon && !solicitud.pabellones.includes(fila.pabellon)) solicitud.pabellones.push(fila.pabellon);
+        solicitud.tipoStand ??= fila.tipo_stand;
+      }
+    }
+
+    return {
+      empresas: await this.empresasPorPais(params),
+      solicitudes: [...solicitudes.values()],
+      stands: [...stands.values()],
+    };
+  }
+
 }
 

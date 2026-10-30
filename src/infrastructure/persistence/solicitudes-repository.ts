@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/server/db";
-import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
+import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
 import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
@@ -296,6 +296,36 @@ function finDiaLima(fecha: string): Date {
 }
 
 export class SolicitudesPrismaRepository implements ISolicitudesRepository {
+  async paisesConteo(params: { eventoId: string; incluirInactivas?: boolean }): Promise<PaisConteo[]> {
+    const filtroActivo = params.incluirInactivas ? Prisma.empty : Prisma.sql`AND s.flg_activo = true`;
+    const filtroEvento = Prisma.sql`AND (
+      EXISTS (SELECT 1 FROM gess_stand gs_evento WHERE gs_evento.id = s.gess_stand_id AND gs_evento.evento_id = ${params.eventoId})
+      OR EXISTS (
+        SELECT 1
+        FROM solicitud_stand ss_evento
+        JOIN gess_stand gs_evento2 ON gs_evento2.id = ss_evento.gess_stand_id
+        WHERE ss_evento.solicitud_id = s.id AND gs_evento2.evento_id = ${params.eventoId}
+      )
+    )`;
+
+    return prisma.$queryRaw<PaisConteo[]>(Prisma.sql`
+      WITH sol_base AS (
+        SELECT
+          s.id,
+          (SELECT ur.empresa_id FROM user_role ur WHERE ur.user_id = s.user_id AND ur.empresa_id IS NOT NULL LIMIT 1) AS empresa_id
+        FROM solicitud s
+        WHERE true ${filtroActivo} ${filtroEvento}
+      )
+      SELECT
+        e.pais,
+        COUNT(DISTINCT sb.id)::int AS solicitudes
+      FROM sol_base sb
+      LEFT JOIN empresa e ON e.id = sb.empresa_id
+      GROUP BY e.pais
+      ORDER BY solicitudes DESC, e.pais ASC NULLS LAST
+    `);
+  }
+
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
     /* Excluye las bajas logicas (`flgActivo = false`) en TODOS los listados. */
     const and: Record<string, unknown>[] = [{ flgActivo: true }];
@@ -375,6 +405,41 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           { stands: { some: { gessStand: { standCode: { contains: q, mode: "insensitive" } } } } },
         ],
       });
+    }
+    if (params.pais) {
+      const empresasPais = await prisma.empresa.findMany({
+        where: { pais: params.pais },
+        select: { id: true, sieCode: true, ruc: true },
+      });
+      const empresaIds = empresasPais.map((e) => e.id);
+      const referencias = [...new Set([
+        ...empresaIds,
+        ...empresasPais.map((e) => e.sieCode).filter((v): v is string => Boolean(v)),
+        ...empresasPais.map((e) => e.ruc).filter((v): v is string => Boolean(v)),
+      ])];
+      const usuarios = referencias.length > 0
+        ? await prisma.userRole.findMany({
+            where: {
+              OR: [
+                { empresaId: { in: empresaIds } },
+                { idEmpresa: { in: referencias } },
+              ],
+            },
+            select: { userId: true },
+          })
+        : [];
+      const userIds = [...new Set(usuarios.map((u) => u.userId).filter(Boolean))];
+      const provisionales = empresasPais
+        .map((e) => e.ruc)
+        .filter((ruc): ruc is string => Boolean(ruc))
+        .map((ruc) => ({
+          email: { startsWith: `acceso-${ruc.toLowerCase()}@acceso.iimp` },
+        }));
+      and.push(
+        userIds.length > 0 || provisionales.length > 0
+          ? { OR: [...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []), ...provisionales] }
+          : { id: "__sin_pais__" },
+      );
     }
     if (params.areaPendiente) {
       and.push({ revisiones: { some: { area: params.areaPendiente, estado: ESTADOS_REVISION.PENDIENTE } } });

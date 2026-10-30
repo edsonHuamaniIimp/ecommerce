@@ -21,6 +21,7 @@ import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdEstadoBadge } from "@/components/debida-diligencia/dd-estado-badge";
 import { DdPaisBandera } from "@/components/debida-diligencia/dd-pais-bandera";
+import { PaisSelect } from "@/components/shared/pais-select";
 import { nombrePais } from "@/lib/shared/utils/pais";
 import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
@@ -164,6 +165,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [hasViewPerm, setHasViewPerm] = useState(false);
   const [solicitudEstadoLabels, setSolicitudEstadoLabels] = useState<Record<string, string>>({});
+  const [conteoPaises, setConteoPaises] = useState<Record<string, number>>({});
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const documentoEstadoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DOCUMENTO_ESTADO,
@@ -216,6 +218,22 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       );
     })();
   }, []);
+
+  useEffect(() => {
+    let activo = true;
+    if (!eventoId) return;
+    solicitudesService.paisesConteo(eventoId)
+      .then((filas) => {
+        if (!activo) return;
+        const mapa: Record<string, number> = {};
+        for (const fila of filas) {
+          if (fila.pais) mapa[fila.pais] = fila.solicitudes;
+        }
+        setConteoPaises(mapa);
+      })
+      .catch(() => {});
+    return () => { activo = false; };
+  }, [eventoId]);
 
   const loadResumen = useCallback(async () => {
     if (!eventoId) return;
@@ -335,6 +353,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const filtrosActivos = [
     filters.estado,
     filters.dd,
+    filters.pais,
     filters.areaPendiente,
     filters.sgc,
     filters.docsObservados ? "observados" : undefined,
@@ -610,6 +629,17 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-pais">País</label>
+                <PaisSelect
+                  id="filtro-pais"
+                  value={filters.pais ?? ""}
+                  onChange={(pais) => aplicarFiltros({ ...filters, pais: pais || undefined })}
+                  placeholder="Todos los países"
+                  triggerClassName="h-8 text-xs"
+                  conteos={conteoPaises}
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-area">Revision pendiente</label>

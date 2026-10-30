@@ -6,7 +6,7 @@ import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/consta
 import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
@@ -123,6 +123,7 @@ export const solicitudesController = {
       empresa: url.searchParams.get("empresa") ?? undefined,
       empresaId,
       standCode: url.searchParams.get("standCode") ?? undefined,
+      pais: url.searchParams.get("pais") ?? undefined,
       areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
       sgc: url.searchParams.get("sgc") ?? undefined,
       docsObservados: url.searchParams.get("docsObservados") ?? undefined,
@@ -159,6 +160,7 @@ export const solicitudesController = {
           dd: parsed.dd ?? null,
           empresa: parsed.empresa ?? null,
           standCode: parsed.standCode ?? null,
+          pais: parsed.pais ?? null,
           areaPendiente: parsed.areaPendiente ?? null,
           sgc: parsed.sgc ?? null,
           docsObservados: parsed.docsObservados === "true",
@@ -176,6 +178,7 @@ export const solicitudesController = {
       empresa: parsed.empresa,
       empresaId: parsed.empresaId,
       standCode: parsed.standCode,
+      pais: parsed.pais,
       areaPendiente: parsed.areaPendiente,
       sgc: parsed.sgc as SolicitudesFiltroSgc | undefined,
       docsObservados: parsed.docsObservados === "true",
@@ -227,6 +230,19 @@ export const solicitudesController = {
     const response = success({ ...result, data });
     if (empresaId) response.headers.set("Cache-Control", "no-store");
     return response;
+  },
+
+  async paisesConteo(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    if (!puedeVerTodas(session)) return success({ data: [] });
+
+    const url = new URL(request.url);
+    const { eventoId } = solicitudesPaisesSchema.parse({
+      eventoId: url.searchParams.get("eventoId") ?? "",
+    });
+    const data = await services.solicitudes.paisesConteo({ eventoId });
+    return success({ data });
   },
 
   async detalle(request: Request): Promise<NextResponse> {

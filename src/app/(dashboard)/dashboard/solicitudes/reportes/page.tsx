@@ -10,11 +10,10 @@ import { MapaPabellonesReporte } from "@/components/reportes/mapa-pabellones-rep
 import { useSesion } from "@/hooks/use-sesion";
 import { useConfirm } from "@/hooks/use-confirm";
 import { internalApi } from "@/lib/client/api/services/internal-api";
-import { PERMISSIONS, REPORTES_ALCANCES, REPORTES_VISTAS, TIPOS_DOCUMENTO_EMPRESA_LABELS, type ReporteAlcance, type ReporteVista } from "@/lib/shared/constants";
-import { dateUtils } from "@/lib/shared/utils/date";
-import { exportarTablaExcel, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
+import { PERMISSIONS, REPORTES_ALCANCES, REPORTES_VISTAS, type ReporteAlcance, type ReporteVista } from "@/lib/shared/constants";
+import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import type { EmpresaPaisReporteDTO, MapaPabellonesReporteDTO as MapaPabellonesData, ResumenPaisSolicitudesDTO } from "@/types/dto/reportes";
+import type { MapaPabellonesReporteDTO as MapaPabellonesData, ResumenPaisSolicitudesDTO } from "@/types/dto/reportes";
 
 interface ResultadoPais {
   id: string;
@@ -143,37 +142,26 @@ export default function ReportesSolicitudesPage() {
     try {
       const qs = new URLSearchParams();
       if (alcance === REPORTES_ALCANCES.TODAS) qs.set("incluirInactivas", "1");
-      const response = await internalApi.get<{ data: EmpresaPaisReporteDTO[] }>(
-        `/api/reportes/empresas-por-pais?${qs.toString()}`,
-      );
-      if (!response.data?.length) {
-        toast.error("No hay empresas para exportar con los filtros actuales");
-        return;
+      if (session?.eventoId) qs.set("eventoId", session.eventoId);
+      const response = await fetch(`/api/reportes/exportar?${qs.toString()}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message ?? `No se pudo generar el Excel (${response.status})`);
       }
-      await exportarTablaExcel(
-        response.data,
-        [
-          { encabezado: "País", valor: (fila) => (fila.pais ? nombrePais(fila.pais) : "Sin país") },
-          { encabezado: "Código país", valor: (fila) => fila.pais ?? "" },
-          { encabezado: "RUC / RUT", valor: (fila) => fila.ruc ?? "" },
-          { encabezado: "Tipo documento", valor: (fila) => TIPOS_DOCUMENTO_EMPRESA_LABELS[fila.tipoDocumento ?? ""] ?? fila.tipoDocumento ?? "" },
-          { encabezado: "Razón social", valor: (fila) => fila.razonSocial },
-          { encabezado: "Estado", valor: (fila) => fila.estado ?? "" },
-          { encabezado: "Solicitudes", valor: (fila) => fila.solicitudes },
-          { encabezado: "Activas", valor: (fila) => fila.solicitudesActivas },
-          { encabezado: "Inactivas", valor: (fila) => fila.solicitudesInactivas },
-          { encabezado: "Datos validados", valor: (fila) => fila.datosValidadosEn ? dateUtils.formatDateTime(fila.datosValidadosEn) : "" },
-        ],
-        nombreArchivoExport("empresas-por-pais", "xlsx"),
-        "Empresas",
-      );
-      toast.success(`${response.data.length} empresas exportadas`);
+      const blob = await response.blob();
+      const disposicion = response.headers.get("Content-Disposition") ?? "";
+      const nombre = /filename="([^"]+)"/.exec(disposicion)?.[1] ?? "reporte-solicitudes.xlsx";
+      archivoUtils.descargarBlob(blob, nombre);
+      toast.success("Excel generado con empresas, solicitudes y stands");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo descargar el Excel");
     } finally {
       setExporting(false);
     }
   };
+
 
   const puedeSincronizar = session?.permissions?.includes(PERMISSIONS.EMPRESAS_MANAGE) ||
     session?.permissions?.includes(PERMISSIONS.ADMIN_FULL);
@@ -191,6 +179,19 @@ export default function ReportesSolicitudesPage() {
       tieneEvento
       ancho="amplio"
     >
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => void exportarExcel()}
+          disabled={exporting || loading}
+        >
+          {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+          <span>{exporting ? "Generando..." : "Descargar Excel"}</span>
+        </Button>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-primary/10" />
@@ -295,16 +296,6 @@ export default function ReportesSolicitudesPage() {
             disabled={loading}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => void exportarExcel()}
-            disabled={exporting || loading}
-          >
-            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{exporting ? "Generando..." : "Descargar Excel"}</span>
           </Button>
           {puedeSincronizar ? (
             <Button

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nombrePais, paisDeTexto } from "../pais";
+import { nombrePais, ordenarPaisesPorConteo, paisDeTexto } from "../pais";
 
 describe("paisDeTexto (mapper de pais: ISO, nombre y gentilicio)", () => {
   it("acepta codigo ISO alpha-2 y alpha-3 en cualquier caja", () => {
@@ -41,5 +41,51 @@ describe("nombrePais", () => {
     expect(nombrePais("PE")).toBe("Perú");
     expect(nombrePais("ZZ")).toBe("ZZ");
     expect(nombrePais(null)).toBe("");
+  });
+});
+
+describe("ordenarPaisesPorConteo", () => {
+  it("prioriza paises con registros y ordena cada grupo alfabeticamente", () => {
+    const paises = [
+      { codigo: "US", nombre: "Estados Unidos", conteo: 3 },
+      { codigo: "PE", nombre: "Peru", conteo: 10 },
+      { codigo: "CL", nombre: "Chile", conteo: 3 },
+      { codigo: "AR", nombre: "Argentina", conteo: 0 },
+      { codigo: "BR", nombre: "Brasil" },
+    ];
+
+    expect(ordenarPaisesPorConteo(paises).map((pais) => pais.codigo)).toEqual([
+      "PE",
+      "CL",
+      "US",
+      "AR",
+      "BR",
+    ]);
+  });
+
+  it("no muta la lista original", () => {
+    const paises = [
+      { codigo: "PE", nombre: "Peru", conteo: 1 },
+      { codigo: "AR", nombre: "Argentina", conteo: 2 },
+    ];
+    const copia = [...paises];
+
+    ordenarPaisesPorConteo(paises);
+
+    expect(paises).toEqual(copia);
+  });
+
+  it("ordena alfabeticamente cuando no hay conteos", () => {
+    const paises = [
+      { codigo: "PE", nombre: "Peru" },
+      { codigo: "AR", nombre: "Argentina" },
+      { codigo: "BR", nombre: "Brasil" },
+    ];
+
+    expect(ordenarPaisesPorConteo(paises).map((pais) => pais.codigo)).toEqual([
+      "AR",
+      "BR",
+      "PE",
+    ]);
   });
 });
