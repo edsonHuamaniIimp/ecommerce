@@ -501,6 +501,8 @@ map.set(String(bloqueId), {
     firmaPerfilUrl,
     subirFirmaPerfil,
     firmaDigitalAplicada,
+    representantesAdicionales,
+    setRepresentantesAdicionales,
     firmarDigitalmente,
   } = useReservaForm(idsGlobales, linkedMap, { sinContrato });
 
@@ -1223,6 +1225,8 @@ map.set(String(bloqueId), {
         canGoStep={canGoStep}
         formDatos={formDatos}
         onDatosChange={onDatosChange}
+        representantesAdicionales={representantesAdicionales}
+        onRepresentantesChange={setRepresentantesAdicionales}
         docsRequisitos={docsRequisitos}
         subiendoRequisito={subiendoRequisito}
         submitting={submitting}

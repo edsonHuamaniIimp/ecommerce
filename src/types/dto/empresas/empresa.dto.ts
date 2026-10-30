@@ -1,4 +1,15 @@
 /** Empresa exhibidora registrada por el backoffice (respuesta API). */
+/** Representante legal adicional de la empresa (el principal va en los campos representanteLegal*). */
+export interface EmpresaRepresentanteAdicionalDTO {
+  id: string;
+  nombre: string;
+  tipoDocumento: string;
+  documento: string;
+  correo: string | null;
+  celular: string | null;
+  direccion: string | null;
+  orden: number;
+}
 export interface EmpresaDTO {
   id: string;
   /** Documento de la empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
@@ -40,9 +51,12 @@ export interface EmpresaDTO {
   responsablePagosTipoDocumento: string;
   responsablePagosDni: string | null;
   responsablePagosEmail: string | null;
+  /** Partida electronica de inscripcion de poderes de la empresa. */
+  partidaElectronica: string | null;
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
-  partidaElectronica: string | null;
+  /** Representantes adicionales activos. */
+  representantesAdicionales: EmpresaRepresentanteAdicionalDTO[];
   /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
   configCuotas: { maxCuotas: number; fechas: string[] } | null;
   tipoComprobante: string;

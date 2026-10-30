@@ -150,7 +150,7 @@ conviven con las fechas fijas del cronograma. Legal aprobó esta coexistencia.
 
 - Al generar el contrato se guarda el snapshot en `solicitud.plan_cuotas`:
   `{ modalidad, cuotas: [{ numero, porcentaje, monto, fechaVencimiento }] }`.
-- La generación definitiva (al enviar la solicitud), la firma digital, la regeneración
+- La generacion definitiva (desde la bandeja del revisor), la firma digital, la regeneracion
   desde la plantilla y la regeneración tras una observación usan **ese snapshot**.
 - No se recalcula el plan desde la configuración actual de la empresa al regenerar:
   cambiar las fechas de la empresa no altera un contrato ya generado.

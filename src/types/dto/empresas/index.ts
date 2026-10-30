@@ -1,4 +1,4 @@
-export type { EmpresaDTO } from "./empresa.dto";
+export type { EmpresaDTO, EmpresaRepresentanteAdicionalDTO } from "./empresa.dto";
 export type { EmpresasPaginatedDTO } from "./empresas-paginated.dto";
 export type { ResultadoCredencialesEmpresaDTO } from "./resultado-credenciales-empresa.dto";
 export type { ResultadoCreacionCuentasEmpresasDTO, ResultadoCuentaEmpresaDTO } from "./resultado-creacion-cuentas.dto";
@@ -14,7 +14,7 @@ export type { PrevisualizacionCargaEmpresasDTO } from "./previsualizacion-carga-
 export type { ImportarCargaEmpresasRequestDTO } from "./importar-carga-empresas-request.dto";
 export type { ResultadoImportacionEmpresasDTO } from "./resultado-importacion-empresas.dto";
 export type { PrevisualizacionCargaResponse, ImportarCargaResponse } from "./carga-masiva-response.dto";
-export type { ValidarDatosEmpresaRequestDTO } from "./validar-datos-empresa-request.dto";
+export type { GuardarRepresentantesAdicionalesRequestDTO, ValidarDatosEmpresaRequestDTO, ValidarRepresentanteAdicionalDTO } from "./validar-datos-empresa-request.dto";
 export type { MisDatosEmpresaResponse, ValidarDatosEmpresaResponse } from "./portal-response.dto";
 export type { EmpresaFuenteDTO } from "./empresa-fuente.dto";
 export type { PersonaFuenteDTO } from "./persona-fuente.dto";

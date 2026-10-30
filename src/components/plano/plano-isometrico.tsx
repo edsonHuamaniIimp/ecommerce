@@ -220,6 +220,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     firmaPerfilUrl,
     subirFirmaPerfil,
     firmaDigitalAplicada,
+    representantesAdicionales,
+    setRepresentantesAdicionales,
     firmarDigitalmente,
   } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL });
 
@@ -520,6 +522,8 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         canGoStep={canGoStep}
         formDatos={formDatos}
         onDatosChange={onDatosChange}
+        representantesAdicionales={representantesAdicionales}
+        onRepresentantesChange={setRepresentantesAdicionales}
         docsRequisitos={docsRequisitos}
         subiendoRequisito={subiendoRequisito}
         submitting={submitting}

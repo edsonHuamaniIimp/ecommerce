@@ -7,5 +7,6 @@ export const { GET, POST } = createRouter({
   },
   POST: {
     validar: (req) => portalEmpresaController.validar(req),
+    representantes: (req) => portalEmpresaController.guardarRepresentantes(req),
   },
 });

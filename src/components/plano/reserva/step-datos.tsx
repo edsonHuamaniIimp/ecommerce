@@ -10,6 +10,8 @@ import { reservaDatosService } from "@/lib/client/api/services/reserva-datos-ser
 import { BADGE_STYLES, MAESTRA_TABLAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import type { MaestraItemDTO } from "@/types/dto/maestra";
 import type { FormDatos } from "./interfaces";
+import { RepresentantesAdicionalesEditor } from "@/components/empresa/representantes-adicionales-editor";
+import { erroresRepresentantesAdicionales, type RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 
 const LABEL_CLASE = "text-[11px] font-medium text-muted-foreground";
 const INPUT_CLASE =
@@ -21,9 +23,12 @@ interface Props {
   onChange: (update: Partial<FormDatos>) => void;
   /** Etiqueta de los stands en reserva temporal (barra de resumen). */
   selectedLabels?: string;
+  /** Representantes adicionales guardados en la empresa. */
+  representantesAdicionales: RepresentanteAdicionalForm[];
+  onRepresentantesChange: (value: RepresentanteAdicionalForm[]) => void;
 }
 
-export function StepDatos({ datos, onChange, selectedLabels }: Props) {
+export function StepDatos({ datos, onChange, selectedLabels, representantesAdicionales, onRepresentantesChange }: Props) {
   const [comprobantes, setComprobantes] = useState<MaestraItemDTO[]>([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [validado, setValidado] = useState(false);
@@ -276,6 +281,14 @@ export function StepDatos({ datos, onChange, selectedLabels }: Props) {
           )}
         </div>
       </div>
+
+      <RepresentantesAdicionalesEditor
+        value={representantesAdicionales}
+        onChange={onRepresentantesChange}
+        errores={erroresRepresentantesAdicionales(representantesAdicionales)}
+        titulo="Representantes legales adicionales"
+        descripcion="El representante principal es el titular de la cuenta. Si la empresa tiene otro representante legal, agregalo aqui; se guardara para el contrato y las proximas reservas."
+      />
 
       <div className="flex items-start gap-2 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2.5 text-[11px] text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />

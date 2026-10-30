@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { reservaBorradorDB } from "@/lib/client/indexed-db";
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
+import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
@@ -17,6 +18,7 @@ import { leerIdiomaCookie } from "@/lib/client/utils/idioma";
 import { ANEXOS_REQUERIDOS, ERROR_LOG_PASOS_RESERVA, ETAPAS_ENVIO_RESERVA, type ErrorLogPasoReserva, type EtapaEnvioReserva, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { datosContratoValidos } from "./interfaces";
 import type { DatosContratoForm, FormDatos, GessLinkedInfo } from "./interfaces";
+import { erroresRepresentantesAdicionales, representanteAdicionalDesdeDTO, representanteAdicionalPayload, type RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 
 /** Contrato generado en el paso de cuotas (se descarga y firma en el paso final). */
 export interface ContratoReserva {
@@ -95,7 +97,7 @@ function prefillEmpresa(prev: FormDatos, empresa: PerfilDTO["empresa"] | null | 
     direccion: prev.direccion || empresa.direccionFiscal || "",
     telefono: prev.telefono || telefono,
     contacto: prev.contacto || empresa.representanteLegalNombre || "",
-    email: prev.email || empresa.emailContacto || "",
+    email: prev.email || empresa.emailContacto || empresa.representanteCorreo || "",
     tipoComprobante: prev.tipoComprobante || (empresa.ruc ? TIPOS_COMPROBANTE.FACTURA : ""),
   };
 }
@@ -136,6 +138,8 @@ export function useReservaForm(
   const [firmaPerfilUrl, setFirmaPerfilUrl] = useState<string | null>(null);
   /** La firma digital se aplicara al generar el contrato definitivo al enviar. */
   const [firmaDigitalAplicada, setFirmaDigitalAplicada] = useState(false);
+  const [representantesAdicionales, setRepresentantesAdicionales] = useState<RepresentanteAdicionalForm[]>([]);
+  const [representantesEditados, setRepresentantesEditados] = useState(false);
 
   /** Cambiar modalidad invalida el contrato borrador y la firma previos. */
   const actualizarCuotas = useCallback((cuotas: CuotaConfig[]) => {
@@ -171,14 +175,15 @@ export function useReservaForm(
     partidaElectronica: contratoDatos.partidaElectronica,
   }), [contratoDatos, formDatos, representantePerfil]);
 
+  const adicionalesValidos = erroresRepresentantesAdicionales(representantesAdicionales).every((e) => Object.keys(e).length === 0);
   const stepDone = useCallback((step: number): boolean => {
     if (selectedCount === 0) return false;
-    if (step === 0) return isStepDatosCompleto(formDatos);
+    if (step === 0) return isStepDatosCompleto(formDatos) && adicionalesValidos;
     if (step === 1) return cuotasConfigValidas(cuotasConfig, configCuotas) && (sinContrato || datosContratoValidos(contratoEfectivo));
     if (step === 2) return anexosCompletos && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
     if (step === 3) return confirmado && aceptaRepresentante && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
     return false;
-  }, [selectedCount, formDatos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada, sinContrato]);
+  }, [selectedCount, formDatos, adicionalesValidos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada, sinContrato]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -199,6 +204,8 @@ export function useReservaForm(
         reservaBorradorDB.cargar(selectedIds),
       ]);
       setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
+      setRepresentantesAdicionales((perfil?.empresa?.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO));
+      setRepresentantesEditados(false);
       setRepresentantePerfil(perfil?.empresa?.representanteLegalNombre ?? "");
       const config = perfil?.empresa?.configCuotas ?? null;
       setConfigCuotas(config);
@@ -247,6 +254,7 @@ export function useReservaForm(
   // Persist on close without submit
   const handleOpenChange = (open: boolean) => {
     if (!open && !submitting) {
+      void guardarRepresentantes().catch(() => undefined);
       if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || Object.keys(docsRequisitos).length > 0) {
         reservaBorradorDB.guardar(selectedIds, formDatos, [], reservaStep, docsRequisitos);
       }
@@ -339,6 +347,30 @@ export function useReservaForm(
       .filter((id): id is string => typeof id === "string" && id.length > 0);
   }, [selectedIds, linkedMap]);
 
+  /** Cambios del editor de representantes: se persisten antes del contrato. */
+  const actualizarRepresentantes = useCallback((value: RepresentanteAdicionalForm[]) => {
+    setRepresentantesAdicionales(value);
+    setRepresentantesEditados(true);
+  }, []);
+
+
+  /** Persiste los representantes adicionales solo si el usuario los edito. */
+  const guardarRepresentantes = useCallback(async (): Promise<void> => {
+    if (!representantesEditados) return;
+    await portalEmpresaService.guardarRepresentantes(
+      representantesAdicionales.map(representanteAdicionalPayload),
+    );
+    setRepresentantesEditados(false);
+  }, [representantesAdicionales, representantesEditados]);
+  /** Sincroniza en segundo plano los representantes adicionales con la empresa. */
+  useEffect(() => {
+    if (!representantesEditados) return;
+    const timer = setTimeout(() => {
+      void guardarRepresentantes().catch(() => undefined);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [representantesAdicionales, representantesEditados, guardarRepresentantes]);
+
   /**
    * Paso 2 (cuotas): genera el contrato BORRADOR con la modalidad elegida.
    * No crea la solicitud: esta se crea recien al enviar (paso Confirmar).
@@ -354,6 +386,7 @@ export function useReservaForm(
     setGenerandoContrato(true);
     setSubmitError(null);
     try {
+      await guardarRepresentantes();
       const data = await contratosService.borrador({
         standIds,
         cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
@@ -375,7 +408,7 @@ export function useReservaForm(
     } finally {
       if (esRespuestaVigente(seq, key)) setGenerandoContrato(false);
     }
-  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey, selectedIds]);
+  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey, selectedIds, guardarRepresentantes]);
 
   /** Paso 4: sube el contrato firmado por el cliente (descargado y firmado manualmente). */
   const subirContratoFirmado = async (file: File) => {
@@ -426,6 +459,13 @@ export function useReservaForm(
       setSubmitError(msg);
       return msg;
     }
+    try {
+      await guardarRepresentantes();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudieron guardar los representantes adicionales.";
+      setSubmitError(msg);
+      return msg;
+    }
     setSubmitting(true);
     setSubmitStage(ETAPAS_ENVIO_RESERVA.CREANDO_SOLICITUD);
     setSubmitError(null);
@@ -447,7 +487,7 @@ export function useReservaForm(
        * firma desde Mis solicitudes. En un reintento no se regenera si el
        * archivo ya existe.
        */
-      if (!contratoYaTieneArchivo) {
+      if (!sinContrato && !contratoYaTieneArchivo) {
         pasoError = ERROR_LOG_PASOS_RESERVA.CUOTAS;
         setSubmitStage(ETAPAS_ENVIO_RESERVA.GENERANDO_CONTRATO);
         const generado = await contratosService.generar({
@@ -520,6 +560,8 @@ export function useReservaForm(
     setContrato(null);
     setContratoFirmadoUrl(null);
     setFirmaDigitalAplicada(false);
+    setRepresentantesAdicionales([]);
+    setRepresentantesEditados(false);
     setReservaOpen(false);
   };
 
@@ -557,5 +599,7 @@ export function useReservaForm(
     subirFirmaPerfil,
     firmarDigitalmente,
     firmaDigitalAplicada,
+    representantesAdicionales,
+    setRepresentantesAdicionales: actualizarRepresentantes,
   };
 }

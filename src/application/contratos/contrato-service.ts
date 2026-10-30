@@ -1,4 +1,4 @@
-﻿import 'server-only';
+import 'server-only';
 
 import fs from "node:fs";
 import os from "node:os";
@@ -21,7 +21,7 @@ import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -564,6 +564,13 @@ export class ContratoApplicationService {
     const representanteLegal = c?.representante?.trim() || empresa?.representanteLegalNombre || "-";
     const dniRepresentante = c?.representanteDni?.trim() || empresa?.representanteLegalDni || "-";
     const partidaElectronica = c?.partidaElectronica?.trim() || empresa?.partidaElectronica || "";
+    const representantesAdicionales = (empresa?.representantesAdicionales ?? []).map((rep) => ({
+      nombre: rep.nombre,
+      tipoDocumento: TIPOS_DOCUMENTO_PERSONA_LABELS[rep.tipoDocumento] ?? rep.tipoDocumento,
+      documento: rep.documento,
+      correo: rep.correo || "",
+      celular: rep.celular || "",
+    }));
 
     const data = {
       razon_social: razonSocial,
@@ -572,6 +579,7 @@ export class ContratoApplicationService {
       representante_legal: representanteLegal,
       dni_representante: dniRepresentante,
       partida_electronica: partidaElectronica,
+      representantes_adicionales: representantesAdicionales,
       objeto_social: textoObjetoSocial,
       actividad: textoActividad,
       modulos,

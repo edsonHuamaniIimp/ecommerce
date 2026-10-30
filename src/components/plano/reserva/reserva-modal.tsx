@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Button, Dialog, DialogContent, DialogFooter } from "@nrivera-iimp/ui-kit-iimp";
 import { ChevronRight, ChevronLeft, Building2, X, Loader2 } from "lucide-react";
@@ -13,6 +13,7 @@ import { StepConfirmacion } from "./step-confirmacion";
 import { StepPagos } from "./step-pagos";
 import { ReservaAuthForm } from "./reserva-auth-form";
 import type { DatosContratoForm, FormDatos } from "./interfaces";
+import type { RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 import type { CuotaConfig } from "./use-reserva-form";
 import { firmaReservaLista } from "./use-reserva-form";
 import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
@@ -31,6 +32,8 @@ interface Props {
   canGoStep: (s: number) => boolean;
   formDatos: FormDatos;
   onDatosChange: (update: Partial<FormDatos>) => void;
+  representantesAdicionales: RepresentanteAdicionalForm[];
+  onRepresentantesChange: (value: RepresentanteAdicionalForm[]) => void;
   /** Documentos del cliente por requisito (ANEXOS_REQUERIDOS): clave -> URL. */
   docsRequisitos: Record<string, string>;
   subiendoRequisito: string | null;
@@ -126,7 +129,7 @@ function encabezado(step: ReservaStep, sinContrato = true): string {
 export function ReservaModal(props: Props) {
   const {
     open, onOpenChange, holdExpiresAt, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
-    formDatos, onDatosChange, docsRequisitos, subiendoRequisito, submitting, submitStage, submitError,
+    formDatos, onDatosChange, representantesAdicionales, onRepresentantesChange, docsRequisitos, subiendoRequisito, submitting, submitStage, submitError,
     selectedCount, selectedLabels, selectedItems,
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
@@ -204,7 +207,7 @@ export function ReservaModal(props: Props) {
           ) : (
             <>
               {step === RESERVA_STEPS.DATOS && (
-                <StepDatos datos={formDatos} onChange={onDatosChange} selectedLabels={selectedLabels} />
+                <StepDatos datos={formDatos} onChange={onDatosChange} selectedLabels={selectedLabels} representantesAdicionales={representantesAdicionales} onRepresentantesChange={onRepresentantesChange} />
               )}
               {step === RESERVA_STEPS.CUOTAS && (
                 <StepPagos

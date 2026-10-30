@@ -886,6 +886,16 @@ export class EmpresaApplicationService {
     return this.obtener(estado.empresaId);
   }
 
+  /** Reemplaza los representantes adicionales de la empresa del usuario (wizard). */
+  async actualizarRepresentantesPortal(
+    email: string,
+    representantes: NonNullable<EmpresaInput["representantesAdicionales"]>,
+  ): Promise<EmpresaEntity> {
+    const empresa = await this.obtenerDatosPortal(email);
+    await this.repo.replaceRepresentantesAdicionales(empresa.id, representantes);
+    return this.obtener(empresa.id);
+  }
+
   /**
    * Valida/actualiza los datos contractuales de la empresa del usuario y marca el
    * primer acceso completado (el contrato usara estos datos). Devuelve tambien el
@@ -950,6 +960,9 @@ export class EmpresaApplicationService {
       pais: input.pais,
       sitioWeb: input.sitioWeb,
     });
+    if (input.representantesAdicionales !== undefined) {
+      await this.repo.replaceRepresentantesAdicionales(empresa.id, input.representantesAdicionales);
+    }
     /*
      * Usuario del sistema: las cuentas de la empresa reflejan lo basico del representante
      * (nombre visible y celular). La sincronizacion con servicio-persona la hace el admin.

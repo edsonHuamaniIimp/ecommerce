@@ -1,6 +1,7 @@
 import type {
   CrearEmpresaData,
   EmpresaEntity,
+  EmpresaRepresentanteAdicionalInput,
   EmpresasListParams,
   EmpresasPaginatedResult,
 } from "@/domain/models/empresa";
@@ -69,4 +70,9 @@ export interface IEmpresaRepository {
   findBySieCode(sieCode: string): Promise<EmpresaEntity | null>;
   create(data: CrearEmpresaData): Promise<EmpresaEntity>;
   update(id: string, data: ActualizarEmpresaData): Promise<EmpresaEntity>;
+  /** Reemplaza los representantes adicionales activos; los omitidos pasan a baja logica. */
+  replaceRepresentantesAdicionales(
+    empresaId: string,
+    representantes: EmpresaRepresentanteAdicionalInput[],
+  ): Promise<void>;
 }

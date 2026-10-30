@@ -1,3 +1,5 @@
+import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
+
 export interface CorreoNotificacionDisponible {
   email: string;
   label: string;
@@ -52,6 +54,8 @@ export interface PerfilResult {
     representanteDireccion: string | null;
     /** Partida electronica del representante (ficha: partidaElectronica). */
     representantePartida: string | null;
+    /** Representantes legales adicionales. */
+    representantesAdicionales: EmpresaRepresentanteAdicionalDTO[];
     /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
     configCuotas: { maxCuotas: number; fechas: string[] } | null;
   } | null;

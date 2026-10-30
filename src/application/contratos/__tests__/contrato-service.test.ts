@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import PizZip from "pizzip";
@@ -800,6 +800,47 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("incluye representantes adicionales en el contrato", async () => {
+    const { svc, storage, gess } = build({
+      empresa: {
+        representantesAdicionales: [
+          {
+            id: "rep-1",
+            nombre: "ANA PEREZ",
+            tipoDocumento: "1",
+            documento: "45871233",
+            correo: "ana@empresa.pe",
+            celular: "+51999888777",
+            direccion: "Av. Arequipa 1250",
+            orden: 0,
+          },
+        ],
+      } as never,
+    });
+    vi.mocked(gess.findById).mockResolvedValue({
+      id: "g1",
+      eventoId: "ev-1",
+      standApiId: "EXT-DER-03",
+      standCode: "EXT-DER-03",
+      tipoStand: "ESTANDAR_01",
+      medidas: null,
+      estado: "disponible",
+      empresa: null,
+      bloqueId: "EXT-DER-03",
+    } as never);
+
+    await svc.generarBorrador({
+      standIds: ["g1"],
+      cuotas: cuotasFijas(1),
+      email: "contacto@minera.pe",
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("ANA PEREZ");
+    expect(texto).toContain("identificado con DNI");
+    expect(texto).toContain("45871233");
+  });
   it("genera el borrador con 4 cuotas configuradas por la empresa (caso YURA)", async () => {
     const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];
     const { svc, storage, gess } = build({

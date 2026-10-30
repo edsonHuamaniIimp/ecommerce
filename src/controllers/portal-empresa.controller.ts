@@ -5,7 +5,7 @@ import { API_ERROR_CODES, SESION } from "@/lib/shared/constants";
 import { getSession, signToken } from "@/lib/server/auth";
 import { setTokenCookie } from "@/lib/server/utils/cookie";
 import { mapEmpresaToDTO } from "@/lib/shared/mappers/empresa";
-import { validarDatosEmpresaSchema } from "@/validators/empresas.validator";
+import { guardarRepresentantesAdicionalesSchema, validarDatosEmpresaSchema } from "@/validators/empresas.validator";
 import type { ValidarDatosEmpresaRequestDTO } from "@/types/dto/empresas";
 
 /** Endpoints del Portal del Cliente para la empresa del propio usuario. */
@@ -16,6 +16,18 @@ export const portalEmpresaController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
 
     const empresa = await services.empresas.obtenerDatosPortal(session.email);
+    return success(mapEmpresaToDTO(empresa));
+  },
+
+  /** Guarda solo los representantes adicionales (wizard de reserva). */
+  async guardarRepresentantes(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const parsed = guardarRepresentantesAdicionalesSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const empresa = await services.empresas.actualizarRepresentantesPortal(session.email, parsed.data.representantes);
     return success(mapEmpresaToDTO(empresa));
   },
 

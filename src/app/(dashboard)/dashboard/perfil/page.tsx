@@ -17,6 +17,8 @@ import { FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, MAESTRA_TABLAS, TIPO_
 import { PaisSelect } from "@/components/shared/pais-select";
 import { TelefonoInput } from "@/components/shared/telefono-input";
 import { erroresFormularioEmpresa, type EmpresaFormErrores, type EmpresaFormValidacionLike } from "@/lib/shared/utils/empresa-form-validacion";
+import { RepresentantesAdicionalesEditor } from "@/components/empresa/representantes-adicionales-editor";
+import { erroresRepresentantesAdicionales, representanteAdicionalDesdeDTO, representanteAdicionalPayload, type RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 import { camposAutocompletadosDni, camposAutocompletadosRuc, nombreCompletoDesdeDni } from "@/lib/shared/utils/autocompletado-empresa";
 import { resolverTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -60,6 +62,26 @@ function TelefonoEmpresa({
       <TelefonoInput {...props} error={error} resaltado={resaltado} autocompletado={autocompletado} />
       <CampoError error={error} resaltado={resaltado} />
     </>
+  );
+}
+function TipoDocumentoPersonaSelect({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id} className="h-9 text-xs"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {Object.entries(TIPOS_DOCUMENTO_PERSONA_LABELS).map(([valor, etiqueta]) => (
+          <SelectItem key={valor} value={valor}><span>{etiqueta}</span></SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 function PerfilPageContent() {
@@ -122,6 +144,7 @@ function PerfilPageContent() {
   const [inicioOperaciones, setInicioOperaciones] = useState("");
   const [savingEmpresa, setSavingEmpresa] = useState(false);
   const [confirmadoEmpresa, setConfirmadoEmpresa] = useState(false);
+  const [representantesAdicionales, setRepresentantesAdicionales] = useState<RepresentanteAdicionalForm[]>([]);
   const [resaltarPendientesEmpresa, setResaltarPendientesEmpresa] = useState(false);
 
   // Empresa
@@ -132,7 +155,7 @@ function PerfilPageContent() {
   const [empresaVinculada, setEmpresaVinculada] = useState(false);
   const [repNombre, setRepNombre] = useState("");
   const [repDni, setRepDni] = useState("");
-  const [repPartida, setRepPartida] = useState("");
+  const [partidaEmpresa, setPartidaEmpresa] = useState("");
   const [repDireccion, setRepDireccion] = useState("");
   const [repCorreo, setRepCorreo] = useState("");
   const [repCelular, setRepCelular] = useState("");
@@ -176,7 +199,7 @@ function PerfilPageContent() {
     actividadEconomica,
     estadoContribuyente,
     inicioOperaciones,
-    partidaElectronica: repPartida,
+    partidaElectronica: partidaEmpresa,
     emailContacto,
     emailFacturacion,
     direccionFiscal,
@@ -198,7 +221,8 @@ function PerfilPageContent() {
     responsablePagosEmail: pagosEmail,
   };
   const erroresEmpresa: EmpresaFormErrores = erroresFormularioEmpresa(datosValidacionEmpresa, { requerirTodos: true });
-  const pendientesEmpresa = Object.values(erroresEmpresa);
+  const erroresAdicionales = erroresRepresentantesAdicionales(representantesAdicionales);
+  const pendientesEmpresa = [...Object.values(erroresEmpresa), ...erroresAdicionales.flatMap((e) => Object.values(e))];
   const puedeGuardarEmpresa = pendientesEmpresa.length === 0 && confirmadoEmpresa;
   const marcarPendienteEmpresa = (campo: keyof EmpresaFormValidacionLike) =>
     resaltarPendientesEmpresa && Boolean(erroresEmpresa[campo]);
@@ -250,9 +274,10 @@ function PerfilPageContent() {
       setPagosEmail(perfilData.empresa?.responsablePagosEmail ?? "");
       setTipoComprobante(perfilData.empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA);
       setSitioWebEmpresa(perfilData.empresa?.sitioWeb ?? "");
+      setRepresentantesAdicionales((empresaPortal?.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO));
       setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
       setRepDni(perfilData.empresa?.representanteLegalDni ?? "");
-      setRepPartida(empresaPortal?.partidaElectronica ?? perfilData.empresa?.representantePartida ?? "");
+      setPartidaEmpresa(empresaPortal?.partidaElectronica ?? perfilData.empresa?.representantePartida ?? "");
       setRepTipoDocumento(empresaPortal?.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
       setExteminTipoDocumento(empresaPortal?.responsableExteminTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
       setPagosTipoDocumento(empresaPortal?.responsablePagosTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI);
@@ -281,7 +306,7 @@ function PerfilPageContent() {
       try {
         const r = await sunatService.consultarRuc(ruc);
         if (!vigente || !r.razonSocial) return;
-        setRazonSocialEmpresa((prev) => r.razonSocial || prev);
+        setRazonSocialEmpresa((prev) => (prev.trim() ? prev : (r.razonSocial || prev)));
         setNombreComercialEmpresa((prev) => (prev.trim() ? prev : (r.nombreComercial || r.razonSocial || prev)));
         setDireccionFiscal((prev) => r.direccion || prev);
         setActividadEconomica((prev) => r.actividadEconomica || prev);
@@ -429,9 +454,10 @@ function PerfilPageContent() {
         representanteCorreo: repCorreo.trim(),
         representanteCelular: repCelular.trim(),
         representanteDireccion: repDireccion.trim(),
-        partidaElectronica: repPartida.trim() || null,
+        partidaElectronica: partidaEmpresa.trim() || null,
         tipoComprobante,
         sitioWeb: sitioWebEmpresa.trim() || null,
+        representantesAdicionales: representantesAdicionales.map(representanteAdicionalPayload),
       });
       toast.success("Datos de la empresa actualizados");
       window.location.reload();
@@ -661,10 +687,6 @@ function PerfilPageContent() {
                 {empresaVinculada ? (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span> <span className="text-destructive">*</span></Label>
-                      <InputEmpresa id="empresaRazonSocial" error={errorVisibleEmpresa("razonSocial")} resaltado={marcarPendienteEmpresa("razonSocial")} autocompletado={estaAutocompletado("razonSocial")} maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
                       <Label htmlFor="empresaTipoDocumento"><span>Tipo de documento</span> <span className="text-destructive">*</span></Label>
                       <Select value={tipoDocumentoEmpresa} onValueChange={(v) => {
                         setTipoDocumentoEmpresa(v);
@@ -701,6 +723,14 @@ function PerfilPageContent() {
                         placeholder={tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC ? "20601234567" : "RUT o documento"}
                         className="font-mono text-xs"
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaPartida"><span>{esRucEmpresa ? "Partida electronica de la empresa" : "Partida electronica (opcional)"}</span>{esRucEmpresa && <span className="text-destructive"> *</span>}</Label>
+                      <InputEmpresa id="empresaPartida" error={errorVisibleEmpresa("partidaElectronica")} resaltado={marcarPendienteEmpresa("partidaElectronica")} placeholder="11014857" maxLength={50} value={partidaEmpresa} onChange={(e) => setPartidaEmpresa(e.target.value)} className="font-mono text-xs" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="empresaRazonSocial"><span>Razón social</span> <span className="text-destructive">*</span></Label>
+                      <InputEmpresa id="empresaRazonSocial" error={errorVisibleEmpresa("razonSocial")} resaltado={marcarPendienteEmpresa("razonSocial")} autocompletado={estaAutocompletado("razonSocial")} maxLength={200} value={razonSocialEmpresa} onChange={(e) => setRazonSocialEmpresa(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="empresaPais"><span>Pais</span> <span className="text-destructive">*</span></Label>
@@ -790,16 +820,20 @@ function PerfilPageContent() {
                       <p className="text-xs font-semibold text-foreground">Responsable de coordinación EXTEMIN</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
+                          <Label htmlFor="exteminTipoDocumento"><span>Tipo de documento</span> <span className="text-destructive">*</span></Label>
+                          <TipoDocumentoPersonaSelect id="exteminTipoDocumento" value={exteminTipoDocumento} onChange={setExteminTipoDocumento} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="exteminDni"><span>Numero de documento</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="exteminDni" error={errorVisibleEmpresa("responsableExteminDni")} resaltado={marcarPendienteEmpresa("responsableExteminDni")} autocompletado={estaAutocompletado("responsableExteminDni")} nota={exteminDniConsultando ? "Consultando RENIEC..." : exteminDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={exteminDni} onChange={(e) => { setExteminDniValidado(false); setExteminDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
                           <Label htmlFor="exteminNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>
                           <InputEmpresa autoComplete="off" id="exteminNombre" error={errorVisibleEmpresa("responsableExteminNombre")} resaltado={marcarPendienteEmpresa("responsableExteminNombre")} autocompletado={estaAutocompletado("responsableExteminNombre")} maxLength={200} value={exteminNombre} onChange={(e) => setExteminNombre(e.target.value)} className="text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="exteminTelefono"><span>Teléfono</span> <span className="text-destructive">*</span></Label>
                           <TelefonoEmpresa id="exteminTelefono" error={errorVisibleEmpresa("responsableExteminTelefono")} resaltado={marcarPendienteEmpresa("responsableExteminTelefono")} value={exteminTelefono} onChange={setExteminTelefono} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="exteminDni"><span>DNI</span> <span className="text-destructive">*</span></Label>
-                          <InputEmpresa autoComplete="off" id="exteminDni" error={errorVisibleEmpresa("responsableExteminDni")} resaltado={marcarPendienteEmpresa("responsableExteminDni")} autocompletado={estaAutocompletado("responsableExteminDni")} nota={exteminDniConsultando ? "Consultando RENIEC..." : exteminDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={exteminDni} onChange={(e) => { setExteminDniValidado(false); setExteminDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="exteminEmail"><span>Correo</span> <span className="text-destructive">*</span></Label>
@@ -812,16 +846,20 @@ function PerfilPageContent() {
                       <p className="text-xs font-semibold text-foreground">Responsable de pagos</p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
+                          <Label htmlFor="pagosTipoDocumento"><span>Tipo de documento</span> <span className="text-destructive">*</span></Label>
+                          <TipoDocumentoPersonaSelect id="pagosTipoDocumento" value={pagosTipoDocumento} onChange={setPagosTipoDocumento} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="pagosDni"><span>Numero de documento</span> <span className="text-destructive">*</span></Label>
+                          <InputEmpresa autoComplete="off" id="pagosDni" error={errorVisibleEmpresa("responsablePagosDni")} resaltado={marcarPendienteEmpresa("responsablePagosDni")} autocompletado={estaAutocompletado("responsablePagosDni")} nota={pagosDniConsultando ? "Consultando RENIEC..." : pagosDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={pagosDni} onChange={(e) => { setPagosDniValidado(false); setPagosDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
+                        </div>
+                        <div className="space-y-1.5">
                           <Label htmlFor="pagosNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>
                           <InputEmpresa autoComplete="off" id="pagosNombre" error={errorVisibleEmpresa("responsablePagosNombre")} resaltado={marcarPendienteEmpresa("responsablePagosNombre")} autocompletado={estaAutocompletado("responsablePagosNombre")} maxLength={200} value={pagosNombre} onChange={(e) => setPagosNombre(e.target.value)} className="text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="pagosTelefono"><span>Teléfono</span> <span className="text-destructive">*</span></Label>
                           <TelefonoEmpresa id="pagosTelefono" error={errorVisibleEmpresa("responsablePagosTelefono")} resaltado={marcarPendienteEmpresa("responsablePagosTelefono")} value={pagosTelefono} onChange={setPagosTelefono} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="pagosDni"><span>DNI</span> <span className="text-destructive">*</span></Label>
-                          <InputEmpresa autoComplete="off" id="pagosDni" error={errorVisibleEmpresa("responsablePagosDni")} resaltado={marcarPendienteEmpresa("responsablePagosDni")} autocompletado={estaAutocompletado("responsablePagosDni")} nota={pagosDniConsultando ? "Consultando RENIEC..." : pagosDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={pagosDni} onChange={(e) => { setPagosDniValidado(false); setPagosDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="pagosEmail"><span>Correo</span> <span className="text-destructive">*</span></Label>
@@ -902,10 +940,6 @@ function PerfilPageContent() {
                       <InputEmpresa autoComplete="off" id="repNombre" error={errorVisibleEmpresa("representanteLegalNombre")} resaltado={marcarPendienteEmpresa("representanteLegalNombre")} autocompletado={estaAutocompletado("representanteLegalNombre")} placeholder="Jorge Quispe Ramos" maxLength={200} value={repNombre} onChange={(e) => setRepNombre(e.target.value)} className="text-xs" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="repPartida"><span>{esRucEmpresa ? "Partida electronica" : "Partida electronica (opcional)"}</span>{esRucEmpresa && <span className="text-destructive"> *</span>}</Label>
-                      <InputEmpresa id="repPartida" error={errorVisibleEmpresa("partidaElectronica")} resaltado={marcarPendienteEmpresa("partidaElectronica")} placeholder="11014857" maxLength={50} value={repPartida} onChange={(e) => setRepPartida(e.target.value)} className="font-mono text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
                       <Label htmlFor="repDireccion"><span>Dirección</span> <span className="text-destructive">*</span></Label>
                       <InputEmpresa id="repDireccion" error={errorVisibleEmpresa("representanteDireccion")} resaltado={marcarPendienteEmpresa("representanteDireccion")} autocompletado={estaAutocompletado("representanteDireccion")} placeholder="Av. Arequipa 1250, Lince" maxLength={100} value={repDireccion} onChange={(e) => setRepDireccion(e.target.value)} className="text-xs" />
                     </div>
@@ -927,7 +961,25 @@ function PerfilPageContent() {
               </CardContent>
             </Card>
 
-            <div aria-live="polite" className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserRound className="h-4 w-4" />
+                  <span>Representantes adicionales</span>
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  El representante principal es el titular de la cuenta. Los adicionales se guardan para el contrato y futuras reservas.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <RepresentantesAdicionalesEditor
+                  value={representantesAdicionales}
+                  onChange={setRepresentantesAdicionales}
+                  errores={erroresAdicionales}
+                  ocultarEncabezado
+                />
+              </CardContent>
+            </Card><div aria-live="polite" className="space-y-3">
               {pendientesEmpresa.length > 0 ? (
                 <div className="rounded-xl border border-warning/40 bg-warning/5 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">

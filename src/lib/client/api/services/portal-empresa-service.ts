@@ -1,7 +1,7 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
-import type { EmpresaDTO, ValidarDatosEmpresaRequestDTO } from "@/types/dto/empresas";
+import type { EmpresaDTO, ValidarDatosEmpresaRequestDTO, ValidarRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
 /** Empresa del propio usuario (Portal del Cliente). */
 export const portalEmpresaService = {
@@ -11,5 +11,9 @@ export const portalEmpresaService = {
 
   validarDatos(body: ValidarDatosEmpresaRequestDTO) {
     return internalApi.post<EmpresaDTO>("/api/portal/empresa/validar", body);
+  },
+
+  guardarRepresentantes(representantes: ValidarRepresentanteAdicionalDTO[]) {
+    return internalApi.post<EmpresaDTO>("/api/portal/empresa/representantes", { representantes });
   },
 };

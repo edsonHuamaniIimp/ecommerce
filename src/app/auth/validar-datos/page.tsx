@@ -22,6 +22,8 @@ import {
 import { resolverTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { erroresFormularioEmpresa } from "@/lib/shared/utils/empresa-form-validacion";
+import { RepresentantesAdicionalesEditor } from "@/components/empresa/representantes-adicionales-editor";
+import { erroresRepresentantesAdicionales, representanteAdicionalDesdeDTO, representanteAdicionalPayload, type RepresentanteAdicionalForm } from "@/lib/shared/utils/representantes-adicionales";
 import type { EmpresaDTO } from "@/types/dto/empresas";
 
 interface FormState {
@@ -201,6 +203,7 @@ function ValidarDatosContent() {
   const [cargando, setCargando] = useState(true);
   const [empresa, setEmpresa] = useState<EmpresaDTO | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [representantesAdicionales, setRepresentantesAdicionales] = useState<RepresentanteAdicionalForm[]>([]);
   const [confirmado, setConfirmado] = useState(false);
   /** Al activarlo, los campos con error se resaltan para ubicarlos rápido. */
   const [resaltarPendientes, setResaltarPendientes] = useState(false);
@@ -251,6 +254,7 @@ function ValidarDatosContent() {
           tipoComprobante: datos.tipoComprobante,
           sitioWeb: datos.sitioWeb ?? "",
         });
+        setRepresentantesAdicionales((datos.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO));
         setRepCorreoRegistrable(!(datos.representanteCorreo ?? "").trim());
       } catch (e) {
         setError(e instanceof Error ? e.message : "No se pudieron cargar los datos de tu empresa");
@@ -280,7 +284,7 @@ function ValidarDatosContent() {
           const debeActualizarFacturar = !facturarActual || facturarActual === prev.razonSocial;
           return {
             ...prev,
-            razonSocial: r.razonSocial || prev.razonSocial,
+            razonSocial: prev.razonSocial.trim() ? prev.razonSocial : (r.razonSocial || prev.razonSocial),
             direccionFiscal: r.direccion || prev.direccionFiscal,
             actividadEconomica: r.actividadEconomica || prev.actividadEconomica,
             estadoContribuyente: [r.estado, r.condicion].filter(Boolean).join(" / ") || prev.estadoContribuyente,
@@ -359,13 +363,15 @@ function ValidarDatosContent() {
   const marcarPendiente = (campo: keyof FormState) =>
     resaltarPendientes && Boolean(erroresFormulario[campo]);
 
+  const erroresAdicionales = useMemo(() => erroresRepresentantesAdicionales(representantesAdicionales), [representantesAdicionales]);
+  const adicionalesCompletos = erroresAdicionales.every((e) => Object.keys(e).length === 0);
   /** Pendientes reales para habilitar Guardar, incluida la confirmacion final. */
   const pendientes = useMemo(() => {
-    const campos = Object.values(erroresFormulario);
+    const campos = [...Object.values(erroresFormulario), ...erroresAdicionales.flatMap((e) => Object.values(e))];
     return confirmado ? campos : [...campos, "Marca la confirmacion de que los datos son correctos."];
-  }, [erroresFormulario, confirmado]);
+  }, [erroresFormulario, erroresAdicionales, confirmado]);
 
-  const validar = (): boolean => (form ? Object.keys(erroresFormularioEmpresa(form)).length === 0 : false);
+  const validar = (): boolean => Boolean(form && Object.keys(erroresFormularioEmpresa(form)).length === 0 && adicionalesCompletos);
 
   const guardar = async () => {
     if (!form || !confirmado) return;
@@ -410,6 +416,7 @@ function ValidarDatosContent() {
         responsablePagosEmail: form.responsablePagosEmail.trim() || null,
         tipoComprobante: form.tipoComprobante,
         sitioWeb: form.sitioWeb.trim() || null,
+        representantesAdicionales: representantesAdicionales.map(representanteAdicionalPayload),
       });
       toast.success("Datos validados. Ya puedes continuar en el portal.");
       router.push("/dashboard");
@@ -487,9 +494,9 @@ function ValidarDatosContent() {
             descripcion="Representante legal que firma el contrato de alquiler."
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo contractual requerido label="Nombre" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" error={erroresVisibles.representanteLegalNombre} resaltado={marcarPendiente("representanteLegalNombre")} />
               <CampoTipoDocumento value={form.representanteLegalTipoDocumento} onChange={(v) => setCampo("representanteLegalTipoDocumento", v)} id="repTipoDocumento" />
               <Campo contractual requerido label="Numero de documento" valor={form.representanteLegalDni} onChange={(v) => setCampo("representanteLegalDni", form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.representanteLegalTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.representanteLegalDni} resaltado={marcarPendiente("representanteLegalDni")} />
+              <Campo contractual requerido label="Nombre" valor={form.representanteLegalNombre} onChange={(v) => setCampo("representanteLegalNombre", v)} placeholder="Jorge Quispe Ramos" error={erroresVisibles.representanteLegalNombre} resaltado={marcarPendiente("representanteLegalNombre")} />
               <Campo
                 contractual
                 requerido
@@ -504,36 +511,36 @@ function ValidarDatosContent() {
               />
               <Campo telefono contractual requerido label="Telefono" valor={form.representanteCelular} onChange={(v) => setCampo("representanteCelular", v)} placeholder="+51 987 654 321" error={erroresVisibles.representanteCelular} resaltado={marcarPendiente("representanteCelular")} />
               <Campo contractual requerido label="Direccion" valor={form.representanteDireccion} onChange={(v) => setCampo("representanteDireccion", v)} placeholder="Av. Arequipa 1250, Lince" error={erroresVisibles.representanteDireccion} resaltado={marcarPendiente("representanteDireccion")} />
-              <Campo
-                contractual
-                requerido={esRucEmpresa}
-                label={esRucEmpresa ? "Partida electronica" : "Partida electronica (opcional)"}
-                valor={form.partidaElectronica}
-                onChange={(v) => setCampo("partidaElectronica", v)}
-                placeholder="11014857"
-                mono
-                error={erroresVisibles.partidaElectronica}
-                resaltado={marcarPendiente("partidaElectronica")}
-              />
             </div>
           </SeccionFormulario>
 
+          <SeccionFormulario
+            titulo="Representantes legales adicionales"
+            descripcion="El representante principal es el titular de la cuenta y firma el contrato. Agrega aqui a los demas representantes que deben figurar en el documento."
+          >
+            <RepresentantesAdicionalesEditor
+              value={representantesAdicionales}
+              onChange={setRepresentantesAdicionales}
+              errores={erroresAdicionales}
+              ocultarEncabezado
+            />
+          </SeccionFormulario>
           <SeccionFormulario titulo="Responsable EXTEMIN">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo label="Nombre" valor={form.responsableExteminNombre} onChange={(v) => setCampo("responsableExteminNombre", v)} placeholder="Nombre completo" />
-              <Campo telefono label="Telefono" valor={form.responsableExteminTelefono} onChange={(v) => setCampo("responsableExteminTelefono", v)} placeholder="+51 987 654 321" />
               <CampoTipoDocumento value={form.responsableExteminTipoDocumento} onChange={(v) => setCampo("responsableExteminTipoDocumento", v)} id="exteminTipoDocumento" />
               <Campo label="Numero de documento" valor={form.responsableExteminDni} onChange={(v) => setCampo("responsableExteminDni", form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsableExteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.responsableExteminDni} resaltado={marcarPendiente("responsableExteminDni")} />
+              <Campo label="Nombre" valor={form.responsableExteminNombre} onChange={(v) => setCampo("responsableExteminNombre", v)} placeholder="Nombre completo" />
+              <Campo telefono label="Telefono" valor={form.responsableExteminTelefono} onChange={(v) => setCampo("responsableExteminTelefono", v)} placeholder="+51 987 654 321" />
               <Campo label="Email" valor={form.responsableExteminEmail} onChange={(v) => setCampo("responsableExteminEmail", v)} placeholder="extemin@empresa.pe" error={erroresVisibles.responsableExteminEmail} resaltado={marcarPendiente("responsableExteminEmail")} />
             </div>
           </SeccionFormulario>
 
           <SeccionFormulario titulo="Responsable de pagos">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo label="Nombre" valor={form.responsablePagosNombre} onChange={(v) => setCampo("responsablePagosNombre", v)} placeholder="Nombre completo" />
-              <Campo telefono label="Telefono" valor={form.responsablePagosTelefono} onChange={(v) => setCampo("responsablePagosTelefono", v)} placeholder="+51 987 654 321" />
               <CampoTipoDocumento value={form.responsablePagosTipoDocumento} onChange={(v) => setCampo("responsablePagosTipoDocumento", v)} id="pagosTipoDocumento" />
               <Campo label="Numero de documento" valor={form.responsablePagosDni} onChange={(v) => setCampo("responsablePagosDni", form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? v.replace(/\D/g, "").slice(0, 8) : v.replace(/[^0-9A-Za-z]/g, "").slice(0, 15))} placeholder={form.responsablePagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? "45871233" : "Numero de documento"} mono error={erroresVisibles.responsablePagosDni} resaltado={marcarPendiente("responsablePagosDni")} />
+              <Campo label="Nombre" valor={form.responsablePagosNombre} onChange={(v) => setCampo("responsablePagosNombre", v)} placeholder="Nombre completo" />
+              <Campo telefono label="Telefono" valor={form.responsablePagosTelefono} onChange={(v) => setCampo("responsablePagosTelefono", v)} placeholder="+51 987 654 321" />
               <Campo label="Email" valor={form.responsablePagosEmail} onChange={(v) => setCampo("responsablePagosEmail", v)} placeholder="pagos@empresa.pe" error={erroresVisibles.responsablePagosEmail} resaltado={marcarPendiente("responsablePagosEmail")} />
             </div>
           </SeccionFormulario>
@@ -577,6 +584,17 @@ function ValidarDatosContent() {
                 error={erroresVisibles.ruc}
                 resaltado={marcarPendiente("ruc")}
                 nota={sunatCargando ? "Consultando SUNAT..." : sunatValidado ? "Datos validados con SUNAT." : undefined}
+              />
+              <Campo
+                contractual
+                requerido={esRucEmpresa}
+                label={esRucEmpresa ? "Partida electronica de la empresa" : "Partida electronica (opcional)"}
+                valor={form.partidaElectronica}
+                onChange={(v) => setCampo("partidaElectronica", v)}
+                placeholder="11014857"
+                mono
+                error={erroresVisibles.partidaElectronica}
+                resaltado={marcarPendiente("partidaElectronica")}
               />
               <Campo contractual label="Facturar a nombre de" valor={form.facturarANombre} onChange={(v) => setCampo("facturarANombre", v)} placeholder={form.razonSocial || "Razon social"} />
                   <Campo contractual label="Domicilio fiscal (no sitio web)" valor={form.direccionFiscal} onChange={(v) => setCampo("direccionFiscal", v)} placeholder="Av. Los Ingenieros 245, Lima" />
@@ -674,7 +692,7 @@ function ValidarDatosContent() {
             <Button
               size="sm"
               className="rounded-full px-5 text-xs font-semibold"
-              disabled={guardando || !confirmado || !formularioCompleto}
+              disabled={guardando || !confirmado || !formularioCompleto || !adicionalesCompletos}
               onClick={guardar}
             >
               {guardando && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

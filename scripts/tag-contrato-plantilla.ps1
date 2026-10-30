@@ -169,4 +169,5 @@ if ($Destino -eq "plantillas\contrato-perumin38-tags.docx") {
   $raiz = Split-Path -Parent $PSScriptRoot
   & node (Join-Path $raiz "scripts\actualizar-contrato-cronograma.mjs")
   & node (Join-Path $raiz "scripts\aplicar-negritas-modalidades.mjs")
+  & node (Join-Path $raiz "scripts\agregar-representantes-contrato.mjs")
 }

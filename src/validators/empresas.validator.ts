@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, MAX_CUOTAS_PERSONALIZADAS, REGEX_EMAIL, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, IDIOMAS, MAX_CUOTAS_PERSONALIZADAS, MAX_REPRESENTANTES_ADICIONALES, REGEX_EMAIL, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
@@ -10,6 +10,27 @@ const emailOpcional = z
 
 const textoOpcional = z.string().trim().max(250).optional().nullable();
 
+/** Representante legal adicional (los datos del principal viven en Empresa). */
+const representanteAdicionalSchema = z.object({
+  id: z.string().optional(),
+  nombre: z.string().trim().min(2, "El nombre del representante es obligatorio").max(200),
+  tipoDocumento: z.enum([
+    TIPOS_DOCUMENTO_PERSONA.DNI,
+    TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+    TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+  ]).optional().nullable(),
+  documento: z.string().trim().min(1, "El documento del representante es obligatorio").max(15),
+  correo: emailOpcional,
+  celular: z.string().trim().max(35).optional().nullable(),
+  direccion: z.string().trim().max(100).optional().nullable(),
+}).refine((v) => {
+  const tipo = v.tipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI;
+  return validarDocumentoPersona(tipo, v.documento) === null;
+}, { message: "Documento del representante adicional invalido", path: ["documento"] });
+/** Reemplazo de representantes adicionales desde el wizard de reserva. */
+export const guardarRepresentantesAdicionalesSchema = z.object({
+  representantes: z.array(representanteAdicionalSchema).max(MAX_REPRESENTANTES_ADICIONALES, `Maximo ${MAX_REPRESENTANTES_ADICIONALES} representantes adicionales`),
+});
 /** Campos base del alta/edicion de empresa (documento RUC de 11 digitos o RUT alfanumerico hasta 20). */
 const empresaBaseSchema = z.object({
   ruc: z.string().trim().min(1, "El RUC/RUT es obligatorio").max(20),
@@ -141,12 +162,16 @@ export const importarCargaEmpresasSchema = z.object({
   filas: z.array(filaCargaEmpresaSchema).min(1, "filas requeridas"),
 });
 
+/** Datos adicionales que solo acepta el formulario del Portal (no el alta/edicion admin). */
+const validarDatosEmpresaExtrasSchema = z.object({
+  representantesAdicionales: z.array(representanteAdicionalSchema).max(MAX_REPRESENTANTES_ADICIONALES, `Maximo ${MAX_REPRESENTANTES_ADICIONALES} representantes adicionales`).optional(),
+});
 /**
  * Validacion del primer ingreso del Portal: exige los datos del representante legal que
  * usa el sistema (contrato + sincronizacion con servicio-persona): nombre, DNI valido,
  * correo (usuario del sistema), celular y direccion. La partida es opcional.
  */
-export const validarDatosEmpresaSchema = crearEmpresaSchema
+export const validarDatosEmpresaSchema = crearEmpresaSchema.and(validarDatosEmpresaExtrasSchema)
   .refine((v) => Boolean(v.representanteLegalNombre?.trim()), {
     message: "El nombre del representante legal es obligatorio",
     path: ["representanteLegalNombre"],

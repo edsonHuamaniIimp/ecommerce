@@ -2,13 +2,15 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import type { ActualizarEmpresaData, IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { EmpresaRepresentanteAdicionalInput } from "@/domain/models/empresa";
 import type {
   CrearEmpresaData,
   EmpresaEntity,
+  EmpresaRepresentanteAdicionalEntity,
   EmpresasListParams,
   EmpresasPaginatedResult,
 } from "@/domain/models/empresa";
-import { PAIS_DEFAULT, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
+import { PAIS_DEFAULT, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import type { EstadoEmpresa, TipoComprobante } from "@/lib/shared/constants";
 import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 
@@ -52,6 +54,7 @@ interface EmpresaRow {
   configCuotas: unknown | null;
   tipoComprobante: string;
   sitioWeb: string | null;
+  representantesAdicionales?: EmpresaRepresentanteAdicionalEntity[] | null;
   estado: string;
   cuentaCreada: boolean;
   /** Cuentas de acceso vinculadas (solo se incluye en el listado paginado). */
@@ -110,6 +113,16 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     configCuotas: (row.configCuotas as ConfigCuotasEmpresa | null) ?? null,
     tipoComprobante: row.tipoComprobante as TipoComprobante,
     sitioWeb: row.sitioWeb ?? null,
+    representantesAdicionales: (row.representantesAdicionales ?? []).map((rep) => ({
+      id: rep.id,
+      nombre: rep.nombre,
+      tipoDocumento: rep.tipoDocumento,
+      documento: rep.documento,
+      correo: rep.correo ?? null,
+      celular: rep.celular ?? null,
+      direccion: rep.direccion ?? null,
+      orden: rep.orden,
+    })),
     estado: row.estado as EstadoEmpresa,
     cuentaCreada: row.cuentaCreada ?? false,
     cuentaEmail: principalCuenta(row)?.email ?? null,
@@ -152,7 +165,10 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
   }
 
   async findById(id: string): Promise<EmpresaEntity | null> {
-    const row = await prisma.empresa.findUnique({ where: { id } });
+    const row = await prisma.empresa.findUnique({
+      where: { id },
+      include: { representantesAdicionales: { where: { flgActivo: true }, orderBy: { orden: "asc" } } },
+    });
     return row ? mapRow(row as EmpresaRow) : null;
   }
 
@@ -170,12 +186,18 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
   }
 
   async findByRuc(ruc: string): Promise<EmpresaEntity | null> {
-    const row = await prisma.empresa.findUnique({ where: { ruc } });
+    const row = await prisma.empresa.findUnique({
+      where: { ruc },
+      include: { representantesAdicionales: { where: { flgActivo: true }, orderBy: { orden: "asc" } } },
+    });
     return row ? mapRow(row as EmpresaRow) : null;
   }
 
   async findBySieCode(sieCode: string): Promise<EmpresaEntity | null> {
-    const row = await prisma.empresa.findFirst({ where: { sieCode } });
+    const row = await prisma.empresa.findFirst({
+      where: { sieCode },
+      include: { representantesAdicionales: { where: { flgActivo: true }, orderBy: { orden: "asc" } } },
+    });
     return row ? mapRow(row as EmpresaRow) : null;
   }
 
@@ -188,6 +210,44 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
     const row = await prisma.empresa.update({ where: { id }, data: data as never });
     return mapRow(row as EmpresaRow);
   }
-}
 
+  async replaceRepresentantesAdicionales(
+    empresaId: string,
+    representantes: EmpresaRepresentanteAdicionalInput[],
+  ): Promise<void> {
+    const ids = representantes.map((r) => r.id).filter((id): id is string => Boolean(id));
+    await prisma.$transaction(async (tx) => {
+      await tx.empresaRepresentanteAdicional.updateMany({
+        where: {
+          empresaId,
+          flgActivo: true,
+          ...(ids.length > 0 ? { id: { notIn: ids } } : {}),
+        },
+        data: { flgActivo: false },
+      });
+      let orden = 0;
+      for (const rep of representantes) {
+        const data = {
+          nombre: rep.nombre.trim(),
+          tipoDocumento: rep.tipoDocumento?.trim() || TIPOS_DOCUMENTO_PERSONA.DNI,
+          documento: rep.documento.trim(),
+          correo: rep.correo?.trim() || null,
+          celular: rep.celular?.trim() || null,
+          direccion: rep.direccion?.trim() || null,
+          orden,
+          flgActivo: true,
+        };
+        if (rep.id) {
+          await tx.empresaRepresentanteAdicional.updateMany({
+            where: { id: rep.id, empresaId },
+            data,
+          });
+        } else {
+          await tx.empresaRepresentanteAdicional.create({ data: { empresaId, ...data } });
+        }
+        orden += 1;
+      }
+    });
+  }
+}
 export const empresaRepo = new EmpresaPrismaRepository();

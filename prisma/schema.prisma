@@ -362,6 +362,7 @@ model Empresa {
 
   usuarios           UserRole[]
   debidasDiligencias DebidaDiligencia[]
+  representantesAdicionales EmpresaRepresentanteAdicional[]
 
   @@index([razonSocial])
   @@index([sieCode])
@@ -370,6 +371,33 @@ model Empresa {
   @@map("empresa")
 }
 
+/// Representante legal adicional de una empresa. El representante principal
+/// sigue viviendo en Empresa para no romper la cuenta de acceso ni el contrato.
+model EmpresaRepresentanteAdicional {
+  id                 String   @id @default(uuid())
+  empresaId          String   @map("empresa_id")
+  /// Nombre completo del representante adicional.
+  nombre             String   @db.VarChar(200)
+  /// Tipo de documento de persona (TIPOS_DOCUMENTO_PERSONA; default 1 = DNI).
+  tipoDocumento      String   @default("1") @map("tipo_documento") @db.VarChar(10)
+  /// Numero de documento del representante adicional.
+  documento          String   @db.VarChar(15)
+  correo             String?  @db.VarChar(200)
+  celular            String?  @db.VarChar(35)
+  direccion          String?  @db.VarChar(100)
+  /// Orden de presentacion en el contrato y en la UI.
+  orden              Int      @default(0)
+  /// Baja logica: los representantes retirados se conservan como historial.
+  flgActivo          Boolean  @default(true) @map("flg_activo")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, flgActivo])
+  @@map("empresa_representante_adicional")
+}
 model Stand {
   id           String  @id @default(uuid())
   eventoId     String  @map("evento_id")

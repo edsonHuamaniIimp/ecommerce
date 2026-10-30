@@ -86,6 +86,7 @@ class FakeEmpresaRepo implements IEmpresaRepository {
       configCuotas: data.configCuotas ?? null,
       tipoComprobante: data.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA,
       sitioWeb: data.sitioWeb ?? null,
+      representantesAdicionales: data.representantesAdicionales ?? [],
       estado: data.estado ?? ESTADOS_EMPRESA.ACTIVA,
       cuentaCreada: data.cuentaCreada ?? false,
       primerAccesoCompletado: data.primerAccesoCompletado ?? false,
@@ -138,6 +139,12 @@ class FakeEmpresaRepo implements IEmpresaRepository {
     const actualizada = { ...actual, ...data, updatedAt: new Date("2026-09-30T13:00:00Z") } as EmpresaEntity;
     this.items.set(id, actualizada);
     return actualizada;
+  }
+
+  async replaceRepresentantesAdicionales(empresaId: string, representantes: Parameters<IEmpresaRepository["replaceRepresentantesAdicionales"]>[1]): Promise<void> {
+    const actual = this.items.get(empresaId);
+    if (!actual) return;
+    this.items.set(empresaId, {...actual, representantesAdicionales: (representantes ?? []) as never });
   }
 }
 
@@ -1243,6 +1250,33 @@ describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
     expect(correoNuevo).toBeNull();
   });
 
+  it("validarDatosPortal guarda representantes adicionales", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera" });
+    const auth = fakeAuthRepo({ empresaPortal: { empresaId: creada.id, primerAccesoCompletado: false } });
+    const service = crearServicio(repo, auth);
+
+    const { empresa } = await service.validarDatosPortal("contacto@mineracordillera.pe", {
+      ruc: "20601234567",
+      razonSocial: "Minera Cordillera S.A.C.",
+      representanteLegalNombre: "Jorge Quispe Ramos",
+      representanteLegalDni: "45871233",
+      representanteCorreo: "jorge.quispe@mineracordillera.pe",
+      representanteCelular: "+51 987 654 321",
+      representanteDireccion: "Av. Arequipa 1250, Lince",
+      representantesAdicionales: [{
+        nombre: "Ana Quispe",
+        tipoDocumento: "1",
+        documento: "45871234",
+        correo: "ana@mineracordillera.pe",
+        celular: "+51 987 654 322",
+        direccion: "Av. Arequipa 1250, Lince",
+      }],
+    });
+
+    expect(empresa.representantesAdicionales).toHaveLength(1);
+    expect(empresa.representantesAdicionales?.[0]?.nombre).toBe("Ana Quispe");
+  });
   it("validarDatosPortal vincula la cuenta que valida como representante legal", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera" });

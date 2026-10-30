@@ -2,6 +2,16 @@
  * Datos que la empresa confirma/actualiza en su primer ingreso al Portal.
  * Los campos contractuales alimentan el contrato; la validacion marca el primer acceso.
  */
+/** Representante legal adicional enviado desde el Portal. */
+export interface ValidarRepresentanteAdicionalDTO {
+  id?: string;
+  nombre: string;
+  tipoDocumento?: string | null;
+  documento: string;
+  correo?: string | null;
+  celular?: string | null;
+  direccion?: string | null;
+}
 export interface ValidarDatosEmpresaRequestDTO {
   ruc: string;
   /** Tipo de documento de empresa (TIPOS_DOCUMENTO_EMPRESA). */
@@ -17,13 +27,14 @@ export interface ValidarDatosEmpresaRequestDTO {
   emailContacto?: string | null;
   emailFacturacion?: string | null;
   representanteLegalNombre?: string | null;
+  /** Partida electronica de poderes de la empresa (no del representante). */
+  partidaElectronica?: string | null;
   representanteLegalTipoDocumento?: string | null;
   representanteLegalDni?: string | null;
   /** Datos del representante legal (se guardan en la ficha local; el admin los sincroniza con servicio-persona). */
   representanteCorreo?: string | null;
   representanteCelular?: string | null;
   representanteDireccion?: string | null;
-  partidaElectronica?: string | null;
   /** Datos adicionales de la solicitud de participacion. */
   nombreFriso?: string | null;
   actividadEconomica?: string | null;
@@ -41,4 +52,10 @@ export interface ValidarDatosEmpresaRequestDTO {
   responsablePagosEmail?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
+  /** Representantes legales adicionales; el principal sigue en Empresa. */
+  representantesAdicionales?: ValidarRepresentanteAdicionalDTO[];
+}
+/** Reemplazo de representantes adicionales desde el wizard. */
+export interface GuardarRepresentantesAdicionalesRequestDTO {
+  representantes: ValidarRepresentanteAdicionalDTO[];
 }

@@ -415,6 +415,16 @@ export class AuthApplicationService {
       representanteCelular: ficha.representanteCelular,
       representanteDireccion: ficha.representanteDireccion,
       representantePartida: ficha.partidaElectronica,
+      representantesAdicionales: (ficha.representantesAdicionales ?? []).map((rep) => ({
+        id: rep.id,
+        nombre: rep.nombre,
+        tipoDocumento: rep.tipoDocumento,
+        documento: rep.documento,
+        correo: rep.correo,
+        celular: rep.celular,
+        direccion: rep.direccion,
+        orden: rep.orden,
+      })),
       configCuotas: ficha.configCuotas,
     } : null;
     const representanteIncompleto = Boolean(

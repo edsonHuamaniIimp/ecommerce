@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
-import { actualizarEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
+import { actualizarEmpresaSchema, crearEmpresaSchema, guardarRepresentantesAdicionalesSchema, validarDatosEmpresaSchema } from "../empresas.validator";
 
 describe("crearEmpresaSchema (documento RUC o RUT)", () => {
   it("acepta un RUC de 11 digitos (autodetectado)", () => {

@@ -6,6 +6,30 @@ import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
  * Los campos contractuales (razon social, RUC, direccion, representante legal)
  * alimentan el contrato de alquiler de stands.
  */
+/** Representante legal adicional: el principal sigue en los campos de Empresa. */
+export interface EmpresaRepresentanteAdicionalEntity {
+  id: string;
+  nombre: string;
+  tipoDocumento: string;
+  documento: string;
+  correo: string | null;
+  celular: string | null;
+  direccion: string | null;
+  orden: number;
+}
+
+/** Datos editables de un representante adicional. */
+export interface EmpresaRepresentanteAdicionalInput {
+  id?: string;
+  nombre: string;
+  tipoDocumento?: string | null;
+  documento: string;
+  correo?: string | null;
+  celular?: string | null;
+  direccion?: string | null;
+}
+
+export type EmpresaRepresentanteAdicional = EmpresaRepresentanteAdicionalEntity;
 export interface EmpresaEntity {
   id: string;
   /** Documento de la empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
@@ -52,7 +76,10 @@ export interface EmpresaEntity {
   responsablePagosTipoDocumento?: string | null;
   responsablePagosDni?: string | null;
   responsablePagosEmail?: string | null;
+  /** Partida electronica de inscripcion de poderes de la empresa. */
   partidaElectronica: string | null;
+  /** Representantes adicionales; el principal sigue en los campos representanteLegal*. */
+  representantesAdicionales?: EmpresaRepresentanteAdicionalEntity[];
   /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
   configCuotas: ConfigCuotasEmpresa | null;
   tipoComprobante: TipoComprobante;
@@ -90,7 +117,6 @@ export interface EmpresaInput {
   representanteLegalNombre?: string | null;
   representanteLegalTipoDocumento?: string | null;
   representanteLegalDni?: string | null;
-  partidaElectronica?: string | null;
   /** Correo y celular del representante (se persisten y se usan para su cuenta). */
   representanteCorreo?: string | null;
   representanteCelular?: string | null;
@@ -113,10 +139,13 @@ export interface EmpresaInput {
   responsablePagosTipoDocumento?: string | null;
   responsablePagosDni?: string | null;
   responsablePagosEmail?: string | null;
+  /** Partida electronica de inscripcion de poderes de la empresa. */
+  partidaElectronica?: string | null;
   /** Foto del representante (URL local /uploads o http) para subirla a servicio-persona. */
   representanteFotoUrl?: string | null;
   tipoComprobante?: string | null;
   sitioWeb?: string | null;
+  representantesAdicionales?: EmpresaRepresentanteAdicionalInput[];
 }
 
 /** Datos normalizados que persiste el repositorio al crear. */
@@ -146,6 +175,8 @@ export interface CrearEmpresaData {
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
   representanteUserId?: string | null;
+  /** Partida electronica de inscripcion de poderes de la empresa. */
+  partidaElectronica: string | null;
   /** Datos adicionales de la solicitud de participacion. */
   nombreFriso?: string | null;
   actividadEconomica?: string | null;
@@ -162,7 +193,6 @@ export interface CrearEmpresaData {
   responsablePagosDni?: string | null;
   responsablePagosEmail?: string | null;
   /** Partida electronica de poderes del representante (si aplica). */
-  partidaElectronica: string | null;
   tipoComprobante: TipoComprobante;
   sitioWeb: string | null;
   creadoPor: string | null;

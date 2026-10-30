@@ -173,15 +173,24 @@ export function SolicitudReview({
     }
   };
 
-  /** Habilita la firma del contrato sin generar ni alterar el flujo. */
+  /** Genera el contrato desde la plantilla (si aun no existe) y habilita la firma. */
   const habilitarContrato = async () => {
     setHabilitandoContrato(true);
     try {
+      const contratoExistente = row.docsAdjuntos.some(
+        (doc) => doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
+          (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+      );
+      if (!contratoExistente) {
+        await contratosService.generar({ solicitudId: row.id });
+      }
       await solicitudesService.habilitarContrato({ solicitudId: row.id });
-      toast.success("Contrato habilitado para la firma del cliente");
+      toast.success(contratoExistente
+        ? "Contrato habilitado para la firma del cliente"
+        : "Contrato generado y habilitado para la firma del cliente");
       onSaved(row);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo habilitar el contrato");
+      toast.error(err instanceof Error ? err.message : "No se pudo generar/habilitar el contrato");
     } finally {
       setHabilitandoContrato(false);
     }

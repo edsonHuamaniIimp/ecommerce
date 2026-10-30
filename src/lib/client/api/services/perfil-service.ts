@@ -1,6 +1,7 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
+import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
 interface PerfilDTO {
   email?: string;
@@ -43,6 +44,8 @@ interface PerfilDTO {
     representanteDireccion: string | null;
     /** Partida electronica del representante (ficha: partidaElectronica). */
     representantePartida: string | null;
+    /** Representantes adicionales (el principal sigue en representanteLegalNombre). */
+    representantesAdicionales?: EmpresaRepresentanteAdicionalDTO[];
     /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
     configCuotas: { maxCuotas: number; fechas: string[] } | null;
   } | null;
