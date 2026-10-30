@@ -249,7 +249,7 @@ export function MapaPabellonesReporte({ data, paises, eventoId, tipoEvento, codi
       </CardHeader>
 
       <CardContent className="space-y-4 pt-4">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.75fr)_minmax(0,1.85fr)]">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Vista general</p>

@@ -85,7 +85,19 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
       .filter((bloque) => bloque.flgActivo !== false)
       .map((bloque) => {
         const tipo = dims.get(bloque.tipoCodigo);
-        return { ...bloque, w: tipo?.w ?? 2, d: tipo?.d ?? 2 };
+        const w = tipo?.w ?? 2;
+        const d = tipo?.d ?? 2;
+        const rot = bloque.rotY ?? 0;
+        const cos = Math.abs(Math.cos(rot));
+        const sin = Math.abs(Math.sin(rot));
+        return {
+          ...bloque,
+          w,
+          d,
+          rot,
+          halfW: (w * cos + d * sin) / 2,
+          halfD: (w * sin + d * cos) / 2,
+        };
       });
     if (items.length === 0) return null;
     let minX = Infinity;
@@ -93,10 +105,10 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
     let minY = Infinity;
     let maxY = -Infinity;
     for (const item of items) {
-      minX = Math.min(minX, item.x - item.w / 2);
-      maxX = Math.max(maxX, item.x + item.w / 2);
-      minY = Math.min(minY, item.z - item.d / 2);
-      maxY = Math.max(maxY, item.z + item.d / 2);
+      minX = Math.min(minX, item.x - item.halfW);
+      maxX = Math.max(maxX, item.x + item.halfW);
+      minY = Math.min(minY, item.z - item.halfD);
+      maxY = Math.max(maxY, item.z + item.halfD);
     }
     const margen = Math.max(maxX - minX, maxY - minY) * 0.04;
     return { items, minX: minX - margen, maxX: maxX + margen, minY: minY - margen, maxY: maxY + margen };
@@ -143,7 +155,7 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
       </CardHeader>
       <CardContent className="space-y-3 pt-4">
         <div className="overflow-hidden rounded-lg border border-border bg-slate-50 p-2">
-          <svg viewBox={viewBox} className="h-auto max-h-[560px] w-full" role="img" aria-label={`Mapa 2D de ${plano.nombre}`}>
+          <svg viewBox={viewBox} className="h-auto max-h-[680px] w-full" role="img" aria-label={`Mapa 2D de ${plano.nombre}`}>
             <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="#f8fafc" />
             {items.map((item) => {
               const fila = metricasPorBloque.get(item.bloqueId);
@@ -159,7 +171,7 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
               return (
                 <g
                   key={item.bloqueId}
-                  transform={`rotate(${item.rotY ?? 0} ${item.x} ${item.z})`}
+                  transform={`rotate(${(item.rot * 180) / Math.PI} ${item.x} ${item.z})`}
                   onMouseEnter={() => setHover(fila ?? null)}
                   onMouseLeave={() => setHover(null)}
                   className="cursor-pointer"
@@ -175,16 +187,18 @@ export function MapaPabellon2D({ plano, bloques, metrica, modo, paisSeleccionado
                     strokeWidth={Math.max(0.08, Math.max(maxX - minX, maxY - minY) * 0.002)}
                   />
                   {mostrarBandera && pais ? (
-                    <svg
-                      x={item.x - Math.min(item.w, item.d) * 0.3}
-                      y={item.z - Math.min(item.w, item.d) * 0.2}
-                      width={Math.min(item.w, item.d) * 0.6}
-                      height={Math.min(item.w, item.d) * 0.4}
-                      viewBox="0 0 3 2"
-                      pointerEvents="none"
-                    >
-                      <BanderaSvg codigo={pais} titulo={nombrePais(pais)} className="h-full w-full" />
-                    </svg>
+                    <g transform={`rotate(${-(item.rot * 180) / Math.PI} ${item.x} ${item.z})`}>
+                      <svg
+                        x={item.x - Math.min(item.w, item.d) * 0.3}
+                        y={item.z - Math.min(item.w, item.d) * 0.2}
+                        width={Math.min(item.w, item.d) * 0.6}
+                        height={Math.min(item.w, item.d) * 0.4}
+                        viewBox="0 0 3 2"
+                        pointerEvents="none"
+                      >
+                        <BanderaSvg codigo={pais} titulo={nombrePais(pais)} className="h-full w-full" />
+                      </svg>
+                    </g>
                   ) : null}
                   <title>{`${item.bloqueId}: ${fila ? `${numero(valor)} ${metrica}` : "Sin datos"}`}</title>
                 </g>
