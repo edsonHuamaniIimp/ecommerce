@@ -13,6 +13,7 @@ import type {
 } from "@/domain/models/sgc";
 import { SgcApiError } from "@/domain/models/sgc";
 import {
+  ANEXOS_REQUERIDOS,
   SGC_APPROVAL_RESULT,
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
@@ -21,6 +22,7 @@ import {
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_RECONCILIAR_MAX_POR_CORRIDA,
   SGC_SUBSANACION_MOTIVO,
+  SGC_TITULOS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
   CATEGORIAS_DOCUMENTO,
   ESTADOS_DOCUMENTO_SOLICITUD,
@@ -377,6 +379,8 @@ export class SgcIntegracionApplicationService {
       category: SgcDocumentCategory;
       title: string;
       url: string;
+      /** Nombre fisico legible; si falta, se usa el nombre del archivo de origen. */
+      fileName?: string;
       documentId?: string | null;
       replacementReason?: string;
     },
@@ -386,7 +390,7 @@ export class SgcIntegracionApplicationService {
     return this.subirPiezaDocumental(solicitudId, {
       category: params.category,
       title: params.title,
-      fileName: contenido.fileName,
+      fileName: params.fileName ?? contenido.fileName,
       mimeType: contenido.mimeType,
       bytes: contenido.bytes,
       documentId: params.documentId,
@@ -462,7 +466,7 @@ export class SgcIntegracionApplicationService {
             currentVersionId: existente.currentVersionId,
             category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
             title: existente.title,
-            fileName: existente.title,
+            fileName: existente.currentFileName ?? existente.title,
             checksumSha256: null,
             sizeBytes: null,
             estado: SGC_DOCUMENTO_ESTADO.CONFIRMADO,
@@ -473,9 +477,11 @@ export class SgcIntegracionApplicationService {
       }
     }
 
+    const stands = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
     return this.subirDocumentoDesdeUrl(solicitudId, {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
-      title: contrato.nombre,
+      title: SGC_TITULOS_DOCUMENTO.CONTRATO,
+      fileName: `contrato-${this.slugArchivo(stands)}.pdf`,
       url: contrato.url,
     });
   }
@@ -529,9 +535,11 @@ export class SgcIntegracionApplicationService {
     const contratoSgc = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
     if (!contratoSgc) return null;
 
+    const stands = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
     const documento = await this.subirDocumentoDesdeUrl(solicitudId, {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
-      title: pieza.nombre,
+      title: SGC_TITULOS_DOCUMENTO.CONTRATO_FIRMADO,
+      fileName: `contrato-firmado-${this.slugArchivo(stands)}.pdf`,
       url: pieza.url,
       documentId: contratoSgc.documentId,
       replacementReason: SGC_SUBSANACION_MOTIVO,
@@ -581,18 +589,22 @@ export class SgcIntegracionApplicationService {
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos
         .filter((d) => this.documentoVigente(d) && d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
-        .map((d) => ({ url: d.url, nombre: d.nombre })),
+        .map((d) => ({ url: d.url, nombre: d.nombre, requisito: d.requisito })),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
 
-    // Idempotencia: no reenviar anexos que ya esten en el SGC (por titulo/nombre).
+    /* Idempotencia: no reenviar anexos que ya esten en el SGC. Se compara el nombre fisico
+     * (`currentFileName`, que fijamos nosotros) y, por compatibilidad con cargas previas, el
+     * nombre local del archivo (eran los titulos antiguos). */
     const titulosEnSgc = new Set<string>();
+    const nombresEnSgc = new Set<string>();
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (expediente?.contractId) {
       try {
         const actual = await this.client.consultarExpediente(expediente.contractId);
         for (const d of actual.documents.filter((x) => x.category === SGC_DOCUMENT_CATEGORIES.ANNEX)) {
           titulosEnSgc.add(d.title);
+          if (d.currentFileName) nombresEnSgc.add(d.currentFileName);
         }
       } catch {
         /* Si la consulta falla, se intenta la subida igual. */
@@ -603,18 +615,27 @@ export class SgcIntegracionApplicationService {
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
       const clave = doc.nombre || doc.url;
+      /* Titulo legible por requisito (Ficha RUC, Vigencia de Poder, DNI...). El nombre fisico
+       * lleva un hash corto de la URL: la misma pieza produce el mismo nombre (no duplica) y un
+       * archivo reemplazado produce uno nuevo (se reenvia como version). */
+      const titulo = ANEXOS_REQUERIDOS.find((a) => a.key === doc.requisito)?.label ?? doc.nombre;
+      const fileName = doc.requisito
+        ? `${this.slugArchivo(doc.requisito)}-${(await sha256Hex(new TextEncoder().encode(doc.url))).slice(0, 6)}.${this.extensionArchivo(doc.nombre)}`
+        : doc.nombre;
       if (
         vistos.has(clave) ||
         doc.url === contratoUrl ||
         clave === contratoClave ||
-        titulosEnSgc.has(doc.nombre)
+        titulosEnSgc.has(doc.nombre) ||
+        nombresEnSgc.has(fileName)
       ) {
         continue;
       }
       vistos.add(clave);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
-        title: doc.nombre,
+        title: titulo,
+        fileName,
         url: doc.url,
       });
       if (subido) resultados.push(subido);
@@ -635,6 +656,24 @@ export class SgcIntegracionApplicationService {
     return [...docs]
       .filter(predicate)
       .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  }
+
+  /** Slug seguro para nombres de archivo enviados al SGC. */
+  private slugArchivo(texto: string): string {
+    const base = texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60);
+    return base || "documento";
+  }
+
+  /** Extension del archivo (sin punto; pdf por defecto). */
+  private extensionArchivo(nombre: string): string {
+    const ext = (nombre.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return ext && ext !== nombre.toLowerCase() ? ext : "pdf";
   }
 
   /**

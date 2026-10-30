@@ -93,6 +93,8 @@ export function mimeDesdeNombre(nombre: string): string {
 export interface DocumentoUrl {
   url: string;
   nombre: string;
+  /** Requisito del anexo (clave de ANEXOS_REQUERIDOS) para derivar el titulo legible. */
+  requisito?: string | null;
 }
 
 /**

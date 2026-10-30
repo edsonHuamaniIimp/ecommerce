@@ -714,6 +714,13 @@ export const ESTADOS_CUOTA = {
   VENCIDO: "vencido",
 } as const;
 
+/** Etiquetas de los estados de una cuota para la UI. */
+export const ESTADO_CUOTA_LABELS: Record<string, string> = {
+  [ESTADOS_CUOTA.PENDIENTE]: "Pendiente",
+  [ESTADOS_CUOTA.PAGADO]: "Pagado",
+  [ESTADOS_CUOTA.VENCIDO]: "Vencido",
+};
+
 export const REVISION_STEPS = {
   ASOCIADO: 0,
   LEGAL: 1,
@@ -1034,6 +1041,10 @@ export const MAX_CUOTAS_PAGO = 3;
 
 /** Maximo de cuotas para un cronograma personalizado por empresa (limite del IIMP). */
 export const MAX_CUOTAS_PERSONALIZADAS = 9;
+
+/** Maximo de representantes legales adicionales por empresa. */
+export const MAX_REPRESENTANTES_ADICIONALES = 5;
+
 
 /** Tolerancia al validar que los porcentajes de las cuotas suman 100%. */
 export const CUOTAS_SUMA_TOLERANCIA = 0.01;
@@ -2760,6 +2771,12 @@ export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
  * vacio junto con `documentId: null` incluso para la carga inicial de un documento.
  */
 export const SGC_MOTIVO_CARGA_INICIAL = "Carga inicial desde ContratosStands";
+
+/** Titulos legibles de las piezas documentales que se envian al SGC (panel del expediente). */
+export const SGC_TITULOS_DOCUMENTO = {
+  CONTRATO: "Contrato de separación de stand v1",
+  CONTRATO_FIRMADO: "Contrato de separación de stand (firmado)",
+} as const;
 
 /** Tipos de documento adjunto de una solicitud (clasifica contrato vs anexo). */
 export const TIPOS_DOCUMENTO_SOLICITUD = {

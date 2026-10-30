@@ -16,6 +16,7 @@ import {
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
   SGC_MOTIVO_CARGA_INICIAL,
+  SGC_TITULOS_DOCUMENTO,
 } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 const CONFIG: SgcIntegracionConfig = {
@@ -421,6 +422,37 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX }),
     );
   });
+
+  it("envia titulo legible y fileName del requisito (no el nombre random)", async () => {
+    const client = clientMock();
+    const url = "/uploads/1792421435025_jwc6v4.pdf";
+    const hash = (await sha256Hex(new TextEncoder().encode(url))).slice(0, 6);
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        {
+          id: "d1",
+          url,
+          nombre: "1792421435025_jwc6v4.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: "vigencia-poder",
+          createdAt: new Date(),
+        },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)",
+        fileName: `vigencia-poder-${hash}.pdf`,
+      }),
+    );
+  });
   it("no repite como anexo un documento con el mismo nombre que el contrato", async () => {
     const client = clientMock();
     const row = detalle({
@@ -586,14 +618,43 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
       ],
     });
     const svc = build(sgcRepoMock(), client, origen, solicitudRepoMock(row));
-    const doc = await svc.subirContratoDeSolicitud("sol-1");
+    await svc.subirContratoDeSolicitud("sol-1");
     expect(origen.leer).toHaveBeenCalledWith("/uploads/contrato.pdf");
     expect(client.reservarSubida).toHaveBeenCalledWith(
       "contract-1",
       expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.CONTRACT }),
     );
-    expect(doc).not.toBeNull();
   });
+
+  it("envia titulo y nombre de archivo legibles del contrato", async () => {
+    const client = clientMock();
+    const row = detalle({
+      documentos: [],
+      docsAdjuntos: [
+        {
+          id: "c1",
+          url: "/uploads/contrato-E-45E-44-1793033114782.pdf",
+          nombre: "contrato-E-45E-44-1793033114782.pdf",
+          userId: null,
+          uploadedBy: "sistema",
+          categoria: "contrato",
+          requisito: null,
+          createdAt: new Date(),
+        },
+      ],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+    await svc.subirContratoDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+        title: SGC_TITULOS_DOCUMENTO.CONTRATO,
+        fileName: expect.stringMatching(/^contrato-.*\.pdf$/),
+      }),
+    );
+  });
+
   it("prefiere el contrato firmado del cliente como contrato para el SGC", async () => {
     const client = clientMock();
     const origen = documentoOrigenMock();

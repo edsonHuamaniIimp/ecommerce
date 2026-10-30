@@ -200,6 +200,8 @@ export interface SgcDocumentoResumen {
   category: string;
   title: string;
   currentVersionId: string | null;
+  /** Nombre fisico del archivo en el SGC (lo fijamos nosotros via `fileName`). */
+  currentFileName?: string | null;
 }
 
 /** Detalle completo del expediente — GET /contracts/{contractId} */
@@ -246,6 +248,8 @@ export interface SgcDocumentoDetalle {
   category: string;
   title: string;
   currentVersionId: string | null;
+  /** Nombre fisico del archivo en el SGC (lo fijamos nosotros via `fileName`). */
+  currentFileName?: string | null;
   versions: SgcVersion[];
 }
 
