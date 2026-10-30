@@ -1,7 +1,7 @@
-import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
+﻿import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
-import type { EmpresaPaisReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { EmpresaPaisReporte, MapaPabellonesReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
 
 export class ReportesSolicitudesApplicationService {
   constructor(private readonly repo: IReportesSolicitudesRepository) {}
@@ -27,4 +27,13 @@ export class ReportesSolicitudesApplicationService {
     this.autorizar(permissions);
     return this.repo.empresasPorPais(params);
   }
+
+  async mapaPabellones(
+    params: { eventoId?: string; incluirInactivas?: boolean },
+    permissions: string[],
+  ): Promise<MapaPabellonesReporte> {
+    this.autorizar(permissions);
+    return this.repo.mapaPabellones(params);
+  }
 }
+

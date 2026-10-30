@@ -6,16 +6,15 @@ import { Building2, CircleAlert, ClipboardList, FileSpreadsheet, Globe2, Loader2
 import { toast } from "sonner";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { MapaMundialPaises } from "@/components/reportes/mapa-mundial-paises";
+import { MapaPabellonesReporte } from "@/components/reportes/mapa-pabellones-reporte";
 import { useSesion } from "@/hooks/use-sesion";
 import { useConfirm } from "@/hooks/use-confirm";
 import { internalApi } from "@/lib/client/api/services/internal-api";
-import { PERMISSIONS, TIPOS_DOCUMENTO_EMPRESA_LABELS } from "@/lib/shared/constants";
+import { PERMISSIONS, REPORTES_ALCANCES, REPORTES_VISTAS, TIPOS_DOCUMENTO_EMPRESA_LABELS, type ReporteAlcance, type ReporteVista } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { exportarTablaExcel, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import type { EmpresaPaisReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
-
-type Alcance = "activas" | "todas";
+import type { EmpresaPaisReporteDTO, MapaPabellonesReporteDTO as MapaPabellonesData, ResumenPaisSolicitudesDTO } from "@/types/dto/reportes";
 
 interface ResultadoPais {
   id: string;
@@ -36,8 +35,10 @@ interface RespuestaSyncPaises {
 
 export default function ReportesSolicitudesPage() {
   const { session, cargando } = useSesion();
-  const [data, setData] = useState<ResumenPaisSolicitudes[]>([]);
-  const [alcance, setAlcance] = useState<Alcance>("activas");
+  const [data, setData] = useState<ResumenPaisSolicitudesDTO[]>([]);
+  const [mapaPabellones, setMapaPabellones] = useState<MapaPabellonesData>({ pabellones: [], bloques: [] });
+  const [alcance, setAlcance] = useState<ReporteAlcance>(REPORTES_ALCANCES.ACTIVAS);
+  const [vista, setVista] = useState<ReporteVista>(REPORTES_VISTAS.PAISES);
   const [loading, setLoading] = useState(true);
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -46,18 +47,29 @@ export default function ReportesSolicitudesPage() {
   const { confirm, confirmDialog } = useConfirm();
 
   const cargar = useCallback(
-    async (valor: Alcance) => {
+    async (valor: ReporteAlcance, eventoId?: string) => {
       setLoading(true);
       try {
         const qs = new URLSearchParams();
-        if (valor === "todas") qs.set("incluirInactivas", "1");
-        const response = await internalApi.get<{ data: ResumenPaisSolicitudes[] }>(
-          `/api/reportes/solicitudes-por-pais?${qs.toString()}`,
-        );
+        if (valor === REPORTES_ALCANCES.TODAS) qs.set("incluirInactivas", "1");
+        const mapaQs = new URLSearchParams(qs);
+        if (eventoId) mapaQs.set("eventoId", eventoId);
+        const [response, mapaResponse] = await Promise.all([
+          internalApi.get<{ data: ResumenPaisSolicitudesDTO[] }>(
+            `/api/reportes/solicitudes-por-pais?${qs.toString()}`,
+          ),
+          eventoId
+            ? internalApi.get<MapaPabellonesData>(
+                `/api/reportes/mapa-pabellones?${mapaQs.toString()}`,
+              ).catch(() => null)
+            : Promise.resolve(null),
+        ]);
         setData(response.data ?? []);
+        setMapaPabellones(mapaResponse ?? { pabellones: [], bloques: [] });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "No se pudo cargar el reporte");
         setData([]);
+        setMapaPabellones({ pabellones: [], bloques: [] });
       } finally {
         setLoading(false);
       }
@@ -67,9 +79,9 @@ export default function ReportesSolicitudesPage() {
 
   useEffect(() => {
     if (cargando) return;
-    const timer = window.setTimeout(() => { void cargar(alcance); }, 0);
+    const timer = window.setTimeout(() => { void cargar(alcance, session?.eventoId ?? undefined); }, 0);
     return () => window.clearTimeout(timer);
-  }, [cargando, alcance, cargar]);
+  }, [cargando, alcance, cargar, session?.eventoId]);
 
   const abrirSync = async () => {
     const confirmado = await confirm({
@@ -118,7 +130,7 @@ export default function ReportesSolicitudesPage() {
       toast.success(`${response.actualizados} países actualizados`);
       setSyncOpen(false);
       setSyncData(null);
-      await cargar(alcance);
+      await cargar(alcance, session?.eventoId ?? undefined);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo aplicar la sincronización");
     } finally {
@@ -130,8 +142,8 @@ export default function ReportesSolicitudesPage() {
     setExporting(true);
     try {
       const qs = new URLSearchParams();
-      if (alcance === "todas") qs.set("incluirInactivas", "1");
-      const response = await internalApi.get<{ data: EmpresaPaisReporte[] }>(
+      if (alcance === REPORTES_ALCANCES.TODAS) qs.set("incluirInactivas", "1");
+      const response = await internalApi.get<{ data: EmpresaPaisReporteDTO[] }>(
         `/api/reportes/empresas-por-pais?${qs.toString()}`,
       );
       if (!response.data?.length) {
@@ -215,7 +227,7 @@ export default function ReportesSolicitudesPage() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Solicitudes</p>
               <p className="text-2xl font-semibold tracking-tight text-foreground">{totalSolicitudes}</p>
-              <p className="text-[10px] text-muted-foreground">{alcance === "activas" ? "activas" : "históricas"}</p>
+              <p className="text-[10px] text-muted-foreground">{alcance === REPORTES_ALCANCES.ACTIVAS ? "activas" : "históricas"}</p>
             </div>
           </div>
         </div>
@@ -234,6 +246,29 @@ export default function ReportesSolicitudesPage() {
         </div>
       </div>
 
+      <div className="flex gap-1 rounded-xl border border-border bg-secondary/40 p-1" role="tablist" aria-label="Vistas del reporte">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={vista === REPORTES_VISTAS.PAISES}
+          onClick={() => setVista(REPORTES_VISTAS.PAISES)}
+          className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${vista === REPORTES_VISTAS.PAISES ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Cobertura geográfica
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={vista === REPORTES_VISTAS.PABELLONES}
+          onClick={() => setVista(REPORTES_VISTAS.PABELLONES)}
+          className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${vista === REPORTES_VISTAS.PABELLONES ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Mapa de pabellones 2D
+        </button>
+      </div>
+
+      {vista === REPORTES_VISTAS.PAISES ? (
+        <>
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Cobertura geográfica</p>
@@ -241,13 +276,13 @@ export default function ReportesSolicitudesPage() {
           <p className="mt-0.5 text-[11px] text-muted-foreground">Intensidad según solicitudes registradas.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={alcance} onValueChange={(valor) => setAlcance(valor as Alcance)}>
+          <Select value={alcance} onValueChange={(valor) => setAlcance(valor as ReporteAlcance)}>
             <SelectTrigger className="h-8 w-[170px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="activas"><span>Solicitudes activas</span></SelectItem>
-              <SelectItem value="todas"><span>Todas las solicitudes</span></SelectItem>
+              <SelectItem value={REPORTES_ALCANCES.ACTIVAS}><span>Solicitudes activas</span></SelectItem>
+              <SelectItem value={REPORTES_ALCANCES.TODAS}><span>Todas las solicitudes</span></SelectItem>
             </SelectContent>
           </Select>
           <Button
@@ -256,7 +291,7 @@ export default function ReportesSolicitudesPage() {
             className="h-8 w-8 p-0"
             title="Actualizar reporte"
             aria-label="Actualizar reporte"
-            onClick={() => void cargar(alcance)}
+            onClick={() => void cargar(alcance, session?.eventoId ?? undefined)}
             disabled={loading}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -294,6 +329,16 @@ export default function ReportesSolicitudesPage() {
         </Card>
       ) : (
         <MapaMundialPaises data={data} />
+      )}
+        </>
+      ) : (
+        <MapaPabellonesReporte
+          data={mapaPabellones}
+          paises={data}
+          eventoId={session?.eventoId}
+          tipoEvento={session?.tipoEvento}
+          codigoEvento={session?.codigoEvento}
+        />
       )}
 
       <Dialog open={syncOpen} onOpenChange={setSyncOpen}>

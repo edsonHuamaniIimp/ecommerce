@@ -39,6 +39,8 @@ tags:
     description: Integraci��n con el Sistema de Gesti��n de Contratos (expediente, documentos, descarga, webhooks)
   - name: VerComo
     description: Consulta auditada de empresas por un administrador (solo lectura)
+  - name: Reportes
+    description: Reportes geograficos y mapas de calor de solicitudes y pabellones
 security:
   - bearerAuth: []
 paths:
@@ -2524,6 +2526,50 @@ paths:
           description: Empresa no encontrada
         "429":
           description: Demasiadas selecciones en la ventana permitida
+  /reportes/mapa-pabellones:
+    get:
+      tags: [Reportes]
+      summary: Metricas de solicitudes por pabellon y bloque para el mapa de calor
+      parameters:
+        - name: eventoId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: incluirInactivas
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Metricas por pabellon y bloque
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      pabellones:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                      bloques:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+        "401":
+          description: Sin sesion
+        "403":
+          description: Sin permiso para ver reportes
 components:
   securitySchemes:
     bearerAuth:

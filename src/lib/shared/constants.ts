@@ -635,6 +635,41 @@ export const PERMISSION_SECTION_LABELS: Record<string, string> = {
 };
 
 /* ================================================================
+   Reportes
+   ================================================================ */
+export const REPORTES_SIN_PAIS = "SIN_PAIS";
+
+export const REPORTES_METRICAS = {
+  SOLICITUDES: "solicitudes",
+  EMPRESAS: "empresas",
+} as const;
+
+export type ReporteMetrica = (typeof REPORTES_METRICAS)[keyof typeof REPORTES_METRICAS];
+
+export const REPORTES_MODOS_MAPA = {
+  CALOR: "calor",
+  PAIS: "pais",
+} as const;
+
+export type ReporteModoMapa = (typeof REPORTES_MODOS_MAPA)[keyof typeof REPORTES_MODOS_MAPA];
+
+export const REPORTES_TODOS_LOS_PAISES = "todos";
+
+export const REPORTES_ALCANCES = {
+  ACTIVAS: "activas",
+  TODAS: "todas",
+} as const;
+
+export type ReporteAlcance = (typeof REPORTES_ALCANCES)[keyof typeof REPORTES_ALCANCES];
+
+export const REPORTES_VISTAS = {
+  PAISES: "paises",
+  PABELLONES: "pabellones",
+} as const;
+
+export type ReporteVista = (typeof REPORTES_VISTAS)[keyof typeof REPORTES_VISTAS];
+
+/* ================================================================
    Flujo de revisión (Solicitudes de alquiler)
    ================================================================ */
 export const REVISION_AREAS = {

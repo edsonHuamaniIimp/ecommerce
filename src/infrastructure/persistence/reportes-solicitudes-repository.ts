@@ -1,9 +1,10 @@
-import "server-only";
+﻿import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
-import type { EmpresaPaisReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import { REPORTES_SIN_PAIS, TIPOS_PLANO } from "@/lib/shared/constants";
 
 interface FilaResumenPais {
   pais: string;
@@ -41,7 +42,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         WHERE true ${filtroActivo} ${filtroEvento}
       )
       SELECT
-        COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS') AS pais,
+        COALESCE(NULLIF(e.pais, ''), ${REPORTES_SIN_PAIS}) AS pais,
         COUNT(DISTINCT COALESCE(sb.empresa, sb.email, sb.id::text))::int AS empresas,
         COUNT(DISTINCT sb.id)::int AS solicitudes
       FROM sol_base sb
@@ -51,7 +52,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
     `);
 
     return filas.map((fila) => ({
-      pais: fila.pais === "SIN_PAIS" ? null : fila.pais,
+      pais: fila.pais === REPORTES_SIN_PAIS ? null : fila.pais,
       empresas: fila.empresas,
       solicitudes: fila.solicitudes,
     }));
@@ -99,7 +100,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       )
       SELECT
         e.id AS empresa_id,
-        COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS') AS pais,
+        COALESCE(NULLIF(e.pais, ''), ${REPORTES_SIN_PAIS}) AS pais,
         e.ruc,
         e.tipo_documento,
         COALESCE(e.razon_social, sb.company_name, sb.email, 'Sin empresa') AS razon_social,
@@ -110,14 +111,14 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         COUNT(DISTINCT sb.id) FILTER (WHERE NOT sb.flg_activo)::int AS solicitudes_inactivas
       FROM sol_base sb
       LEFT JOIN empresa e ON e.id = sb.empresa_id
-      GROUP BY e.id, COALESCE(NULLIF(e.pais, ''), 'SIN_PAIS'), e.ruc, e.tipo_documento, e.estado, e.datos_validados_en,
+      GROUP BY e.id, COALESCE(NULLIF(e.pais, ''), ${REPORTES_SIN_PAIS}), e.ruc, e.tipo_documento, e.estado, e.datos_validados_en,
         COALESCE(e.razon_social, sb.company_name, sb.email, 'Sin empresa')
       ORDER BY solicitudes DESC, razon_social ASC
     `);
 
     return filas.map((fila) => ({
       empresaId: fila.empresa_id,
-      pais: fila.pais === "SIN_PAIS" ? null : fila.pais,
+      pais: fila.pais === REPORTES_SIN_PAIS ? null : fila.pais,
       ruc: fila.ruc,
       tipoDocumento: fila.tipo_documento,
       razonSocial: fila.razon_social,
@@ -128,4 +129,147 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       datosValidadosEn: fila.datos_validados_en ? fila.datos_validados_en.toISOString() : null,
     }));
   }
+
+  async mapaPabellones(params: { eventoId?: string; incluirInactivas?: boolean }): Promise<MapaPabellonesReporte> {
+    const filtroActivo = params.incluirInactivas ? Prisma.empty : Prisma.sql`AND s.flg_activo = true`;
+    const filtroEvento = params.eventoId
+      ? Prisma.sql`AND gs.evento_id = ${params.eventoId}`
+      : Prisma.empty;
+
+    const base = Prisma.sql`
+      WITH rel AS (
+        SELECT s.id AS solicitud_id, s.email, s.user_id, s.gess_stand_id
+        FROM solicitud s
+        WHERE true ${filtroActivo}
+        UNION
+        SELECT s.id AS solicitud_id, s.email, s.user_id, ss.gess_stand_id
+        FROM solicitud s
+        JOIN solicitud_stand ss ON ss.solicitud_id = s.id
+        WHERE true ${filtroActivo}
+      ),
+      base AS (
+        SELECT
+          r.solicitud_id,
+          r.email,
+          r.user_id,
+          gs.id AS stand_id,
+          gs.bloque_id,
+          gs.pabellon,
+          p.codigo AS plan_codigo,
+          p.nombre AS plano_nombre,
+          COALESCE(NULLIF(e.pais, ''), ${REPORTES_SIN_PAIS}) AS pais,
+          COALESCE(e.id::text, r.email, r.solicitud_id::text) AS empresa_key
+        FROM rel r
+        LEFT JOIN gess_stand gs ON gs.id = r.gess_stand_id
+        LEFT JOIN plano_bloque pb
+          ON COALESCE(to_jsonb(pb)->>'bloque_id', to_jsonb(pb)->>'bloqueId') = gs.bloque_id
+          AND COALESCE((to_jsonb(pb)->>'flg_activo')::boolean, true) = true
+        LEFT JOIN plano p ON p.id = pb.plano_id AND p.tipo <> ${TIPOS_PLANO.MACRO}
+        LEFT JOIN LATERAL (
+          SELECT ur.empresa_id
+          FROM user_role ur
+          WHERE ur.user_id = r.user_id AND ur.empresa_id IS NOT NULL
+          LIMIT 1
+        ) ur ON true
+        LEFT JOIN empresa e ON e.id = ur.empresa_id
+        WHERE true ${filtroEvento}
+      )
+    `;
+
+    const [filasPabellon, filasBloque] = await Promise.all([
+      prisma.$queryRaw<Array<{
+        plan_codigo: string | null;
+        plano_nombre: string | null;
+        pabellon: string | null;
+        pais: string;
+        solicitudes: number;
+        empresas: number;
+      }>>(Prisma.sql`
+        ${base}
+        SELECT
+          plan_codigo,
+          plano_nombre,
+          pabellon,
+          pais,
+          COUNT(DISTINCT solicitud_id)::int AS solicitudes,
+          COUNT(DISTINCT empresa_key)::int AS empresas
+        FROM base
+        WHERE stand_id IS NOT NULL
+        GROUP BY plan_codigo, plano_nombre, pabellon, pais
+        ORDER BY plan_codigo NULLS LAST, pabellon, solicitudes DESC
+      `),
+      prisma.$queryRaw<Array<{
+        plan_codigo: string;
+        bloque_id: string;
+        pais: string;
+        solicitudes: number;
+        empresas: number;
+      }>>(Prisma.sql`
+        ${base}
+        SELECT
+          plan_codigo,
+          bloque_id,
+          pais,
+          COUNT(DISTINCT solicitud_id)::int AS solicitudes,
+          COUNT(DISTINCT empresa_key)::int AS empresas
+        FROM base
+        WHERE stand_id IS NOT NULL AND plan_codigo IS NOT NULL AND bloque_id IS NOT NULL
+        GROUP BY plan_codigo, bloque_id, pais
+        ORDER BY plan_codigo, bloque_id, solicitudes DESC
+      `),
+    ]);
+
+    const pabellones = new Map<string, PabellonMapaReporte>();
+    for (const fila of filasPabellon) {
+      const key = `${fila.plan_codigo ?? ""}|${fila.pabellon ?? ""}`;
+      const actual = pabellones.get(key) ?? {
+        planoCodigo: fila.plan_codigo,
+        planoNombre: fila.plano_nombre,
+        pabellon: fila.pabellon,
+        empresas: 0,
+        solicitudes: 0,
+        paises: [],
+      };
+      actual.empresas += fila.empresas;
+      actual.solicitudes += fila.solicitudes;
+      actual.paises.push({
+        pais: fila.pais === REPORTES_SIN_PAIS ? null : fila.pais,
+        empresas: fila.empresas,
+        solicitudes: fila.solicitudes,
+      });
+      pabellones.set(key, actual);
+    }
+
+    const bloques = new Map<string, BloqueMapaReporte>();
+    for (const fila of filasBloque) {
+      const key = `${fila.plan_codigo}|${fila.bloque_id}`;
+      const actual = bloques.get(key) ?? {
+        planoCodigo: fila.plan_codigo,
+        bloqueId: fila.bloque_id,
+        empresas: 0,
+        solicitudes: 0,
+        paises: [],
+      };
+      actual.empresas += fila.empresas;
+      actual.solicitudes += fila.solicitudes;
+      actual.paises.push({
+        pais: fila.pais === REPORTES_SIN_PAIS ? null : fila.pais,
+        empresas: fila.empresas,
+        solicitudes: fila.solicitudes,
+      });
+      bloques.set(key, actual);
+    }
+
+    return {
+      pabellones: [...pabellones.values()].map((fila) => ({
+        ...fila,
+        paises: fila.paises.sort((a, b) => b.solicitudes - a.solicitudes),
+      })),
+      bloques: [...bloques.values()].map((fila) => ({
+        ...fila,
+        paises: fila.paises.sort((a, b) => b.solicitudes - a.solicitudes),
+      })),
+    };
+  }
 }
+

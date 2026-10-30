@@ -8,12 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@nrivera-iimp/ui-kit-i
 import { ArrowUpRight, Globe2 } from "lucide-react";
 import { DdPaisBandera } from "@/components/debida-diligencia/dd-pais-bandera";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import type { ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { ResumenPaisSolicitudesDTO } from "@/types/dto/reportes";
 
 const TOPOLOGY = worldData as unknown as Parameters<typeof Geographies>[0]["geography"];
 
 interface Props {
-  data: ResumenPaisSolicitudes[];
+  data: ResumenPaisSolicitudesDTO[];
 }
 
 interface HoverPais {
@@ -26,7 +26,7 @@ export function MapaMundialPaises({ data }: Props) {
   const [hover, setHover] = useState<HoverPais | null>(null);
 
   const porPais = useMemo(() => {
-    const mapa = new Map<string, ResumenPaisSolicitudes>();
+    const mapa = new Map<string, ResumenPaisSolicitudesDTO>();
     for (const fila of data) {
       if (fila.pais) mapa.set(fila.pais, fila);
     }
