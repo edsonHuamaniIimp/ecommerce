@@ -460,7 +460,7 @@ function ValidarDatosContent() {
               <Campo contractual requerido label="Razon social" valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} placeholder="Minera Cordillera S.A.C." error={erroresVisibles.razonSocial} resaltado={marcarPendiente("razonSocial")} />
               <div className={`rounded-lg border p-3 ${marcarPendiente("pais") ? "border-warning bg-warning/10 ring-2 ring-warning/20" : "border-border bg-secondary/30"}`}>
                 <Label className="mb-1 block text-xs font-semibold text-primary">
-                  <span>Pais</span> <span className="text-destructive">*</span>
+                  <span>Pais Origen</span> <span className="text-destructive">*</span>
                 </Label>
                 <PaisSelect
                   id="empresaPais"
@@ -468,7 +468,7 @@ function ValidarDatosContent() {
                   onChange={(v) => setCampo("pais", v)}
                   error={erroresVisibles.pais}
                 />
-                <p className="mt-1 text-[10px] text-muted-foreground">Codigo ISO del pais de la empresa.</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Codigo ISO del pais de origen de la empresa.</p>
               </div>
               <Campo label="Email general" valor={form.emailContacto} onChange={(v) => setCampo("emailContacto", v)} placeholder="contacto@empresa.pe" error={erroresVisibles.emailContacto} resaltado={marcarPendiente("emailContacto")} />
               <Campo label="Actividad economica" valor={form.actividadEconomica} onChange={(v) => setCampo("actividadEconomica", v)} placeholder="Se completa al validar el RUC" />
