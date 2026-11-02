@@ -29,6 +29,8 @@ export interface SolicitudesListParams {
   sgc?: "con" | "sin" | "observado" | "rechazado";
   /** Solo solicitudes con documentos observados por el revisor. */
   docsObservados?: boolean;
+  /** Origen de la observacion cuando el estado es OBSERVADO. */
+  observadoPor?: "asociado" | "legal";
   /** Rango por fecha de creacion (YYYY-MM-DD, hora Lima). */
   desde?: string;
   hasta?: string;

@@ -259,6 +259,33 @@ export function SolicitudReview({
   );
   /* El contrato firmado por el cliente fue observado y aun no tiene reemplazo. */
   const contratoFirmadoObservadoPendiente = contratoFirmadoPendienteReemplazo(row);
+  /*
+   * Ya existe un contrato del admin posterior a la firma observada, o una version
+   * activa posterior a un contrato observado/reemplazado. La correccion de este
+   * ciclo ya se genero: se muestra el estado, no otro boton de regenerar.
+   */
+  const contratosAdmin = row.docsAdjuntos
+    .filter(
+      (d) =>
+        d.userId === null &&
+        (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null || d.categoria === undefined),
+    )
+    .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0));
+  const contratoAdminActivo = contratosAdmin.find(
+    (d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+  );
+  const contratoAdminReemplazado = contratosAdmin.find(
+    (d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO,
+  );
+  const contratoAdminRegenerado = Boolean(
+    contratoAdminActivo &&
+      contratoAdminReemplazado &&
+      dateUtils.isAfter(contratoAdminActivo.createdAt, contratoAdminReemplazado.createdAt),
+  );
+  const contratoRegenerado =
+    contratoAdminRegenerado || (contratoFirmadoObservadoPendiente && tieneContratoAdminNuevo);
+  /* El cliente ya volvio a firmar la correccion: no corresponde regenerar otra vez. */
+  const contratoCorregidoYaFirmado = hayFirmadoPosteriorAlContratoCorregido(row);
 
   /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
      excluyendo el que ya se usa como contrato. */
@@ -609,21 +636,29 @@ export function SolicitudReview({
                 (contratoAdminObservado || contratoFirmadoObservadoPendiente) && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <p className="text-[11px] text-foreground">
-                    {contratoAdminObservado
-                      ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
-                      : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
+                    {contratoRegenerado
+                      ? "El contrato ya fue regenerado y enviado. Esperando que el cliente lo firme."
+                      : contratoAdminObservado
+                        ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
+                        : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
                   </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
-                    disabled={regenerandoContrato}
-                    onClick={() => { void regenerarContratoGenerado(); }}
-                  >
-                    {regenerandoContrato ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                    <span>Regenerar y enviar contrato</span>
-                  </Button>
+                  {contratoRegenerado ? (
+                    <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
+                      <span>Enviado, esperando firma</span>
+                    </Badge>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
+                      disabled={regenerandoContrato}
+                      onClick={() => { void regenerarContratoGenerado(); }}
+                    >
+                      {regenerandoContrato ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      <span>Regenerar y enviar contrato</span>
+                    </Button>
+                  )}
                 </div>
               )}
               <div className="space-y-2">
@@ -791,7 +826,7 @@ export function SolicitudReview({
                     onAttached={() => onSaved(row)}
                   />
                 )}
-                {sgcSubsanable && (
+                {sgcSubsanable && !contratoRegenerado && !contratoCorregidoYaFirmado && (
                   <Button
                     type="button"
                     variant="outline"

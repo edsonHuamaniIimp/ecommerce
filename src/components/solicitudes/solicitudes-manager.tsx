@@ -11,7 +11,7 @@ import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
-import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
+import { areasRevisionLocal, legalDelegadaAlSgc, origenesObservacion } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -42,6 +42,15 @@ function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row); }
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function ddPendienteValidacion(row: SolicitudRow) { return row.ddEstado?.requiereDeclaracionVigencia === true; }
 function ddApta(row: SolicitudRow) { return row.ddEstado?.aptoParaContratar === true; }
+
+/** Areas que dejaron la solicitud en observado (local o SGC). */
+function areasObservadas(row: SolicitudRow): string[] {
+  return origenesObservacion(row).map((origen) => {
+    if (origen === "asociado") return REVISION_AREA_LABELS[REVISION_AREAS.ASOCIADO] ?? "Asociado";
+    if (origen === "legal") return REVISION_AREA_LABELS[REVISION_AREAS.LEGAL] ?? "Legal";
+    return REVISION_AREA_SGC_LABEL;
+  });
+}
 
 /** Columnas de la exportacion avanzada (CSV/Excel) de la bandeja filtrada. */
 const SOLICITUDES_EXPORT_COLUMNAS = [
@@ -143,7 +152,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
-  const [resumen, setResumen] = useState({ pendientes: 0, enRevision: 0, observadas: 0, aprobadas: 0 });
+  const [resumen, setResumen] = useState({ pendientes: 0, enRevision: 0, observadasAsociado: 0, observadasLegal: 0, aprobadas: 0 });
   const [ddResumen, setDdResumen] = useState({ aptas: 0, noAptas: 0, pendientesValidacion: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
@@ -238,16 +247,18 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const loadResumen = useCallback(async () => {
     if (!eventoId) return;
     try {
-      const [pendientes, enRevision, observadas, aprobadas] = await Promise.all([
+      const [pendientes, enRevision, observadasAsociado, observadasLegal, aprobadas] = await Promise.all([
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.PENDIENTE }),
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.EN_PROCESO }),
-        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO, observadoPor: "asociado" }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO, observadoPor: "legal" }),
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.APROBADO }),
       ]);
       setResumen({
         pendientes: pendientes.total,
         enRevision: enRevision.total,
-        observadas: observadas.total,
+        observadasAsociado: observadasAsociado.total,
+        observadasLegal: observadasLegal.total,
         aprobadas: aprobadas.total,
       });
     } catch {
@@ -336,7 +347,18 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     aplicarFiltros({
       ...filters,
       dd: undefined,
+      observadoPor: undefined,
       estado: filters.estado === estado ? undefined : estado,
+    });
+  };
+
+  const alternarObservadoPor = (origen: "asociado" | "legal") => {
+    const activo = filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === origen;
+    aplicarFiltros({
+      ...filters,
+      dd: undefined,
+      estado: activo ? undefined : ESTADOS_SOLICITUD.OBSERVADO,
+      observadoPor: activo ? undefined : origen,
     });
   };
 
@@ -357,6 +379,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     filters.areaPendiente,
     filters.sgc,
     filters.docsObservados ? "observados" : undefined,
+    filters.observadoPor,
     filters.desde,
     filters.hasta,
     filters.orden && filters.orden !== SOLICITUDES_ORDEN.RECIENTES ? filters.orden : undefined,
@@ -527,10 +550,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Sin iniciar revision", variante: "muted" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.PENDIENTE)} active={filters.estado === ESTADOS_SOLICITUD.PENDIENTE} />
         <StatsCard title="En revision" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decision", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.EN_PROCESO)} active={filters.estado === ESTADOS_SOLICITUD.EN_PROCESO} />
-        <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.OBSERVADO)} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO} />
+        <StatsCard title="Observadas por Asociado" value={resumen.observadasAsociado} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} onClick={() => alternarObservadoPor("asociado")} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === "asociado"} />
+        <StatsCard title="Observadas por Legal" value={resumen.observadasLegal} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "SGC / Legal", variante: "gold" }} onClick={() => alternarObservadoPor("legal")} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === "legal"} />
         <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Listas para continuar", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.APROBADO)} active={filters.estado === ESTADOS_SOLICITUD.APROBADO} />
         <StatsCard title="DD APTAS" value={ddResumen.aptas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Aptas para contratar", variante: "primary" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.APTAS} />
         <StatsCard title="DD NO APTAS" value={ddResumen.noAptas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: ddResumen.pendientesValidacion > 0 ? `${ddResumen.pendientesValidacion} por declaracion` : "No aptas o pendientes", variante: "gold" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.NO_APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.NO_APTAS} />
@@ -619,7 +643,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-estado">Estado</label>
                 <Select
                   value={filters.estado ?? "todos"}
-                  onValueChange={(v) => aplicarFiltros({ ...filters, estado: v === "todos" ? undefined : v })}
+                  onValueChange={(v) => aplicarFiltros({
+                    ...filters,
+                    estado: v === "todos" ? undefined : v,
+                    observadoPor: v === ESTADOS_SOLICITUD.OBSERVADO ? filters.observadoPor : undefined,
+                  })}
                 >
                   <SelectTrigger id="filtro-estado" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -627,6 +655,24 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     {Object.values(ESTADOS_SOLICITUD).map((estado) => (
                       <SelectItem key={estado} value={estado}><span>{solicitudEstadoLabels[estado] ?? ESTADOS_SOLICITUD_LABELS[estado]}</span></SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-observado-por">Observado por</label>
+                <Select
+                  value={filters.observadoPor ?? "todos"}
+                  onValueChange={(v) => aplicarFiltros({
+                    ...filters,
+                    estado: ESTADOS_SOLICITUD.OBSERVADO,
+                    observadoPor: v === "todos" ? undefined : v as "asociado" | "legal",
+                  })}
+                >
+                  <SelectTrigger id="filtro-observado-por" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Todas las areas</span></SelectItem>
+                    <SelectItem value="asociado"><span>Asociado</span></SelectItem>
+                    <SelectItem value="legal"><span>Legal / SGC</span></SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -810,9 +856,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
                                </Badge>
                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
-                                 <AlertCircle className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.OBSERVADO] ?? "Observado"}
+                               <Badge className={`max-w-full whitespace-normal text-left text-[10px] leading-tight pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                 <AlertCircle className="mr-0.5 h-2.5 w-2.5 shrink-0" />
+                                 <span>
+                                   {solicitudEstadoLabels[ESTADOS_SOLICITUD.OBSERVADO] ?? "Observado"} por{" "}
+                                   {areasObservadas(row).join(" · ") || "area no identificada"}
+                                 </span>
                                </Badge>
                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>

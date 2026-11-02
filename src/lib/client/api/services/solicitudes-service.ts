@@ -33,6 +33,7 @@ export interface SolicitudesListFiltros {
   areaPendiente?: string;
   sgc?: string;
   docsObservados?: boolean;
+  observadoPor?: "asociado" | "legal";
   desde?: string;
   hasta?: string;
   orden?: string;
@@ -60,6 +61,7 @@ export const solicitudesService = {
       if (filtros.areaPendiente) qs.set("areaPendiente", filtros.areaPendiente);
       if (filtros.sgc) qs.set("sgc", filtros.sgc);
       if (filtros.docsObservados) qs.set("docsObservados", "true");
+      if (filtros.observadoPor) qs.set("observadoPor", filtros.observadoPor);
       if (filtros.desde) qs.set("desde", filtros.desde);
       if (filtros.hasta) qs.set("hasta", filtros.hasta);
       if (filtros.orden) qs.set("orden", filtros.orden);

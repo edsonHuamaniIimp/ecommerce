@@ -6,7 +6,7 @@ import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, Reevaluacio
 import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
-import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { areasRevisionLocal, observadaPorArea } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
@@ -524,7 +524,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
      * El estado es calculado (revisiones), no una columna: si se filtra por estado se
      * resuelven primero los IDs que cumplen y luego se hidrata solo la pagina pedida.
      */
-    if (params.estado) {
+    if (params.estado || params.observadoPor) {
       const lite = await prisma.solicitud.findMany({
         where: where as never,
         select: {
@@ -536,11 +536,24 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         orderBy,
       });
       const ids = lite
-        .filter((r) => estadoSolicitudConSgc(
-          r.estado,
-          r.revisiones as unknown as RevisionEntity[],
-          r.sgcExpediente,
-        ) === params.estado)
+        .filter((r) => {
+          const estado = estadoSolicitudConSgc(
+            r.estado,
+            r.revisiones as unknown as RevisionEntity[],
+            r.sgcExpediente,
+          );
+          if (params.estado && estado !== params.estado) return false;
+          if (!params.observadoPor) return true;
+          if (estado !== ESTADOS_SOLICITUD.OBSERVADO) return false;
+          return observadaPorArea(
+            {
+              revisiones: r.revisiones as unknown as Array<{ area: string; estado?: string | null }>,
+              sgcLifecycleStatus: r.sgcExpediente?.lifecycleStatus,
+              sgcDevolucionRequiereCambio: r.sgcExpediente?.devolucionRequiereCambio,
+            },
+            params.observadoPor,
+          );
+        })
         .map((r) => r.id);
       const total = ids.length;
       const pageIds = ids.slice(skip, skip + params.perPage);

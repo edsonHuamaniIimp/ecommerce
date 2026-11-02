@@ -17,6 +17,7 @@ export const solicitudesListarSchema = z.object({
   areaPendiente: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]).optional(),
   sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),
   docsObservados: z.enum(["true", "false"]).optional(),
+  observadoPor: z.enum(["asociado", "legal"]).optional(),
   desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   orden: z.enum(Object.values(SOLICITUDES_ORDEN) as [string, ...string[]]).default(SOLICITUDES_ORDEN.RECIENTES),

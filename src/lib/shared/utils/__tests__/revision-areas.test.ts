@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { areasRevisionLocal, legalDelegadaAlSgc, tieneLegalLocal } from "../revision-areas";
-import { REVISION_AREAS } from "@/lib/shared/constants";
+import { areasRevisionLocal, legalDelegadaAlSgc, observadaPorArea, origenesObservacion, tieneLegalLocal } from "../revision-areas";
+import { RESULTADOS_APROBACION, REVISION_AREAS, SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
 
 describe("revision-areas (flujo local Asociado vs SGC, RF-14/15)", () => {
   it("deberia considerar solo Asociado como nivel local en una solicitud nueva", () => {
@@ -33,5 +33,35 @@ describe("revision-areas (flujo local Asociado vs SGC, RF-14/15)", () => {
       REVISION_AREAS.LEGAL,
     ]);
     expect(areasRevisionLocal([], { sgcEnabled: true })).toEqual([REVISION_AREAS.ASOCIADO]);
+  });
+});
+
+describe("origen de la observacion", () => {
+  it("distingue Asociado y Legal local sin cambiar estados", () => {
+    expect(origenesObservacion({
+      revisiones: [
+        { area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.OBSERVADO },
+        { area: REVISION_AREAS.LEGAL, estado: RESULTADOS_APROBACION.OBSERVADO },
+      ],
+    })).toEqual(["asociado", "legal"]);
+  });
+
+  it("incluye SGC como Legal cuando exige cambio documental", () => {
+    const row = {
+      revisiones: [{ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO }],
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED,
+      sgcDevolucionRequiereCambio: true,
+    };
+    expect(origenesObservacion(row)).toEqual(["sgc"]);
+    expect(observadaPorArea(row, "legal")).toBe(true);
+    expect(observadaPorArea(row, "asociado")).toBe(false);
+  });
+
+  it("no reinterpreta rechazos legacy sin flag de cambio", () => {
+    expect(origenesObservacion({
+      revisiones: [{ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO }],
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED,
+      sgcDevolucionRequiereCambio: null,
+    })).toEqual([]);
   });
 });
