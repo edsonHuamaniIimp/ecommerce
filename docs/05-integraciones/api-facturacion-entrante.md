@@ -122,6 +122,11 @@ x-api-key: <clave compartida>
 
 - La clave se entrega por canal seguro (misma clave del Sistema de Montaje).
 - Clave ausente o inválida → `401`. En el ambiente local/túnel **no** se exige.
+- El servidor debe tener configurada la variable `INTEGRACION_API_KEY` (QA y producción).
+  Si la variable **no existe**, el endpoint rechaza **todas** las peticiones con `401`
+  aunque llegue el header (fail-safe). Usar una clave distinta por ambiente.
+- Diagnóstico de un `401`: (1) el request no incluye `x-api-key`, o (2) el ambiente no
+  tiene `INTEGRACION_API_KEY` configurada. Ambos casos responden `UNAUTHORIZED`.
 
 ## 3. Request
 
@@ -275,7 +280,7 @@ Verificado por el equipo ContratosStands contra el túnel de pruebas (14-10-2026
 | 1 | Endpoint para **recibir el voucher** de pago (paso 5 del flujo). Hoy ContratosStands registra los vouchers como archivos `DETRACCION`/`DIFERENCIA`/`PAGO_TOTAL` en la cuenta corriente (`/stands/archivos`); confirmar si el SIE los consume por esa vía o exige un endpoint propio | Equipo de facturación del IIMP |
 | 2 | `2` ANULADA después de PAGADA: confirmar si debe **revertir el estado de pago** de la cuota a pendiente (hoy solo limpia el documento) | Equipo de facturación del IIMP |
 | 3 | **Solicitud de rechazo** (ContratosStands → SIE): definir el canal/endpoint del SIE para que nuestro lado envíe su rechazo (bidireccional) | Equipo de facturación del IIMP |
-| 4 | Clave compartida en producción (`x-api-key`) | Se entrega por canal seguro |
+| 4 | Clave compartida (`x-api-key`): configurar `INTEGRACION_API_KEY` en QA y producción (sin la variable el endpoint rechaza todo con 401) y entregarla por canal seguro al SIE | Se entrega por canal seguro |
 
 ## 10. Notas
 
