@@ -646,12 +646,9 @@ export default function FacturacionPage() {
                                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{c.numero}</span>
                                   <div className="min-w-0">
                                     <p className="truncate text-xs font-semibold text-foreground">{numberUtils.monto(c.monto, expediente.moneda ?? "")}</p>
-                                    <p className="text-[10px] text-muted-foreground">{c.fechaVencimiento ? `Fecha de emisión: ${dateUtils.format(c.fechaVencimiento)}` : "Sin fecha de emisión"}</p>
-                                    {(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision) && (
-                                      <p className="text-[10px] text-muted-foreground">
-                                        Factura emitida: {dateUtils.format(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision)}
-                                      </p>
-                                    )}
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Fecha de emisión: {dateUtils.format(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision ?? c.fechaVencimiento)}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className="flex flex-wrap items-center justify-end gap-1">

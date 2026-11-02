@@ -290,8 +290,9 @@ Verificado por el equipo ContratosStands contra el túnel de pruebas (14-10-2026
 - La notificación es **por cuota**: el plan de la reserva puede tener **hasta 3 cuotas**; cada una se notifica con su número. La reserva se registra **una sola vez** (desde la cuota que la dispara).
 - Tipos de archivo de la cuenta corriente (v5): `OC`, `HES`, `DETRACCION`, `DIFERENCIA`, `PAGO_TOTAL` y `VALORIZACION_COTIZACION`. En la UI de "Mis pagos", `PAGO_TOTAL` es **excluyente** con `DETRACCION`/`DIFERENCIA` de una misma cuota (la lista de tipos es dinámica).
 - El `documento` es solo el **nombre**; el archivo no se transfiere por esta vía.
-- `fechaEmision` es la **fecha real de emisión de la factura** (opcional). Sin ella, la web muestra
-  la fecha de emisión programada de la cuota; la fecha no puede derivarse del nombre del PDF.
+- `fechaEmision` es la **fecha real de emisión de la factura** (opcional). La web muestra en la cuota
+  la fecha real cuando la envía el SIE (o el IIMP al emitir); si no, muestra la fecha programada del plan.
+  La fecha no puede derivarse del nombre del PDF.
 - Si el documento se reemite, basta con enviarlo de nuevo (reemplaza el anterior).
 - `estadoPago` es **numérico** (`0`/`1`/`2`); el texto (`"PAGADO"`) responde `400`.
 - Para dudas de integración: equipo de Sistemas TI del IIMP.

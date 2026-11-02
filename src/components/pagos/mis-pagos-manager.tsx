@@ -201,12 +201,9 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 {cuota.numero}
               </span>
               <span className="font-semibold text-foreground">{numberUtils.monto(cuota.monto, row.moneda)}</span>
-              <span className="text-muted-foreground">Fecha de emisión: {dateUtils.format(cuota.fechaVencimiento)}</span>
-              {(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision) && (
-                <span className="text-[10px] text-muted-foreground">
-                  Factura emitida: {dateUtils.format(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision)}
-                </span>
-              )}
+              <span className="text-muted-foreground">
+                Fecha de emisión: {dateUtils.format(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision ?? cuota.fechaVencimiento)}
+              </span>
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
