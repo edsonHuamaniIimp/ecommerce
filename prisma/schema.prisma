@@ -789,6 +789,8 @@ model FacturacionCuota {
   comprobanteFiscalAt     DateTime? @map("comprobante_fiscal_at")
   /// Usuario que adjunto el comprobante fiscal.
   comprobanteFiscalBy     String?   @map("comprobante_fiscal_by") @db.VarChar(100)
+  /// Fecha de emision de la factura notificada por el sistema de facturacion (YYYY-MM-DD).
+  documentoSieFechaEmision DateTime? @map("documento_sie_fecha_emision") @db.Date
   /// Documento fiscal emitido por el IIMP para esta cuota (serie, numero, fecha, IGV, total).
   iimpDocumento           Json?     @map("iimp_documento")
   iimpEmitidaAt           DateTime? @map("iimp_emitida_at")

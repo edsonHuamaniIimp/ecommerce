@@ -135,7 +135,8 @@ x-api-key: <clave compartida>
   "numeroSolicitud": "CTRS-dbef0d24ff1246b1b419edd05",
   "cuota": 1,
   "documento": "F001-1234.pdf",
-  "estadoPago": 1
+  "estadoPago": 1,
+  "fechaEmision": "2026-11-01"
 }
 ```
 
@@ -146,6 +147,7 @@ x-api-key: <clave compartida>
 | `cuota` | number | Sí | Número de cuota de la cuenta (**1 a 3**, en el orden de `Cuotas` de la reserva). El plan tiene **hasta 3 cuotas** y la notificación es **por cuota** |
 | `documento` | string | Sí | **Nombre del documento** emitido (máx. 250 caracteres). No es el archivo |
 | `estadoPago` | number | Sí | Código del estado: `0` PAGADA · `1` PENDIENTE · `2` ANULADA |
+| `fechaEmision` | string | No | **Fecha de emisión real** de la factura (`YYYY-MM-DD`). No puede ser futura. Si se omite, la web muestra la fecha de emisión programada de la cuota. En una anulación no aplica |
 | `justificacion` | string | **Con `estadoPago: 2`** | Motivo de la anulación o rechazo (máx. 500 caracteres). **Obligatoria** cuando `estadoPago` es `2` |
 
 ### Códigos de `estadoPago`
@@ -168,7 +170,8 @@ emisión de la factura, el estado natural es `1` PENDIENTE).
     "cuotaId": "571040d6-14b3-4c03-8820-73271423ba0c",
     "numero": 1,
     "documento": "F001-1234.pdf",
-    "estadoPago": 1
+    "estadoPago": 1,
+    "fechaEmision": "2026-11-01"
   }
 }
 ```
@@ -177,7 +180,7 @@ emisión de la factura, el estado natural es `1` PENDIENTE).
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
-| 400 | `VALIDATION` | JSON inválido; falta `numeroSolicitud`/`contrato`; `cuota` no es entero ≥ 1; `documento` vacío o > 250; `estadoPago` distinto de `0`, `1` o `2` (también si viene como texto); `estadoPago: 2` **sin `justificacion`** o con más de 500 caracteres |
+| 400 | `VALIDATION` | JSON inválido; falta `numeroSolicitud`/`contrato`; `cuota` no es entero ≥ 1; `documento` vacío o > 250; `estadoPago` distinto de `0`, `1` o `2` (también si viene como texto); `fechaEmision` con formato distinto de `YYYY-MM-DD` o posterior a hoy; `estadoPago: 2` **sin `justificacion`** o con más de 500 caracteres |
 | 401 | `UNAUTHORIZED` | Clave `x-api-key` ausente o inválida |
 | 404 | `NOT_FOUND` | No existe solicitud **activa** para ese `numeroSolicitud`/`contrato` (si la reserva fue anulada, también responde 404); sin facturación activa; la facturación no tiene esa cuota |
 | 500 | `INTERNAL` | Error interno |
@@ -230,7 +233,7 @@ La llamada puede repetirse: cada envío actualiza el documento y el estado con l
 curl -X POST https://ecommerce.sistemasiimp.org.pe/api/integracion/factura \
   -H "x-api-key: $CLAVE_COMPARTIDA" \
   -H "Content-Type: application/json" \
-  -d '{"numeroSolicitud":"CTRS-dbef0d24ff1246b1b419edd05","cuota":1,"documento":"F001-1234.pdf","estadoPago":1}'
+  -d '{"numeroSolicitud":"CTRS-dbef0d24ff1246b1b419edd05","cuota":1,"documento":"F001-1234.pdf","estadoPago":1,"fechaEmision":"2026-11-01"}'
 ```
 
 ```bash
@@ -287,6 +290,8 @@ Verificado por el equipo ContratosStands contra el túnel de pruebas (14-10-2026
 - La notificación es **por cuota**: el plan de la reserva puede tener **hasta 3 cuotas**; cada una se notifica con su número. La reserva se registra **una sola vez** (desde la cuota que la dispara).
 - Tipos de archivo de la cuenta corriente (v5): `OC`, `HES`, `DETRACCION`, `DIFERENCIA`, `PAGO_TOTAL` y `VALORIZACION_COTIZACION`. En la UI de "Mis pagos", `PAGO_TOTAL` es **excluyente** con `DETRACCION`/`DIFERENCIA` de una misma cuota (la lista de tipos es dinámica).
 - El `documento` es solo el **nombre**; el archivo no se transfiere por esta vía.
+- `fechaEmision` es la **fecha real de emisión de la factura** (opcional). Sin ella, la web muestra
+  la fecha de emisión programada de la cuota; la fecha no puede derivarse del nombre del PDF.
 - Si el documento se reemite, basta con enviarlo de nuevo (reemplaza el anterior).
 - `estadoPago` es **numérico** (`0`/`1`/`2`); el texto (`"PAGADO"`) responde `400`.
 - Para dudas de integración: equipo de Sistemas TI del IIMP.

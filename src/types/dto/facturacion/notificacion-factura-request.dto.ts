@@ -10,6 +10,8 @@ export interface NotificacionFacturaRequestDTO {
   documento: string;
   /** Codigo del estado: 0 PAGADA | 1 PENDIENTE | 2 ANULADA (ver ESTADOS_PAGO_EXTERNO). */
   estadoPago: number;
+  /** Fecha de emision real de la factura (YYYY-MM-DD). Opcional; no puede ser futura. */
+  fechaEmision?: string | null;
   /** Motivo de la anulacion o rechazo (max. 500 caracteres). Obligatoria cuando `estadoPago` es 2. */
   justificacion?: string | null;
 }

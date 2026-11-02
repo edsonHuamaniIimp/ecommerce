@@ -17,6 +17,8 @@ export interface CuotaPagoDTO {
   documentoSieAnulado: boolean;
   /** Justificacion del IIMP al anular o rechazar el documento; null si no aplica. */
   documentoSieJustificacion: string | null;
+  /** Fecha de emision de la factura notificada por el SIE (YYYY-MM-DD) o null si no se envio. */
+  documentoSieFechaEmision: string | null;
   /** Documento fiscal emitido por el IIMP (1ra cuota al reservar; resto en su fecha). */
   iimpDocumento: {
     tipoDocumento: string;

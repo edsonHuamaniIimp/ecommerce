@@ -46,7 +46,44 @@ describe("NotificacionFacturaApplicationService", () => {
       { documento: "F001-1234.pdf", estadoPago: 0, justificacion: null },
       AUTORES_SISTEMA.IIMP,
     );
-    expect(r).toEqual({ cuotaId: "cu1", numero: 1, documento: "F001-1234.pdf", estadoPago: 0 });
+    expect(r).toEqual({ cuotaId: "cu1", numero: 1, documento: "F001-1234.pdf", estadoPago: 0, fechaEmision: null });
+  });
+
+  it("guarda y devuelve la fecha de emision notificada por el SIE", async () => {
+    const m = mocks();
+    const r = await servicio(m).registrar({ ...BASE, fechaEmision: "2026-11-01" });
+
+    expect(m.facturacion.registrarNotificacionFactura).toHaveBeenCalledWith(
+      "cu1",
+      { documento: "F001-1234.pdf", estadoPago: 0, fechaEmision: "2026-11-01", justificacion: null },
+      AUTORES_SISTEMA.IIMP,
+    );
+    expect(r.fechaEmision).toBe("2026-11-01");
+  });
+
+  it("rechaza una fecha de emision invalida o futura (400)", async () => {
+    const m = mocks();
+    await expect(servicio(m).registrar({ ...BASE, fechaEmision: "2026-13-40" })).rejects.toMatchObject({ status: 400 });
+    await expect(servicio(m).registrar({ ...BASE, fechaEmision: "01/11/2026" })).rejects.toMatchObject({ status: 400 });
+    await expect(servicio(m).registrar({ ...BASE, fechaEmision: "2099-01-01" })).rejects.toMatchObject({ status: 400 });
+    expect(m.facturacion.registrarNotificacionFactura).not.toHaveBeenCalled();
+  });
+
+  it("al anular no envia fecha de emision y la respuesta la deja en null", async () => {
+    const m = mocks();
+    const r = await servicio(m).registrar({
+      ...BASE,
+      estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA,
+      justificacion: "Rechazada por Facturacion",
+      fechaEmision: "2026-11-01",
+    });
+
+    expect(m.facturacion.registrarNotificacionFactura).toHaveBeenCalledWith(
+      "cu1",
+      { documento: "F001-1234.pdf", estadoPago: 2, justificacion: "Rechazada por Facturacion" },
+      AUTORES_SISTEMA.IIMP,
+    );
+    expect(r.fechaEmision).toBeNull();
   });
 
   it("acepta el contrato como alternativa y el estado 1 (PENDIENTE)", async () => {

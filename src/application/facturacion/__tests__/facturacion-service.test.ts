@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { FacturacionApplicationService } from "../facturacion-service";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IFacturacionRepository, FacturacionRow, FacturacionListResult } from "@/domain/ports/facturacion-repository";
@@ -83,9 +83,9 @@ const sampleRow: FacturacionRow = {
   id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
   montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", empresaFacturacion: null, iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
-    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
-    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
-    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null },
+    { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null },
+    { id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null },
+    { id: "c3", numero: 3, monto: 1000, fechaVencimiento: null, estado: "pendiente", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null },
   ],
 };
 
@@ -468,12 +468,12 @@ describe("FacturacionApplicationService.expediente", () => {
           id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado",
           comprobante: "https://x/voucher-1.pdf",
           comprobanteFiscal: { tipo: "factura", numero: "F001-1", url: "https://x/factura-1.pdf", at: "2026-10-20T00:00:00.000Z", by: null },
-          documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, iimpDocumento: null,
+          documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null, iimpDocumento: null,
         },
         {
           id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente",
           comprobante: null, comprobanteFiscal: null,
-          documentoSie: "20107972090-01-F009-3303.pdf", documentoSieAnulado: false, documentoSieJustificacion: null,
+          documentoSie: "20107972090-01-F009-3303.pdf", documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null,
           iimpDocumento: { tipoDocumento: "01", serie: "F009", numero: 3303, fechaEmision: "2026-10-21", tipoCambio: "3.8", igv: "100", total: "650" },
         },
       ],

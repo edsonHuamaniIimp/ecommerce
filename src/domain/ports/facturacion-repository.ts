@@ -39,6 +39,8 @@ export interface FacturacionRow {
     documentoSieAnulado: boolean;
     /** Justificacion del sistema de facturacion al anular o rechazar (estado 2); null si no aplica. */
     documentoSieJustificacion: string | null;
+    /** Fecha de emision de la factura notificada por el sistema de facturacion (YYYY-MM-DD). */
+    documentoSieFechaEmision: string | null;
     /** Documento fiscal emitido por el IIMP para la cuota (1ra al reservar; resto en su fecha). */
     iimpDocumento: IimpDocumentoRow | null;
   }>;

@@ -10,6 +10,7 @@ import {
 import { DomainError } from "@/lib/server/router";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { getAppUrl } from "@/lib/server/app-url";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { NotificacionFacturaRequestDTO, NotificacionFacturaResponseDTO } from "@/types/dto/facturacion";
@@ -32,6 +33,7 @@ export class NotificacionFacturaApplicationService {
   async registrar(input: NotificacionFacturaRequestDTO): Promise<NotificacionFacturaResponseDTO> {
     const estadoPago = this.validar(input);
     const documento = input.documento.trim();
+    const fechaEmision = this.validarFechaEmision(input.fechaEmision);
 
     const solicitudId = input.numeroSolicitud?.trim()
       ? await this.solicitudes.findSolicitudIdPorNumeroIImp(input.numeroSolicitud)
@@ -53,7 +55,12 @@ export class NotificacionFacturaApplicationService {
 
     await this.facturacion.registrarNotificacionFactura(
       cuota.id,
-      { documento, estadoPago, justificacion: (input.justificacion ?? "").trim() || null },
+      {
+        documento,
+        estadoPago,
+        ...(estadoPago !== ESTADOS_PAGO_EXTERNO.ANULADA && fechaEmision ? { fechaEmision } : {}),
+        justificacion: (input.justificacion ?? "").trim() || null,
+      },
       AUTORES_SISTEMA.IIMP,
     );
 
@@ -70,7 +77,26 @@ export class NotificacionFacturaApplicationService {
         .catch(() => undefined);
     }
 
-    return { cuotaId: cuota.id, numero: cuota.numero, documento, estadoPago };
+    return {
+      cuotaId: cuota.id,
+      numero: cuota.numero,
+      documento,
+      estadoPago,
+      fechaEmision: estadoPago === ESTADOS_PAGO_EXTERNO.ANULADA ? null : fechaEmision,
+    };
+  }
+
+  /** Fecha de emision opcional de la factura (YYYY-MM-DD, no futura). */
+  private validarFechaEmision(valor: string | null | undefined): string | null {
+    const fecha = (valor ?? "").trim();
+    if (!fecha) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !dateUtils.isValid(fecha)) {
+      throw new DomainError("fechaEmision debe ser una fecha valida (YYYY-MM-DD)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (fecha > dateUtils.todayLimaInputValue()) {
+      throw new DomainError("fechaEmision no puede ser futura", API_ERROR_CODES.VALIDATION, 400);
+    }
+    return fecha;
   }
 
   private validar(input: NotificacionFacturaRequestDTO): EstadoPagoExterno {

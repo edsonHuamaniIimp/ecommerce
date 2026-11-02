@@ -151,6 +151,7 @@ export class FacturacionApplicationService {
         voucher: c.comprobante ?? null,
         comprobanteFiscal: c.comprobanteFiscal,
         documentoSie: c.documentoSie ?? null,
+        documentoSieFechaEmision: c.documentoSieFechaEmision ?? null,
         iimpDocumento: c.iimpDocumento,
         archivos: archivosCuenta.filter((a) => a.cuota === c.numero),
       })),
