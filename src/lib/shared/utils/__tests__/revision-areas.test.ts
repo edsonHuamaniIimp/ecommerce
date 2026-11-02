@@ -57,11 +57,11 @@ describe("origen de la observacion", () => {
     expect(observadaPorArea(row, "asociado")).toBe(false);
   });
 
-  it("no reinterpreta rechazos legacy sin flag de cambio", () => {
+  it("clasifica devoluciones SGC legacy como Legal sin cambiar el estado persistido", () => {
     expect(origenesObservacion({
       revisiones: [{ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO }],
       sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED,
       sgcDevolucionRequiereCambio: null,
-    })).toEqual([]);
+    })).toEqual(["sgc"]);
   });
 });

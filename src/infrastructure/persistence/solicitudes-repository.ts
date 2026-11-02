@@ -61,14 +61,15 @@ function computeEstadoSolicitud(
 ): string {
   /* El rechazo/devolucion del SGC es una observacion para el cliente; no crea revision local. */
   /*
-   * Solo se infiere `OBSERVADO` cuando el webhook nuevo confirmo que el cliente
-   * debe corregir. Los rechazos legacy (flag null) conservan el estado que ya
-   * mostraban en produccion y no se reinterpretan al desplegar.
+   * Devolucion/rechazo del SGC: se muestra como OBSERVADO y exige correccion.
+   * El flag null es data legacy (no guardaba `requiresDocumentChange`) y se
+   * trata como devolucion con cambio; solo false representa validacion interna.
+   * No se modifica la columna persistida, solo el estado calculado de la bandeja.
    */
   if (
     (sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
       sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
-    sgc.devolucionRequiereCambio === true
+    sgc.devolucionRequiereCambio !== false
   ) {
     return ESTADOS_SOLICITUD.OBSERVADO;
   }
@@ -544,7 +545,6 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           );
           if (params.estado && estado !== params.estado) return false;
           if (!params.observadoPor) return true;
-          if (estado !== ESTADOS_SOLICITUD.OBSERVADO) return false;
           return observadaPorArea(
             {
               revisiones: r.revisiones as unknown as Array<{ area: string; estado?: string | null }>,

@@ -52,10 +52,15 @@ export function origenesObservacion(s: ObservacionLike): OrigenObservacion[] {
   if (revisiones.some((r) => r.area === REVISION_AREAS.LEGAL && r.estado === RESULTADOS_APROBACION.OBSERVADO)) {
     origenes.push("legal");
   }
+  /*
+   * Para la bandeja, cualquier devolucion/rechazo del SGC es una observacion de
+   * Legal, incluso si es legacy y no guardo el flag de cambio documental. Esto
+   * es solo clasificacion de UI/filtros: no altera el estado persistido.
+   */
   const sgcDevuelto =
     (s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
       s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
-    s.sgcDevolucionRequiereCambio === true;
+    s.sgcDevolucionRequiereCambio !== false;
   if (sgcDevuelto) origenes.push("sgc");
   return origenes;
 }

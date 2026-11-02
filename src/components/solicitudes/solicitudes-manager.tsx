@@ -52,6 +52,10 @@ function areasObservadas(row: SolicitudRow): string[] {
   });
 }
 
+function tieneObservacion(row: SolicitudRow): boolean {
+  return origenesObservacion(row).length > 0;
+}
+
 /** Columnas de la exportacion avanzada (CSV/Excel) de la bandeja filtrada. */
 const SOLICITUDES_EXPORT_COLUMNAS = [
   "Stand(s)",
@@ -250,8 +254,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       const [pendientes, enRevision, observadasAsociado, observadasLegal, aprobadas] = await Promise.all([
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.PENDIENTE }),
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.EN_PROCESO }),
-        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO, observadoPor: "asociado" }),
-        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.OBSERVADO, observadoPor: "legal" }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { observadoPor: "asociado" }),
+        solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { observadoPor: "legal" }),
         solicitudesService.listar(eventoId, 1, 1, undefined, undefined, { estado: ESTADOS_SOLICITUD.APROBADO }),
       ]);
       setResumen({
@@ -353,11 +357,11 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   };
 
   const alternarObservadoPor = (origen: "asociado" | "legal") => {
-    const activo = filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === origen;
+    const activo = filters.observadoPor === origen;
     aplicarFiltros({
       ...filters,
       dd: undefined,
-      estado: activo ? undefined : ESTADOS_SOLICITUD.OBSERVADO,
+      estado: undefined,
       observadoPor: activo ? undefined : origen,
     });
   };
@@ -553,8 +557,8 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Sin iniciar revision", variante: "muted" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.PENDIENTE)} active={filters.estado === ESTADOS_SOLICITUD.PENDIENTE} />
         <StatsCard title="En revision" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decision", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.EN_PROCESO)} active={filters.estado === ESTADOS_SOLICITUD.EN_PROCESO} />
-        <StatsCard title="Observadas por Asociado" value={resumen.observadasAsociado} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} onClick={() => alternarObservadoPor("asociado")} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === "asociado"} />
-        <StatsCard title="Observadas por Legal" value={resumen.observadasLegal} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "SGC / Legal", variante: "gold" }} onClick={() => alternarObservadoPor("legal")} active={filters.estado === ESTADOS_SOLICITUD.OBSERVADO && filters.observadoPor === "legal"} />
+        <StatsCard title="Observadas por Asociado" value={resumen.observadasAsociado} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando correccion", variante: "gold" }} onClick={() => alternarObservadoPor("asociado")} active={filters.observadoPor === "asociado"} />
+        <StatsCard title="Observadas por Legal" value={resumen.observadasLegal} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "SGC / Legal", variante: "gold" }} onClick={() => alternarObservadoPor("legal")} active={filters.observadoPor === "legal"} />
         <StatsCard title="Aprobadas" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Listas para continuar", variante: "primary" }} onClick={() => alternarEstado(ESTADOS_SOLICITUD.APROBADO)} active={filters.estado === ESTADOS_SOLICITUD.APROBADO} />
         <StatsCard title="DD APTAS" value={ddResumen.aptas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Aptas para contratar", variante: "primary" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.APTAS} />
         <StatsCard title="DD NO APTAS" value={ddResumen.noAptas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: ddResumen.pendientesValidacion > 0 ? `${ddResumen.pendientesValidacion} por declaracion` : "No aptas o pendientes", variante: "gold" }} onClick={() => alternarDd(SOLICITUDES_FILTRO_DD.NO_APTAS)} active={filters.dd === SOLICITUDES_FILTRO_DD.NO_APTAS} />
@@ -664,7 +668,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                   value={filters.observadoPor ?? "todos"}
                   onValueChange={(v) => aplicarFiltros({
                     ...filters,
-                    estado: ESTADOS_SOLICITUD.OBSERVADO,
+                    estado: undefined,
                     observadoPor: v === "todos" ? undefined : v as "asociado" | "legal",
                   })}
                 >
@@ -855,7 +859,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
                                </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO ? (
+                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO || tieneObservacion(row) ? (
                                <Badge className={`max-w-full whitespace-normal text-left text-[10px] leading-tight pointer-events-none ${BADGE_STYLES.WARNING}`}>
                                  <AlertCircle className="mr-0.5 h-2.5 w-2.5 shrink-0" />
                                  <span>
