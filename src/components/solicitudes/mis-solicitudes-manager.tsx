@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -171,7 +171,7 @@ function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado:
       estado: RESULTADOS_APROBACION.RECHAZADO,
       etiqueta: row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ? "Rechazado por el SGC" : "Devuelto por el SGC",
       badge: BADGE_STYLES.DESTRUCTIVE,
-      comentario: row.sgcSubsanacionMotivo ?? "Corrige el contrato y vuelve a subirlo firmado.",
+      comentario: row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? "El SGC devolvió el trámite. Corrige los documentos observados.",
     };
   }
   return {
@@ -614,6 +614,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Corregir: subir contrato firmado</span>
                             </Button>
                           )}
+                          {!soloLectura && enVentanaDocumentosSgc(row) && (
+                            <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
+                              onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>Subir / reemplazar documentos</span>
+                            </Button>
+                          )}
                           {esperandoContratoCorregidoSgc(row) && (
                             <Badge className={`pointer-events-none gap-1 py-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
                               <Clock className="h-3 w-3" />
@@ -739,6 +746,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Corregir: subir contrato firmado</span>
+                              </Button>
+                            )}
+                            {!soloLectura && enVentanaDocumentosSgc(row) && (
+                              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
+                                onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>Subir / reemplazar documentos</span>
                               </Button>
                             )}
                             {esperandoContratoCorregidoSgc(row) && (
@@ -1139,7 +1153,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {detailRow.sgcSubsanacionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
+                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
                         </p>
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                           Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
@@ -1163,6 +1177,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
+                      {enVentanaDocumentosSgc(detailRow) && (
+                        <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto"
+                          onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>Subir / reemplazar documentos</span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </ModalSection>
@@ -1184,6 +1205,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       )}
                     </div>
                   </div>
+                  {enVentanaDocumentosSgc(detailRow) && (
+                    <Button size="sm" variant="outline" className="w-full gap-1.5"
+                      onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Subir / reemplazar documentos</span>
+                    </Button>
+                  )}
                 </ModalSection>
               )}
 

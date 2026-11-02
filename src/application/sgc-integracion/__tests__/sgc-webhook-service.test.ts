@@ -326,6 +326,28 @@ describe("SgcWebhookApplicationService.procesar", () => {
       }),
     );
   });
+  it("deberia guardar motivo y habilitar correccion cuando el SGC rechaza", async () => {
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const svc = build(repo, sgcRepo);
+
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_REJECTED,
+        data: { reason: "El contrato no cumple la cláusula de poderes." },
+      }),
+    );
+
+    expect(sgcRepo.actualizarExpediente).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED,
+        devolucionRequiereCambio: true,
+        devolucionMotivo: "El contrato no cumple la cláusula de poderes.",
+      }),
+    );
+  });
+
   it("deberia NO marcar observado cuando la devolucion es validacion interna (sin cambio documental)", async () => {
     const repo = webhookRepoMock();
     const sgcRepo = sgcRepoMock();

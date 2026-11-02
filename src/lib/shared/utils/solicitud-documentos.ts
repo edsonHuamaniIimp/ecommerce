@@ -181,6 +181,20 @@ export function enVentanaSubsanacionSgc(s: SolicitudDocumentosGate): boolean {
 }
 
 /**
+ * Ventana de documentos del cliente tras un rechazo/devolucion del SGC.
+ * Es independiente de si el contrato esta esperando correccion: el cliente
+ * puede reemplazar anexos/documentos aunque el contrato siga pendiente.
+ */
+export function enVentanaDocumentosSgc(s: SolicitudDocumentosGate): boolean {
+  return s.sgcEnabled && legalDelegadaAlSgc(s.revisiones) && sgcDevuelto(s);
+}
+
+/** Subida de anexos del cliente durante una devolucion del SGC. */
+export function puedeClienteSubirAnexosSgc(s: SolicitudDocumentosGate): boolean {
+  return enVentanaDocumentosSgc(s);
+}
+
+/**
  * El admin declaro que subira un **contrato nuevo** y aun no lo adjunto: el cliente debe
  * esperar (no puede firmar el contrato vigente, que quedo observado por el SGC).
  */

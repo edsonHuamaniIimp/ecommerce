@@ -13,7 +13,6 @@ import type {
 } from "@/domain/models/sgc";
 import { SgcApiError } from "@/domain/models/sgc";
 import {
-  ANEXOS_REQUERIDOS,
   SGC_APPROVAL_RESULT,
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
@@ -29,7 +28,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
-import { construirIdempotencyKey, extraerDocumentosLegacy, sha256Hex } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, extraerDocumentosLegacy, nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -598,19 +597,39 @@ export class SgcIntegracionApplicationService {
      * nombre local del archivo (eran los titulos antiguos). */
     const titulosEnSgc = new Set<string>();
     const nombresEnSgc = new Set<string>();
+    const documentIdPorTitulo = new Map<string, string>();
+    const documentIdPorNombre = new Map<string, string>();
+    const documentIdPorRequisito = new Map<string, string>();
+    const documentIdsUsados = new Set<string>();
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    /* Solo se versiona un anexo existente cuando el SGC pidio correccion. */
+    const puedeVersionarAnexos =
+      expediente?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
+      expediente?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED;
     if (expediente?.contractId) {
       try {
         const actual = await this.client.consultarExpediente(expediente.contractId);
         for (const d of actual.documents.filter((x) => x.category === SGC_DOCUMENT_CATEGORIES.ANNEX)) {
           titulosEnSgc.add(d.title);
-          if (d.currentFileName) nombresEnSgc.add(d.currentFileName);
+          if (!documentIdPorTitulo.has(d.title)) documentIdPorTitulo.set(d.title, d.documentId);
+          if (!documentIdPorNombre.has(d.title)) documentIdPorNombre.set(d.title, d.documentId);
+          if (d.currentFileName) {
+            nombresEnSgc.add(d.currentFileName);
+            if (!documentIdPorNombre.has(d.currentFileName)) documentIdPorNombre.set(d.currentFileName, d.documentId);
+          }
         }
       } catch {
         /* Si la consulta falla, se intenta la subida igual. */
       }
     }
+    /* Los documentos legacy tenian nombres aleatorios: se mapean por su nombre local anterior. */
+    for (const d of detalle.docsAdjuntos) {
+      if (!d.requisito || documentIdPorRequisito.has(d.requisito)) continue;
+      const documentId = documentIdPorNombre.get(d.nombre);
+      if (documentId) documentIdPorRequisito.set(d.requisito, documentId);
+    }
 
+    const identificador = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
     const vistos = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
@@ -618,25 +637,47 @@ export class SgcIntegracionApplicationService {
       /* Titulo legible por requisito (Ficha RUC, Vigencia de Poder, DNI...). El nombre fisico
        * lleva un hash corto de la URL: la misma pieza produce el mismo nombre (no duplica) y un
        * archivo reemplazado produce uno nuevo (se reenvia como version). */
-      const titulo = ANEXOS_REQUERIDOS.find((a) => a.key === doc.requisito)?.label ?? doc.nombre;
-      const fileName = doc.requisito
-        ? `${this.slugArchivo(doc.requisito)}-${(await sha256Hex(new TextEncoder().encode(doc.url))).slice(0, 6)}.${this.extensionArchivo(doc.nombre)}`
-        : doc.nombre;
+      const titulo = tituloSgcDocumento(doc.nombre, doc.requisito);
+      const hash = (await sha256Hex(new TextEncoder().encode(doc.url))).slice(0, 6);
+      const fileName = nombreArchivoSgc({
+        titulo,
+        nombreOriginal: doc.nombre,
+        requisito: doc.requisito,
+        identificador,
+        hash,
+      });
+      /* Compatibilidad: versiones previas no incluian el identificador del stand. */
+      const fileNameLegacy = nombreArchivoSgc({
+        titulo,
+        nombreOriginal: doc.nombre,
+        requisito: doc.requisito,
+        identificador: null,
+        hash,
+      });
       if (
         vistos.has(clave) ||
         doc.url === contratoUrl ||
         clave === contratoClave ||
-        titulosEnSgc.has(doc.nombre) ||
+        (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo)) ||
+        nombresEnSgc.has(doc.nombre) ||
+        nombresEnSgc.has(fileNameLegacy) ||
         nombresEnSgc.has(fileName)
       ) {
         continue;
       }
       vistos.add(clave);
+      const documentIdCandidato = puedeVersionarAnexos
+        ? documentIdPorTitulo.get(titulo) ?? (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined)
+        : undefined;
+      const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;
+      if (documentIdExistente) documentIdsUsados.add(documentIdExistente);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: titulo,
         fileName,
         url: doc.url,
+        documentId: documentIdExistente ?? null,
+        replacementReason: documentIdExistente ? SGC_SUBSANACION_MOTIVO : undefined,
       });
       if (subido) resultados.push(subido);
     }
@@ -668,12 +709,6 @@ export class SgcIntegracionApplicationService {
       .replace(/^-+|-+$/g, "")
       .slice(0, 60);
     return base || "documento";
-  }
-
-  /** Extension del archivo (sin punto; pdf por defecto). */
-  private extensionArchivo(nombre: string): string {
-    const ext = (nombre.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return ext && ext !== nombre.toLowerCase() ? ext : "pdf";
   }
 
   /**

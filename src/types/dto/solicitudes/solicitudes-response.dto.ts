@@ -80,6 +80,10 @@ export interface SolicitudDTO {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
+  /** Motivo textual de la ultima devolucion/rechazo del SGC. */
+  sgcDevolucionMotivo?: string | null;
+  /** true/false si el SGC exige cambio documental; null = no informado. */
+  sgcDevolucionRequiereCambio?: boolean | null;
   /** Casuística de subsanación declarada por el admin (null = no declarada). */
   sgcSubsanacionMotivo: string | null;
   /** Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */

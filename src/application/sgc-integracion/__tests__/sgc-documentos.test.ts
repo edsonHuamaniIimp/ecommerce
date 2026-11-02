@@ -16,7 +16,9 @@ import {
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
   SGC_MOTIVO_CARGA_INICIAL,
+  SGC_LIFECYCLE_STATUSES,
   SGC_TITULOS_DOCUMENTO,
+  ESTADOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 const CONFIG: SgcIntegracionConfig = {
@@ -449,10 +451,134 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       expect.objectContaining({
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)",
-        fileName: `vigencia-poder-${hash}.pdf`,
+        fileName: `vigencia-poder-stand-1-${hash}.pdf`,
       }),
     );
   });
+  it("no duplica anexos legacy cuyo fileName no incluye el stand", async () => {
+    const client = clientMock();
+    const url = "/uploads/1792421435025_jwc6v4.pdf";
+    const hash = (await sha256Hex(new TextEncoder().encode(url))).slice(0, 6);
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      documents: [{
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)",
+        currentFileName: `vigencia-poder-${hash}.pdf`,
+      }],
+    } as never);
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "d1",
+        url,
+        nombre: "1792421435025_jwc6v4.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: "vigencia-poder",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(sgcRepoMock(), client, documentoOrigenMock(), solicitudRepoMock(row));
+    const docs = await svc.subirAnexosDeSolicitud("sol-1");
+    expect(docs).toHaveLength(0);
+    expect(client.reservarSubida).not.toHaveBeenCalled();
+  });
+
+  it("reenvia una version nueva aunque el requisito y el titulo coincidan", async () => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      documents: [{
+        documentId: "sgc-doc-1",
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: "Vigencia de Poder (o equivalente, en caso de empresa extranjera)",
+        currentFileName: "vigencia-poder-aaaaaa.pdf",
+      }],
+    } as never);
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "d1",
+        url: "/uploads/vigencia-poder-corregida.pdf",
+        nombre: "Vigencia de Poder corregida.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: "vigencia-poder",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({ ...expediente(), lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        documentId: "sgc-doc-1",
+        replacementReason: expect.any(String),
+      }),
+    );
+  });
+
+  it("reutiliza el documentId legacy al reemplazar un anexo con nombre random", async () => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      documents: [{
+        documentId: "sgc-legacy-1",
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: "1792421435025_jwc6v4.pdf",
+        currentFileName: "1792421435025_jwc6v4.pdf",
+      }],
+    } as never);
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [
+        {
+          id: "d-old",
+          url: "/uploads/1792421435025_jwc6v4.pdf",
+          nombre: "1792421435025_jwc6v4.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: "vigencia-poder",
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO,
+          createdAt: new Date("2026-10-01T00:00:00.000Z"),
+        },
+        {
+          id: "d-new",
+          url: "/uploads/vigencia-corregida.pdf",
+          nombre: "Vigencia corregida.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: "vigencia-poder",
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: new Date("2026-10-02T00:00:00.000Z"),
+        },
+      ],
+    });
+    const svc = build(
+      sgcRepoMock({ ...expediente(), lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        documentId: "sgc-legacy-1",
+        replacementReason: expect.any(String),
+      }),
+    );
+  });
+
   it("no repite como anexo un documento con el mismo nombre que el contrato", async () => {
     const client = clientMock();
     const row = detalle({

@@ -50,9 +50,9 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
       <div className="shrink-0 px-5 pt-4 pb-3 border-b border-slate-100 !pr-12">
         <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
           <History className="h-4 w-4 text-slate-500" />
-          Historial de revisiones
+          Historial de la solicitud
         </h3>
-        <p className="text-[11px] text-slate-400 mt-1">Linea de tiempo de cambios por area</p>
+        <p className="text-[11px] text-slate-400 mt-1">Linea de tiempo de revisiones y SGC</p>
       </div>
 
       {/* ===== BODY ===== */}
@@ -60,7 +60,7 @@ export function HistorialModal({ solicitudId }: { solicitudId: string }) {
         {loading ? (
           <p className="py-12 text-center text-sm text-slate-400">Cargando...</p>
         ) : items.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-400">Sin historial de revisiones.</p>
+          <p className="py-12 text-center text-sm text-slate-400">Sin historial.</p>
         ) : (
           <div className="space-y-5">
             {Object.entries(grouped).map(([area, areaItems]) => (

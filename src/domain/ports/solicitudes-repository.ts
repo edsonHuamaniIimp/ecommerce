@@ -65,7 +65,12 @@ export interface ISolicitudesRepository {
   atenderReevaluacionRechazo(reevaluacionId: string, reviewerEmail: string): Promise<void>;
   darDeBajaSolicitud(solicitudId: string): Promise<void>;
   marcarOrdenPago(solicitudId: string): Promise<void>;
-  obtenerHistorial(solicitudId: string): Promise<{ revisiones: RevisionEntity[]; historial: RevisionHistorialEntity[] }>;
+  obtenerHistorial(solicitudId: string): Promise<{
+    revisiones: RevisionEntity[];
+    historial: RevisionHistorialEntity[];
+    /** Tracking del expediente SGC para la linea de tiempo general. */
+    sgcEventos: Array<{ id: string; tipo: string; detalle: string; actor: string | null; createdAt: Date }>;
+  }>;
   crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>>;
   findDocumento(docId: string): Promise<{ id: string; userId: string | null; solicitudId: string; createdAt: Date; estado: string | null; flgActivo: boolean } | null>;
   /** SHA-256 de un contrato firmado ya adjunto a OTRA solicitud (anti-reutilizacion). */

@@ -1,4 +1,5 @@
 import {
+  ANEXOS_REQUERIDOS,
   SGC_IDEMPOTENCY_PREFIX,
   SGC_MIME_TYPES,
   SGC_MIME_TYPE_DEFAULT,
@@ -115,4 +116,35 @@ export function extraerDocumentosLegacy(documentos: unknown): DocumentoUrl[] {
     }
   }
   return items;
+}
+
+/** Titulo legible que se envia al SGC para un anexo. */
+export function tituloSgcDocumento(nombreOriginal: string, requisito?: string | null): string {
+  const etiqueta = ANEXOS_REQUERIDOS.find((a) => a.key === requisito)?.label;
+  if (etiqueta) return etiqueta;
+  const sinExtension = nombreOriginal.replace(/\.[^.]+$/, "").trim();
+  return sinExtension || "Documento adicional";
+}
+
+/** Nombre fisico unico y legible que se envia al SGC para un anexo. */
+export function nombreArchivoSgc(params: {
+  titulo: string;
+  nombreOriginal: string;
+  requisito?: string | null;
+  identificador?: string | null;
+  hash: string;
+}): string {
+  const slug = (texto: string): string => texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+  const extension = (params.nombreOriginal.split(".").pop() ?? "pdf")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "") || "pdf";
+  const base = slug(params.requisito || params.titulo) || "documento";
+  const identificador = slug(params.identificador ?? "");
+  return [base, identificador, params.hash].filter(Boolean).join("-") + "." + extension;
 }

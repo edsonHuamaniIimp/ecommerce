@@ -55,7 +55,23 @@ function mapRevision(r: RevisionRow): RevisionEntity {
   };
 }
 
-function computeEstadoSolicitud(revisiones: RevisionEntity[]): string {
+function computeEstadoSolicitud(
+  revisiones: RevisionEntity[],
+  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
+): string {
+  /* El rechazo/devolucion del SGC es una observacion para el cliente; no crea revision local. */
+  /*
+   * Solo se infiere `OBSERVADO` cuando el webhook nuevo confirmo que el cliente
+   * debe corregir. Los rechazos legacy (flag null) conservan el estado que ya
+   * mostraban en produccion y no se reinterpretan al desplegar.
+   */
+  if (
+    (sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+      sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
+    sgc.devolucionRequiereCambio === true
+  ) {
+    return ESTADOS_SOLICITUD.OBSERVADO;
+  }
   if (revisiones.length === 0) return ESTADOS_SOLICITUD.PENDIENTE;
   const todasPendientes = revisiones.every((r) => r.estado === ESTADOS_REVISION.PENDIENTE);
   if (todasPendientes) return ESTADOS_SOLICITUD.PENDIENTE;
@@ -72,6 +88,31 @@ function computeEstadoSolicitud(revisiones: RevisionEntity[]): string {
     return algunaRechazada ? ESTADOS_SOLICITUD.RECHAZADO : ESTADOS_SOLICITUD.APROBADO;
   }
   return ESTADOS_SOLICITUD.PENDIENTE;
+}
+
+function motivoWebhookSgc(payload: Prisma.JsonValue): string {
+  const data = (payload as { data?: { reason?: unknown } } | null)?.data;
+  return typeof data?.reason === "string" && data.reason.trim()
+    ? data.reason.trim().slice(0, 500)
+    : "Evento recibido del SGC";
+}
+
+/** El estado SGC observado/rechazado manda sobre el estado persistido anterior. */
+function estadoSolicitudConSgc(
+  estadoPersistido: string | null,
+  revisiones: RevisionEntity[],
+  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
+): string {
+  const calculado = computeEstadoSolicitud(revisiones, sgc);
+  /* No revertir un estado terminal de pago por una respuesta tardia del SGC. */
+  if (
+    calculado === ESTADOS_SOLICITUD.OBSERVADO &&
+    estadoPersistido !== ESTADOS_SOLICITUD.PENDIENTE_PAGO &&
+    estadoPersistido !== ESTADOS_SOLICITUD.PAGADO
+  ) {
+    return calculado;
+  }
+  return estadoPersistido || calculado;
 }
 
 async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
@@ -258,7 +299,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     iimpClienteCodigo: row.iimpClienteCodigo ?? null,
     iimpReserva: (row.iimpReserva ?? null) as unknown,
     iimpReservaAt: row.iimpReservaAt ?? null,
-    estadoSolicitud: row.estado || computeEstadoSolicitud(revisiones),
+    estadoSolicitud: estadoSolicitudConSgc(row.estado, revisiones, row.sgcExpediente),
     flgActivo: row.flgActivo,
     contratoHabilitado: row.contratoHabilitado,
     documentos,
@@ -279,6 +320,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcDevolucionMotivo: row.sgcExpediente?.devolucionMotivo ?? null,
+    sgcDevolucionRequiereCambio: row.sgcExpediente?.devolucionRequiereCambio ?? null,
     sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,
     sgcSubsanacionModo: row.sgcExpediente?.subsanacionModo ?? null,
     sgcDocumentosEnviados: (row.sgcExpediente?._count?.documentos ?? 0) > 0,
@@ -484,11 +527,20 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     if (params.estado) {
       const lite = await prisma.solicitud.findMany({
         where: where as never,
-        select: { id: true, estado: true, revisiones: { select: { area: true, estado: true } } },
+        select: {
+          id: true,
+          estado: true,
+          revisiones: { select: { area: true, estado: true } },
+          sgcExpediente: { select: { lifecycleStatus: true, devolucionRequiereCambio: true } },
+        },
         orderBy,
       });
       const ids = lite
-        .filter((r) => (r.estado || computeEstadoSolicitud(r.revisiones as unknown as RevisionEntity[])) === params.estado)
+        .filter((r) => estadoSolicitudConSgc(
+          r.estado,
+          r.revisiones as unknown as RevisionEntity[],
+          r.sgcExpediente,
+        ) === params.estado)
         .map((r) => r.id);
       const total = ids.length;
       const pageIds = ids.slice(skip, skip + params.perPage);
@@ -788,8 +840,12 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     }
   }
 
-  async obtenerHistorial(solicitudId: string): Promise<{ revisiones: RevisionEntity[]; historial: RevisionHistorialEntity[] }> {
-    const [revisiones, historial] = await Promise.all([
+  async obtenerHistorial(solicitudId: string): Promise<{
+    revisiones: RevisionEntity[];
+    historial: RevisionHistorialEntity[];
+    sgcEventos: Array<{ id: string; tipo: string; detalle: string; actor: string | null; createdAt: Date }>;
+  }> {
+    const [revisiones, historial, sgcExpediente] = await Promise.all([
       prisma.revision.findMany({
         where: { solicitudId },
         select: { area: true, estado: true, comentario: true, createdBy: true, updatedBy: true, createdAt: true, updatedAt: true },
@@ -800,7 +856,54 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         select: { area: true, estadoAnterior: true, comentarioAnterior: true, motivo: true, createdBy: true, createdAt: true },
         orderBy: { createdAt: "asc" },
       }),
+      prisma.sgcExpediente.findUnique({
+        where: { solicitudId },
+        select: { id: true, contractId: true },
+      }),
     ]);
+
+    const [subsanaciones, webhooks] = sgcExpediente
+      ? await Promise.all([
+        prisma.sgcSubsanacion.findMany({
+          where: { sgcExpedienteId: sgcExpediente.id },
+          orderBy: { declaradoAt: "asc" },
+        }),
+        sgcExpediente.contractId
+          ? prisma.sgcWebhookEvento.findMany({
+            where: { resourceId: sgcExpediente.contractId },
+            orderBy: { createdAt: "asc" },
+          })
+          : Promise.resolve([]),
+      ])
+      : [[], []];
+
+    const sgcEventos = [
+      ...subsanaciones.flatMap((s) => [
+        {
+          id: `${s.id}:declarada`,
+          tipo: "subsanacion_declarada",
+          detalle: `Ronda ${s.ronda}: ${s.motivo}${s.modo ? ` · ${s.modo}` : ""}`,
+          actor: s.declaradoPor,
+          createdAt: s.declaradoAt,
+        },
+        ...(s.reenviadoAt
+          ? [{
+            id: `${s.id}:reenviada`,
+            tipo: "subsanacion_reenviada",
+            detalle: `Ronda ${s.ronda} reenviada al SGC`,
+            actor: s.reenviadoPor,
+            createdAt: s.reenviadoAt,
+          }]
+          : []),
+      ]),
+      ...webhooks.map((w) => ({
+        id: w.id,
+        tipo: w.eventType,
+        detalle: motivoWebhookSgc(w.payload),
+        actor: "SGC",
+        createdAt: w.createdAt,
+      })),
+    ].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     return {
       revisiones: revisiones.map((r) => ({
@@ -825,6 +928,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         createdBy: h.createdBy,
         createdAt: h.createdAt,
       })),
+      sgcEventos,
     };
   }
 

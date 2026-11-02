@@ -6,8 +6,9 @@ import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CO
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos, enVentanaAnexosReserva } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -407,7 +408,8 @@ export class SolicitudesApplicationService {
         !puedeClienteSubirDocumentos(detalle) &&
         !(params.permitirAnexosIniciales === true &&
           enVentanaAnexosReserva(detalle) &&
-          params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO)
+          params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO) &&
+        !(params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && puedeClienteSubirAnexosSgc(detalle))
       ) {
         throw new DomainError(
           "Aún no puedes adjuntar documentos. Se habilita al llegar a la revisión Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
@@ -495,8 +497,25 @@ export class SolicitudesApplicationService {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
+    /* Alinea el nombre local con el que se enviara al SGC (mismo URL/requisito/stand). */
+    let nombreDocumento = params.nombre;
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && requisito) {
+      const detalleCanonico = await this.repo.detalle(params.solicitudId);
+      if (detalleCanonico) {
+        const identificador = detalleCanonico.standCode || detalleCanonico.standCodes.join("-") || params.solicitudId.slice(0, 8);
+        const hash = (await sha256Hex(new TextEncoder().encode(params.url))).slice(0, 6);
+        nombreDocumento = nombreArchivoSgc({
+          titulo: tituloSgcDocumento(params.nombre, requisito),
+          nombreOriginal: params.nombre,
+          requisito,
+          identificador,
+          hash,
+        });
+      }
+    }
+
     const doc = await this.repo.crearDocumentoAdjunto(
-      params.solicitudId, params.url, params.nombre,
+      params.solicitudId, params.url, nombreDocumento,
       userId,
       params.userEmail,
       categoria,

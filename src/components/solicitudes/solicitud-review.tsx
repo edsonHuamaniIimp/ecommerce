@@ -92,6 +92,7 @@ export function SolicitudReview({
   onOrdenPago?: () => void;
 }) {
   const [currentStep, setCurrentStep] = useState(0);
+  const stepStorageKey = `solicitud-review:${row.id}:step`;
   const documentoEstadoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DOCUMENTO_ESTADO,
     ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
@@ -374,6 +375,20 @@ export function SolicitudReview({
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
   });
+  /* Persiste el paso seleccionado durante la sesion (recarga/reapertura del detalle). */
+  useEffect(() => {
+    try {
+      const guardado = Number(window.sessionStorage.getItem(stepStorageKey));
+      if (!Number.isInteger(guardado) || guardado < 0 || guardado >= totalSteps) return;
+      if (mostrarSgc && guardado === sgcStepIndex && !todasAprobadas) return;
+      const timer = window.setTimeout(() => setCurrentStep(guardado), 0);
+      return () => window.clearTimeout(timer);
+    } catch {
+      /* sessionStorage no disponible: se conserva el paso 0. */
+    }
+    return undefined;
+  }, [stepStorageKey, totalSteps, mostrarSgc, sgcStepIndex, todasAprobadas]);
+
   const requiereSgc = mostrarSgc;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
   // El SGC devolvio (observed) o rechazo (rejected): ahi si se puede reemplazar el contrato.
@@ -750,7 +765,7 @@ export function SolicitudReview({
                   ? hayFirmadoPosteriorAlContratoCorregido(row)
                   : row.docsAdjuntos.some((d) => d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
               }
-              motivo={row.sgcSubsanacionMotivo}
+              motivo={row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? null}
               modo={modoSubsanacionEfectivo(row)}
               onSolicitudChanged={() => onSaved(row)}
               onSynced={(s) => {

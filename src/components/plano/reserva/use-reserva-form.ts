@@ -113,6 +113,7 @@ export function useReservaForm(
   const [formDatos, setFormDatos] = useState<FormDatos>(emptyDatos);
   /** Documentos del cliente por requisito (ANEXOS_REQUERIDOS): clave -> URL. */
   const [docsRequisitos, setDocsRequisitos] = useState<Record<string, string>>({});
+  const [docsRequisitosNombres, setDocsRequisitosNombres] = useState<Record<string, string>>({});
   const [subiendoRequisito, setSubiendoRequisito] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<EtapaEnvioReserva | null>(null);
@@ -214,6 +215,7 @@ export function useReservaForm(
       setFormDatos(prefillEmpresa(base, perfil?.empresa ?? null));
       if (draft) {
         setDocsRequisitos(draft.docsRequisitos ?? {});
+        setDocsRequisitosNombres(draft.docsRequisitosNombres ?? Object.fromEntries(Object.entries(draft.docsRequisitos ?? {}).map(([key, url]) => [key, url.split("/").pop() ?? key])));
         if (typeof draft.step === "number" && draft.step >= 0 && draft.step <= 1) {
           setReservaStep(draft.step);
         }
@@ -247,16 +249,16 @@ export function useReservaForm(
     if (!reservaOpen || selectedIds.length === 0) return;
     const hasData = formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.telefono || formDatos.contacto || formDatos.email || formDatos.tipoComprobante || Object.keys(docsRequisitos).length > 0;
     if (!hasData && reservaStep === 0) return;
-    reservaBorradorDB.guardar([...selectedIds].sort(), formDatos, [], reservaStep, docsRequisitos);
+    reservaBorradorDB.guardar([...selectedIds].sort(), formDatos, [], reservaStep, docsRequisitos, docsRequisitosNombres);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formDatos, docsRequisitos, reservaStep]);
+  }, [formDatos, docsRequisitos, docsRequisitosNombres, reservaStep]);
 
   // Persist on close without submit
   const handleOpenChange = (open: boolean) => {
     if (!open && !submitting) {
       void guardarRepresentantes().catch(() => undefined);
       if (formDatos.razonSocial || formDatos.numeroDocumento || formDatos.direccion || formDatos.tipoComprobante || Object.keys(docsRequisitos).length > 0) {
-        reservaBorradorDB.guardar(selectedIds, formDatos, [], reservaStep, docsRequisitos);
+        reservaBorradorDB.guardar(selectedIds, formDatos, [], reservaStep, docsRequisitos, docsRequisitosNombres);
       }
       setReservaStep(0);
     }
@@ -271,6 +273,7 @@ export function useReservaForm(
     try {
       const url = await handleUpload(file);
       setDocsRequisitos((prev) => ({ ...prev, [requisito]: url }));
+      setDocsRequisitosNombres((prev) => ({ ...prev, [requisito]: file.name }));
     } catch (err) {
       errorReporting.reserva(ERROR_LOG_PASOS_RESERVA.ANEXOS, err, { stands: selectedIds, extra: { requisito } });
       setSubmitError(err instanceof Error ? err.message : "No se pudo subir el documento. Intenta de nuevo.");
@@ -280,6 +283,11 @@ export function useReservaForm(
 
   const removeDocRequisito = (requisito: string) => {
     setDocsRequisitos((prev) => {
+      const next = { ...prev };
+      delete next[requisito];
+      return next;
+    });
+    setDocsRequisitosNombres((prev) => {
       const next = { ...prev };
       delete next[requisito];
       return next;
@@ -520,7 +528,7 @@ export function useReservaForm(
         await solicitudesService.uploadDocumento({
           solicitudId,
           url,
-          nombre: url.split("/").pop() ?? requisito,
+          nombre: docsRequisitosNombres[requisito] ?? url.split("/").pop() ?? requisito,
           tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
           requisito,
           permitirAnexosIniciales: sinContrato,
@@ -552,6 +560,7 @@ export function useReservaForm(
   const reset = () => {
     setFormDatos(emptyDatos());
     setDocsRequisitos({});
+    setDocsRequisitosNombres({});
     setReservaStep(0);
     setConfirmado(false);
     setAceptaRepresentante(false);

@@ -6,6 +6,7 @@ import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
 import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS } from "@/lib/shared/constants";
+import { sha256Hex } from "@/lib/shared/utils/sgc";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
@@ -374,6 +375,36 @@ describe("SolicitudesApplicationService + SGC", () => {
       TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
       null,
       expect.stringMatching(/^[a-f0-9]{64}$/),
+    );
+  });
+
+  it("guarda el anexo con el mismo nombre canonico que se enviara al SGC", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand({ standCode: "STAND-1", standCodes: ["STAND-1"] }));
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+    const url = "/uploads/20107972090-01-F009-3303.pdf";
+    const hash = (await sha256Hex(new TextEncoder().encode(url))).slice(0, 6);
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url,
+      nombre: "20107972090-01-F009-3303.pdf",
+      userSub: "user-1",
+      userEmail: "cliente@iimp.org.pe",
+      userPermissions: [],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      requisito: ANEXOS_KEYS.FICHA_RUC,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
+      "sol-1",
+      url,
+      `ficha-ruc-stand-1-${hash}.pdf`,
+      "user-1",
+      "cliente@iimp.org.pe",
+      TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      ANEXOS_KEYS.FICHA_RUC,
+      null,
     );
   });
 });

@@ -104,6 +104,11 @@ export class SgcWebhookApplicationService {
         break;
       case SGC_EVENT_TYPES.WORKFLOW_REJECTED:
         cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.REJECTED;
+        /* El SGC rechaza con el mismo flujo de correccion que una devolucion. */
+        cambios.devolucionRequiereCambio = data.requiresDocumentChange !== false;
+        cambios.devolucionMotivo = textoONull(data.reason, 500);
+        cambios.devolucionDestinoStepId = textoONull(data.destinationStepId, 64);
+        cambios.devolucionEstrategia = textoONull(data.strategy, 30);
         break;
       case SGC_EVENT_TYPES.CONTRACT_CLOSED:
         cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.FINALIZED;

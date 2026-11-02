@@ -4,6 +4,7 @@ import {
   anexosBloqueantesFaltantes,
   anexosRequeridosFaltantes,
   enVentanaContratoReserva,
+  enVentanaDocumentosSgc,
   enVentanaLegalSgc,
   enVentanaSubsanacionSgc,
   esperandoContratoCorregidoSgc,
@@ -12,6 +13,7 @@ import {
   hayFirmadoPosteriorAlContratoCorregido,
   contratoClientePendienteFirma,
   contratoFirmadoPendienteReemplazo,
+  puedeClienteSubirAnexosSgc,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
 } from "../solicitud-documentos";
@@ -182,6 +184,12 @@ describe("subsanacion SGC segun el modo declarado por el admin", () => {
   it("bloquea al cliente si el admin declaró 'nuevo contrato' y aun no lo subio", () => {
     expect(enVentanaSubsanacionSgc(nuevoContratoSinSubir)).toBe(false);
     expect(esperandoContratoCorregidoSgc(nuevoContratoSinSubir)).toBe(true);
+    expect(puedeClienteSubirDocumentos(nuevoContratoSinSubir)).toBe(false);
+  });
+
+  it("habilita anexos aunque el contrato corregido aun no exista", () => {
+    expect(enVentanaDocumentosSgc(nuevoContratoSinSubir)).toBe(true);
+    expect(puedeClienteSubirAnexosSgc(nuevoContratoSinSubir)).toBe(true);
     expect(puedeClienteSubirDocumentos(nuevoContratoSinSubir)).toBe(false);
   });
 

@@ -348,7 +348,7 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
       ID,
       "/uploads/anexo.pdf",
-      "anexo.pdf",
+      "ficha-ruc-106-1d34b7.pdf",
       "user-1",
       "cliente@example.com",
       TIPOS_DOCUMENTO_SOLICITUD.ANEXO,

@@ -479,7 +479,7 @@ export const solicitudesController = {
       }
     }
 
-    const { revisiones, historial } = await services.solicitudes.repo.obtenerHistorial(gessStandId);
+    const { revisiones, historial, sgcEventos } = await services.solicitudes.repo.obtenerHistorial(gessStandId);
 
     const items: { fecha: string; area: string; accion: string; detalle: string; usuario: string | null; esActual: boolean }[] = [];
 
@@ -510,6 +510,27 @@ export const solicitudesController = {
       const label = REVISION_AREA_LABELS[r.area as keyof typeof REVISION_AREA_LABELS] ?? r.area;
       const estadoLabel = r.estado === ESTADOS_REVISION.APROBADO ? "Aprobado" : r.estado === ESTADOS_REVISION.RECHAZADO ? "Rechazado" : r.estado === ESTADOS_REVISION.PENDIENTE ? "Pendiente" : r.estado;
       items.push({ fecha: r.updatedAt.toISOString(), area: label, accion: "Estado actual", detalle: `Estado: ${estadoLabel}${r.comentario ? `\nJustificacion: "${r.comentario}"` : ""}`, usuario: r.updatedBy, esActual: true });
+    }
+
+    const sgcLabels: Record<string, string> = {
+      "workflow.started": "Enviado al SGC",
+      "workflow.advanced": "SGC avanzó el trámite",
+      "workflow.returned": "SGC devolvió el trámite",
+      "workflow.approved": "SGC aprobó el trámite",
+      "workflow.rejected": "SGC rechazó el trámite",
+      "contract.closed": "SGC cerró el contrato",
+      subsanacion_declarada: "Subsanación declarada",
+      subsanacion_reenviada: "Subsanación reenviada al SGC",
+    };
+    for (const e of sgcEventos) {
+      items.push({
+        fecha: e.createdAt.toISOString(),
+        area: "Legal (SGC)",
+        accion: sgcLabels[e.tipo] ?? "Evento SGC",
+        detalle: e.detalle,
+        usuario: e.actor,
+        esActual: false,
+      });
     }
 
     items.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());

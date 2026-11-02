@@ -4,7 +4,9 @@ import {
   construirIdempotencyKey,
   hmacSha256Hex,
   mimeDesdeNombre,
+  nombreArchivoSgc,
   parsearFirmaSgc,
+  tituloSgcDocumento,
   sha256Hex,
   verificarFirmaSgc,
 } from "../sgc";
@@ -46,6 +48,26 @@ describe("mimeDesdeNombre", () => {
 
   it("deberia devolver el mime por defecto para extensiones desconocidas", () => {
     expect(mimeDesdeNombre("archivo.exe")).toBe(SGC_MIME_TYPE_DEFAULT);
+  });
+});
+
+describe("nombres de anexos SGC", () => {
+  it("deberia usar la etiqueta legible del requisito como titulo", () => {
+    expect(tituloSgcDocumento("a8f3.pdf", "ficha-ruc")).toContain("Ficha RUC");
+  });
+
+  it("deberia conservar el nombre original sin extension como titulo alternativo", () => {
+    expect(tituloSgcDocumento("Contrato adicional.pdf", null)).toBe("Contrato adicional");
+  });
+
+  it("deberia generar un nombre unico, legible y con la extension original", () => {
+    expect(nombreArchivoSgc({
+      titulo: "Ficha RUC",
+      nombreOriginal: "a8f3.PDF",
+      requisito: "ficha-ruc",
+      identificador: "A-01",
+      hash: "abc123",
+    })).toBe("ficha-ruc-a-01-abc123.pdf");
   });
 });
 

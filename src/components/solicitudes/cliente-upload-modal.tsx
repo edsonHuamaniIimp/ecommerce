@@ -34,6 +34,7 @@ function tipoPreview(url: string): "pdf" | "imagen" | "otro" {
 
 interface Pendiente {
   url: string;
+  nombre: string;
   requisito: string | null;
 }
 
@@ -121,7 +122,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
-      setPendientes(prev => [...prev, { url, requisito: requisitoRef.current }]);
+      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
@@ -151,7 +152,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         await solicitudesService.uploadDocumento({
           solicitudId: solicitud.id,
           url: p.url,
-          nombre: p.url.split("/").pop() ?? "documento",
+          nombre: p.nombre || p.url.split("/").pop() || "documento",
           tipo: esFirmado ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
           requisito: p.requisito,
         });
@@ -590,7 +591,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               {pendientes.map((p, i) => p.requisito ? null : (
                 <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
                   <FileText className="h-3 w-3 text-muted-foreground" />
-                  <span className="truncate flex-1">{p.url.split("/").pop()}</span>
+                  <span className="truncate flex-1">{p.nombre || p.url.split("/").pop()}</span>
                   <button className="opacity-0 group-hover:opacity-100 text-red-500" onClick={() => handleRemove(i)}>
                     <X className="h-3 w-3" />
                   </button>
