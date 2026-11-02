@@ -1,6 +1,7 @@
 import {
   API_ERROR_CODES,
   MAX_CONTACTOS_FACTURACION,
+  MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES,
   MAX_STANDS_RESERVA_DEFAULT,
   MAX_STANDS_RESERVA_LIMITE,
   MAX_STANDS_RESERVA_MIN,
@@ -18,6 +19,7 @@ const PORTAL_VACIO: PortalConfigEntity = {
   contactoEmail: null,
   facturacionEmails: [],
   facturacionTelefonos: [],
+  notificacionesSolicitudesEmails: [],
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
@@ -83,6 +85,24 @@ function listaCorreos(valores: string[] | null | undefined): string[] {
   for (const correoFacturacion of lista) {
     if (!REGEX_EMAIL.test(correoFacturacion)) {
       throw new DomainError(`Correo invalido en contacto de facturacion: ${correoFacturacion}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+  }
+  return lista;
+}
+
+/** Lista de receptores internos de nuevas solicitudes: minusculas, sin duplicados y limitada. */
+function listaReceptores(valores: string[] | null | undefined): string[] {
+  const lista = [...new Set((valores ?? []).map((v) => v.trim().toLowerCase()).filter(Boolean))];
+  if (lista.length > MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES) {
+    throw new DomainError(
+      `Maximo ${MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES} receptores de notificaciones`,
+      API_ERROR_CODES.VALIDATION,
+      400,
+    );
+  }
+  for (const receptor of lista) {
+    if (!REGEX_EMAIL.test(receptor)) {
+      throw new DomainError(`Correo invalido en receptor de notificaciones: ${receptor}`, API_ERROR_CODES.VALIDATION, 400);
     }
   }
   return lista;
@@ -187,4 +207,19 @@ export class ConfiguracionApplicationService {
       updatedBy: limpiar(actualizadoPor),
     });
   }
+  /** Receptores internos del aviso de nuevas solicitudes. */
+  async obtenerNotificacionesSolicitudes(): Promise<string[]> {
+    return this.repo.obtenerNotificacionesSolicitudes();
+  }
+
+  /** Guarda la lista de receptores del aviso de nuevas solicitudes. */
+  async actualizarNotificacionesSolicitudes(
+    emails: string[],
+    permissions: string[],
+    actualizadoPor: string | null,
+  ): Promise<string[]> {
+    this.autorizarGestion(permissions);
+    return this.repo.guardarNotificacionesSolicitudes(listaReceptores(emails), limpiar(actualizadoPor));
+  }
+
 }

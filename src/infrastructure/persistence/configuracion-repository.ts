@@ -10,6 +10,7 @@ type FilaPortalConfig = {
   contactoEmail: string | null;
   facturacionEmails: unknown;
   facturacionTelefonos: unknown;
+  notificacionesSolicitudesEmails: unknown;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   holdReservaMinutos: number;
@@ -34,6 +35,7 @@ function aEntidad(row: FilaPortalConfig): PortalConfigEntity {
     contactoEmail: row.contactoEmail,
     facturacionEmails: listaTextos(row.facturacionEmails),
     facturacionTelefonos: listaTextos(row.facturacionTelefonos),
+    notificacionesSolicitudesEmails: listaTextos(row.notificacionesSolicitudesEmails),
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
     holdReservaMinutos: row.holdReservaMinutos,
@@ -60,6 +62,24 @@ export class ConfiguracionPrismaRepository implements IConfiguracionRepository {
       update: data,
     });
     return aEntidad(row);
+  }
+
+  async obtenerNotificacionesSolicitudes(): Promise<string[]> {
+    const row = await prisma.portalConfig.findUnique({
+      where: { id: ID_PORTAL },
+      select: { notificacionesSolicitudesEmails: true },
+    });
+    return listaTextos(row?.notificacionesSolicitudesEmails);
+  }
+
+  async guardarNotificacionesSolicitudes(emails: string[], updatedBy: string | null): Promise<string[]> {
+    const row = await prisma.portalConfig.upsert({
+      where: { id: ID_PORTAL },
+      create: { id: ID_PORTAL, notificacionesSolicitudesEmails: emails, updatedBy },
+      update: { notificacionesSolicitudesEmails: emails, updatedBy },
+      select: { notificacionesSolicitudesEmails: true },
+    });
+    return listaTextos(row.notificacionesSolicitudesEmails);
   }
 }
 

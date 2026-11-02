@@ -8,6 +8,8 @@ export interface PortalConfigEntity {
   facturacionEmails: string[];
   /** Telefonos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos). */
   facturacionTelefonos: string[];
+  /** Correos internos que reciben el aviso de nuevas solicitudes de alquiler. */
+  notificacionesSolicitudesEmails: string[];
   /** URL del Manual del Exhibidor. */
   manualUrl: string | null;
   /** URL del Reglamento de Stands. */

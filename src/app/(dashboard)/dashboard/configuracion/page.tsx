@@ -8,6 +8,7 @@ import { configuracionService } from "@/lib/client/api/services/configuracion-se
 import { invalidarPortalConfig } from "@/hooks/use-portal-config";
 import {
   MAX_CONTACTOS_FACTURACION,
+  MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES,
   MAX_STANDS_RESERVA_DEFAULT,
   MAX_STANDS_RESERVA_LIMITE,
   MAX_STANDS_RESERVA_MIN,
@@ -22,6 +23,7 @@ export default function ConfiguracionPortalPage() {
   const [contactoEmail, setContactoEmail] = useState("");
   const [facturacionEmails, setFacturacionEmails] = useState<string[]>([""]);
   const [facturacionTelefonos, setFacturacionTelefonos] = useState<string[]>([""]);
+  const [notificacionesEmails, setNotificacionesEmails] = useState<string[]>([""]);
   const [manualUrl, setManualUrl] = useState("");
   const [reglamentoUrl, setReglamentoUrl] = useState("");
   const [holdReservaMinutos, setHoldReservaMinutos] = useState("25");
@@ -35,12 +37,16 @@ export default function ConfiguracionPortalPage() {
     let activo = true;
     (async () => {
       try {
-        const config = await configuracionService.obtenerPortal();
+        const [config, notificaciones] = await Promise.all([
+          configuracionService.obtenerPortal(),
+          configuracionService.obtenerNotificacionesSolicitudes(),
+        ]);
         if (!activo) return;
         setMesaAyudaEmail(config.mesaAyudaEmail ?? "");
         setContactoEmail(config.contactoEmail ?? "");
         setFacturacionEmails(config.facturacionEmails.length > 0 ? config.facturacionEmails : [""]);
         setFacturacionTelefonos(config.facturacionTelefonos.length > 0 ? config.facturacionTelefonos : [""]);
+        setNotificacionesEmails(notificaciones.emails.length > 0 ? notificaciones.emails : [""]);
         setManualUrl(config.manualUrl ?? "");
         setReglamentoUrl(config.reglamentoUrl ?? "");
         setHoldReservaMinutos(String(config.holdReservaMinutos ?? 25));
@@ -91,6 +97,9 @@ export default function ConfiguracionPortalPage() {
           return;
         }
       }
+      await configuracionService.actualizarNotificacionesSolicitudes({
+        emails: notificacionesEmails.map((v) => v.trim()).filter(Boolean),
+      });
       await configuracionService.actualizarPortal({
         mesaAyudaEmail: mesaAyudaEmail.trim() || null,
         contactoEmail: contactoEmail.trim() || null,
@@ -283,6 +292,56 @@ export default function ConfiguracionPortalPage() {
                 <p className="text-[11px] text-muted-foreground">
                   Hasta {MAX_CONTACTOS_FACTURACION} correos y {MAX_CONTACTOS_FACTURACION} teléfonos. Los correos
                   se abren como mailto y los teléfonos inician una llamada.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="space-y-1">
+                <CardTitle><span>Receptores de nuevas solicitudes</span></CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Correos internos que recibirán el aviso cuando un cliente registre una nueva solicitud de alquiler.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label><span>Correos</span></Label>
+                  {notificacionesEmails.map((valor, indice) => (
+                    <div key={`notificacion-solicitud-${indice}`} className="flex items-center gap-2">
+                      <Input
+                        type="email"
+                        placeholder="analista@iimp.org.pe"
+                        value={valor}
+                        onChange={(e) => setNotificacionesEmails((prev) => prev.map((v, i) => (i === indice ? e.target.value : v)))}
+                        className="text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0 text-destructive"
+                        title="Quitar correo"
+                        onClick={() => setNotificacionesEmails((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== indice) : [""]))}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    disabled={notificacionesEmails.length >= MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES}
+                    onClick={() => setNotificacionesEmails((prev) => [...prev, ""])}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Agregar correo</span>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Hasta {MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES} correos. Si la lista queda vacía, se mantiene el
+                  correo administrativo actual como respaldo.
                 </p>
               </CardContent>
             </Card>

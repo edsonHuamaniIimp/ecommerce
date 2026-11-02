@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   MAX_CONTACTOS_FACTURACION,
+  MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES,
   MAX_STANDS_RESERVA_DEFAULT,
   MAX_STANDS_RESERVA_LIMITE,
   MAX_STANDS_RESERVA_MIN,
@@ -51,3 +52,11 @@ export const actualizarPortalConfigSchema = z.object({
 });
 
 export type ActualizarPortalConfigInput = z.infer<typeof actualizarPortalConfigSchema>;
+
+/** Receptores internos del aviso de nuevas solicitudes. */
+export const actualizarNotificacionesSolicitudesSchema = z.object({
+  emails: z
+    .array(z.string().trim().regex(REGEX_EMAIL, "Correo invalido").max(200))
+    .max(MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES)
+    .default([]),
+});

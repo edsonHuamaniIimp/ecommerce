@@ -1117,6 +1117,9 @@ export const MAX_STANDS_RESERVA_LIMITE = 50;
 /** Maximo de correos y telefonos de contacto de facturacion configurables. */
 export const MAX_CONTACTOS_FACTURACION = 5;
 
+/** Maximo de correos internos que reciben avisos de nuevas solicitudes. */
+export const MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES = 5;
+
 /** Maximo de stands por operacion de reserva que acepta el API del IIMP. */
 export const MAX_STANDS_IIMP = 50;
 

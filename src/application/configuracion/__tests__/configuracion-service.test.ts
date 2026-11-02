@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConfiguracionApplicationService } from "../configuracion-service";
-import { MAX_CONTACTOS_FACTURACION, PERMISSIONS } from "@/lib/shared/constants";
+import { MAX_CONTACTOS_FACTURACION, MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES, PERMISSIONS } from "@/lib/shared/constants";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { PortalConfigEntity } from "@/domain/models/configuracion";
 
@@ -16,14 +16,20 @@ vi.mock("@/lib/server/router", () => ({
 /** Repositorio falso con la config guardada capturada. */
 function fakeRepo(existente: PortalConfigEntity | null = null) {
   const guardados: unknown[] = [];
+  const notificacionesGuardadas: string[][] = [];
   const repo = {
     obtenerPortal: vi.fn(async () => existente),
     guardarPortal: vi.fn(async (data: unknown) => {
       guardados.push(data);
       return { ...(data as object), updatedAt: new Date() } as PortalConfigEntity;
     }),
+    obtenerNotificacionesSolicitudes: vi.fn(async () => []),
+    guardarNotificacionesSolicitudes: vi.fn(async (emails: string[]) => {
+      notificacionesGuardadas.push(emails);
+      return emails;
+    }),
   } as unknown as IConfiguracionRepository;
-  return { repo, guardados };
+  return { repo, guardados, notificacionesGuardadas };
 }
 
 describe("ConfiguracionApplicationService", () => {
@@ -68,6 +74,31 @@ describe("ConfiguracionApplicationService", () => {
     });
   });
 
+
+  it("guarda receptores de nuevas solicitudes en minusculas, sin duplicados y con limite", async () => {
+    const { repo, notificacionesGuardadas } = fakeRepo();
+    const service = new ConfiguracionApplicationService(repo);
+
+    await service.actualizarNotificacionesSolicitudes(
+      [" Analista@IIMP.org.pe ", "analista@iimp.org.pe", "compras@iimp.org.pe"],
+      [PERMISSIONS.PORTAL_MANAGE],
+      "admin@iimp.org.pe",
+    );
+
+    expect(notificacionesGuardadas[0]).toEqual(["analista@iimp.org.pe", "compras@iimp.org.pe"]);
+    await expect(service.actualizarNotificacionesSolicitudes(
+      Array.from({ length: MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES + 1 }, (_, i) => `r${i}@iimp.org.pe`),
+      [PERMISSIONS.PORTAL_MANAGE],
+      null,
+    )).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("exige permiso portal:manage para guardar receptores", async () => {
+    const service = new ConfiguracionApplicationService(fakeRepo().repo);
+    await expect(
+      service.actualizarNotificacionesSolicitudes(["a@iimp.org.pe"], [PERMISSIONS.EMPRESAS_MANAGE], null),
+    ).rejects.toMatchObject({ status: 403 });
+  });
   it("exige inicio y fin cuando el mantenimiento esta activo", async () => {
     const service = new ConfiguracionApplicationService(fakeRepo().repo);
     await expect(

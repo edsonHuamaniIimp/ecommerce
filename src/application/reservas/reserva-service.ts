@@ -40,6 +40,20 @@ export class ReservaApplicationService {
     }
   }
 
+  /** Receptores internos del aviso de nueva solicitud; usa el fallback historico si no hay config. */
+  private async destinatariosNuevaSolicitud(): Promise<string[]> {
+    let configurados: string[] = [];
+    if (this.configuracionRepo) {
+      try {
+        configurados = (await this.configuracionRepo.obtenerPortal())?.notificacionesSolicitudesEmails ?? [];
+      } catch {
+        configurados = [];
+      }
+    }
+    const lista = configurados.length > 0 ? configurados : [ADMIN_EMAIL];
+    return [...new Set(lista.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+  }
+
   /** Bloquea temporalmente los stands al abrir el wizard (todo o nada). */
   async crearHold(
     standIds: string[],
@@ -314,9 +328,12 @@ export class ReservaApplicationService {
           solicitudId,
         },
       }).catch(() => {});
-      if (ADMIN_EMAIL && ADMIN_EMAIL !== contactEmail) {
+      const destinatarios = await this.destinatariosNuevaSolicitud();
+      const correoCliente = contactEmail.trim().toLowerCase();
+      for (const destinatario of destinatarios) {
+        if (destinatario === correoCliente) continue;
         enviarEmailPlantilla({
-          to: ADMIN_EMAIL,
+          to: destinatario,
           plantilla: "reserva-admin",
           idioma: IDIOMA_DEFAULT,
           datos: {

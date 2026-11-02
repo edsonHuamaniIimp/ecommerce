@@ -1207,6 +1207,8 @@ model PortalConfig {
   facturacionEmails Json? @map("facturacion_emails")
   /// Telefonos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos).
   facturacionTelefonos Json? @map("facturacion_telefonos")
+  /// Correos internos que reciben el aviso de nuevas solicitudes de alquiler.
+  notificacionesSolicitudesEmails Json? @map("notificaciones_solicitudes_emails")
   /// URL del Manual del Exhibidor.
   manualUrl      String?  @map("manual_url") @db.VarChar(500)
   /// URL del Reglamento de Stands.

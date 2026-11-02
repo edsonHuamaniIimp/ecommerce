@@ -10,6 +10,7 @@ vi.mock("@/lib/server/idioma", () => ({
 }));
 
 import { ReservaApplicationService } from "../reserva-service";
+import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -127,6 +128,24 @@ describe("ReservaApplicationService — validacion de evento", () => {
     const res = await svc.crear({ standIds: ["g1"], eventoId: "evt-1", userEmail: "duena@minera.pe" });
     expect(res.ok).toBe(true);
     expect(update).toHaveBeenCalledWith("g1", expect.objectContaining({ estado: "en_evaluacion" }));
+  });
+
+  it("notifica a los receptores internos configurados", async () => {
+    vi.mocked(enviarEmailPlantilla).mockClear();
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const configuracionRepo = {
+      obtenerPortal: vi.fn(async () => ({
+        notificacionesSolicitudesEmails: ["analista@iimp.org.pe", "compras@iimp.org.pe"],
+      })),
+    } as never;
+    const svc = new ReservaApplicationService(repo, undefined, authRepoFalso(), undefined, configuracionRepo);
+
+    await svc.crear({ standIds: ["g1"], eventoId: "evt-1", userEmail: "cliente@empresa.pe" });
+
+    const envios = vi.mocked(enviarEmailPlantilla).mock.calls
+      .filter(([params]) => params.plantilla === "reserva-admin")
+      .map(([params]) => params.to);
+    expect(envios).toEqual(["analista@iimp.org.pe", "compras@iimp.org.pe"]);
   });
 
   it("rechaza a terceros reservar un stand pre-reservado", async () => {
