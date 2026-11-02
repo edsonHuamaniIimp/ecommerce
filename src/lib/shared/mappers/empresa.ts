@@ -54,6 +54,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
       correo: rep.correo,
       celular: rep.celular,
       direccion: rep.direccion,
+      firmaUrl: rep.firmaUrl ?? null,
       orden: rep.orden,
     })),
     estado: entity.estado,

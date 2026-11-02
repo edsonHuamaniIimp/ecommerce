@@ -8,6 +8,8 @@ export interface EmpresaRepresentanteAdicionalDTO {
   correo: string | null;
   celular: string | null;
   direccion: string | null;
+  /** Firma digital (PNG) del representante para el contrato. */
+  firmaUrl: string | null;
   orden: number;
 }
 export interface EmpresaDTO {

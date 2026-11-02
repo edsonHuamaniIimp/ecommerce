@@ -84,7 +84,10 @@ export function ClienteDashboardContent({ session, cargando }: Props) {
       .then((p) => {
         if (!activo) return;
         const nombre = [p?.nombre, p?.apellidos].filter(Boolean).join(" ").trim();
-        setPerfil({ saludo: nombre || p?.email || (session?.email ?? ""), empresa: p?.nombreEmpresa ?? null });
+        setPerfil({
+          saludo: nombre || p?.email || (session?.email ?? ""),
+          empresa: p?.nombreEmpresa ?? p?.empresa?.razonSocial ?? null,
+        });
       })
       .catch(() => { if (activo) setPerfil({ saludo: session?.email ?? "", empresa: null }); });
     return () => { activo = false; };

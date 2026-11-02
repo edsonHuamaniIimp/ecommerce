@@ -516,7 +516,7 @@ function ValidarDatosContent() {
 
           <SeccionFormulario
             titulo="Representantes legales adicionales"
-            descripcion="El representante principal es el titular de la cuenta y firma el contrato. Agrega aqui a los demas representantes que deben figurar en el documento."
+            descripcion="El representante principal es el titular de la cuenta y firma el contrato. Cada representante adicional que agregues también deberá subir su propia firma digital y firmará el contrato."
           >
             <RepresentantesAdicionalesEditor
               value={representantesAdicionales}

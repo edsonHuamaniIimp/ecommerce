@@ -423,6 +423,7 @@ export class AuthApplicationService {
         correo: rep.correo,
         celular: rep.celular,
         direccion: rep.direccion,
+        firmaUrl: rep.firmaUrl ?? null,
         orden: rep.orden,
       })),
       configCuotas: ficha.configCuotas,

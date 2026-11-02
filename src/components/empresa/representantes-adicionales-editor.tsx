@@ -149,7 +149,7 @@ export function RepresentantesAdicionalesEditor({
   onChange,
   errores = [],
   titulo = "Representantes legales adicionales",
-  descripcion = "El representante principal sigue siendo el titular de la cuenta. Agrega aqui a los demas representantes que deben figurar en el contrato.",
+  descripcion = "El representante principal es el titular de la cuenta y firma el contrato. Cada representante adicional que agregues también deberá subir su propia firma digital y firmará el contrato.",
   max = MAX_REPRESENTANTES_ADICIONALES,
   ocultarEncabezado = false,
 }: Props) {
@@ -165,6 +165,10 @@ export function RepresentantesAdicionalesEditor({
           <p className="mt-0.5 text-[11px] text-muted-foreground">{descripcion}</p>
         </div>
       )}
+
+      <p className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2 text-[11px] font-medium text-primary">
+        Al agregar un representante, también firmará el contrato con su propia firma digital.
+      </p>
 
       <div className="space-y-3">
         {value.map((rep, indice) => (

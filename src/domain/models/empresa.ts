@@ -15,6 +15,8 @@ export interface EmpresaRepresentanteAdicionalEntity {
   correo: string | null;
   celular: string | null;
   direccion: string | null;
+  /** Firma digital (PNG) del representante para el contrato. */
+  firmaUrl: string | null;
   orden: number;
 }
 
@@ -27,6 +29,8 @@ export interface EmpresaRepresentanteAdicionalInput {
   correo?: string | null;
   celular?: string | null;
   direccion?: string | null;
+  /** Si se omite al actualizar, se conserva la firma existente. */
+  firmaUrl?: string | null;
 }
 
 export type EmpresaRepresentanteAdicional = EmpresaRepresentanteAdicionalEntity;

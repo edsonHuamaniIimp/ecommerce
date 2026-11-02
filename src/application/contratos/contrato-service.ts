@@ -17,6 +17,7 @@ import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
+import type { EmpresaRepresentanteAdicionalEntity } from "@/domain/models/empresa";
 import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
@@ -82,7 +83,7 @@ export const ANEXOS_PDF_CONTRATO: Record<Idioma, string[]> = {
 
 /** PNG 1x1 transparente: se usa cuando el contrato no lleva firma digital. */
 const PNG_1PX_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==";
 
 export interface GenerarContratoInput {
   solicitudId: string;
@@ -568,9 +569,68 @@ export class ContratoApplicationService {
       nombre: rep.nombre,
       tipoDocumento: TIPOS_DOCUMENTO_PERSONA_LABELS[rep.tipoDocumento] ?? rep.tipoDocumento,
       documento: rep.documento,
-      correo: rep.correo || "",
-      celular: rep.celular || "",
     }));
+    const clausulaRepresentantes = (() => {
+      if (representantesAdicionales.length === 0) return "";
+      const identificados = representantesAdicionales.map(
+        (rep) => `${rep.nombre}, identificado con ${rep.tipoDocumento} ${esContratoEn ? "No." : "N.°"} ${rep.documento}`,
+      );
+      if (identificados.length === 1) {
+        return esContratoEn
+          ? `Additionally, the following legal representative of THE EXHIBITOR appears and signs this Contract: ${identificados[0]}.`
+          : `Adicionalmente, comparece y firma como representante legal de EL EXHIBIDOR: ${identificados[0]}.`;
+      }
+      const numeros = ["i", "ii", "iii", "iv", "v"];
+      const lineas = identificados.map((texto, indice) => `(${numeros[indice] ?? indice + 1}) ${texto}`);
+      const detalle = `${lineas.slice(0, -1).join(";\n")};\n ${esContratoEn ? "and" : "y"} ${lineas.at(-1)}.`;
+      return esContratoEn
+        ? `Additionally, the following legal representatives of THE EXHIBITOR appear and sign this Contract:\n${detalle}`
+        : `Adicionalmente, comparecen y firman como representantes legales de EL EXHIBIDOR:\n${detalle}`;
+    })();
+    const firmasRepresentantes = await this.prepararFirmasRepresentantes(
+      empresa?.representantesAdicionales ?? [],
+    );
+    const cargoAdicional = esContratoEn ? "Additional Legal Representative" : "Representante legal adicional";
+    const firmasExhibidor = [
+      { firma: firmaExhibidorBase64 ?? PNG_1PX_BASE64, nombre: "EL EXHIBIDOR", cargo: "" },
+      ...firmasRepresentantes.map((rep) => ({
+        firma: rep.firma_representante,
+        nombre: rep.nombre_representante,
+        cargo: cargoAdicional,
+      })),
+    ];
+    const firmasTabla = Array.from({ length: Math.ceil(firmasExhibidor.length / 2) }, (_, indice) => {
+      const primera = firmasExhibidor[indice * 2];
+      const segunda = firmasExhibidor[indice * 2 + 1];
+      return {
+        linea_iimp: indice === 0 ? "_____________________________" : "",
+        nombre_iimp: indice === 0 ? "Gustavo Adolfo De Vinatea Bellatin" : "",
+        cargo_iimp: indice === 0 ? (esContratoEn ? "General Manager" : "Gerente General") : "",
+        firma_1: primera?.firma ?? PNG_1PX_BASE64,
+        linea_1: primera ? "_____________________________" : "",
+        nombre_1: primera?.nombre ?? "",
+        cargo_1: primera?.cargo ?? "",
+        firma_2: segunda?.firma ?? PNG_1PX_BASE64,
+        linea_2: segunda ? "_____________________________" : "",
+        nombre_2: segunda?.nombre ?? "",
+        cargo_2: segunda?.cargo ?? "",
+      };
+    });
+    const firmasDeclaracionFilas = Array.from(
+      { length: Math.ceil(firmasExhibidor.length / 2) },
+      (_, indice) => {
+        const primera = firmasExhibidor[indice * 2];
+        const segunda = firmasExhibidor[indice * 2 + 1];
+        return {
+          firma_1: primera?.firma ?? PNG_1PX_BASE64,
+          nombre_1: primera?.nombre ?? "",
+          cargo_1: primera?.cargo ?? "",
+          firma_2: segunda?.firma ?? PNG_1PX_BASE64,
+          nombre_2: segunda?.nombre ?? "",
+          cargo_2: segunda?.cargo ?? "",
+        };
+      },
+    );
 
     const data = {
       razon_social: razonSocial,
@@ -580,6 +640,10 @@ export class ContratoApplicationService {
       dni_representante: dniRepresentante,
       partida_electronica: partidaElectronica,
       representantes_adicionales: representantesAdicionales,
+      representantes_adicionales_clausula: clausulaRepresentantes,
+      firmas_representantes: firmasRepresentantes,
+      firmas_tabla: firmasTabla,
+      firmas_declaracion_filas: firmasDeclaracionFilas,
       objeto_social: textoObjetoSocial,
       actividad: textoActividad,
       modulos,
@@ -619,11 +683,25 @@ export class ContratoApplicationService {
       centered: false,
       fileType: "docx",
       getImage: (valor: unknown) => Buffer.from(String(valor), "base64"),
-      getSize: (_img: Buffer, _valor: unknown, tagName: string) => (tagName === "firma_exhibidor" ? [150, 55] : [520, 320]),
+      getSize: (_img: Buffer, _valor: unknown, tagName: string) =>
+        (["firma_exhibidor", "firma_representante", "firma_1", "firma_2"].includes(tagName) ? [150, 55] : [520, 320]),
     });
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, modules: [imageModule] });
     doc.render(data);
-    const docxBuffer = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+    /* Word rechaza el DOCX si las imagenes generadas comparten el mismo docPr id. */
+    const salida = doc.getZip();
+    const archivoXml = salida.file("word/document.xml");
+    if (!archivoXml) {
+      throw new DomainError("No se pudo preparar el contrato generado", API_ERROR_CODES.INTERNAL, 500);
+    }
+    let xmlSalida = archivoXml.asText();
+    let docPrId = 1000;
+    xmlSalida = xmlSalida.replace(
+      /<wp:docPr\b([^>]*?)id="\d+"/g,
+      (_match, atributos: string) => `<wp:docPr${atributos}id="${docPrId++}"`,
+    );
+    salida.file("word/document.xml", xmlSalida);
+    const docxBuffer = salida.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
 
     const docxUrl = await this.storage.upload(
       docxBuffer,
@@ -695,6 +773,19 @@ export class ContratoApplicationService {
       throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
     }
 
+    const empresaFirmanteId = emailFirmante
+      ? await this.auth.findEmpresaIdDeUsuario(emailFirmante).catch(() => null)
+      : null;
+    const empresaFirmante = empresaFirmanteId ? await this.empresas.findById(empresaFirmanteId) : null;
+    const representantesSinFirma = (empresaFirmante?.representantesAdicionales ?? []).filter((rep) => !rep.firmaUrl);
+    if (representantesSinFirma.length > 0) {
+      throw new DomainError(
+        `Antes de firmar, sube la firma digital de: ${representantesSinFirma.map((rep) => rep.nombre).join(", ")}.`,
+        API_ERROR_CODES.VALIDATION,
+        409,
+      );
+    }
+
     const imagen = await this.leerImagenFirma(perfil.firmaUrl);
     const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
 
@@ -709,6 +800,20 @@ export class ContratoApplicationService {
       registrarContrato: false,
     });
     return { docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl, nombre: generado.nombre };
+  }
+
+  /** Prepara la imagen de firma de cada representante adicional para la plantilla. */
+  private async prepararFirmasRepresentantes(
+    representantes: EmpresaRepresentanteAdicionalEntity[],
+  ): Promise<Array<{ nombre_representante: string; firma_representante: string }>> {
+    return Promise.all(representantes.map(async (rep) => {
+      if (!rep.firmaUrl) {
+        return { nombre_representante: rep.nombre, firma_representante: PNG_1PX_BASE64 };
+      }
+      const imagen = await this.leerImagenFirma(rep.firmaUrl);
+      const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
+      return { nombre_representante: rep.nombre, firma_representante: png.toString("base64") };
+    }));
   }
 
   /** Lee la imagen de firma del storage (`/uploads/*`: S3 o volumen local) o remota. */

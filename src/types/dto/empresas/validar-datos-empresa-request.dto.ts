@@ -11,6 +11,8 @@ export interface ValidarRepresentanteAdicionalDTO {
   correo?: string | null;
   celular?: string | null;
   direccion?: string | null;
+  /** Firma digital (PNG) del representante; omitida en el alta/edicion normal. */
+  firmaUrl?: string | null;
 }
 export interface ValidarDatosEmpresaRequestDTO {
   ruc: string;

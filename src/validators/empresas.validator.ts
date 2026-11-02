@@ -23,6 +23,8 @@ const representanteAdicionalSchema = z.object({
   correo: emailOpcional,
   celular: z.string().trim().max(35).optional().nullable(),
   direccion: z.string().trim().max(100).optional().nullable(),
+  /** Firma digital del representante (URL del storage). */
+  firmaUrl: z.string().trim().max(500).optional().nullable(),
 }).refine((v) => {
   const tipo = v.tipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI;
   return validarDocumentoPersona(tipo, v.documento) === null;

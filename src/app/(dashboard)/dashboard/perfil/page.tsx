@@ -153,6 +153,7 @@ function PerfilPageContent() {
   const [rucEmpresa, setRucEmpresa] = useState<string | null>(null);
   /* Representante legal (ficha de la empresa vinculada): todos los campos del formulario. */
   const [empresaVinculada, setEmpresaVinculada] = useState(false);
+  const [empresaPortalCargada, setEmpresaPortalCargada] = useState(false);
   const [repNombre, setRepNombre] = useState("");
   const [repDni, setRepDni] = useState("");
   const [partidaEmpresa, setPartidaEmpresa] = useState("");
@@ -223,7 +224,7 @@ function PerfilPageContent() {
   const erroresEmpresa: EmpresaFormErrores = erroresFormularioEmpresa(datosValidacionEmpresa, { requerirTodos: true });
   const erroresAdicionales = erroresRepresentantesAdicionales(representantesAdicionales);
   const pendientesEmpresa = [...Object.values(erroresEmpresa), ...erroresAdicionales.flatMap((e) => Object.values(e))];
-  const puedeGuardarEmpresa = pendientesEmpresa.length === 0 && confirmadoEmpresa;
+  const puedeGuardarEmpresa = pendientesEmpresa.length === 0 && confirmadoEmpresa && empresaPortalCargada;
   const marcarPendienteEmpresa = (campo: keyof EmpresaFormValidacionLike) =>
     resaltarPendientesEmpresa && Boolean(erroresEmpresa[campo]);
   const errorVisibleEmpresa = (campo: keyof EmpresaFormValidacionLike) => {
@@ -254,6 +255,7 @@ function PerfilPageContent() {
       setPaisEmpresa(empresaPortal?.pais ?? "PE");
       setInicioOperaciones(empresaPortal?.inicioOperaciones ?? "");
       setEmpresaVinculada(Boolean(empresaPortal ?? perfilData.empresa));
+      setEmpresaPortalCargada(Boolean(empresaPortal ?? perfilData.empresa));
       setRazonSocialEmpresa(perfilData.empresa?.razonSocial ?? perfilData.nombreEmpresa ?? "");
       setNombreComercialEmpresa(perfilData.empresa?.nombreComercial ?? "");
       setDireccionFiscal(perfilData.empresa?.direccionFiscal ?? "");
@@ -274,7 +276,8 @@ function PerfilPageContent() {
       setPagosEmail(perfilData.empresa?.responsablePagosEmail ?? "");
       setTipoComprobante(perfilData.empresa?.tipoComprobante ?? TIPOS_COMPROBANTE.FACTURA);
       setSitioWebEmpresa(perfilData.empresa?.sitioWeb ?? "");
-      setRepresentantesAdicionales((empresaPortal?.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO));
+      const representantesCargados = empresaPortal?.representantesAdicionales ?? perfilData.empresa?.representantesAdicionales ?? [];
+      setRepresentantesAdicionales(representantesCargados.map(representanteAdicionalDesdeDTO));
       setRepNombre(perfilData.empresa?.representanteLegalNombre ?? "");
       setRepDni(perfilData.empresa?.representanteLegalDni ?? "");
       setPartidaEmpresa(empresaPortal?.partidaElectronica ?? perfilData.empresa?.representantePartida ?? "");
@@ -423,6 +426,10 @@ function PerfilPageContent() {
 
   const handleSaveEmpresa = async () => {
     if (!puedeGuardarEmpresa) return;
+    if (!empresaPortalCargada) {
+      toast.error("No se cargaron los representantes de la empresa. Recarga la página antes de guardar.");
+      return;
+    }
     setSavingEmpresa(true);
     try {
       await portalEmpresaService.validarDatos({
@@ -968,7 +975,7 @@ function PerfilPageContent() {
                   <span>Representantes adicionales</span>
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  El representante principal es el titular de la cuenta. Los adicionales se guardan para el contrato y futuras reservas.
+                  El representante principal es el titular de la cuenta y firma el contrato. Cada adicional también deberá subir su firma y firmará el contrato.
                 </p>
               </CardHeader>
               <CardContent>

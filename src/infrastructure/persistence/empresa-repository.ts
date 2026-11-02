@@ -123,6 +123,7 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
       correo: rep.correo ?? null,
       celular: rep.celular ?? null,
       direccion: rep.direccion ?? null,
+      firmaUrl: rep.firmaUrl ?? null,
       orden: rep.orden,
     })),
     estado: row.estado as EstadoEmpresa,
@@ -217,37 +218,42 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
     empresaId: string,
     representantes: EmpresaRepresentanteAdicionalInput[],
   ): Promise<void> {
-    const ids = representantes.map((r) => r.id).filter((id): id is string => Boolean(id));
     await prisma.$transaction(async (tx) => {
-      await tx.empresaRepresentanteAdicional.updateMany({
-        where: {
-          empresaId,
-          flgActivo: true,
-          ...(ids.length > 0 ? { id: { notIn: ids } } : {}),
-        },
-        data: { flgActivo: false },
+      const actuales = await tx.empresaRepresentanteAdicional.findMany({
+        where: { empresaId, flgActivo: true },
+        orderBy: { orden: "asc" },
       });
+      const idsConservados = new Set<string>();
       let orden = 0;
       for (const rep of representantes) {
+        const tipoDocumento = rep.tipoDocumento?.trim() || TIPOS_DOCUMENTO_PERSONA.DNI;
+        const documento = rep.documento.trim();
+        /* El wizard puede autoguardar antes de recibir el ID: se reconcilia por documento. */
+        const actual = actuales.find((item) => (rep.id ? item.id === rep.id : item.tipoDocumento === tipoDocumento && item.documento === documento));
         const data = {
           nombre: rep.nombre.trim(),
-          tipoDocumento: rep.tipoDocumento?.trim() || TIPOS_DOCUMENTO_PERSONA.DNI,
-          documento: rep.documento.trim(),
+          tipoDocumento,
+          documento,
           correo: rep.correo?.trim() || null,
           celular: rep.celular?.trim() || null,
           direccion: rep.direccion?.trim() || null,
+          ...(rep.firmaUrl !== undefined ? { firmaUrl: rep.firmaUrl?.trim() || null } : {}),
           orden,
           flgActivo: true,
         };
-        if (rep.id) {
-          await tx.empresaRepresentanteAdicional.updateMany({
-            where: { id: rep.id, empresaId },
-            data,
-          });
+        if (actual) {
+          await tx.empresaRepresentanteAdicional.update({ where: { id: actual.id }, data });
+          idsConservados.add(actual.id);
         } else {
           await tx.empresaRepresentanteAdicional.create({ data: { empresaId, ...data } });
         }
         orden += 1;
+      }
+      if (actuales.length > idsConservados.size) {
+        await tx.empresaRepresentanteAdicional.updateMany({
+          where: { empresaId, flgActivo: true, id: { notIn: [...idsConservados] } },
+          data: { flgActivo: false },
+        });
       }
     });
   }

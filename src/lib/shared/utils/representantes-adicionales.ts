@@ -9,6 +9,8 @@ export interface RepresentanteAdicionalForm {
   correo: string;
   celular: string;
   direccion: string;
+  /** Firma digital del representante (URL del storage). */
+  firmaUrl?: string | null;
 }
 
 export type RepresentanteAdicionalErrores = Partial<Record<keyof RepresentanteAdicionalForm, string>>;
@@ -53,6 +55,7 @@ export function representanteAdicionalDesdeDTO(rep: {
   correo?: string | null;
   celular?: string | null;
   direccion?: string | null;
+  firmaUrl?: string | null;
 }): RepresentanteAdicionalForm {
   return {
     id: rep.id,
@@ -62,6 +65,7 @@ export function representanteAdicionalDesdeDTO(rep: {
     correo: rep.correo ?? "",
     celular: rep.celular ?? "",
     direccion: rep.direccion ?? "",
+    firmaUrl: rep.firmaUrl ?? null,
   };
 }
 
@@ -74,5 +78,6 @@ export function representanteAdicionalPayload(rep: RepresentanteAdicionalForm) {
     correo: rep.correo.trim() || null,
     celular: rep.celular.trim() || null,
     direccion: rep.direccion.trim() || null,
+    ...(rep.firmaUrl !== undefined ? { firmaUrl: rep.firmaUrl } : {}),
   };
 }

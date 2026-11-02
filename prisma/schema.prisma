@@ -385,6 +385,8 @@ model EmpresaRepresentanteAdicional {
   correo             String?  @db.VarChar(200)
   celular            String?  @db.VarChar(35)
   direccion          String?  @db.VarChar(100)
+  /// Firma digital (PNG) del representante para el contrato.
+  firmaUrl           String?  @map("firma_url") @db.VarChar(500)
   /// Orden de presentacion en el contrato y en la UI.
   orden              Int      @default(0)
   /// Baja logica: los representantes retirados se conservan como historial.

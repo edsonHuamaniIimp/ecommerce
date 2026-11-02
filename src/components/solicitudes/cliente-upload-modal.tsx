@@ -7,11 +7,13 @@ import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
+import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
+import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
 interface Props {
   solicitud: SolicitudDTO;
@@ -35,6 +37,15 @@ interface Pendiente {
   requisito: string | null;
 }
 
+interface Firmante {
+  key: string;
+  nombre: string;
+  rol: string;
+  firmaUrl: string | null;
+  principal: boolean;
+  rep?: EmpresaRepresentanteAdicionalDTO;
+}
+
 export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
   const esContrato = modo === "contrato";
   /** Politica fija: solo firma digital, sin subida manual del contrato. */
@@ -54,18 +65,39 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
     (!ultimaRevision || dateUtils.isAfter(doc.createdAt, ultimaRevision));
   const [error, setError] = useState<string | null>(null);
-  const [firmaPerfilUrl, setFirmaPerfilUrl] = useState<string | null>(null);
-  const [subiendoFirma, setSubiendoFirma] = useState(false);
+  const [firmantes, setFirmantes] = useState<Firmante[]>([]);
+  const [subiendoFirmaId, setSubiendoFirmaId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const firmaRef = useRef<HTMLInputElement>(null);
+  const firmaObjetivoRef = useRef<string | null>(null);
   const requisitoRef = useRef<string | null>(null);
 
-  /* La firma es requisito del servidor para estampar el contrato. */
+  /* Firmas de todos los representantes: principal + adicionales de la empresa. */
   useEffect(() => {
     let activo = true;
     void perfilService.get()
       .then((perfil) => {
-        if (activo) setFirmaPerfilUrl(perfil?.firmaUrl ?? null);
+        if (!activo) return;
+        const nombrePrincipal = perfil?.representanteNombre?.trim() ||
+          perfil?.empresa?.representanteLegalNombre?.trim() ||
+          perfil?.email ||
+          "Representante legal";
+        const principal: Firmante = {
+          key: "principal",
+          nombre: nombrePrincipal,
+          rol: "Representante legal principal",
+          firmaUrl: perfil?.firmaUrl ?? null,
+          principal: true,
+        };
+        const adicionales: Firmante[] = (perfil?.empresa?.representantesAdicionales ?? []).map((rep) => ({
+          key: rep.id,
+          nombre: rep.nombre,
+          rol: "Representante legal adicional",
+          firmaUrl: rep.firmaUrl ?? null,
+          principal: false,
+          rep,
+        }));
+        setFirmantes([principal, ...adicionales]);
       })
       .catch(() => {});
     return () => {
@@ -137,11 +169,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setSending(false);
   };
 
-  /** Sube la firma PNG directamente desde el modal y la guarda en el perfil. */
+  /** Sube la firma PNG del representante seleccionado y la persiste. */
   const onFirmaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    const objetivo = firmaObjetivoRef.current;
     e.target.value = "";
-    if (!file) return;
+    if (!file || !objetivo) return;
     if (!archivoUtils.extensionPermitida(file.name, FIRMA_PERFIL_EXTENSIONES)) {
       setError("La firma debe ser una imagen PNG.");
       return;
@@ -150,18 +183,48 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       setError(`La firma supera el máximo de ${FIRMA_PERFIL_MAX_BYTES / 1024 / 1024} MB.`);
       return;
     }
-    setSubiendoFirma(true);
+    setSubiendoFirmaId(objetivo);
     setError(null);
     try {
       const url = await uploadService.subir(file);
-      await perfilService.update({ firmaUrl: url });
-      setFirmaPerfilUrl(url);
-      toast.success("Firma PNG cargada. Ya puedes firmar el contrato.");
+      if (objetivo === "principal") {
+        await perfilService.update({ firmaUrl: url });
+        setFirmantes((prev) => prev.map((f) => f.principal ? { ...f, firmaUrl: url } : f));
+        toast.success("Firma del representante principal cargada.");
+        return;
+      }
+
+      const actualizados = firmantes.map((f) => {
+        if (f.key !== objetivo || !f.rep) return f;
+        const rep = { ...f.rep, firmaUrl: url };
+        return { ...f, firmaUrl: url, rep };
+      });
+      const adicionales = actualizados
+        .filter((f): f is Firmante & { rep: EmpresaRepresentanteAdicionalDTO } => !f.principal && Boolean(f.rep))
+        .map((f) => ({
+          id: f.rep.id,
+          nombre: f.rep.nombre,
+          tipoDocumento: f.rep.tipoDocumento,
+          documento: f.rep.documento,
+          correo: f.rep.correo,
+          celular: f.rep.celular,
+          direccion: f.rep.direccion,
+          firmaUrl: f.firmaUrl,
+        }));
+      await portalEmpresaService.guardarRepresentantes(adicionales);
+      setFirmantes(actualizados);
+      toast.success("Firma del representante adicional cargada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo subir la firma.");
     } finally {
-      setSubiendoFirma(false);
+      setSubiendoFirmaId(null);
+      firmaObjetivoRef.current = null;
     }
+  };
+
+  const abrirSelectorFirma = (id: string) => {
+    firmaObjetivoRef.current = id;
+    firmaRef.current?.click();
   };
 
   const adminDocs = [...(solicitud.docsAdjuntos ?? [])]
@@ -171,12 +234,17 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const contratoAdmin = esContrato
     ? adminDocs.find(d => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null))
     : null;
+  const firmantesSinFirma = firmantes.filter((f) => !f.firmaUrl);
+  const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
 
-  /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma del perfil. */
+  /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma de cada representante. */
   const handleFirmarDigital = async () => {
-    if (!firmaPerfilUrl) {
-      setError("Sube tu firma en formato PNG antes de firmar el contrato.");
+    if (!firmasCompletas) {
+      const nombres = firmantesSinFirma.map((f) => f.nombre).join(", ");
+      setError(nombres
+        ? `Sube la firma PNG de: ${nombres}.`
+        : "Sube la firma PNG de todos los representantes antes de firmar el contrato.");
       return;
     }
     setSending(true);
@@ -199,7 +267,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo firmar digitalmente. Carga tu firma en tu perfil e intenta de nuevo.");
+      setError(e instanceof Error ? e.message : "No se pudo firmar digitalmente. Verifica las firmas de los representantes e intenta de nuevo.");
     }
     setSending(false);
   };
@@ -222,7 +290,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   );
   /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
   const puedeFirmarDigital = (soloFirmaDigital || contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO) &&
-    Boolean(firmaPerfilUrl) && !firmaManualVigente && !firmaManualPendiente;
+    firmasCompletas && !firmaManualVigente && !firmaManualPendiente;
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
   const faltanObs = observadosAnexos.filter((obs) => {
@@ -275,7 +343,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               </p>
             ) : puedeFirmarDigital ? (
               <p className="text-[11px] font-semibold text-foreground">
-                Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de tu perfil, o descargarlo, firmarlo y subir tu versión firmada.
+                Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de cada representante, o descargarlo, firmarlo y subir tu versión firmada.
               </p>
             ) : (
               <p className="text-[11px] font-semibold text-foreground">
@@ -343,13 +411,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </div>
         )}
         {soloFirmaDigital && (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground">Firma para el contrato</p>
+          <div className="mt-2 space-y-2 rounded-md border border-border bg-secondary/40 px-2.5 py-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground">
+                Firmas de los representantes legales
+              </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {firmaPerfilUrl
-                  ? "Firma PNG cargada. Puedes firmar digitalmente."
-                  : "Sube tu firma en formato PNG (fondo claro) para firmar digitalmente."}
+                Sube la firma PNG de cada representante. Todas se estamparán en el contrato.
               </p>
             </div>
             <input
@@ -359,17 +427,51 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               className="hidden"
               onChange={(e) => { void onFirmaFile(e); }}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5 rounded-full text-xs"
-              disabled={subiendoFirma}
-              onClick={() => firmaRef.current?.click()}
-            >
-              {subiendoFirma ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              <span>{subiendoFirma ? "Subiendo..." : firmaPerfilUrl ? "Cambiar firma PNG" : "Subir firma PNG"}</span>
-            </Button>
+            {firmantes.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">Cargando representantes...</p>
+            ) : (
+              <div className="space-y-1.5">
+                {firmantes.map((f) => (
+                  <div key={f.key} className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="truncate text-[11px] font-semibold text-foreground">{f.nombre}</p>
+                        <Badge className="pointer-events-none text-[9px] bg-muted text-muted-foreground border-border">
+                          <span>{f.principal ? "Principal" : "Adicional"}</span>
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {f.firmaUrl ? "Firma cargada" : "Firma pendiente"} · {f.rol}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {f.firmaUrl && (
+                        <img
+                          src={f.firmaUrl}
+                          alt={`Firma de ${f.nombre}`}
+                          className="h-8 max-w-[90px] object-contain"
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1.5 rounded-full text-xs"
+                        disabled={subiendoFirmaId !== null}
+                        onClick={() => abrirSelectorFirma(f.key)}
+                      >
+                        {subiendoFirmaId === f.key ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                        <span>
+                          {subiendoFirmaId === f.key
+                            ? "Subiendo..."
+                            : f.firmaUrl ? "Cambiar firma" : "Subir firma"}
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -510,7 +612,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
             {esContrato && (contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO || soloFirmaDigital) && (
-              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={!firmaPerfilUrl ? "Sube tu firma en formato PNG para firmar digitalmente." : !puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
+              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={firmantesSinFirma.length > 0 ? `Sube la firma PNG de: ${firmantesSinFirma.map((f) => f.nombre).join(", ")}.` : !puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
                 <PenLine className="mr-1 h-3 w-3" />
                 {sending ? "Firmando..." : "Firmar digitalmente"}
               </Button>

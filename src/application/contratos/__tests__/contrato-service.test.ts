@@ -597,9 +597,12 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const zip = new PizZip(buffer);
     const media = Object.keys(zip.files).filter((f) => f.startsWith("word/media/"));
     expect(media.length).toBeGreaterThanOrEqual(2);
-    /* La firma va ARRIBA de la linea, centrada con un tab de 6513 twips (sin imagen flotante). */
+    /* Tres columnas de firma: IIMP, exhibidor principal y adicional. */
     const xml = zip.file("word/document.xml")?.asText() ?? "";
-    expect(xml).toContain('w:pos="6513"');
+    expect(xml).toContain('w:pos="3200"');
+    expect(xml).toContain('w:pos="6300"');
+    const docPrIds = [...xml.matchAll(/<wp:docPr\b[^>]*id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(docPrIds).size).toBe(docPrIds.length);
     /*
      * El Anexo 4 (Reglamento) trae imagenes ancladas propias del IIMP: la firma no debe
      * AGREGAR imagenes flotantes, por eso se compara el conteo contra la plantilla.
@@ -609,6 +612,78 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const contarAnclas = (texto: string) => (texto.match(/<wp:anchor/g) ?? []).length;
     expect(contarAnclas(xml)).toBe(contarAnclas(xmlPlantilla));
     vi.unstubAllGlobals();
+  });
+
+  it("firma con la imagen de cada representante adicional", async () => {
+    const PNG_1PX = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const { svc, storage, auth } = build({
+      detalle: {
+        planCuotas: {
+          modalidad: "personalizado",
+          cuotas: [{ numero: 1, porcentaje: 100, monto: 2360, fechaVencimiento: "2099-01-01" }],
+        },
+      } as never,
+      empresa: {
+        representantesAdicionales: [{
+          id: "rep-1",
+          nombre: "ANA PEREZ",
+          tipoDocumento: "1",
+          documento: "45871233",
+          correo: "ana@empresa.pe",
+          celular: "+51999888777",
+          direccion: "Av. Arequipa 1250",
+          firmaUrl: "https://cdn.test/firma-ana.png",
+          orden: 0,
+        }],
+      } as never,
+    });
+    vi.mocked(auth.findPerfilByEmail).mockResolvedValue({ firmaUrl: "https://cdn.test/firma.png" } as never);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => PNG_1PX }));
+
+    await svc.firmar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("ANA PEREZ");
+    expect(texto).toContain("Representante legal adicional");
+    const media = Object.keys(new PizZip(buffer).files).filter((f) => f.startsWith("word/media/"));
+    expect(media.length).toBeGreaterThanOrEqual(3);
+    vi.unstubAllGlobals();
+  });
+
+  it("bloquea la firma si falta la firma de un representante adicional", async () => {
+    const { svc, auth } = build({
+      empresa: {
+        representantesAdicionales: [{
+          id: "rep-1",
+          nombre: "ANA PEREZ",
+          tipoDocumento: "1",
+          documento: "45871233",
+          correo: "ana@empresa.pe",
+          celular: "+51999888777",
+          direccion: "Av. Arequipa 1250",
+          firmaUrl: null,
+          orden: 0,
+        }],
+      } as never,
+    });
+    vi.mocked(auth.findPerfilByEmail).mockResolvedValue({ firmaUrl: "https://cdn.test/firma.png" } as never);
+
+    await expect(svc.firmar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      userSub: "user-1",
+      userPermissions: [],
+    })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("ANA PEREZ"),
+    });
   });
 
   it("firma digitalmente un contrato con 4 cuotas persistidas sin revalidar contra el maximo estandar", async () => {
@@ -814,6 +889,16 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
             direccion: "Av. Arequipa 1250",
             orden: 0,
           },
+          {
+            id: "rep-2",
+            nombre: "LUIS GOMEZ",
+            tipoDocumento: "1",
+            documento: "45871234",
+            correo: "luis@empresa.pe",
+            celular: "+51999888778",
+            direccion: "Av. Arequipa 1250",
+            orden: 1,
+          },
         ],
       } as never,
     });
@@ -837,9 +922,13 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
     const texto = textoDocx(buffer);
+    expect(texto).toContain("comparecen y firman como representantes legales de EL EXHIBIDOR");
     expect(texto).toContain("ANA PEREZ");
-    expect(texto).toContain("identificado con DNI");
     expect(texto).toContain("45871233");
+    expect(texto).toContain("LUIS GOMEZ");
+    expect(texto).toContain("45871234");
+    expect(texto).toContain("(i)");
+    expect(texto).toContain("(ii)");
   });
   it("genera el borrador con 4 cuotas configuradas por la empresa (caso YURA)", async () => {
     const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];

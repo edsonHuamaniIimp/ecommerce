@@ -287,12 +287,12 @@ export function StepDatos({ datos, onChange, selectedLabels, representantesAdici
         onChange={onRepresentantesChange}
         errores={erroresRepresentantesAdicionales(representantesAdicionales)}
         titulo="Representantes legales adicionales"
-        descripcion="El representante principal es el titular de la cuenta. Si la empresa tiene otro representante legal, agregalo aqui; se guardara para el contrato y las proximas reservas."
+        descripcion="El representante principal es el titular de la cuenta y firma el contrato. Si agregas otro representante legal, también deberá subir su propia firma y firmará el contrato; sus datos se guardarán para esta y las próximas reservas."
       />
 
       <div className="flex items-start gap-2 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2.5 text-[11px] text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-        <span>Tus datos seran vinculados al contrato marco del evento y validados por el area legal del IIMP.</span>
+        <span>Tus datos y los representantes adicionales que agregues serán vinculados al contrato marco del evento y validados por el área legal del IIMP. Cada representante adicional deberá firmar el contrato.</span>
       </div>
     </div>
   );

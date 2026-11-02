@@ -357,9 +357,11 @@ export function useReservaForm(
   /** Persiste los representantes adicionales solo si el usuario los edito. */
   const guardarRepresentantes = useCallback(async (): Promise<void> => {
     if (!representantesEditados) return;
-    await portalEmpresaService.guardarRepresentantes(
+    const empresa = await portalEmpresaService.guardarRepresentantes(
       representantesAdicionales.map(representanteAdicionalPayload),
     );
+    /* Recibir los IDs evita que el siguiente autoguardado cree duplicados. */
+    setRepresentantesAdicionales((empresa.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO));
     setRepresentantesEditados(false);
   }, [representantesAdicionales, representantesEditados]);
   /** Sincroniza en segundo plano los representantes adicionales con la empresa. */
