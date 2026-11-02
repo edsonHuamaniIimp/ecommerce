@@ -1,5 +1,6 @@
 import {
   API_ERROR_CODES,
+  MAX_CONTACTOS_FACTURACION,
   MAX_STANDS_RESERVA_DEFAULT,
   MAX_STANDS_RESERVA_LIMITE,
   MAX_STANDS_RESERVA_MIN,
@@ -15,6 +16,8 @@ import { dateUtils } from "@/lib/shared/utils/date";
 const PORTAL_VACIO: PortalConfigEntity = {
   mesaAyudaEmail: null,
   contactoEmail: null,
+  facturacionEmails: [],
+  facturacionTelefonos: [],
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,
@@ -31,6 +34,8 @@ const PORTAL_VACIO: PortalConfigEntity = {
 export interface PortalConfigInput {
   mesaAyudaEmail?: string | null;
   contactoEmail?: string | null;
+  facturacionEmails?: string[] | null;
+  facturacionTelefonos?: string[] | null;
   manualUrl?: string | null;
   reglamentoUrl?: string | null;
   holdReservaMinutos?: number;
@@ -63,6 +68,42 @@ function url(valor: string | null | undefined, campo: string): string | null {
     throw new DomainError(`URL invalida en ${campo}: debe iniciar con http:// o https://`, API_ERROR_CODES.VALIDATION, 400);
   }
   return limpio;
+}
+
+/** Lista de correos de facturacion: valida formato, deduplica y limita la cantidad. */
+function listaCorreos(valores: string[] | null | undefined): string[] {
+  const lista = [...new Set((valores ?? []).map((v) => v.trim()).filter(Boolean))];
+  if (lista.length > MAX_CONTACTOS_FACTURACION) {
+    throw new DomainError(
+      `Maximo ${MAX_CONTACTOS_FACTURACION} correos de facturacion`,
+      API_ERROR_CODES.VALIDATION,
+      400,
+    );
+  }
+  for (const correoFacturacion of lista) {
+    if (!REGEX_EMAIL.test(correoFacturacion)) {
+      throw new DomainError(`Correo invalido en contacto de facturacion: ${correoFacturacion}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+  }
+  return lista;
+}
+
+/** Lista de telefonos de facturacion: valida formato flexible, deduplica y limita la cantidad. */
+function listaTelefonos(valores: string[] | null | undefined): string[] {
+  const lista = [...new Set((valores ?? []).map((v) => v.trim()).filter(Boolean))];
+  if (lista.length > MAX_CONTACTOS_FACTURACION) {
+    throw new DomainError(
+      `Maximo ${MAX_CONTACTOS_FACTURACION} telefonos de facturacion`,
+      API_ERROR_CODES.VALIDATION,
+      400,
+    );
+  }
+  for (const telefono of lista) {
+    if (!/^[+()\d\s.-]{6,30}$/.test(telefono)) {
+      throw new DomainError(`Telefono invalido en contacto de facturacion: ${telefono}`, API_ERROR_CODES.VALIDATION, 400);
+    }
+  }
+  return lista;
 }
 
 /** Duracion del hold en minutos: entero entre 1 y 120. */
@@ -133,6 +174,8 @@ export class ConfiguracionApplicationService {
     return this.repo.guardarPortal({
       mesaAyudaEmail: correo(input.mesaAyudaEmail, "Mesa de Ayuda"),
       contactoEmail: correo(input.contactoEmail, "Contacto"),
+      facturacionEmails: listaCorreos(input.facturacionEmails),
+      facturacionTelefonos: listaTelefonos(input.facturacionTelefonos),
       manualUrl: url(input.manualUrl, "Manual del Exhibidor"),
       reglamentoUrl: url(input.reglamentoUrl, "Reglamento de Stands"),
       holdReservaMinutos: minutosHold(input.holdReservaMinutos),

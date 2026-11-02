@@ -8,6 +8,8 @@ const ID_PORTAL = "default";
 type FilaPortalConfig = {
   mesaAyudaEmail: string | null;
   contactoEmail: string | null;
+  facturacionEmails: unknown;
+  facturacionTelefonos: unknown;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   holdReservaMinutos: number;
@@ -20,10 +22,18 @@ type FilaPortalConfig = {
   updatedAt: Date;
 };
 
+/** Lista de textos guardada como JSON (ignora valores invalidos y vacios). */
+function listaTextos(valor: unknown): string[] {
+  if (!Array.isArray(valor)) return [];
+  return valor.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
 function aEntidad(row: FilaPortalConfig): PortalConfigEntity {
   return {
     mesaAyudaEmail: row.mesaAyudaEmail,
     contactoEmail: row.contactoEmail,
+    facturacionEmails: listaTextos(row.facturacionEmails),
+    facturacionTelefonos: listaTextos(row.facturacionTelefonos),
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
     holdReservaMinutos: row.holdReservaMinutos,

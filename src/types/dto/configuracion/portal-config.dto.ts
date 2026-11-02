@@ -2,6 +2,10 @@
 export interface PortalConfigDTO {
   mesaAyudaEmail: string | null;
   contactoEmail: string | null;
+  /** Correos de contacto de Facturacion y Cobranzas (varios). */
+  facturacionEmails: string[];
+  /** Telefonos de contacto de Facturacion y Cobranzas (varios). */
+  facturacionTelefonos: string[];
   manualUrl: string | null;
   reglamentoUrl: string | null;
   /** Minutos de bloqueo del stand al abrir el wizard de reserva. */

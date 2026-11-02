@@ -1,8 +1,8 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, CheckCircle2, Clock, ExternalLink, Eye, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -10,7 +10,10 @@ import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { DocumentoPreviewDialog } from "@/components/shared/documento-preview-dialog";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
+import { numberUtils } from "@/lib/shared/utils/number";
 
 interface ComprobanteFiscalItem {
   tipo: string;
@@ -59,6 +62,29 @@ interface ExpedienteDocumento {
   url: string;
   estado: string | null;
   createdAt: string;
+}
+
+/** Archivo de la cuenta corriente del IIMP vinculado a una cuota. */
+interface ExpedienteArchivo {
+  item: number;
+  tipo: string;
+  cuota: number | null;
+  link: string;
+  nombre: string | null;
+  fecha: string;
+}
+
+/** Documentos del cliente en una cuota: voucher, comprobante fiscal, SIE e IIMP. */
+interface ExpedienteCuota {
+  numero: number;
+  estado: string;
+  monto: number;
+  fechaVencimiento: string | null;
+  voucher: string | null;
+  comprobanteFiscal: ComprobanteFiscalItem | null;
+  documentoSie: string | null;
+  iimpDocumento: { serie: string; numero: number } | null;
+  archivos: ExpedienteArchivo[];
 }
 
 /** Empresa y contactos del expediente (ficha que la empresa cargo previamente). */
@@ -133,6 +159,8 @@ interface ExpedienteItem {
   facturacion: FacturacionSnapshot | null;
   empresa: EmpresaExpediente | null;
   documentos: ExpedienteDocumento[];
+  cuotas: ExpedienteCuota[];
+  moneda: string | null;
   contratoFirmadoSgc: { url: string; expiresInSeconds: number } | null;
 }
 
@@ -142,7 +170,23 @@ function Dato({ label, valor, mono = false }: { label: string; valor: string | n
     <div className="min-w-0">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`truncate text-xs text-slate-800 ${mono ? "font-mono" : ""}`} title={valor ?? undefined}>
-        {valor || "—"}
+        {valor ?? "—"}
+      </p>
+    </div>
+  );
+}
+
+/** Fila del checklist de requisitos tal como la respondio el cliente al solicitar. */
+function RequisitoFila({ marcado, titulo, descripcion }: { marcado?: boolean; titulo: string; descripcion: string }) {
+  return (
+    <div className={`flex items-start gap-2 rounded-md border px-2.5 py-1.5 ${marcado ? "border-primary/30 bg-primary/5" : "border-border bg-muted/20"}`}>
+      {marcado ? (
+        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+      ) : (
+        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+      )}
+      <p className="text-[11px] leading-snug text-foreground">
+        <strong>{titulo}</strong>: <span className={marcado ? "" : "text-muted-foreground"}>{descripcion}</span>
       </p>
     </div>
   );
@@ -166,6 +210,8 @@ export default function FacturacionPage() {
   const [total, setTotal] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<FacturacionItem | null>(null);
+  /** Documento abierto en la vista previa (modal en la misma pagina). */
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [payRow, setPayRow] = useState<FacturacionItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -518,75 +564,197 @@ export default function FacturacionPage() {
         </CardContent>
       </Card>
 
-      {/* Detail dialog — solo lectura */}
+      {/* Detail dialog — solo lectura, organizado por objetivo de informacion */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col !px-0 !py-0 overflow-hidden">
-          <div className="shrink-0 border-b border-slate-100 px-5 pb-3 pt-4 !pr-12">
-            <h3 className="text-sm font-semibold text-slate-800">Detalle de facturación{detailRow ? ` · ${detailRow.standCode}` : ""}</h3>
+        <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col !px-0 !py-0 overflow-hidden">
+          <div className="shrink-0 border-b border-border px-5 pb-3 pt-4 !pr-12">
+            <h3 className="text-sm font-semibold text-foreground">Detalle de facturación{detailRow ? ` · ${detailRow.standCode}` : ""}</h3>
+            {detailRow && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {detailRow.empresaFacturacion ?? "Sin empresa"} · {detailRow.correoSolicitante ?? "sin correo"}
+              </p>
+            )}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
           {detailRow && (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[40fr_60fr]">
-              {/* Columna izquierda: facturación y pagos */}
-              <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-2">
-                <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span></div>
-                <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${detailRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.INDIGO}`}>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</Badge></div>
-                <div><span className="text-muted-foreground">Monto total:</span> <span className="font-medium">{detailRow.montoTotal.toFixed(2)} {detailRow.moneda}</span></div>
-                <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</span></div>
-                <div><span className="text-muted-foreground">Modo:</span> <span>{detailRow.modoPago === "completo" ? "Pago completo" : "Pago por cuotas"}</span></div>
-                <div><span className="text-muted-foreground">Registrado:</span> <span>{dateUtils.formatDateTime(detailRow.createdAt)}</span></div>
-              </div>
-              {detailRow.cuotas.length > 0 && (
+            <div className="space-y-4">
+              {/* Resumen de la facturacion (siempre visible) */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Stand</p><p className="font-mono font-medium text-foreground">{detailRow.standCode}</p></div>
                 <div>
-                  <p className="mb-2 text-[11px] font-semibold text-slate-600">Cuotas ({detailRow.cuotas.length}) · Total: {detailRow.cuotas.reduce((s,c) => s + c.monto, 0).toFixed(2)} {detailRow.moneda}</p>
-                  <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border">
-                    {detailRow.cuotas.map((c) => (
-                      <div key={c.id} className="flex items-start gap-3 px-3 py-2">
-                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{c.numero}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-slate-800">{c.monto.toFixed(2)} {detailRow.moneda}</p>
-                          <p className="text-[10px] text-slate-500">{c.fechaVencimiento ? `Vence: ${dateUtils.formatDateTime(c.fechaVencimiento)}` : "Sin vencimiento"}</p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          {c.comprobante && (
-                            <a href={c.comprobante} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title="Ver voucher del cliente">
-                              <FileText className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                          {c.comprobanteFiscal && (
-                            <a href={c.comprobanteFiscal.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-600" title={`Comprobante fiscal: ${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero}`}>
-                              <Receipt className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                          <Badge className={`pointer-events-none text-[9px] ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>
-                            <span>{c.estado === ESTADOS_CUOTA.PAGADO ? "Pagado" : "Pendiente"}</span>
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estado</p>
+                  <Badge className={`pointer-events-none text-[10px] ${detailRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.INDIGO}`}>
+                    <span>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</span>
+                  </Badge>
+                </div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Monto total</p><p className="font-medium text-foreground">{numberUtils.monto(detailRow.montoTotal, detailRow.moneda)}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Modalidad</p><p className="text-foreground">{detailRow.modoPago === "completo" ? "Pago completo" : "Pago por cuotas"}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cuotas</p><p className="text-foreground">{detailRow.cuotas.length}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Registrado</p><p className="text-foreground">{dateUtils.formatDateTime(detailRow.createdAt)}</p></div>
+              </div>
+
+              {cargandoExpediente ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-10 w-full rounded-lg" />
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    <Skeleton className="h-44 w-full rounded-lg" />
+                    <Skeleton className="h-44 w-full rounded-lg" />
                   </div>
                 </div>
-              )}
+              ) : expediente ? (
+                <Tabs defaultValue="cuotas" className="w-full">
+                  <TabsList className="h-auto flex-wrap justify-start">
+                    <TabsTrigger value="cuotas" className="text-[11px]"><span>Cuotas y documentos ({expediente.cuotas.length})</span></TabsTrigger>
+                    <TabsTrigger value="contacto" className="text-[11px]"><span>Contacto y facturación</span></TabsTrigger>
+                    <TabsTrigger value="empresa" className="text-[11px]"><span>Empresa</span></TabsTrigger>
+                    <TabsTrigger value="solicitud" className="text-[11px]"><span>Solicitud y anexos</span></TabsTrigger>
+                  </TabsList>
 
-              </div>
-              {/* Columna derecha: expediente, contactos y documentos */}
-              <div className="space-y-4">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-slate-500">Expediente del contrato</p>
-                {cargandoExpediente ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-28 w-full rounded-lg" />
-                    <Skeleton className="h-24 w-full rounded-lg" />
-                    <Skeleton className="h-20 w-full rounded-lg" />
-                    <Skeleton className="h-40 w-full rounded-lg" />
-                  </div>
-                ) : expediente ? (
-                  <div className="space-y-3">
+                  <TabsContent value="cuotas" className="space-y-3 pt-2">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                      <span>Contrato IIMP: <span className="font-mono text-foreground">{expediente.contrato ?? "—"}</span></span>
+                      <span>Cuenta corriente: <span className="font-mono text-foreground">{expediente.cuentaCorriente ?? "—"}</span></span>
+                      <span>Total cuotas: <span className="font-medium text-foreground">{numberUtils.monto(expediente.cuotas.reduce((s, c) => s + c.monto, 0), expediente.moneda ?? "")}</span></span>
+                    </div>
+                    {expediente.cuotas.length === 0 ? (
+                      <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">Sin cuotas registradas en esta facturación.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {expediente.cuotas.map((c) => {
+                          const items = [
+                            ...c.archivos.map((a) => ({
+                              id: `archivo-${a.item}`,
+                              titulo: TIPOS_ARCHIVO_LABELS[a.tipo] ?? a.tipo,
+                              detalle: a.nombre ?? a.link,
+                              url: a.link,
+                            })),
+                            ...(c.voucher ? [{ id: "voucher", titulo: "Voucher de pago", detalle: c.voucher, url: c.voucher }] : []),
+                            ...(c.comprobanteFiscal
+                              ? [{
+                                  id: "comprobante-fiscal",
+                                  titulo: `Comprobante fiscal (${c.comprobanteFiscal.tipo} ${c.comprobanteFiscal.numero})`,
+                                  detalle: c.comprobanteFiscal.url,
+                                  url: c.comprobanteFiscal.url,
+                                }]
+                              : []),
+                          ];
+                          return (
+                            <div key={c.numero} className="rounded-lg border p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{c.numero}</span>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-semibold text-foreground">{numberUtils.monto(c.monto, expediente.moneda ?? "")}</p>
+                                    <p className="text-[10px] text-muted-foreground">{c.fechaVencimiento ? `Emitida: ${dateUtils.format(c.fechaVencimiento)}` : "Sin fecha de emisión"}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-end gap-1">
+                                  <Badge className={`pointer-events-none text-[9px] ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : c.estado === ESTADOS_CUOTA.VENCIDO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
+                                    <span>{ESTADO_CUOTA_LABELS[c.estado] ?? c.estado}</span>
+                                  </Badge>
+                                  {c.iimpDocumento && (
+                                    <Badge variant="secondary" className="pointer-events-none text-[9px]">
+                                      <span>Factura {c.iimpDocumento.serie}-{c.iimpDocumento.numero}</span>
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                {items.length === 0 ? (
+                                  <p className="rounded-md bg-muted/40 px-2 py-1.5 text-[10px] text-muted-foreground">Sin documentos del cliente en esta cuota.</p>
+                                ) : (
+                                  items.map((it) => (
+                                    <div key={it.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground" title={it.titulo}>{it.titulo}</span>
+                                      <span className="hidden shrink truncate text-[10px] text-muted-foreground sm:inline">{it.detalle}</span>
+                                      <div className="flex shrink-0 items-center gap-0.5">
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Vista previa" onClick={() => setPreviewDoc({ url: it.url, nombre: it.titulo })}>
+                                          <Eye className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Abrir en otra pestaña" asChild>
+                                          <a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                                        </Button>
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Descargar" asChild>
+                                          <a href={it.url} download={it.detalle}><Download className="h-3.5 w-3.5" /></a>
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                              {c.documentoSie && <p className="mt-1.5 truncate text-[10px] text-muted-foreground">Documento SIE: {c.documentoSie}</p>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="contacto" className="grid grid-cols-1 gap-3 pt-2 lg:grid-cols-2">
                     <div className="rounded-lg border p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Empresa</p>
-                      {expediente.empresa ? (
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Facturación de la reserva</p>
+                      {expediente.facturacion ? (
                         <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Razón social" valor={expediente.facturacion.razonSocial} />
+                          <Dato label="Documento" valor={[expediente.facturacion.tipoDocumento, expediente.facturacion.numeroDocumento].filter(Boolean).join(" ")} />
+                          <Dato label="Dirección" valor={expediente.facturacion.direccion} />
+                          <Dato label="Teléfono" valor={expediente.facturacion.telefono} />
+                          <Dato label="Contacto de pagos" valor={expediente.facturacion.contacto} />
+                          <Dato label="Correo" valor={expediente.facturacion.email} />
+                          <Dato label="Comprobante" valor={TIPO_COMPROBANTE_LABELS[expediente.facturacion.tipoComprobante ?? ""] ?? expediente.facturacion.tipoComprobante} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">La reserva no tiene datos de facturación registrados.</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Representante legal (firma del contrato)</p>
+                      {expediente.empresa?.representanteLegal.nombre ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.representanteLegal.nombre} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.representanteLegal.tipoDocumento] ?? "", expediente.empresa.representanteLegal.documento].filter(Boolean).join(" ")} />
+                          <Dato label="Correo" valor={expediente.empresa.representanteLegal.correo} />
+                          <Dato label="Celular" valor={expediente.empresa.representanteLegal.celular} />
+                          <Dato label="Dirección" valor={expediente.empresa.representanteLegal.direccion} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Sin representante registrado.</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Responsable de pagos</p>
+                      {expediente.empresa?.responsables.pagos.nombre ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.responsables.pagos.nombre} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.pagos.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.pagos.documento].filter(Boolean).join(" ")} />
+                          <Dato label="Teléfono" valor={expediente.empresa.responsables.pagos.telefono} />
+                          <Dato label="Correo" valor={expediente.empresa.responsables.pagos.email} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Sin responsable de pagos registrado.</p>
+                      )}
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Coordinación EXTEMIN</p>
+                      {expediente.empresa?.responsables.extemin.nombre ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                          <Dato label="Nombre" valor={expediente.empresa.responsables.extemin.nombre} />
+                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.extemin.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.extemin.documento].filter(Boolean).join(" ")} />
+                          <Dato label="Teléfono" valor={expediente.empresa.responsables.extemin.telefono} />
+                          <Dato label="Correo" valor={expediente.empresa.responsables.extemin.email} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Sin responsable EXTEMIN registrado.</p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="empresa" className="pt-2">
+                    <div className="rounded-lg border p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Ficha de la empresa</p>
+                      {expediente.empresa ? (
+                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                           <Dato label="Razón social" valor={expediente.empresa.razonSocial} />
                           <Dato label="Nombre comercial" valor={expediente.empresa.nombreComercial} />
                           <Dato label="RUC" valor={expediente.empresa.ruc} mono />
@@ -606,87 +774,14 @@ export default function FacturacionPage() {
                           <Dato label="Comprobante" valor={TIPO_COMPROBANTE_LABELS[expediente.empresa.tipoComprobante] ?? expediente.empresa.tipoComprobante} />
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-400">La empresa no está registrada en Empresas.</p>
+                        <p className="text-xs text-muted-foreground">La empresa no está registrada en Empresas.</p>
                       )}
                     </div>
+                  </TabsContent>
 
+                  <TabsContent value="solicitud" className="space-y-3 pt-2">
                     <div className="rounded-lg border p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Datos de facturación (reserva)</p>
-                      {expediente.facturacion ? (
-                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                          <Dato label="Razón social" valor={expediente.facturacion.razonSocial} />
-                          <Dato label="Documento" valor={[expediente.facturacion.tipoDocumento, expediente.facturacion.numeroDocumento].filter(Boolean).join(" ")} />
-                          <Dato label="Dirección" valor={expediente.facturacion.direccion} />
-                          <Dato label="Teléfono" valor={expediente.facturacion.telefono} />
-                          <Dato label="Contacto de pagos" valor={expediente.facturacion.contacto} />
-                          <Dato label="Correo" valor={expediente.facturacion.email} />
-                          <Dato label="Comprobante" valor={TIPO_COMPROBANTE_LABELS[expediente.facturacion.tipoComprobante ?? ""] ?? expediente.facturacion.tipoComprobante} />
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400">La solicitud no tiene datos de facturación registrados.</p>
-                      )}
-                    </div>
-
-                    {expediente.requisitos && (
-                      <div className="rounded-lg border p-3">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Requisitos declarados{expediente.requisitos.cuota ? ` · cuota ${expediente.requisitos.cuota}` : ""}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {expediente.requisitos.oc && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Orden de compra (OC)</span></Badge>}
-                          {expediente.requisitos.hes && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Hoja de entrada (HES)</span></Badge>}
-                          {expediente.requisitos.valorizacion && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Valorización / cotización</span></Badge>}
-                          {expediente.requisitos.plataforma && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Plataforma: {expediente.requisitos.plataformaNombre ?? "—"}</span></Badge>}
-                          {expediente.requisitos.otros && <Badge variant="secondary" className="pointer-events-none text-[10px]"><span>Otros: {expediente.requisitos.otros}</span></Badge>}
-                          {expediente.requisitos.ninguna && <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}><span>Ninguna de las anteriores</span></Badge>}
-                          {expediente.requisitos.plataformaUrl && (
-                            <a href={expediente.requisitos.plataformaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline">
-                              <ExternalLink className="h-3 w-3" /><span>{expediente.requisitos.plataformaUrl}</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {expediente.empresa?.representanteLegal.nombre && (
-                      <div className="rounded-lg border p-3">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Representante legal</p>
-                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                          <Dato label="Nombre" valor={expediente.empresa.representanteLegal.nombre} />
-                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.representanteLegal.tipoDocumento] ?? "", expediente.empresa.representanteLegal.documento].filter(Boolean).join(" ")} />
-                          <Dato label="Correo" valor={expediente.empresa.representanteLegal.correo} />
-                          <Dato label="Celular" valor={expediente.empresa.representanteLegal.celular} />
-                          <Dato label="Dirección" valor={expediente.empresa.representanteLegal.direccion} />
-                        </div>
-                      </div>
-                    )}
-
-                    {expediente.empresa?.responsables.pagos.nombre && (
-                      <div className="rounded-lg border p-3">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Responsable de pagos</p>
-                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                          <Dato label="Nombre" valor={expediente.empresa.responsables.pagos.nombre} />
-                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.pagos.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.pagos.documento].filter(Boolean).join(" ")} />
-                          <Dato label="Teléfono" valor={expediente.empresa.responsables.pagos.telefono} />
-                          <Dato label="Correo" valor={expediente.empresa.responsables.pagos.email} />
-                        </div>
-                      </div>
-                    )}
-
-                    {expediente.empresa?.responsables.extemin.nombre && (
-                      <div className="rounded-lg border p-3">
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Coordinación EXTEMIN</p>
-                        <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                          <Dato label="Nombre" valor={expediente.empresa.responsables.extemin.nombre} />
-                          <Dato label="Documento" valor={[TIPOS_DOCUMENTO_PERSONA_LABELS[expediente.empresa.responsables.extemin.tipoDocumento ?? ""] ?? "", expediente.empresa.responsables.extemin.documento].filter(Boolean).join(" ")} />
-                          <Dato label="Teléfono" valor={expediente.empresa.responsables.extemin.telefono} />
-                          <Dato label="Correo" valor={expediente.empresa.responsables.extemin.email} />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-lg border p-3">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Datos de la reserva</p>
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Datos de la solicitud</p>
                       <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
                         <Dato label="Contrato IIMP" valor={expediente.contrato} mono />
                         <Dato label="Cuenta corriente" valor={expediente.cuentaCorriente} mono />
@@ -696,6 +791,44 @@ export default function FacturacionPage() {
                         <Dato label="Correo del solicitante" valor={expediente.email} />
                       </div>
                     </div>
+
+                    {expediente.requisitos && (
+                      <div className="rounded-lg border p-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Requisitos de facturación (respuesta del cliente)
+                          </p>
+                          {expediente.requisitos.cuota ? (
+                            <Badge variant="secondary" className="pointer-events-none text-[9px]">
+                              <span>Declarado en la cuota {expediente.requisitos.cuota}</span>
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1.5">
+                          <RequisitoFila marcado={expediente.requisitos.oc} titulo="Orden de compra (OC)" descripcion="documento que autoriza la compra del producto o servicio." />
+                          <RequisitoFila marcado={expediente.requisitos.hes} titulo="Hoja de entrada de servicio (HES)" descripcion="constancia de conformidad del servicio recibido." />
+                          <RequisitoFila marcado={expediente.requisitos.plataforma} titulo="Registro en plataforma o portal de proveedores" descripcion="indica si tu empresa requiere registrar la factura en una plataforma para su validación o aprobación." />
+                          <RequisitoFila marcado={expediente.requisitos.valorizacion} titulo="Valorización o cotización aprobada" descripcion="documento que sustenta el importe contratado." />
+                          <RequisitoFila marcado={Boolean(expediente.requisitos.otros)} titulo="Otros requisitos" descripcion="especifica qué documento necesita tu empresa." />
+                          <RequisitoFila marcado={expediente.requisitos.ninguna} titulo="Ninguna de las anteriores" descripcion="mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra)." />
+                        </div>
+                        {expediente.requisitos.plataforma && (
+                          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+                            <span>Plataforma: <span className="font-medium text-foreground">{expediente.requisitos.plataformaNombre ?? "—"}</span></span>
+                            {expediente.requisitos.plataformaUrl && (
+                              <a href={expediente.requisitos.plataformaUrl} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 text-primary hover:underline">
+                                <ExternalLink className="h-3 w-3 shrink-0" /><span className="truncate">{expediente.requisitos.plataformaUrl}</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {expediente.requisitos.otros && (
+                          <p className="mt-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+                            Otros: <span className="font-medium text-foreground">{expediente.requisitos.otros}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {expediente.contratoFirmadoSgc && (
                       <Button size="sm" variant="outline" className="w-full" asChild>
@@ -707,19 +840,19 @@ export default function FacturacionPage() {
                     )}
 
                     <div className="overflow-hidden rounded-lg border">
-                      <p className="border-b bg-muted/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Documentos ({expediente.documentos.length})
+                      <p className="border-b bg-muted/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Documentos de la solicitud ({expediente.documentos.length})
                       </p>
                       {expediente.documentos.length === 0 ? (
-                        <p className="px-3 py-3 text-xs text-slate-400">Sin documentos adjuntos en la solicitud.</p>
+                        <p className="px-3 py-3 text-xs text-muted-foreground">Sin documentos adjuntos en la solicitud.</p>
                       ) : (
                         <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2">
                           {expediente.documentos.map((d) => (
-                            <a key={d.id} href={d.url} target="_blank" rel="noreferrer" className="flex items-start gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-muted/40">
-                              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div key={d.id} className="flex items-start gap-2 rounded-lg border border-border px-3 py-2">
+                              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-medium text-slate-700">{tituloDocumento(d)}</p>
-                                <p className="truncate text-[10px] text-slate-400">{d.nombre ?? d.url}</p>
+                                <p className="truncate text-xs font-medium text-foreground">{tituloDocumento(d)}</p>
+                                <p className="truncate text-[10px] text-muted-foreground">{d.nombre ?? d.url}</p>
                                 <div className="mt-1 flex flex-wrap items-center gap-1">
                                   {d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
                                     <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}><span>Observado</span></Badge>
@@ -729,18 +862,27 @@ export default function FacturacionPage() {
                                   </Badge>
                                 </div>
                               </div>
-                              <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            </a>
+                              <div className="flex shrink-0 items-center gap-0.5">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Vista previa" onClick={() => setPreviewDoc({ url: d.url, nombre: tituloDocumento(d) })}>
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Abrir en otra pestaña" asChild>
+                                  <a href={d.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Descargar" asChild>
+                                  <a href={d.url} download={d.nombre ?? tituloDocumento(d)}><Download className="h-3.5 w-3.5" /></a>
+                                </Button>
+                              </div>
+                            </div>
                           ))}
                         </div>
                       )}
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">No se pudo cargar el expediente.</p>
-                )}
-              </div>
-              </div>
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <p className="text-xs text-muted-foreground">No se pudo cargar el expediente.</p>
+              )}
             </div>
           )}
           </div>
@@ -749,6 +891,8 @@ export default function FacturacionPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <DocumentoPreviewDialog documento={previewDoc} onClose={() => setPreviewDoc(null)} />
 
       {/* Pay dialog — editable cuotas */}
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
@@ -908,7 +1052,7 @@ export default function FacturacionPage() {
               </div>
               {excede && <p className="text-[10px] text-red-500 text-center">Las cuotas ya cubren el monto total de {payRow.montoTotal.toFixed(2)}.</p>}
               {!excede && superaPendiente && <p className="text-[10px] text-red-500 text-center">El monto supera el pendiente ({pendiente.toFixed(2)}). Maximo: {pendiente.toFixed(2)}.</p>}
-              {!excede && !superaPendiente && fechaPasada && <p className="text-[10px] text-red-500 text-center">La fecha de vencimiento no puede ser anterior a hoy.</p>}
+              {!excede && !superaPendiente && fechaPasada && <p className="text-[10px] text-red-500 text-center">La fecha de emisión no puede ser anterior a hoy.</p>}
               {!excede && !superaPendiente && !fechaPasada && !valido && <p className="text-[10px] text-amber-500 text-center">Ingresa monto y fecha para agregar.</p>}
               {!excede && !superaPendiente && valido && <p className="text-[10px] text-slate-400 text-center">Pendiente: {pendiente.toFixed(2)} {payRow.moneda} — quedara { (pendiente - Number(newCuotaMonto)).toFixed(2) } despues de agregar.</p>}
             </div>

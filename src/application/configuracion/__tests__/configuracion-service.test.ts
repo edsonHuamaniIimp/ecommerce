@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ConfiguracionApplicationService } from "../configuracion-service";
-import { PERMISSIONS } from "@/lib/shared/constants";
+import { MAX_CONTACTOS_FACTURACION, PERMISSIONS } from "@/lib/shared/constants";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { PortalConfigEntity } from "@/domain/models/configuracion";
 
@@ -38,6 +38,8 @@ describe("ConfiguracionApplicationService", () => {
     const service = new ConfiguracionApplicationService(fakeRepo().repo);
     const config = await service.obtenerPortal();
     expect(config).toMatchObject({ mesaAyudaEmail: null, contactoEmail: null, manualUrl: null, reglamentoUrl: null });
+    expect(config.facturacionEmails).toEqual([]);
+    expect(config.facturacionTelefonos).toEqual([]);
   });
 
   it("actualizarPortal normaliza vacios a null y guarda quien edito", async () => {
@@ -52,6 +54,8 @@ describe("ConfiguracionApplicationService", () => {
     expect(guardados[0]).toEqual({
       mesaAyudaEmail: "soporte@iimp.org.pe",
       contactoEmail: "c@iimp.org.pe",
+      facturacionEmails: [],
+      facturacionTelefonos: [],
       manualUrl: null,
       reglamentoUrl: null,
       holdReservaMinutos: 25,
@@ -111,5 +115,31 @@ describe("ConfiguracionApplicationService", () => {
     const service = new ConfiguracionApplicationService(fakeRepo().repo);
     await expect(service.actualizarPortal({ mesaAyudaEmail: "no-es-correo" }, null)).rejects.toMatchObject({ status: 400 });
     await expect(service.actualizarPortal({ manualUrl: "ftp://archivos" }, null)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("guarda varios correos y telefonos de facturacion con trim y deduplicado", async () => {
+    const { repo, guardados } = fakeRepo();
+    const service = new ConfiguracionApplicationService(repo);
+
+    await service.actualizarPortal(
+      {
+        facturacionEmails: [" facturacion@iimp.org.pe ", "cobranzas@iimp.org.pe", "facturacion@iimp.org.pe", ""],
+        facturacionTelefonos: [" +51 999 888 777 ", "+51 999 888 777", "01 555 1234"],
+      },
+      null,
+    );
+
+    expect(guardados[0]).toEqual(expect.objectContaining({
+      facturacionEmails: ["facturacion@iimp.org.pe", "cobranzas@iimp.org.pe"],
+      facturacionTelefonos: ["+51 999 888 777", "01 555 1234"],
+    }));
+  });
+
+  it("rechaza contactos de facturacion invalidos o que superan el maximo", async () => {
+    const service = new ConfiguracionApplicationService(fakeRepo().repo);
+    await expect(service.actualizarPortal({ facturacionEmails: ["no-es-correo"] }, null)).rejects.toMatchObject({ status: 400 });
+    await expect(service.actualizarPortal({ facturacionTelefonos: ["abc"] }, null)).rejects.toMatchObject({ status: 400 });
+    const seis = Array.from({ length: MAX_CONTACTOS_FACTURACION + 1 }, (_, i) => `contacto${i}@iimp.org.pe`);
+    await expect(service.actualizarPortal({ facturacionEmails: seis }, null)).rejects.toMatchObject({ status: 400 });
   });
 });

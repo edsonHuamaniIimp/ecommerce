@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Skeleton, Switch } from "@nrivera-iimp/ui-kit-iimp";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { configuracionService } from "@/lib/client/api/services/configuracion-service";
 import { invalidarPortalConfig } from "@/hooks/use-portal-config";
 import {
+  MAX_CONTACTOS_FACTURACION,
   MAX_STANDS_RESERVA_DEFAULT,
   MAX_STANDS_RESERVA_LIMITE,
   MAX_STANDS_RESERVA_MIN,
@@ -19,6 +20,8 @@ export default function ConfiguracionPortalPage() {
   const [guardando, setGuardando] = useState(false);
   const [mesaAyudaEmail, setMesaAyudaEmail] = useState("");
   const [contactoEmail, setContactoEmail] = useState("");
+  const [facturacionEmails, setFacturacionEmails] = useState<string[]>([""]);
+  const [facturacionTelefonos, setFacturacionTelefonos] = useState<string[]>([""]);
   const [manualUrl, setManualUrl] = useState("");
   const [reglamentoUrl, setReglamentoUrl] = useState("");
   const [holdReservaMinutos, setHoldReservaMinutos] = useState("25");
@@ -36,6 +39,8 @@ export default function ConfiguracionPortalPage() {
         if (!activo) return;
         setMesaAyudaEmail(config.mesaAyudaEmail ?? "");
         setContactoEmail(config.contactoEmail ?? "");
+        setFacturacionEmails(config.facturacionEmails.length > 0 ? config.facturacionEmails : [""]);
+        setFacturacionTelefonos(config.facturacionTelefonos.length > 0 ? config.facturacionTelefonos : [""]);
         setManualUrl(config.manualUrl ?? "");
         setReglamentoUrl(config.reglamentoUrl ?? "");
         setHoldReservaMinutos(String(config.holdReservaMinutos ?? 25));
@@ -89,6 +94,8 @@ export default function ConfiguracionPortalPage() {
       await configuracionService.actualizarPortal({
         mesaAyudaEmail: mesaAyudaEmail.trim() || null,
         contactoEmail: contactoEmail.trim() || null,
+        facturacionEmails: facturacionEmails.map((v) => v.trim()).filter(Boolean),
+        facturacionTelefonos: facturacionTelefonos.map((v) => v.trim()).filter(Boolean),
         manualUrl: manualUrl.trim() || null,
         reglamentoUrl: reglamentoUrl.trim() || null,
         holdReservaMinutos: minutos,
@@ -188,6 +195,94 @@ export default function ConfiguracionPortalPage() {
 
                 <p className="text-[11px] text-muted-foreground">
                   Los correos se abren como mailto; las URLs se abren en una pestaña nueva.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="space-y-1">
+                <CardTitle><span>Contacto de facturación</span></CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Correos y teléfonos de Facturación y Cobranzas que verán los clientes al abrir
+                  &quot;Contacto&quot; en Mis documentos. Puedes registrar más de uno.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label><span>Correos</span></Label>
+                    {facturacionEmails.map((valor, indice) => (
+                      <div key={`facturacion-email-${indice}`} className="flex items-center gap-2">
+                        <Input
+                          type="email"
+                          placeholder="facturacion@iimp.org.pe"
+                          value={valor}
+                          onChange={(e) => setFacturacionEmails((prev) => prev.map((v, i) => (i === indice ? e.target.value : v)))}
+                          className="text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 shrink-0 p-0 text-destructive"
+                          title="Quitar correo"
+                          onClick={() => setFacturacionEmails((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== indice) : [""]))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      disabled={facturacionEmails.length >= MAX_CONTACTOS_FACTURACION}
+                      onClick={() => setFacturacionEmails((prev) => [...prev, ""])}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Agregar correo</span>
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label><span>Teléfonos</span></Label>
+                    {facturacionTelefonos.map((valor, indice) => (
+                      <div key={`facturacion-telefono-${indice}`} className="flex items-center gap-2">
+                        <Input
+                          type="tel"
+                          placeholder="+51 999 999 999"
+                          value={valor}
+                          onChange={(e) => setFacturacionTelefonos((prev) => prev.map((v, i) => (i === indice ? e.target.value : v)))}
+                          className="text-xs"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 shrink-0 p-0 text-destructive"
+                          title="Quitar teléfono"
+                          onClick={() => setFacturacionTelefonos((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== indice) : [""]))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      disabled={facturacionTelefonos.length >= MAX_CONTACTOS_FACTURACION}
+                      onClick={() => setFacturacionTelefonos((prev) => [...prev, ""])}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Agregar teléfono</span>
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Hasta {MAX_CONTACTOS_FACTURACION} correos y {MAX_CONTACTOS_FACTURACION} teléfonos. Los correos
+                  se abren como mailto y los teléfonos inician una llamada.
                 </p>
               </CardContent>
             </Card>

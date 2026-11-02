@@ -115,7 +115,7 @@ export const services = {
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   reportesSolicitudes: new ReportesSolicitudesApplicationService(reportesSolicitudesRepo),
-  facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo),
+  facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo, reservaIimpClient),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),

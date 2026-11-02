@@ -1203,6 +1203,10 @@ model PortalConfig {
   mesaAyudaEmail String?  @map("mesa_ayuda_email") @db.VarChar(200)
   /// Correo de contacto general.
   contactoEmail  String?  @map("contacto_email") @db.VarChar(200)
+  /// Correos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos).
+  facturacionEmails Json? @map("facturacion_emails")
+  /// Telefonos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos).
+  facturacionTelefonos Json? @map("facturacion_telefonos")
   /// URL del Manual del Exhibidor.
   manualUrl      String?  @map("manual_url") @db.VarChar(500)
   /// URL del Reglamento de Stands.

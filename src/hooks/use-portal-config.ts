@@ -9,6 +9,8 @@ import type { PortalConfigDTO } from "@/types/dto/configuracion/portal-config.dt
 export const PORTAL_CONFIG_VACIO: PortalConfigDTO = {
   mesaAyudaEmail: null,
   contactoEmail: null,
+  facturacionEmails: [],
+  facturacionTelefonos: [],
   manualUrl: null,
   reglamentoUrl: null,
   holdReservaMinutos: 25,

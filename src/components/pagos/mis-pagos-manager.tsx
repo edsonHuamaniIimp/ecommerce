@@ -16,7 +16,7 @@ import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -25,12 +25,6 @@ const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.PAGADO]: "Pagado",
   [ESTADOS_FACTURACION.ARCHIVADO]: "Archivado",
   [ESTADOS_FACTURACION.CANCELADO]: "Cancelado",
-};
-
-const ESTADO_CUOTA_LABELS: Record<string, string> = {
-  [ESTADOS_CUOTA.PENDIENTE]: "Pendiente",
-  [ESTADOS_CUOTA.PAGADO]: "Pagado",
-  [ESTADOS_CUOTA.VENCIDO]: "Vencido",
 };
 
 function claseBadge(estado: string): string {
@@ -207,7 +201,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 {cuota.numero}
               </span>
               <span className="font-semibold text-foreground">{numberUtils.monto(cuota.monto, row.moneda)}</span>
-              <span className="text-muted-foreground">Vence: {dateUtils.format(cuota.fechaVencimiento)}</span>
+              <span className="text-muted-foreground">Emitida: {dateUtils.format(cuota.fechaVencimiento)}</span>
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
@@ -558,7 +552,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               />
             </div>
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-muted-foreground">Fecha de vencimiento (opcional)</p>
+              <p className="text-xs font-semibold text-muted-foreground">Fecha de emisión (opcional)</p>
               <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
           </div>

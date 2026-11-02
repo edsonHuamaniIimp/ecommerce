@@ -5,6 +5,7 @@ import type { IFacturacionRepository, FacturacionRow, FacturacionListResult } fr
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import type { IReservaIimpClient } from "@/domain/ports/reserva-iimp-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
 import { PERMISSIONS } from "@/lib/shared/constants";
 
@@ -42,13 +43,18 @@ function empresasMock() {
   return { findById: vi.fn() } as unknown as Pick<IEmpresaRepository, "findById">;
 }
 
+function reservaMock() {
+  return { listarArchivos: vi.fn().mockResolvedValue([]) } as unknown as Pick<IReservaIimpClient, "listarArchivos">;
+}
+
 function crearSvc(
   repo: IFacturacionRepository,
   solicitudes = solicitudesMock(),
   auth = mockAuthRepo(),
   empresas = empresasMock(),
+  reserva = reservaMock(),
 ): FacturacionApplicationService {
-  return new FacturacionApplicationService(repo, auth, solicitudes, empresas);
+  return new FacturacionApplicationService(repo, auth, solicitudes, empresas, reserva);
 }
 
 function mockRepo(): IFacturacionRepository {
@@ -62,7 +68,7 @@ function mockRepo(): IFacturacionRepository {
     pagarCuota: vi.fn(),
     adjuntarComprobanteFiscal: vi.fn(),
     guardarDocumentoIImp: vi.fn(),
-    findFacturacionIdPorSolicitud: vi.fn(),
+    findFacturacionIdPorSolicitud: vi.fn().mockResolvedValue(null),
     registrarNotificacionFactura: vi.fn(),
     actualizar: vi.fn(),
     eliminar: vi.fn(),
@@ -449,6 +455,48 @@ describe("FacturacionApplicationService.expediente", () => {
     expect(r.requisitos).toMatchObject({ oc: true, cuota: 1 });
     expect(r.documentos[0]).toMatchObject({ categoria: "anexo", requisito: "ficha-ruc" });
     expect(r.documentos[1]).toMatchObject({ categoria: "contrato_firmado" });
+    expect(r.cuotas).toEqual([]);
+  });
+
+  it("agrupa por cuota los documentos del cliente (voucher, fiscal, SIE y cuenta corriente)", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findFacturacionIdPorSolicitud).mockResolvedValue("f1");
+    vi.mocked(repo.detalle).mockResolvedValue({
+      ...sampleRow,
+      cuotas: [
+        {
+          id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado",
+          comprobante: "https://x/voucher-1.pdf",
+          comprobanteFiscal: { tipo: "factura", numero: "F001-1", url: "https://x/factura-1.pdf", at: "2026-10-20T00:00:00.000Z", by: null },
+          documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, iimpDocumento: null,
+        },
+        {
+          id: "c2", numero: 2, monto: 1000, fechaVencimiento: "2024-08-01T00:00:00Z", estado: "pendiente",
+          comprobante: null, comprobanteFiscal: null,
+          documentoSie: "20107972090-01-F009-3303.pdf", documentoSieAnulado: false, documentoSieJustificacion: null,
+          iimpDocumento: { tipoDocumento: "01", serie: "F009", numero: 3303, fechaEmision: "2026-10-21", tipoCambio: "3.8", igv: "100", total: "650" },
+        },
+      ],
+    });
+    const solicitudes = solicitudesMock();
+    vi.mocked(solicitudes.detalle).mockResolvedValue({
+      id: "s1", empresa: "CIDELSA", email: "x@x.com", estadoSolicitud: "pendiente_pago",
+      iimpContrato: "0000000001", iimpCuentaCorriente: "1", iimpReservaAt: null, planCuotas: null, docsAdjuntos: [],
+    } as unknown as Awaited<ReturnType<ISolicitudesRepository["detalle"]>>);
+    const reserva = reservaMock();
+    vi.mocked(reserva.listarArchivos).mockResolvedValue([
+      { item: 1, tipo: "OC", cuota: 1, link: "https://x/oc-1.pdf", nombre: "OC 1", fecha: "2026-10-20" },
+      { item: 2, tipo: "HES", cuota: 2, link: "https://x/hes-2.pdf", nombre: "HES 2", fecha: "2026-10-21" },
+    ]);
+
+    const r = await crearSvc(repo, solicitudes, mockAuthRepo(), empresasMock(), reserva).expediente("s1");
+
+    expect(reserva.listarArchivos).toHaveBeenCalledWith({ numeroSolicitud: expect.any(String) });
+    expect(r.cuotas).toHaveLength(2);
+    expect(r.cuotas[0]).toMatchObject({ numero: 1, voucher: "https://x/voucher-1.pdf", archivos: [{ tipo: "OC" }] });
+    expect(r.cuotas[0]?.comprobanteFiscal).toMatchObject({ tipo: "factura", numero: "F001-1" });
+    expect(r.cuotas[1]).toMatchObject({ numero: 2, documentoSie: "20107972090-01-F009-3303.pdf", archivos: [{ tipo: "HES" }] });
+    expect(r.cuotas[1]?.iimpDocumento).toMatchObject({ serie: "F009", numero: 3303 });
   });
 
   it("responde 404 si la solicitud no existe", async () => {

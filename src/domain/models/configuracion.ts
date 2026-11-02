@@ -4,6 +4,10 @@ export interface PortalConfigEntity {
   mesaAyudaEmail: string | null;
   /** Correo de contacto general. */
   contactoEmail: string | null;
+  /** Correos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos). */
+  facturacionEmails: string[];
+  /** Telefonos de contacto de Facturacion y Cobranzas (varios; visibles en Mis documentos). */
+  facturacionTelefonos: string[];
   /** URL del Manual del Exhibidor. */
   manualUrl: string | null;
   /** URL del Reglamento de Stands. */
@@ -25,6 +29,8 @@ export interface PortalConfigEntity {
 export interface ActualizarPortalConfigData {
   mesaAyudaEmail: string | null;
   contactoEmail: string | null;
+  facturacionEmails: string[];
+  facturacionTelefonos: string[];
   manualUrl: string | null;
   reglamentoUrl: string | null;
   holdReservaMinutos: number;

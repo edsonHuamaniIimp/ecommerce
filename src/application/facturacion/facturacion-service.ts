@@ -2,10 +2,12 @@ import type { IFacturacionRepository, FacturacionListParams, FacturacionListResu
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { IReservaIimpClient, ReservaIimpArchivo } from "@/domain/ports/reserva-iimp-client";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_CUOTA, PERMISSIONS, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { numeroSolicitudIImp } from "@/application/facturacion-iimp/numero-solicitud";
 
 /** Tipos validos del comprobante fiscal (ver TIPOS_COMPROBANTE). */
 const TIPOS_COMPROBANTE_FISCAL: string[] = [TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA];
@@ -16,6 +18,7 @@ export class FacturacionApplicationService {
     private readonly authRepo: IAuthRepository,
     private readonly solicitudes: Pick<ISolicitudesRepository, "detalle" | "datosReservaIImp">,
     private readonly empresas: Pick<IEmpresaRepository, "findById">,
+    private readonly reserva: Pick<IReservaIimpClient, "listarArchivos">,
   ) {}
 
   /** Permiso de gestion de Facturacion (o admin total). */
@@ -51,6 +54,18 @@ export class FacturacionApplicationService {
     /* Snapshot de facturacion capturado en el wizard (puede diferir de la ficha de la empresa). */
     const reservaIimp = await this.solicitudes.datosReservaIImp(solicitudId);
     const datos = reservaIimp?.datosFacturacion ?? null;
+
+    /* Cuotas del contrato y documentos que el cliente sube por cuota: voucher de pago,
+       comprobante fiscal, documento notificado por el SIE y archivos de la cuenta
+       corriente del IIMP (OC, HES, detraccion, diferencia, pago total, valorizacion). */
+    const facturacionId = await this.repo.findFacturacionIdPorSolicitud(solicitudId).catch(() => null);
+    const facturacion = facturacionId ? await this.repo.detalle(facturacionId) : null;
+    let archivosCuenta: ReservaIimpArchivo[] = [];
+    if (solicitud.iimpContrato && Number(solicitud.iimpCuentaCorriente ?? 0) > 0) {
+      archivosCuenta = await this.reserva
+        .listarArchivos({ numeroSolicitud: numeroSolicitudIImp(solicitudId) })
+        .catch(() => []);
+    }
 
     return {
       solicitudId: solicitud.id,
@@ -128,6 +143,18 @@ export class FacturacionApplicationService {
         estado: d.estado,
         createdAt: d.createdAt,
       })),
+      cuotas: (facturacion?.cuotas ?? []).map((c) => ({
+        numero: c.numero,
+        estado: c.estado,
+        monto: c.monto,
+        fechaVencimiento: c.fechaVencimiento,
+        voucher: c.comprobante ?? null,
+        comprobanteFiscal: c.comprobanteFiscal,
+        documentoSie: c.documentoSie ?? null,
+        iimpDocumento: c.iimpDocumento,
+        archivos: archivosCuenta.filter((a) => a.cuota === c.numero),
+      })),
+      moneda: facturacion?.moneda ?? null,
     };
   }
 
