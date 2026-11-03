@@ -21,6 +21,16 @@ export interface FacturacionRow {
   correoSolicitante: string | null;
   /** Razon social de la empresa indicada en la facturacion de la reserva (snapshot). */
   empresaFacturacion: string | null;
+  /** Requisitos de facturacion declarados por el cliente al solicitar (declaracion referencial). */
+  requisitos: {
+    oc?: boolean;
+    hes?: boolean;
+    plataforma?: boolean;
+    valorizacion?: boolean;
+    otros?: string | null;
+    ninguna?: boolean;
+    cuota?: number;
+  } | null;
   /** Contrato y cuenta corriente del IIMP cuando la reserva ya se registro alli. */
   iimpContrato: string | null;
   iimpCuentaCorriente: string | null;

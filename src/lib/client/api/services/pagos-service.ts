@@ -43,6 +43,8 @@ export interface PagoRowDTO {
   planCliente: boolean;
   standCode: string;
   correoSolicitante: string | null;
+  /** Requisitos de facturacion declarados por el cliente (declaracion referencial). */
+  requisitos: RequisitosFacturacionDTO | null;
   /** Reserva oficial en el IIMP (null = aun no solicitada desde Mis pagos). */
   iimpContrato: string | null;
   iimpCuentaCorriente: string | null;

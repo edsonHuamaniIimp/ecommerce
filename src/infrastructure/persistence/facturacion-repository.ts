@@ -49,6 +49,7 @@ interface FacturacionRaw {
     iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
     datosFacturacion: unknown | null;
+    requisitosFacturacion: unknown | null;
     gessStand: { standCode: string } | null;
     stands: Array<{ gessStand: { standCode: string } | null }>;
   };
@@ -60,6 +61,7 @@ const SOLICITUD_SELECT = {
   iimpContrato: true,
   iimpCuentaCorriente: true,
   datosFacturacion: true,
+  requisitosFacturacion: true,
   gessStand: { select: { standCode: true } },
   stands: { include: { gessStand: { select: { standCode: true } } } },
 };
@@ -82,6 +84,7 @@ function toRow(r: FacturacionRaw): FacturacionRow {
     standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || undefined) ?? "â€”",
     correoSolicitante: r.solicitud.email,
     empresaFacturacion: ((r.solicitud.datosFacturacion as { razonSocial?: string | null } | null)?.razonSocial ?? null),
+    requisitos: (r.solicitud.requisitosFacturacion as FacturacionRow["requisitos"]) ?? null,
     iimpContrato: r.solicitud.iimpContrato ?? null,
     iimpCuentaCorriente: r.solicitud.iimpCuentaCorriente ?? null,
     createdAt: r.createdAt.toISOString(),

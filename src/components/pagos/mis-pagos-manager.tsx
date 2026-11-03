@@ -1,22 +1,21 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   Badge, Button, Card, CardContent, Dialog, DialogContent, DialogFooter,
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Paperclip, Pencil, Plus, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
+import { CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
-import { uploadService } from "@/lib/client/api/services/upload-service";
 import { Pagination } from "@/components/shared/pagination";
 import { ArchivosCuentaCorriente } from "@/components/pagos/archivos-cuenta-corriente";
 import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { BADGE_STYLES, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, TIPOS_ARCHIVO_IIMP, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -26,6 +25,24 @@ const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.ARCHIVADO]: "Archivado",
   [ESTADOS_FACTURACION.CANCELADO]: "Cancelado",
 };
+
+/**
+ * Tipos de documento del panel "Documentos para tu factura" segun los requisitos
+ * declarados por el cliente: OC/HES/valorizacion solo si los marco; con "ninguna
+ * de las anteriores" solo quedan las constancias de pago. Sin declaracion, todos.
+ */
+function tiposDocumentosPorRequisitos(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
+  const pagos: TipoArchivoIImp[] = [TIPOS_ARCHIVO_IIMP.DETRACCION, TIPOS_ARCHIVO_IIMP.DIFERENCIA, TIPOS_ARCHIVO_IIMP.PAGO_TOTAL];
+  if (!requisitos) {
+    return [TIPOS_ARCHIVO_IIMP.OC, TIPOS_ARCHIVO_IIMP.HES, TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION, ...pagos];
+  }
+  if (requisitos.ninguna) return pagos;
+  const tipos: TipoArchivoIImp[] = [];
+  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
+  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
+  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
+  return [...tipos, ...pagos];
+}
 
 function claseBadge(estado: string): string {
   if (estado === ESTADOS_FACTURACION.PAGADO || estado === ESTADOS_CUOTA.PAGADO) return BADGE_STYLES.SUCCESS;
@@ -58,14 +75,10 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
   const [fecha, setFecha] = useState("");
   const [guardando, setGuardando] = useState(false);
 
-  // Voucher: se elige la cuota destino y se abre el selector de archivo.
-  const inputVoucherRef = useRef<HTMLInputElement>(null);
-  const [cuotaVoucher, setCuotaVoucher] = useState<string | null>(null);
-  const [subiendo, setSubiendo] = useState(false);
   /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
   const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
-  const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number } | null>(null);
+  const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number; tiposPermitidos: TipoArchivoIImp[] } | null>(null);
 
   const puedeGestionar = !soloLectura && Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
@@ -160,29 +173,6 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
     }
   };
 
-  const elegirVoucher = (cuotaId: string) => {
-    setCuotaVoucher(cuotaId);
-    inputVoucherRef.current?.click();
-  };
-
-  const onVoucherFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !cuotaVoucher) return;
-    setSubiendo(true);
-    try {
-      const url = await uploadService.subir(file);
-      await pagosService.adjuntarVoucher({ cuotaId: cuotaVoucher, comprobante: url });
-      toast.success("Voucher adjuntado");
-      await load(page, perPage);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al adjuntar el voucher");
-    } finally {
-      setSubiendo(false);
-      setCuotaVoucher(null);
-    }
-  };
-
   /** "Registrar reserva": dialogo con documentos por categoria y envio al IIMP (ver EnviarReservaIimp). */
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -249,7 +239,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero })}
+                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
                       >
                         <Files className="h-3.5 w-3.5" />
                       </Button>
@@ -306,16 +296,6 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 )}
                 {puedeGestionar && cuota.estado !== ESTADOS_CUOTA.PAGADO && (
                   <span className="flex items-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => elegirVoucher(cuota.id)}
-                      disabled={subiendo && cuotaVoucher === cuota.id}
-                      title={cuota.comprobante ? "Reemplazar voucher" : "Adjuntar voucher"}
-                    >
-                      <Paperclip className="h-3.5 w-3.5" />
-                    </Button>
                     {/* Con voucher adjunto la cuota queda bloqueada. Con plan del contrato no es editable. */}
                     {!cuota.comprobante && !row.planCliente && (
                       <>
@@ -352,7 +332,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
         <p className="text-[11px] text-muted-foreground">
           <span>
             Las cuotas las definió el cliente en el contrato; no son editables.{" "}
-            {soloLectura ? "Vista de solo lectura." : "Aquí solo puedes adjuntar el voucher de pago de cada cuota."}
+            {soloLectura ? "Vista de solo lectura." : "Usa el ícono de documentos para adjuntar las constancias de pago (pago total, detracción o diferencia)."}
           </span>
         </p>
       )}
@@ -397,7 +377,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       {soloLectura && (
         <p className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
           <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar vouchers ni registrar reservas.</span>
+          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar documentos ni registrar reservas.</span>
         </p>
       )}
       <div className="flex items-center justify-end gap-1">
@@ -502,14 +482,6 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
         </div>
       )}
 
-      <input
-        ref={inputVoucherRef}
-        type="file"
-        accept="application/pdf,image/*"
-        className="hidden"
-        onChange={(e) => { void onVoucherFile(e); }}
-      />
-
       {confirmDialog}
 
       {!soloLectura && (
@@ -530,6 +502,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             cuotas={archivosCuota?.cuotas ?? 0}
             standCode={archivosCuota?.standCode}
             cuotaNumero={archivosCuota?.numero}
+            tiposPermitidos={archivosCuota?.tiposPermitidos}
           />
         </>
       )}

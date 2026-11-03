@@ -5,7 +5,7 @@ import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, Dialo
 import { ArrowLeft, FileText, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO } from "@/lib/client/api/services/pagos-service";
-import { TIPOS_ARCHIVO_IIMP } from "@/lib/shared/constants";
+import { TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { FormArchivoIImp, TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
 
 interface Props {
@@ -48,8 +48,18 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
   const marcar = (campo: keyof RequisitosFacturacionDTO, valor: boolean) => {
     setRequisitos((prev) => {
       if (campo === "ninguna" && valor) {
-        /* Declarar "ninguna de las anteriores" desmarca el resto del checklist. */
-        return { ...REQUISITOS_INICIALES, ninguna: true };
+        /* Declarar "ninguna de las anteriores" desmarca todo el checklist. */
+        return {
+          ...REQUISITOS_INICIALES,
+          oc: false,
+          hes: false,
+          plataforma: false,
+          plataformaNombre: "",
+          plataformaUrl: "",
+          valorizacion: false,
+          otros: "",
+          ninguna: true,
+        };
       }
       return { ...prev, [campo]: valor, ...(campo !== "ninguna" && valor ? { ninguna: false } : {}) };
     });
@@ -94,7 +104,12 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
     }
   };
 
-  const declaroDocumentos = !requisitos.ninguna && (requisitos.oc === true || requisitos.hes === true);
+  /** Tipos que puede adjuntar segun lo declarado en el paso 1 (el paso 2 muestra solo estos). */
+  const tiposDeclarados: TipoArchivoIImp[] = [
+    ...(requisitos.oc ? [TIPOS_ARCHIVO_IIMP.OC] : []),
+    ...(requisitos.hes ? [TIPOS_ARCHIVO_IIMP.HES] : []),
+    ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
+  ];
 
   return (
     <Dialog open={open} onOpenChange={cerrar}>
@@ -161,13 +176,16 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                   <span><strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.</span>
                 </label>
 
-                {Boolean(requisitos.otros?.trim()) && (
-                  <Input
-                    className="ml-6 h-9 text-xs"
-                    placeholder="Especifica el requisito"
-                    value={requisitos.otros ?? ""}
-                    onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.value }))}
-                  />
+                {Boolean(requisitos.otros) && (
+                  <div className="ml-6">
+                    <Input
+                      className="h-9 w-full text-xs"
+                      placeholder="Especifica el requisito"
+                      value={requisitos.otros === " " ? "" : (requisitos.otros ?? "")}
+                      onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.value }))}
+                      autoFocus
+                    />
+                  </div>
                 )}
 
                 <label className="flex items-start gap-2 border-t border-border pt-2 text-xs">
@@ -186,18 +204,24 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                 </span>
               </p>
 
-              {declaroDocumentos && (
+              {tiposDeclarados.length > 0 ? (
                 <p className="text-[11px] text-muted-foreground" role="note">
-                  <span>Según tu declaración: {[requisitos.oc ? "OC" : null, requisitos.hes ? "HES" : null].filter(Boolean).join(" y ")}.</span>
+                  <span>Según tu declaración: {tiposDeclarados.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" · ")}.</span>
+                </p>
+              ) : (
+                <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+                  No declaraste documentos pendientes: puedes enviar la reserva directamente.
                 </p>
               )}
 
-              <FormArchivoIImp
-                cuotas={cuotas}
-                botonLabel="Adjuntar"
-                tiposPermitidos={[TIPOS_ARCHIVO_IIMP.OC, TIPOS_ARCHIVO_IIMP.HES]}
-                onAgregar={(a) => setArchivos((prev) => [...prev, a])}
-              />
+              {tiposDeclarados.length > 0 && (
+                <FormArchivoIImp
+                  cuotas={cuotas}
+                  botonLabel="Adjuntar"
+                  tiposPermitidos={tiposDeclarados}
+                  onAgregar={(a) => setArchivos((prev) => [...prev, a])}
+                />
+              )}
 
               {archivos.length > 0 && (
                 <div className="divide-y divide-border rounded-lg border border-border">
@@ -232,7 +256,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
         <DialogFooter>
           {paso === 1 ? (
-            <Button className="w-full" onClick={() => setPaso(2)}>
+            <Button className="w-full" onClick={() => { setArchivos((prev) => prev.filter((a) => tiposDeclarados.includes(a.tipo as TipoArchivoIImp))); setPaso(2); }}>
               <span>Continuar</span>
             </Button>
           ) : (

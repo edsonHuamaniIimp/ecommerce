@@ -40,7 +40,7 @@ export function ConfirmDialog({
           <DialogTitle><span>{title}</span></DialogTitle>
         </DialogHeader>
         {description && (
-          <p className="text-sm text-muted-foreground">
+          <p className="break-words text-sm text-muted-foreground">
             {typeof description === "string" ? <span>{description}</span> : description}
           </p>
         )}

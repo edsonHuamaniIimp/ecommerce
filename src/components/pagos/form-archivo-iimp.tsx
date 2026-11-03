@@ -6,17 +6,16 @@ import {
   BadgeCheck,
   ClipboardCheck,
   ClipboardList,
-  FileCheck2,
   FileUp,
   HandCoins,
   Landmark,
   Loader2,
   ShoppingCart,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { uploadService } from "@/lib/client/api/services/upload-service";
+import { useConfirm } from "@/hooks/use-confirm";
 import { TIPOS_ARCHIVO_IIMP, TIPOS_ARCHIVO_IIMP_CON_CUOTA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import type { ArchivoCuentaDTO, ArchivoIImpInputDTO } from "@/lib/client/api/services/pagos-service";
 
@@ -79,10 +78,10 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
   const [editarCuota, setEditarCuota] = useState(!cuotaInicial);
   const [link, setLink] = useState("");
   const [nombre, setNombre] = useState("");
-  const [archivoSubido, setArchivoSubido] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   /* Pagos ya registrados de la cuota elegida: si la cuota tiene "pago total" no se
      ofrecen detraccion/diferencia, y viceversa. */
@@ -106,14 +105,32 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
   });
   const exigeCuota = TIPOS_ARCHIVO_IIMP_CON_CUOTA.includes(tipoEfectivo as (typeof TIPOS_ARCHIVO_IIMP_CON_CUOTA)[number]);
 
-  const subirArchivo = async (file: File) => {
+  /** Con confirmacion: sube el archivo y lo agrega a la bandeja en un solo paso. */
+  const subirYAgregar = async (file: File) => {
+    if (exigeCuota && (!Number.isInteger(cuotaNumerica) || cuotaNumerica < 1)) {
+      toast.error("Indica la cuota de la constancia de pago");
+      return;
+    }
+    const nombreVisible = file.name.length > 60 ? `${file.name.slice(0, 57)}...` : file.name;
+    const aceptado = await confirm({
+      title: "Subir documento",
+      description: `¿Subir "${nombreVisible}" a la bandeja?`,
+      confirmLabel: "Subir",
+      cancelLabel: "Cancelar",
+    });
+    if (!aceptado) return;
     setSubiendo(true);
     try {
       const url = await uploadService.subir(file);
-      setLink(url);
-      setNombre((prev) => (prev.trim() ? prev : file.name));
-      setArchivoSubido(file.name);
-      toast.success("Documento cargado");
+      onAgregar({
+        tipo: tipoEfectivo,
+        cuota: Number.isInteger(cuotaNumerica) && cuotaNumerica > 0 ? cuotaNumerica : null,
+        link: url,
+        nombre: nombre.trim() || file.name,
+      });
+      setLink("");
+      setNombre("");
+      toast.success("Documento agregado a la bandeja");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo subir el archivo");
     } finally {
@@ -124,20 +141,14 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) void subirArchivo(file);
+    if (file) void subirYAgregar(file);
   };
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setArrastrando(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) void subirArchivo(file);
-  };
-
-  const quitarArchivo = () => {
-    setLink("");
-    setNombre("");
-    setArchivoSubido(null);
+    if (file) void subirYAgregar(file);
   };
 
   const agregar = () => {
@@ -157,7 +168,6 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
     });
     setLink("");
     setNombre("");
-    setArchivoSubido(null);
   };
 
   return (
@@ -223,38 +233,28 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
       {/* 3. Documento: arrastrar/soltar o enlace */}
       <div className="space-y-2">
         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">3. Sube tu archivo</p>
-        {archivoSubido ? (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-            <FileCheck2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium text-emerald-800" title={archivoSubido}>{archivoSubido}</span>
-            <Button type="button" variant="ghost" size="sm" className="h-6 w-6 shrink-0 p-0 text-emerald-700" title="Quitar archivo" onClick={quitarArchivo}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        ) : (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => inputFileRef.current?.click()}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputFileRef.current?.click(); }}
-            onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
-            onDragLeave={() => setArrastrando(false)}
-            onDrop={onDrop}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
-              arrastrando ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-primary/40"
-            }`}
-          >
-            {subiendo ? (
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            ) : (
-              <FileUp className="h-5 w-5 text-muted-foreground" />
-            )}
-            <p className="text-xs font-semibold text-foreground">
-              {subiendo ? "Subiendo documento..." : "Arrastra tu documento aquí o haz clic para subirlo"}
-            </p>
-            <p className="text-[10px] text-muted-foreground">PDF, imagen, Word o Excel · máximo 10 MB</p>
-          </div>
-        )}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => inputFileRef.current?.click()}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputFileRef.current?.click(); }}
+          onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
+          onDragLeave={() => setArrastrando(false)}
+          onDrop={onDrop}
+          className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
+            arrastrando ? "border-primary bg-primary/5" : "border-border bg-muted/20 hover:border-primary/40"
+          }`}
+        >
+          {subiendo ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : (
+            <FileUp className="h-5 w-5 text-muted-foreground" />
+          )}
+          <p className="text-xs font-semibold text-foreground">
+            {subiendo ? "Subiendo documento..." : "Arrastra tu documento aquí o haz clic para subirlo"}
+          </p>
+          <p className="text-[10px] text-muted-foreground">PDF, imagen, Word o Excel · máximo 10 MB</p>
+        </div>
         <input ref={inputFileRef} type="file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" className="hidden" onChange={onFile} />
 
         <div className="space-y-1">
@@ -272,6 +272,7 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
           </Button>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

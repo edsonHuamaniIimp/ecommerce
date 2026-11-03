@@ -10,6 +10,7 @@ import { pagosService, type ArchivoCuentaDTO, type ArchivoIImpInputDTO } from "@
 import { useConfirm } from "@/hooks/use-confirm";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { FormArchivoIImp, TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
+import type { TipoArchivoIImp } from "@/lib/shared/constants";
 
 interface Props {
   open: boolean;
@@ -21,10 +22,12 @@ interface Props {
   standCode?: string;
   /** Cuota desde la que se abrio el panel: preselecciona el input de cuota del formulario. */
   cuotaNumero?: number;
+  /** Tipos de documento habilitados segun los requisitos declarados (undefined = todos). */
+  tiposPermitidos?: readonly TipoArchivoIImp[];
 }
 
 /** Documentos (links) de la cuenta corriente del IIMP: OC, HES, detracción y diferencia. */
-export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero }: Props) {
+export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero, tiposPermitidos }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [archivos, setArchivos] = useState<ArchivoCuentaDTO[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -105,6 +108,7 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
                 cuotas={cuotas}
                 cuotaInicial={cuotaNumero}
                 archivosRegistrados={archivos}
+                tiposPermitidos={tiposPermitidos}
                 onAgregar={(a) => { void agregar(a); }}
                 botonLabel={agregando ? "Agregando..." : "Agregar a la bandeja"}
               />
