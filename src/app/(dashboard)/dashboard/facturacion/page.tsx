@@ -257,6 +257,7 @@ export default function FacturacionPage() {
     pendiente: number;
     pagado: number;
     sinSolicitud: number;
+    conSolicitudSinFactura: number;
     conFactura: number;
     anulada: number;
   } | null>(null);
@@ -291,15 +292,16 @@ export default function FacturacionPage() {
         return 0;
       }
     };
-    const [total, pendiente, pagado, sinSolicitud, conFactura, anulada] = await Promise.all([
+    const [total, pendiente, pagado, sinSolicitud, conSolicitudSinFactura, conFactura, anulada] = await Promise.all([
       contador(),
       contador({ estado: ESTADOS_FACTURACION.PENDIENTE }),
       contador({ estado: ESTADOS_FACTURACION.PAGADO }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD }),
+      contador({ requerimiento: REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.CON_FACTURA }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.ANULADA }),
     ]);
-    setStats({ total, pendiente, pagado, sinSolicitud, conFactura, anulada });
+    setStats({ total, pendiente, pagado, sinSolicitud, conSolicitudSinFactura, conFactura, anulada });
   }, []);
 
   useEffect(() => {
@@ -421,7 +423,7 @@ export default function FacturacionPage() {
   return (
     <main className="flex-1 py-6">
       {/* Indicadores: clic para filtrar por estado o requerimiento de facturacion */}
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <StatsCard
           title="Total"
           value={stats?.total ?? 0}
@@ -440,6 +442,16 @@ export default function FacturacionPage() {
           active={requerimiento === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD}
         />
         <StatsCard
+          title="Solicitudes enviadas sin factura"
+          value={stats?.conSolicitudSinFactura ?? 0}
+          icon={<Clock className="h-4 w-4" />}
+          onClick={() => {
+            setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA ? null : REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA));
+            setEstado(null);
+          }}
+          active={requerimiento === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA}
+        />
+        <StatsCard
           title="Facturas generadas"
           value={stats?.conFactura ?? 0}
           icon={<Receipt className="h-4 w-4" />}
@@ -452,7 +464,7 @@ export default function FacturacionPage() {
         <StatsCard
           title="Pendientes de pago"
           value={stats?.pendiente ?? 0}
-          icon={<Clock className="h-4 w-4" />}
+          icon={<Wallet className="h-4 w-4" />}
           onClick={() => {
             setEstado((prev) => (prev === ESTADOS_FACTURACION.PENDIENTE ? null : ESTADOS_FACTURACION.PENDIENTE));
             setRequerimiento(null);
@@ -510,6 +522,7 @@ export default function FacturacionPage() {
               <SelectContent>
                 <SelectItem value="todos"><span>Todos los requerimientos</span></SelectItem>
                 <SelectItem value={REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD}><span>Sin solicitud de factura</span></SelectItem>
+                <SelectItem value={REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA}><span>Solicitud enviada sin factura</span></SelectItem>
                 <SelectItem value={REQUERIMIENTOS_FACTURACION.CON_FACTURA}><span>Con factura generada</span></SelectItem>
                 <SelectItem value={REQUERIMIENTOS_FACTURACION.SIN_FACTURA}><span>Sin factura</span></SelectItem>
                 <SelectItem value={REQUERIMIENTOS_FACTURACION.ANULADA}><span>Factura anulada</span></SelectItem>

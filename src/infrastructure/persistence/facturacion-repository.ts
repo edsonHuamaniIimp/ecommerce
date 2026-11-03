@@ -131,6 +131,8 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
       where.cuotas = { some: { comprobanteFiscal: { not: null } } };
     } else if (params.requerimiento === REQUERIMIENTOS_FACTURACION.SIN_FACTURA) {
       where.cuotas = { none: { comprobanteFiscal: { not: null } } };
+    } else if (params.requerimiento === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA) {
+      where.cuotas = { none: { comprobanteFiscal: { not: null } } };
     } else if (params.requerimiento === REQUERIMIENTOS_FACTURACION.ANULADA) {
       where.cuotas = {
         some: {
@@ -153,6 +155,10 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     /* Sin solicitud de factura: la reserva aun no se registro en el IIMP. */
     if (params.requerimiento === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD) {
       condicionesSolicitud.push({ iimpContrato: null });
+    }
+    /* Solicitud enviada (reserva registrada) pendiente de que se genere la factura. */
+    if (params.requerimiento === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA) {
+      condicionesSolicitud.push({ iimpContrato: { not: null } });
     }
     const busqueda = params.search?.trim();
     if (busqueda) {
