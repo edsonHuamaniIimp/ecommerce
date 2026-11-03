@@ -81,6 +81,20 @@ Casos especiales:
 ### 2.3 `GET /documents/{documentId}` (opcional)
 Incluir `observations[]` y `currentVersionNumber` para auditoría/historial por pieza.
 
+### 2.4 Respuesta esperada del endpoint de webhooks (ACK) y reintentos
+- Su endpoint debe responder **2xx** (200/204) en **≤10 s**. Si el procesamiento interno es
+  pesado, confirme el evento y procese en segundo plano.
+- **Reintentos**: reenviar con el **mismo `x-sgc-delivery`** y el mismo `eventId`. Nuestro
+  sistema deduplica por ambos, así que un reintento no crea observaciones ni notificaciones
+  duplicadas.
+- **Firma**: `x-sgc-signature: t=<unix>,v1=<hmac>` (HMAC-SHA256 de `<t>.<payload>`, tolerancia
+  300 s).
+- **Resolución de observaciones**: enviar `status: "resolved"` (no borrarlas). Nuestro lado
+  actualiza el estado sin perder el historial.
+- **Agrupación**: si en una misma ronda hay varias observaciones, enviarlas en el mismo arreglo
+  `observations[]` (no dependemos del orden).
+- **Formato**: JSON UTF-8; fechas ISO-8601 en UTC; campos desconocidos se ignoran.
+
 ## 3. Reglas de consistencia (clave para el mapeo)
 
 1. `documentId` = el devuelto por `POST /contracts/{contractId}/documents` (estable).
