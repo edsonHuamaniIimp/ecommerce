@@ -128,7 +128,7 @@ export const plantillasEs: PlantillasEmail = {
       "Solicitud de cuenta",
       `
         <p>Hola ${esc(nombre)}, revisamos tu solicitud de cuenta para <strong>${esc(razonSocial)}</strong>.</p>
-        <p style="font-size:14px;color:#dc2626;font-weight:600">En esta ocasion no pudimos habilitarla.</p>
+        <p style="font-size:14px;color:#dc2626;font-weight:600">En esta ocasión no pudimos habilitarla.</p>
         ${motivo ? `<p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Motivo:</strong> ${esc(motivo)}</p>` : ""}
         <p style="font-size:13px;color:#475569">Si consideras que fue un error, responde a este correo o contacta a la Mesa de Ayuda del IIMP.</p>
       `,
@@ -162,8 +162,8 @@ export const plantillasEs: PlantillasEmail = {
         <table cellpadding="0" cellspacing="0" style="width:100%">
           ${paso("1", "#0ea5e9", "El administrador subira el contrato", "#0c4a6e", "La administracion del IIMP adjuntara el formato de contrato oficial a tu solicitud. Recibiras un correo cuando este listo.")}
           ${paso("2", "#f59e0b", "Descarga, completa y adjunta tus documentos", "#92400e", "Ingresa a <strong>Mis solicitudes</strong> en el dashboard, descarga el contrato, completalo y adjunta los documentos requeridos para continuar.")}
-          ${paso("3", "#8b5cf6", "Revision por las areas del IIMP", "#5b21b6", "Las areas del IIMP revisaran tu documentacion y emitiran su veredicto.")}
-          ${paso("4", "#059669", "Resultado final", "#065f46", "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una re-evaluacion adjuntando nuevos documentos.", true)}
+          ${paso("3", "#8b5cf6", "Revisión por las áreas del IIMP", "#5b21b6", "Las áreas del IIMP revisarán tu documentación y emitiran su veredicto.")}
+          ${paso("4", "#059669", "Resultado final", "#065f46", "Recibiras un correo con el resultado. Si es rechazada, podras solicitar una reevaluación adjuntando nuevos documentos.", true)}
         </table>
         <p style="margin:16px 0 0 0;font-size:12px;color:#0369a1;font-style:italic">Puedes monitorear el estado de tu solicitud en cualquier momento desde <strong>Mis solicitudes</strong> en el dashboard.</p>
       </div>`
@@ -171,10 +171,10 @@ export const plantillasEs: PlantillasEmail = {
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
         <p style="font-weight:700;color:#15803d;font-size:14px;margin:0 0 12px 0">Proximos pasos:</p>
         <table cellpadding="0" cellspacing="0" style="width:100%">
-          ${paso("1", "#16a34a", "Revision por las areas del IIMP", "#14532d", "Las areas del IIMP revisaran tu solicitud y documentacion.")}
-          ${paso("!", "#dc2626", "En caso de rechazo", "#991b1b", "Si alguna area rechaza tu solicitud, recibiras un correo con los motivos y podras solicitar una re-evaluacion.", true)}
+          ${paso("1", "#16a34a", "Revisión por las áreas del IIMP", "#14532d", "Las áreas del IIMP revisarán tu solicitud y documentación.")}
+          ${paso("!", "#dc2626", "En caso de rechazo", "#991b1b", "Si alguna área rechaza tu solicitud, recibirás un correo con los motivos y podrás solicitar una reevaluación.", true)}
         </table>
-        <p style="margin:16px 0 0 0;font-size:12px;color:#15803d;font-style:italic">El stand permanecera en estado <strong>En evaluacion</strong> hasta que todas las areas emitan su veredicto.</p>
+        <p style="margin:16px 0 0 0;font-size:12px;color:#15803d;font-style:italic">El stand permanecerá en estado <strong>En evaluación</strong> hasta que todas las áreas emitan su veredicto.</p>
       </div>`;
 
     return {
@@ -224,7 +224,7 @@ export const plantillasEs: PlantillasEmail = {
       subject,
       html: `
   <div style="margin:0;padding:0;background:#F8FAFC">
-    <span style="display:none!important;visibility:hidden;opacity:0;height:0;width:0;overflow:hidden">Nueva solicitud de ${esc(razonSocial)} para ${esc(standCodes)}. Requiere tu revision.</span>
+    <span style="display:none!important;visibility:hidden;opacity:0;height:0;width:0;overflow:hidden">Nueva solicitud de ${esc(razonSocial)} para ${esc(standCodes)}. Requiere tu revisión.</span>
     <div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px 16px;color:#191C1E">
       <div style="background:#1B365D;border-radius:12px 12px 0 0;padding:18px 24px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -239,7 +239,7 @@ export const plantillasEs: PlantillasEmail = {
       </div>
 
       <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-top:0;border-radius:0 0 12px 12px;padding:28px 24px">
-        <span style="display:inline-block;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:999px;font-size:11px;font-weight:700;padding:4px 10px">Requiere revision</span>
+        <span style="display:inline-block;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:999px;font-size:11px;font-weight:700;padding:4px 10px">Requiere revisión</span>
 
         <h1 style="margin:14px 0 6px;font-size:22px;line-height:1.25;color:#1B365D">Nueva solicitud de reserva</h1>
         <p style="margin:0;color:#64748B;font-size:14px;line-height:1.55">Un cliente registro una solicitud de reserva de stands. Ingresa al panel para revisarla y continuar con el proceso.</p>
@@ -272,8 +272,8 @@ export const plantillasEs: PlantillasEmail = {
           <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#64748B">Siguiente paso</p>
           <ol style="margin:0;padding-left:18px;color:#334155;font-size:13px;line-height:1.6">
             <li>Revisa la solicitud y la disponibilidad de los stands.</li>
-            <li>Gestiona el contrato y la documentacion en el panel.</li>
-            <li>Da seguimiento al flujo de revision.</li>
+            <li>Gestiona el contrato y la documentación en el panel.</li>
+            <li>Da seguimiento al flujo de revisión.</li>
           </ol>
         </div>
 
@@ -282,7 +282,7 @@ export const plantillasEs: PlantillasEmail = {
         </div>
       </div>
 
-      <p style="color:#94A3B8;font-size:12px;text-align:center;margin:16px 0 0">Correo automatico del sistema de Contratos de Stands - IIMP. No responder a este mensaje.</p>
+      <p style="color:#94A3B8;font-size:12px;text-align:center;margin:16px 0 0">Correo automático del sistema de Contratos de Stands - IIMP. No responder a este mensaje.</p>
     </div>
   </div>`,
     };
@@ -291,24 +291,24 @@ export const plantillasEs: PlantillasEmail = {
   "revision-resultado": (opts) => {
     const rechazada = opts.revisiones.some((r) => r.estado === RESULTADOS_APROBACION.RECHAZADO);
     const totalmenteAprobada = opts.revisiones.every((r) => r.estado === RESULTADOS_APROBACION.APROBADO);
-    const titulo = totalmenteAprobada ? "Solicitud aprobada" : rechazada ? "Solicitud rechazada" : "Resultado de revision";
+    const titulo = totalmenteAprobada ? "Solicitud aprobada" : rechazada ? "Solicitud rechazada" : "Resultado de revisión";
     const saludo = opts.nombre && opts.nombre !== "-" ? opts.nombre : "Estimad@";
 
     let cuerpo: string;
     if (opts.modo === "personalizado" && opts.mensaje) {
       cuerpo = `<div style="padding:8px 0 0 0;font-size:14px;color:#334155;line-height:1.7">
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px 0">
-          Se ha completado la revision de su solicitud de alquiler para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
+          Se ha completado la revisión de su solicitud de alquiler para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
         </p>
         ${opts.mensaje}
       </div>`;
     } else if (totalmenteAprobada) {
       cuerpo = `<div style="padding:8px 0 16px 0">
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px 0">
-          Se ha completado la revision de tu solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
+          Se ha completado la revisión de tu solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
         </p>
         <p style="font-size:14px;color:#16a34a;font-weight:600;line-height:1.6;margin:0 0 12px 0">
-          Las areas involucradas del IIMP ya revisaron y <strong>aprobaron</strong> tu solicitud.
+          Las áreas involucradas del IIMP ya revisaron y <strong>aprobaron</strong> tu solicitud.
         </p>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
           <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Siguiente paso: Envía tu solicitud de facturación</p>
@@ -327,19 +327,19 @@ export const plantillasEs: PlantillasEmail = {
     } else if (rechazada) {
       cuerpo = `<div style="padding:8px 0 16px 0">
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px 0">
-          Se ha completado la revision de su solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
+          Se ha completado la revisión de su solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
         </p>
         <p style="font-size:14px;color:#dc2626;font-weight:600;line-height:1.6;margin:0">
-          Lamentamos informarte que tu solicitud no ha sido aprobada en esta ocasion.
+          Lamentamos informarte que tu solicitud no ha sido aprobada en esta ocasión.
         </p>
         <p style="font-size:13px;color:#64748b;line-height:1.6;margin:8px 0 0 0">
-          Puedes solicitar una <strong>re-evaluacion</strong> desde la seccion Mis solicitudes adjuntando documentacion adicional.
+          Puedes solicitar una <strong>reevaluación</strong> desde la sección Mis solicitudes adjuntando documentación adicional.
         </p>
       </div>`;
     } else {
       cuerpo = `<div style="padding:8px 0 16px 0">
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0">
-          Tu solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong> se encuentra en proceso de revision.
+          Tu solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong> se encuentra en proceso de revisión.
         </p>
       </div>`;
     }
@@ -402,7 +402,7 @@ export const plantillasEs: PlantillasEmail = {
       <table cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid #e2e8f0;padding-top:20px">
         <tr>
           <td style="font-size:11px;color:#94a3b8;line-height:1.5">
-            Este es un correo automatico generado por el Sistema de Contratos de Stands del IIMP.<br/>
+            Este es un correo automático generado por el Sistema de Contratos de Stands del IIMP.<br/>
             Si tienes dudas, contacta a tu ejecutivo asignado.
           </td>
         </tr>
@@ -537,7 +537,7 @@ export const plantillasEs: PlantillasEmail = {
           ${documentos.map((d) => `<li style="margin-bottom:6px">${esc(d)}</li>`).join("")}
         </ul>
         <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"><strong>Justificacion:</strong> ${esc(justificacion)}</p>
-        <p style="font-size:13px;color:#475569">Sube la nueva version de los documentos observados y reenvia tu solicitud a revision desde "Mis solicitudes".</p>
+        <p style="font-size:13px;color:#475569">Sube la nueva versión de los documentos observados y reenvía tu solicitud a revisión desde "Mis solicitudes".</p>
         <div style="text-align:center;margin:20px 0">
           <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar mi solicitud</a>
         </div>
