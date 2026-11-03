@@ -1117,6 +1117,9 @@ export const MAX_STANDS_RESERVA_LIMITE = 50;
 /** Maximo de correos y telefonos de contacto de facturacion configurables. */
 export const MAX_CONTACTOS_FACTURACION = 5;
 
+/** Dias de anticipacion para marcar la siguiente cuota pendiente en Mis documentos. */
+export const DIAS_ANTICIPACION_CUOTA = 15;
+
 /** Maximo de correos internos que reciben avisos de nuevas solicitudes. */
 export const MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES = 5;
 

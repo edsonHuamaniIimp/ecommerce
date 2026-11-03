@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
+import { AlertTriangle, CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, RefreshCw, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { Pagination } from "@/components/shared/pagination";
@@ -15,7 +15,7 @@ import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, TIPOS_ARCHIVO_IIMP, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
+import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, TIPOS_ARCHIVO_IIMP, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -66,6 +66,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
   const { confirm, confirmDialog } = useConfirm();
   const [rows, setRows] = useState<PagoRowDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Giro minimo del icono de actualizar para que la animacion sea visible. */
+  const [refrescando, setRefrescando] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const perPage = 10;
@@ -179,14 +181,43 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
 
   const renderCuotas = (row: PagoRowDTO) => {
     const restante = restanteDe(row);
+    /* Cuota donde se sugiere registrar la reserva cuando la solicitud aun no se envio. */
+    const cuotaSugerida = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
+    /* Seguimiento: siguiente cuota pendiente. Antes de emitirse la factura se cuenta
+       contra su fecha programada; si la factura ya se emitio, se avisa el pago. */
+    const cuotaPendiente = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? null;
+    const fechaEmisionReal = cuotaPendiente
+      ? (cuotaPendiente.documentoSieFechaEmision ?? cuotaPendiente.iimpDocumento?.fechaEmision ?? null)
+      : null;
+    const facturaEmitida = Boolean(fechaEmisionReal);
+    const diasParaPendiente = facturaEmitida || !cuotaPendiente
+      ? null
+      : dateUtils.diffInDays(dateUtils.todayLimaInputValue(), cuotaPendiente.fechaVencimiento);
+    const cuotaSeguimiento = row.iimpContrato && cuotaPendiente && (facturaEmitida || (diasParaPendiente !== null && diasParaPendiente <= DIAS_ANTICIPACION_CUOTA))
+      ? cuotaPendiente
+      : null;
     return (
     <div className="space-y-2">
+      {!row.iimpContrato && !soloLectura && row.cuotas.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <span className="text-foreground">
+            <strong>Solicitud de factura pendiente:</strong> aún no registraste la reserva en el IIMP.
+            {cuotaSugerida ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.` : ""}
+          </span>
+        </div>
+      )}
       {row.cuotas.length === 0 ? (
         <p className="text-xs text-muted-foreground">Sin cuotas configuradas.</p>
       ) : (
         <div className="divide-y divide-border rounded-lg border border-border">
           {row.cuotas.map((cuota) => (
-            <div key={cuota.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
+            <div
+              key={cuota.id}
+              className={`flex flex-wrap items-center gap-3 px-3 py-2 text-xs ${
+                !row.iimpContrato && cuotaSugerida?.id === cuota.id ? "bg-warning/5 ring-1 ring-inset ring-warning/40" : ""
+              } ${cuotaSeguimiento?.id === cuota.id ? "bg-info/5 ring-1 ring-inset ring-info/40" : ""}`}
+            >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">
                 {cuota.numero}
               </span>
@@ -197,6 +228,24 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
+              {!row.iimpContrato && !soloLectura && cuotaSugerida?.id === cuota.id && (
+                <span className="text-[10px] font-semibold text-warning">Solicitar factura aquí</span>
+              )}
+              {cuotaSeguimiento?.id === cuota.id && (
+                <span className="text-[10px] font-semibold text-info">
+                  {facturaEmitida
+                    ? "Factura emitida · pendiente de pago"
+                    : `Siguiente cuota${
+                        diasParaPendiente !== null
+                          ? diasParaPendiente < 0
+                            ? " · fecha de emisión pasada"
+                            : diasParaPendiente === 0
+                              ? " · se emite hoy"
+                              : ` · se emite en ${diasParaPendiente} día${diasParaPendiente === 1 ? "" : "s"}`
+                          : ""
+                      }`}
+                </span>
+              )}
               <span className="ml-auto flex shrink-0 items-center gap-1.5">
                 {cuota.comprobante && (
                   <a
@@ -381,6 +430,24 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
         </p>
       )}
       <div className="flex items-center justify-end gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={() => {
+            setRefrescando(true);
+            const inicio = Date.now();
+            void load(page, perPage).finally(() => {
+              const espera = Math.max(0, 600 - (Date.now() - inicio));
+              setTimeout(() => setRefrescando(false), espera);
+            });
+          }}
+          disabled={loading || refrescando}
+          title="Actualizar documentos"
+        >
+          <RefreshCw className={`h-4 w-4 transition-transform ${refrescando ? "animate-spin" : ""}`} />
+        </Button>
         <Button
           type="button"
           variant={vista === VISTAS_BANDEJA.GRID ? "default" : "outline"}

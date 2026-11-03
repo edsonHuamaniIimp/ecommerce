@@ -26,6 +26,20 @@ interface Props {
   tiposPermitidos?: readonly TipoArchivoIImp[];
 }
 
+/** Agrupa los documentos por cuota (null = de toda la cuenta), en orden ascendente. */
+function agruparPorCuota(archivos: ArchivoCuentaDTO[]): Array<[number | null, ArchivoCuentaDTO[]]> {
+  const grupos = new Map<number | null, ArchivoCuentaDTO[]>();
+  for (const archivo of archivos) {
+    const clave = archivo.cuota ?? null;
+    grupos.set(clave, [...(grupos.get(clave) ?? []), archivo]);
+  }
+  return [...grupos.entries()].sort(([a], [b]) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  });
+}
+
 /** Documentos (links) de la cuenta corriente del IIMP: OC, HES, detracción y diferencia. */
 export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero, tiposPermitidos }: Props) {
   const { confirm, confirmDialog } = useConfirm();
@@ -132,23 +146,39 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {archivos.map((a) => (
-                    <div key={a.item} className="rounded-lg border border-border p-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge className="pointer-events-none max-w-full truncate text-[9px]">{TIPOS_ARCHIVO_LABELS[a.tipo] ?? a.tipo}</Badge>
-                        {a.cuota ? <span className="shrink-0 text-[10px] text-muted-foreground">Cuota {a.cuota}</span> : null}
-                      </div>
-                      <p className="mt-1 truncate text-xs font-medium text-foreground" title={a.nombre ?? a.link}>{a.nombre ?? a.link}</p>
-                      <div className="mt-1.5 flex items-center justify-between gap-1">
-                        <span className="text-[10px] text-muted-foreground">{dateUtils.format(a.fecha)}</span>
-                        <span className="flex items-center gap-0.5">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="Abrir documento">
-                            <a href={a.link} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Quitar documento" onClick={() => { void eliminar(a.item); }}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                  {agruparPorCuota(archivos).map(([cuota, docs]) => (
+                    <div key={cuota ?? "cuenta"} className="overflow-hidden rounded-lg border border-border">
+                      <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-1.5">
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+                          <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold ${cuota ? "bg-primary/10 text-primary" : "bg-secondary text-foreground"}`}>
+                            {cuota ?? "•"}
+                          </span>
+                          <span>{cuota ? `Cuota ${cuota}` : "Toda la cuenta"}</span>
                         </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {docs.length} {docs.length === 1 ? "documento" : "documentos"}
+                        </span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {docs.map((a) => (
+                          <div key={a.item} className="p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <Badge className="pointer-events-none max-w-full truncate text-[9px]">{TIPOS_ARCHIVO_LABELS[a.tipo] ?? a.tipo}</Badge>
+                            </div>
+                            <p className="mt-1 truncate text-xs font-medium text-foreground" title={a.nombre ?? a.link}>{a.nombre ?? a.link}</p>
+                            <div className="mt-1.5 flex items-center justify-between gap-1">
+                              <span className="text-[10px] text-muted-foreground">{dateUtils.format(a.fecha)}</span>
+                              <span className="flex items-center gap-0.5">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="Abrir documento">
+                                  <a href={a.link} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Quitar documento" onClick={() => { void eliminar(a.item); }}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}

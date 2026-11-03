@@ -3,6 +3,7 @@ import 'server-only';
 import { prisma } from "@/lib/server/db";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type {
   IFacturacionRepository,
   FacturacionRow,
@@ -295,7 +296,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
         ...(anulada
           ? { documentoSieFechaEmision: null }
           : data.fechaEmision
-            ? { documentoSieFechaEmision: new Date(`${data.fechaEmision}T00:00:00.000Z`) }
+            ? { documentoSieFechaEmision: dateUtils.toDate(data.fechaEmision) }
             : {}),
         iimpJustificacion: anulada ? (data.justificacion ?? null) : null,
         ...(data.estadoPago === ESTADOS_PAGO_EXTERNO.PAGADA ? { estado: ESTADOS_CUOTA.PAGADO } : {}),

@@ -204,11 +204,16 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
       {/* 2. Cuota */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-            2. ¿A qué cuota corresponde? {exigeCuota ? `(obligatoria, 1 a ${Math.max(cuotas, 1)})` : "(opcional)"}
+          <p className="text-xs font-semibold text-foreground">
+            2. ¿A qué cuota corresponde?{" "}
+            {exigeCuota ? (
+              <span className="font-normal text-muted-foreground">(obligatoria: de 1 a {Math.max(cuotas, 1)})</span>
+            ) : (
+              <span className="font-normal text-muted-foreground">(opcional)</span>
+            )}
           </p>
           {cuotaInicial ? (
-            <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Switch
                 checked={editarCuota}
                 onCheckedChange={setEditarCuota}
@@ -226,8 +231,13 @@ export function FormArchivoIImp({ cuotas, cuotaInicial, onAgregar, botonLabel = 
           value={cuotaNum}
           disabled={!editarCuota}
           onChange={(e) => setCuotaNum(e.target.value)}
-          className="h-9 text-xs"
+          className="h-10 text-sm"
         />
+        <p className="text-[11px] text-muted-foreground">
+          {exigeCuota
+            ? "Indica la cuota cuyo pago respalda esta constancia."
+            : "Si el documento aplica a toda la cuenta, puedes dejarla como está."}
+        </p>
       </div>
 
       {/* 3. Documento: arrastrar/soltar o enlace */}
