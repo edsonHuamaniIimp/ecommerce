@@ -624,7 +624,7 @@ export default function FacturacionPage() {
                     ) : (
                       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                         {expediente.cuotas.map((c) => {
-                          const items = [
+                          const items: Array<{ id: string; titulo: string; detalle: string; url: string; downloadUrl?: string }> = [
                             ...c.archivos.map((a) => ({
                               id: `archivo-${a.item}`,
                               titulo: TIPOS_ARCHIVO_LABELS[a.tipo] ?? a.tipo,
@@ -650,6 +650,7 @@ export default function FacturacionPage() {
                                     ? `${c.iimpDocumento.serie}-${c.iimpDocumento.numero}.pdf`
                                     : (c.documentoSie ?? ""),
                                   url: `/api/pagos/factura?cuotaId=${encodeURIComponent(c.id)}&inline=1`,
+                                  downloadUrl: `/api/pagos/factura?cuotaId=${encodeURIComponent(c.id)}`,
                                 }]
                               : []),
                           ];
@@ -669,11 +670,6 @@ export default function FacturacionPage() {
                                   <Badge className={`pointer-events-none text-[9px] ${c.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : c.estado === ESTADOS_CUOTA.VENCIDO ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.WARNING}`}>
                                     <span>{ESTADO_CUOTA_LABELS[c.estado] ?? c.estado}</span>
                                   </Badge>
-                                  {c.iimpDocumento && (
-                                    <Badge variant="secondary" className="pointer-events-none text-[9px]">
-                                      <span>Factura {c.iimpDocumento.serie}-{c.iimpDocumento.numero}</span>
-                                    </Badge>
-                                  )}
                                 </div>
                               </div>
                               <div className="mt-2 space-y-1">
@@ -693,7 +689,7 @@ export default function FacturacionPage() {
                                           <a href={it.url} target="_blank" rel="noreferrer"><ExternalLink className="h-3.5 w-3.5" /></a>
                                         </Button>
                                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Descargar" asChild>
-                                          <a href={it.url} download={it.detalle}><Download className="h-3.5 w-3.5" /></a>
+                                          <a href={it.downloadUrl ?? it.url} download={it.detalle}><Download className="h-3.5 w-3.5" /></a>
                                         </Button>
                                       </div>
                                     </div>
