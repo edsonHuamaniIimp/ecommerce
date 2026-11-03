@@ -661,17 +661,34 @@ export class SgcIntegracionApplicationService {
     if (!documento) return null;
 
     /* Una sola llamada por ronda; la clave incluye la version del expediente en el SGC. */
-    await this.client.reabrirExpediente(
-      expediente.contractId,
-      `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
-    );
+    try {
+      await this.client.reabrirExpediente(
+        expediente.contractId,
+        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
+      );
+    } catch (err) {
+      /* Si ya existe un flujo activo, el reenvio ya se hizo antes: se considera exitoso. */
+      const yaActivo =
+        err instanceof SgcApiError &&
+        err.status === 422 &&
+        /flujo activo|already active|already in progress/i.test(err.message);
+      if (!yaActivo) throw err;
+    }
     /* AuditorÃ­a: cierra la ronda vigente con quiÃ©n/cuÃ¡ndo reenviÃ³ y la versiÃ³n corregida. */
-    const pendiente = (await this.repo.listarSubsanaciones(expediente.id).catch(() => []))
-      .filter((r) => r.estado !== "reenviado")
-      .pop();
-    if (pendiente) {
+    const subsanaciones = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
+    const pendiente = subsanaciones.filter((r) => r.estado !== "reenviado").pop();
+    /* Si el admin no declaro una ronda (correccion iniciada por el cliente), se registra
+     * igualmente para que la UI sepa que la revision ya fue solicitada. */
+    const aMarcar = pendiente ?? await this.repo.crearSubsanacion({
+      sgcExpedienteId: expediente.id,
+      ronda: subsanaciones.reduce((max, r) => Math.max(max, r.ronda), 0) + 1,
+      motivo: (expediente.devolucionMotivo ?? "Corrección del cliente").slice(0, 500),
+      modo: expediente.subsanacionModo ?? null,
+      declaradoPor: reenviadoPor,
+    }).catch(() => null);
+    if (aMarcar) {
       await this.repo
-        .marcarSubsanacionReenviada(pendiente.id, {
+        .marcarSubsanacionReenviada(aMarcar.id, {
           reenviadoPor,
           documentId: documento.documentId ?? null,
           versionId: documento.currentVersionId ?? null,

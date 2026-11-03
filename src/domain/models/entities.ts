@@ -294,6 +294,8 @@ export interface SolicitudRow {
   sgcSubsanacionMotivo: string | null;
   /** Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
   sgcSubsanacionModo?: string | null;
+  /** Fecha del ultimo reenvio de correccion (null = aun no solicitado). */
+  sgcSubsanacionReenviadaAt?: string | null;
   /** Observaciones por documento de la ultima devolucion del SGC (campo opcional). */
   sgcObservaciones?: SgcObservacionSolicitud[] | null;
   /** True si ya se enviaron documentos al expediente SGC (contrato y/o anexos). */

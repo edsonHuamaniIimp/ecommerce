@@ -65,6 +65,18 @@ function reenvioSgcPendiente(row: SolicitudRow): boolean {
   return sgcObservacionesAbiertas(row).length > 0 && !observacionesSgcSubsanadas(row);
 }
 
+/** La correccion ya se envio y sigue pendiente la respuesta del area legal. */
+function reenvioSgcYaEnviado(row: SolicitudRow): boolean {
+  const observaciones = sgcObservacionesAbiertas(row);
+  if (!row.sgcSubsanacionReenviadaAt || observaciones.length === 0) return false;
+  const obsMs = observaciones.reduce(
+    (max, o) => Math.max(max, dateUtils.toMs(o.createdAt ?? null) ?? 0),
+    0,
+  );
+  const reenvioMs = dateUtils.toMs(row.sgcSubsanacionReenviadaAt);
+  return reenvioMs !== null && reenvioMs > obsMs;
+}
+
 function accionesObservacion(row: SolicitudRow) {
   const docs = row.docsAdjuntos ?? [];
   const observados = docs.filter((d) => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
@@ -347,7 +359,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const handleReenviarObservacion = async (row: SolicitudRow) => {
     const devueltoSgc = enVentanaDocumentosSgc(row);
     const ok = await confirm({
-      title: devueltoSgc ? (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision") : "Reenviar solicitud a revision",
+      title: devueltoSgc ? (reenvioSgcPendiente(row) ? "Falta corregir documentos" : reenvioSgcYaEnviado(row) ? "Revisión solicitada" : "Solicitar nueva revisión") : "Reenviar solicitud a revision",
       description: devueltoSgc
         ? "Se enviaran al area legal los documentos corregidos y, si corresponde, el contrato firmado; se solicitara una nueva revision. Continuar?"
         : "Se validarán las nuevas versiones de los documentos observados y la solicitud volverá a la revisión del área Asociado. ¿Continuar?",
@@ -568,7 +580,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span className="font-semibold">Acción requerida: </span>
                               {obsSgc.length > 0
                                 ? obsSgcCorregidas
-                                  ? "La corrección fue registrada. Solicita una nueva revisión."
+                                  ? reenvioSgcYaEnviado(row) ? "La corrección fue enviada. El área legal la está revisando." : "La corrección fue registrada. Solicita una nueva revisión."
                                   : obsSgc.length === 1
                                     ? "El área legal observó un documento. Corrígelo y solicita una nueva revisión."
                                     : `El área legal observó ${obsSgc.length} documentos. Corrígelos y solicita una nueva revisión.`
@@ -679,7 +691,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -688,7 +700,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                       : enVentanaDocumentosSgc(row)
                                         ? esperandoContratoCorregidoSgc(row)
                                           ? "Esperando contrato corregido"
-                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision")
+                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : reenvioSgcYaEnviado(row) ? "Revisión solicitada" : "Solicitar nueva revisión")
                                         : a.anexosPendientes > 0
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
@@ -819,7 +831,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -828,7 +840,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                       : enVentanaDocumentosSgc(row)
                                         ? esperandoContratoCorregidoSgc(row)
                                           ? "Esperando contrato corregido"
-                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision")
+                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : reenvioSgcYaEnviado(row) ? "Revisión solicitada" : "Solicitar nueva revisión")
                                         : a.anexosPendientes > 0
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
@@ -1032,7 +1044,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
                                   <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1055,7 +1067,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1087,7 +1099,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1191,9 +1203,11 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <Upload className={`mt-0.5 h-4 w-4 shrink-0 ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`} />
                       <div>
                         <p className={`text-xs font-semibold ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`}>
-                          {observacionesSgcSubsanadas(detailRow) ? "Corrección registrada" : "El área legal observó documentos"}
+                          {reenvioSgcYaEnviado(detailRow) ? "Corrección enviada" : observacionesSgcSubsanadas(detailRow) ? "Corrección registrada" : "El área legal observó documentos"}
                         </p>
-                        {observacionesSgcSubsanadas(detailRow) ? (
+                        {reenvioSgcYaEnviado(detailRow) ? (
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Corrección enviada. Esperando la revisión del área legal.</p>
+                        ) : observacionesSgcSubsanadas(detailRow) ? (
                           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
                         ) : (
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">

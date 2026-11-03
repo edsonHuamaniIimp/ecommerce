@@ -247,8 +247,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     };
     const obsRaw = (row.sgcExpediente?.observaciones as Array<Record<string, unknown>> | null) ?? null;
     let sgcObservaciones: ObservacionFila[] = [];
-    if (row.sgcExpediente && Array.isArray(obsRaw) && obsRaw.length > 0) {
-      const sgcDocs = await prisma.sgcDocumento.findMany({
+    if (row.sgcExpediente && Array.isArray(obsRaw) && obsRaw.length > 0) {      const sgcDocs = await prisma.sgcDocumento.findMany({
         where: { sgcExpedienteId: row.sgcExpediente.id },
         select: { documentId: true, fileName: true },
       });
@@ -292,6 +291,20 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
           };
         })
         .filter((o) => o.message.length > 0);
+    }
+
+    let sgcSubsanacionReenviadaAt: string | null = null;
+    if (
+      row.sgcExpediente &&
+      (row.sgcExpediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        row.sgcExpediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED)
+    ) {
+      const ultima = await prisma.sgcSubsanacion.findFirst({
+        where: { sgcExpedienteId: row.sgcExpediente.id, estado: "reenviado" },
+        orderBy: { reenviadoAt: "desc" },
+        select: { reenviadoAt: true },
+      });
+      sgcSubsanacionReenviadaAt = ultima?.reenviadoAt ? ultima.reenviadoAt.toISOString() : null;
     }
 
     // Empresa vinculada y nombre del usuario solicitante (user_role)
@@ -386,6 +399,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcDevolucionRequiereCambio: row.sgcExpediente?.devolucionRequiereCambio ?? null,
     sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,
     sgcSubsanacionModo: row.sgcExpediente?.subsanacionModo ?? null,
+    sgcSubsanacionReenviadaAt,
     sgcObservaciones,
     sgcDocumentosEnviados: (row.sgcExpediente?._count?.documentos ?? 0) > 0,
     sgcEnabled: isSgcEnabled(),
