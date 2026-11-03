@@ -350,7 +350,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       title: devueltoSgc ? (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision") : "Reenviar solicitud a revision",
       description: devueltoSgc
         ? "Se enviaran al area legal los documentos corregidos y, si corresponde, el contrato firmado; se solicitara una nueva revision. Continuar?"
-        : "Se validarÃ¡n las nuevas versiones de los documentos observados y la solicitud volverÃ¡ a la revisiÃ³n del Ã¡rea Asociado. Â¿Continuar?",
+        : "Se validarán las nuevas versiones de los documentos observados y la solicitud volverá a la revisión del área Asociado. ¿Continuar?",
       confirmLabel: "Reenviar",
     });
     if (!ok) return;
@@ -407,7 +407,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       {soloLectura && (
         <p className="mb-3 flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
           <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Vista de solo lectura: estÃ¡s viendo las solicitudes de la empresa seleccionada.</span>
+          <span>Vista de solo lectura: estás viendo las solicitudes de la empresa seleccionada.</span>
         </p>
       )}
       <Card className="overflow-hidden">
@@ -503,7 +503,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
-                        <Dato label="UbicaciÃ³n" valor={row.ubicacion} />
+                        <Dato label="Ubicación" valor={row.ubicacion} />
                         <Dato label="Tipo" valor={row.tipoStand} />
                       </div>
 
@@ -549,7 +549,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
                       {(tieneReevaluacionPendiente(row) || faltanDocumentosMultiStand(row) || faltanAnexosReserva(row)) && (
                         <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
-                          <span className="font-semibold">Accion requerida: </span>
+                          <span className="font-semibold">Acción requerida: </span>
                           {tieneReevaluacionPendiente(row)
                             ? "Tienes una re-evaluacion pendiente de revision."
                             : faltanAnexosReserva(row)
@@ -564,7 +564,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         return (
                           <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
                             <p>
-                              <span className="font-semibold">Accion requerida: </span>
+                              <span className="font-semibold">Acción requerida: </span>
                               {obsSgc.length > 0
                                 ? obsSgc.length === 1
                                   ? "El area legal observo un documento. Corrigelo y solicita una nueva revision."
@@ -663,7 +663,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observaciÃ³n</span>
+                                    <span>Subsanar observación</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -716,7 +716,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Docs</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Fecha</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">AcciÃ³n</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -803,7 +803,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observaciÃ³n</span>
+                                    <span>Subsanar observación</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -847,7 +847,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados â€” pÃ¡gina {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados — página {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
               </div>
@@ -897,7 +897,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       if (!s.bloqueId || !s.planoId) { sinUbicacion.push(s.standCode); continue; }
                       const grupo = grupos.get(s.planoId) ?? {
                         planoId: s.planoId,
-                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "PabellÃ³n",
+                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "Pabellón",
                         stands: [],
                         bloqueIds: [],
                       };
@@ -921,7 +921,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: g.bloqueIds, etiqueta: g.stands.join("-") })}
                               >
                                 <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                                <span>Ver ubicaciÃ³n</span>
+                                <span>Ver ubicación</span>
                               </Button>
                               <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                                 <Link href={`/mapa?bloque=${encodeURIComponent(g.bloqueIds[0]!)}`}>
@@ -934,7 +934,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         ))}
                         {sinUbicacion.length > 0 && (
                           <p className="text-[11px] text-muted-foreground">
-                            <span>Sin ubicaciÃ³n en el plano: {sinUbicacion.join(", ")}</span>
+                            <span>Sin ubicación en el plano: {sinUbicacion.join(", ")}</span>
                           </p>
                         )}
                       </div>
@@ -949,7 +949,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: [detailRow.bloqueId!], etiqueta: detailRow.standCode || detailRow.bloqueId! })}
                     >
                       <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                      <span>Ver ubicaciÃ³n en el plano</span>
+                      <span>Ver ubicación en el plano</span>
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                       <Link href={`/mapa?bloque=${encodeURIComponent(detailRow.bloqueId)}`}>
@@ -1110,7 +1110,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
               {/* Esperando Contrato */}
               {detailRow.standCodes?.length > 1 && detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && (detailRow.docsAdjuntosCount ?? 0) === 0 && detailRow.flgActivo !== false && (
-                <ModalSection title="Accion requerida">
+                <ModalSection title="Acción requerida">
                   <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                     <div>
@@ -1130,7 +1130,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-info">Firma del contrato</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          El IIMP habilitÃ³ la firma de tu contrato. Firma digitalmente desde aquÃ­; no se admite subir un contrato firmado manualmente.
+                          El IIMP habilitó la firma de tu contrato. Firma digitalmente desde aquí; no se admite subir un contrato firmado manualmente.
                         </p>
                       </div>
                     </div>
@@ -1158,7 +1158,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
               {/* Ventana Legal (SGC): adjuntar anexos antes del envio al SGC */}
               {!soloLectura && detailRow && enVentanaLegalSgc(detailRow) && detailRow.flgActivo !== false && (
-                <ModalSection title="Accion requerida">
+                <ModalSection title="Acción requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -1179,10 +1179,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {/* SubsanaciÃ³n SGC: el cliente descarga el contrato vigente y sube el firmado */}
+              {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
               {/* Observaciones de anexos del area legal (SGC) por documento */}
               {!soloLectura && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
-                <ModalSection title="Accion requerida">
+                <ModalSection title="Acción requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
@@ -1210,7 +1210,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || tieneObservacionSgcContrato(detailRow)) && (
-                <ModalSection title="Accion requerida">
+                <ModalSection title="Acción requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -1232,7 +1232,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </ul>
                         )}
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          Descarga la versiÃ³n vigente del contrato, fÃ­rmala y sÃºbela para que la administraciÃ³n lo reenvÃ­e al SGC.
+                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
                         </p>
                       </div>
                     </div>
@@ -1265,16 +1265,16 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {/* El admin declarÃ³ un contrato nuevo: el cliente espera a que lo adjunte */}
+              {/* El admin declaró un contrato nuevo: el cliente espera a que lo adjunte */}
               {detailRow && esperandoContratoCorregidoSgc(detailRow) && detailRow.flgActivo !== false && (
-                <ModalSection title="Accion requerida">
+                <ModalSection title="Acción requerida">
                   <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
                     <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                     <div>
                       <p className="text-xs font-semibold text-warning">Esperando contrato corregido</p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
-                        La administraciÃ³n del IIMP estÃ¡ preparando una nueva versiÃ³n del contrato.
-                        Cuando estÃ© disponible podrÃ¡s descargarla, firmarla y subirla.
+                        La administración del IIMP está preparando una nueva versión del contrato.
+                        Cuando esté disponible podrás descargarla, firmarla y subirla.
                       </p>
                       {detailRow.sgcSubsanacionMotivo && (
                         <p className="mt-1 text-[11px] italic text-muted-foreground">&quot;{detailRow.sgcSubsanacionMotivo}&quot;</p>
@@ -1384,7 +1384,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-warning/40 bg-warning/5 p-5 transition-colors hover:border-warning/60 hover:bg-warning/10">
                     <Upload className="h-6 w-6 text-warning" />
                     <span className="text-xs font-medium text-warning">Arrastra un archivo o haz click aqui</span>
-                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG â€” max 10 MB</span>
+                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG — max 10 MB</span>
                     <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -1501,7 +1501,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">â€¹</span>
+              <span className="text-lg">‹</span>
             </button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
@@ -1509,7 +1509,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">â€º</span>
+              <span className="text-lg">›</span>
             </button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>
@@ -1522,11 +1522,11 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>
-                <span>{recorteBloque.bloqueIds.length > 1 ? `UbicaciÃ³n de los stands ${recorteBloque.etiqueta}` : `UbicaciÃ³n del stand ${recorteBloque.etiqueta}`}</span>
+                <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
               </DialogTitle>
             </DialogHeader>
             <p className="text-xs text-muted-foreground">
-              Tu stand estÃ¡ resaltado en el pabellÃ³n para que ubiques su posiciÃ³n respecto de los demÃ¡s stands.
+              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
             </p>
             <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
             <DialogFooter>

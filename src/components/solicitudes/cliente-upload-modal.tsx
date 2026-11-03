@@ -360,8 +360,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             )
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Obligatorios para la revisión Legal:</span>{" "}
-              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite al SGC.
+              <span className="font-semibold text-foreground">Obligatorios para la revisión del área legal:</span>{" "}
+              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite.
             </p>
           )}
         </div>
@@ -375,13 +375,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         )}
         {esContrato && observacionContratoSgc && (
           <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observacion del SGC</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observación del área legal</p>
             <p className="mt-0.5 text-[11px] text-foreground">{observacionContratoSgc.message}</p>
           </div>
         )}
         {!esContrato && observacionesSgc.length > 0 && (
           <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observaciones del SGC</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observaciones del área legal</p>
             <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
               {observacionesSgc.map((o, i) => (
                 <li key={o.observationId ?? `obs-sgc-${i}`}>
@@ -558,24 +558,32 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         </span>
                       )}
                       {observacionSgc && (
-                        <span className="block text-[10px] text-destructive">SGC: {observacionSgc.message}</span>
+                        <span className="block text-[10px] text-destructive">Área legal: {observacionSgc.message}</span>
                       )}
                       
                     </span>
-                    {existente ? (
-                      <a href={existente.url} target="_blank" className="shrink-0 text-primary hover:underline">Ver</a>
-                    ) : pendiente ? (
-                      <span className="flex shrink-0 items-center gap-1">
+                    {pendiente ? (
+                      <span className="flex shrink-0 items-center gap-2">
+                        {existente && (
+                          <a href={existente.url} target="_blank" className="text-primary hover:underline">Ver</a>
+                        )}
                         <span className="text-[10px] font-medium text-emerald-600">Listo para enviar</span>
                         <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
                           <X className="h-3 w-3" />
                         </button>
                       </span>
                     ) : (
-                      <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
-                        disabled={uploading} onClick={() => abrirSelector(a.key)}>
-                        Adjuntar
-                      </Button>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {existente && (
+                          <a href={existente.url} target="_blank" className="text-primary hover:underline">Ver</a>
+                        )}
+                        {(!existente || observacionSgc || observado) && (
+                          <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                            disabled={uploading} onClick={() => abrirSelector(a.key)}>
+                            {existente || observado ? "Reemplazar" : "Adjuntar"}
+                          </Button>
+                        )}
+                      </span>
                     )}
                   </div>
                 );
