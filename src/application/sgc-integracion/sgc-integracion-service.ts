@@ -417,6 +417,12 @@ export class SgcIntegracionApplicationService {
       await this.repo.actualizarDocumento(pieza.documentId, {
         currentVersionId: reserva.versionId,
         estado: SGC_DOCUMENTO_ESTADO.RESERVADO,
+        /* Al versionar se refresca la pieza vigente: el mapeo de observaciones por
+         * `documentId` queda apuntando a la ultima version subida. */
+        title: pieza.title,
+        fileName: pieza.fileName,
+        checksumSha256,
+        sizeBytes: pieza.bytes.byteLength,
       });
       documento = this.construirDocumento(
         expediente.id,

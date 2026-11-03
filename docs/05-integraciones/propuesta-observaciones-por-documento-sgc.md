@@ -36,6 +36,8 @@ Agregar `data.observations[]` **sin quitar** los campos actuales:
       {
         "observationId": "obs_01J9Z...",
         "documentId": "c2ffd115-7634-41df-962d-95866876a7d0",
+        "versionId": "b7c1e2... (opcional: version revisada)",
+        "versionNumber": 2,
         "category": "annex",
         "title": "Vigencia de Poder (o equivalente) — opcional",
         "severity": "blocking",
@@ -106,6 +108,9 @@ Incluir `observations[]` y `currentVersionNumber` para auditoría/historial por 
 7. Confirmar la regla de `POST /contracts/{id}/resend`: ¿exige versión nueva del contrato
    siempre, o basta una versión nueva del documento observado? (define si el cliente debe
    volver a firmar cuando solo se observó un anexo).
+
+8. `versionId`/`versionNumber` (**opcionales**): indican la **versión revisada**. Si no vienen,
+   la observación aplica al **documento lógico** (suficiente para operar).
 
 ## 4. Compatibilidad
 

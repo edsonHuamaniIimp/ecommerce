@@ -1175,7 +1175,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               .filter((o) => o.status !== "resolved" && o.message)
                               .map((o, i) => (
                                 <li key={o.observationId ?? `obs-sgc-${i}`}>
-                                  â€¢ {o.nombre ?? o.title ?? "Documento"}: {o.message}
+                                  • {o.nombre ?? o.title ?? "Documento"}
+                                  {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
                                 </li>
                               ))}
                           </ul>

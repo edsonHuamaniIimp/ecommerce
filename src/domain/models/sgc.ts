@@ -200,6 +200,9 @@ export interface SgcObservacionDocumento {
   observationId?: string | null;
   /** `documentId` del SGC (el que devolvio POST /contracts/{id}/documents). null = faltante. */
   documentId?: string | null;
+  /** Version revisada por el SGC (opcional): util si el documento tiene varias versiones. */
+  versionId?: string | null;
+  versionNumber?: number | null;
   category?: string | null;
   title?: string | null;
   severity?: string | null;

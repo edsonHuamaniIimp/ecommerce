@@ -5,6 +5,9 @@ export interface SgcObservacionSolicitud {
   observationId?: string | null;
   /** `documentId` del SGC (se mapea al documento local via la tabla sgc_documento). */
   documentId?: string | null;
+  /** Version revisada por el SGC (opcional). */
+  versionId?: string | null;
+  versionNumber?: number | null;
   /** Documento local equivalente (si se pudo mapear por nombre de archivo). */
   documentoLocalId?: string | null;
   categoria?: string | null;

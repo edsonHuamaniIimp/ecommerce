@@ -72,6 +72,11 @@ export interface CrearSgcDocumentoData {
 export interface ActualizarSgcDocumentoData {
   currentVersionId?: string | null;
   estado?: SgcDocumentoEstado;
+  /** Se refrescan al subir una nueva version (mantienen la correlacion con la version vigente). */
+  title?: string;
+  fileName?: string;
+  checksumSha256?: string | null;
+  sizeBytes?: number | null;
 }
 
 export interface ISgcRepository {

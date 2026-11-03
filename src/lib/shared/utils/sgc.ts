@@ -180,6 +180,11 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
     salida.push({
       observationId: texto(o.observationId, 64),
       documentId: texto(o.documentId, 64),
+      versionId: texto(o.versionId, 64),
+      versionNumber:
+        typeof o.versionNumber === "number" && Number.isFinite(o.versionNumber)
+          ? Math.trunc(o.versionNumber)
+          : null,
       category: texto(o.category, 30),
       title: texto(o.title),
       severity: texto(o.severity, 20),

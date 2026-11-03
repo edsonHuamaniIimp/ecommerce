@@ -385,7 +385,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
               {observacionesSgc.map((o, i) => (
                 <li key={o.observationId ?? `obs-sgc-${i}`}>
-                  • {o.nombre ?? o.title ?? "Documento"}: {o.message}
+                  • {o.nombre ?? o.title ?? "Documento"}
+                  {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
                 </li>
               ))}
             </ul>

@@ -138,6 +138,8 @@ describe("normalizarObservacionesSgc (campo OPCIONAL del SGC)", () => {
       {
         observationId: "obs-1",
         documentId: "doc-9",
+        versionId: "ver-3",
+        versionNumber: 3,
         category: "annex",
         message: "  Adjuntar Vigencia de Poder actualizada.  ",
         severity: "blocking",
@@ -151,6 +153,8 @@ describe("normalizarObservacionesSgc (campo OPCIONAL del SGC)", () => {
       {
         observationId: "obs-1",
         documentId: "doc-9",
+        versionId: "ver-3",
+        versionNumber: 3,
         category: "annex",
         title: null,
         severity: "blocking",

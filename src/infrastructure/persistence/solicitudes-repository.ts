@@ -239,7 +239,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
      * (mismo nombre canonico) para que el cliente vea exactamente que corregir.
      */
     type ObservacionFila = {
-      observationId?: string | null; documentId?: string | null; documentoLocalId?: string | null;
+      observationId?: string | null; documentId?: string | null; versionId?: string | null;
+      versionNumber?: number | null; documentoLocalId?: string | null;
       categoria?: string | null; requisito?: string | null; nombre?: string | null; title?: string | null;
       message: string; severity?: string | null; status?: string | null;
       requiresDocumentChange?: boolean | null; createdBy?: string | null; createdAt?: string | null;
@@ -256,10 +257,27 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
         .map((o) => {
           const documentId = typeof o.documentId === "string" ? o.documentId : null;
           const fileName = documentId ? archivoPorDocumentId.get(documentId) ?? null : null;
-          const local = fileName ? docsList.find((d) => d.nombre === fileName) : undefined;
+          /*
+           * Si el documento local tiene varias versiones, se prefiere la vigente (`activo`)
+           * del mismo requisito/categoria; si no, se usa la que coincide por nombre.
+           */
+          const activo = (d: (typeof docsList)[number]) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+          const porNombre = fileName ? docsList.find((d) => d.nombre === fileName) : undefined;
+          const reemplazoActivo =
+            porNombre && !activo(porNombre)
+              ? docsList.find(
+                  (d) =>
+                    activo(d) &&
+                    (d.requisito ?? null) === (porNombre.requisito ?? null) &&
+                    (d.categoria ?? null) === (porNombre.categoria ?? null),
+                )
+              : undefined;
+          const local = reemplazoActivo ?? porNombre;
           return {
             observationId: typeof o.observationId === "string" ? o.observationId : null,
             documentId,
+            versionId: typeof o.versionId === "string" ? o.versionId : null,
+            versionNumber: typeof o.versionNumber === "number" ? o.versionNumber : null,
             documentoLocalId: local?.id ?? null,
             categoria: local?.categoria ?? (typeof o.category === "string" ? o.category : null),
             requisito: local?.requisito ?? null,

@@ -92,6 +92,8 @@ export interface SolicitudDTO {
   sgcObservaciones?: Array<{
     observationId?: string | null;
     documentId?: string | null;
+    versionId?: string | null;
+    versionNumber?: number | null;
     documentoLocalId?: string | null;
     categoria?: string | null;
     requisito?: string | null;
