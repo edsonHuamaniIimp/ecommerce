@@ -1155,6 +1155,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                           {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
                         </p>
+                        {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message) && (
+                          <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                            {(detailRow.sgcObservaciones ?? [])
+                              .filter((o) => o.status !== "resolved" && o.message)
+                              .map((o, i) => (
+                                <li key={o.observationId ?? `obs-sgc-${i}`}>
+                                  • {o.nombre ?? o.title ?? "Documento"}: {o.message}
+                                </li>
+                              ))}
+                          </ul>
+                        )}
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                           Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
                         </p>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/server/db";
+import type { Prisma } from "@prisma/client";
 import type {
   ActualizarSgcDocumentoData,
   ActualizarSgcExpedienteData,
@@ -30,6 +31,7 @@ interface SgcExpedienteRow {
   devolucionMotivo: string | null;
   devolucionDestinoStepId: string | null;
   devolucionEstrategia: string | null;
+  observaciones: unknown;
 }
 
 interface SgcDocumentoRow {
@@ -66,6 +68,7 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     devolucionMotivo: row.devolucionMotivo ?? null,
     devolucionDestinoStepId: row.devolucionDestinoStepId ?? null,
     devolucionEstrategia: row.devolucionEstrategia ?? null,
+    observaciones: (row.observaciones as SgcExpedienteEntity["observaciones"]) ?? null,
   };
 }
 
@@ -118,7 +121,14 @@ export class SgcPrismaRepository implements ISgcRepository {
   }
 
   async actualizarExpediente(id: string, data: ActualizarSgcExpedienteData): Promise<SgcExpedienteEntity> {
-    const row = await prisma.sgcExpediente.update({ where: { id }, data });
+    const { observaciones, ...resto } = data;
+    const row = await prisma.sgcExpediente.update({
+      where: { id },
+      data: {
+        ...resto,
+        ...(observaciones !== undefined ? { observaciones: observaciones as unknown as Prisma.InputJsonValue } : {}),
+      },
+    });
     return mapExpediente(row);
   }
 

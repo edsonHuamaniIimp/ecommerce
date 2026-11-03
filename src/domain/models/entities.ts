@@ -1,5 +1,24 @@
 import type { Rol } from "@/lib/shared/constants";
 
+/** Observacion del SGC sobre un documento (campo OPCIONAL de la integracion; puede no venir). */
+export interface SgcObservacionSolicitud {
+  observationId?: string | null;
+  /** `documentId` del SGC (se mapea al documento local via la tabla sgc_documento). */
+  documentId?: string | null;
+  /** Documento local equivalente (si se pudo mapear por nombre de archivo). */
+  documentoLocalId?: string | null;
+  categoria?: string | null;
+  requisito?: string | null;
+  nombre?: string | null;
+  title?: string | null;
+  message: string;
+  severity?: string | null;
+  status?: string | null;
+  requiresDocumentChange?: boolean | null;
+  createdBy?: string | null;
+  createdAt?: string | null;
+}
+
 /** Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico. */
 export interface SolicitudCuentaEntity {
   id: string;
@@ -272,6 +291,8 @@ export interface SolicitudRow {
   sgcSubsanacionMotivo: string | null;
   /** Modo de la subsanación vigente: `nuevo_contrato` | `mismo_contrato` (null = libre/legacy). */
   sgcSubsanacionModo?: string | null;
+  /** Observaciones por documento de la ultima devolucion del SGC (campo opcional). */
+  sgcObservaciones?: SgcObservacionSolicitud[] | null;
   /** True si ya se enviaron documentos al expediente SGC (contrato y/o anexos). */
   sgcDocumentosEnviados: boolean;
   /** True si la integracion SGC esta habilitada (SGC_ENABLED=1) en el servidor. */

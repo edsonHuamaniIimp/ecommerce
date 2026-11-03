@@ -1,4 +1,4 @@
-import type { ISgcRepository } from "@/domain/ports/sgc-repository";
+﻿import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -8,6 +8,7 @@ import type {
   SgcDocumentoEntity,
   SgcExpedienteDetalle,
   SgcExpedienteEntity,
+  SgcObservacionDocumento,
   SgcPiezaDocumental,
   SgcUrlDescarga,
 } from "@/domain/models/sgc";
@@ -28,7 +29,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
-import { construirIdempotencyKey, extraerDocumentosLegacy, nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -118,7 +119,7 @@ export class SgcIntegracionApplicationService {
 
       try {
         /* Intencion = solicitud + hash del contenido: un reintento identico reusa la misma
-         * clave; un payload distinto (p.ej. tipo corregido) es una intencion nueva — evita el
+         * clave; un payload distinto (p.ej. tipo corregido) es una intencion nueva â€” evita el
          * 409 "La clave idempotente ya fue usada con otro contenido". */
         const claveDe = async (p: SgcCrearExpedienteInput) =>
           `${construirIdempotencyKey(solicitudId)}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(p)))).slice(0, 16)}`;
@@ -129,7 +130,7 @@ export class SgcIntegracionApplicationService {
         } catch (err) {
           /* Guia v5: un 409 tambien significa "el code ya pertenece a otro expediente" en el SGC
            * -> reintento unico con sufijo (clave nueva, porque el payload cambia). */
-          const esCodigoDuplicado = err instanceof SgcApiError && err.status === 409 && /c[oó]digo|code/i.test(err.message);
+          const esCodigoDuplicado = err instanceof SgcApiError && err.status === 409 && /c[oÃ³]digo|code/i.test(err.message);
           if (!esCodigoDuplicado) throw err;
           payload = { ...input, code: `${codigo.slice(0, 31)}-${solicitudId.slice(0, 8)}` };
           resultado = await this.client.crearExpediente(payload, await claveDe(payload));
@@ -210,7 +211,7 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, §3.2):
+   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, Â§3.2):
    * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
    * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
    */
@@ -239,12 +240,29 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.client.consultarExpediente(expediente.contractId);
       // Con bypass admin, el estado local (Vigente) no se revierte al leer del SGC.
       const preservar = expediente.bypassAprobado;
+      const observaciones = this.observacionesDesdeDetalle(detalle);
+      const devuelto =
+        detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+      /* Campo OPCIONAL: `observaciones === null` = el SGC no lo informa (no se toca).
+       * Si dejo de estar devuelto, se limpia. Respaldo del motivo si faltÃ³ el webhook. */
+      const cambiosObservaciones = !devuelto
+        ? { observaciones: [] as SgcObservacionDocumento[] }
+        : observaciones !== null
+          ? { observaciones }
+          : {};
+      const motivoRespaldo =
+        !preservar && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
+          ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
+          : {};
       await this.repo.actualizarExpediente(expediente.id, {
         stage: detalle.stage,
         lifecycleStatus: preservar ? expediente.lifecycleStatus : detalle.lifecycleStatus,
         version: detalle.version,
         lastSyncedAt: new Date(),
         lastError: null,
+        ...cambiosObservaciones,
+        ...motivoRespaldo,
       });
       /* Aprobado en el SGC (Vigente o cerrado): la solicitud pasa a pendiente_pago con su
        * orden (idempotente). Cubre los casos sin webhook (QA esta en sink / webhook perdido). */
@@ -262,7 +280,7 @@ export class SgcIntegracionApplicationService {
   async reconciliar(): Promise<number> {
     if (!this.config.enabled) return 0;
 
-    /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia §1.1);
+    /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia Â§1.1);
      * rotacion por `lastSyncedAt` ascendente (nunca sincronizados primero). */
     const expedientes = [...(await this.repo.listarConContractId())]
       .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
@@ -272,12 +290,27 @@ export class SgcIntegracionApplicationService {
       if (!expediente.contractId) continue;
       try {
         const detalle = await this.client.consultarExpediente(expediente.contractId);
+        const observaciones = this.observacionesDesdeDetalle(detalle);
+        const devuelto =
+          detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+          detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+        const cambiosObservaciones = !devuelto
+          ? { observaciones: [] as SgcObservacionDocumento[] }
+          : observaciones !== null
+            ? { observaciones }
+            : {};
+        const motivoRespaldo =
+          !expediente.bypassAprobado && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
+            ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
+            : {};
         await this.repo.actualizarExpediente(expediente.id, {
           stage: detalle.stage,
           lifecycleStatus: expediente.bypassAprobado ? expediente.lifecycleStatus : detalle.lifecycleStatus,
           version: detalle.version,
           lastSyncedAt: new Date(),
           lastError: null,
+          ...cambiosObservaciones,
+          ...motivoRespaldo,
         });
         /* Cron (polling): aprobado sin webhook -> habilita la orden de pago (idempotente). */
         if (!expediente.bypassAprobado && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
@@ -312,7 +345,7 @@ export class SgcIntegracionApplicationService {
     return { sincronizados, reintentados };
   }
 
-  /** Empuja una pieza documental al SGC (reservar → transferir → confirmar). */
+  /** Empuja una pieza documental al SGC (reservar â†’ transferir â†’ confirmar). */
   async subirPiezaDocumental(solicitudId: string, pieza: SgcPiezaDocumental): Promise<SgcDocumentoEntity | null> {
     if (!this.config.enabled) return null;
 
@@ -427,7 +460,7 @@ export class SgcIntegracionApplicationService {
 
     /*
      * Tras subir la version corregida hay que reabrir el tramite (POST /resend),
-     * una sola vez por ronda (doc §8.1). Si no, el expediente no vuelve a avanzar.
+     * una sola vez por ronda (doc Â§8.1). Si no, el expediente no vuelve a avanzar.
      */
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (expediente?.contractId) {
@@ -485,7 +518,7 @@ export class SgcIntegracionApplicationService {
     });
   }
 
-  /** Declara la casuística de subsanación (la elige el administrador cuando el SGC rechaza). */
+  /** Declara la casuÃ­stica de subsanaciÃ³n (la elige el administrador cuando el SGC rechaza). */
   async declararMotivoSubsanacion(
     solicitudId: string,
     motivo: string | null,
@@ -495,7 +528,7 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente) return null;
 
-    /* Auditoría: cada declaración abre una ronda nueva (1, 2, 3…). */
+    /* AuditorÃ­a: cada declaraciÃ³n abre una ronda nueva (1, 2, 3â€¦). */
     if (motivo) {
       const previas = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
       const ronda = previas.reduce((max, r) => Math.max(max, r.ronda), 0) + 1;
@@ -511,9 +544,9 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Reenvía el trámite al SGC tras una devolución (rechazo): sube **el contrato firmado
-   * del cliente** como versión nueva del contrato del expediente y reabre la ronda con
-   * `POST /contracts/{id}/resend` (doc §8.1). Limpia la casuística declarada al terminar.
+   * ReenvÃ­a el trÃ¡mite al SGC tras una devoluciÃ³n (rechazo): sube **el contrato firmado
+   * del cliente** como versiÃ³n nueva del contrato del expediente y reabre la ronda con
+   * `POST /contracts/{id}/resend` (doc Â§8.1). Limpia la casuÃ­stica declarada al terminar.
    */
   async reenviarCorreccionAlSgc(solicitudId: string, reenviadoPor: string): Promise<SgcDocumentoEntity | null> {
     if (!this.config.enabled) return null;
@@ -550,7 +583,7 @@ export class SgcIntegracionApplicationService {
       expediente.contractId,
       `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
     );
-    /* Auditoría: cierra la ronda vigente con quién/cuándo reenvió y la versión corregida. */
+    /* AuditorÃ­a: cierra la ronda vigente con quiÃ©n/cuÃ¡ndo reenviÃ³ y la versiÃ³n corregida. */
     const pendiente = (await this.repo.listarSubsanaciones(expediente.id).catch(() => []))
       .filter((r) => r.estado !== "reenviado")
       .pop();
@@ -699,6 +732,40 @@ export class SgcIntegracionApplicationService {
       .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
   }
 
+  /**
+   * Observaciones por documento del detalle del SGC. Campo **OPCIONAL**: devuelve `null`
+   * cuando el SGC no las informa (para NO borrar lo que ya se guardo por webhook).
+   * Si llega el `status` del documento como observed/rejected sin detalle, se sintetiza
+   * una observacion generica apuntando a ese documento.
+   */
+  private observacionesDesdeDetalle(detalle: SgcExpedienteDetalle): SgcObservacionDocumento[] | null {
+    const lista: SgcObservacionDocumento[] = [];
+    let informado = false;
+    for (const doc of detalle.documents ?? []) {
+      if (Array.isArray(doc.observations)) {
+        informado = true;
+        for (const obs of normalizarObservacionesSgc(doc.observations) ?? []) {
+          lista.push({
+            ...obs,
+            documentId: obs.documentId ?? doc.documentId,
+            category: obs.category ?? doc.category,
+            title: obs.title ?? doc.title,
+          });
+        }
+      } else if (doc.status === "observed" || doc.status === "rejected") {
+        informado = true;
+        lista.push({
+          documentId: doc.documentId,
+          category: doc.category,
+          title: doc.title,
+          message: "El SGC observÃ³ este documento.",
+          status: "open",
+        });
+      }
+    }
+    return informado ? lista : null;
+  }
+
   /** Slug seguro para nombres de archivo enviados al SGC. */
   private slugArchivo(texto: string): string {
     const base = texto
@@ -756,7 +823,7 @@ export class SgcIntegracionApplicationService {
 }
 
 /**
- * Valor por defecto para un campo obligatorio del tipo (guia v3, §3.2). Los textos usan el
+ * Valor por defecto para un campo obligatorio del tipo (guia v3, Â§3.2). Los textos usan el
  * nombre descriptivo del expediente ("Separacion de stand - <codigo>"); el resto, valores
  * neutros. Si el tipo exige datos de negocio especificos, revisar este mapeo.
  */

@@ -1,4 +1,4 @@
-import type { SgcDocumentoEntity, SgcExpedienteEntity } from "@/domain/models/sgc";
+import type { SgcDocumentoEntity, SgcExpedienteEntity, SgcObservacionDocumento } from "@/domain/models/sgc";
 import type {
   SgcDocumentCategory,
   SgcDocumentoEstado,
@@ -55,6 +55,8 @@ export interface ActualizarSgcExpedienteData {
   devolucionDestinoStepId?: string | null;
   /** Estrategia: `return-to-sender` | `restart-forward`. */
   devolucionEstrategia?: string | null;
+  /** Observaciones por documento de la ultima devolucion ([] = limpiar). Campo opcional. */
+  observaciones?: SgcObservacionDocumento[] | null;
 }
 
 export interface CrearSgcDocumentoData {

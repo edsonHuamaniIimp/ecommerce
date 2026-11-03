@@ -8,6 +8,7 @@ import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 
@@ -93,6 +94,9 @@ export class SgcWebhookApplicationService {
         cambios.devolucionMotivo = textoONull(data.reason, 500);
         cambios.devolucionDestinoStepId = textoONull(data.destinationStepId, 64);
         cambios.devolucionEstrategia = textoONull(data.strategy, 30);
+        /* Campo OPCIONAL: observaciones por documento. Si no viene, no se toca (compatibilidad). */
+        const observaciones = normalizarObservacionesSgc(data.observations);
+        if (observaciones) cambios.observaciones = observaciones;
         if (requiereCambio) cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.OBSERVED;
         break;
       }
@@ -101,6 +105,7 @@ export class SgcWebhookApplicationService {
           data.finalization === SGC_FINALIZATION.ACTIVE
             ? SGC_LIFECYCLE_STATUSES.ACTIVE
             : SGC_LIFECYCLE_STATUSES.FINALIZED;
+        cambios.observaciones = [];
         break;
       case SGC_EVENT_TYPES.WORKFLOW_REJECTED:
         cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.REJECTED;
@@ -109,9 +114,14 @@ export class SgcWebhookApplicationService {
         cambios.devolucionMotivo = textoONull(data.reason, 500);
         cambios.devolucionDestinoStepId = textoONull(data.destinationStepId, 64);
         cambios.devolucionEstrategia = textoONull(data.strategy, 30);
+        {
+          const observaciones = normalizarObservacionesSgc(data.observations);
+          if (observaciones) cambios.observaciones = observaciones;
+        }
         break;
       case SGC_EVENT_TYPES.CONTRACT_CLOSED:
         cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.FINALIZED;
+        cambios.observaciones = [];
         break;
       default:
         break;

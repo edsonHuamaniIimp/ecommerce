@@ -1083,6 +1083,9 @@ model SgcExpediente {
   devolucionDestinoStepId  String?   @map("devolucion_destino_step_id") @db.VarChar(64)
   /// Estrategia de la devolucion: `return-to-sender` | `restart-forward`.
   devolucionEstrategia     String?   @map("devolucion_estrategia") @db.VarChar(30)
+  /// Observaciones por documento de la ultima devolucion del SGC (JSON). Campo OPCIONAL:
+  /// la integracion puede no enviarlo (compatibilidad con versiones previas).
+  observaciones            Json?
 
   solicitud     Solicitud        @relation(fields: [solicitudId], references: [id])
   documentos    SgcDocumento[]

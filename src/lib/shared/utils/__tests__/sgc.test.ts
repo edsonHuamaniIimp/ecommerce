@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+﻿import { describe, it, expect } from "vitest";
 import {
   comparacionTiempoConstante,
   construirIdempotencyKey,
   hmacSha256Hex,
   mimeDesdeNombre,
   nombreArchivoSgc,
+  normalizarObservacionesSgc,
   parsearFirmaSgc,
   tituloSgcDocumento,
   sha256Hex,
@@ -123,5 +124,50 @@ describe("verificarFirmaSgc", () => {
   it("deberia rechazar si no hay header o secreto", async () => {
     expect(await verificarFirmaSgc({ secret: SECRETO, header: null, payload: "{}", ahoraSegundos: 1000 })).toBe(false);
     expect(await verificarFirmaSgc({ secret: "", header: "t=1000,v1=x", payload: "{}", ahoraSegundos: 1000 })).toBe(false);
+  });
+});
+
+describe("normalizarObservacionesSgc (campo OPCIONAL del SGC)", () => {
+  it("devuelve null cuando el campo no viene (compatibilidad con versiones previas)", () => {
+    expect(normalizarObservacionesSgc(undefined)).toBeNull();
+    expect(normalizarObservacionesSgc({})).toBeNull();
+  });
+
+  it("normaliza una observacion por documento", () => {
+    const r = normalizarObservacionesSgc([
+      {
+        observationId: "obs-1",
+        documentId: "doc-9",
+        category: "annex",
+        message: "  Adjuntar Vigencia de Poder actualizada.  ",
+        severity: "blocking",
+        requiresDocumentChange: true,
+        status: "open",
+        createdBy: { name: "Matias Freundt", email: "m@iimp.org.pe" },
+        createdAt: "2026-11-02T21:23:00Z",
+      },
+    ]);
+    expect(r).toEqual([
+      {
+        observationId: "obs-1",
+        documentId: "doc-9",
+        category: "annex",
+        title: null,
+        severity: "blocking",
+        message: "Adjuntar Vigencia de Poder actualizada.",
+        requiresDocumentChange: true,
+        status: "open",
+        createdBy: "Matias Freundt",
+        createdAt: "2026-11-02T21:23:00Z",
+      },
+    ]);
+  });
+
+  it("descarta items sin mensaje", () => {
+    expect(normalizarObservacionesSgc([{ documentId: "x" }, { message: "   " }])).toEqual([]);
+  });
+
+  it("devuelve arreglo vacio si viene como arreglo sin observaciones validas", () => {
+    expect(normalizarObservacionesSgc([])).toEqual([]);
   });
 });

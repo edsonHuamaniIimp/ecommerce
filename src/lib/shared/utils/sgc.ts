@@ -5,6 +5,7 @@ import {
   SGC_MIME_TYPE_DEFAULT,
   SGC_WEBHOOK_TOLERANCE_SECONDS,
 } from "@/lib/shared/constants";
+import type { SgcObservacionDocumento } from "@/domain/models/sgc";
 
 /**
  * Construye la Idempotency-Key determinista para crear un expediente en el SGC
@@ -147,4 +148,47 @@ export function nombreArchivoSgc(params: {
   const base = slug(params.requisito || params.titulo) || "documento";
   const identificador = slug(params.identificador ?? "");
   return [base, identificador, params.hash].filter(Boolean).join("-") + "." + extension;
+}
+
+const MAX_OBSERVACIONES = 20;
+const MAX_MENSAJE_OBSERVACION = 500;
+const MAX_TEXTO_OBSERVACION = 200;
+
+/**
+ * Normaliza `data.observations` del SGC. Es un campo **OPCIONAL** (las versiones previas de
+ * la integracion no lo envian): devuelve `null` cuando no viene como arreglo para que los
+ * llamadores puedan distinguir "no informado" de "sin observaciones" (arreglo vacio).
+ */
+export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocumento[] | null {
+  if (!Array.isArray(raw)) return null;
+  const texto = (valor: unknown, max = MAX_TEXTO_OBSERVACION): string | null =>
+    typeof valor === "string" && valor.trim() ? valor.trim().slice(0, max) : null;
+  const salida: SgcObservacionDocumento[] = [];
+  for (const item of raw.slice(0, MAX_OBSERVACIONES)) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const mensaje = typeof o.message === "string" ? o.message.trim().slice(0, MAX_MENSAJE_OBSERVACION) : "";
+    if (!mensaje) continue;
+    /* `createdBy` puede venir como texto o como { name, email }. */
+    const autor = o.createdBy;
+    const creadoPor =
+      typeof autor === "string"
+        ? texto(autor)
+        : autor && typeof autor === "object" && typeof (autor as { name?: unknown }).name === "string"
+          ? texto((autor as { name: string }).name)
+          : null;
+    salida.push({
+      observationId: texto(o.observationId, 64),
+      documentId: texto(o.documentId, 64),
+      category: texto(o.category, 30),
+      title: texto(o.title),
+      severity: texto(o.severity, 20),
+      message: mensaje,
+      requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
+      status: texto(o.status, 20),
+      createdBy: creadoPor,
+      createdAt: texto(o.createdAt, 40),
+    });
+  }
+  return salida;
 }

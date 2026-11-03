@@ -233,6 +233,49 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       createdAt: d.createdAt,
     }));
 
+    /*
+     * Observaciones por documento del SGC (campo OPCIONAL; la integracion puede no enviarlo).
+     * Se mapea `documentId` del SGC -> archivo (tabla sgc_documento) -> documento local
+     * (mismo nombre canonico) para que el cliente vea exactamente que corregir.
+     */
+    type ObservacionFila = {
+      observationId?: string | null; documentId?: string | null; documentoLocalId?: string | null;
+      categoria?: string | null; requisito?: string | null; nombre?: string | null; title?: string | null;
+      message: string; severity?: string | null; status?: string | null;
+      requiresDocumentChange?: boolean | null; createdBy?: string | null; createdAt?: string | null;
+    };
+    const obsRaw = (row.sgcExpediente?.observaciones as Array<Record<string, unknown>> | null) ?? null;
+    let sgcObservaciones: ObservacionFila[] = [];
+    if (row.sgcExpediente && Array.isArray(obsRaw) && obsRaw.length > 0) {
+      const sgcDocs = await prisma.sgcDocumento.findMany({
+        where: { sgcExpedienteId: row.sgcExpediente.id },
+        select: { documentId: true, fileName: true },
+      });
+      const archivoPorDocumentId = new Map(sgcDocs.map((d) => [d.documentId, d.fileName]));
+      sgcObservaciones = obsRaw
+        .map((o) => {
+          const documentId = typeof o.documentId === "string" ? o.documentId : null;
+          const fileName = documentId ? archivoPorDocumentId.get(documentId) ?? null : null;
+          const local = fileName ? docsList.find((d) => d.nombre === fileName) : undefined;
+          return {
+            observationId: typeof o.observationId === "string" ? o.observationId : null,
+            documentId,
+            documentoLocalId: local?.id ?? null,
+            categoria: local?.categoria ?? (typeof o.category === "string" ? o.category : null),
+            requisito: local?.requisito ?? null,
+            nombre: local?.nombre ?? null,
+            title: typeof o.title === "string" ? o.title : null,
+            message: typeof o.message === "string" ? o.message : "",
+            severity: typeof o.severity === "string" ? o.severity : null,
+            status: typeof o.status === "string" ? o.status : null,
+            requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
+            createdBy: typeof o.createdBy === "string" ? o.createdBy : null,
+            createdAt: typeof o.createdAt === "string" ? o.createdAt : null,
+          };
+        })
+        .filter((o) => o.message.length > 0);
+    }
+
     // Empresa vinculada y nombre del usuario solicitante (user_role)
     const solicitudUserId = row.userId;
     let nombreUsuario: string | null = null;
@@ -325,6 +368,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcDevolucionRequiereCambio: row.sgcExpediente?.devolucionRequiereCambio ?? null,
     sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,
     sgcSubsanacionModo: row.sgcExpediente?.subsanacionModo ?? null,
+    sgcObservaciones,
     sgcDocumentosEnviados: (row.sgcExpediente?._count?.documentos ?? 0) > 0,
     sgcEnabled: isSgcEnabled(),
   };

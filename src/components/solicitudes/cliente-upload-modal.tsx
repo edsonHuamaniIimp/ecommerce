@@ -235,6 +235,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const contratoAdmin = esContrato
     ? adminDocs.find(d => (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) && (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria === null))
     : null;
+  /* Observaciones por documento del SGC (campo OPCIONAL; si no vienen, todo sigue como antes). */
+  const observacionesSgc = (solicitud.sgcObservaciones ?? []).filter(
+    (o) => o.status !== "resolved" && o.message.trim().length > 0,
+  );
+  const observacionContratoSgc = observacionesSgc.find(
+    (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === "contract",
+  ) ?? null;
   const firmantesSinFirma = firmantes.filter((f) => !f.firmaUrl);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
@@ -364,6 +371,24 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               Observacion del area revisora
             </p>
             <p className="mt-0.5 text-[11px] text-foreground">{solicitud.revisionAsociado.comentario}</p>
+          </div>
+        )}
+        {esContrato && observacionContratoSgc && (
+          <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observacion del SGC</p>
+            <p className="mt-0.5 text-[11px] text-foreground">{observacionContratoSgc.message}</p>
+          </div>
+        )}
+        {!esContrato && observacionesSgc.length > 0 && (
+          <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observaciones del SGC</p>
+            <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
+              {observacionesSgc.map((o, i) => (
+                <li key={o.observationId ?? `obs-sgc-${i}`}>
+                  • {o.nombre ?? o.title ?? "Documento"}: {o.message}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {esContrato && contratoAdmin && (
@@ -510,13 +535,14 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               {ANEXOS_REQUERIDOS.map((a) => {
                 const existente = anexos.find(d => d.requisito === a.key && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
                 const observado = anexos.find(d => d.requisito === a.key && d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
+                const observacionSgc = observacionesSgc.find(o => o.requisito === a.key) ?? null;
                 const motivoPropio = observado?.motivoObservacion?.trim() && observado.motivoObservacion.trim() !== motivoGeneral
                   ? observado.motivoObservacion.trim()
                   : null;
                 const idxPendiente = pendientes.findIndex(p => p.requisito === a.key);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
-                  <div key={a.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${!existente && observado ? "border-warning/50 bg-warning/5" : "border-border/70 bg-background"}`}>
+                  <div key={a.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${(!existente && observado) || observacionSgc ? "border-warning/50 bg-warning/5" : "border-border/70 bg-background"}`}>
                     {existente
                       ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -527,8 +553,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                       )}
                       {!existente && observado && (
                         <span className="block text-[10px] text-warning">
-                          Observado{motivoPropio ? `: ${motivoPropio}` : ""} — sube una nueva version
+                          Observado{motivoPropio ? `: ${motivoPropio}` : ""} - sube una nueva version
                         </span>
+                      )}
+                      {observacionSgc && (
+                        <span className="block text-[10px] text-destructive">SGC: {observacionSgc.message}</span>
                       )}
                       
                     </span>

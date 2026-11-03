@@ -195,6 +195,21 @@ export interface SgcHistoryItem {
   occurredAt: string;
 }
 
+/** Observacion del SGC sobre un documento (campo OPCIONAL de la integracion; puede no venir). */
+export interface SgcObservacionDocumento {
+  observationId?: string | null;
+  /** `documentId` del SGC (el que devolvio POST /contracts/{id}/documents). null = faltante. */
+  documentId?: string | null;
+  category?: string | null;
+  title?: string | null;
+  severity?: string | null;
+  message: string;
+  requiresDocumentChange?: boolean | null;
+  status?: string | null;
+  createdBy?: string | null;
+  createdAt?: string | null;
+}
+
 export interface SgcDocumentoResumen {
   documentId: string;
   category: string;
@@ -202,6 +217,10 @@ export interface SgcDocumentoResumen {
   currentVersionId: string | null;
   /** Nombre fisico del archivo en el SGC (lo fijamos nosotros via `fileName`). */
   currentFileName?: string | null;
+  /** Estado del documento en el SGC (opcional): pending | approved | observed | rejected. */
+  status?: string | null;
+  /** Observaciones por documento (opcional; versiones previas no las envian). */
+  observations?: SgcObservacionDocumento[] | null;
 }
 
 /** Detalle completo del expediente — GET /contracts/{contractId} */
@@ -314,6 +333,8 @@ export interface SgcExpedienteEntity {
   devolucionDestinoStepId?: string | null;
   /** Estrategia: `return-to-sender` | `restart-forward`. */
   devolucionEstrategia?: string | null;
+  /** Observaciones por documento de la ultima devolucion (opcional; [] = sin observaciones). */
+  observaciones?: SgcObservacionDocumento[] | null;
 }
 
 export interface SgcWebhookResource {
