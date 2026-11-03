@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, REVISION_AREAS, SGC_ESTADO_ENVIO, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import {
   anexosBloqueantesFaltantes,
@@ -16,6 +16,10 @@ import {
   puedeClienteSubirAnexosSgc,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
+  observacionesSgcSubsanadas,
+  sgcObservacionesAbiertas,
+  tieneObservacionSgcAnexos,
+  tieneObservacionSgcContrato,
 } from "../solicitud-documentos";
 
 const CLIENTE = "user-cliente";
@@ -32,7 +36,7 @@ const base = {
   sgcLifecycleStatus: null as string | null,
   sgcDocumentosEnviados: false,
   sgcSubsanacionModo: null as string | null,
-  docsAdjuntos: [] as Array<{ categoria?: string | null; userId?: string | null; estado?: string | null; createdAt?: string | Date | null }>,
+  docsAdjuntos: [] as Array<{ id?: string | null; nombre?: string | null; categoria?: string | null; userId?: string | null; requisito?: string | null; estado?: string | null; createdAt?: string | Date | null }>,
   revisiones: [{ area: REVISION_AREAS.ASOCIADO }],
 };
 
@@ -372,5 +376,105 @@ describe("contratoClientePendienteFirma — contrato posterior", () => {
       estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
       contratoHabilitado: true,
     })).toBe(false);
+  });
+});
+
+describe("observaciones SGC por documento", () => {
+  const obsAnexo = {
+    observationId: "o1",
+    documentId: "d1",
+    documentoLocalId: "doc-dni",
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+    requisito: "dni-representante",
+    nombre: "dni.pdf",
+    title: "DNI o Pasaporte del Representante Legal",
+    message: "Corrige el adjunto del DNI",
+    status: "open",
+    createdAt: "2026-11-03T21:51:29.930Z",
+    requiresDocumentChange: true,
+  };
+
+  it("detecta observaciones abiertas y su tipo", () => {
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [obsAnexo, { ...obsAnexo, observationId: "o2", status: "resolved" }],
+    };
+    expect(sgcObservacionesAbiertas(s)).toHaveLength(1);
+    expect(tieneObservacionSgcAnexos(s)).toBe(true);
+    expect(tieneObservacionSgcContrato(s)).toBe(false);
+  });
+
+  it("no marca subsanada sin un documento posterior a la observacion", () => {
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [obsAnexo],
+      docsAdjuntos: [{
+        id: "doc-dni",
+        userId: CLIENTE,
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: "dni-representante",
+        nombre: "dni.pdf",
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: "2026-11-03T21:42:00.000Z",
+      }],
+    };
+    expect(observacionesSgcSubsanadas(s)).toBe(false);
+  });
+
+  it("marca subsanada con un reemplazo activo posterior", () => {
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [obsAnexo],
+      docsAdjuntos: [{
+        id: "doc-nuevo",
+        userId: CLIENTE,
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: "dni-representante",
+        nombre: "dni-corregido.pdf",
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: "2026-11-03T22:10:00.000Z",
+      }],
+    };
+    expect(observacionesSgcSubsanadas(s)).toBe(true);
+  });
+
+  it("una observacion de contrato exige firma posterior", () => {
+    const obsContrato = {
+      ...obsAnexo,
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+      requisito: null,
+      nombre: "contrato.pdf",
+      title: "Contrato",
+    };
+    const sinFirma = {
+      ...devuelto,
+      sgcObservaciones: [obsContrato],
+      docsAdjuntos: [{
+        id: "c1",
+        userId: CLIENTE,
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: "2026-11-03T22:10:00.000Z",
+      }],
+    };
+    expect(observacionesSgcSubsanadas(sinFirma)).toBe(false);
+
+    const conFirma = {
+      ...devuelto,
+      sgcObservaciones: [obsContrato],
+      docsAdjuntos: [{
+        id: "f1",
+        userId: CLIENTE,
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: "2026-11-03T22:10:00.000Z",
+      }],
+    };
+    expect(observacionesSgcSubsanadas(conFirma)).toBe(true);
+  });
+
+  it("ignora observaciones administrativas sin cambio documental", () => {
+    const s = { ...devuelto, sgcObservaciones: [{ ...obsAnexo, requiresDocumentChange: false }] };
+    expect(observacionesSgcSubsanadas(s)).toBe(true);
   });
 });

@@ -689,7 +689,7 @@ export const REVISION_AREA_ORDER: RevisionArea[] = [
 ];
 
 /** Etiqueta del paso (visual, no local) que representa la revisión Legal del SGC. */
-export const REVISION_AREA_SGC_LABEL = "Legal (SGC)";
+export const REVISION_AREA_SGC_LABEL = "Area legal";
 /**
  * Clave del paso pseudo-"area" que representa la revisión Legal delegada al SGC.
  * Es solo de UI (no existe una revisión local con esta área).

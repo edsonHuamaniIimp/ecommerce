@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, requiereDocsReevaluacion } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -59,6 +59,10 @@ function puedeEliminarDocumentoActual(row: SolicitudRow, doc: SolicitudRow["docs
     null,
   );
   return !ultimaRevision || dateUtils.isAfter(doc.createdAt, ultimaRevision);
+}
+
+function reenvioSgcPendiente(row: SolicitudRow): boolean {
+  return sgcObservacionesAbiertas(row).length > 0 && !observacionesSgcSubsanadas(row);
 }
 
 function accionesObservacion(row: SolicitudRow) {
@@ -158,7 +162,7 @@ function etiquetaEstadoArea(estado: string): string {
 /** Item del timeline para el paso "Legal (SGC)" segun el estado del expediente SGC. */
 function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado: string; etiqueta: string; badge: string; comentario: string | null } {
   if (sgcAprobado(row.sgcLifecycleStatus)) {
-    return { key: "sgc", label: REVISION_AREA_SGC_LABEL, estado: RESULTADOS_APROBACION.APROBADO, etiqueta: "Aprobado por el SGC", badge: BADGE_STYLES.SUCCESS, comentario: null };
+    return { key: "sgc", label: REVISION_AREA_SGC_LABEL, estado: RESULTADOS_APROBACION.APROBADO, etiqueta: "Aprobado por el area legal", badge: BADGE_STYLES.SUCCESS, comentario: null };
   }
   /* Devuelto (observado) o rechazado: el cliente debe corregir y volver a firmar. */
   if (
@@ -169,16 +173,16 @@ function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado:
       key: "sgc",
       label: REVISION_AREA_SGC_LABEL,
       estado: RESULTADOS_APROBACION.RECHAZADO,
-      etiqueta: row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ? "Rechazado por el SGC" : "Devuelto por el SGC",
+      etiqueta: row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ? "Rechazado por el area legal" : "Observado por el area legal",
       badge: BADGE_STYLES.DESTRUCTIVE,
-      comentario: row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? "El SGC devolviÃ³ el trÃ¡mite. Corrige los documentos observados.",
+      comentario: row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? "El area legal observo tu solicitud. Corrige los documentos observados.",
     };
   }
   return {
     key: "sgc",
     label: REVISION_AREA_SGC_LABEL,
     estado: RESULTADOS_APROBACION.PENDIENTE,
-    etiqueta: row.sgcEstadoEnvio ? "En revisiÃ³n en el SGC" : "Delegado al SGC",
+    etiqueta: row.sgcEstadoEnvio ? "En revision con el area legal" : "Derivado al area legal",
     badge: BADGE_STYLES.INFO,
     comentario: null,
   };
@@ -343,9 +347,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const handleReenviarObservacion = async (row: SolicitudRow) => {
     const devueltoSgc = enVentanaDocumentosSgc(row);
     const ok = await confirm({
-      title: devueltoSgc ? "Reenviar al SGC" : "Reenviar solicitud a revision",
+      title: devueltoSgc ? (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision") : "Reenviar solicitud a revision",
       description: devueltoSgc
-        ? "Se enviarÃ¡n al SGC los documentos corregidos y, si corresponde, el contrato firmado; se reabrirÃ¡ la revisiÃ³n Legal. Â¿Continuar?"
+        ? "Se enviaran al area legal los documentos corregidos y, si corresponde, el contrato firmado; se solicitara una nueva revision. Continuar?"
         : "Se validarÃ¡n las nuevas versiones de los documentos observados y la solicitud volverÃ¡ a la revisiÃ³n del Ã¡rea Asociado. Â¿Continuar?",
       confirmLabel: "Reenviar",
     });
@@ -353,7 +357,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     setReenviandoObservacion(true);
     try {
       await solicitudesService.reenviarObservacion({ solicitudId: row.id });
-      toast.success(devueltoSgc ? "Solicitud reenviada al SGC" : "Solicitud reenviada a revision");
+      toast.success(devueltoSgc ? "Solicitud reenviada para una nueva revision" : "Solicitud reenviada a revision");
       await openDetail(row.id);
       await load();
     } catch (e) {
@@ -556,26 +560,43 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
                       {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
+                        const obsSgc = sgcObservacionesAbiertas(row);
                         return (
-                          <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
-                            <span className="font-semibold">Accion requerida: </span>
-                            {a.tieneAnexosObservados
-                              ? "El area revisora observo documentos. Sube las nuevas versiones y reenvia."
-                              : a.esperandoContratoCorregidoFirmado
-                                ? "El contrato firmado fue observado. Espera la version corregida del administrador."
-                                : a.contratoCorregidoPendienteFirma
-                                  ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
-                                  : a.contratoAdminPendienteCorreccion
-                                    ? "El contrato fue observado. Espera la version corregida del administrador."
-                                    : a.pendientesReemplazo.length === 0
-                                      ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
-                                      : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
-                            {row.revisionAsociado?.comentario && (
+                          <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+                            <p>
+                              <span className="font-semibold">Accion requerida: </span>
+                              {obsSgc.length > 0
+                                ? obsSgc.length === 1
+                                  ? "El area legal observo un documento. Corrigelo y solicita una nueva revision."
+                                  : `El area legal observo ${obsSgc.length} documentos. Corrigelos y solicita una nueva revision.`
+                                : a.tieneAnexosObservados
+                                  ? "El area revisora observo documentos. Sube las nuevas versiones y reenvia."
+                                  : a.esperandoContratoCorregidoFirmado
+                                    ? "El contrato firmado fue observado. Espera la version corregida del administrador."
+                                    : a.contratoCorregidoPendienteFirma
+                                      ? "El contrato corregido esta listo. Firmalo y reenvia tu solicitud."
+                                      : a.contratoAdminPendienteCorreccion
+                                        ? "El contrato fue observado. Espera la version corregida del administrador."
+                                        : a.pendientesReemplazo.length === 0
+                                          ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
+                                          : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
+                            </p>
+                            {obsSgc.length > 0 && (
+                              <ul className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                                {obsSgc.map((o, i) => (
+                                  <li key={o.observationId ?? `obs-sgc-${i}`}>
+                                    <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
+                                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {obsSgc.length === 0 && row.revisionAsociado?.comentario && (
                               <span className="mt-0.5 block text-[10px] text-muted-foreground">
                                 {row.revisionAsociado.comentario}
                               </span>
                             )}
-                          </p>
+                          </div>
                         );
                       })()}
 
@@ -609,14 +630,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaSubsanacionSgc(row) && (
+                          {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcContrato(row)) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
                               <span>Corregir: subir contrato firmado</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaDocumentosSgc(row) && (
+                          {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcAnexos(row)) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "anexos"); }}>
                               <Upload className="h-3.5 w-3.5" />
@@ -655,7 +676,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -664,7 +685,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                       : enVentanaDocumentosSgc(row)
                                         ? esperandoContratoCorregidoSgc(row)
                                           ? "Esperando contrato corregido"
-                                          : "Reenviar al SGC"
+                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision")
                                         : a.anexosPendientes > 0
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
@@ -749,14 +770,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaSubsanacionSgc(row) && (
+                            {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcContrato(row)) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Corregir: subir contrato firmado</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaDocumentosSgc(row) && (
+                            {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcAnexos(row)) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
                                 <Upload className="h-3.5 w-3.5" />
@@ -795,7 +816,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -804,7 +825,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                       : enVentanaDocumentosSgc(row)
                                         ? esperandoContratoCorregidoSgc(row)
                                           ? "Esperando contrato corregido"
-                                          : "Reenviar al SGC"
+                                          : (reenvioSgcPendiente(row) ? "Falta corregir documentos" : "Solicitar nueva revision")
                                         : a.anexosPendientes > 0
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
@@ -1142,9 +1163,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal â€” SGC)</p>
+                        <p className="text-xs font-semibold text-primary">Adjuntar documentos</p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          Antes de enviar el contrato y los documentos adjuntos al SGC, adjunta los documentos requeridos:
+                          Antes de enviar tu contrato y documentos al area legal, adjunta los documentos requeridos:
                           Ficha RUC, Vigencia de Poder y DNI o Pasaporte del Representante Legal.
                         </p>
                       </div>
@@ -1159,7 +1180,36 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {/* SubsanaciÃ³n SGC: el cliente descarga el contrato vigente y sube el firmado */}
-              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
+              {/* Observaciones de anexos del area legal (SGC) por documento */}
+              {!soloLectura && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
+                <ModalSection title="Accion requerida">
+                  <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                    <div className="flex items-start gap-3">
+                      <Upload className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                      <div>
+                        <p className="text-xs font-semibold text-warning">El area legal observo documentos</p>
+                        <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                          {sgcObservacionesAbiertas(detailRow).filter(esObservacionSgcAnexo).map((o, i) => (
+                            <li key={o.observationId ?? `obs-sgc-anexo-${i}`}>
+                              <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
+                              {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    {enVentanaDocumentosSgc(detailRow) && (
+                      <Button size="sm" className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>Subir / reemplazar documentos</span>
+                      </Button>
+                    )}
+                  </div>
+                </ModalSection>
+              )}
+
+              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || tieneObservacionSgcContrato(detailRow)) && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1167,15 +1217,15 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El SGC devolviÃ³ el trÃ¡mite y debes corregir el contrato."}
+                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El area legal observo el contrato. Corrigelo y firmalo de nuevo."}
                         </p>
-                        {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message) && (
+                        {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message && esObservacionSgcContrato(o)) && (
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
                             {(detailRow.sgcObservaciones ?? [])
-                              .filter((o) => o.status !== "resolved" && o.message)
+                              .filter((o) => o.status !== "resolved" && o.message && esObservacionSgcContrato(o))
                               .map((o, i) => (
                                 <li key={o.observationId ?? `obs-sgc-${i}`}>
-                                  • {o.nombre ?? o.title ?? "Documento"}
+                                  • {o.title ?? o.nombre ?? "Documento"}
                                   {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
                                 </li>
                               ))}

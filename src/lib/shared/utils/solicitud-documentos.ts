@@ -12,12 +12,30 @@ interface ReevaluacionLike {
 
 /** Documento adjunto (subconjunto minimo para evaluar el gate del cliente). */
 interface DocumentoLike {
+  id?: string | null;
+  nombre?: string | null;
   categoria?: string | null;
   userId?: string | null;
   requisito?: string | null;
   createdAt?: string | Date | null;
   /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
   estado?: string | null;
+}
+
+/** Observacion por documento de la ultima devolucion del SGC. */
+export interface SgcObservacionLike {
+  observationId?: string | null;
+  documentId?: string | null;
+  documentoLocalId?: string | null;
+  versionNumber?: number | null;
+  categoria?: string | null;
+  requisito?: string | null;
+  nombre?: string | null;
+  title?: string | null;
+  message?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  requiresDocumentChange?: boolean | null;
 }
 
 /** Campos de la solicitud necesarios para decidir si el cliente puede subir documentos. */
@@ -49,6 +67,8 @@ export interface SolicitudDocumentosGate {
   contratoHabilitado?: boolean;
   /** Revisiones por area de la solicitud. */
   revisiones: RevisionLike[];
+  /** Observaciones por documento de la ultima devolucion del SGC (opcional). */
+  sgcObservaciones?: SgcObservacionLike[] | null;
 }
 
 /** Fecha (ms) de un documento; 0 si no es parseable. */
@@ -67,6 +87,69 @@ function sgcDevuelto(s: SolicitudDocumentosGate): boolean {
     s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
     s.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED
   );
+}
+
+/** Observaciones del SGC aun vigentes (no resueltas) con mensaje. */
+export function sgcObservacionesAbiertas(s: SolicitudDocumentosGate): SgcObservacionLike[] {
+  return (s.sgcObservaciones ?? []).filter(
+    (o) => o.status !== "resolved" && (o.message ?? "").trim().length > 0,
+  );
+}
+
+/** La observacion apunta al contrato (principal) y no a un anexo. */
+export function esObservacionSgcContrato(o: SgcObservacionLike): boolean {
+  return o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === "contract";
+}
+
+/** La observacion apunta a un anexo/documento del cliente. */
+export function esObservacionSgcAnexo(o: SgcObservacionLike): boolean {
+  return !esObservacionSgcContrato(o);
+}
+
+export function tieneObservacionSgcContrato(s: SolicitudDocumentosGate): boolean {
+  return sgcObservacionesAbiertas(s).some(esObservacionSgcContrato);
+}
+
+export function tieneObservacionSgcAnexos(s: SolicitudDocumentosGate): boolean {
+  return sgcObservacionesAbiertas(s).some(esObservacionSgcAnexo);
+}
+
+/**
+ * True si cada observacion vigente del SGC ya tiene una correccion del cliente
+ * **posterior** a la observacion (contrato firmado o anexo reemplazado).
+ * Las observaciones administrativas (`requiresDocumentChange: false`) no bloquean.
+ */
+export function observacionesSgcSubsanadas(s: SolicitudDocumentosGate): boolean {
+  const observaciones = sgcObservacionesAbiertas(s).filter((o) => o.requiresDocumentChange !== false);
+  if (observaciones.length === 0) return true;
+  const docs = (s.docsAdjuntos ?? []).filter(
+    (d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+  );
+  return observaciones.every((o) => {
+    const obsMs = dateUtils.toMs(o.createdAt ?? null);
+    if (obsMs === null) return false;
+    const esCliente = (d: DocumentoLike) => (d.userId ?? null) === (s.userId ?? null);
+    if (esObservacionSgcContrato(o)) {
+      return docs.some(
+        (d) =>
+          esCliente(d) &&
+          d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+          (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs,
+      );
+    }
+    const identificado = (d: DocumentoLike) =>
+      Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
+      Boolean(o.requisito && d.requisito === o.requisito) ||
+      Boolean(o.nombre && d.nombre === o.nombre);
+    const sinIdentificador = !o.documentoLocalId && !o.requisito && !o.nombre;
+    return docs.some(
+      (d) =>
+        esCliente(d) &&
+        d.categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO &&
+        (sinIdentificador || identificado(d)) &&
+        (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs,
+    );
+  });
 }
 
 /**

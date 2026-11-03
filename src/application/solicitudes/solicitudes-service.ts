@@ -8,7 +8,7 @@ import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, observacionesSgcSubsanadas, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -321,7 +321,14 @@ export class SolicitudesApplicationService {
       }
       if (docsCorregidos.length === 0 && !contratoRegenerado) {
         throw new DomainError(
-          "Sube al menos un documento corregido antes de reenviar al SGC.",
+          "Sube al menos un documento corregido antes de solicitar una nueva revision.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (sgcObservacionesAbiertas(detalle).length > 0 && !observacionesSgcSubsanadas(detalle)) {
+        throw new DomainError(
+          "Corrige los documentos observados por el area legal antes de solicitar una nueva revision.",
           API_ERROR_CODES.CONFLICT,
           409,
         );
@@ -329,7 +336,7 @@ export class SolicitudesApplicationService {
       const documento = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
       if (!documento) {
         throw new DomainError(
-          "No se pudo reenviar al SGC. Intenta de nuevo o contacta al administrador.",
+          "No se pudo enviar la solicitud para una nueva revision. Intenta de nuevo o contacta al administrador.",
           API_ERROR_CODES.CONFLICT,
           409,
         );
