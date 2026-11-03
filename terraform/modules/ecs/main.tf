@@ -70,6 +70,18 @@ variable "planogess_api_url" {
   default     = ""
 }
 
+variable "facturas_pdf_url_template" {
+  description = "Plantilla publica del PDF de facturas del IIMP ({ruc}-{tipo}-{serie}-{numero}) (R2) - vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
+variable "facturas_emisor_ruc" {
+  description = "RUC emisor de las facturas del IIMP (R2) - vacio = no inyectar"
+  type        = string
+  default     = ""
+}
+
 variable "liststand_api_url" {
   description = "URL base del API de stands del IIMP (liststand; Vinculacion) (R2) - vacio = no inyectar"
   type        = string
@@ -385,6 +397,8 @@ locals {
       { name = "NEXT_PUBLIC_API_URL", value = var.public_api_url },
     ],
     var.planogess_api_url != "" ? [{ name = "PLANOGESS_API_URL", value = var.planogess_api_url }] : [],
+    var.facturas_pdf_url_template != "" ? [{ name = "FACTURAS_PDF_URL_TEMPLATE", value = var.facturas_pdf_url_template }] : [],
+    var.facturas_emisor_ruc != "" ? [{ name = "FACTURAS_EMISOR_RUC", value = var.facturas_emisor_ruc }] : [],
     var.liststand_api_url != "" ? [{ name = "LISTSTAND_API_URL", value = var.liststand_api_url }] : [],
     var.personas_api_url != "" ? [{ name = "PERSONAS_API_URL", value = var.personas_api_url }] : [],
     var.email_from != "" ? [{ name = "EMAIL_FROM", value = var.email_from }] : [],

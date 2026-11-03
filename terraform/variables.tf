@@ -135,6 +135,18 @@ variable "planogess_api_url" {
   default     = ""
 }
 
+variable "facturas_pdf_url_template" {
+  description = "Plantilla publica del PDF de facturas del IIMP con {ruc}-{tipo}-{serie}-{numero} (vacio = no inyectar)"
+  type        = string
+  default     = ""
+}
+
+variable "facturas_emisor_ruc" {
+  description = "RUC emisor de las facturas del IIMP (vacio = no inyectar)"
+  type        = string
+  default     = ""
+}
+
 variable "liststand_api_url" {
   description = "URL base del API de stands del IIMP (liststand; Vinculacion). Pruebas: .../servicio-eventos-pruebas/api | Prod: .../servicio-eventos/api"
   type        = string
