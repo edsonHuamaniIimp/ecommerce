@@ -228,7 +228,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
-              {!row.iimpContrato && !soloLectura && cuotaSugerida?.id === cuota.id && (
+              {!row.iimpContrato && cuotaSugerida?.id === cuota.id && (
                 <span className="text-[10px] font-semibold text-warning">Solicitar factura aquí</span>
               )}
               {cuotaSeguimiento?.id === cuota.id && (
@@ -280,7 +280,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                ) : !soloLectura && row.iimpContrato ? (
+                ) : row.iimpContrato ? (
                   cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -288,29 +288,35 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
+                        disabled={soloLectura}
                         onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
                       >
                         <Files className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Documentos para tu factura (OC, HES y pagos)</span></TooltipContent>
+                    <TooltipContent side="top">
+                      <span>{soloLectura ? "Solo lectura: Documentos para tu factura (OC, HES y pagos)" : "Documentos para tu factura (OC, HES y pagos)"}</span>
+                    </TooltipContent>
                   </Tooltip>
                   )
-                ) : !soloLectura ? (
+                ) : (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
+                        disabled={soloLectura}
                         onClick={() => setReservaCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode })}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Solicitar factura</span></TooltipContent>
+                    <TooltipContent side="top">
+                      <span>{soloLectura ? "Solo lectura: Solicitar factura" : "Solicitar factura"}</span>
+                    </TooltipContent>
                   </Tooltip>
-                ) : null}
+                )}
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -426,7 +432,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       {soloLectura && (
         <p className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
           <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar documentos ni enviar solicitudes de factura.</span>
+          <span>Vista de solo lectura: los botones del cliente se muestran deshabilitados. Puedes abrir enlaces de facturas y vouchers.</span>
         </p>
       )}
       <div className="flex items-center justify-end gap-1">
