@@ -313,7 +313,7 @@ export const plantillasEn: PlantillasEmail = {
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
           <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Next step: documents for your invoice</p>
           <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
-            Go to <strong>My documents</strong> and attach the documents required to issue your invoice. You can also review your installments and complete payment there.
+            Go to <strong>My documents</strong> and attach the documents required to request your invoice. You can also review your installments and complete payment there.
           </p>
         </div>
       </div>`;
