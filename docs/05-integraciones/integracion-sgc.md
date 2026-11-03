@@ -609,7 +609,27 @@ flowchart TD
   `PROVEEDOR`, `ARRENDAMIENTO`, `SERVICIOS`, `AUSPICIO`, `RECLUTAMIENTO_DE_AUSPICIADORES` —
   **no existe `EVENTOS` como tipo de contrato**.
 - Verificado end-to-end desde el contenedor de prod: `GET /contract-types` → **200**.
-- **Pendiente en el panel del SGC prod**: registrar la suscripción de webhooks hacia
-  `https://ecommerce.sistemasiimp.org.pe/sgc` con el `whsec_…` nuevo (la app además deduplica
-  por `x-sgc-delivery`).
+- **Webhooks prod configurados y activos** hacia `https://ecommerce.sistemasiimp.org.pe/sgc`
+  (dedupe por `x-sgc-delivery`); verificado con eventos reales.
 - ECS: task definition `:16` (memoria 2048 MB para evitar OOM de arranque en deploys).
+
+## Actualización 3-nov-2026: subsanación ejecutada por el cliente
+
+- **Observaciones por documento (campos OPCIONALES)**: el webhook puede traer
+  `data.observations[]` y el detalle `documents[].status/observations[]` (ver
+  [propuesta-observaciones-por-documento-sgc.md](./propuesta-observaciones-por-documento-sgc.md)).
+  Si no vienen, el flujo sigue igual (compatibilidad con versiones previas). Cuando vienen, se
+  persisten en `sgc_expediente.observaciones` y se mapean `documentId` → `sgc_documento` →
+  documento local para mostrarle al cliente exactamente qué corregir.
+- **El cliente ejecuta el reenvío al SGC**: en `Mis solicitudes`, el botón **"Reenviar al SGC"**
+  (nunca automático) valida la corrección mínima, sube los **anexos corregidos versionados** +
+  el **contrato firmado** (nueva versión) y ejecuta `POST /contracts/{id}/resend` en el servidor
+  (el cliente no tiene acceso a `/api/sgc`).
+- **Regenerar contrato**: solo **Asociado + Admin** (Legal ya no regenera). En la devolución,
+  el panel ofrece "Regenerar y enviar contrato"; tras regenerar queda **"esperando firma del
+  cliente"** y se oculta hasta que firme o el SGC vuelva a observar. Si el Asociado no regenera,
+  el cliente solo corrige documentos.
+- **Notificaciones**: cuando el SGC devuelve/rechaza (con `requiresDocumentChange !== false`) se
+  envía **alerta en campana + correo** al cliente (plantilla `documentos-observados`) con el
+  motivo real y los documentos observados. Se dispara por **webhook** y como **respaldo por el
+  sync/cron** (idempotente por transición/motivo nuevo; best-effort).
