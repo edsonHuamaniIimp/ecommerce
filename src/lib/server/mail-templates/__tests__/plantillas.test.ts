@@ -109,8 +109,8 @@ describe("getPlantillaEmail", () => {
     const { subject, html } = getPlantillaEmail("revision-resultado", "es", DATOS["revision-resultado"]);
     expect(subject).toContain("Solicitud aprobada");
     expect(html).toContain("ya revisaron y");
-    expect(html).toContain("Siguiente paso: documentos para tu factura");
-    expect(html).toContain("solicitar tu factura");
+    expect(html).toContain("Siguiente paso: Envía tu solicitud de facturación");
+    expect(html).toContain("Enviar solicitud de factura");
     expect(html).toContain("Mis documentos");
     expect(html).toContain("/dashboard/mis-pagos");
   });

@@ -311,9 +311,16 @@ export const plantillasEs: PlantillasEmail = {
           Las areas involucradas del IIMP ya revisaron y <strong>aprobaron</strong> tu solicitud.
         </p>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
-          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Siguiente paso: documentos para tu factura</p>
+          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Siguiente paso: Envía tu solicitud de facturación</p>
+          <p style="font-size:13px;color:#334155;line-height:1.6;margin:0 0 8px 0">
+            Ingresa a <strong>Mis documentos</strong> y sigue estos pasos:
+          </p>
+          <ul style="font-size:13px;color:#334155;line-height:1.6;margin:0 0 8px 18px;padding:0">
+            <li style="margin:0 0 4px 0">Si necesitas presentar una <strong>Orden de Compra (O/C)</strong> u otros documentos, adjúntalos.</li>
+            <li>Si no requieres presentar documentos, marca <strong>&laquo;Ninguna de las anteriores&raquo;</strong> y selecciona <strong>&laquo;Enviar solicitud de factura&raquo;</strong>.</li>
+          </ul>
           <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
-            Ingresa a <strong>Mis documentos</strong> y adjunta los documentos requeridos para solicitar tu factura. Desde ahi tambien podras revisar tus cuotas y completar el pago.
+            ¡Listo! Tu solicitud llegará al <strong>área de Facturación del IIMP</strong> para emitir el comprobante correspondiente.
           </p>
         </div>
       </div>`;

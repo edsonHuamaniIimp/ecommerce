@@ -311,9 +311,16 @@ export const plantillasEn: PlantillasEmail = {
           All involved IIMP areas have reviewed and <strong>approved</strong> your request.
         </p>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
-          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Next step: documents for your invoice</p>
+          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Next step: Submit your invoicing request</p>
+          <p style="font-size:13px;color:#334155;line-height:1.6;margin:0 0 8px 0">
+            Go to <strong>My documents</strong> and follow these steps:
+          </p>
+          <ul style="font-size:13px;color:#334155;line-height:1.6;margin:0 0 8px 18px;padding:0">
+            <li style="margin:0 0 4px 0">If you need to provide a <strong>Purchase Order (PO)</strong> or other documents, attach them.</li>
+            <li>If you don't need to provide documents, select <strong>“None of the above”</strong> and choose <strong>“Submit invoice request”</strong>.</li>
+          </ul>
           <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
-            Go to <strong>My documents</strong> and attach the documents required to request your invoice. You can also review your installments and complete payment there.
+            Done! Your request will reach the <strong>IIMP Billing area</strong> to issue the corresponding invoice.
           </p>
         </div>
       </div>`;
