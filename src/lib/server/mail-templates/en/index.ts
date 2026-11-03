@@ -313,7 +313,7 @@ export const plantillasEn: PlantillasEmail = {
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
           <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Next step: documents for your invoice</p>
           <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
-            Go to <strong>My bookings</strong> and attach the documents required to issue your invoice. You can also review your installments and complete payment there.
+            Go to <strong>My documents</strong> and attach the documents required to issue your invoice. You can also review your installments and complete payment there.
           </p>
         </div>
       </div>`;
@@ -336,6 +336,10 @@ export const plantillasEn: PlantillasEmail = {
         </p>
       </div>`;
     }
+
+    const accion = totalmenteAprobada
+      ? { href: `${getAppUrl()}/dashboard/mis-pagos`, label: "Complete documents for my invoice" }
+      : { href: `${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}`, label: "View my request status" };
 
     return {
       subject: `${titulo} - Stand ${opts.standCode}`,
@@ -383,7 +387,7 @@ export const plantillasEn: PlantillasEmail = {
   </tr>
   <tr>
     <td style="padding:0 32px 20px 32px;text-align:center">
-      <a href="${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">View my request status</a>
+      <a href="${accion.href}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">${accion.label}</a>
     </td>
   </tr>
   <tr>

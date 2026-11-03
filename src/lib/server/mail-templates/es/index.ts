@@ -313,7 +313,7 @@ export const plantillasEs: PlantillasEmail = {
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
           <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Siguiente paso: documentos para tu factura</p>
           <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
-            Ingresa a <strong>Mis solicitudes</strong> y adjunta los documentos requeridos para emitir tu factura. Desde ahi tambien podras revisar tus cuotas y completar el pago.
+            Ingresa a <strong>Mis documentos</strong> y adjunta los documentos requeridos para emitir tu factura. Desde ahi tambien podras revisar tus cuotas y completar el pago.
           </p>
         </div>
       </div>`;
@@ -336,6 +336,10 @@ export const plantillasEs: PlantillasEmail = {
         </p>
       </div>`;
     }
+
+    const accion = totalmenteAprobada
+      ? { href: `${getAppUrl()}/dashboard/mis-pagos`, label: "Completar documentos para mi factura" }
+      : { href: `${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}`, label: "Ver estado de mi solicitud" };
 
     return {
       subject: `${titulo} - Stand ${opts.standCode}`,
@@ -383,7 +387,7 @@ export const plantillasEs: PlantillasEmail = {
   </tr>
   <tr>
     <td style="padding:0 32px 20px 32px;text-align:center">
-      <a href="${getAppUrl()}/dashboard/mis-solicitudes?id=${encodeURIComponent(opts.gessStandId)}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">Ver estado de mi solicitud</a>
+      <a href="${accion.href}" style="display:inline-block;background:#1e293b;color:#ffffff;border-radius:999px;padding:10px 28px;font-size:13px;font-weight:600;text-decoration:none">${accion.label}</a>
     </td>
   </tr>
   <tr>
