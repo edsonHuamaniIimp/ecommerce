@@ -174,12 +174,10 @@ export class ContratoApplicationService {
       input.userPermissions.includes(PERMISSIONS.ADMIN_FULL) ||
       input.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
     /*
-     * El revisor (Asociado/Legal) habilita la firma; el cliente no puede generar
-     * el contrato antes de esa accion.
+     * El revisor **Asociado** habilita/regenera el contrato; el cliente no puede generar
+     * el contrato antes de esa accion. Legal no regenera (su revision vive en el SGC).
      */
-    const esRevisorContrato =
-      input.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
-      input.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL);
+    const esRevisorContrato = input.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
     const puedeGenerar = isAdmin || esRevisorContrato;
     if (!puedeGenerar && detalle.userId !== input.userSub) {
       throw new DomainError("No puedes generar el contrato de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);

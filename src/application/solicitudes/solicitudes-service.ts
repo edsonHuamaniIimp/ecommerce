@@ -8,7 +8,7 @@ import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido } from "@/lib/shared/utils/solicitud-documentos";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -281,6 +281,60 @@ export class SolicitudesApplicationService {
     }
     if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    /*
+     * Devolucion/rechazo del **SGC**: el boton "Reenviar" del cliente es el ejecutor del
+     * reenvio (nunca automatico). El servicio sube anexos corregidos + contrato (si hay
+     * version nueva firmada) y reabre la ronda en el SGC. NO se toca la revision local.
+     */
+    if (enVentanaDocumentosSgc(detalle)) {
+      if (esperandoContratoCorregidoSgc(detalle)) {
+        throw new DomainError(
+          "El area revisora aun no ha regenerado el contrato corregido. Espera esa version para reenviar.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      /* Correccion minima: un documento del cliente posterior a la ultima aprobacion local
+       * (o el contrato corregido ya firmado, si el area revisora lo regenero). */
+      const aprobacionLocal = [...detalle.revisiones]
+        .filter((r) => r.estado === RESULTADOS_APROBACION.APROBADO)
+        .reduce<number | null>((max, r) => {
+          const t = dateUtils.toMs(r.updatedAt) ?? null;
+          return t !== null && (max === null || t > max) ? t : max;
+        }, null);
+      const docsCorregidos = detalle.docsAdjuntos.filter(
+        (d) =>
+          (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+          d.userId === userSub &&
+          d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+          (aprobacionLocal === null || (dateUtils.toMs(d.createdAt) ?? 0) > aprobacionLocal),
+      );
+      const contratoRegenerado = hayContratoAdminNuevoParaFirmar(detalle);
+      if (contratoRegenerado && !hayFirmadoPosteriorAlContratoCorregido(detalle)) {
+        throw new DomainError(
+          "Firma el contrato corregido por el area revisora antes de reenviar al SGC.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (docsCorregidos.length === 0 && !contratoRegenerado) {
+        throw new DomainError(
+          "Sube al menos un documento corregido antes de reenviar al SGC.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      const documento = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
+      if (!documento) {
+        throw new DomainError(
+          "No se pudo reenviar al SGC. Intenta de nuevo o contacta al administrador.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      return;
     }
 
     /*

@@ -171,14 +171,14 @@ function estadoSgcItem(row: SolicitudRow): { key: string; label: string; estado:
       estado: RESULTADOS_APROBACION.RECHAZADO,
       etiqueta: row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ? "Rechazado por el SGC" : "Devuelto por el SGC",
       badge: BADGE_STYLES.DESTRUCTIVE,
-      comentario: row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? "El SGC devolvió el trámite. Corrige los documentos observados.",
+      comentario: row.sgcSubsanacionMotivo ?? row.sgcDevolucionMotivo ?? "El SGC devolviÃ³ el trÃ¡mite. Corrige los documentos observados.",
     };
   }
   return {
     key: "sgc",
     label: REVISION_AREA_SGC_LABEL,
     estado: RESULTADOS_APROBACION.PENDIENTE,
-    etiqueta: row.sgcEstadoEnvio ? "En revisión en el SGC" : "Delegado al SGC",
+    etiqueta: row.sgcEstadoEnvio ? "En revisiÃ³n en el SGC" : "Delegado al SGC",
     badge: BADGE_STYLES.INFO,
     comentario: null,
   };
@@ -339,19 +339,21 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     setClienteUploadOpen(true);
   };
 
-  /** Reenvio tras observacion local: el backend valida que cada observado tenga reemplazo. */
+  /** Reenvio tras observacion local o devolucion del SGC: el backend valida y ejecuta. */
   const handleReenviarObservacion = async (row: SolicitudRow) => {
+    const devueltoSgc = enVentanaDocumentosSgc(row);
     const ok = await confirm({
-      title: "Reenviar solicitud a revision",
-      description:
-        "Se validarán las nuevas versiones de los documentos observados y la solicitud volverá a la revisión del área Asociado. ¿Continuar?",
+      title: devueltoSgc ? "Reenviar al SGC" : "Reenviar solicitud a revision",
+      description: devueltoSgc
+        ? "Se enviarÃ¡n al SGC los documentos corregidos y, si corresponde, el contrato firmado; se reabrirÃ¡ la revisiÃ³n Legal. Â¿Continuar?"
+        : "Se validarÃ¡n las nuevas versiones de los documentos observados y la solicitud volverÃ¡ a la revisiÃ³n del Ã¡rea Asociado. Â¿Continuar?",
       confirmLabel: "Reenviar",
     });
     if (!ok) return;
     setReenviandoObservacion(true);
     try {
       await solicitudesService.reenviarObservacion({ solicitudId: row.id });
-      toast.success("Solicitud reenviada a revision");
+      toast.success(devueltoSgc ? "Solicitud reenviada al SGC" : "Solicitud reenviada a revision");
       await openDetail(row.id);
       await load();
     } catch (e) {
@@ -401,7 +403,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       {soloLectura && (
         <p className="mb-3 flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
           <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Vista de solo lectura: estás viendo las solicitudes de la empresa seleccionada.</span>
+          <span>Vista de solo lectura: estÃ¡s viendo las solicitudes de la empresa seleccionada.</span>
         </p>
       )}
       <Card className="overflow-hidden">
@@ -497,7 +499,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
-                        <Dato label="Ubicación" valor={row.ubicacion} />
+                        <Dato label="UbicaciÃ³n" valor={row.ubicacion} />
                         <Dato label="Tipo" valor={row.tipoStand} />
                       </div>
 
@@ -640,7 +642,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    <span>Subsanar observaciÃ³n</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -649,19 +651,25 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     <span>Esperando contrato corregido</span>
                                   </Button>
                                 )}
+                                {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
+                                    (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
                                     {reenviandoObservacion
                                       ? "Reenviando..."
-                                      : a.anexosPendientes > 0
-                                        ? `Falta subir ${a.anexosPendientes}`
-                                        : a.faltaFirmaContrato
-                                          ? "Falta firmar contrato"
-                                          : "Reenviar a revision"}
+                                      : enVentanaDocumentosSgc(row)
+                                        ? esperandoContratoCorregidoSgc(row)
+                                          ? "Esperando contrato corregido"
+                                          : "Reenviar al SGC"
+                                        : a.anexosPendientes > 0
+                                          ? `Falta subir ${a.anexosPendientes}`
+                                          : a.faltaFirmaContrato
+                                            ? "Falta firmar contrato"
+                                            : "Reenviar a revision"}
                                   </span>
                                 </Button>
                               </>
@@ -687,7 +695,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <TableHead className="hidden text-[10px] uppercase tracking-wide sm:table-cell">Docs</TableHead>
                       <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Fecha</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acción</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide">AcciÃ³n</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -774,7 +782,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     {a.tieneAnexosObservados
                                       ? <Upload className="h-3.5 w-3.5" />
                                       : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    <span>Subsanar observaciÃ³n</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -783,19 +791,25 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                     <span>Esperando contrato corregido</span>
                                   </Button>
                                 )}
+                                {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
+                                    (anexos corregidos + contrato si corresponde + /resend). */}
                                 <Button size="sm" variant="outline"
                                   className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato}
+                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
                                     {reenviandoObservacion
                                       ? "Reenviando..."
-                                      : a.anexosPendientes > 0
-                                        ? `Falta subir ${a.anexosPendientes}`
-                                        : a.faltaFirmaContrato
-                                          ? "Falta firmar contrato"
-                                          : "Reenviar a revision"}
+                                      : enVentanaDocumentosSgc(row)
+                                        ? esperandoContratoCorregidoSgc(row)
+                                          ? "Esperando contrato corregido"
+                                          : "Reenviar al SGC"
+                                        : a.anexosPendientes > 0
+                                          ? `Falta subir ${a.anexosPendientes}`
+                                          : a.faltaFirmaContrato
+                                            ? "Falta firmar contrato"
+                                            : "Reenviar a revision"}
                                   </span>
                                 </Button>
                               </>
@@ -812,7 +826,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {pagination.total} resultados — página {pagination.page} de {pagination.totalPages || 1}
+                  {pagination.total} resultados â€” pÃ¡gina {pagination.page} de {pagination.totalPages || 1}
                 </span>
                 <Pagination page={pagination.page} totalPages={pagination.totalPages} onPageChange={(p) => { setPage(p); load(p, search, perPage); }} />
               </div>
@@ -862,7 +876,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       if (!s.bloqueId || !s.planoId) { sinUbicacion.push(s.standCode); continue; }
                       const grupo = grupos.get(s.planoId) ?? {
                         planoId: s.planoId,
-                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "Pabellón",
+                        planoNombre: s.planoNombre ?? s.planoCodigo ?? "PabellÃ³n",
                         stands: [],
                         bloqueIds: [],
                       };
@@ -886,7 +900,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: g.bloqueIds, etiqueta: g.stands.join("-") })}
                               >
                                 <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                                <span>Ver ubicación</span>
+                                <span>Ver ubicaciÃ³n</span>
                               </Button>
                               <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                                 <Link href={`/mapa?bloque=${encodeURIComponent(g.bloqueIds[0]!)}`}>
@@ -899,7 +913,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         ))}
                         {sinUbicacion.length > 0 && (
                           <p className="text-[11px] text-muted-foreground">
-                            <span>Sin ubicación en el plano: {sinUbicacion.join(", ")}</span>
+                            <span>Sin ubicaciÃ³n en el plano: {sinUbicacion.join(", ")}</span>
                           </p>
                         )}
                       </div>
@@ -914,7 +928,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       onClick={() => setRecorteBloque({ solicitudId: detailRow.id, bloqueIds: [detailRow.bloqueId!], etiqueta: detailRow.standCode || detailRow.bloqueId! })}
                     >
                       <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                      <span>Ver ubicación en el plano</span>
+                      <span>Ver ubicaciÃ³n en el plano</span>
                     </Button>
                     <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" asChild>
                       <Link href={`/mapa?bloque=${encodeURIComponent(detailRow.bloqueId)}`}>
@@ -994,7 +1008,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
                                   <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
                                   <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1017,7 +1031,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1049,7 +1063,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} Â· ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
                                   <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
                                     <Eye className="h-3 w-3" />
                                   </a>
@@ -1095,7 +1109,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-info">Firma del contrato</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          El IIMP habilitó la firma de tu contrato. Firma digitalmente desde aquí; no se admite subir un contrato firmado manualmente.
+                          El IIMP habilitÃ³ la firma de tu contrato. Firma digitalmente desde aquÃ­; no se admite subir un contrato firmado manualmente.
                         </p>
                       </div>
                     </div>
@@ -1128,7 +1142,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div>
-                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal — SGC)</p>
+                        <p className="text-xs font-semibold text-primary">Adjuntar documentos (Legal â€” SGC)</p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           Antes de enviar el contrato y los documentos adjuntos al SGC, adjunta los documentos requeridos:
                           Ficha RUC, Vigencia de Poder y DNI o Pasaporte del Representante Legal.
@@ -1144,7 +1158,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
+              {/* SubsanaciÃ³n SGC: el cliente descarga el contrato vigente y sube el firmado */}
               {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
@@ -1153,7 +1167,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El SGC devolvió el trámite y debes corregir el contrato."}
+                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El SGC devolviÃ³ el trÃ¡mite y debes corregir el contrato."}
                         </p>
                         {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message) && (
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
@@ -1161,13 +1175,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               .filter((o) => o.status !== "resolved" && o.message)
                               .map((o, i) => (
                                 <li key={o.observationId ?? `obs-sgc-${i}`}>
-                                  • {o.nombre ?? o.title ?? "Documento"}: {o.message}
+                                  â€¢ {o.nombre ?? o.title ?? "Documento"}: {o.message}
                                 </li>
                               ))}
                           </ul>
                         )}
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
+                          Descarga la versiÃ³n vigente del contrato, fÃ­rmala y sÃºbela para que la administraciÃ³n lo reenvÃ­e al SGC.
                         </p>
                       </div>
                     </div>
@@ -1200,7 +1214,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {/* El admin declaró un contrato nuevo: el cliente espera a que lo adjunte */}
+              {/* El admin declarÃ³ un contrato nuevo: el cliente espera a que lo adjunte */}
               {detailRow && esperandoContratoCorregidoSgc(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Accion requerida">
                   <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
@@ -1208,8 +1222,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div>
                       <p className="text-xs font-semibold text-warning">Esperando contrato corregido</p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
-                        La administración del IIMP está preparando una nueva versión del contrato.
-                        Cuando esté disponible podrás descargarla, firmarla y subirla.
+                        La administraciÃ³n del IIMP estÃ¡ preparando una nueva versiÃ³n del contrato.
+                        Cuando estÃ© disponible podrÃ¡s descargarla, firmarla y subirla.
                       </p>
                       {detailRow.sgcSubsanacionMotivo && (
                         <p className="mt-1 text-[11px] italic text-muted-foreground">&quot;{detailRow.sgcSubsanacionMotivo}&quot;</p>
@@ -1319,7 +1333,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-warning/40 bg-warning/5 p-5 transition-colors hover:border-warning/60 hover:bg-warning/10">
                     <Upload className="h-6 w-6 text-warning" />
                     <span className="text-xs font-medium text-warning">Arrastra un archivo o haz click aqui</span>
-                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG — max 10 MB</span>
+                    <span className="text-[10px] text-warning">PDF, DOC, DOCX, JPG, PNG â€” max 10 MB</span>
                     <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -1436,7 +1450,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">‹</span>
+              <span className="text-lg">â€¹</span>
             </button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <button
@@ -1444,7 +1458,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">›</span>
+              <span className="text-lg">â€º</span>
             </button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>
@@ -1457,11 +1471,11 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
           <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>
-                <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
+                <span>{recorteBloque.bloqueIds.length > 1 ? `UbicaciÃ³n de los stands ${recorteBloque.etiqueta}` : `UbicaciÃ³n del stand ${recorteBloque.etiqueta}`}</span>
               </DialogTitle>
             </DialogHeader>
             <p className="text-xs text-muted-foreground">
-              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
+              Tu stand estÃ¡ resaltado en el pabellÃ³n para que ubiques su posiciÃ³n respecto de los demÃ¡s stands.
             </p>
             <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
             <DialogFooter>

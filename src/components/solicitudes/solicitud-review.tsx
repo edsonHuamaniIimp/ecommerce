@@ -632,7 +632,7 @@ export function SolicitudReview({
                   <span className="text-[11px] text-muted-foreground">{grupos.length} documento(s) {"\u00b7"} {unique.length} archivo(s)</span>
                 </div>
               </div>
-              {(isAdmin || canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO) || canReviewArea(userPermissions, REVISION_AREAS.LEGAL)) &&
+              {(isAdmin || canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO)) &&
                 (contratoAdminObservado || contratoFirmadoObservadoPendiente) && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <p className="text-[11px] text-foreground">

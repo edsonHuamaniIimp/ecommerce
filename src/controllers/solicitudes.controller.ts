@@ -550,11 +550,10 @@ export const solicitudesController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
 
-    const puedeHabilitar =
-      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
-      session.permissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD) ||
-      session.permissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
-      session.permissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL);
+  const puedeHabilitar =
+    session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+    session.permissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD) ||
+    session.permissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
     if (!puedeHabilitar) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para habilitar el contrato", 403);
     }

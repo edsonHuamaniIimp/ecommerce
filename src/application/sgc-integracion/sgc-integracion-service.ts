@@ -555,6 +555,11 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return null;
 
+    /* Devolucion del SGC: primero se versionan los anexos corregidos (el SGC exige que la
+     * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
+     * cuando el lifecycle es rejected/observed). */
+    await this.subirAnexosDeSolicitud(solicitudId);
+
     /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
     const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (d) =>
       this.documentoVigente(d) && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
