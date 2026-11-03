@@ -202,7 +202,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
         <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
           <span className="text-foreground">
-            <strong>Solicitud de factura pendiente:</strong> aún no registraste la reserva en el IIMP.
+            <strong>Solicitud de factura pendiente:</strong> aún no enviaste tu solicitud de factura.
             {cuotaSugerida ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.` : ""}
           </span>
         </div>
@@ -308,7 +308,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top"><span>Registrar reserva en el IIMP</span></TooltipContent>
+                    <TooltipContent side="top"><span>Solicitar factura</span></TooltipContent>
                   </Tooltip>
                 ) : null}
                 {cuota.documentoSie && (
@@ -426,7 +426,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       {soloLectura && (
         <p className="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
           <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar documentos ni registrar reservas.</span>
+          <span>Vista de solo lectura: no puedes modificar cuotas, adjuntar documentos ni enviar solicitudes de factura.</span>
         </p>
       )}
       <div className="flex items-center justify-end gap-1">
@@ -526,7 +526,6 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                   {row.iimpContrato && (
                     <p className="text-[11px] text-muted-foreground">
                       Contrato IIMP: <span className="font-mono">{row.iimpContrato}</span>
-                      {row.iimpCuentaCorriente ? <> · Cta. cte. <span className="font-mono">{row.iimpCuentaCorriente}</span></> : null}
                     </p>
                   )}
                 </div>

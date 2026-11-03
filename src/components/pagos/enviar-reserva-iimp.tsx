@@ -91,14 +91,14 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
       const doc = resultado.documento;
       toast.success(
         doc
-          ? `Reserva registrada en el IIMP (contrato ${resultado.contrato}). Comprobante ${doc.serie}-${doc.numero} emitido.`
-          : `Reserva registrada en el IIMP (contrato ${resultado.contrato}). El IIMP emitirá la factura de cada cuota en su fecha.`,
+          ? `Solicitud de factura enviada. Comprobante ${doc.serie}-${doc.numero} emitido.`
+          : "Solicitud de factura enviada. La factura de cada cuota se emitirá en su fecha.",
       );
       toast.info("Facturación y Cobranzas te enviará un correo con las indicaciones de pago.");
       cerrar(false);
       onEnviado();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo registrar la reserva en el IIMP");
+      toast.error(err instanceof Error ? err.message : "No se pudo enviar la solicitud de factura");
     } finally {
       setEnviando(false);
     }
@@ -210,7 +210,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                 </p>
               ) : (
                 <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                  No declaraste documentos pendientes: puedes enviar la reserva directamente.
+                  No declaraste documentos pendientes: puedes enviar tu solicitud de factura directamente.
                 </p>
               )}
 
@@ -246,8 +246,8 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
               <p className="text-[11px] text-muted-foreground">
                 <span>
-                  Al confirmar, el IIMP reservará los stands y creará el contrato y la cuenta corriente; la
-                  factura de cada cuota se emite en su fecha al contacto de pagos.
+                  Al confirmar, se enviará tu solicitud de factura. La factura de cada cuota se
+                  emitirá en su fecha al contacto de pagos.
                 </span>
               </p>
             </div>
@@ -267,7 +267,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
               </Button>
               <Button className="flex-1" disabled={enviando} onClick={() => { void enviar(); }}>
                 {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-                <span>{enviando ? "Registrando reserva..." : "Enviar reserva al IIMP"}</span>
+                <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
               </Button>
             </div>
           )}
