@@ -12,6 +12,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
@@ -239,6 +240,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const observacionesSgc = (solicitud.sgcObservaciones ?? []).filter(
     (o) => o.status !== "resolved" && o.message.trim().length > 0,
   );
+  const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
   const observacionContratoSgc = observacionesSgc.find(
     (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === "contract",
   ) ?? null;
@@ -374,22 +376,34 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </div>
         )}
         {esContrato && observacionContratoSgc && (
-          <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observación del área legal</p>
-            <p className="mt-0.5 text-[11px] text-foreground">{observacionContratoSgc.message}</p>
+          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
+              {observacionesSgcCorregidas ? "Corrección registrada" : "Observación del área legal"}
+            </p>
+            <p className="mt-0.5 text-[11px] text-foreground">
+              {observacionesSgcCorregidas
+                ? "Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide."
+                : observacionContratoSgc.message}
+            </p>
           </div>
         )}
         {!esContrato && observacionesSgc.length > 0 && (
-          <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive">Observaciones del área legal</p>
-            <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
-              {observacionesSgc.map((o, i) => (
-                <li key={o.observationId ?? `obs-sgc-${i}`}>
-                  • {o.title ?? o.nombre ?? "Documento"}
-                  {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
-                </li>
-              ))}
-            </ul>
+          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
+              {observacionesSgcCorregidas ? "Corrección registrada" : "Observaciones del área legal"}
+            </p>
+            {observacionesSgcCorregidas ? (
+              <p className="mt-0.5 text-[11px] text-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
+            ) : (
+              <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
+                {observacionesSgc.map((o, i) => (
+                  <li key={o.observationId ?? `obs-sgc-${i}`}>
+                    • {o.title ?? o.nombre ?? "Documento"}
+                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
         {esContrato && contratoAdmin && (
@@ -534,16 +548,21 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             </div>
             <div className="space-y-1">
               {ANEXOS_REQUERIDOS.map((a) => {
-                const existente = anexos.find(d => d.requisito === a.key && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
+                const existente = anexos
+                  .filter(d => d.requisito === a.key && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO))
+                  .sort((x, y) => (dateUtils.toMs(y.createdAt) ?? 0) - (dateUtils.toMs(x.createdAt) ?? 0))[0];
                 const observado = anexos.find(d => d.requisito === a.key && d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
                 const observacionSgc = observacionesSgc.find(o => o.requisito === a.key) ?? null;
+                const observacionCorregida = Boolean(
+                  observacionSgc && existente && dateUtils.isAfter(existente.createdAt, observacionSgc.createdAt),
+                );
                 const motivoPropio = observado?.motivoObservacion?.trim() && observado.motivoObservacion.trim() !== motivoGeneral
                   ? observado.motivoObservacion.trim()
                   : null;
                 const idxPendiente = pendientes.findIndex(p => p.requisito === a.key);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
-                  <div key={a.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${(!existente && observado) || observacionSgc ? "border-warning/50 bg-warning/5" : "border-border/70 bg-background"}`}>
+                  <div key={a.key} className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${(!existente && observado) || (observacionSgc && !observacionCorregida) ? "border-warning/50 bg-warning/5" : "border-border/70 bg-background"}`}>
                     {existente
                       ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -558,9 +577,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         </span>
                       )}
                       {observacionSgc && (
-                        <span className="block text-[10px] text-destructive">Área legal: {observacionSgc.message}</span>
+                        observacionCorregida
+                          ? <span className="block text-[10px] text-emerald-600">Corregido — pendiente de validación del área legal</span>
+                          : <span className="block text-[10px] text-destructive">Área legal: {observacionSgc.message}</span>
                       )}
-                      
                     </span>
                     {pendiente ? (
                       <span className="flex shrink-0 items-center gap-2">
@@ -577,7 +597,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         {existente && (
                           <a href={existente.url} target="_blank" className="text-primary hover:underline">Ver</a>
                         )}
-                        {(!existente || observacionSgc || observado) && (
+                        {(!existente || (observacionSgc && !observacionCorregida) || observado) && (
                           <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                             disabled={uploading} onClick={() => abrirSelector(a.key)}>
                             {existente || observado ? "Reemplazar" : "Adjuntar"}

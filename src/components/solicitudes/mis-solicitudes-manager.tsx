@@ -561,14 +561,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
                         const obsSgc = sgcObservacionesAbiertas(row);
+                        const obsSgcCorregidas = obsSgc.length > 0 && observacionesSgcSubsanadas(row);
                         return (
                           <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
                             <p>
                               <span className="font-semibold">Acción requerida: </span>
                               {obsSgc.length > 0
-                                ? obsSgc.length === 1
-                                  ? "El area legal observo un documento. Corrigelo y solicita una nueva revision."
-                                  : `El area legal observo ${obsSgc.length} documentos. Corrigelos y solicita una nueva revision.`
+                                ? obsSgcCorregidas
+                                  ? "La corrección fue registrada. Solicita una nueva revisión."
+                                  : obsSgc.length === 1
+                                    ? "El área legal observó un documento. Corrígelo y solicita una nueva revisión."
+                                    : `El área legal observó ${obsSgc.length} documentos. Corrígelos y solicita una nueva revisión.`
                                 : a.tieneAnexosObservados
                                   ? "El area revisora observo documentos. Sube las nuevas versiones y reenvia."
                                   : a.esperandoContratoCorregidoFirmado
@@ -581,7 +584,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                           ? "La observacion fue subsanada. Puedes reenviar tu solicitud."
                                           : "El area revisora observo documentos. Sube las nuevas versiones y reenvia."}
                             </p>
-                            {obsSgc.length > 0 && (
+                            {obsSgc.length > 0 && !obsSgcCorregidas && (
                               <ul className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
                                 {obsSgc.map((o, i) => (
                                   <li key={o.observationId ?? `obs-sgc-${i}`}>
@@ -630,14 +633,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcContrato(row)) && (
+                          {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <Upload className="h-3.5 w-3.5" />
                               <span>Corregir: subir contrato firmado</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcAnexos(row)) && (
+                          {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "anexos"); }}>
                               <Upload className="h-3.5 w-3.5" />
@@ -770,14 +773,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcContrato(row)) && (
+                            {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Corregir: subir contrato firmado</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || tieneObservacionSgcAnexos(row)) && (
+                            {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
                                 <Upload className="h-3.5 w-3.5" />
@@ -1180,25 +1183,31 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
-              {/* Observaciones de anexos del area legal (SGC) por documento */}
+                            {/* Observaciones de anexos del área legal (SGC) por documento */}
               {!soloLectura && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
                 <ModalSection title="Acción requerida">
-                  <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                  <div className={`flex flex-col gap-3 rounded-lg border p-3 ${observacionesSgcSubsanadas(detailRow) ? "border-success/30 bg-success/10" : "border-warning/30 bg-warning/10"}`}>
                     <div className="flex items-start gap-3">
-                      <Upload className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                      <Upload className={`mt-0.5 h-4 w-4 shrink-0 ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`} />
                       <div>
-                        <p className="text-xs font-semibold text-warning">El area legal observo documentos</p>
-                        <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {sgcObservacionesAbiertas(detailRow).filter(esObservacionSgcAnexo).map((o, i) => (
-                            <li key={o.observationId ?? `obs-sgc-anexo-${i}`}>
-                              <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
-                              {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
-                            </li>
-                          ))}
-                        </ul>
+                        <p className={`text-xs font-semibold ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`}>
+                          {observacionesSgcSubsanadas(detailRow) ? "Corrección registrada" : "El área legal observó documentos"}
+                        </p>
+                        {observacionesSgcSubsanadas(detailRow) ? (
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
+                        ) : (
+                          <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                            {sgcObservacionesAbiertas(detailRow).filter(esObservacionSgcAnexo).map((o, i) => (
+                              <li key={o.observationId ?? `obs-sgc-anexo-${i}`}>
+                                <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
+                                {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </div>
-                    {enVentanaDocumentosSgc(detailRow) && (
+                    {!observacionesSgcSubsanadas(detailRow) && enVentanaDocumentosSgc(detailRow) && (
                       <Button size="sm" className="w-full gap-1.5 sm:w-auto"
                         onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
                         <Upload className="h-3.5 w-3.5" />
@@ -1209,7 +1218,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || tieneObservacionSgcContrato(detailRow)) && (
+              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || (tieneObservacionSgcContrato(detailRow) && !observacionesSgcSubsanadas(detailRow))) && (
                 <ModalSection title="Acción requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1217,7 +1226,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div>
                         <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El area legal observo el contrato. Corrigelo y firmalo de nuevo."}
+                          {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El área legal observó el contrato. Corrígelo y fírmalo de nuevo."}
                         </p>
                         {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message && esObservacionSgcContrato(o)) && (
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
