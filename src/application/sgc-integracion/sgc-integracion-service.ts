@@ -34,6 +34,7 @@ import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
+import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -269,6 +270,30 @@ export class SgcIntegracionApplicationService {
       if (!preservar && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
         await habilitarOrdenPagoAutomatica(this.solicitudRepo, solicitudId);
       }
+      /* Devolucion/rechazo detectado por sync (webhook perdido): notifica al cliente una vez
+       * por transicion (o por motivo nuevo en una ronda posterior). */
+      const esDevolucion =
+        detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+      const estabaDevuelto =
+        expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+      const motivoNuevo = observaciones?.[0]?.message ?? null;
+      if (
+        !preservar &&
+        esDevolucion &&
+        (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))
+      ) {
+        const documentos = (observaciones ?? [])
+          .map((o) => o.title?.trim() || o.message.slice(0, 120))
+          .filter((t) => t.length > 0);
+        await notificarDevolucionSgc(
+          this.solicitudRepo,
+          solicitudId,
+          motivoNuevo ?? expediente.devolucionMotivo ?? null,
+          documentos,
+        );
+      }
       return preservar ? { ...detalle, lifecycleStatus: expediente.lifecycleStatus } : detalle;
     } catch {
       // Lectura best-effort: si el SGC no responde, el panel muestra el estado local.
@@ -315,6 +340,29 @@ export class SgcIntegracionApplicationService {
         /* Cron (polling): aprobado sin webhook -> habilita la orden de pago (idempotente). */
         if (!expediente.bypassAprobado && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
           await habilitarOrdenPagoAutomatica(this.solicitudRepo, expediente.solicitudId);
+        }
+        /* Devolucion detectada por polling (webhook perdido): notifica una vez por transicion. */
+        const esDevolucion =
+          detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+          detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+        const estabaDevuelto =
+          expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+          expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+        const motivoNuevo = observaciones?.[0]?.message ?? null;
+        if (
+          !expediente.bypassAprobado &&
+          esDevolucion &&
+          (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))
+        ) {
+          const documentos = (observaciones ?? [])
+            .map((o) => o.title?.trim() || o.message.slice(0, 120))
+            .filter((t) => t.length > 0);
+          await notificarDevolucionSgc(
+            this.solicitudRepo,
+            expediente.solicitudId,
+            motivoNuevo ?? expediente.devolucionMotivo ?? null,
+            documentos,
+          );
         }
         sincronizados += 1;
       } catch (err) {

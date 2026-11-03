@@ -215,6 +215,44 @@ describe("SgcWebhookApplicationService.procesar", () => {
       expect.objectContaining({ to: "cliente@minera.pe", plantilla: "revision-resultado", idioma: "en" }),
     );
   });
+  it("deberia notificar al cliente cuando el SGC devuelve el tramite con observaciones", async () => {
+    vi.mocked(enviarEmailPlantilla).mockClear();
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({
+        id: "sol-1",
+        standCode: "BLOQUE-01",
+        email: "cliente@minera.pe",
+        userId: "user-1",
+      }),
+      crearAlertaReserva: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_RETURNED,
+        data: {
+          requiresDocumentChange: true,
+          reason: "Adjuntar Vigencia de Poder actualizada.",
+          observations: [
+            {
+              documentId: "doc-9",
+              category: "annex",
+              title: "Vigencia de Poder",
+              message: "Adjuntar vigencia actualizada (maximo 3 meses).",
+              severity: "blocking",
+              status: "open",
+            },
+          ],
+        },
+      }),
+    );
+    expect(vi.mocked(solicitudes.crearAlertaReserva)).toHaveBeenCalled();
+    expect(vi.mocked(enviarEmailPlantilla)).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "cliente@minera.pe", plantilla: "documentos-observados" }),
+    );
+  });
   it("deberia generar la orden de pago automaticamente cuando el SGC aprueba (activo)", async () => {
     const repo = webhookRepoMock();
     const sgcRepo = sgcRepoMock();

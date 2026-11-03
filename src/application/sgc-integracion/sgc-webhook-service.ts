@@ -9,6 +9,7 @@ import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-int
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
+import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 
@@ -130,9 +131,28 @@ export class SgcWebhookApplicationService {
     /* Notificacion automatica al cliente: la primera vez que el SGC aprueba (Vigente). */
     /* Aprobado (Vigente o cerrado): la solicitud pasa a pendiente_pago con su orden (idempotente). */
     const aprobadoAhora = esAprobadoSgc(cambios.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus);
+    const estadoPrevioDevuelto =
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
 
     await this.sgcRepo.actualizarExpediente(expediente.id, cambios);
     if (aprobadoAhora) await this.notificarAprobacion(expediente.solicitudId);
+    /* Devolucion/rechazo con cambio documental: alerta + correo al cliente (paridad con la
+     * observacion del Asociado). Idempotente por transicion (o motivo nuevo en otra ronda). */
+    const esDevolucion =
+      cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+      cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+    const motivoNuevo = cambios.devolucionMotivo ?? null;
+    const notificarDevolucion =
+      esDevolucion &&
+      cambios.devolucionRequiereCambio !== false &&
+      (!estadoPrevioDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo));
+    if (notificarDevolucion && this.solicitudes) {
+      const documentos = (cambios.observaciones ?? [])
+        .map((o) => o.title?.trim() || o.message.slice(0, 120))
+        .filter((t) => t.length > 0);
+      await notificarDevolucionSgc(this.solicitudes, expediente.solicitudId, motivoNuevo, documentos);
+    }
     /* Aprobado el contrato (Vigente), la orden de facturacion se genera sola. */
     if (aprobadoAhora && this.solicitudes) {
       await habilitarOrdenPagoAutomatica(this.solicitudes, expediente.solicitudId);
