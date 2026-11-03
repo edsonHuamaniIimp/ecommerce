@@ -743,6 +743,22 @@ export const ESTADOS_FACTURACION = {
 } as const;
 export type EstadoFacturacion = (typeof ESTADOS_FACTURACION)[keyof typeof ESTADOS_FACTURACION];
 
+/**
+ * Filtros por requerimiento de facturacion (bandeja de Facturacion):
+ * - sin_solicitud: la solicitud aun no se registro en el IIMP (falta enviar la solicitud de factura).
+ * - con_factura: al menos una cuota tiene documento notificado/emitido.
+ * - sin_factura: ninguna cuota tiene documento.
+ * - anulada: la factura de alguna cuota fue anulada o rechazada.
+ */
+export const REQUERIMIENTOS_FACTURACION = {
+  SIN_SOLICITUD: "sin_solicitud",
+  CON_FACTURA: "con_factura",
+  SIN_FACTURA: "sin_factura",
+  ANULADA: "anulada",
+} as const;
+export type RequerimientoFacturacion = (typeof REQUERIMIENTOS_FACTURACION)[keyof typeof REQUERIMIENTOS_FACTURACION];
+
+
 export const ESTADOS_CUOTA = {
   PENDIENTE: "pendiente",
   PAGADO: "pagado",

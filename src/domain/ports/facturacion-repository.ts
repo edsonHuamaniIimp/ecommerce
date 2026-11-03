@@ -77,6 +77,8 @@ export interface FacturacionListParams {
   search?: string;
   /** Filtro por tipo de pago (TIPOS_FACTURACION). */
   tipo?: string;
+  /** Filtro por requerimiento de facturacion (REQUERIMIENTOS_FACTURACION). */
+  requerimiento?: string;
 }
 
 export interface FacturacionListResult {

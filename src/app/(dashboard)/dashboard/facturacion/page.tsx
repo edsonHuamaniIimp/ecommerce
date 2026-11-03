@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -11,7 +11,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { DocumentoPreviewDialog } from "@/components/shared/documento-preview-dialog";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, REQUERIMIENTOS_FACTURACION, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -250,8 +250,16 @@ export default function FacturacionPage() {
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<string | null>(null);
   const [tipo, setTipo] = useState<string | null>(null);
-  // Indicadores por estado (patron de otras bandejas: un listar por estado).
-  const [stats, setStats] = useState<{ total: number; pendiente: number; pagado: number; archivado: number; cancelado: number } | null>(null);
+  const [requerimiento, setRequerimiento] = useState<string | null>(null);
+  // Indicadores por estado y por requerimiento (patron de otras bandejas).
+  const [stats, setStats] = useState<{
+    total: number;
+    pendiente: number;
+    pagado: number;
+    sinSolicitud: number;
+    conFactura: number;
+    anulada: number;
+  } | null>(null);
 
   const load = useCallback(async (p = 1) => {
     setLoading(true);
@@ -261,19 +269,21 @@ export default function FacturacionPage() {
       if (estado) qs.set("estado", estado);
       if (search.trim()) qs.set("search", search.trim());
       if (tipo) qs.set("tipo", tipo);
+      if (requerimiento) qs.set("requerimiento", requerimiento);
       const data = await internalApi.get<{ data: FacturacionItem[]; total: number }>(`/api/facturacion/listar?${qs.toString()}`);
       setRows(data.data ?? []);
       setTotal(data.total ?? 0);
       setPage(p);
     } catch { }
     setLoading(false);
-  }, [eventoId, estado, search, tipo]);
+  }, [eventoId, estado, search, tipo, requerimiento]);
 
-  /** Indicadores: cuenta total y por estado (patron de otras bandejas). */
+  /** Indicadores: cuenta total, por estado y por requerimiento de facturacion. */
   const loadStats = useCallback(async (ev: string) => {
-    const contador = async (filtro?: string) => {
+    const contador = async (filtros?: { estado?: string; requerimiento?: string }) => {
       const qs = new URLSearchParams({ page: "1", per_page: "1", eventoId: ev });
-      if (filtro) qs.set("estado", filtro);
+      if (filtros?.estado) qs.set("estado", filtros.estado);
+      if (filtros?.requerimiento) qs.set("requerimiento", filtros.requerimiento);
       try {
         const data = await internalApi.get<{ total: number }>(`/api/facturacion/listar?${qs.toString()}`);
         return data.total ?? 0;
@@ -281,14 +291,15 @@ export default function FacturacionPage() {
         return 0;
       }
     };
-    const [total, pendiente, pagado, archivado, cancelado] = await Promise.all([
+    const [total, pendiente, pagado, sinSolicitud, conFactura, anulada] = await Promise.all([
       contador(),
-      contador(ESTADOS_FACTURACION.PENDIENTE),
-      contador(ESTADOS_FACTURACION.PAGADO),
-      contador(ESTADOS_FACTURACION.ARCHIVADO),
-      contador(ESTADOS_FACTURACION.CANCELADO),
+      contador({ estado: ESTADOS_FACTURACION.PENDIENTE }),
+      contador({ estado: ESTADOS_FACTURACION.PAGADO }),
+      contador({ requerimiento: REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD }),
+      contador({ requerimiento: REQUERIMIENTOS_FACTURACION.CON_FACTURA }),
+      contador({ requerimiento: REQUERIMIENTOS_FACTURACION.ANULADA }),
     ]);
-    setStats({ total, pendiente, pagado, archivado, cancelado });
+    setStats({ total, pendiente, pagado, sinSolicitud, conFactura, anulada });
   }, []);
 
   useEffect(() => {
@@ -409,42 +420,64 @@ export default function FacturacionPage() {
 
   return (
     <main className="flex-1 py-6">
-      {/* Indicadores: clic para filtrar por estado */}
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {/* Indicadores: clic para filtrar por estado o requerimiento de facturacion */}
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatsCard
           title="Total"
           value={stats?.total ?? 0}
           icon={<CreditCard className="h-4 w-4" />}
-          onClick={() => setEstado(null)}
-          active={estado === null}
+          onClick={() => { setEstado(null); setRequerimiento(null); }}
+          active={estado === null && requerimiento === null}
         />
         <StatsCard
-          title="Pendientes"
+          title="Sin solicitud de factura"
+          value={stats?.sinSolicitud ?? 0}
+          icon={<FileText className="h-4 w-4" />}
+          onClick={() => {
+            setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD ? null : REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD));
+            setEstado(null);
+          }}
+          active={requerimiento === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD}
+        />
+        <StatsCard
+          title="Facturas generadas"
+          value={stats?.conFactura ?? 0}
+          icon={<Receipt className="h-4 w-4" />}
+          onClick={() => {
+            setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.CON_FACTURA ? null : REQUERIMIENTOS_FACTURACION.CON_FACTURA));
+            setEstado(null);
+          }}
+          active={requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA}
+        />
+        <StatsCard
+          title="Pendientes de pago"
           value={stats?.pendiente ?? 0}
           icon={<Clock className="h-4 w-4" />}
-          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.PENDIENTE ? null : ESTADOS_FACTURACION.PENDIENTE))}
+          onClick={() => {
+            setEstado((prev) => (prev === ESTADOS_FACTURACION.PENDIENTE ? null : ESTADOS_FACTURACION.PENDIENTE));
+            setRequerimiento(null);
+          }}
           active={estado === ESTADOS_FACTURACION.PENDIENTE}
         />
         <StatsCard
           title="Pagadas"
           value={stats?.pagado ?? 0}
           icon={<CheckCircle2 className="h-4 w-4" />}
-          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.PAGADO ? null : ESTADOS_FACTURACION.PAGADO))}
+          onClick={() => {
+            setEstado((prev) => (prev === ESTADOS_FACTURACION.PAGADO ? null : ESTADOS_FACTURACION.PAGADO));
+            setRequerimiento(null);
+          }}
           active={estado === ESTADOS_FACTURACION.PAGADO}
         />
         <StatsCard
-          title="Archivadas"
-          value={stats?.archivado ?? 0}
-          icon={<Archive className="h-4 w-4" />}
-          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.ARCHIVADO ? null : ESTADOS_FACTURACION.ARCHIVADO))}
-          active={estado === ESTADOS_FACTURACION.ARCHIVADO}
-        />
-        <StatsCard
-          title="Canceladas"
-          value={stats?.cancelado ?? 0}
+          title="Facturas anuladas"
+          value={stats?.anulada ?? 0}
           icon={<XCircle className="h-4 w-4" />}
-          onClick={() => setEstado((prev) => (prev === ESTADOS_FACTURACION.CANCELADO ? null : ESTADOS_FACTURACION.CANCELADO))}
-          active={estado === ESTADOS_FACTURACION.CANCELADO}
+          onClick={() => {
+            setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.ANULADA ? null : REQUERIMIENTOS_FACTURACION.ANULADA));
+            setEstado(null);
+          }}
+          active={requerimiento === REQUERIMIENTOS_FACTURACION.ANULADA}
         />
       </div>
 
@@ -457,6 +490,10 @@ export default function FacturacionPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
+            <span>El comprobante de pago adjuntado por el cliente es <strong>referencial</strong>: Facturación y Cobranzas valida los pagos por los canales formales.</span>
+          </div>
           {/* Filtros de la bandeja */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
@@ -468,6 +505,16 @@ export default function FacturacionPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            <Select value={requerimiento ?? "todos"} onValueChange={(v) => setRequerimiento(v === "todos" ? null : v)}>
+              <SelectTrigger className="h-9 w-48 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos"><span>Todos los requerimientos</span></SelectItem>
+                <SelectItem value={REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD}><span>Sin solicitud de factura</span></SelectItem>
+                <SelectItem value={REQUERIMIENTOS_FACTURACION.CON_FACTURA}><span>Con factura generada</span></SelectItem>
+                <SelectItem value={REQUERIMIENTOS_FACTURACION.SIN_FACTURA}><span>Sin factura</span></SelectItem>
+                <SelectItem value={REQUERIMIENTOS_FACTURACION.ANULADA}><span>Factura anulada</span></SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={tipo ?? "todos"} onValueChange={(v) => setTipo(v === "todos" ? null : v)}>
               <SelectTrigger className="h-9 w-40 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -476,8 +523,8 @@ export default function FacturacionPage() {
                 <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
               </SelectContent>
             </Select>
-            {(search || estado || tipo) && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setEstado(null); setTipo(null); }}>
+            {(search || estado || tipo || requerimiento) && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setEstado(null); setTipo(null); setRequerimiento(null); }}>
                 <X className="h-3.5 w-3.5" />
                 <span>Limpiar</span>
               </Button>

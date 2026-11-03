@@ -512,8 +512,8 @@ describe("FacturacionApplicationService.listar con filtros", () => {
     const repo = mockRepo();
     repo.listar = vi.fn().mockResolvedValue({ data: [], total: 0 });
 
-    await crearSvc(repo).listar({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual" });
+    await crearSvc(repo).listar({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual", requerimiento: "sin_solicitud" });
 
-    expect(repo.listar).toHaveBeenCalledWith({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual" });
+    expect(repo.listar).toHaveBeenCalledWith({ page: 1, perPage: 10, eventoId: "e1", estado: "pendiente", search: "136", tipo: "manual", requerimiento: "sin_solicitud" });
   });
 });

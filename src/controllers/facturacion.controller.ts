@@ -19,7 +19,8 @@ export const facturacionController = {
     const estado = searchParams.get("estado") ?? undefined;
     const search = searchParams.get("search") ?? undefined;
     const tipo = searchParams.get("tipo") ?? undefined;
-    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo }));
+    const requerimiento = searchParams.get("requerimiento") ?? undefined;
+    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo, requerimiento }));
   },
 
   async detalle(request: Request): Promise<NextResponse> {

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
-import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_SOLICITUD, REQUERIMIENTOS_FACTURACION } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type {
   IFacturacionRepository,
@@ -126,6 +126,21 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     if (params.estado) where.estado = params.estado;
     if (params.tipo) where.tipo = params.tipo;
 
+    /* Requerimiento de facturacion: estado de la solicitud y documentos de las cuotas. */
+    if (params.requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA) {
+      where.cuotas = { some: { comprobanteFiscal: { not: null } } };
+    } else if (params.requerimiento === REQUERIMIENTOS_FACTURACION.SIN_FACTURA) {
+      where.cuotas = { none: { comprobanteFiscal: { not: null } } };
+    } else if (params.requerimiento === REQUERIMIENTOS_FACTURACION.ANULADA) {
+      where.cuotas = {
+        some: {
+          comprobanteFiscal: null,
+          comprobanteFiscalAt: { not: null },
+          comprobanteFiscalBy: AUTORES_SISTEMA.IIMP,
+        },
+      };
+    }
+
     const condicionesSolicitud: Record<string, unknown>[] = [];
     if (params.eventoId) {
       condicionesSolicitud.push({
@@ -134,6 +149,10 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
           { stands: { some: { gessStand: { eventoId: params.eventoId } } } },
         ],
       });
+    }
+    /* Sin solicitud de factura: la reserva aun no se registro en el IIMP. */
+    if (params.requerimiento === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD) {
+      condicionesSolicitud.push({ iimpContrato: null });
     }
     const busqueda = params.search?.trim();
     if (busqueda) {
