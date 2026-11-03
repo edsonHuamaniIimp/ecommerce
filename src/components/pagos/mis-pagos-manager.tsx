@@ -135,7 +135,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       const otros = objetivo.cuotas.reduce((s, c) => s + (c.id === dialog.cuotaId ? 0 : c.monto), 0);
       const maximo = objetivo.montoTotal - otros;
       if (valor > maximo + 0.001) {
-        toast.error(`La suma de las cuotas supera el total. Maximo permitido: ${numberUtils.monto(Number(maximo.toFixed(2)), objetivo.moneda)}`);
+        toast.error(`La suma de las cuotas supera el total. Maximo permitido: ${numberUtils.monto(Number(maximo.toFixed(2)), objetivo.moneda, { decimales: 2 })}`);
         return;
       }
     }
@@ -221,7 +221,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">
                 {cuota.numero}
               </span>
-              <span className="font-semibold text-foreground">{numberUtils.monto(cuota.monto, row.moneda)}</span>
+                <span className="font-semibold text-foreground">{numberUtils.monto(cuota.monto, row.moneda, { decimales: 2 })}</span>
               <span className="text-muted-foreground">
                 Fecha de emisión: {dateUtils.format(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision ?? cuota.fechaVencimiento)}
               </span>
@@ -374,7 +374,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
         restante > 0 ? (
           <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => abrirCrear(row)}>
             <Plus className="h-3.5 w-3.5" />
-            <span>Agregar cuota (resta {numberUtils.monto(Number(restante.toFixed(2)), row.moneda)})</span>
+            <span>Agregar cuota (resta {numberUtils.monto(Number(restante.toFixed(2)), row.moneda, { decimales: 2 })})</span>
           </Button>
         ) : (
           <p className="text-[11px] font-medium text-success">
@@ -497,7 +497,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       <TableCell className="hidden text-xs text-muted-foreground sm:table-cell">
                         {row.tipo === "manual" ? "Manual" : "Pasarela"} · {row.modoPago === "completo" ? "Completo" : "Cuotas"}
                       </TableCell>
-                      <TableCell className="text-right text-xs font-bold">{numberUtils.monto(row.montoTotal, row.moneda)}</TableCell>
+                      <TableCell className="text-right text-xs font-bold">{numberUtils.monto(row.montoTotal, row.moneda, { decimales: 2 })}</TableCell>
                       <TableCell>
                         <Badge className={`pointer-events-none ${claseBadge(row.estado)}`}>
                           <span>{ESTADO_FACTURACION_LABELS[row.estado] ?? row.estado}</span>
@@ -537,7 +537,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-foreground">{numberUtils.monto(row.montoTotal, row.moneda)}</span>
+                <span className="text-sm font-bold text-foreground">{numberUtils.monto(row.montoTotal, row.moneda, { decimales: 2 })}</span>
                 <Badge className={`pointer-events-none ${claseBadge(row.estado)}`}>
                   <span>{ESTADO_FACTURACION_LABELS[row.estado] ?? row.estado}</span>
                 </Badge>

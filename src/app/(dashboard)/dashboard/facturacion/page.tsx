@@ -588,7 +588,7 @@ export default function FacturacionPage() {
                     <span>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</span>
                   </Badge>
                 </div>
-                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Monto total</p><p className="font-medium text-foreground">{numberUtils.monto(detailRow.montoTotal, detailRow.moneda)}</p></div>
+                <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Monto total</p><p className="font-medium text-foreground">{numberUtils.monto(detailRow.montoTotal, detailRow.moneda, { decimales: 2 })}</p></div>
                 <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Modalidad</p><p className="text-foreground">{detailRow.modoPago === "completo" ? "Pago completo" : "Pago por cuotas"}</p></div>
                 <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cuotas</p><p className="text-foreground">{detailRow.cuotas.length}</p></div>
                 <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Registrado</p><p className="text-foreground">{dateUtils.formatDateTime(detailRow.createdAt)}</p></div>
@@ -615,7 +615,7 @@ export default function FacturacionPage() {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
                       <span>Contrato IIMP: <span className="font-mono text-foreground">{expediente.contrato ?? "—"}</span></span>
                       <span>Cuenta corriente: <span className="font-mono text-foreground">{expediente.cuentaCorriente ?? "—"}</span></span>
-                      <span>Total cuotas: <span className="font-medium text-foreground">{numberUtils.monto(expediente.cuotas.reduce((s, c) => s + c.monto, 0), expediente.moneda ?? "")}</span></span>
+                      <span>Total cuotas: <span className="font-medium text-foreground">{numberUtils.monto(expediente.cuotas.reduce((s, c) => s + c.monto, 0), expediente.moneda ?? "", { decimales: 2 })}</span></span>
                     </div>
                     {expediente.cuotas.length === 0 ? (
                       <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">Sin cuotas registradas en esta facturación.</p>
@@ -645,7 +645,7 @@ export default function FacturacionPage() {
                                 <div className="flex min-w-0 items-center gap-2">
                                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{c.numero}</span>
                                   <div className="min-w-0">
-                                    <p className="truncate text-xs font-semibold text-foreground">{numberUtils.monto(c.monto, expediente.moneda ?? "")}</p>
+                                    <p className="truncate text-xs font-semibold text-foreground">{numberUtils.monto(c.monto, expediente.moneda ?? "", { decimales: 2 })}</p>
                                     <p className="text-[10px] text-muted-foreground">
                                       Fecha de emisión: {dateUtils.format(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision ?? c.fechaVencimiento)}
                                     </p>
