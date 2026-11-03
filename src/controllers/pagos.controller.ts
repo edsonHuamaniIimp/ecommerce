@@ -31,12 +31,15 @@ export const pagosController = {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
     const perPage = parseInt(searchParams.get("per_page") ?? "10");
-    /* "Ver como": solo un admin puede consultar los pagos de otra empresa. */
+    /* "Ver como": administracion o facturacion pueden consultar los pagos de otra empresa. */
     const empresaIdSolicitada = searchParams.get("empresaId")?.trim() || undefined;
-    if (empresaIdSolicitada && !session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-      return error(API_ERROR_CODES.FORBIDDEN, "Ver como requiere permisos de administrador", 403);
+    const puedeVerComo =
+      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      session.permissions.includes(PERMISSIONS.FACTURACION_VIEW);
+    if (empresaIdSolicitada && !puedeVerComo) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Ver como requiere permisos de administrador o facturacion", 403);
     }
-    const empresaIdRaw = session.permissions.includes(PERMISSIONS.ADMIN_FULL)
+    const empresaIdRaw = puedeVerComo
       ? empresaIdSolicitada
       : undefined;
     const empresaIdParsed = verComoEmpresaIdSchema.safeParse(empresaIdRaw);
@@ -80,7 +83,10 @@ export const pagosController = {
     const cuotaId = new URL(request.url).searchParams.get("cuotaId");
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
 
-    const factura = await service.factura(cuotaId, ident(session));
+    const puedeVerTodas =
+      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      session.permissions.includes(PERMISSIONS.FACTURACION_VIEW);
+    const factura = await service.factura(cuotaId, ident(session), { omitirPropiedad: puedeVerTodas });
     let destino: URL;
     try {
       destino = new URL(factura.url, process.env.APP_URL ?? request.url);

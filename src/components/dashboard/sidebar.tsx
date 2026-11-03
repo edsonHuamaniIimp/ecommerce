@@ -16,6 +16,8 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   permission?: string;
+  /** Alternativa: basta con tener UNO de estos permisos. */
+  anyOf?: readonly string[];
   /** Agrupador visual para separar modulos dentro del sidebar. */
   section?: string;
   /** Solo se muestra al Portal del Cliente. */
@@ -43,7 +45,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: PERMISSIONS.LABORATORIO_VIEW, section: "Laboratorio 3D" },
 
   { href: "/dashboard/facturacion", label: "Facturación", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW, section: "Facturación" },
-  { href: "/dashboard/mis-pagos", label: "Mis documentos", icon: Wallet, permission: PERMISSIONS.PAGOS_VIEW, section: "Facturación" },
+  { href: "/dashboard/mis-pagos", label: "Mis documentos", icon: Wallet, anyOf: [PERMISSIONS.PAGOS_VIEW, PERMISSIONS.FACTURACION_VIEW], section: "Facturación" },
 
   { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW, section: "Empresas" },
 
@@ -92,9 +94,10 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
     onCloseRef.current();
   }, [pathname]);
 
-  const canSee = (perm: string | null) => {
-    if (!perm) return true;
-    return permissions.includes(perm) || permissions.includes(PERMISSIONS.ADMIN_FULL);
+  const canSee = (item: NavItem) => {
+    if (permissions.includes(PERMISSIONS.ADMIN_FULL)) return true;
+    if (item.anyOf && item.anyOf.length > 0) return item.anyOf.some((perm) => permissions.includes(perm));
+    return !item.permission || permissions.includes(item.permission);
   };
 
   /* Portal del Cliente: su inicio es "Mi Panel"; el panel de control queda para los demas roles. */
@@ -125,7 +128,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
         {!collapsed && <p className="px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.2em] text-muted-foreground">General</p>}
         {items.map((item, index) => {
           if (item.permission && !loaded) return null;
-          if (item.permission && !canSee(item.permission)) return null;
+          if (!canSee(item)) return null;
           if (item.soloCliente && !esCliente) return null;
           const inicioSeccion = Boolean(item.section) && items[index - 1]?.section !== item.section;
           const active = item.exact || item.href === "/dashboard" || item.href === DD_RUTAS.BASE

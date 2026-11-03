@@ -13,7 +13,10 @@ import type { EmpresaVerComoDTO } from "@/types/dto/ver-como/empresa-ver-como.dt
 export default function MisPagosPage() {
   const { session } = useSesion();
   const [empresaVerComo, setEmpresaVerComo] = useState<EmpresaVerComoDTO | null>(null);
-  const esAdmin = session?.permissions?.includes(PERMISSIONS.ADMIN_FULL) ?? false;
+  const puedeVerComo = Boolean(
+    session?.permissions?.includes(PERMISSIONS.ADMIN_FULL) ||
+    session?.permissions?.includes(PERMISSIONS.FACTURACION_VIEW),
+  );
 
   return (
     <main className="flex-1 py-6">
@@ -29,7 +32,7 @@ export default function MisPagosPage() {
           </div>
           <ContactoFacturacionButton />
         </div>
-        {esAdmin && (
+        {puedeVerComo && (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <EmpresaVerComoSelect value={empresaVerComo} onChange={setEmpresaVerComo} />
             {empresaVerComo && (

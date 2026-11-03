@@ -20,9 +20,15 @@ export class PagosApplicationService {
     return this.repo.listarPorCliente({ ...ident, ...params });
   }
 
-  /** URL y nombre del comprobante fiscal de una cuota propia. */
-  async factura(cuotaId: string, ident: ClienteIdent): Promise<{ url: string; nombre: string }> {
-    const { cuota } = await this.cuotaPropia(cuotaId, ident);
+  /** URL y nombre del comprobante fiscal de una cuota propia (o de cualquier empresa para staff). */
+  async factura(
+    cuotaId: string,
+    ident: ClienteIdent,
+    opciones?: { omitirPropiedad?: boolean },
+  ): Promise<{ url: string; nombre: string }> {
+    const { cuota } = opciones?.omitirPropiedad
+      ? await this.cuotaPorId(cuotaId)
+      : await this.cuotaPropia(cuotaId, ident);
     if (cuota.documentoSieAnulado) {
       throw new DomainError(
         "La factura de esta cuota fue anulada o rechazada por el IIMP",
@@ -131,6 +137,15 @@ export class PagosApplicationService {
     if (!(await this.repo.esPropietarioDeCuota(cuotaId, ident))) {
       throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     }
+    const fact = await this.repo.facturacionDeCuota(cuotaId);
+    if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const cuota = fact.cuotas.find((c) => c.id === cuotaId);
+    if (!cuota) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    return { fact, cuota };
+  }
+
+  /** Cuota por id sin validar propiedad (solo para staff con acceso a facturacion). */
+  private async cuotaPorId(cuotaId: string): Promise<{ fact: FacturacionRow; cuota: FacturacionRow["cuotas"][number] }> {
     const fact = await this.repo.facturacionDeCuota(cuotaId);
     if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     const cuota = fact.cuotas.find((c) => c.id === cuotaId);

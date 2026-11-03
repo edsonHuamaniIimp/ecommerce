@@ -228,7 +228,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
-              {!row.iimpContrato && cuotaSugerida?.id === cuota.id && (
+              {!row.iimpContrato && (puedeGestionar || soloLectura) && cuotaSugerida?.id === cuota.id && (
                 <span className="text-[10px] font-semibold text-warning">Solicitar factura aquí</span>
               )}
               {cuotaSeguimiento?.id === cuota.id && (
@@ -280,7 +280,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                ) : row.iimpContrato ? (
+                ) : (puedeGestionar || soloLectura) && row.iimpContrato ? (
                   cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -299,7 +299,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                     </TooltipContent>
                   </Tooltip>
                   )
-                ) : (
+                ) : (puedeGestionar || soloLectura) ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -316,7 +316,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       <span>{soloLectura ? "Solo lectura: Solicitar factura" : "Solicitar factura"}</span>
                     </TooltipContent>
                   </Tooltip>
-                )}
+                ) : null}
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>

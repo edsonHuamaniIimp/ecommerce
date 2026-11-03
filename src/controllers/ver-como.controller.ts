@@ -22,13 +22,17 @@ function resumenEmpresa(empresa: EmpresaEntity): EmpresaVerComoDTO {
   };
 }
 
+function puedeUsarVerComo(permissions: readonly string[]): boolean {
+  return permissions.includes(PERMISSIONS.ADMIN_FULL) || permissions.includes(PERMISSIONS.FACTURACION_VIEW);
+}
+
 export const verComoController = {
   /** Busqueda auditada de empresas para el selector "Ver como". */
   async empresas(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-      return error(API_ERROR_CODES.FORBIDDEN, "Solo un administrador puede usar Ver como", 403);
+    if (!puedeUsarVerComo(session.permissions)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Solo administracion o facturacion puede usar Ver como", 403);
     }
 
     const url = new URL(request.url);
@@ -77,8 +81,8 @@ export const verComoController = {
   async seleccionar(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
-    if (!session.permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-      return error(API_ERROR_CODES.FORBIDDEN, "Solo un administrador puede usar Ver como", 403);
+    if (!puedeUsarVerComo(session.permissions)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Solo administracion o facturacion puede usar Ver como", 403);
     }
 
     const parsed = verComoSeleccionarEmpresaSchema.safeParse(await request.json().catch(() => null));

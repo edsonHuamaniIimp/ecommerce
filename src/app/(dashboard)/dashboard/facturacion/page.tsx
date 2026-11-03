@@ -76,6 +76,7 @@ interface ExpedienteArchivo {
 
 /** Documentos del cliente en una cuota: voucher, comprobante fiscal, SIE e IIMP. */
 interface ExpedienteCuota {
+  id: string;
   numero: number;
   estado: string;
   monto: number;
@@ -83,6 +84,7 @@ interface ExpedienteCuota {
   voucher: string | null;
   comprobanteFiscal: ComprobanteFiscalItem | null;
   documentoSie: string | null;
+  documentoSieAnulado: boolean;
   documentoSieFechaEmision: string | null;
   iimpDocumento: { serie: string; numero: number; fechaEmision: string } | null;
   archivos: ExpedienteArchivo[];
@@ -638,6 +640,18 @@ export default function FacturacionPage() {
                                   url: c.comprobanteFiscal.url,
                                 }]
                               : []),
+                            ...(!c.comprobanteFiscal && !c.documentoSieAnulado && (c.iimpDocumento || c.documentoSie)
+                              ? [{
+                                  id: "factura",
+                                  titulo: c.iimpDocumento
+                                    ? `Factura IIMP ${c.iimpDocumento.serie}-${c.iimpDocumento.numero}`
+                                    : `Factura ${c.documentoSie ?? ""}`,
+                                  detalle: c.iimpDocumento
+                                    ? `${c.iimpDocumento.serie}-${c.iimpDocumento.numero}.pdf`
+                                    : (c.documentoSie ?? ""),
+                                  url: `/api/pagos/factura?cuotaId=${encodeURIComponent(c.id)}&inline=1`,
+                                }]
+                              : []),
                           ];
                           return (
                             <div key={c.numero} className="rounded-lg border p-3">
@@ -686,7 +700,7 @@ export default function FacturacionPage() {
                                   ))
                                 )}
                               </div>
-                              {c.documentoSie && <p className="mt-1.5 truncate text-[10px] text-muted-foreground">Documento SIE: {c.documentoSie}</p>}
+                              {c.documentoSieAnulado && <p className="mt-1.5 text-[10px] font-medium text-destructive">Factura anulada por el IIMP</p>}
                             </div>
                           );
                         })}

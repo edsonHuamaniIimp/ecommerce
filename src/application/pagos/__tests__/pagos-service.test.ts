@@ -124,6 +124,23 @@ describe("PagosApplicationService", () => {
     vi.unstubAllEnvs();
   });
 
+  it("factura con omitirPropiedad (staff de facturacion) no valida propiedad", async () => {
+    vi.stubEnv("FACTURAS_PDF_URL_TEMPLATE", "https://cdn.example/vouchers/{ruc}-{tipo}-{serie}-{numero}.pdf");
+    vi.stubEnv("FACTURAS_EMISOR_RUC", "20107972090");
+    const repo = mockRepo();
+    const row = rowConCuotas(1000, [1000]);
+    row.cuotas[0] = { ...row.cuotas[0]!, documentoSie: "20107972090-01-F009-3303.pdf" };
+    repo.facturacionDeCuota = vi.fn().mockResolvedValue(row);
+    const svc = new PagosApplicationService(repo);
+
+    await expect(svc.factura("c1", ident, { omitirPropiedad: true })).resolves.toEqual({
+      url: "https://cdn.example/vouchers/20107972090-01-F009-3303.pdf",
+      nombre: "20107972090-01-F009-3303.pdf",
+    });
+    expect(repo.esPropietarioDeCuota).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
   it("factura rechaza descargar un documento anulado por el IIMP (409)", async () => {
     const repo = mockRepo();
     const row = rowConCuotas(1000, [1000]);

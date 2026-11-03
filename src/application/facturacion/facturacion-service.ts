@@ -144,6 +144,7 @@ export class FacturacionApplicationService {
         createdAt: d.createdAt,
       })),
       cuotas: (facturacion?.cuotas ?? []).map((c) => ({
+        id: c.id,
         numero: c.numero,
         estado: c.estado,
         monto: c.monto,
@@ -151,6 +152,7 @@ export class FacturacionApplicationService {
         voucher: c.comprobante ?? null,
         comprobanteFiscal: c.comprobanteFiscal,
         documentoSie: c.documentoSie ?? null,
+        documentoSieAnulado: c.documentoSieAnulado,
         documentoSieFechaEmision: c.documentoSieFechaEmision ?? null,
         iimpDocumento: c.iimpDocumento,
         archivos: archivosCuenta.filter((a) => a.cuota === c.numero),
