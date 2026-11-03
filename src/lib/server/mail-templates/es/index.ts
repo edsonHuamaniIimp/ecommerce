@@ -305,11 +305,17 @@ export const plantillasEs: PlantillasEmail = {
     } else if (totalmenteAprobada) {
       cuerpo = `<div style="padding:8px 0 16px 0">
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px 0">
-          Se ha completado la revision de su solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
+          Se ha completado la revision de tu solicitud para el stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong>.
         </p>
-        <p style="font-size:14px;color:#16a34a;font-weight:600;line-height:1.6;margin:0">
-          Tu solicitud ha sido <strong>aprobada</strong> por todas las areas del IIMP.
+        <p style="font-size:14px;color:#16a34a;font-weight:600;line-height:1.6;margin:0 0 12px 0">
+          Las areas involucradas del IIMP ya revisaron y <strong>aprobaron</strong> tu solicitud.
         </p>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
+          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Siguiente paso: documentos para tu factura</p>
+          <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
+            Ingresa a <strong>Mis solicitudes</strong> y adjunta los documentos requeridos para emitir tu factura. Desde ahi tambien podras revisar tus cuotas y completar el pago.
+          </p>
+        </div>
       </div>`;
     } else if (rechazada) {
       cuerpo = `<div style="padding:8px 0 16px 0">

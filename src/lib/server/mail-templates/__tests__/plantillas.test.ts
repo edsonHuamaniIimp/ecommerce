@@ -104,4 +104,12 @@ describe("getPlantillaEmail", () => {
     expect(subject).toContain("Stand <BLOQUE-01>");
     expect(html).toContain("&lt;BLOQUE-01&gt;");
   });
+
+  it("la aprobacion indica el siguiente paso (documentos para la factura)", () => {
+    const { subject, html } = getPlantillaEmail("revision-resultado", "es", DATOS["revision-resultado"]);
+    expect(subject).toContain("Solicitud aprobada");
+    expect(html).toContain("ya revisaron y");
+    expect(html).toContain("Siguiente paso: documentos para tu factura");
+    expect(html).toContain("Mis solicitudes");
+  });
 });

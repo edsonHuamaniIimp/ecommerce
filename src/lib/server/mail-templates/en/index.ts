@@ -307,9 +307,15 @@ export const plantillasEn: PlantillasEmail = {
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px 0">
           The review of your request for stand <strong style="color:#1e293b">${esc(opts.standCode)}</strong> has been completed.
         </p>
-        <p style="font-size:14px;color:#16a34a;font-weight:600;line-height:1.6;margin:0">
-          Your request has been <strong>approved</strong> by every IIMP area.
+        <p style="font-size:14px;color:#16a34a;font-weight:600;line-height:1.6;margin:0 0 12px 0">
+          All involved IIMP areas have reviewed and <strong>approved</strong> your request.
         </p>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px">
+          <p style="font-size:13px;color:#166534;font-weight:700;margin:0 0 6px 0">Next step: documents for your invoice</p>
+          <p style="font-size:13px;color:#334155;line-height:1.6;margin:0">
+            Go to <strong>My bookings</strong> and attach the documents required to issue your invoice. You can also review your installments and complete payment there.
+          </p>
+        </div>
       </div>`;
     } else if (rechazada) {
       cuerpo = `<div style="padding:8px 0 16px 0">
