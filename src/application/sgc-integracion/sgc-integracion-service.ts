@@ -10,6 +10,7 @@ import type {
   SgcExpedienteEntity,
   SgcObservacionDocumento,
   SgcPiezaDocumental,
+  SgcReservarSubidaInput,
   SgcUrlDescarga,
 } from "@/domain/models/sgc";
 import { SgcApiError } from "@/domain/models/sgc";
@@ -51,6 +52,10 @@ const MAX_ERROR_LENGTH = 500;
  * aprobada por Legal. Best-effort: ante cualquier fallo del SGC registra el
  * error en la correlacion y nunca propaga la excepcion al flujo de aprobacion.
  */
+function esTicketSubidaExpirado(err: unknown): boolean {
+  return err instanceof SgcApiError && err.status === 403 && /expired|expirad/i.test(err.message);
+}
+
 export class SgcIntegracionApplicationService {
   constructor(
     private readonly solicitudRepo: ISolicitudesRepository,
@@ -401,7 +406,7 @@ export class SgcIntegracionApplicationService {
     if (!expediente?.contractId) return null;
 
     const checksumSha256 = await sha256Hex(pieza.bytes);
-    const reserva = await this.client.reservarSubida(expediente.contractId, {
+    const reservaInput: SgcReservarSubidaInput = {
       category: pieza.category,
       title: pieza.title,
       fileName: pieza.fileName,
@@ -410,7 +415,8 @@ export class SgcIntegracionApplicationService {
       declaredMimeType: pieza.mimeType,
       replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
-    });
+    };
+    let reserva = await this.client.reservarSubida(expediente.contractId, reservaInput);
 
     let documento: SgcDocumentoEntity;
     if (pieza.documentId) {
@@ -444,7 +450,24 @@ export class SgcIntegracionApplicationService {
       });
     }
 
-    await this.client.transferirArchivo(reserva.uploadUrl, reserva.headers, pieza.bytes);
+    try {
+      await this.client.transferirArchivo(reserva.uploadUrl, reserva.headers, pieza.bytes);
+    } catch (err) {
+      /* La Idempotency-Key devuelve el mismo ticket: si su URL expiro (5 min), hay que
+       * reservar de nuevo. Se versiona la MISMA pieza (documentId del primer ticket) para
+       * no duplicar el documento. */
+      if (!esTicketSubidaExpirado(err)) throw err;
+      reserva = await this.client.reservarSubida(
+        expediente.contractId,
+        { ...reservaInput, documentId: reserva.documentId },
+        { idempotencySuffix: `retry/${Date.now()}` },
+      );
+      await this.repo.actualizarDocumento(documento.documentId, {
+        currentVersionId: reserva.versionId,
+        estado: SGC_DOCUMENTO_ESTADO.RESERVADO,
+      });
+      await this.client.transferirArchivo(reserva.uploadUrl, reserva.headers, pieza.bytes);
+    }
     const confirmacion = await this.client.confirmarSubida(reserva.versionId);
     const estado =
       confirmacion.outcome === SGC_APPROVAL_RESULT.REJECTED

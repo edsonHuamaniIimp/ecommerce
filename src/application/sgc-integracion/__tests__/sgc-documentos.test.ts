@@ -9,6 +9,7 @@ import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SgcExpedienteEntity } from "@/domain/models/sgc";
+import { SgcApiError } from "@/domain/models/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import {
   SGC_APPROVAL_RESULT,
@@ -235,6 +236,54 @@ describe("SgcIntegracionApplicationService.subirPiezaDocumental", () => {
       }),
     );
     expect(doc?.estado).toBe(SGC_DOCUMENTO_ESTADO.CONFIRMADO);
+  });
+
+  it("renueva la reserva y versiona la misma pieza cuando la URL de subida expiro", async () => {
+    const repo = sgcRepoMock();
+    const client = clientMock();
+    vi.mocked(client.reservarSubida)
+      .mockResolvedValueOnce({
+        uploadUrl: "https://sgc/upload/expired",
+        headers: { "content-type": "application/pdf" },
+        documentId: "document-1",
+        versionId: "version-1",
+        versionNumber: 1,
+        expiresInSeconds: 300,
+      })
+      .mockResolvedValueOnce({
+        uploadUrl: "https://sgc/upload/fresh",
+        headers: { "content-type": "application/pdf" },
+        documentId: "document-1",
+        versionId: "version-2",
+        versionNumber: 2,
+        expiresInSeconds: 300,
+      });
+    vi.mocked(client.transferirArchivo)
+      .mockRejectedValueOnce(new SgcApiError("Subida rechazada por el almacenamiento: 403 - Request has expired", 403))
+      .mockResolvedValueOnce(undefined);
+    const svc = build(repo, client, documentoOrigenMock(), solicitudRepoMock());
+
+    const doc = await svc.subirPiezaDocumental("sol-1", {
+      category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+      title: "Contrato v1",
+      fileName: "contrato.pdf",
+      mimeType: "application/pdf",
+      bytes: BYTES,
+    });
+
+    expect(client.reservarSubida).toHaveBeenCalledTimes(2);
+    expect(client.reservarSubida).toHaveBeenLastCalledWith(
+      "contract-1",
+      expect.objectContaining({ documentId: "document-1" }),
+      { idempotencySuffix: expect.stringMatching(/^retry\//) },
+    );
+    expect(client.transferirArchivo).toHaveBeenLastCalledWith(
+      "https://sgc/upload/fresh",
+      { "content-type": "application/pdf" },
+      BYTES,
+    );
+    expect(client.confirmarSubida).toHaveBeenCalledWith("version-2");
+    expect(doc?.currentVersionId).toBe("version-2");
   });
   it("deberia marcar la version como rechazada sin lanzar", async () => {
     const svc = build(

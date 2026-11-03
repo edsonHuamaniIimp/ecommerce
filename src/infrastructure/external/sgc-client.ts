@@ -115,12 +115,14 @@ export class SgcClient implements ISgcClient {
     return this.request<SgcTemplate>(HTTP_METHODS.GET, SGC_API_PATHS.TEMPLATE(code));
   }
 
-  async reservarSubida(contractId: string, input: SgcReservarSubidaInput): Promise<SgcReservarSubidaResult> {
+  async reservarSubida(contractId: string, input: SgcReservarSubidaInput, opciones?: { idempotencySuffix?: string }): Promise<SgcReservarSubidaResult> {
     /* Idempotency-Key = hash del payload COMPLETO (incluye title/fileName): un reintento
      * identico recupera el mismo ticket y dos archivos con el mismo contenido pero distinto
      * payload (p.ej. anexos clonados) son intenciones distintas — evita el 409 por clave
-     * reutilizada con otro contenido. */
-    const idempotencyKey = `${SGC_IDEMPOTENCY_DOC_PREFIX}/${contractId}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(input)))).slice(0, 16)}`;
+     * reutilizada con otro contenido. Si el ticket ya expiro, el caller puede pedir uno
+     * nuevo con `idempotencySuffix` (ver reintento de subida). */
+    const base = `${SGC_IDEMPOTENCY_DOC_PREFIX}/${contractId}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(input)))).slice(0, 16)}`;
+    const idempotencyKey = opciones?.idempotencySuffix ? `${base}/${opciones.idempotencySuffix}` : base;
     return this.request<SgcReservarSubidaResult>(HTTP_METHODS.POST, SGC_API_PATHS.CONTRACT_DOCUMENTS(contractId), {
       body: input,
       idempotencyKey,
@@ -137,7 +139,13 @@ export class SgcClient implements ISgcClient {
         body: binario as unknown as BodyInit,
         signal: controller.signal,
       });
-      if (!res.ok) throw new SgcApiError(`Subida rechazada por el almacenamiento: ${res.status}`, res.status);
+      if (!res.ok) {
+        const detalle = await res.text().catch(() => "");
+        throw new SgcApiError(
+          `Subida rechazada por el almacenamiento: ${res.status}${detalle ? ` - ${detalle.slice(0, 300)}` : ""}`,
+          res.status,
+        );
+      }
     } finally {
       clearTimeout(timer);
     }

@@ -16,6 +16,11 @@ import type {
   SgcVersionResuelta,
 } from "@/domain/models/sgc";
 
+export interface SgcReservarSubidaOpciones {
+  /** Sufijo para forzar un ticket nuevo cuando el anterior expiro (reintento). */
+  idempotencySuffix?: string;
+}
+
 export interface ISgcClient {
   crearExpediente(input: SgcCrearExpedienteInput, idempotencyKey: string): Promise<SgcCrearExpedienteResult>;
   actualizarExpediente(contractId: string, input: SgcActualizarExpedienteInput): Promise<void>;
@@ -29,7 +34,7 @@ export interface ISgcClient {
   listarTemplates(): Promise<SgcTemplate[]>;
   /** Un repositorio de templates por codigo — GET /templates/{code}. */
   obtenerTemplate(code: string): Promise<SgcTemplate>;
-  reservarSubida(contractId: string, input: SgcReservarSubidaInput): Promise<SgcReservarSubidaResult>;
+  reservarSubida(contractId: string, input: SgcReservarSubidaInput, opciones?: SgcReservarSubidaOpciones): Promise<SgcReservarSubidaResult>;
   transferirArchivo(uploadUrl: string, headers: Record<string, string>, binario: Uint8Array): Promise<void>;
   confirmarSubida(versionId: string): Promise<SgcConfirmarSubidaResult>;
   consultarDocumento(documentId: string): Promise<SgcDocumentoDetalle>;
