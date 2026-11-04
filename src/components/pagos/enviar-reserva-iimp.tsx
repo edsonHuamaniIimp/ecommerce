@@ -284,7 +284,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
               </label>
 
               <label className="flex items-start gap-2 text-xs">
-                <input type="checkbox" checked={Boolean(requisitos.otros)} onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.checked ? (prev.otros || " ") : "" }))} className="mt-0.5 h-4 w-4 accent-primary" />
+                <input type="checkbox" checked={Boolean(requisitos.otros)} onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, otros: e.target.checked ? (prev.otros || " ") : "", ...(e.target.checked ? { ninguna: false } : {}) })); }} className="mt-0.5 h-4 w-4 accent-primary" />
                 <span><strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.</span>
               </label>
 
