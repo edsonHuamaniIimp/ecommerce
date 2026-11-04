@@ -7,6 +7,11 @@ import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 function hashearSiHaceFalta(password: string): string {
   return esHash(password) ? password : hashPassword(password);
 }
+
+/** El correo de acceso se compara sin distinguir mayusculas/minusculas. */
+function emailNormalizado(email: string) {
+  return { email: { equals: email.trim(), mode: "insensitive" as const } };
+}
 import type {
   IAuthRepository,
   NuevoUsuarioAuth,
@@ -16,7 +21,7 @@ import type {
 export class AuthPrismaRepository implements IAuthRepository {
   async findByEmail(email: string) {
     return prisma.userRole.findMany({
-      where: { email },
+      where: emailNormalizado(email),
       select: { id: true, userId: true, roleId: true, email: true, password: true, eventoId: true, eventoNombre: true, eventoPadreNombre: true, empresaId: true, debeCambiarPassword: true, flgActivo: true, reactivarEn: true, role: { select: { nombre: true, permisos: true } } },
     });
   }
@@ -30,7 +35,7 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async setEventoSeleccionado(email: string, eventoId: string, eventoNombre?: string | null, eventoPadreNombre?: string | null): Promise<void> {
     await prisma.userRole.updateMany({
-      where: { email },
+      where: emailNormalizado(email),
       data: {
         eventoId,
         ...(eventoNombre !== undefined ? { eventoNombre } : {}),
@@ -40,7 +45,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async existeEmail(email: string): Promise<boolean> {
-    const total = await prisma.userRole.count({ where: { email } });
+    const total = await prisma.userRole.count({ where: emailNormalizado(email) });
     return total > 0;
   }
 
@@ -49,7 +54,7 @@ export class AuthPrismaRepository implements IAuthRepository {
       data: {
         userId: data.userId,
         roleId: data.roleId,
-        email: data.email,
+        email: data.email.trim().toLowerCase(),
         /* Blindaje: nunca se guarda texto plano aunque el caller lo olvide. */
         password: hashearSiHaceFalta(data.password),
         nombre: data.nombre,
@@ -79,14 +84,14 @@ export class AuthPrismaRepository implements IAuthRepository {
       expiraEn: data.expiraEn,
     };
     await prisma.registroPendiente.upsert({
-      where: { email: data.email },
-      create: { email: data.email, ...registro },
+      where: { email: data.email.trim().toLowerCase() },
+      create: { email: data.email.trim().toLowerCase(), ...registro },
       update: registro,
     });
   }
 
   async findRegistroPendiente(email: string) {
-    return prisma.registroPendiente.findUnique({ where: { email } });
+    return prisma.registroPendiente.findUnique({ where: { email: email.trim().toLowerCase() } });
   }
 
   async actualizarIntentosRegistro(id: string, intentos: number): Promise<void> {
@@ -136,7 +141,7 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async findPerfilByEmail(email: string) {
     const row = await prisma.userRole.findFirst({
-      where: { email },
+      where: emailNormalizado(email),
       select: {
         userId: true, email: true, nombre: true, apellidos: true, telefono: true, tipoUsuarioId: true,
         idEmpresa: true, nombreEmpresa: true, logoUrl: true, firmaUrl: true, idioma: true,
@@ -156,12 +161,12 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   /** Empresa del Portal (PK) vinculada a la cuenta (para el contrato). */
   async findEmpresaIdDeUsuario(email: string): Promise<string | null> {
-    const u = await prisma.userRole.findFirst({ where: { email }, select: { empresaId: true } });
+    const u = await prisma.userRole.findFirst({ where: emailNormalizado(email), select: { empresaId: true } });
     return u?.empresaId ?? null;
   }
 
   async findSieCodePorEmail(email: string): Promise<string | null> {
-    const u = await prisma.userRole.findFirst({ where: { email }, select: { sieCode: true } });
+    const u = await prisma.userRole.findFirst({ where: emailNormalizado(email), select: { sieCode: true } });
     return u?.sieCode ?? null;
   }
 
@@ -187,7 +192,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async updatePerfil(email: string, data: { nombre?: string; apellidos?: string; telefono?: string; tipoUsuarioId?: number | null; idEmpresa?: string | null; nombreEmpresa?: string | null; empresaId?: string | null; logoUrl?: string | null; firmaUrl?: string | null }) {
-    await prisma.userRole.updateMany({ where: { email }, data });
+    await prisma.userRole.updateMany({ where: emailNormalizado(email), data });
   }
 
   async findNotificationConfig(userId: string) {
@@ -248,7 +253,7 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async findForReset(email: string) {
     return prisma.userRole.findFirst({
-      where: { email },
+      where: emailNormalizado(email),
       select: { id: true, email: true, nombre: true, flgActivo: true },
     });
   }
@@ -334,7 +339,7 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async marcarCambioPasswordRequerido(email: string, requerido: boolean): Promise<void> {
-    await prisma.userRole.updateMany({ where: { email }, data: { debeCambiarPassword: requerido } });
+    await prisma.userRole.updateMany({ where: emailNormalizado(email), data: { debeCambiarPassword: requerido } });
   }
 
   /** Reactiva las cuentas cuya reactivacion programada ya vencio (desactivacion masiva). */
@@ -348,7 +353,7 @@ export class AuthPrismaRepository implements IAuthRepository {
 
   async estadoEmpresaPortal(email: string): Promise<{ empresaId: string; primerAccesoCompletado: boolean } | null> {
     const row = await prisma.userRole.findFirst({
-      where: { email, empresaId: { not: null } },
+      where: { ...emailNormalizado(email), empresaId: { not: null } },
       select: { empresaId: true, empresa: { select: { primerAccesoCompletado: true } } },
     });
     if (!row?.empresaId) return null;
@@ -356,6 +361,6 @@ export class AuthPrismaRepository implements IAuthRepository {
   }
 
   async setIdioma(email: string, idioma: string): Promise<void> {
-    await prisma.userRole.updateMany({ where: { email }, data: { idioma } });
+    await prisma.userRole.updateMany({ where: emailNormalizado(email), data: { idioma } });
   }
 }
