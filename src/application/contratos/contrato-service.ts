@@ -83,7 +83,7 @@ export const ANEXOS_PDF_CONTRATO: Record<Idioma, string[]> = {
 
 /** PNG 1x1 transparente: se usa cuando el contrato no lleva firma digital. */
 const PNG_1PX_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNgYGBgAAAABQABh6FO1AAAAABJRU5ErkJggg==";
+  "iVBORw0KGgoAAAANSUhEUgAAAJYAAAA3CAYAAADuQbOpAAAACXBIWXMAAAPoAAAD6AG1e1JrAAABHElEQVR4nO2SsQnAABCEfv+lzRIJR8TCXsQDLmrAyw2aqqnuiwaN1VjXWE1wf2kwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNngA4xNS816GO2oAAAAASUVORK5CYII=";
 
 export interface GenerarContratoInput {
   solicitudId: string;
@@ -501,6 +501,11 @@ export class ContratoApplicationService {
 
     /* Copy insertado en el contrato: en ingles no debe filtrarse espanol. */
     const esContratoEn = idioma === IDIOMAS.EN;
+    const mesesEs = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const mesesEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const fechaFirmaTexto = esContratoEn
+      ? `${String(hoy.getDate()).padStart(2, "0")} ${mesesEn[hoy.getMonth()]} ${hoy.getFullYear()}`
+      : `${String(hoy.getDate()).padStart(2, "0")} de ${mesesEs[hoy.getMonth()]} de ${hoy.getFullYear()}`;
     const textoUbicacionGeneral = esContratoEn ? "General location - Pavilions map" : "Ubicacion general - Mapa de pabellones";
     const textoObjetoSocial = esContratoEn ? "activities related to its line of business" : "actividades propias de su giro comercial";
     const textoActividad = esContratoEn ? "exhibition of products and services" : "exhibicion de productos y servicios";
@@ -577,11 +582,11 @@ export class ContratoApplicationService {
     const clausulaRepresentantes = (() => {
       const identificacionPrincipal = esContratoEn
         ? `${representanteLegal}, identified with DNI/ identification card/ ID Card/Passport or other equivalent No. ${dniRepresentante}`
-        : `${representanteLegal}, identificado con DNI/ cédula de identificación/ ID Card/Pasaporte u otro equivalente N.° ${dniRepresentante}`;
+        : `${representanteLegal}, identificado con DNI/ c\u00f3dula de identificaci\u00f3n/ ID Card/Pasaporte u otro equivalente N.\u00b0 ${dniRepresentante}`;
       const identificaciones = [
         identificacionPrincipal,
         ...representantesAdicionales.map(
-          (rep) => `${rep.nombre}, ${esContratoEn ? "identified with" : "identificado con"} ${rep.tipoDocumento} ${esContratoEn ? "No." : "N.°"} ${rep.documento}`,
+          (rep) => `${rep.nombre}, ${esContratoEn ? "identified with" : "identificado con"} ${rep.tipoDocumento} ${esContratoEn ? "No." : "N.\u00b0"} ${rep.documento}`,
         ),
       ];
       const union =
@@ -595,7 +600,7 @@ export class ContratoApplicationService {
         ? ""
         : esContratoEn
           ? `, ${identificaciones.length > 1 ? plural + " with powers registered under the same" : "with powers registered under"} Electronic File No. ${partida} of the Registry of Legal Entities of Lima (if applicable)`
-          : `, ${identificaciones.length > 1 ? plural + " con poderes inscritos en la misma" : "con poderes inscritos en la"} Partida Electr?nica N.? ${partida} del Registro de Personas Jur?dicas de Lima (si aplica)`;
+          : `, ${identificaciones.length > 1 ? plural + " con poderes inscritos en la misma" : "con poderes inscritos en la"} Partida Electr\u00f3nica N.\u00b0 ${partida} del Registro de Personas Jur\u00eddicas de Lima (si aplica)`;
       return `${union}${poderes}`;
     })();
     const firmasRepresentantes = await this.prepararFirmasRepresentantes(
@@ -604,23 +609,24 @@ export class ContratoApplicationService {
     const firmasExhibidor = [
       {
         firma: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
-        nombre: "EL",
-        cargo: `EXHIBIDOR\n${representanteLegal !== "-" ? representanteLegal : ""}`,
+        nombre: esContratoEn ? "THE EXHIBITOR" : "EL EXHIBIDOR",
+        cargo: representanteLegal !== "-" ? representanteLegal : "",
       },
       ...firmasRepresentantes.map((rep) => ({
         firma: rep.firma_representante,
-        nombre: "EL",
-        cargo: `EXHIBIDOR\n${rep.nombre_representante}`,
+        nombre: esContratoEn ? "THE EXHIBITOR" : "EL EXHIBIDOR",
+        cargo: rep.nombre_representante,
       })),
     ];
     const firmasTabla = Array.from({ length: Math.ceil(firmasExhibidor.length / 2) }, (_, indice) => {
       const primera = firmasExhibidor[indice * 2];
       const segunda = firmasExhibidor[indice * 2 + 1];
       return {
+        firma_iimp: PNG_1PX_BASE64,
         linea_iimp: indice === 0 ? "_____________________________" : "",
-        nombre_iimp: indice === 0 ? "EL" : "",
+        nombre_iimp: indice === 0 ? "IIMP" : "",
         cargo_iimp: indice === 0
-          ? `IIMP\nGustavo Adolfo De Vinatea Bellatin - ${esContratoEn ? "General Manager" : "Gerente General"}`
+          ? `Gustavo Adolfo De Vinatea Bellatin\n${esContratoEn ? "General Manager" : "Gerente General"}`
           : "",
         firma_1: primera?.firma ?? PNG_1PX_BASE64,
         linea_1: primera ? "_____________________________" : "",
@@ -639,9 +645,11 @@ export class ContratoApplicationService {
         const segunda = firmasExhibidor[indice * 2 + 1];
         return {
           firma_1: primera?.firma ?? PNG_1PX_BASE64,
+          linea_1: primera ? "_____________________________" : "",
           nombre_1: primera?.nombre ?? "",
           cargo_1: primera?.cargo ?? "",
           firma_2: segunda?.firma ?? PNG_1PX_BASE64,
+          linea_2: segunda ? "_____________________________" : "",
           nombre_2: segunda?.nombre ?? "",
           cargo_2: segunda?.cargo ?? "",
         };
@@ -680,14 +688,15 @@ export class ContratoApplicationService {
         monto: monto(c.monto),
         fecha: fechaCorta(c.fechaVencimiento),
       })),
-      firmante_nombre_cargo: representanteLegal !== "-"
-        ? `${representanteLegal} - ${textoCargoRepresentante}`
-        : "",
+      firmante_nombre_cargo: [
+        representanteLegal !== "-" ? `${representanteLegal} - ${textoCargoRepresentante}` : "",
+        ...representantesAdicionales.map((rep) => `${rep.nombre} - ${textoCargoRepresentante}`),
+      ].filter(Boolean).join("; "),
       /** Codigos comerciales de los stands (Anexo 4: asunto de zona maquinaria). */
       codigos_stands: modulos.map((m) => m.modulo).join(", "),
       firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
-      firmante_fecha: fechaFirma,
+      firmante_fecha: fechaFirmaTexto,
     };
 
     /* Render DOCX en el idioma resuelto (respaldo al español si falta la plantilla). */
@@ -700,7 +709,7 @@ export class ContratoApplicationService {
       fileType: "docx",
       getImage: (valor: unknown) => Buffer.from(String(valor), "base64"),
       getSize: (_img: Buffer, _valor: unknown, tagName: string) =>
-        (["firma_exhibidor", "firma_representante", "firma_1", "firma_2"].includes(tagName) ? [150, 55] : [520, 320]),
+        (["firma_exhibidor", "firma_representante", "firma_iimp", "firma_1", "firma_2"].includes(tagName) ? [150, 55] : [520, 320]),
     });
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, modules: [imageModule] });
     doc.render(data);

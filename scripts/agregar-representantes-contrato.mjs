@@ -97,22 +97,51 @@ function celdaFirma(width, contenido) {
   return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${contenido}</w:tc>`;
 }
 
+function rangoTablaExterior(xml, indice) {
+  const re = /<\/?w:tbl\b[^>]*>/g;
+  const pilas = [];
+  let mejor = null;
+  let match;
+  while ((match = re.exec(xml))) {
+    if (match[0].startsWith("</")) {
+      const inicio = pilas.pop();
+      if (inicio != null && inicio < indice && match.index + match[0].length > indice) {
+        if (!mejor || inicio < mejor.inicio) {
+          mejor = { inicio, fin: match.index + match[0].length };
+        }
+      }
+    } else {
+      pilas.push(match.index);
+    }
+  }
+  return mejor;
+}
+
 function campo(texto, bold = false) {
   return parrafoTabs("", [texto], bold, 16);
 }
 
 function agregarFirmasAdicionales(xml) {
-  const tablaExistente = parrafos(xml).find((p) => p.texto.includes("{#firmas_tabla}"));
-  xml = quitarBloquesFirmas(xml);
+  /* La tabla de firmas es un bloque completo: se reemplaza entera, nunca dentro de otra tabla. */
+  xml = quitarBloque(xml, "{#firmas_representantes}", "{/firmas_representantes}");
 
-  /* Tabla de 3 columnas con ancho fijo: los nombres largos no invaden la columna vecina. */
-  const apertura = parrafoLoop("{#firmas_tabla}");
+  /*
+   * Tabla de 3 columnas con ancho fijo. El tag de apertura va en la MISMA
+   * parrafo que la imagen del IIMP: si va en su propio parrafo, Word deja un
+   * parrafo vacio antes de la imagen y la linea del IIMP queda mas abajo que
+   * las lineas del exhibidor.
+   */
   const cierre = parrafoLoop("{/firmas_tabla}");
-  const fila = `<w:tr><w:trPr><w:cantSplit/></w:trPr>${celdaFirma(3000, `${apertura}${campo("{nombre_iimp}", true)}${campo("{linea_iimp}")}${campo("{cargo_iimp}")}`)}${celdaFirma(3200, `${campo("{nombre_1}", true)}${parrafoLoop("{%firma_1}")}${campo("{linea_1}")}${campo("{cargo_1}")}`)}${celdaFirma(3200, `${campo("{nombre_2}", true)}${parrafoLoop("{%firma_2}")}${campo("{linea_2}")}${campo("{cargo_2}")}${cierre}`)}</w:tr>`;
+  const fila = `<w:tr><w:trPr><w:cantSplit/></w:trPr>${celdaFirma(3000, `${parrafoLoop("{#firmas_tabla}{%firma_iimp}")}${campo("{linea_iimp}")}${campo("{cargo_iimp}")}${campo("{nombre_iimp}", true)}`)}${celdaFirma(3200, `${parrafoLoop("{%firma_1}")}${campo("{linea_1}")}${campo("{cargo_1}")}${campo("{nombre_1}", true)}`)}${celdaFirma(3200, `${parrafoLoop("{%firma_2}")}${campo("{linea_2}")}${campo("{cargo_2}")}${campo("{nombre_2}", true)}${cierre}`)}</w:tr>`;
   const bloque = `<w:tbl><w:tblPr><w:tblW w:w="9400" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3200"/><w:gridCol w:w="3200"/></w:tblGrid>${fila}</w:tbl>`;
 
-  if (tablaExistente) {
-    return xml.slice(0, tablaExistente.index) + bloque + xml.slice(tablaExistente.index);
+  const tagIndex = xml.indexOf("{#firmas_tabla}");
+  if (tagIndex >= 0) {
+    const rango = rangoTablaExterior(xml, tagIndex);
+    if (rango) {
+      return xml.slice(0, rango.inicio) + bloque + xml.slice(rango.fin);
+    }
+    xml = quitarBloque(xml, "{#firmas_tabla}", "{/firmas_tabla}");
   }
 
   const ps = parrafos(xml);
@@ -132,8 +161,9 @@ function agregarFirmasDeclaracion(xml) {
   const bloque = [
     parrafoLoop("{#firmas_declaracion_filas}"),
     parrafoTabs(tabs, ["{%firma_1}", "{%firma_2}"], false, 16),
-    parrafoTabs(tabs, ["{nombre_1}", "{nombre_2}"], true, 16),
-    parrafoTabs(tabs, ["{cargo_1}", "{cargo_2}"], false, 16),
+    parrafoTabs(tabs, ["{linea_1}", "{linea_2}"], false, 16),
+    parrafoTabs(tabs, ["{cargo_1}", "{cargo_2}"], true, 16),
+    parrafoTabs(tabs, ["{nombre_1}", "{nombre_2}"], false, 16),
     parrafoLoop("{/firmas_declaracion_filas}"),
   ].join("");
 
@@ -146,6 +176,20 @@ function agregarFirmasDeclaracion(xml) {
   return xml.slice(0, firma.index) + bloque + xml.slice(firma.index + firma.xml.length);
 }
 
+function espaciarFechaDeclaracion(xml) {
+  const p = parrafos(xml).find((item) => item.texto === "Fecha: {firmante_fecha}" || item.texto === "Date: {firmante_fecha}");
+  if (!p) return xml;
+  let parrafo = p.xml;
+  if (/<w:spacing\b[^>]*\/>/.test(parrafo)) {
+    parrafo = parrafo.replace(/<w:spacing\b[^>]*\/>/, '<w:spacing w:before="240" w:after="0"/>');
+  } else if (parrafo.includes("</w:pPr>")) {
+    parrafo = parrafo.replace("</w:pPr>", '<w:spacing w:before="240" w:after="0"/></w:pPr>');
+  } else {
+    parrafo = parrafo.replace("<w:p>", '<w:p><w:pPr><w:spacing w:before="240" w:after="0"/></w:pPr>');
+  }
+  return xml.slice(0, p.index) + parrafo + xml.slice(p.index + p.xml.length);
+}
+
 function actualizar(archivo) {
   const ruta = path.join("plantillas", archivo);
   const zip = new PizZip(fs.readFileSync(ruta));
@@ -155,6 +199,7 @@ function actualizar(archivo) {
   xml = agregarFecha(xml);
   xml = agregarFirmasAdicionales(xml);
   xml = agregarFirmasDeclaracion(xml);
+  xml = espaciarFechaDeclaracion(xml);
   zip.file("word/document.xml", xml);
   fs.writeFileSync(ruta, zip.generate({ type: "nodebuffer", compression: "DEFLATE" }));
   console.log(`OK: ${archivo}`);
