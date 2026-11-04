@@ -1163,6 +1163,8 @@ export const TIPOS_ARCHIVO_IIMP = {
   PAGO_TOTAL: "PAGO_TOTAL",
   /** Valorizacion / cotizacion del servicio (v5): cuota opcional (sin cuota = de toda la cuenta). */
   VALORIZACION_COTIZACION: "VALORIZACION_COTIZACION",
+  /** Otros requisitos que pida el IIMP (v6, 05-11-2026): varios links; cuota opcional. */
+  OTROS_REQUISITOS: "OTROS_REQUISITOS",
 } as const;
 
 export type TipoArchivoIImp = (typeof TIPOS_ARCHIVO_IIMP)[keyof typeof TIPOS_ARCHIVO_IIMP];

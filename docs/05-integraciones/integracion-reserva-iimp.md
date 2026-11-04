@@ -97,12 +97,15 @@ teléfono, contacto y correo. **No se exige registrar la empresa en Empresas** p
 - Archivos de cuenta corriente: `OC` y `HES` con cuota opcional (con cuota son **por cuota**:
   cada cuota puede tener los suyos); `DETRACCION` y `DIFERENCIA` con `Cuota` obligatoria (1 a n);
   `PAGO_TOTAL` (v4) con cuota opcional (sin cuota = total de la cuenta; con cuota = total de esa
-  cuota); `VALORIZACION_COTIZACION` (v5) con cuota opcional; el IIMP también acepta los alias
-  `TOTAL` y `VALORIZACION`. Varias unidades por tipo. Los elementos **sin link se ignoran**
-  (v3), no dan error.
-- Regla de negocio de ContratosStands (no la impone el IIMP): para solicitar la factura, la
-  **1ª cuota** exige al menos una OC y una HES (UI + backend); en 2ª y 3ª son opcionales. En la
-  UI de la cuenta corriente, `PAGO_TOTAL` es excluyente con `DETRACCION`/`DIFERENCIA` de una
+  cuota); `VALORIZACION_COTIZACION` (v5) con cuota opcional; `OTROS_REQUISITOS` (v6, 05-11-2026)
+  con cuota opcional y **varios links** (uno por elemento). El IIMP también acepta los alias
+  `TOTAL`, `VALORIZACION` y `OTROS`/`OTR`. Varias unidades por tipo. Los elementos **sin link se
+  ignoran** (v3), no dan error.
+- Regla de negocio de ContratosStands (no la impone el IIMP): los requisitos de facturación son
+  **declarativos y referenciales**. El cliente marca en la solicitud OC, HES, plataforma,
+  valorización, otros o "ninguna de las anteriores", y adjunta al menos un documento por cada
+  tipo declarado (la cuota del documento es la de la bandeja). No se bloquea por falta de OC/HES.
+  En la UI de la cuenta corriente, `PAGO_TOTAL` es excluyente con `DETRACCION`/`DIFERENCIA` de una
   misma cuota (lista dinámica).
 - **v3**: un stand **ya reservado se reserva igual** (la empresa que registra esta reserva
   pasa a ser la de facturación); solo falla si el stand **no está disponible** (ej. inactivo).

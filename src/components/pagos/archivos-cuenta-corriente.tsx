@@ -58,7 +58,8 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
       if (
         tipo === TIPOS_ARCHIVO_IIMP.OC ||
         tipo === TIPOS_ARCHIVO_IIMP.HES ||
-        tipo === TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION
+        tipo === TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION ||
+        tipo === TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS
       ) {
         return !conArchivo.has(tipo);
       }

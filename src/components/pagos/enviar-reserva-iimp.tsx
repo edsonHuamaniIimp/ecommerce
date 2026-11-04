@@ -172,6 +172,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
     ...(requisitos.oc ? [TIPOS_ARCHIVO_IIMP.OC] : []),
     ...(requisitos.hes ? [TIPOS_ARCHIVO_IIMP.HES] : []),
     ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
+    ...(requisitos.otros ? [TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS] : []),
   ];
   const cuotaDocumentos = cuotaNumero && cuotaNumero > 0 ? cuotaNumero : null;
   const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));

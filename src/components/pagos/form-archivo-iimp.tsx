@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   ClipboardCheck,
   ClipboardList,
+  FileCheck2,
   FileUp,
   HandCoins,
   Landmark,
@@ -27,6 +28,7 @@ export const TIPOS_ARCHIVO_LABELS: Record<string, string> = {
   [TIPOS_ARCHIVO_IIMP.DIFERENCIA]: "Pago del saldo",
   [TIPOS_ARCHIVO_IIMP.PAGO_TOTAL]: "Pago total",
   [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION]: "Valorización / cotización",
+  [TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS]: "Otros requisitos",
 };
 
 /** Titulos claros para las tarjetas de seleccion (lenguaje del cliente). */
@@ -37,6 +39,7 @@ const TIPOS_ARCHIVO_TITULO: Record<string, string> = {
   [TIPOS_ARCHIVO_IIMP.DIFERENCIA]: "Pago del saldo de la cuota",
   [TIPOS_ARCHIVO_IIMP.PAGO_TOTAL]: "Pago total",
   [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION]: "Valorización o cotización",
+  [TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS]: "Otros requisitos",
 };
 
 /** Icono y descripcion breve de cada tipo de documento. */
@@ -47,6 +50,7 @@ const TIPOS_ARCHIVO_META: Record<string, { icono: LucideIcon; descripcion: strin
   [TIPOS_ARCHIVO_IIMP.DIFERENCIA]: { icono: HandCoins, descripcion: "Comprobante del pago restante de la cuota" },
   [TIPOS_ARCHIVO_IIMP.PAGO_TOTAL]: { icono: BadgeCheck, descripcion: "Comprobante del pago completo de la cuota" },
   [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION]: { icono: ClipboardList, descripcion: "Cotización o valorización del servicio" },
+  [TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS]: { icono: FileCheck2, descripcion: "Documento adicional solicitado por el IIMP" },
 };
 
 interface Props {

@@ -45,4 +45,10 @@ describe("validarArchivoIImp", () => {
     expect(() => validarArchivoIImp({ tipo: "VALORIZACION_COTIZACION", link: "https://x/valorizacion.pdf" }, 2)).not.toThrow();
     expect(() => validarArchivoIImp({ tipo: "VALORIZACION_COTIZACION", cuota: 2, link: "https://x/valorizacion.pdf" }, 2)).not.toThrow();
   });
+
+  it("acepta OTROS_REQUISITOS sin cuota o con cuota", () => {
+    expect(() => validarArchivoIImp({ tipo: "OTROS_REQUISITOS", link: "https://x/carta-fianza.pdf" }, 2)).not.toThrow();
+    expect(() => validarArchivoIImp({ tipo: "OTROS_REQUISITOS", cuota: 1, link: "https://x/ficha-ruc.pdf" }, 2)).not.toThrow();
+    expect(() => validarArchivoIImp({ tipo: "OTROS_REQUISITOS", cuota: 3, link: "https://x/ficha-ruc.pdf" }, 2)).toThrow();
+  });
 });

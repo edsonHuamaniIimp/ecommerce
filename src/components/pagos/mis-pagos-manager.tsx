@@ -41,6 +41,7 @@ function tiposDocumentosPorRequisitos(requisitos: PagoRowDTO["requisitos"]): Tip
   if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
   if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
   if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
+  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
   return [...tipos, ...pagos];
 }
 
