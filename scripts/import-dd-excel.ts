@@ -35,6 +35,21 @@ const HEADER = {
   resultado: "RESULTADO DE EVALUACION DEBIDA DILIGENCIA",
 } as const;
 
+/** Columnas opcionales; se leen si existen, sin romper archivos anteriores. */
+const HEADER_OPCIONAL = {
+  declaracion: [
+    "PRESENTACION DE DECLARACION JURADA",
+    "DECLARACION JURADA DE VIGENCIA",
+    "DECLARACION DE VIGENCIA",
+  ],
+  fechaAprobacion: [
+    "FECHA DE APROBACION",
+    "FECHA DE DECISION",
+    "FECHA DE DECISION FINAL",
+    "FECHA DE APROBACION FINAL",
+  ],
+} as const;
+
 function normalizar(valor: string): string {
   return valor
     .normalize("NFD")
@@ -120,12 +135,35 @@ function resultadoNormalizado(valor: string): string {
   return "pendiente";
 }
 
-function indiceColumnas(hoja: ExcelJS.Worksheet): Record<keyof typeof HEADER, number> {
+function declaracionNormalizada(valor: string): string | null {
+  const normalizado = normalizar(valor);
+  if (!normalizado) return null;
+  if (normalizado.includes("NO CORRESPONDE") || normalizado.includes("NO APLICA")) return "no_corresponde";
+  if (normalizado.includes("NO ENVIO")) return "no_envio";
+  if (normalizado.includes("OBSERV")) return "observado";
+  if (normalizado.includes("PENDIENTE")) return "pendiente";
+  if (normalizado.includes("APROB") || normalizado.includes("VALID")) return "aprobado";
+  if (normalizado.includes("ENVI")) return "cargado";
+  if (normalizado === "SI" || normalizado === "S" || normalizado === "X") return "cargado";
+  return null;
+}
+
+function indiceColumnas(hoja: ExcelJS.Worksheet): {
+  requeridas: Record<keyof typeof HEADER, number>;
+  declaracion: number | null;
+  fechaAprobacion: number | null;
+} {
   const indices: Partial<Record<keyof typeof HEADER, number>> = {};
+  const opcionales = { declaracion: null as number | null, fechaAprobacion: null as number | null };
   hoja.getRow(1).eachCell((cell, colNumber) => {
     const header = normalizar(texto(cell.value));
     for (const clave of Object.keys(HEADER) as Array<keyof typeof HEADER>) {
       if (header === normalizar(HEADER[clave])) indices[clave] = colNumber;
+    }
+    for (const clave of Object.keys(HEADER_OPCIONAL) as Array<keyof typeof HEADER_OPCIONAL>) {
+      if (HEADER_OPCIONAL[clave].some((alias) => header.includes(normalizar(alias)))) {
+        opcionales[clave] = colNumber;
+      }
     }
   });
   for (const clave of Object.keys(HEADER) as Array<keyof typeof HEADER>) {
@@ -133,7 +171,10 @@ function indiceColumnas(hoja: ExcelJS.Worksheet): Record<keyof typeof HEADER, nu
       throw new Error(`No se encontro la columna "${HEADER[clave]}" en el Excel.`);
     }
   }
-  return indices as Record<keyof typeof HEADER, number>;
+  return {
+    requeridas: indices as Record<keyof typeof HEADER, number>,
+    ...opcionales,
+  };
 }
 
 async function main() {
@@ -141,11 +182,12 @@ async function main() {
   await workbook.xlsx.readFile(filePath as string);
   const hoja = workbook.worksheets[0];
   if (!hoja) throw new Error("El Excel no tiene hojas.");
-  const columnas = indiceColumnas(hoja);
+  const { requeridas: columnas, declaracion: colDeclaracion, fechaAprobacion: colFechaAprobacion } = indiceColumnas(hoja);
 
   let importados = 0;
   let omitidos = 0;
   const resultados: Record<string, number> = {};
+  const declaraciones: Record<string, number> = {};
 
   for (let fila = 2; fila <= hoja.actualRowCount; fila += 1) {
     const row = hoja.getRow(fila);
@@ -160,10 +202,21 @@ async function main() {
     const fechaIngreso = fecha(row.getCell(columnas.ingreso).value);
     const fechaRevision = fecha(row.getCell(columnas.revision).value);
     const resultado = resultadoNormalizado(resultadoOrigen);
-    const fechaVencimiento =
-      resultado === "apto" || resultado === "apto_con_observaciones"
-        ? sumarMeses(fechaRevision ?? fechaIngreso ?? new Date(), 6)
-        : null;
+    const declaracionRaw = colDeclaracion
+      ? texto(row.getCell(colDeclaracion).value)
+      : "";
+    /* Si la columna existe pero viene vacia, se asume que no se presento. */
+    const declaracion = colDeclaracion
+      ? (declaracionNormalizada(declaracionRaw) ?? "no_envio")
+      : null;
+    const fechaAprobacionManual = colFechaAprobacion
+      ? fecha(row.getCell(colFechaAprobacion).value)
+      : null;
+    const esApto = resultado === "apto" || resultado === "apto_con_observaciones";
+    const fechaAprobacion = esApto ? (fechaAprobacionManual ?? fechaRevision) : null;
+    const fechaVencimiento = esApto
+      ? sumarMeses(fechaAprobacion ?? fechaRevision ?? fechaIngreso ?? new Date(), 6)
+      : null;
     const tipo = tipoDocumento(documento);
 
     await prisma.debidaDiligenciaEmpresaEstado.upsert({
@@ -177,7 +230,9 @@ async function main() {
         estadoOrigen: resultadoOrigen,
         fechaIngreso,
         fechaRevision,
+        fechaAprobacion,
         fechaVencimiento,
+        declaracionVigenciaEstado: declaracion,
         origen: "excel_dd",
       },
       create: {
@@ -190,15 +245,18 @@ async function main() {
         estadoOrigen: resultadoOrigen,
         fechaIngreso,
         fechaRevision,
+        fechaAprobacion,
         fechaVencimiento,
+        declaracionVigenciaEstado: declaracion,
         origen: "excel_dd",
       },
     });
     importados += 1;
     resultados[resultado] = (resultados[resultado] ?? 0) + 1;
+    if (declaracion) declaraciones[declaracion] = (declaraciones[declaracion] ?? 0) + 1;
   }
 
-  console.log(JSON.stringify({ importados, omitidos, resultados }, null, 2));
+  console.log(JSON.stringify({ importados, omitidos, resultados, declaraciones }, null, 2));
 }
 
 main()

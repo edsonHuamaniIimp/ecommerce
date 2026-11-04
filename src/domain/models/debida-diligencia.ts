@@ -459,7 +459,9 @@ export interface DdEmpresaEstadoEntity {
   estadoOrigen: string;
   fechaIngreso: Date | null;
   fechaRevision: Date | null;
+  fechaAprobacion: Date | null;
   fechaVencimiento: Date | null;
+  declaracionVigenciaEstado: string | null;
   origen: string;
   createdAt: Date;
   updatedAt: Date;
@@ -475,7 +477,9 @@ export interface DdEmpresaEstadoImportData {
   estadoOrigen: string;
   fechaIngreso: Date | null;
   fechaRevision: Date | null;
+  fechaAprobacion: Date | null;
   fechaVencimiento: Date | null;
+  declaracionVigenciaEstado: string | null;
 }
 
 export interface DdEmpresasParams {

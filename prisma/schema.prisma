@@ -1508,7 +1508,11 @@ model DebidaDiligenciaEmpresaEstado {
   estadoOrigen     String   @map("estado_origen") @db.VarChar(80)
   fechaIngreso     DateTime? @map("fecha_ingreso")
   fechaRevision    DateTime? @map("fecha_revision")
+  /// Fecha de decision/aprobacion final; base para calcular la vigencia de 6 meses.
+  fechaAprobacion  DateTime? @map("fecha_aprobacion")
   fechaVencimiento DateTime? @map("fecha_vencimiento")
+  /// Estado de la declaracion jurada de vigencia (no_envio, cargado, observado, aprobado, no_corresponde).
+  declaracionVigenciaEstado String? @map("declaracion_vigencia_estado") @db.VarChar(30)
   origen           String   @default("excel_dd") @db.VarChar(40)
 
   createdAt DateTime @default(now()) @map("created_at")

@@ -41,6 +41,7 @@ import {
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
   DD_ALCANCES_REVISION,
+  DD_DECLARACION_VIGENCIA_ESTADOS,
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
@@ -828,8 +829,12 @@ export class DebidaDiligenciaApplicationService {
       empresa?.ruc ?? null,
       razonSocial ?? empresa?.razonSocial ?? null,
     );
-    const evaluacionExterna = this.evaluacionDeEmpresaExterna(externa, empresa);
-    return evaluacionExterna.aptoParaContratar ? evaluacionExterna : interna;
+    if (!externa) return interna;
+    /*
+     * Si existe un registro externo, su mensaje es el que necesita ver el revisor
+     * (declaracion faltante, vencida, no apta), aunque no sea apto.
+     */
+    return this.evaluacionDeEmpresaExterna(externa, empresa);
   }
 
   /** Evaluacion de la DD manual/externa: cuenta como aprobada si esta APTA y vigente. */
@@ -839,23 +844,40 @@ export class DebidaDiligenciaApplicationService {
   ): DdEvaluacionEmpresa {
     if (!estado) return this.evaluacionDeEmpresa(null, empresa);
 
+    const fechaAprobacion = estado.fechaAprobacion ?? estado.fechaRevision;
     const fechaVencimiento =
       estado.fechaVencimiento ??
-      (estado.fechaRevision ? ddUtils.sumarMeses(estado.fechaRevision) : null);
+      (fechaAprobacion ? ddUtils.sumarMeses(fechaAprobacion) : null);
     const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(
       estado.resultado,
       fechaVencimiento,
     );
     const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
-    const aptoParaContratar =
-      vigente &&
-      (estado.resultado === DD_RESULTADOS.APTO ||
-        estado.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES);
+    const resultadoApto =
+      estado.resultado === DD_RESULTADOS.APTO ||
+      estado.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES;
+    const declaracion = estado.declaracionVigenciaEstado ?? null;
+    /* null = dato legacy sin columna de declaracion; no se bloquea por si solo. */
+    const declaracionValida =
+      declaracion === null ||
+      declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.NO_CORRESPONDE ||
+      declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.APROBADO;
+    const requiereDeclaracionVigencia = resultadoApto && !declaracionValida;
+    const aptoParaContratar = vigente && resultadoApto && declaracionValida;
     const mensaje = aptoParaContratar
       ? null
       : estado.resultado === DD_RESULTADOS.NO_APTO
-        ? "La empresa no es APTA según el registro externo de Debida Diligencia."
-        : "La empresa aún no cuenta con una Debida Diligencia APTA y vigente en el registro externo.";
+        ? "La empresa no es APTA segun el registro externo de Debida Diligencia."
+        : !vigente
+          ? "La Debida Diligencia de la empresa esta vencida o no tiene fecha de aprobacion vigente."
+          : declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.NO_ENVIO
+            ? "La empresa tiene una DD APTA y vigente, pero le falta la Declaracion jurada de vigencia de informacion."
+            : declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.OBSERVADO
+              ? "La Declaracion jurada de vigencia de informacion esta observada."
+              : declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.CARGADO ||
+                  declaracion === DD_DECLARACION_VIGENCIA_ESTADOS.PENDIENTE
+                ? "La Declaracion jurada de vigencia de informacion esta pendiente de validacion."
+                : "La empresa aun no cuenta con una Debida Diligencia APTA y vigente en el registro externo.";
 
     return {
       empresa,
@@ -864,8 +886,8 @@ export class DebidaDiligenciaApplicationService {
       estadoEvaluacion,
       vigente,
       aptoParaContratar,
-      requiereDeclaracionVigencia: false,
-      declaracionVigenciaEstado: null,
+      requiereDeclaracionVigencia,
+      declaracionVigenciaEstado: declaracion,
       observacionesAbiertas: 0,
       mensaje,
     };
@@ -975,17 +997,23 @@ export class DebidaDiligenciaApplicationService {
     return {
       ...resultado,
       data: resultado.data.map((empresa) => {
+        const fechaAprobacion = empresa.fechaAprobacion ?? empresa.fechaRevision;
         const fechaVencimiento =
           empresa.fechaVencimiento ??
-          (empresa.fechaRevision ? ddUtils.sumarMeses(empresa.fechaRevision) : null);
+          (fechaAprobacion ? ddUtils.sumarMeses(fechaAprobacion) : null);
         const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(
           empresa.resultado,
           fechaVencimiento,
           ahora,
         );
         const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+        const declaracionValida =
+          empresa.declaracionVigenciaEstado === null ||
+          empresa.declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.NO_CORRESPONDE ||
+          empresa.declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.APROBADO;
         const puedeAvanzar =
           vigente &&
+          declaracionValida &&
           (empresa.resultado === DD_RESULTADOS.APTO ||
             empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES);
         const mensaje =
@@ -995,9 +1023,11 @@ export class DebidaDiligenciaApplicationService {
               ? "Debida diligencia pendiente de validación."
               : estadoEvaluacion === DD_ESTADOS_EVALUACION.REQUIERE_NUEVA_EVALUACION
                 ? "La evaluación requiere una nueva evaluación."
-                : empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES
-                  ? "Apta con observaciones para el vínculo evaluado."
-                  : "Debida diligencia vigente.";
+                : !declaracionValida
+                  ? "La Declaración jurada de vigencia de información está pendiente u observada."
+                  : empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES
+                    ? "Apta con observaciones para el vínculo evaluado."
+                    : "Debida diligencia vigente.";
 
         return {
           empresa: { ...empresa, fechaVencimiento },

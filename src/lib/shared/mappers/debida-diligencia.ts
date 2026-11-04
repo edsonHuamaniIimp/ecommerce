@@ -32,8 +32,10 @@ import type {
   DdReputacionRowDTO,
 } from "@/types/dto/debida-diligencia";
 import {
+  DD_DECLARACION_VIGENCIA_ESTADOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADO_EVALUACION_LABELS,
+  DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_HISTORIAL_TIPO_LABELS,
   DD_HISTORIAL_TIPOS,
@@ -266,17 +268,23 @@ export function mapDdEstadoExternoToDTO(
   estado: DdEmpresaEstadoEntity | null,
 ): DdEstadoExternoDTO | null {
   if (!estado) return null;
+  const fechaAprobacion = estado.fechaAprobacion ?? estado.fechaRevision;
   const fechaVencimiento =
     estado.fechaVencimiento ??
-    (estado.fechaRevision ? ddUtils.sumarMeses(estado.fechaRevision) : null);
+    (fechaAprobacion ? ddUtils.sumarMeses(fechaAprobacion) : null);
   const estadoEvaluacion = ddUtils.estadoEvaluacionExterna(estado.resultado, fechaVencimiento);
   const vigente = estadoEvaluacion === DD_ESTADOS_EVALUACION.VIGENTE;
+  const declaracionValida =
+    estado.declaracionVigenciaEstado === null ||
+    estado.declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.NO_CORRESPONDE ||
+    estado.declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.APROBADO;
   return {
     resultado: estado.resultado,
     estadoEvaluacion,
     vigente,
     aptoParaContratar:
       vigente &&
+      declaracionValida &&
       (estado.resultado === DD_RESULTADOS.APTO ||
         estado.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES),
     fechaVencimiento: fechaVencimiento ? dateUtils.toIso(fechaVencimiento) : null,
@@ -294,7 +302,15 @@ export function mapDdEvaluacionSolicitudToDTO(
     empresaRazonSocial: evaluacion.empresa?.razonSocial ?? null,
     expedienteId: evaluacion.expediente?.id ?? null,
     codigo: evaluacion.expediente?.codigo ?? null,
-    estado: evaluacion.expediente?.estado ?? null,
+    estado:
+      evaluacion.expediente?.estado ??
+      (evaluacion.requiereDeclaracionVigencia
+        ? DD_ESTADOS.OBSERVADA
+        : evaluacion.aptoParaContratar
+          ? DD_ESTADOS.APROBADA
+          : evaluacion.resultado === DD_RESULTADOS.NO_APTO
+            ? DD_ESTADOS.RECHAZADA
+            : DD_ESTADOS.PENDIENTE),
     resultado: evaluacion.resultado,
     estadoEvaluacion: evaluacion.estadoEvaluacion,
     vigente: evaluacion.vigente,

@@ -6,6 +6,7 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
 import {
+  DD_DECLARACION_VIGENCIA_ESTADOS,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
   DD_ESTADOS,
@@ -317,6 +318,60 @@ describe("evaluacionDeUsuario", () => {
     expect(evaluacion.mensaje).toContain("observada");
   });
 
+  it("bloquea un APTO externo sin declaracion de vigencia", async () => {
+    const externo = {
+      id: "ext-2",
+      documento: EMPRESA.ruc,
+      razonSocial: EMPRESA.razonSocial,
+      tipoDocumento: "RUC",
+      motivoEvaluacion: null,
+      eventoProyecto: null,
+      resultado: DD_RESULTADOS.APTO,
+      estadoOrigen: "APTO",
+      fechaIngreso: null,
+      fechaRevision: new Date("2026-10-18"),
+      fechaAprobacion: new Date("2026-10-18"),
+      fechaVencimiento: new Date("2099-01-01"),
+      declaracionVigenciaEstado: DD_DECLARACION_VIGENCIA_ESTADOS.NO_ENVIO,
+      origen: "excel_dd",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } satisfies DdEmpresaEstadoEntity;
+    const { servicio } = crearServicio(null, EMPRESA.id, externo);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(false);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(true);
+    expect(evaluacion.declaracionVigenciaEstado).toBe(DD_DECLARACION_VIGENCIA_ESTADOS.NO_ENVIO);
+    expect(evaluacion.mensaje).toContain("Declaracion jurada");
+  });
+
+  it("acepta un APTO externo con declaracion no corresponde", async () => {
+    const externo = {
+      id: "ext-3",
+      documento: EMPRESA.ruc,
+      razonSocial: EMPRESA.razonSocial,
+      tipoDocumento: "RUC",
+      motivoEvaluacion: null,
+      eventoProyecto: null,
+      resultado: DD_RESULTADOS.APTO,
+      estadoOrigen: "APTO",
+      fechaIngreso: null,
+      fechaRevision: new Date("2026-10-18"),
+      fechaAprobacion: new Date("2026-10-18"),
+      fechaVencimiento: new Date("2099-01-01"),
+      declaracionVigenciaEstado: DD_DECLARACION_VIGENCIA_ESTADOS.NO_CORRESPONDE,
+      origen: "excel_dd",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } satisfies DdEmpresaEstadoEntity;
+    const { servicio } = crearServicio(null, EMPRESA.id, externo);
+    const evaluacion = await servicio.evaluacionDeUsuario("cliente@iimp.org.pe", "evento-1");
+
+    expect(evaluacion.aptoParaContratar).toBe(true);
+    expect(evaluacion.requiereDeclaracionVigencia).toBe(false);
+  });
+
   it("usa la DD aprobada vigente aunque exista un borrador posterior", async () => {
     const borrador = {
       ...EXPEDIENTE_BASE,
@@ -348,7 +403,9 @@ describe("evaluacionDeUsuario", () => {
       estadoOrigen: "APTO",
       fechaIngreso: null,
       fechaRevision: new Date("2026-10-18"),
+      fechaAprobacion: new Date("2026-10-18"),
       fechaVencimiento: new Date("2099-01-01"),
+      declaracionVigenciaEstado: null,
       origen: "manual_apto",
       createdAt: new Date(),
       updatedAt: new Date(),

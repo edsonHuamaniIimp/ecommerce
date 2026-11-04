@@ -827,7 +827,10 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                   <span>Declaración de vigencia pendiente</span>
                                 </Badge>
                               ) : (
-                                <DdEstadoBadge estado={row.ddEstado?.estado ?? null} />
+                                <DdEstadoBadge
+                                  estado={row.ddEstado?.estado ?? null}
+                                  declaracionVigenciaEstado={row.ddEstado?.declaracionVigenciaEstado ?? null}
+                                />
                               )}
                             </div>
                           </TableCell>

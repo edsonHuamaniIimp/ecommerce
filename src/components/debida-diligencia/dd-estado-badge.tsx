@@ -4,6 +4,7 @@ import { Badge } from "@nrivera-iimp/ui-kit-iimp";
 import { CheckCircle2, Clock, FileEdit, XCircle } from "lucide-react";
 import {
   BADGE_STYLES,
+  DD_DECLARACION_VIGENCIA_ESTADOS,
   DD_DOCUMENTO_ESTADO_LABELS,
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADO_LABELS,
@@ -16,10 +17,39 @@ import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 export function DdEstadoBadge({
   estado,
   sinIniciarLabel = "Sin iniciar",
+  declaracionVigenciaEstado = null,
 }: {
   estado: string | null | undefined;
   sinIniciarLabel?: string;
+  declaracionVigenciaEstado?: string | null;
 }) {
+  if (declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.NO_ENVIO) {
+    return (
+      <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
+        <Clock className="h-2.5 w-2.5" />
+        <span>Falta declaración de vigencia</span>
+      </Badge>
+    );
+  }
+  if (declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.OBSERVADO) {
+    return (
+      <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
+        <Clock className="h-2.5 w-2.5" />
+        <span>Declaración observada</span>
+      </Badge>
+    );
+  }
+  if (
+    declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.CARGADO ||
+    declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.PENDIENTE
+  ) {
+    return (
+      <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.WARNING}`}>
+        <Clock className="h-2.5 w-2.5" />
+        <span>Declaración en validación</span>
+      </Badge>
+    );
+  }
   if (!estado) {
     return (
       <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.NEUTRAL}`}>

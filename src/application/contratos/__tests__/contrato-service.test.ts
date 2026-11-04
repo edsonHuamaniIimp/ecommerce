@@ -599,8 +599,9 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(media.length).toBeGreaterThanOrEqual(2);
     /* Tres columnas de firma: IIMP, exhibidor principal y adicional. */
     const xml = zip.file("word/document.xml")?.asText() ?? "";
-    expect(xml).toContain('w:pos="3200"');
-    expect(xml).toContain('w:pos="6300"');
+    expect(xml).toContain("<w:tbl>");
+    expect(xml).toContain('w:w="3000"');
+    expect(xml).toContain('w:w="3200"');
     const docPrIds = [...xml.matchAll(/<wp:docPr\b[^>]*id="([^"]+)"/g)].map((m) => m[1]);
     expect(new Set(docPrIds).size).toBe(docPrIds.length);
     /*
@@ -652,7 +653,8 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
     const texto = textoDocx(buffer);
     expect(texto).toContain("ANA PEREZ");
-    expect(texto).toContain("Representante legal adicional");
+    expect(texto).toContain("EL EXHIBIDOR");
+    expect(texto).not.toContain("Representante legal adicional");
     const media = Object.keys(new PizZip(buffer).files).filter((f) => f.startsWith("word/media/"));
     expect(media.length).toBeGreaterThanOrEqual(3);
     vi.unstubAllGlobals();
@@ -922,13 +924,13 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
 
     const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
     const texto = textoDocx(buffer);
-    expect(texto).toContain("comparecen y firman como representantes legales de EL EXHIBIDOR");
+    expect(texto).toContain("debidamente representada por");
     expect(texto).toContain("ANA PEREZ");
     expect(texto).toContain("45871233");
-    expect(texto).toContain("LUIS GOMEZ");
+    expect(texto).toContain("y LUIS GOMEZ");
     expect(texto).toContain("45871234");
-    expect(texto).toContain("(i)");
-    expect(texto).toContain("(ii)");
+    expect(texto).not.toContain("comparecen y firman como representantes legales");
+    expect(texto).toContain("Lima,");
   });
   it("genera el borrador con 4 cuotas configuradas por la empresa (caso YURA)", async () => {
     const fechas = ["2026-11-20", "2026-11-27", "2026-12-18", "2027-04-30"];

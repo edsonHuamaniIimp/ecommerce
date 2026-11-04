@@ -9,10 +9,10 @@
 aurora_min_acu = 1
 aurora_max_acu = 16
 
-# Cómputo: piso alto y techo amplio para absorber lo desconocido
-desired_min_capacity = 4
-desired_max_capacity = 16
-desired_count_prod   = 4
+# Cómputo: piso 8 tareas y techo 20
+desired_min_capacity = 8
+desired_max_capacity = 20
+desired_count_prod   = 8
 desired_count_qa     = 1
 task_cpu             = "1024"
 task_memory          = "2048"
@@ -32,7 +32,7 @@ scheduled_scalings = [
     name     = "prewarm-apertura"
     schedule = "cron(50 12 * * ? *)"
     min      = 8
-    max      = 16
+    max      = 20
     timezone = "UTC"
   },
 ]

@@ -568,33 +568,49 @@ export class ContratoApplicationService {
       tipoDocumento: TIPOS_DOCUMENTO_PERSONA_LABELS[rep.tipoDocumento] ?? rep.tipoDocumento,
       documento: rep.documento,
     }));
+    /*
+     * Redaccion validada por Legal: los representantes firman conjuntamente y
+     * comparten la misma personeria/partida. No se usa "adicionalmente comparece";
+     * EL EXHIBIDOR sigue siendo la empresa (singular) y cada firma se identifica
+     * como EL EXHIBIDOR con el nombre de la persona debajo.
+     */
     const clausulaRepresentantes = (() => {
-      if (representantesAdicionales.length === 0) return "";
-      const identificados = representantesAdicionales.map(
-        (rep) => `${rep.nombre}, identificado con ${rep.tipoDocumento} ${esContratoEn ? "No." : "N.°"} ${rep.documento}`,
-      );
-      if (identificados.length === 1) {
-        return esContratoEn
-          ? `Additionally, the following legal representative of THE EXHIBITOR appears and signs this Contract: ${identificados[0]}.`
-          : `Adicionalmente, comparece y firma como representante legal de EL EXHIBIDOR: ${identificados[0]}.`;
-      }
-      const numeros = ["i", "ii", "iii", "iv", "v"];
-      const lineas = identificados.map((texto, indice) => `(${numeros[indice] ?? indice + 1}) ${texto}`);
-      const detalle = `${lineas.slice(0, -1).join(";\n")};\n ${esContratoEn ? "and" : "y"} ${lineas.at(-1)}.`;
-      return esContratoEn
-        ? `Additionally, the following legal representatives of THE EXHIBITOR appear and sign this Contract:\n${detalle}`
-        : `Adicionalmente, comparecen y firman como representantes legales de EL EXHIBIDOR:\n${detalle}`;
+      const identificacionPrincipal = esContratoEn
+        ? `${representanteLegal}, identified with DNI/ identification card/ ID Card/Passport or other equivalent No. ${dniRepresentante}`
+        : `${representanteLegal}, identificado con DNI/ cédula de identificación/ ID Card/Pasaporte u otro equivalente N.° ${dniRepresentante}`;
+      const identificaciones = [
+        identificacionPrincipal,
+        ...representantesAdicionales.map(
+          (rep) => `${rep.nombre}, ${esContratoEn ? "identified with" : "identificado con"} ${rep.tipoDocumento} ${esContratoEn ? "No." : "N.°"} ${rep.documento}`,
+        ),
+      ];
+      const union =
+        identificaciones.length === 1
+          ? identificaciones[0]
+          : `${identificaciones.slice(0, -1).join(", ")} y ${identificaciones.at(-1)}`;
+      const partida = partidaElectronica.trim();
+      const tienePartida = partida !== "" && partida !== "-";
+      const plural = identificaciones.length === 2 ? (esContratoEn ? "both" : "ambos") : (esContratoEn ? "all" : "todos");
+      const poderes = !tienePartida
+        ? ""
+        : esContratoEn
+          ? `, ${identificaciones.length > 1 ? plural + " with powers registered under the same" : "with powers registered under"} Electronic File No. ${partida} of the Registry of Legal Entities of Lima (if applicable)`
+          : `, ${identificaciones.length > 1 ? plural + " con poderes inscritos en la misma" : "con poderes inscritos en la"} Partida Electr?nica N.? ${partida} del Registro de Personas Jur?dicas de Lima (si aplica)`;
+      return `${union}${poderes}`;
     })();
     const firmasRepresentantes = await this.prepararFirmasRepresentantes(
       empresa?.representantesAdicionales ?? [],
     );
-    const cargoAdicional = esContratoEn ? "Additional Legal Representative" : "Representante legal adicional";
     const firmasExhibidor = [
-      { firma: firmaExhibidorBase64 ?? PNG_1PX_BASE64, nombre: "EL EXHIBIDOR", cargo: "" },
+      {
+        firma: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
+        nombre: "EL",
+        cargo: `EXHIBIDOR\n${representanteLegal !== "-" ? representanteLegal : ""}`,
+      },
       ...firmasRepresentantes.map((rep) => ({
         firma: rep.firma_representante,
-        nombre: rep.nombre_representante,
-        cargo: cargoAdicional,
+        nombre: "EL",
+        cargo: `EXHIBIDOR\n${rep.nombre_representante}`,
       })),
     ];
     const firmasTabla = Array.from({ length: Math.ceil(firmasExhibidor.length / 2) }, (_, indice) => {
@@ -602,8 +618,10 @@ export class ContratoApplicationService {
       const segunda = firmasExhibidor[indice * 2 + 1];
       return {
         linea_iimp: indice === 0 ? "_____________________________" : "",
-        nombre_iimp: indice === 0 ? "Gustavo Adolfo De Vinatea Bellatin" : "",
-        cargo_iimp: indice === 0 ? (esContratoEn ? "General Manager" : "Gerente General") : "",
+        nombre_iimp: indice === 0 ? "EL" : "",
+        cargo_iimp: indice === 0
+          ? `IIMP\nGustavo Adolfo De Vinatea Bellatin - ${esContratoEn ? "General Manager" : "Gerente General"}`
+          : "",
         firma_1: primera?.firma ?? PNG_1PX_BASE64,
         linea_1: primera ? "_____________________________" : "",
         nombre_1: primera?.nombre ?? "",
@@ -638,7 +656,7 @@ export class ContratoApplicationService {
       dni_representante: dniRepresentante,
       partida_electronica: partidaElectronica,
       representantes_adicionales: representantesAdicionales,
-      representantes_adicionales_clausula: clausulaRepresentantes,
+      representantes_clausula: clausulaRepresentantes,
       firmas_representantes: firmasRepresentantes,
       firmas_tabla: firmasTabla,
       firmas_declaracion_filas: firmasDeclaracionFilas,

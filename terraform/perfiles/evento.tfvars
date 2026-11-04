@@ -8,10 +8,10 @@
 aurora_min_acu = 0.5
 aurora_max_acu = 8
 
-# Cómputo: piso 2 tareas, techo 8
-desired_min_capacity = 2
-desired_max_capacity = 8
-desired_count_prod   = 2
+# Cómputo: piso 8 tareas, techo 20
+desired_min_capacity = 8
+desired_max_capacity = 20
+desired_count_prod   = 8
 desired_count_qa     = 1
 task_cpu             = "512"
 task_memory          = "1024"

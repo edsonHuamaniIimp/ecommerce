@@ -40,13 +40,41 @@ function parrafoLoop(texto) {
   return `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:t>${ESC(texto)}</w:t></w:r></w:p>`;
 }
 
+function quitarParrafo(xml, textoTag) {
+  const p = parrafos(xml).find((item) => item.texto === textoTag);
+  if (!p) return xml;
+  return xml.slice(0, p.index) + xml.slice(p.index + p.xml.length);
+}
+
 function agregarClausulaRepresentantes(xml, archivo) {
-  if (xml.includes("{representantes_adicionales_clausula}")) return xml;
-  xml = quitarBloque(xml, "{#representantes_adicionales}", "{/representantes_adicionales}");
-  const principal = parrafos(xml).find((p) => p.texto.includes("{representante_legal}") && p.texto.includes("{dni_representante}"));
+  /* La plantilla nueva usa una sola frase: "representada por X, Y y Z". */
+  if (xml.includes("{representantes_clausula}")) {
+    return quitarParrafo(xml, "{representantes_adicionales_clausula}");
+  }
+  const principal = parrafos(xml).find(
+    (p) => p.texto.includes("{representante_legal}") && p.texto.includes("{dni_representante}"),
+  );
   if (!principal) throw new Error(`No se encontro el parrafo del representante en ${archivo}`);
-  const bloque = parrafoTexto(principal.xml, "{representantes_adicionales_clausula}");
-  return xml.slice(0, principal.index + principal.xml.length) + bloque + xml.slice(principal.index + principal.xml.length);
+  if (!principal.texto.includes("{representantes_clausula}")) {
+    const esIngles = principal.texto.includes("duly represented by");
+    const marcador = esIngles ? "duly represented by" : "debidamente representada por";
+    const inicio = principal.texto.indexOf(esIngles ? "duly represented by {representante_legal}" : "debidamente representada por");
+    const cierre = principal.texto.indexOf(esIngles ? ", hereinafter referred to" : ", a la que", inicio);
+    if (inicio < 0 || cierre < 0 || cierre <= inicio) {
+      throw new Error(`No se pudo identificar la clausula de representacion en ${archivo}`);
+    }
+    const nuevo = `${principal.texto.slice(0, inicio)}${marcador} {representantes_clausula}${principal.texto.slice(cierre)}`;
+    xml = xml.slice(0, principal.index) + parrafoTexto(principal.xml, nuevo) + xml.slice(principal.index + principal.xml.length);
+  }
+  return quitarParrafo(xml, "{representantes_adicionales_clausula}");
+}
+
+function agregarFecha(xml) {
+  if (xml.includes("Lima, {firmante_fecha}")) return xml;
+  const fecha = parrafos(xml).find((p) => p.texto === "Lima,");
+  if (!fecha) return xml;
+  const nuevo = parrafoTexto(fecha.xml, "Lima, {firmante_fecha}");
+  return xml.slice(0, fecha.index) + nuevo + xml.slice(fecha.index + fecha.xml.length);
 }
 
 function quitarBloque(xml, inicioTag, finTag) {
@@ -65,22 +93,24 @@ function quitarBloquesFirmas(xml) {
   return quitarBloque(xml, "{#firmas_tabla}", "{/firmas_tabla}");
 }
 
+function celdaFirma(width, contenido) {
+  return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:vAlign w:val="top"/></w:tcPr>${contenido}</w:tc>`;
+}
+
+function campo(texto, bold = false) {
+  return parrafoTabs("", [texto], bold, 16);
+}
+
 function agregarFirmasAdicionales(xml) {
   const tablaExistente = parrafos(xml).find((p) => p.texto.includes("{#firmas_tabla}"));
   xml = quitarBloquesFirmas(xml);
 
-  /* Tres columnas: IIMP | exhibidor principal | representante adicional. */
-  const tabs = '<w:tabs><w:tab w:val="left" w:pos="3200"/><w:tab w:val="left" w:pos="6300"/></w:tabs>';
-  const bloque = [
-    parrafoLoop("{#firmas_tabla}"),
-    parrafoTabs(tabs, ["", "{%firma_1}", "{%firma_2}"], false, 16),
-    parrafoTabs(tabs, ["{linea_iimp}", "{linea_1}", "{linea_2}"], false, 16),
-    parrafoTabs(tabs, ["{nombre_iimp}", "{nombre_1}", "{nombre_2}"], true, 16),
-    parrafoTabs(tabs, ["{cargo_iimp}", "{cargo_1}", "{cargo_2}"], false, 16),
-    parrafoLoop("{/firmas_tabla}"),
-  ].join("");
+  /* Tabla de 3 columnas con ancho fijo: los nombres largos no invaden la columna vecina. */
+  const apertura = parrafoLoop("{#firmas_tabla}");
+  const cierre = parrafoLoop("{/firmas_tabla}");
+  const fila = `<w:tr><w:trPr><w:cantSplit/></w:trPr>${celdaFirma(3000, `${apertura}${campo("{nombre_iimp}", true)}${campo("{linea_iimp}")}${campo("{cargo_iimp}")}`)}${celdaFirma(3200, `${campo("{nombre_1}", true)}${parrafoLoop("{%firma_1}")}${campo("{linea_1}")}${campo("{cargo_1}")}`)}${celdaFirma(3200, `${campo("{nombre_2}", true)}${parrafoLoop("{%firma_2}")}${campo("{linea_2}")}${campo("{cargo_2}")}${cierre}`)}</w:tr>`;
+  const bloque = `<w:tbl><w:tblPr><w:tblW w:w="9400" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3200"/><w:gridCol w:w="3200"/></w:tblGrid>${fila}</w:tbl>`;
 
-  /* Plantilla ya migrada: reemplaza el bloque existente en la misma posicion. */
   if (tablaExistente) {
     return xml.slice(0, tablaExistente.index) + bloque + xml.slice(tablaExistente.index);
   }
@@ -122,6 +152,7 @@ function actualizar(archivo) {
   let xml = zip.file("word/document.xml").asText();
 
   xml = agregarClausulaRepresentantes(xml, archivo);
+  xml = agregarFecha(xml);
   xml = agregarFirmasAdicionales(xml);
   xml = agregarFirmasDeclaracion(xml);
   zip.file("word/document.xml", xml);

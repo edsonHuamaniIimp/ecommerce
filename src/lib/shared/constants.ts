@@ -1451,6 +1451,22 @@ export const DD_RESULTADOS = {
 
 export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
 
+/**
+ * Estado de la declaracion jurada de vigencia en el registro externo de DD.
+ * `null` en datos legacy significa "sin informacion" y no bloquea por si solo.
+ */
+export const DD_DECLARACION_VIGENCIA_ESTADOS = {
+  NO_CORRESPONDE: "no_corresponde",
+  NO_ENVIO: "no_envio",
+  PENDIENTE: "pendiente",
+  CARGADO: "cargado",
+  OBSERVADO: "observado",
+  APROBADO: "aprobado",
+} as const;
+
+export type DdDeclaracionVigenciaEstado =
+  (typeof DD_DECLARACION_VIGENCIA_ESTADOS)[keyof typeof DD_DECLARACION_VIGENCIA_ESTADOS];
+
 /** Decision final de Legal sobre un expediente derivado. */
 export const DD_ACCIONES_LEGAL = {
   APROBAR: "aprobar",
