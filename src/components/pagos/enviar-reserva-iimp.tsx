@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from "@nrivera-iimp/ui-kit-iimp";
@@ -44,8 +44,11 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
   const [archivos, setArchivos] = useState<ArchivoIImpInputDTO[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [requisitos, setRequisitos] = useState<RequisitosFacturacionDTO>(REQUISITOS_INICIALES);
+  /** Error de validacion del paso 1 (plataforma u "otros requisitos"). */
+  const [errorPaso1, setErrorPaso1] = useState<string | null>(null);
 
   const marcar = (campo: keyof RequisitosFacturacionDTO, valor: boolean) => {
+    setErrorPaso1(null);
     setRequisitos((prev) => {
       if (campo === "ninguna" && valor) {
         /* Declarar "ninguna de las anteriores" desmarca todo el checklist. */
@@ -76,6 +79,10 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
   const enviar = async () => {
     if (!cuotaId) return;
+    if (faltantes.length > 0) {
+      toast.error(`Adjunta al menos un documento de: ${faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(", ")}`);
+      return;
+    }
     setEnviando(true);
     try {
       const resultado = await pagosService.solicitarFactura(cuotaId, archivos, {
@@ -110,6 +117,29 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
     ...(requisitos.hes ? [TIPOS_ARCHIVO_IIMP.HES] : []),
     ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
   ];
+  /** Requisitos declarados que aun no tienen ningun documento adjunto. */
+  const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
+
+  /** Valida el paso 1 y avanza a la carga de documentos. */
+  const continuar = () => {
+    if (requisitos.plataforma) {
+      if (!requisitos.plataformaNombre?.trim()) {
+        setErrorPaso1("Indica el nombre de la plataforma.");
+        return;
+      }
+      if (!/^https?:\/\/.+/i.test((requisitos.plataformaUrl ?? "").trim())) {
+        setErrorPaso1("Ingresa un enlace válido de la plataforma (http:// o https://).");
+        return;
+      }
+    }
+    if (requisitos.otros && !requisitos.otros.trim()) {
+      setErrorPaso1("Especifica el requisito en \"Otros requisitos\".");
+      return;
+    }
+    setErrorPaso1(null);
+    setArchivos((prev) => prev.filter((a) => tiposDeclarados.includes(a.tipo as TipoArchivoIImp)));
+    setPaso(2);
+  };
 
   return (
     <Dialog open={open} onOpenChange={cerrar}>
@@ -155,13 +185,13 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                       className="h-9 text-xs"
                       placeholder="Nombre de la plataforma"
                       value={requisitos.plataformaNombre ?? ""}
-                      onChange={(e) => setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value }))}
+                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value })); }}
                     />
                     <Input
                       className="h-9 text-xs"
                       placeholder="Enlace de acceso (https://...)"
                       value={requisitos.plataformaUrl ?? ""}
-                      onChange={(e) => setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value }))}
+                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value })); }}
                     />
                   </div>
                 )}
@@ -182,7 +212,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                       className="h-9 w-full text-xs"
                       placeholder="Especifica el requisito"
                       value={requisitos.otros === " " ? "" : (requisitos.otros ?? "")}
-                      onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.value }))}
+                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, otros: e.target.value })); }}
                       autoFocus
                     />
                   </div>
@@ -193,14 +223,20 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                   <span><strong>Ninguna de las anteriores</strong>: mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra).</span>
                 </label>
               </div>
+
+              {errorPaso1 && (
+                <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-[11px] font-medium text-destructive" role="alert">
+                  <span>{errorPaso1}</span>
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
                 <span>
-                  Adjunta los documentos de tu declaración si ya los tienes (opcional). También puedes
-                  registrarlos después desde &quot;Mis documentos&quot;. Las constancias de pago se adjuntan
-                  al pagar cada cuota.
+                  Adjunta al menos un documento por cada requisito que declaraste. Puedes agregar más de
+                  uno por tipo; también puedes completarlos después desde &quot;Mis documentos&quot;. Las
+                  constancias de pago se adjuntan al pagar cada cuota.
                 </span>
               </p>
 
@@ -211,6 +247,12 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
               ) : (
                 <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
                   No declaraste documentos pendientes: puedes enviar tu solicitud de factura directamente.
+                </p>
+              )}
+
+              {faltantes.length > 0 && (
+                <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] font-medium text-foreground" role="alert">
+                  <span>Falta adjuntar: {faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" · ")}.</span>
                 </p>
               )}
 
@@ -256,7 +298,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
         <DialogFooter>
           {paso === 1 ? (
-            <Button className="w-full" onClick={() => { setArchivos((prev) => prev.filter((a) => tiposDeclarados.includes(a.tipo as TipoArchivoIImp))); setPaso(2); }}>
+            <Button className="w-full" onClick={continuar}>
               <span>Continuar</span>
             </Button>
           ) : (
@@ -265,7 +307,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
                 <span>Volver</span>
               </Button>
-              <Button className="flex-1" disabled={enviando} onClick={() => { void enviar(); }}>
+              <Button className="flex-1" disabled={enviando || faltantes.length > 0} onClick={() => { void enviar(); }}>
                 {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
                 <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
               </Button>
