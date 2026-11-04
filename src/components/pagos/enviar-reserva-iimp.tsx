@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO } from "@/lib/client/api/services/pagos-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -38,12 +38,15 @@ function AdjuntoRequisito({
   tipo,
   cuota,
   archivos,
+  faltante,
   onAgregar,
   onQuitar,
 }: {
   tipo: TipoArchivoIImp;
   cuota: number | null;
   archivos: ArchivoIImpInputDTO[];
+  faltainte?: boolean;
+  faltante?: boolean;
   onAgregar: (archivo: ArchivoIImpInputDTO) => void;
   onQuitar: (indice: number) => void;
 }) {
@@ -75,12 +78,17 @@ function AdjuntoRequisito({
   };
 
   return (
-    <div className="space-y-1.5 rounded-lg border border-border p-3">
+    <div className={`space-y-1.5 rounded-lg border p-3 ${faltante ? "border-warning/50 bg-warning/5" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-foreground">{TIPOS_ARCHIVO_LABELS[tipo] ?? tipo}</p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="text-xs font-semibold text-foreground">{TIPOS_ARCHIVO_LABELS[tipo] ?? tipo}</p>
+          <span className="shrink-0 rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning">
+            Obligatorio
+          </span>
+        </div>
         <Button
           type="button"
-          variant="outline"
+          variant={faltante ? "default" : "outline"}
           size="sm"
           className="h-8 shrink-0 gap-1.5 text-xs"
           disabled={subiendo}
@@ -92,7 +100,10 @@ function AdjuntoRequisito({
       </div>
 
       {archivos.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">Sin documento adjunto.</p>
+        <p className={`flex items-center gap-1.5 text-[11px] ${faltante ? "font-medium text-warning" : "text-muted-foreground"}`}>
+          {faltante && <AlertTriangle className="h-3 w-3 shrink-0" />}
+          <span>{faltante ? "Falta adjuntar este documento." : "Sin documento adjunto."}</span>
+        </p>
       ) : (
         <div className="divide-y divide-border rounded-md border border-border">
           {archivos.map((a, i) => (
@@ -309,15 +320,21 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
             {/* Documentos de los requisitos declarados (cuota fija de la bandeja). */}
             {tiposDeclarados.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  <span>Documentos a adjuntar{cuotaDocumentos ? ` · cuota ${cuotaDocumentos}` : ""}</span>
-                </p>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span>Documentos a adjuntar{cuotaDocumentos ? ` · cuota ${cuotaDocumentos}` : ""}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-warning">
+                    <span>Obligatorio: adjunta al menos un documento por cada requisito marcado.</span>
+                  </p>
+                </div>
                 {tiposDeclarados.map((tipo) => (
                   <AdjuntoRequisito
                     key={tipo}
                     tipo={tipo}
                     cuota={cuotaDocumentos}
                     archivos={archivos.filter((a) => a.tipo === tipo)}
+                    faltante={faltantes.includes(tipo)}
                     onAgregar={(archivo) => setArchivos((prev) => [...prev, archivo])}
                     onQuitar={(indice) =>
                       setArchivos((prev) => {
@@ -329,6 +346,16 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
                   />
                 ))}
               </div>
+            )}
+
+            {faltantes.length > 0 && (
+              <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] font-medium text-foreground" role="alert">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <span>
+                  Faltan documentos obligatorios: {faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" · ")}.
+                  Adjúntalos para poder enviar la solicitud.
+                </span>
+              </p>
             )}
 
             <p className="text-[11px] text-muted-foreground">
