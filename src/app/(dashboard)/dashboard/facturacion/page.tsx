@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Wallet, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -246,16 +246,13 @@ export default function FacturacionPage() {
   const [addingCuota, setAddingCuota] = useState(false);
   const [eventoId, setEventoId] = useState<string | null>(null);
 
-  // Filtros de la bandeja: busqueda, estado (cards) y tipo de pago.
+  // Filtros de la bandeja: busqueda, tipo de pago y requerimiento de facturacion.
   const [search, setSearch] = useState("");
-  const [estado, setEstado] = useState<string | null>(null);
   const [tipo, setTipo] = useState<string | null>(null);
   const [requerimiento, setRequerimiento] = useState<string | null>(null);
-  // Indicadores por estado y por requerimiento (patron de otras bandejas).
+  // Indicadores por requerimiento de facturacion (solo emision: sin pagos).
   const [stats, setStats] = useState<{
     total: number;
-    pendiente: number;
-    pagado: number;
     sinSolicitud: number;
     conSolicitudSinFactura: number;
     conFactura: number;
@@ -267,7 +264,6 @@ export default function FacturacionPage() {
     try {
       const qs = new URLSearchParams({ page: String(p), per_page: String(ITEMS_PER_PAGE) });
       if (eventoId) qs.set("eventoId", eventoId);
-      if (estado) qs.set("estado", estado);
       if (search.trim()) qs.set("search", search.trim());
       if (tipo) qs.set("tipo", tipo);
       if (requerimiento) qs.set("requerimiento", requerimiento);
@@ -277,7 +273,7 @@ export default function FacturacionPage() {
       setPage(p);
     } catch { }
     setLoading(false);
-  }, [eventoId, estado, search, tipo, requerimiento]);
+  }, [eventoId, search, tipo, requerimiento]);
 
   /** Indicadores: cuenta total, por estado y por requerimiento de facturacion. */
   const loadStats = useCallback(async (ev: string) => {
@@ -292,16 +288,14 @@ export default function FacturacionPage() {
         return 0;
       }
     };
-    const [total, pendiente, pagado, sinSolicitud, conSolicitudSinFactura, conFactura, anulada] = await Promise.all([
+    const [total, sinSolicitud, conSolicitudSinFactura, conFactura, anulada] = await Promise.all([
       contador(),
-      contador({ estado: ESTADOS_FACTURACION.PENDIENTE }),
-      contador({ estado: ESTADOS_FACTURACION.PAGADO }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.CON_FACTURA }),
       contador({ requerimiento: REQUERIMIENTOS_FACTURACION.ANULADA }),
     ]);
-    setStats({ total, pendiente, pagado, sinSolicitud, conSolicitudSinFactura, conFactura, anulada });
+    setStats({ total, sinSolicitud, conSolicitudSinFactura, conFactura, anulada });
   }, []);
 
   useEffect(() => {
@@ -340,16 +334,6 @@ export default function FacturacionPage() {
     } catch { toast.error("Error al cargar detalle"); }
   };
 
-  const handleOpenPay = async (row: FacturacionItem) => {
-    try {
-      const data = await internalApi.get<FacturacionItem>(`/api/facturacion/detalle?id=${row.id}`);
-      setPayRow(data);
-      setModoPago(data.modoPago ?? "cuotas");
-      setNewCuotaMonto("");
-      setNewCuotaVencimiento("");
-      setPayOpen(true);
-    } catch { toast.error("Error al cargar detalle"); }
-  };
 
   /** Confirma el pago de una cuota usando el voucher que adjunto el cliente. */
   const confirmarConVoucher = async (cuotaId: string, comprobante: string) => {
@@ -423,13 +407,13 @@ export default function FacturacionPage() {
   return (
     <main className="flex-1 py-6">
       {/* Indicadores: clic para filtrar por estado o requerimiento de facturacion */}
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatsCard
           title="Total"
           value={stats?.total ?? 0}
           icon={<CreditCard className="h-4 w-4" />}
-          onClick={() => { setEstado(null); setRequerimiento(null); }}
-          active={estado === null && requerimiento === null}
+          onClick={() => setRequerimiento(null)}
+          active={requerimiento === null}
         />
         <StatsCard
           title="Sin solicitud de factura"
@@ -437,7 +421,6 @@ export default function FacturacionPage() {
           icon={<FileText className="h-4 w-4" />}
           onClick={() => {
             setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD ? null : REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD));
-            setEstado(null);
           }}
           active={requerimiento === REQUERIMIENTOS_FACTURACION.SIN_SOLICITUD}
         />
@@ -447,7 +430,6 @@ export default function FacturacionPage() {
           icon={<Clock className="h-4 w-4" />}
           onClick={() => {
             setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA ? null : REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA));
-            setEstado(null);
           }}
           active={requerimiento === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA}
         />
@@ -457,37 +439,16 @@ export default function FacturacionPage() {
           icon={<Receipt className="h-4 w-4" />}
           onClick={() => {
             setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.CON_FACTURA ? null : REQUERIMIENTOS_FACTURACION.CON_FACTURA));
-            setEstado(null);
           }}
           active={requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA}
         />
-        <StatsCard
-          title="Pendientes de pago"
-          value={stats?.pendiente ?? 0}
-          icon={<Wallet className="h-4 w-4" />}
-          onClick={() => {
-            setEstado((prev) => (prev === ESTADOS_FACTURACION.PENDIENTE ? null : ESTADOS_FACTURACION.PENDIENTE));
-            setRequerimiento(null);
-          }}
-          active={estado === ESTADOS_FACTURACION.PENDIENTE}
-        />
-        <StatsCard
-          title="Pagadas"
-          value={stats?.pagado ?? 0}
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          onClick={() => {
-            setEstado((prev) => (prev === ESTADOS_FACTURACION.PAGADO ? null : ESTADOS_FACTURACION.PAGADO));
-            setRequerimiento(null);
-          }}
-          active={estado === ESTADOS_FACTURACION.PAGADO}
-        />
+
         <StatsCard
           title="Facturas anuladas"
           value={stats?.anulada ?? 0}
           icon={<XCircle className="h-4 w-4" />}
           onClick={() => {
             setRequerimiento((prev) => (prev === REQUERIMIENTOS_FACTURACION.ANULADA ? null : REQUERIMIENTOS_FACTURACION.ANULADA));
-            setEstado(null);
           }}
           active={requerimiento === REQUERIMIENTOS_FACTURACION.ANULADA}
         />
@@ -536,8 +497,8 @@ export default function FacturacionPage() {
                 <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
               </SelectContent>
             </Select>
-            {(search || estado || tipo || requerimiento) && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setEstado(null); setTipo(null); setRequerimiento(null); }}>
+            {(search || tipo || requerimiento) && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setTipo(null); setRequerimiento(null); }}>
                 <X className="h-3.5 w-3.5" />
                 <span>Limpiar</span>
               </Button>
@@ -567,7 +528,7 @@ export default function FacturacionPage() {
                       <TableCell className="text-xs font-mono font-medium">{row.standCode}</TableCell>
                       <TableCell>
                         <Badge className={`text-[10px] pointer-events-none ${row.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : row.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL}`}>
-                          {row.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : row.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : row.estado}
+                          {row.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : row.estado === ESTADOS_FACTURACION.PENDIENTE ? "En proceso" : row.estado}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
@@ -599,11 +560,7 @@ export default function FacturacionPage() {
                               </Button>
                             </>
                           )}
-                          {row.estado === ESTADOS_FACTURACION.PENDIENTE && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-amber-500 hover:text-amber-600" onClick={() => handleOpenPay(row)} title="Configurar cuotas / registrar pago">
-                              <Wallet className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+
                         </div>
                       </TableCell>
                     </TableRow>
@@ -647,7 +604,7 @@ export default function FacturacionPage() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Estado</p>
                   <Badge className={`pointer-events-none text-[10px] ${detailRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.INDIGO}`}>
-                    <span>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "Pendiente" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</span>
+                    <span>{detailRow.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : detailRow.estado === ESTADOS_FACTURACION.PENDIENTE ? "En proceso" : detailRow.estado === ESTADOS_FACTURACION.ARCHIVADO ? "Archivado" : detailRow.estado}</span>
                   </Badge>
                 </div>
                 <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Monto total</p><p className="font-medium text-foreground">{numberUtils.monto(detailRow.montoTotal, detailRow.moneda, { decimales: 2 })}</p></div>
@@ -980,7 +937,7 @@ export default function FacturacionPage() {
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3 text-xs">
                 <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{payRow.standCode}</span></div>
-                <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${payRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>{payRow.estado === ESTADOS_FACTURACION.PAGADO ? "Pagado" : "Pendiente"}</Badge></div>
+                <div><span className="text-muted-foreground">Estado:</span> <Badge className={`text-[10px] pointer-events-none ${payRow.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.WARNING}`}>{payRow.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : "En proceso"}</Badge></div>
                 <div><span className="text-muted-foreground">Monto total:</span> <span className="font-medium">{payRow.montoTotal.toFixed(2)} {payRow.moneda}</span></div>
                 <div><span className="text-muted-foreground">Tipo:</span> <span>{payRow.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</span></div>
               </div>
