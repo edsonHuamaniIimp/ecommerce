@@ -448,11 +448,31 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
 
   const handleReviewSaved = async (updated: SolicitudRow) => {
     try {
-      const fresh = await solicitudesService.detalle(updated.id);
-      setRows((prev) => prev.map((r) => (r.id === fresh.id ? fresh : r)));
-      setReviewRow(fresh);
+      /*
+       * `detalle` no calcula la DD; solo la bandeja (`listar`) la incluye.
+       * Si reemplazamos la fila solo con el detalle, el badge de DD se pierde
+       * y aparece "Sin iniciar" despues de enviar el contrato o guardar una revision.
+       */
+      const [fresh, ddEstado] = await Promise.all([
+        solicitudesService.detalle(updated.id),
+        solicitudesService.ddEstado(updated.id).catch(() => null),
+      ]);
+      setRows((prev) =>
+        prev.map((row) => {
+          if (row.id !== fresh.id) return row;
+          if (ddEstado) return { ...fresh, ddEstado };
+          return row.ddEstado ? { ...fresh, ddEstado: row.ddEstado } : fresh;
+        }),
+      );
+      setReviewRow(ddEstado ? { ...fresh, ddEstado } : fresh);
     } catch {
-      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? { ...updated, ...(updated.ddEstado || !row.ddEstado ? {} : { ddEstado: row.ddEstado }) }
+            : row,
+        ),
+      );
       setReviewRow(updated);
     }
   };
