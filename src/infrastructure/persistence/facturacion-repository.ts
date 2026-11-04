@@ -45,26 +45,28 @@ interface FacturacionRaw {
   }>;
   solicitud: {
     email: string | null;
+    userId: string | null;
     /** Plan de cuotas definido por el cliente al reservar (null = no aplica). */
     planCuotas: unknown | null;
     iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
     datosFacturacion: unknown | null;
     requisitosFacturacion: unknown | null;
-    gessStand: { standCode: string } | null;
-    stands: Array<{ gessStand: { standCode: string } | null }>;
+    gessStand: { standCode: string; empresa: string | null } | null;
+    stands: Array<{ gessStand: { standCode: string; empresa: string | null } | null }>;
   };
 }
 
 const SOLICITUD_SELECT = {
   email: true,
+  userId: true,
   planCuotas: true,
   iimpContrato: true,
   iimpCuentaCorriente: true,
   datosFacturacion: true,
   requisitosFacturacion: true,
-  gessStand: { select: { standCode: true } },
-  stands: { include: { gessStand: { select: { standCode: true } } } },
+  gessStand: { select: { standCode: true, empresa: true } },
+  stands: { include: { gessStand: { select: { standCode: true, empresa: true } } } },
 };
 
 const INCLUDE = {
@@ -72,7 +74,24 @@ const INCLUDE = {
   solicitud: { select: SOLICITUD_SELECT },
 };
 
-function toRow(r: FacturacionRaw): FacturacionRow {
+function empresaDeSolicitud(
+  r: FacturacionRaw,
+  empresasPorUsuario: ReadonlyMap<string, string>,
+): string | null {
+  const snapshot = (r.solicitud.datosFacturacion as { razonSocial?: string | null } | null)?.razonSocial?.trim();
+  if (snapshot) return snapshot;
+  if (r.solicitud.userId) {
+    const deEmpresa = empresasPorUsuario.get(r.solicitud.userId)?.trim();
+    if (deEmpresa) return deEmpresa;
+  }
+  return (
+    r.solicitud.gessStand?.empresa?.trim()
+    ?? r.solicitud.stands.map((s) => s.gessStand?.empresa?.trim()).find((empresa): empresa is string => Boolean(empresa))
+    ?? null
+  );
+}
+
+function toRow(r: FacturacionRaw, empresasPorUsuario: ReadonlyMap<string, string> = new Map()): FacturacionRow {
   return {
     id: r.id,
     solicitudId: r.solicitudId,
@@ -82,9 +101,9 @@ function toRow(r: FacturacionRaw): FacturacionRow {
     moneda: r.moneda,
     modoPago: r.modoPago,
     planCliente: r.solicitud.planCuotas !== null && r.solicitud.planCuotas !== undefined,
-    standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || undefined) ?? "â€”",
+    standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || undefined) ?? "ǽ�'��??",
     correoSolicitante: r.solicitud.email,
-    empresaFacturacion: ((r.solicitud.datosFacturacion as { razonSocial?: string | null } | null)?.razonSocial ?? null),
+    empresaFacturacion: empresaDeSolicitud(r, empresasPorUsuario),
     requisitos: (r.solicitud.requisitosFacturacion as FacturacionRow["requisitos"]) ?? null,
     iimpContrato: r.solicitud.iimpContrato ?? null,
     iimpCuentaCorriente: r.solicitud.iimpCuentaCorriente ?? null,
@@ -209,6 +228,21 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     return this.paginar(where, params);
   }
 
+  /** Razon social de la ficha vinculada al usuario de la solicitud. */
+  private async empresasPorUsuario(rows: FacturacionRaw[]): Promise<Map<string, string>> {
+    const userIds = [...new Set(rows.map((r) => r.solicitud.userId).filter((id): id is string => Boolean(id)))];
+    if (userIds.length === 0) return new Map();
+    const usuarios = await prisma.userRole.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, empresa: { select: { razonSocial: true } } },
+    });
+    return new Map(
+      usuarios
+        .map((u) => [u.userId, u.empresa?.razonSocial ?? ""] as const)
+        .filter(([, razonSocial]) => Boolean(razonSocial)),
+    );
+  }
+
   private async paginar(where: Record<string, unknown>, params: { page: number; perPage: number }): Promise<FacturacionListResult> {
     const [rows, total] = await Promise.all([
       prisma.facturacion.findMany({
@@ -220,12 +254,17 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
       }),
       prisma.facturacion.count({ where: where as never }),
     ]);
-    return { data: rows.map((r) => toRow(r as unknown as FacturacionRaw)), total };
+    const rawRows = rows as unknown as FacturacionRaw[];
+    const empresas = await this.empresasPorUsuario(rawRows);
+    return { data: rawRows.map((r) => toRow(r, empresas)), total };
   }
 
   async detalle(id: string): Promise<FacturacionRow | null> {
     const r = await prisma.facturacion.findUnique({ where: { id }, include: INCLUDE });
-    return r ? toRow(r as unknown as FacturacionRaw) : null;
+    if (!r) return null;
+    const raw = r as unknown as FacturacionRaw;
+    const empresas = await this.empresasPorUsuario([raw]);
+    return toRow(raw, empresas);
   }
 
   async agregarCuota(facturacionId: string, monto: number, fechaVencimiento: string | null, createdBy: string) {
