@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -34,7 +34,18 @@ interface CuotaItem {
   /** Documento notificado por el sistema de facturacion (nombre) o emitido por el IIMP. */
   documentoSie: string | null;
   documentoSieAnulado: boolean;
-  iimpDocumento: { serie: string; numero: number } | null;
+  documentoSieFechaEmision: string | null;
+  iimpDocumento: { serie: string; numero: number; fechaEmision: string } | null;
+}
+
+/** true si la cuota tiene un documento de factura vigente. */
+function cuotaFacturada(c: CuotaItem): boolean {
+  return !c.documentoSieAnulado && Boolean(c.comprobanteFiscal || c.documentoSie || c.iimpDocumento);
+}
+
+/** Fecha de emision real de la factura de la cuota (SIE o IIMP); null si no se notifico. */
+function fechaEmisionCuota(c: CuotaItem): string | null {
+  return c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision ?? null;
 }
 
 /** Progreso de las cuotas de una facturacion: facturadas y pagadas. */
@@ -42,15 +53,13 @@ function CuotasProgreso({ cuotas }: { cuotas: CuotaItem[] }) {
   if (cuotas.length === 0) return <span className="text-[10px] text-muted-foreground">Sin cuotas</span>;
   const total = cuotas.length;
   const pagadas = cuotas.filter((c) => c.estado === ESTADOS_CUOTA.PAGADO).length;
-  const facturadas = cuotas.filter(
-    (c) => !c.documentoSieAnulado && Boolean(c.comprobanteFiscal || c.documentoSie || c.iimpDocumento),
-  ).length;
+  const facturadas = cuotas.filter(cuotaFacturada).length;
   return (
     <div className="min-w-[120px]">
       <div className="flex items-center gap-1">
         {cuotas.map((c) => {
           const pagada = c.estado === ESTADOS_CUOTA.PAGADO;
-          const facturada = !c.documentoSieAnulado && Boolean(c.comprobanteFiscal || c.documentoSie || c.iimpDocumento);
+          const facturada = cuotaFacturada(c);
           const titulo = `Cuota ${c.numero}: ${pagada ? "pagada" : facturada ? "facturada" : "pendiente de facturar"}`;
           return (
             <Badge
@@ -553,57 +562,104 @@ export default function FacturacionPage() {
                     <TableHead className="text-xs">Stand</TableHead>
                     <TableHead className="text-xs">Estado</TableHead>
                     <TableHead className="text-xs">Monto</TableHead>
-                    <TableHead className="text-xs hidden md:table-cell">Cuotas</TableHead>
+                    {requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA ? (
+                      <>
+                        <TableHead className="text-xs hidden md:table-cell">Cuota</TableHead>
+                        <TableHead className="text-xs hidden md:table-cell">Emisión de factura</TableHead>
+                      </>
+                    ) : (
+                      <TableHead className="text-xs hidden md:table-cell">Cuotas</TableHead>
+                    )}
                     <TableHead className="text-xs hidden sm:table-cell">Tipo</TableHead>
                     <TableHead className="text-xs hidden lg:table-cell">Empresa</TableHead>
-                    <TableHead className="text-xs hidden md:table-cell">Fecha</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Fecha de solicitud</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="text-xs font-mono font-medium">{row.standCode}</TableCell>
-                      <TableCell>
-                        <Badge className={`text-[10px] pointer-events-none ${row.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : row.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL}`}>
-                          {row.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : row.estado === ESTADOS_FACTURACION.PENDIENTE ? "En proceso" : row.estado}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
-                      <TableCell className="hidden md:table-cell"><CuotasProgreso cuotas={row.cuotas} /></TableCell>
-                      <TableCell className="text-xs hidden sm:table-cell">{row.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</TableCell>
-                      <TableCell className="hidden max-w-[220px] lg:table-cell">
-                        <p className="truncate text-xs font-medium text-slate-700" title={row.empresaFacturacion ?? undefined}>{row.empresaFacturacion ?? "—"}</p>
-                        <p className="truncate text-[10px] text-slate-400" title={row.correoSolicitante ?? undefined}>{row.correoSolicitante ?? "—"}</p>
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-400 hidden md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-0.5">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleOpenDetail(row)} title="Ver detalle">
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                          {row.estado === ESTADOS_FACTURACION.PAGADO && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-purple-500 hover:text-purple-600"
-                              onClick={() => setArchiveId(row.id)} title="Archivar">
-                              <Archive className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {row.estado !== ESTADOS_FACTURACION.ARCHIVADO && (
-                            <>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditRow(row); setEditTipo(row.tipo); setEditOpen(true); }} title="Cambiar tipo de pago">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
-                                onClick={() => setDeleteId(row.id)} title="Eliminar">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
-
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {rows.map((row) => {
+                    const esConFactura = requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA;
+                    const cuotasFacturadas = row.cuotas.filter(cuotaFacturada);
+                    /* Con factura generada se renderiza una fila por cada cuota facturada. */
+                    const filas: Array<CuotaItem | null> = esConFactura
+                      ? (cuotasFacturadas.length > 0 ? cuotasFacturadas : [null])
+                      : [null];
+                    return (
+                      <Fragment key={row.id}>
+                        {filas.map((cuota, index) => {
+                          const fecha = cuota ? fechaEmisionCuota(cuota) : null;
+                          return (
+                            <TableRow key={cuota ? `${row.id}-${cuota.id}` : row.id} className={esConFactura ? "hover:!bg-transparent" : undefined}>
+                              {index === 0 && (
+                                <>
+                                  <TableCell rowSpan={filas.length} className="align-top text-xs font-mono font-medium">{row.standCode}</TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top">
+                                    <Badge className={`text-[10px] pointer-events-none ${row.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : row.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL}`}>
+                                      {row.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : row.estado === ESTADOS_FACTURACION.PENDIENTE ? "En proceso" : row.estado}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
+                                </>
+                              )}
+                              {esConFactura ? (
+                                <>
+                                  <TableCell className="hidden md:table-cell">
+                                    {cuota ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <Badge className={`pointer-events-none h-5 w-5 justify-center p-0 text-[9px] ${cuota.estado === ESTADOS_CUOTA.PAGADO ? BADGE_STYLES.SUCCESS : BADGE_STYLES.INFO}`}>
+                                          <span>{cuota.numero}</span>
+                                        </Badge>
+                                        <span className="text-[10px] text-muted-foreground">{cuota.estado === ESTADOS_CUOTA.PAGADO ? "Pagada" : "Facturada"}</span>
+                                      </div>
+                                    ) : "—"}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell text-[10px] text-muted-foreground">
+                                    {fecha ? dateUtils.format(fecha) : "—"}
+                                  </TableCell>
+                                </>
+                              ) : (
+                                <TableCell className="hidden md:table-cell"><CuotasProgreso cuotas={row.cuotas} /></TableCell>
+                              )}
+                              {index === 0 && (
+                                <>
+                                  <TableCell rowSpan={filas.length} className="align-top text-xs hidden sm:table-cell">{row.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top hidden max-w-[220px] lg:table-cell">
+                                    <p className="truncate text-xs font-medium text-slate-700" title={row.empresaFacturacion ?? undefined}>{row.empresaFacturacion ?? "—"}</p>
+                                    <p className="truncate text-[10px] text-slate-400" title={row.correoSolicitante ?? undefined}>{row.correoSolicitante ?? "—"}</p>
+                                  </TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top text-xs text-slate-400 hidden md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top">
+                                    <div className="flex gap-0.5">
+                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleOpenDetail(row)} title="Ver detalle">
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </Button>
+                                      {row.estado === ESTADOS_FACTURACION.PAGADO && (
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-purple-500 hover:text-purple-600"
+                                          onClick={() => setArchiveId(row.id)} title="Archivar">
+                                          <Archive className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      {row.estado !== ESTADOS_FACTURACION.ARCHIVADO && (
+                                        <>
+                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditRow(row); setEditTipo(row.tipo); setEditOpen(true); }} title="Cambiar tipo de pago">
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
+                                            onClick={() => setDeleteId(row.id)} title="Eliminar">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {totalPages > 1 && (
