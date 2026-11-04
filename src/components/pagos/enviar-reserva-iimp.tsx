@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from "@nrivera-iimp/ui-kit-iimp";
-import { ArrowLeft, FileText, Loader2, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO } from "@/lib/client/api/services/pagos-service";
+import { uploadService } from "@/lib/client/api/services/upload-service";
+import { useConfirm } from "@/hooks/use-confirm";
 import { TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
-import { FormArchivoIImp, TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
+import { TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Cuota propia del cliente: el backend resuelve con ella la solicitud y la reserva. */
   cuotaId: string;
-  /** Numero de cuotas del plan: acota el input de cuota de las constancias. */
-  cuotas: number;
+  /** Numero de la cuota desde la que se solicita la factura (se asocia a los documentos). */
+  cuotaNumero?: number;
   standCode?: string;
-  /** Se ejecuta tras registrar la reserva (recarga del listado). */
+  /** Se ejecuta tras registrar la solicitud (recarga del listado). */
   onEnviado: () => void;
 }
 
@@ -31,24 +33,112 @@ const REQUISITOS_INICIALES: RequisitosFacturacionDTO = {
   ninguna: false,
 };
 
+/** Carga de los documentos de un requisito declarado; la cuota ya viene de la bandeja. */
+function AdjuntoRequisito({
+  tipo,
+  cuota,
+  archivos,
+  onAgregar,
+  onQuitar,
+}: {
+  tipo: TipoArchivoIImp;
+  cuota: number | null;
+  archivos: ArchivoIImpInputDTO[];
+  onAgregar: (archivo: ArchivoIImpInputDTO) => void;
+  onQuitar: (indice: number) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { confirm, confirmDialog } = useConfirm();
+  const [subiendo, setSubiendo] = useState(false);
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const aceptado = await confirm({
+      title: "Subir documento",
+      description: `¿Subir "${file.name}"?`,
+      confirmLabel: "Subir",
+      cancelLabel: "Cancelar",
+    });
+    if (!aceptado) return;
+    setSubiendo(true);
+    try {
+      const url = await uploadService.subir(file);
+      onAgregar({ tipo, cuota, link: url, nombre: file.name });
+      toast.success("Documento adjuntado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo subir el archivo");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-foreground">{TIPOS_ARCHIVO_LABELS[tipo] ?? tipo}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 gap-1.5 text-xs"
+          disabled={subiendo}
+          onClick={() => inputRef.current?.click()}
+        >
+          {subiendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          <span>{subiendo ? "Subiendo..." : "Adjuntar"}</span>
+        </Button>
+      </div>
+
+      {archivos.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">Sin documento adjunto.</p>
+      ) : (
+        <div className="divide-y divide-border rounded-md border border-border">
+          {archivos.map((a, i) => (
+            <div key={`${a.link}-${i}`} className="flex items-center gap-2 px-2 py-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate" title={a.link}>{a.nombre ?? a.link}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 shrink-0 p-0 text-destructive"
+                title="Quitar documento"
+                onClick={() => onQuitar(i)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
+        className="hidden"
+        onChange={(e) => { void onFile(e); }}
+      />
+      {confirmDialog}
+    </div>
+  );
+}
+
 /**
- * "Solicitar factura" en dos pasos:
- * 1) Requisitos de facturacion (checklist de la empresa: OC, HES, plataforma de
- *    proveedores, valorizacion, otros o "ninguna de las anteriores").
- * 2) Solicitud: documentos opcionales (OC/HES) y envio al IIMP. Los requisitos
- *    declarados son referenciales: no bloquean el envio. Las constancias de pago
- *    se adjuntan despues, al pagar cada cuota.
+ * "Solicitar factura" en un solo paso: el cliente declara sus requisitos y adjunta
+ * los documentos en el mismo modal. La cuota (la de la bandeja) ya viene fijada.
+ * Los requisitos son referenciales; las constancias de pago se adjuntan al pagar.
  */
-export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCode, onEnviado }: Props) {
-  const [paso, setPaso] = useState<1 | 2>(1);
+export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, onEnviado }: Props) {
   const [archivos, setArchivos] = useState<ArchivoIImpInputDTO[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [requisitos, setRequisitos] = useState<RequisitosFacturacionDTO>(REQUISITOS_INICIALES);
-  /** Error de validacion del paso 1 (plataforma u "otros requisitos"). */
-  const [errorPaso1, setErrorPaso1] = useState<string | null>(null);
+  /** Error de validacion de requisitos (plataforma, otros o documentos faltantes). */
+  const [error, setError] = useState<string | null>(null);
 
   const marcar = (campo: keyof RequisitosFacturacionDTO, valor: boolean) => {
-    setErrorPaso1(null);
+    setError(null);
     setRequisitos((prev) => {
       if (campo === "ninguna" && valor) {
         /* Declarar "ninguna de las anteriores" desmarca todo el checklist. */
@@ -70,19 +160,44 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
 
   const cerrar = (v: boolean) => {
     if (!v) {
-      setPaso(1);
       setArchivos([]);
       setRequisitos(REQUISITOS_INICIALES);
+      setError(null);
     }
     onOpenChange(v);
   };
 
+  /** Tipos que debe adjuntar segun lo declarado (OC, HES o valorizacion). */
+  const tiposDeclarados: TipoArchivoIImp[] = [
+    ...(requisitos.oc ? [TIPOS_ARCHIVO_IIMP.OC] : []),
+    ...(requisitos.hes ? [TIPOS_ARCHIVO_IIMP.HES] : []),
+    ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
+  ];
+  const cuotaDocumentos = cuotaNumero && cuotaNumero > 0 ? cuotaNumero : null;
+  const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
+
+  /** Valida requisitos y documentos; luego envia la solicitud de factura. */
   const enviar = async () => {
     if (!cuotaId) return;
-    if (faltantes.length > 0) {
-      toast.error(`Adjunta al menos un documento de: ${faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(", ")}`);
+    if (requisitos.plataforma) {
+      if (!requisitos.plataformaNombre?.trim()) {
+        setError("Indica el nombre de la plataforma.");
+        return;
+      }
+      if (!/^https?:\/\/.+/i.test((requisitos.plataformaUrl ?? "").trim())) {
+        setError("Ingresa un enlace válido de la plataforma (http:// o https://).");
+        return;
+      }
+    }
+    if (requisitos.otros && !requisitos.otros.trim()) {
+      setError("Especifica el requisito en \"Otros requisitos\".");
       return;
     }
+    if (faltantes.length > 0) {
+      setError(`Adjunta al menos un documento de: ${faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(", ")}.`);
+      return;
+    }
+    setError(null);
     setEnviando(true);
     try {
       const resultado = await pagosService.solicitarFactura(cuotaId, archivos, {
@@ -111,208 +226,130 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotas, standCo
     }
   };
 
-  /** Tipos que puede adjuntar segun lo declarado en el paso 1 (el paso 2 muestra solo estos). */
-  const tiposDeclarados: TipoArchivoIImp[] = [
-    ...(requisitos.oc ? [TIPOS_ARCHIVO_IIMP.OC] : []),
-    ...(requisitos.hes ? [TIPOS_ARCHIVO_IIMP.HES] : []),
-    ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
-  ];
-  /** Requisitos declarados que aun no tienen ningun documento adjunto. */
-  const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
-
-  /** Valida el paso 1 y avanza a la carga de documentos. */
-  const continuar = () => {
-    if (requisitos.plataforma) {
-      if (!requisitos.plataformaNombre?.trim()) {
-        setErrorPaso1("Indica el nombre de la plataforma.");
-        return;
-      }
-      if (!/^https?:\/\/.+/i.test((requisitos.plataformaUrl ?? "").trim())) {
-        setErrorPaso1("Ingresa un enlace válido de la plataforma (http:// o https://).");
-        return;
-      }
-    }
-    if (requisitos.otros && !requisitos.otros.trim()) {
-      setErrorPaso1("Especifica el requisito en \"Otros requisitos\".");
-      return;
-    }
-    setErrorPaso1(null);
-    setArchivos((prev) => prev.filter((a) => tiposDeclarados.includes(a.tipo as TipoArchivoIImp)));
-    setPaso(2);
-  };
-
   return (
     <Dialog open={open} onOpenChange={cerrar}>
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border-border sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            <span>
-              {paso === 1 ? "Requisitos de facturación" : "Solicitar factura"}
-              {standCode ? ` · ${standCode}` : ""}
-            </span>
+            <span>Requisitos de facturación{standCode ? ` · ${standCode}` : ""}</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {paso === 1 ? (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                <span>
-                  Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa.
-                  Selecciona todas las opciones que correspondan.
-                </span>
-              </p>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              <span>
+                Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa.
+                Selecciona todas las opciones que correspondan y adjunta los documentos que apliquen.
+              </span>
+            </p>
 
-              <div className="space-y-2 rounded-lg border border-border p-3">
-                <label className="flex items-start gap-2 text-xs">
-                  <input type="checkbox" checked={requisitos.oc === true} onChange={(e) => marcar("oc", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Orden de compra (OC)</strong>: documento que autoriza la compra del producto o servicio.</span>
-                </label>
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={requisitos.oc === true} onChange={(e) => marcar("oc", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Orden de compra (OC)</strong>: documento que autoriza la compra del producto o servicio.</span>
+              </label>
 
-                <label className="flex items-start gap-2 text-xs">
-                  <input type="checkbox" checked={requisitos.hes === true} onChange={(e) => marcar("hes", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Hoja de entrada de servicio (HES)</strong>: constancia de conformidad del servicio recibido.</span>
-                </label>
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={requisitos.hes === true} onChange={(e) => marcar("hes", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Hoja de entrada de servicio (HES)</strong>: constancia de conformidad del servicio recibido.</span>
+              </label>
 
-                <label className="flex items-start gap-2 text-xs">
-                  <input type="checkbox" checked={requisitos.plataforma === true} onChange={(e) => marcar("plataforma", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Registro en plataforma o portal de proveedores</strong>: indica si tu empresa requiere registrar la factura en una plataforma para su validación o aprobación.</span>
-                </label>
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={requisitos.plataforma === true} onChange={(e) => marcar("plataforma", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Registro en plataforma o portal de proveedores</strong>: indica si tu empresa requiere registrar la factura en una plataforma para su validación o aprobación.</span>
+              </label>
 
-                {requisitos.plataforma && (
-                  <div className="ml-6 grid gap-2 sm:grid-cols-2">
-                    <Input
-                      className="h-9 text-xs"
-                      placeholder="Nombre de la plataforma"
-                      value={requisitos.plataformaNombre ?? ""}
-                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value })); }}
-                    />
-                    <Input
-                      className="h-9 text-xs"
-                      placeholder="Enlace de acceso (https://...)"
-                      value={requisitos.plataformaUrl ?? ""}
-                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value })); }}
-                    />
-                  </div>
-                )}
-
-                <label className="flex items-start gap-2 text-xs">
-                  <input type="checkbox" checked={requisitos.valorizacion === true} onChange={(e) => marcar("valorizacion", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Valorización o cotización aprobada</strong>: documento que sustenta el importe contratado.</span>
-                </label>
-
-                <label className="flex items-start gap-2 text-xs">
-                  <input type="checkbox" checked={Boolean(requisitos.otros)} onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.checked ? (prev.otros || " ") : "" }))} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.</span>
-                </label>
-
-                {Boolean(requisitos.otros) && (
-                  <div className="ml-6">
-                    <Input
-                      className="h-9 w-full text-xs"
-                      placeholder="Especifica el requisito"
-                      value={requisitos.otros === " " ? "" : (requisitos.otros ?? "")}
-                      onChange={(e) => { setErrorPaso1(null); setRequisitos((prev) => ({ ...prev, otros: e.target.value })); }}
-                      autoFocus
-                    />
-                  </div>
-                )}
-
-                <label className="flex items-start gap-2 border-t border-border pt-2 text-xs">
-                  <input type="checkbox" checked={requisitos.ninguna === true} onChange={(e) => marcar("ninguna", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <span><strong>Ninguna de las anteriores</strong>: mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra).</span>
-                </label>
-              </div>
-
-              {errorPaso1 && (
-                <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-[11px] font-medium text-destructive" role="alert">
-                  <span>{errorPaso1}</span>
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                <span>
-                  Adjunta al menos un documento por cada requisito que declaraste. Puedes agregar más de
-                  uno por tipo; también puedes completarlos después desde &quot;Mis documentos&quot;. Las
-                  constancias de pago se adjuntan al pagar cada cuota.
-                </span>
-              </p>
-
-              {tiposDeclarados.length > 0 ? (
-                <p className="text-[11px] text-muted-foreground" role="note">
-                  <span>Según tu declaración: {tiposDeclarados.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" · ")}.</span>
-                </p>
-              ) : (
-                <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
-                  No declaraste documentos pendientes: puedes enviar tu solicitud de factura directamente.
-                </p>
-              )}
-
-              {faltantes.length > 0 && (
-                <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] font-medium text-foreground" role="alert">
-                  <span>Falta adjuntar: {faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" · ")}.</span>
-                </p>
-              )}
-
-              {tiposDeclarados.length > 0 && (
-                <FormArchivoIImp
-                  cuotas={cuotas}
-                  botonLabel="Adjuntar"
-                  tiposPermitidos={tiposDeclarados}
-                  onAgregar={(a) => setArchivos((prev) => [...prev, a])}
-                />
-              )}
-
-              {archivos.length > 0 && (
-                <div className="divide-y divide-border rounded-lg border border-border">
-                  {archivos.map((a, i) => (
-                    <div key={`${a.tipo}-${i}`} className="flex items-center gap-3 px-3 py-2 text-xs">
-                      <Badge className="pointer-events-none">{TIPOS_ARCHIVO_LABELS[a.tipo] ?? a.tipo}</Badge>
-                      {a.cuota ? <span className="shrink-0 text-muted-foreground">Cuota {a.cuota}</span> : null}
-                      <span className="min-w-0 flex-1 truncate" title={a.link}>{a.nombre ?? a.link}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 shrink-0 p-0 text-destructive"
-                        title="Quitar documento"
-                        onClick={() => setArchivos((prev) => prev.filter((_, j) => j !== i))}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
+              {requisitos.plataforma && (
+                <div className="ml-6 grid gap-2 sm:grid-cols-2">
+                  <Input
+                    className="h-9 text-xs"
+                    placeholder="Nombre de la plataforma"
+                    value={requisitos.plataformaNombre ?? ""}
+                    onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value })); }}
+                  />
+                  <Input
+                    className="h-9 text-xs"
+                    placeholder="Enlace de acceso (https://...)"
+                    value={requisitos.plataformaUrl ?? ""}
+                    onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value })); }}
+                  />
                 </div>
               )}
 
-              <p className="text-[11px] text-muted-foreground">
-                <span>
-                  Al confirmar, se enviará tu solicitud de factura. La factura de cada cuota se
-                  emitirá en su fecha al contacto de pagos.
-                </span>
-              </p>
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={requisitos.valorizacion === true} onChange={(e) => marcar("valorizacion", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Valorización o cotización aprobada</strong>: documento que sustenta el importe contratado.</span>
+              </label>
+
+              <label className="flex items-start gap-2 text-xs">
+                <input type="checkbox" checked={Boolean(requisitos.otros)} onChange={(e) => setRequisitos((prev) => ({ ...prev, otros: e.target.checked ? (prev.otros || " ") : "" }))} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.</span>
+              </label>
+
+              {Boolean(requisitos.otros) && (
+                <div className="ml-6">
+                  <Input
+                    className="h-9 w-full text-xs"
+                    placeholder="Especifica el requisito"
+                    value={requisitos.otros === " " ? "" : (requisitos.otros ?? "")}
+                    onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, otros: e.target.value })); }}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 border-t border-border pt-2 text-xs">
+                <input type="checkbox" checked={requisitos.ninguna === true} onChange={(e) => marcar("ninguna", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                <span><strong>Ninguna de las anteriores</strong>: mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra).</span>
+              </label>
             </div>
-          )}
+
+            {/* Documentos de los requisitos declarados (cuota fija de la bandeja). */}
+            {tiposDeclarados.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Documentos a adjuntar{cuotaDocumentos ? ` · cuota ${cuotaDocumentos}` : ""}</span>
+                </p>
+                {tiposDeclarados.map((tipo) => (
+                  <AdjuntoRequisito
+                    key={tipo}
+                    tipo={tipo}
+                    cuota={cuotaDocumentos}
+                    archivos={archivos.filter((a) => a.tipo === tipo)}
+                    onAgregar={(archivo) => setArchivos((prev) => [...prev, archivo])}
+                    onQuitar={(indice) =>
+                      setArchivos((prev) => {
+                        const delTipo = prev.filter((a) => a.tipo === tipo);
+                        const objetivo = delTipo[indice];
+                        return prev.filter((a) => a !== objetivo);
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            <p className="text-[11px] text-muted-foreground">
+              <span>
+                Los requisitos y documentos son referenciales: Facturación y Cobranzas valida los pagos
+                por los canales formales. Las constancias de pago se adjuntan al pagar cada cuota.
+              </span>
+            </p>
+
+            {error && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-[11px] font-medium text-destructive" role="alert">
+                <span>{error}</span>
+              </p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
-          {paso === 1 ? (
-            <Button className="w-full" onClick={continuar}>
-              <span>Continuar</span>
-            </Button>
-          ) : (
-            <div className="flex w-full gap-2">
-              <Button variant="outline" disabled={enviando} onClick={() => setPaso(1)}>
-                <ArrowLeft className="mr-1.5 h-4 w-4" />
-                <span>Volver</span>
-              </Button>
-              <Button className="flex-1" disabled={enviando || faltantes.length > 0} onClick={() => { void enviar(); }}>
-                {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-                <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
-              </Button>
-            </div>
-          )}
+          <Button className="w-full" disabled={enviando || faltantes.length > 0} onClick={() => { void enviar(); }}>
+            {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
+            <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

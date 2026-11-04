@@ -78,7 +78,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
   const [guardando, setGuardando] = useState(false);
 
   /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
-  const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string } | null>(null);
+  const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; standCode: string; numero: number } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
   const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number; tiposPermitidos: TipoArchivoIImp[] } | null>(null);
 
@@ -307,7 +307,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         size="sm"
                         className="h-7 w-7 p-0"
                         disabled={soloLectura}
-                        onClick={() => setReservaCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode })}
+                        onClick={() => setReservaCuota({ cuotaId: cuota.id, standCode: row.standCode, numero: cuota.numero })}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
@@ -562,7 +562,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             open={reservaCuota !== null}
             onOpenChange={(v) => { if (!v) setReservaCuota(null); }}
             cuotaId={reservaCuota?.cuotaId ?? ""}
-            cuotas={reservaCuota?.cuotas ?? 0}
+            cuotaNumero={reservaCuota?.numero}
             standCode={reservaCuota?.standCode}
             onEnviado={() => { void load(page, perPage); }}
           />
