@@ -269,23 +269,34 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
 
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={requisitos.plataforma === true} onChange={(e) => marcar("plataforma", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                <span><strong>Registro en plataforma o portal de proveedores</strong>: indica si tu empresa requiere registrar la factura en una plataforma para su validación o aprobación.</span>
+                <span>
+                  <strong>Registro en plataforma o portal de proveedores</strong>: indica si tu empresa requiere registrar la factura en una plataforma para su validación o aprobación.{" "}
+                  {requisitos.plataforma && (
+                    <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning">Obligatorio</span>
+                  )}
+                </span>
               </label>
 
               {requisitos.plataforma && (
-                <div className="ml-6 grid gap-2 sm:grid-cols-2">
-                  <Input
-                    className="h-9 text-xs"
-                    placeholder="Nombre de la plataforma"
-                    value={requisitos.plataformaNombre ?? ""}
-                    onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value })); }}
-                  />
-                  <Input
-                    className="h-9 text-xs"
-                    placeholder="Enlace de acceso (https://...)"
-                    value={requisitos.plataformaUrl ?? ""}
-                    onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value })); }}
-                  />
+                <div className="ml-6 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-warning">
+                    <span>Obligatorio: nombre y enlace de la plataforma</span>
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input
+                      className={`h-9 text-xs ${(requisitos.plataformaNombre ?? "").trim() ? "" : "border-warning/60"}`}
+                      placeholder="Nombre de la plataforma"
+                      value={requisitos.plataformaNombre ?? ""}
+                      onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaNombre: e.target.value })); }}
+                    />
+                    <Input
+                      className={`h-9 text-xs ${/^https?:\/\/.+/i.test((requisitos.plataformaUrl ?? "").trim()) ? "" : "border-warning/60"}`}
+                      placeholder="Enlace de acceso (https://...)"
+                      value={requisitos.plataformaUrl ?? ""}
+                      onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, plataformaUrl: e.target.value })); }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">El enlace debe iniciar con http:// o https://.</p>
                 </div>
               )}
 
@@ -296,13 +307,21 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
 
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={Boolean(requisitos.otros)} onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, otros: e.target.checked ? (prev.otros || " ") : "", ...(e.target.checked ? { ninguna: false } : {}) })); }} className="mt-0.5 h-4 w-4 accent-primary" />
-                <span><strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.</span>
+                <span>
+                  <strong>Otros requisitos</strong>: especifica qué documento necesita tu empresa.{" "}
+                  {Boolean(requisitos.otros) && (
+                    <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-warning">Obligatorio</span>
+                  )}
+                </span>
               </label>
 
               {Boolean(requisitos.otros) && (
-                <div className="ml-6">
+                <div className="ml-6 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-warning">
+                    <span>Obligatorio: especifica el requisito</span>
+                  </p>
                   <Input
-                    className="h-9 w-full text-xs"
+                    className={`h-9 w-full text-xs ${(requisitos.otros ?? "").trim() ? "" : "border-warning/60"}`}
                     placeholder="Especifica el requisito"
                     value={requisitos.otros === " " ? "" : (requisitos.otros ?? "")}
                     onChange={(e) => { setError(null); setRequisitos((prev) => ({ ...prev, otros: e.target.value })); }}
