@@ -631,8 +631,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Pagar ahora</span>
                             </Button>
                           )}
-                          {!soloLectura && contratoClientePendienteFirma(row) && (
-                            <Button size="sm" className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                          {contratoClientePendienteFirma(row) && (
+                            <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "contrato"); }}>
                               <PenLine className="h-3.5 w-3.5" />
                               <span>Firmar contrato</span>
@@ -771,8 +771,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Pagar ahora</span>
                               </Button>
                             )}
-                            {!soloLectura && contratoClientePendienteFirma(row) && (
-                              <Button size="sm" className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                            {contratoClientePendienteFirma(row) && (
+                              <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                                 onClick={() => { void openClienteUpload(row, "contrato"); }}>
                                 <PenLine className="h-3.5 w-3.5" />
                                 <span>Firmar contrato</span>
@@ -1137,7 +1137,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {/* Contrato disponible: el cliente debe firmar y subirlo */}
-              {!soloLectura && detailRow && contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && (
+              {detailRow && contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && (
                 <ModalSection title="Firma del contrato">
                   <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/10 p-3">
                     <div className="flex items-start gap-3">
@@ -1161,7 +1161,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" className="w-full gap-1.5 sm:w-auto"
+                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
                         onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
@@ -1271,7 +1271,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" className="w-full gap-1.5 sm:w-auto"
+                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
                         onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
