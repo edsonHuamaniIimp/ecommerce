@@ -138,3 +138,12 @@ Incluir `observations[]` y `currentVersionNumber` para auditoría/historial por 
 5. Dos observaciones en la misma ronda (anexo + contrato).
 
 Con estos ejemplos montamos las pruebas y validamos el mapeo end-to-end.
+
+## 7. Estado de implementación (2026-11-03)
+
+- La guía v6 del SGC ya envía `observations[]` por documento; ContratosStands las
+  persiste y las muestra al cliente con el documento y el motivo exactos.
+- Se implementó el reemplazo guiado del documento observado, la validación previa al
+  reenvío y el estado **"Revisión solicitada"** para evitar reenvíos duplicados.
+- Los campos siguen siendo **opcionales**: si no llegan observaciones, el flujo legacy
+  se mantiene sin cambios.

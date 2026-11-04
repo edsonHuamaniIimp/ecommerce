@@ -633,3 +633,42 @@ flowchart TD
   envía **alerta en campana + correo** al cliente (plantilla `documentos-observados`) con el
   motivo real y los documentos observados. Se dispara por **webhook** y como **respaldo por el
   sync/cron** (idempotente por transición/motivo nuevo; best-effort).
+
+## Actualización 4-nov-2026: subsanación por documento y reenvío idempotente
+
+### Observaciones por documento
+- El webhook `workflow.returned` y el detalle del expediente traen `observations[]` por
+  documento. Se persisten en `sgc_expediente.observaciones` y se mapean
+  `documentId` → `sgc_documento` → documento local.
+- En **Mis solicitudes** el cliente ve el documento observado con su mensaje y puede
+  **Reemplazarlo**. El reemplazo deja el documento nuevo `activo` y el anterior
+  `reemplazado`; la observación del SGC sigue `open` hasta que Legal la revise.
+- Antes de reenviar se valida que **cada observación abierta** tenga una corrección
+  posterior (anexo activo nuevo o contrato firmado). La UI deshabilita el botón y el
+  servidor responde `409` si falta.
+- Tras el reemplazo la UI muestra **"Corrección registrada"**. Si ya se solicitó la
+  revisión, muestra **"Revisión solicitada"** y deshabilita el botón hasta que llegue
+  una nueva observación.
+
+### Registro del reenvío
+- El reenvío ejecuta `POST /contracts/{contractId}/resend` en el servidor; el cliente
+  nunca llama a la API del SGC.
+- Si el SGC responde `422 "El expediente ya tiene un flujo activo"`, se trata como
+  **éxito idempotente** (el reenvío ya se había hecho).
+- Se registra una fila en `sgc_subsanacion` (ronda y `reenviado_at`) aunque la
+  corrección la haya iniciado el cliente. El DTO expone
+  `sgcSubsanacionReenviadaAt` para reflejar el estado en la UI.
+
+### URLs de subida (presignadas)
+- La URL de subida del SGC expira en **300 segundos**. Reintentar con la misma
+  `Idempotency-Key` recupera el mismo ticket y puede fallar con
+  `403 AccessDenied - Request has expired`.
+- El cliente renueva el ticket con un sufijo de idempotencia
+  (`retry/<timestamp>`) y el **mismo `documentId`**, sube el binario y confirma; así
+  no duplica la pieza documental.
+- El mensaje de error de almacenamiento incluye el detalle devuelto por el proveedor
+  para diagnóstico.
+
+### Referencias
+- [propuesta-observaciones-por-documento-sgc.md](./propuesta-observaciones-por-documento-sgc.md)
+- [integracion-factura-401-sie.md](./integracion-factura-401-sie.md) (401 de SIE resuelto)
