@@ -31,6 +31,43 @@ interface CuotaItem {
   estado: string;
   comprobante: string | null;
   comprobanteFiscal: ComprobanteFiscalItem | null;
+  /** Documento notificado por el sistema de facturacion (nombre) o emitido por el IIMP. */
+  documentoSie: string | null;
+  documentoSieAnulado: boolean;
+  iimpDocumento: { serie: string; numero: number } | null;
+}
+
+/** Progreso de las cuotas de una facturacion: facturadas y pagadas. */
+function CuotasProgreso({ cuotas }: { cuotas: CuotaItem[] }) {
+  if (cuotas.length === 0) return <span className="text-[10px] text-muted-foreground">Sin cuotas</span>;
+  const total = cuotas.length;
+  const pagadas = cuotas.filter((c) => c.estado === ESTADOS_CUOTA.PAGADO).length;
+  const facturadas = cuotas.filter(
+    (c) => !c.documentoSieAnulado && Boolean(c.comprobanteFiscal || c.documentoSie || c.iimpDocumento),
+  ).length;
+  return (
+    <div className="min-w-[120px]">
+      <div className="flex items-center gap-1">
+        {cuotas.map((c) => {
+          const pagada = c.estado === ESTADOS_CUOTA.PAGADO;
+          const facturada = !c.documentoSieAnulado && Boolean(c.comprobanteFiscal || c.documentoSie || c.iimpDocumento);
+          const titulo = `Cuota ${c.numero}: ${pagada ? "pagada" : facturada ? "facturada" : "pendiente de facturar"}`;
+          return (
+            <Badge
+              key={c.id}
+              title={titulo}
+              className={`pointer-events-none h-5 w-5 justify-center p-0 text-[9px] ${pagada ? BADGE_STYLES.SUCCESS : facturada ? BADGE_STYLES.INFO : BADGE_STYLES.NEUTRAL}`}
+            >
+              <span>{c.numero}</span>
+            </Badge>
+          );
+        })}
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted-foreground" title={`${facturadas} de ${total} facturadas · ${pagadas} de ${total} pagadas`}>
+        {facturadas}/{total} facturadas · {pagadas}/{total} pagadas
+      </p>
+    </div>
+  );
 }
 
 interface FacturacionItem {
@@ -516,6 +553,7 @@ export default function FacturacionPage() {
                     <TableHead className="text-xs">Stand</TableHead>
                     <TableHead className="text-xs">Estado</TableHead>
                     <TableHead className="text-xs">Monto</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Cuotas</TableHead>
                     <TableHead className="text-xs hidden sm:table-cell">Tipo</TableHead>
                     <TableHead className="text-xs hidden lg:table-cell">Empresa</TableHead>
                     <TableHead className="text-xs hidden md:table-cell">Fecha</TableHead>
@@ -532,6 +570,7 @@ export default function FacturacionPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
+                      <TableCell className="hidden md:table-cell"><CuotasProgreso cuotas={row.cuotas} /></TableCell>
                       <TableCell className="text-xs hidden sm:table-cell">{row.tipo === TIPOS_FACTURACION.NIU_BIZZ ? "Niubizz" : "Manual"}</TableCell>
                       <TableCell className="hidden max-w-[220px] lg:table-cell">
                         <p className="truncate text-xs font-medium text-slate-700" title={row.empresaFacturacion ?? undefined}>{row.empresaFacturacion ?? "—"}</p>
