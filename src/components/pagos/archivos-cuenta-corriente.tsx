@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge, Button, Dialog, DialogContent, Skeleton,
 } from "@nrivera-iimp/ui-kit-iimp";
@@ -10,7 +10,7 @@ import { pagosService, type ArchivoCuentaDTO, type ArchivoIImpInputDTO } from "@
 import { useConfirm } from "@/hooks/use-confirm";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { FormArchivoIImp, TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
-import type { TipoArchivoIImp } from "@/lib/shared/constants";
+import { TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
 
 interface Props {
   open: boolean;
@@ -46,6 +46,25 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
   const [archivos, setArchivos] = useState<ArchivoCuentaDTO[]>([]);
   const [cargando, setCargando] = useState(false);
   const [agregando, setAgregando] = useState(false);
+
+  /* Tipos disponibles: oculta OC/HES/valorizacion que ya tienen un archivo en esta cuota. */
+  const tiposDisponibles = useMemo(() => {
+    const base = tiposPermitidos ?? (Object.values(TIPOS_ARCHIVO_IIMP) as TipoArchivoIImp[]);
+    const cuotaObjetivo = cuotaNumero ?? null;
+    const conArchivo = new Set(
+      archivos.filter((a) => (a.cuota ?? null) === cuotaObjetivo).map((a) => a.tipo),
+    );
+    return base.filter((tipo) => {
+      if (
+        tipo === TIPOS_ARCHIVO_IIMP.OC ||
+        tipo === TIPOS_ARCHIVO_IIMP.HES ||
+        tipo === TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION
+      ) {
+        return !conArchivo.has(tipo);
+      }
+      return true;
+    });
+  }, [tiposPermitidos, archivos, cuotaNumero]);
 
   const cargar = useCallback(async () => {
     if (!cuotaId) return;
@@ -122,7 +141,7 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
                 cuotas={cuotas}
                 cuotaInicial={cuotaNumero}
                 archivosRegistrados={archivos}
-                tiposPermitidos={tiposPermitidos}
+                tiposPermitidos={tiposDisponibles}
                 onAgregar={(a) => { void agregar(a); }}
                 botonLabel={agregando ? "Agregando..." : "Agregar a la bandeja"}
               />
