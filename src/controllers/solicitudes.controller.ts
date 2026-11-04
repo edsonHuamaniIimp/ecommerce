@@ -11,6 +11,7 @@ import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION,
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
+import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { requestMetadata } from "@/lib/server/request-metadata";
 import { auditarVerComo } from "@/lib/server/ver-como-audit";
 import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
@@ -260,6 +261,27 @@ export const solicitudesController = {
       return error(API_ERROR_CODES.FORBIDDEN, "No puedes ver solicitudes de otro usuario", 403);
     }
     return success(row);
+  },
+
+  /** El cliente titular (o staff) obtiene el enlace temporal del contrato firmado en el SGC. */
+  async contratoSgc(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const url = new URL(request.url);
+    const { id } = solicitudesDetalleSchema.parse({ id: url.searchParams.get("id") ?? "" });
+    const row = await services.solicitudes.detalle(id);
+    if (!row) return error(API_ERROR_CODES.NOT_FOUND, "Solicitud no encontrada", 404);
+    if (!puedeVerTodas(session) && (!row.userId || row.userId !== session.sub)) {
+      return error(API_ERROR_CODES.FORBIDDEN, "No puedes ver solicitudes de otro usuario", 403);
+    }
+    if (!sgcAprobado(row.sgcLifecycleStatus)) {
+      return error(API_ERROR_CODES.NOT_FOUND, "No hay contrato firmado disponible", 404);
+    }
+
+    const enlace = await services.sgc.obtenerDescargaContrato(id);
+    if (!enlace) return error(API_ERROR_CODES.NOT_FOUND, "No hay contrato firmado disponible", 404);
+    return success(enlace);
   },
 
   /** Estado de DD de la empresa de la solicitud (para bloquear su revision). */

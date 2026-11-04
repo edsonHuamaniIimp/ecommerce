@@ -273,6 +273,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
+  const [sgcContratoUrl, setSgcContratoUrl] = useState<string | null>(null);
+  const detailRequestRef = useRef(0);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const documentoEstadoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DOCUMENTO_ESTADO,
@@ -322,9 +324,20 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   };
 
   const openDetail = async (id: string) => {
+    const requestId = ++detailRequestRef.current;
     const data = await solicitudesService.detalle(id);
+    if (requestId !== detailRequestRef.current) return;
     setDetailRow(data);
     setDetailOpen(true);
+    setSgcContratoUrl(null);
+
+    if (!data.sgcEnabled || !sgcAprobado(data.sgcLifecycleStatus)) return;
+    try {
+      const enlace = await solicitudesService.contratoSgc(id);
+      if (requestId === detailRequestRef.current) setSgcContratoUrl(enlace.url);
+    } catch {
+      /* La solicitud puede no tener contrato firmado en el SGC. */
+    }
   };
 
   /** RF-08 (F2): genera el PNG del recorte y lo guarda en la solicitud para el contrato. */
@@ -872,7 +885,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       </Card>
 
       {/* Detail modal */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+      <Dialog open={detailOpen} onOpenChange={(open) => {
+        setDetailOpen(open);
+        if (!open) {
+          detailRequestRef.current += 1;
+          setSgcContratoUrl(null);
+        }
+      }}>
         <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
           {/* Header */}
           <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
@@ -1122,6 +1141,29 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   })()}
                 </ModalSection>
               ) : null}
+
+              {/* Contrato final firmado en el SGC */}
+              {sgcContratoUrl && (
+                <ModalSection title="Contrato firmado (SGC)">
+                  <div className="flex flex-col gap-3 rounded-lg border border-success/30 bg-success/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <FileText className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                      <div>
+                        <p className="text-xs font-semibold text-success">Contrato final disponible</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                          Documento firmado emitido por el SGC.
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto" asChild>
+                      <a href={sgcContratoUrl} target="_blank" rel="noopener noreferrer">
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>Ver contrato</span>
+                      </a>
+                    </Button>
+                  </div>
+                </ModalSection>
+              )}
 
               {/* Esperando Contrato */}
               {detailRow.standCodes?.length > 1 && detailRow.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && (detailRow.docsAdjuntosCount ?? 0) === 0 && detailRow.flgActivo !== false && (

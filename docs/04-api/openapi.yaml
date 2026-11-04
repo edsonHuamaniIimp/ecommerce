@@ -35,6 +35,8 @@ tags:
     description: Accesos del Portal del Cliente (backoffice) contra servicio-persona
   - name: DebidaDiligencia
     description: Formulario, revision de Logistica, revision reputacional de Comunicaciones y panel del modulo
+  - name: Solicitudes
+    description: Solicitudes de alquiler de stands (cliente y bandeja administrativa)
   - name: SGC
     description: Integraci��n con el Sistema de Gesti��n de Contratos (expediente, documentos, descarga, webhooks)
   - name: VerComo
@@ -1495,6 +1497,26 @@ paths:
           description: Clave x-api-key ausente o invalida
         "404":
           description: Solicitud activa, facturacion o cuota no encontrada
+  /solicitudes/contrato-sgc:
+    get:
+      tags: [Solicitudes]
+      summary: Enlace de descarga del contrato final firmado en el SGC para el titular o staff
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SgcUrlDescarga"
+        "403":
+          description: El usuario no es titular de la solicitud ni staff autorizado
+        "404":
+          $ref: "#/components/responses/NotFound"
   /sgc/detalle:
     get:
       tags: [SGC]
