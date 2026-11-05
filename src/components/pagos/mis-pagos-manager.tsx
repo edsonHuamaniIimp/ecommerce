@@ -12,6 +12,7 @@ import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/a
 import { Pagination } from "@/components/shared/pagination";
 import { ArchivosCuentaCorriente } from "@/components/pagos/archivos-cuenta-corriente";
 import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
+import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -43,6 +44,86 @@ function tiposDocumentosPorRequisitos(requisitos: PagoRowDTO["requisitos"]): Tip
   if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
   if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
   return [...tipos, ...pagos];
+}
+
+/** Tipos documentales exigidos por la declaracion del cliente (sin constancias de pago). */
+function tiposRequeridosFacturacion(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
+  if (!requisitos || requisitos.ninguna) return [];
+  const tipos: TipoArchivoIImp[] = [];
+  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
+  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
+  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
+  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
+  return tipos;
+}
+
+/**
+ * Aviso de deuda documental: verifica los archivos reales de la cuenta corriente
+ * del IIMP y solo muestra el CTA cuando falta algun requisito declarado.
+ * En "Ver como" se muestra en modo lectura, sin boton de carga.
+ */
+function AvisoDocumentosPendientes({
+  row,
+  soloLectura,
+  refreshKey,
+  onSubir,
+}: {
+  row: PagoRowDTO;
+  soloLectura: boolean;
+  refreshKey: number;
+  onSubir: (cuotaId: string, numero: number, tipos: TipoArchivoIImp[]) => void;
+}) {
+  const requeridos = tiposRequeridosFacturacion(row.requisitos);
+  const requeridosKey = requeridos.join("|");
+  const cuotaObjetivo = row.requisitos?.cuota ?? 1;
+  const cuota = row.cuotas.find((c) => c.numero === cuotaObjetivo) ?? row.cuotas[0];
+  const [faltantes, setFaltantes] = useState<TipoArchivoIImp[]>([]);
+
+  useEffect(() => {
+    if (!row.iimpContrato || !cuota || !requeridosKey) return;
+    let activo = true;
+    const requeridos = requeridosKey.split("|") as TipoArchivoIImp[];
+    void pagosService.listarArchivos(cuota.id)
+      .then((archivos) => {
+        if (!activo) return;
+        const presentes = new Set(
+          archivos
+            .filter((a) => a.cuota === null || a.cuota === cuotaObjetivo)
+            .map((a) => a.tipo),
+        );
+        setFaltantes(requeridos.filter((tipo) => !presentes.has(tipo)));
+      })
+      .catch(() => { if (activo) setFaltantes([]); });
+    return () => { activo = false; };
+  }, [row.iimpContrato, cuota, cuotaObjetivo, requeridosKey, refreshKey]);
+
+  if (faltantes.length === 0 || !cuota) return null;
+
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-foreground">Documentos pendientes para factura</p>
+        <p className="mt-0.5 text-muted-foreground">
+          Faltan: {faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(" / ")}.
+        </p>
+      </div>
+      {soloLectura ? (
+        <Badge className="pointer-events-none shrink-0 text-[10px]">Solo lectura</Badge>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 shrink-0 gap-1 rounded-full px-2.5 text-[10px]"
+          onClick={() => onSubir(cuota.id, cuota.numero, tiposDocumentosPorRequisitos(row.requisitos))}
+        >
+          <Files className="h-3 w-3" />
+          <span>Subir documentos</span>
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function claseBadge(estado: string): string {
@@ -82,6 +163,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
   const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; standCode: string; numero: number } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
   const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number; tiposPermitidos: TipoArchivoIImp[] } | null>(null);
+  const [documentosVersion, setDocumentosVersion] = useState(0);
 
   const puedeGestionar = !soloLectura && Boolean(
     session?.permissions?.includes(PERMISSIONS.PAGOS_MANAGE) ||
@@ -208,6 +290,20 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
           </span>
         </div>
       )}
+      <AvisoDocumentosPendientes
+        row={row}
+        soloLectura={soloLectura}
+        refreshKey={documentosVersion}
+        onSubir={(cuotaId, numero, tipos) =>
+          setArchivosCuota({
+            cuotaId,
+            cuotas: row.cuotas.length,
+            standCode: row.standCode,
+            numero,
+            tiposPermitidos: tipos,
+          })
+        }
+      />
       {row.cuotas.length === 0 ? (
         <p className="text-xs text-muted-foreground">Sin cuotas configuradas.</p>
       ) : (
@@ -576,6 +672,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             standCode={archivosCuota?.standCode}
             cuotaNumero={archivosCuota?.numero}
             tiposPermitidos={archivosCuota?.tiposPermitidos}
+            onDocumentosChanged={() => setDocumentosVersion((v) => v + 1)}
           />
         </>
       )}

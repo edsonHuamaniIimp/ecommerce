@@ -18,8 +18,12 @@ export class ArchivosCuentaCorrienteApplicationService {
     private readonly reserva: Pick<IReservaIimpClient, "agregarArchivos" | "listarArchivos" | "eliminarArchivo">,
   ) {}
 
-  async listar(cuotaId: string, ident: ClienteIdent): Promise<ReservaIimpArchivo[]> {
-    const { cuenta } = await this.cuentaDeCuota(cuotaId, ident);
+  async listar(
+    cuotaId: string,
+    ident: ClienteIdent,
+    opciones?: { omitirPropiedad?: boolean },
+  ): Promise<ReservaIimpArchivo[]> {
+    const { cuenta } = await this.cuentaDeCuota(cuotaId, ident, opciones);
     return this.reserva.listarArchivos(cuenta);
   }
 
@@ -41,9 +45,15 @@ export class ArchivosCuentaCorrienteApplicationService {
   }
 
   /** Resuelve la cuenta corriente del IIMP a partir de una cuota propia del cliente. */
-  private async cuentaDeCuota(cuotaId: string, ident: ClienteIdent): Promise<{ cuenta: ReservaIimpCuentaInput; cuotas: number }> {
-    const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
-    if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
+  private async cuentaDeCuota(
+    cuotaId: string,
+    ident: ClienteIdent,
+    opciones?: { omitirPropiedad?: boolean },
+  ): Promise<{ cuenta: ReservaIimpCuentaInput; cuotas: number }> {
+    if (!opciones?.omitirPropiedad) {
+      const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
+      if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
+    }
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
     if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);

@@ -24,6 +24,8 @@ interface Props {
   cuotaNumero?: number;
   /** Tipos de documento habilitados segun los requisitos declarados (undefined = todos). */
   tiposPermitidos?: readonly TipoArchivoIImp[];
+  /** Notifica cambios para refrescar el aviso de documentos pendientes. */
+  onDocumentosChanged?: () => void;
 }
 
 /** Agrupa los documentos por cuota (null = de toda la cuenta), en orden ascendente. */
@@ -41,31 +43,21 @@ function agruparPorCuota(archivos: ArchivoCuentaDTO[]): Array<[number | null, Ar
 }
 
 /** Documentos (links) de la cuenta corriente del IIMP: OC, HES, detracción y diferencia. */
-export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero, tiposPermitidos }: Props) {
+export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, standCode, cuotaNumero, tiposPermitidos, onDocumentosChanged }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [archivos, setArchivos] = useState<ArchivoCuentaDTO[]>([]);
   const [cargando, setCargando] = useState(false);
   const [agregando, setAgregando] = useState(false);
 
-  /* Tipos disponibles: oculta OC/HES/valorizacion que ya tienen un archivo en esta cuota. */
-  const tiposDisponibles = useMemo(() => {
-    const base = tiposPermitidos ?? (Object.values(TIPOS_ARCHIVO_IIMP) as TipoArchivoIImp[]);
-    const cuotaObjetivo = cuotaNumero ?? null;
-    const conArchivo = new Set(
-      archivos.filter((a) => (a.cuota ?? null) === cuotaObjetivo).map((a) => a.tipo),
-    );
-    return base.filter((tipo) => {
-      if (
-        tipo === TIPOS_ARCHIVO_IIMP.OC ||
-        tipo === TIPOS_ARCHIVO_IIMP.HES ||
-        tipo === TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION ||
-        tipo === TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS
-      ) {
-        return !conArchivo.has(tipo);
-      }
-      return true;
-    });
-  }, [tiposPermitidos, archivos, cuotaNumero]);
+  /*
+   * Los requisitos declarados (OC/HES/valorizacion/otros) siguen disponibles aunque
+   * ya exista un archivo: el cliente puede agregar otro documento o reemplazarlo.
+   * Las constancias de pago mantienen su logica de exclusion en FormArchivoIImp.
+   */
+  const tiposDisponibles = useMemo(
+    () => tiposPermitidos ?? (Object.values(TIPOS_ARCHIVO_IIMP) as TipoArchivoIImp[]),
+    [tiposPermitidos],
+  );
 
   const cargar = useCallback(async () => {
     if (!cuotaId) return;
@@ -89,6 +81,7 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
     setAgregando(true);
     try {
       setArchivos(await pagosService.agregarArchivo({ cuotaId, ...archivo }));
+      onDocumentosChanged?.();
       toast.success("Documento agregado a la cuenta corriente del IIMP");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo agregar el documento");
@@ -107,6 +100,7 @@ export function ArchivosCuentaCorriente({ open, onOpenChange, cuotaId, cuotas, s
     if (!ok) return;
     try {
       setArchivos(await pagosService.eliminarArchivo({ cuotaId, item }));
+      onDocumentosChanged?.();
       toast.success("Documento quitado");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo quitar el documento");

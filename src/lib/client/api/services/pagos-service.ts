@@ -76,6 +76,8 @@ export interface RequisitosFacturacionDTO {
   valorizacion?: boolean;
   otros?: string | null;
   ninguna?: boolean;
+  /** Cuota en la que el cliente declaro los requisitos. */
+  cuota?: number;
 }
 
 /** Resultado de "Solicitar factura": reserva registrada en el IIMP (cuenta corriente creada). */

@@ -203,7 +203,13 @@ export const pagosController = {
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     const cuotaId = new URL(request.url).searchParams.get("cuotaId");
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
-    return success(await services.archivosCuenta.listar(cuotaId, ident(session)));
+    /* Ver como: staff de facturacion puede consultar archivos en modo lectura. */
+    const puedeVerTodas =
+      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      session.permissions.includes(PERMISSIONS.FACTURACION_VIEW);
+    return success(
+      await services.archivosCuenta.listar(cuotaId, ident(session), { omitirPropiedad: puedeVerTodas }),
+    );
   },
 
   async agregarArchivo(request: Request): Promise<NextResponse> {
