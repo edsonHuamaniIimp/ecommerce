@@ -151,7 +151,7 @@ export async function isUsuarioActivo(email: string): Promise<boolean> {
   try {
     const { prisma } = await import("./db");
     const cuenta = await prisma.userRole.findFirst({
-      where: { email, flgActivo: true },
+      where: { email: { equals: email.trim(), mode: "insensitive" }, flgActivo: true },
       select: { id: true },
     });
     return Boolean(cuenta);
@@ -169,7 +169,7 @@ export async function estadoAcceso(email: string): Promise<{ activo: boolean; va
   try {
     const { prisma } = await import("./db");
     const cuenta = await prisma.userRole.findFirst({
-      where: { email, flgActivo: true },
+      where: { email: { equals: email.trim(), mode: "insensitive" }, flgActivo: true },
       select: { empresaId: true, empresa: { select: { primerAccesoCompletado: true } } },
     });
     return {
