@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
+import { TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import { actualizarEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
 
 describe("crearEmpresaSchema (documento RUC o RUT)", () => {
@@ -80,6 +80,36 @@ describe("validarDatosEmpresaSchema", () => {
   it("exige la fecha de inicio de operaciones", () => {
     expect(validarDatosEmpresaSchema.safeParse({ ...base, inicioOperaciones: null }).success).toBe(false);
     expect(validarDatosEmpresaSchema.safeParse({ ...base, inicioOperaciones: "" }).success).toBe(false);
+  });
+
+  it("acepta un pasaporte numerico de mas de 8 digitos para el representante legal", () => {
+    const r = validarDatosEmpresaSchema.safeParse({
+      ...base,
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+      representanteLegalDni: "123456789",
+      partidaElectronica: "11014857",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("acepta un carnet de extranjeria alfanumerico", () => {
+    const r = validarDatosEmpresaSchema.safeParse({
+      ...base,
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+      representanteLegalDni: "CE123456",
+      partidaElectronica: "11014857",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rechaza un DNI de 9 digitos", () => {
+    const r = validarDatosEmpresaSchema.safeParse({
+      ...base,
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+      representanteLegalDni: "123456789",
+      partidaElectronica: "11014857",
+    });
+    expect(r.success).toBe(false);
   });
 
   it("no exige partida electronica para RUT/no domiciliado", () => {

@@ -832,7 +832,7 @@ function PerfilPageContent() {
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="exteminDni"><span>Numero de documento</span> <span className="text-destructive">*</span></Label>
-                          <InputEmpresa autoComplete="off" id="exteminDni" error={errorVisibleEmpresa("responsableExteminDni")} resaltado={marcarPendienteEmpresa("responsableExteminDni")} autocompletado={estaAutocompletado("responsableExteminDni")} nota={exteminDniConsultando ? "Consultando RENIEC..." : exteminDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={exteminDni} onChange={(e) => { setExteminDniValidado(false); setExteminDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
+                          <InputEmpresa autoComplete="off" id="exteminDni" error={errorVisibleEmpresa("responsableExteminDni")} resaltado={marcarPendienteEmpresa("responsableExteminDni")} autocompletado={estaAutocompletado("responsableExteminDni")} nota={exteminDniConsultando ? "Consultando RENIEC..." : exteminDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={exteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? 8 : 15} value={exteminDni} onChange={(e) => { setExteminDniValidado(false); setExteminDni(exteminTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? e.target.value.replace(/\D/g, "").slice(0, 8) : e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="exteminNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>
@@ -858,7 +858,7 @@ function PerfilPageContent() {
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="pagosDni"><span>Numero de documento</span> <span className="text-destructive">*</span></Label>
-                          <InputEmpresa autoComplete="off" id="pagosDni" error={errorVisibleEmpresa("responsablePagosDni")} resaltado={marcarPendienteEmpresa("responsablePagosDni")} autocompletado={estaAutocompletado("responsablePagosDni")} nota={pagosDniConsultando ? "Consultando RENIEC..." : pagosDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={8} value={pagosDni} onChange={(e) => { setPagosDniValidado(false); setPagosDni(e.target.value.replace(/\D/g, "").slice(0, 8)); }} className="font-mono text-xs" />
+                          <InputEmpresa autoComplete="off" id="pagosDni" error={errorVisibleEmpresa("responsablePagosDni")} resaltado={marcarPendienteEmpresa("responsablePagosDni")} autocompletado={estaAutocompletado("responsablePagosDni")} nota={pagosDniConsultando ? "Consultando RENIEC..." : pagosDniValidado ? "Datos validados con RENIEC." : undefined} maxLength={pagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? 8 : 15} value={pagosDni} onChange={(e) => { setPagosDniValidado(false); setPagosDni(pagosTipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI ? e.target.value.replace(/\D/g, "").slice(0, 8) : e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 15)); }} className="font-mono text-xs" />
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="pagosNombre"><span>Nombre</span> <span className="text-destructive">*</span></Label>

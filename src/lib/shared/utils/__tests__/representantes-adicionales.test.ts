@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   erroresRepresentanteAdicional,
+  erroresRepresentantesAdicionales,
   representanteAdicionalDesdeDTO,
   representanteAdicionalPayload,
   representanteAdicionalVacio,
@@ -32,6 +33,20 @@ describe("representantes adicionales", () => {
 
   it("acepta un representante completo", () => {
     expect(erroresRepresentanteAdicional(valido)).toEqual({});
+  });
+
+  it("acepta carnet y pasaporte con mas de 8 caracteres", () => {
+    expect(erroresRepresentanteAdicional({ ...valido, tipoDocumento: "4", documento: "CE123456" }).documento).toBeUndefined();
+    expect(erroresRepresentanteAdicional({ ...valido, tipoDocumento: "7", documento: "123456789" }).documento).toBeUndefined();
+  });
+
+  it("valida cada representante con su propio tipo de documento", () => {
+    const errores = erroresRepresentantesAdicionales([
+      { ...valido, tipoDocumento: "1", documento: "12345678" },
+      { ...valido, tipoDocumento: "4", documento: "CE123456" },
+      { ...valido, tipoDocumento: "7", documento: "123456789" },
+    ]);
+    expect(errores).toEqual([{}, {}, {}]);
   });
 
   it("mapea desde/hacia el DTO sin perder el id", () => {

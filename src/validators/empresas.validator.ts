@@ -53,6 +53,11 @@ const empresaBaseSchema = z.object({
   emailContacto: emailOpcional,
   emailFacturacion: emailOpcional,
   representanteLegalNombre: z.string().trim().max(200).optional().nullable(),
+  representanteLegalTipoDocumento: z.enum([
+    TIPOS_DOCUMENTO_PERSONA.DNI,
+    TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+    TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+  ]).optional().nullable(),
   representanteLegalDni: z.string().trim().max(15).optional().nullable(),
   partidaElectronica: z.string().trim().max(50).optional().nullable(),
   nombreFriso: z.string().trim().max(200).optional().nullable(),
@@ -61,10 +66,20 @@ const empresaBaseSchema = z.object({
   facturarANombre: z.string().trim().max(200).optional().nullable(),
   responsableExteminNombre: z.string().trim().max(200).optional().nullable(),
   responsableExteminTelefono: z.string().trim().max(35).optional().nullable(),
+  responsableExteminTipoDocumento: z.enum([
+    TIPOS_DOCUMENTO_PERSONA.DNI,
+    TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+    TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+  ]).optional().nullable(),
   responsableExteminDni: z.string().trim().max(15).optional().nullable(),
   responsableExteminEmail: emailOpcional,
   responsablePagosNombre: z.string().trim().max(200).optional().nullable(),
   responsablePagosTelefono: z.string().trim().max(35).optional().nullable(),
+  responsablePagosTipoDocumento: z.enum([
+    TIPOS_DOCUMENTO_PERSONA.DNI,
+    TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+    TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+  ]).optional().nullable(),
   responsablePagosDni: z.string().trim().max(15).optional().nullable(),
   responsablePagosEmail: emailOpcional,
   representanteDireccion: z.string().trim().max(100).optional().nullable(),
@@ -183,14 +198,12 @@ export const validarDatosEmpresaSchema = crearEmpresaSchema.and(validarDatosEmpr
     path: ["representanteLegalNombre"],
   })
   .refine((v) => {
-    const dni = String(v.representanteLegalDni ?? "").trim();
-    if (!dni) return false;
-    const error = /^\d+$/.test(dni)
-      ? validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.DNI, dni)
-      : validarDocumentoPersona(TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, dni);
-    return error === null;
+    const documento = String(v.representanteLegalDni ?? "").trim();
+    if (!documento) return false;
+    const tipo = v.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI;
+    return validarDocumentoPersona(tipo, documento) === null;
   }, {
-    message: "El DNI del representante legal debe tener 8 digitos (o documento alfanumerico valido)",
+    message: "Documento del representante legal invalido: DNI de 8 digitos, carnet o pasaporte de 1 a 15 caracteres",
     path: ["representanteLegalDni"],
   })
   .refine((v) => Boolean(v.representanteCorreo?.trim()), {
