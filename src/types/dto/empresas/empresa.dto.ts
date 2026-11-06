@@ -69,6 +69,12 @@ export interface EmpresaDTO {
   cuentaCreada: boolean;
   /** Correo de acceso de la cuenta vinculada (`acceso-<documento>@acceso.iimp` si es provisional); null si no existe o no se consulto. */
   cuentaEmail: string | null;
+  /** Correo elegido por el usuario para recibir notificaciones; null = usa el correo de acceso. */
+  notificationEmail?: string | null;
+  /** Correo pendiente de verificar por el usuario. */
+  notificationEmailPending?: string | null;
+  /** Fecha de verificacion del correo de notificaciones. */
+  notificationEmailVerifiedAt?: string | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: string | null;
   creadoPor: string | null;

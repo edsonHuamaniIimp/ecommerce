@@ -58,8 +58,14 @@ interface EmpresaRow {
   representantesAdicionales?: EmpresaRepresentanteAdicionalEntity[] | null;
   estado: string;
   cuentaCreada: boolean;
-  /** Cuentas de acceso vinculadas (solo se incluye en el listado paginado). */
-  usuarios?: { email: string; ruc: string | null }[] | null;
+  /** Cuentas de acceso vinculadas (se incluye en listado y detalle). */
+  usuarios?: {
+    email: string;
+    ruc: string | null;
+    notificationEmail: string | null;
+    notificationEmailPending: string | null;
+    notificationEmailVerifiedAt: Date | null;
+  }[] | null;
   primerAccesoCompletado: boolean;
   datosValidadosEn: Date | null;
   creadoPor: string | null;
@@ -68,7 +74,7 @@ interface EmpresaRow {
 }
 
 /** Cuenta de acceso principal de la ficha: la del RUC o, si no, la primera vinculada. */
-function principalCuenta(row: EmpresaRow): { email: string; ruc: string | null } | null {
+function principalCuenta(row: EmpresaRow): NonNullable<EmpresaRow["usuarios"]>[number] | null {
   const cuentas = row.usuarios ?? [];
   return cuentas.find((u) => u.ruc === row.ruc) ?? cuentas[0] ?? null;
 }
@@ -129,6 +135,9 @@ function mapRow(row: EmpresaRow): EmpresaEntity {
     estado: row.estado as EstadoEmpresa,
     cuentaCreada: row.cuentaCreada ?? false,
     cuentaEmail: principalCuenta(row)?.email ?? null,
+    notificationEmail: principalCuenta(row)?.notificationEmail ?? null,
+    notificationEmailPending: principalCuenta(row)?.notificationEmailPending ?? null,
+    notificationEmailVerifiedAt: principalCuenta(row)?.notificationEmailVerifiedAt ?? null,
     primerAccesoCompletado: row.primerAccesoCompletado ?? false,
     datosValidadosEn: row.datosValidadosEn ?? null,
     creadoPor: row.creadoPor ?? null,
@@ -154,7 +163,17 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
         orderBy: { razonSocial: "asc" },
         skip: (params.page - 1) * params.perPage,
         take: params.perPage,
-        include: { usuarios: { select: { email: true, ruc: true } } },
+        include: {
+          usuarios: {
+            select: {
+              email: true,
+              ruc: true,
+              notificationEmail: true,
+              notificationEmailPending: true,
+              notificationEmailVerifiedAt: true,
+            },
+          },
+        },
       }),
       prisma.empresa.count({ where: where as never }),
     ]);
@@ -170,7 +189,18 @@ export class EmpresaPrismaRepository implements IEmpresaRepository {
   async findById(id: string): Promise<EmpresaEntity | null> {
     const row = await prisma.empresa.findUnique({
       where: { id },
-      include: { representantesAdicionales: { where: { flgActivo: true }, orderBy: { orden: "asc" } } },
+      include: {
+        representantesAdicionales: { where: { flgActivo: true }, orderBy: { orden: "asc" } },
+        usuarios: {
+          select: {
+            email: true,
+            ruc: true,
+            notificationEmail: true,
+            notificationEmailPending: true,
+            notificationEmailVerifiedAt: true,
+          },
+        },
+      },
     });
     return row ? mapRow(row as EmpresaRow) : null;
   }

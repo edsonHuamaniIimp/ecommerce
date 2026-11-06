@@ -43,6 +43,7 @@ export function EmpresasManager() {
   const [editando, setEditando] = useState<EmpresaDTO | null>(null);
   const [cuotasEmpresa, setCuotasEmpresa] = useState<EmpresaDTO | null>(null);
   const [detalleEmpresa, setDetalleEmpresa] = useState<EmpresaDTO | null>(null);
+  const detalleSeqRef = useRef(0);
   /* Credenciales generadas: se muestran una vez (no se envian correos). */
   const [credenciales, setCredenciales] = useState<{ razonSocial: string; usuario: string; passwordTemporal: string } | null>(null);
   /** Empresa cuyo representante se esta sincronizando con servicio-persona (bloquea su icono). */
@@ -79,6 +80,28 @@ export function EmpresasManager() {
   useEffect(() => {
     (async () => { await load(); })();
   }, [load]);
+
+  /**
+   * Abre el detalle con la fila actual y completa representantes adicionales,
+   * correo de notificaciones y demas datos que no viajan en el listado.
+   */
+  const abrirDetalle = async (empresa: EmpresaDTO) => {
+    const seq = ++detalleSeqRef.current;
+    setDetalleEmpresa(empresa);
+    try {
+      const detalle = await empresasService.detalle(empresa.id);
+      if (seq === detalleSeqRef.current) setDetalleEmpresa(detalle);
+    } catch (err) {
+      if (seq === detalleSeqRef.current) {
+        toast.error(err instanceof Error ? err.message : "No se pudo cargar el detalle completo de la empresa");
+      }
+    }
+  };
+
+  const cerrarDetalle = () => {
+    detalleSeqRef.current += 1;
+    setDetalleEmpresa(null);
+  };
 
   const cambiarEstado = async (empresa: EmpresaDTO) => {
     const activa = empresa.estado === ESTADOS_EMPRESA.ACTIVA;
@@ -365,7 +388,7 @@ export function EmpresasManager() {
                                 className="h-7 w-7 p-0 text-primary hover:text-primary"
                                 title="Ver información validada"
                                 aria-label="Ver información validada"
-                                onClick={() => setDetalleEmpresa(empresa)}
+                                onClick={() => { void abrirDetalle(empresa); }}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
@@ -528,7 +551,7 @@ export function EmpresasManager() {
       {detalleEmpresa && (
         <EmpresaDetalleModal
           empresa={detalleEmpresa}
-          onClose={() => setDetalleEmpresa(null)}
+          onClose={cerrarDetalle}
         />
       )}
       {credenciales && (

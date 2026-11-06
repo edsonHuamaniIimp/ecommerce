@@ -60,6 +60,11 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     estado: entity.estado,
     cuentaCreada: entity.cuentaCreada,
     cuentaEmail: entity.cuentaEmail ?? null,
+    notificationEmail: entity.notificationEmail ?? null,
+    notificationEmailPending: entity.notificationEmailPending ?? null,
+    notificationEmailVerifiedAt: entity.notificationEmailVerifiedAt
+      ? entity.notificationEmailVerifiedAt.toISOString()
+      : null,
     primerAccesoCompletado: entity.primerAccesoCompletado,
     datosValidadosEn: entity.datosValidadosEn ? entity.datosValidadosEn.toISOString() : null,
     creadoPor: entity.creadoPor,

@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { Building2, ClipboardCheck, ReceiptText, UserRound, Users } from "lucide-react";
+import { Bell, Building2, ClipboardCheck, ReceiptText, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   BADGE_STYLES,
@@ -97,6 +97,7 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
               <Dato label="Nombre comercial" value={empresa.nombreComercial} />
               <Dato label="Tipo de documento" value={TIPOS_DOCUMENTO_EMPRESA_LABELS[empresa.tipoDocumento] ?? empresa.tipoDocumento} />
               <Dato label="RUC / RUT" value={empresa.ruc} mono />
+              <Dato label="Código SIE de la empresa" value={empresa.sieCode} mono />
               <Dato label="País" value={nombrePais(empresa.pais)} />
               <Dato label="Dirección fiscal" value={empresa.direccionFiscal} />
               <Dato label="Inicio de operaciones" value={dateUtils.format(empresa.inicioOperaciones)} />
@@ -106,6 +107,16 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
               <Dato label="Estado del contribuyente" value={empresa.estadoContribuyente} />
               <Dato label="Sitio web" value={empresa.sitioWeb} />
             </dl>
+            {empresa.logoUrl && (
+              <div className="mt-4 flex items-center gap-3 border-t border-border pt-3">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Logo</span>
+                <img
+                  src={empresa.logoUrl}
+                  alt={`Logo de ${empresa.razonSocial}`}
+                  className="h-12 w-12 rounded-lg border bg-white object-contain p-1"
+                />
+              </div>
+            )}
           </Seccion>
 
           <Seccion icon={UserRound} title="Representante legal y firma">
@@ -119,6 +130,43 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
               <Dato label="Partida electrónica" value={empresa.partidaElectronica} mono />
               <Dato label="Código SIE" value={empresa.representanteSieCode ?? "No sincronizado"} mono />
             </dl>
+          </Seccion>
+
+          <Seccion icon={Users} title="Representantes legales adicionales">
+            {(empresa.representantesAdicionales ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin representantes legales adicionales registrados.</p>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {(empresa.representantesAdicionales ?? []).map((rep) => (
+                  <div key={rep.id} className="rounded-lg border border-border bg-secondary/30 p-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
+                        {rep.nombre}
+                      </p>
+                      {rep.firmaUrl ? (
+                        <a
+                          href={rep.firmaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-medium text-primary underline-offset-2 hover:underline"
+                        >
+                          Ver firma
+                        </a>
+                      ) : (
+                        <span className="text-[10px] font-medium text-warning">Sin firma</span>
+                      )}
+                    </div>
+                    <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                      <Dato label="Tipo de documento" value={tipoDocumentoPersona(rep.tipoDocumento)} />
+                      <Dato label="Número de documento" value={rep.documento} mono />
+                      <Dato label="Correo" value={rep.correo} />
+                      <Dato label="Celular" value={rep.celular} />
+                      <Dato label="Dirección" value={rep.direccion} />
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            )}
           </Seccion>
 
           <Seccion icon={Users} title="Responsables de la empresa">
@@ -153,7 +201,33 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
               <Dato label="Tipo de comprobante" value={TIPO_COMPROBANTE_LABELS[empresa.tipoComprobante] ?? empresa.tipoComprobante} />
               <Dato label="Nombre en el friso" value={empresa.nombreFriso} />
               <Dato label="Dirección de facturación" value={empresa.direccionFiscal} />
+              <Dato
+                label="Cronograma de cuotas"
+                value={empresa.configCuotas
+                  ? `${empresa.configCuotas.maxCuotas} cuota(s): ${empresa.configCuotas.fechas.map((fecha) => dateUtils.format(fecha)).join(", ")}`
+                  : "Cronograma estándar"}
+              />
             </dl>
+          </Seccion>
+
+          <Seccion icon={Bell} title="Notificaciones por correo">
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Dato label="Correo de acceso" value={empresa.cuentaEmail} />
+              <Dato
+                label="Correo elegido para notificaciones"
+                value={empresa.notificationEmail || "Usa el correo de acceso"}
+              />
+              <Dato
+                label="Verificación"
+                value={empresa.notificationEmailVerifiedAt
+                  ? dateUtils.formatDateTime(empresa.notificationEmailVerifiedAt)
+                  : "Sin verificar"}
+              />
+              <Dato label="Correo pendiente de verificar" value={empresa.notificationEmailPending} />
+            </dl>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              El usuario elige este correo desde Perfil → Notificaciones por correo.
+            </p>
           </Seccion>
 
           <Seccion icon={ClipboardCheck} title="Registro y acceso">
