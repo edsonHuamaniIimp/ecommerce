@@ -557,6 +557,25 @@ mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` �
   `sig_sustento`, `reputacional_sustento`, `compliance_sustento`).
 - Ver `docs/01-funcional/11-debida-diligencia.md` seccion 13.
 
+### Debida Diligencia V2 (`dd_relacion_comercial`, `dd_evidencia`)
+
+- **`dd_relacion_comercial`** — unidad de resultado de la DD V2 (empresa + relación
+  comercial). `@@unique([debidaDiligenciaId, tipoRelacion])`; `tipoRelacion`
+  (`DD_VINCULOS`), `estado` (`DD_ESTADOS_RELACION`), `resultadoFinal`
+  (`DD_MATRIZ_RESULTADOS_FINALES`), `fechaDecision`/`vigenciaHasta` (6 meses),
+  `plazoVence` e informes por relación.
+- **`dd_evidencia`** — evidencia (archivo y/o link) por campo evaluado:
+  `relacionComercialId` (obligatorio), `matrizVinculoId` (opcional), `area`
+  (sig/reputacional/compliance), `campo`, `resultado`, `archivoUrl`, `linkExterno`,
+  autor y fecha. `N.A.` exime de evidencia.
+- **`debida_diligencia_beneficiario.tipo_vinculo_persona`** — rol de la persona
+  (`DD_TIPOS_VINCULO_PERSONA`); el porcentaje es obligatorio solo para beneficiario
+  final y socio 10%+.
+- **`dd_matriz_vinculo.relacion_comercial_id`** — enlaza cada fila de la matriz con su
+  relación comercial (nullable en filas legacy).
+- Migración aditiva: `20261106120000_dd_v2_relacion_comercial`.
+- Ver `docs/01-funcional/14-debida-diligencia-v2-alcance.md`.
+
 ## 6. Pendientes (PC)
 
 - ~~Confirmar **motor de BD** (relacional vs. documental) y ORM.~~ → **PostgreSQL + Prisma v7**.

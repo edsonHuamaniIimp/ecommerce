@@ -597,8 +597,14 @@ contratos, pagos, cuotas, membresías ni facturación.
 ### Todavía no implementado en código
 
 - Entidad `RelacionComercial` y resultado por relación comercial.
+  - Modelo y migración aditiva implementados en la rama `feature/dd-v2`
+    (`dd_relacion_comercial`, `dd_evidencia`, `tipo_vinculo_persona`,
+    `relacion_comercial_id`; migración `20261106120000_dd_v2_relacion_comercial`).
+    Pendiente: servicios, endpoints y UI por relación comercial.
 - `tipoVinculoPersona` en personas vinculadas.
+  - Columna agregada; pendiente wizard/revisión por rol.
 - Porcentaje condicional para roles que no son beneficiario/socio.
+  - Regla y tests listos en `utils/debida-diligencia-v2.ts`; pendiente UI.
 - `relacionComercialId` en matriz, reputación y legal.
 - Evidencias por campo.
 - Plazo, recordatorios y estado `SIN RESPUESTA`.

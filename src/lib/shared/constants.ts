@@ -3077,3 +3077,61 @@ export const DD_TIPOS_DOCUMENTO_EMPRESA = {
 
 export type DdTipoDocumentoEmpresa =
   (typeof DD_TIPOS_DOCUMENTO_EMPRESA)[keyof typeof DD_TIPOS_DOCUMENTO_EMPRESA];
+
+// ── Debida Diligencia V2: relación comercial y personas vinculadas ──────────
+
+/** Estados de una relación comercial (unidad de resultado de la DD V2). */
+export const DD_ESTADOS_RELACION = {
+  PENDIENTE: "pendiente",
+  EN_REVISION: "en_revision",
+  OBSERVADA: "observada",
+  EN_LEGAL: "en_legal",
+  APROBADA: "aprobada",
+  RECHAZADA: "rechazada",
+  SIN_RESPUESTA: "sin_respuesta",
+} as const;
+
+export type DdEstadoRelacion = (typeof DD_ESTADOS_RELACION)[keyof typeof DD_ESTADOS_RELACION];
+
+export const DD_ESTADO_RELACION_LABELS: Record<DdEstadoRelacion, string> = {
+  [DD_ESTADOS_RELACION.PENDIENTE]: "Pendiente",
+  [DD_ESTADOS_RELACION.EN_REVISION]: "En revisión",
+  [DD_ESTADOS_RELACION.OBSERVADA]: "Observada",
+  [DD_ESTADOS_RELACION.EN_LEGAL]: "En revisión legal",
+  [DD_ESTADOS_RELACION.APROBADA]: "APTO",
+  [DD_ESTADOS_RELACION.RECHAZADA]: "NO APTO",
+  [DD_ESTADOS_RELACION.SIN_RESPUESTA]: "Sin respuesta",
+};
+
+/** Rol de una persona vinculada dentro de la empresa (no es la relación comercial). */
+export const DD_TIPOS_VINCULO_PERSONA = {
+  REPRESENTANTE_LEGAL: "representante_legal",
+  APODERADO: "apoderado",
+  DIRECTOR: "director",
+  GERENTE: "gerente",
+  BENEFICIARIO_FINAL: "beneficiario_final",
+  SOCIO_10: "socio_10",
+  EMPRESA_VINCULADA: "empresa_vinculada",
+} as const;
+
+export type DdTipoVinculoPersona =
+  (typeof DD_TIPOS_VINCULO_PERSONA)[keyof typeof DD_TIPOS_VINCULO_PERSONA];
+
+export const DD_TIPO_VINCULO_PERSONA_LABELS: Record<DdTipoVinculoPersona, string> = {
+  [DD_TIPOS_VINCULO_PERSONA.REPRESENTANTE_LEGAL]: "Representante legal",
+  [DD_TIPOS_VINCULO_PERSONA.APODERADO]: "Apoderado",
+  [DD_TIPOS_VINCULO_PERSONA.DIRECTOR]: "Director",
+  [DD_TIPOS_VINCULO_PERSONA.GERENTE]: "Gerente",
+  [DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL]: "Beneficiario final",
+  [DD_TIPOS_VINCULO_PERSONA.SOCIO_10]: "Socio o accionista (10% o más)",
+  [DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA]: "Empresa vinculada",
+};
+
+/** Roles que exigen porcentaje de participación (>= DD_PORCENTAJE_PARTICIPACION_MIN). */
+export const DD_VINCULOS_PERSONA_CON_PORCENTAJE: readonly DdTipoVinculoPersona[] = [
+  DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL,
+  DD_TIPOS_VINCULO_PERSONA.SOCIO_10,
+];
+
+/** Plazo por defecto (días hábiles) para que el cliente responda una observación. */
+export const DD_PLAZO_RESPUESTA_DIAS_DEFAULT = 3;

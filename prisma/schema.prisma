@@ -1342,6 +1342,7 @@ model DebidaDiligencia {
   historial     DebidaDiligenciaHistorial[]
   reputacion    DebidaDiligenciaReputacion[]
   matrizVinculos DdMatrizVinculo[]
+  relacionesComerciales DdRelacionComercial[]
 
   @@index([empresaId, eventoId, createdAt])
   @@index([empresaId, fechaVencimiento])
@@ -1362,6 +1363,8 @@ model DebidaDiligenciaBeneficiario {
   documento    String  @db.VarChar(30)
   nacionalidad String  @db.VarChar(80)
   porcentaje   Decimal @db.Decimal(5, 2)
+  /// Rol de la persona dentro de la empresa (DD_TIPOS_VINCULO_PERSONA): representante_legal | apoderado | director | gerente | beneficiario_final | socio_10 | empresa_vinculada.
+  tipoVinculoPersona String? @map("tipo_vinculo_persona") @db.VarChar(40)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1597,16 +1600,22 @@ model DdMatrizVinculo {
   finalFecha     DateTime? @map("final_fecha")
   finalPor       String?   @map("final_por") @db.VarChar(200)
 
+  /// Relacion comercial V2 a la que pertenece la fila (null en filas legacy).
+  relacionComercialId String? @map("relacion_comercial_id")
+
   creadoPor      String   @map("creado_por") @db.VarChar(200)
   actualizadoPor String?  @map("actualizado_por") @db.VarChar(200)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   expediente DebidaDiligencia   @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  relacionComercial DdRelacionComercial? @relation(fields: [relacionComercialId], references: [id], onDelete: SetNull)
   adjuntos   DdMatrizAdjunto[]
+  evidencias DdEvidencia[]
 
   @@unique([expedienteId, tipo, refKey])
   @@index([expedienteId])
+  @@index([relacionComercialId])
   @@index([resultadoFinal])
   @@index([sigConclusion])
   @@index([expedienteId, ambito])
@@ -1631,4 +1640,69 @@ model DdMatrizAdjunto {
 
   @@index([vinculoId, categoria])
   @@map("dd_matriz_adjunto")
+}
+
+/// Relacion comercial declarada en una DD V2: unidad de resultado, vigencia y plazo.
+model DdRelacionComercial {
+  id                 String @id @default(uuid())
+  /// Expediente DD al que pertenece la relacion.
+  debidaDiligenciaId String @map("debida_diligencia_id")
+  /// Tipo de relacion comercial (DD_VINCULOS): exhibidor | auspiciador | proveedor | asociado_adherente | media_partner | alquileres | otro.
+  tipoRelacion       String @map("tipo_relacion") @db.VarChar(40)
+  /// Estado de la relacion (DD_ESTADOS_RELACION): pendiente | en_revision | observada | en_legal | aprobada | rechazada | sin_respuesta.
+  estado             String @default("pendiente") @db.VarChar(20)
+  /// Resultado final de la relacion (DD_MATRIZ_RESULTADOS_FINALES); se calcula desde la matriz.
+  resultadoFinal     String? @map("resultado_final") @db.VarChar(30)
+  /// Fecha de la decision final; base para la vigencia de 6 meses.
+  fechaDecision      DateTime? @map("fecha_decision")
+  vigenciaHasta      DateTime? @map("vigencia_hasta")
+  /// Vencimiento del plazo de respuesta del cliente (DD_PLAZO_RESPUESTA_DIAS).
+  plazoVence         DateTime? @map("plazo_vence")
+  informeLogisticaUrl String? @map("informe_logistica_url") @db.VarChar(500)
+  informeLegalUrl     String? @map("informe_legal_url") @db.VarChar(500)
+  observaciones       String? @db.VarChar(1000)
+
+  creadoPor      String   @map("creado_por") @db.VarChar(200)
+  actualizadoPor String?  @map("actualizado_por") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  debidaDiligencia DebidaDiligencia    @relation(fields: [debidaDiligenciaId], references: [id], onDelete: Cascade)
+  matrizVinculos   DdMatrizVinculo[]
+  evidencias       DdEvidencia[]
+
+  @@unique([debidaDiligenciaId, tipoRelacion])
+  @@index([debidaDiligenciaId])
+  @@index([estado])
+  @@index([resultadoFinal])
+  @@index([vigenciaHasta])
+  @@map("dd_relacion_comercial")
+}
+
+/// Evidencia (archivo y/o link) de un campo evaluado en una DD V2.
+model DdEvidencia {
+  id                  String @id @default(uuid())
+  /// Relacion comercial evaluada.
+  relacionComercialId String @map("relacion_comercial_id")
+  /// Fila de la matriz (sujeto evaluado) cuando la evidencia es por criterio.
+  matrizVinculoId     String? @map("matriz_vinculo_id")
+  /// Area que registro la evidencia (DD_MATRIZ_AREAS): sig | reputacional | compliance.
+  area                String @db.VarChar(20)
+  /// Codigo del criterio/campo de la matriz (DD_MATRIZ_LISTAS, etc.).
+  campo               String @db.VarChar(80)
+  /// Respuesta/resultado del campo (DD_MATRIZ_SI_NO_NA o resultado del area).
+  resultado           String? @db.VarChar(20)
+  archivoUrl          String? @map("archivo_url") @db.VarChar(500)
+  linkExterno         String? @map("link_externo") @db.VarChar(500)
+  comentario          String? @db.VarChar(1000)
+  /// Autor que adjunto la evidencia (email o nombre).
+  creadoPor           String @map("creado_por") @db.VarChar(200)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  relacionComercial DdRelacionComercial @relation(fields: [relacionComercialId], references: [id], onDelete: Cascade)
+  matrizVinculo     DdMatrizVinculo?    @relation(fields: [matrizVinculoId], references: [id], onDelete: SetNull)
+
+  @@index([relacionComercialId, area])
+  @@index([matrizVinculoId])
+  @@map("dd_evidencia")
 }
