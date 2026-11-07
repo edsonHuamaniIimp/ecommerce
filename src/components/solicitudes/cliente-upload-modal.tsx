@@ -9,10 +9,10 @@ import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
+import { estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
@@ -238,11 +238,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     : null;
   /* Observaciones por documento del SGC (campo OPCIONAL; si no vienen, todo sigue como antes). */
   const observacionesSgc = (solicitud.sgcObservaciones ?? []).filter(
-    (o) => o.status !== "resolved" && o.message.trim().length > 0,
+    (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message.trim().length > 0,
   );
   const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
+  const correccionSgc = estadoCorreccionSgc(solicitud);
+  const observacionesSgcSinFila = observacionesSgc.filter(
+    (o) => !ANEXOS_REQUERIDOS.some((a) => a.key === o.requisito),
+  );
   const observacionContratoSgc = observacionesSgc.find(
-    (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === "contract",
+    (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,
   ) ?? null;
   const firmantesSinFirma = firmantes.filter((f) => !f.firmaUrl);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
@@ -390,7 +394,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         {!esContrato && observacionesSgc.length > 0 && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcCorregidas ? "Corrección registrada" : "Observaciones del área legal"}
+              {observacionesSgcCorregidas ? "Corrección registrada" : `Te piden ${correccionSgc.requeridos} archivos; llevas ${correccionSgc.cubiertos}.`}
             </p>
             {observacionesSgcCorregidas ? (
               <p className="mt-0.5 text-[11px] text-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
@@ -404,6 +408,24 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                 ))}
               </ul>
             )}
+          </div>
+        )}
+        {!esContrato && observacionesSgcSinFila.length > 0 && (
+          <div className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-warning">Documentos solicitados sin ficha</p>
+            <div className="mt-1 space-y-1">
+              {observacionesSgcSinFila.map((o, i) => (
+                <div key={o.observationId ?? `obs-sgc-sin-fila-${i}`} className="flex items-center gap-2 text-[11px] text-foreground">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{o.title ?? "Documento faltante"}</span>: {o.message}
+                  </span>
+                  <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                    disabled={uploading} onClick={() => abrirSelector(null)}>
+                    Adjuntar
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {esContrato && contratoAdmin && (
@@ -553,8 +575,14 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                   .sort((x, y) => (dateUtils.toMs(y.createdAt) ?? 0) - (dateUtils.toMs(x.createdAt) ?? 0))[0];
                 const observado = anexos.find(d => d.requisito === a.key && d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
                 const observacionSgc = observacionesSgc.find(o => o.requisito === a.key) ?? null;
+                const observacionFaltante = Boolean(observacionSgc && (!observacionSgc.documentId || observacionSgc.requiresNewDocument));
                 const observacionCorregida = Boolean(
-                  observacionSgc && existente && dateUtils.isAfter(existente.createdAt, observacionSgc.createdAt),
+                  observacionSgc &&
+                    !correccionSgc.faltantes.some((f) =>
+                      observacionSgc.observationId
+                        ? f.observationId === observacionSgc.observationId
+                        : f.title === (observacionSgc.title ?? observacionSgc.nombre ?? "Documento"),
+                    ),
                 );
                 const motivoPropio = observado?.motivoObservacion?.trim() && observado.motivoObservacion.trim() !== motivoGeneral
                   ? observado.motivoObservacion.trim()
@@ -600,7 +628,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         {(!existente || (observacionSgc && !observacionCorregida) || observado) && (
                           <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                             disabled={uploading} onClick={() => abrirSelector(a.key)}>
-                            {existente || observado ? "Reemplazar" : "Adjuntar"}
+                            {observacionFaltante || !existente || observado ? "Adjuntar" : "Reemplazar"}
                           </Button>
                         )}
                       </span>

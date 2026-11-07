@@ -243,7 +243,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       versionNumber?: number | null; documentoLocalId?: string | null;
       categoria?: string | null; requisito?: string | null; nombre?: string | null; title?: string | null;
       message: string; severity?: string | null; status?: string | null;
-      requiresDocumentChange?: boolean | null; createdBy?: string | null; createdAt?: string | null;
+      requiresDocumentChange?: boolean | null; requiresNewDocument?: boolean | null;
+      resolvedAt?: string | null; createdBy?: string | null; createdAt?: string | null;
     };
     const obsRaw = (row.sgcExpediente?.observaciones as Array<Record<string, unknown>> | null) ?? null;
     let sgcObservaciones: ObservacionFila[] = [];
@@ -286,6 +287,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
             severity: typeof o.severity === "string" ? o.severity : null,
             status: typeof o.status === "string" ? o.status : null,
             requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
+            requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
+            resolvedAt: typeof o.resolvedAt === "string" ? o.resolvedAt : null,
             createdBy: typeof o.createdBy === "string" ? o.createdBy : null,
             createdAt: typeof o.createdAt === "string" ? o.createdAt : null,
           };

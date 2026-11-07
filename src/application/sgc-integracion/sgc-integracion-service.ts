@@ -1,4 +1,4 @@
-﻿import type { ISgcRepository } from "@/domain/ports/sgc-repository";
+import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
@@ -20,7 +20,9 @@ import {
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_RESEND_PREFIX,
+  SGC_IDEMPOTENCY_RETRY_PREFIX,
   SGC_MOTIVO_CARGA_INICIAL,
+  SGC_OBSERVACION_ESTADOS,
   SGC_RECONCILIAR_MAX_POR_CORRIDA,
   SGC_SUBSANACION_MOTIVO,
   SGC_TITULOS_DOCUMENTO,
@@ -246,17 +248,23 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.client.consultarExpediente(expediente.contractId);
       // Con bypass admin, el estado local (Vigente) no se revierte al leer del SGC.
       const preservar = expediente.bypassAprobado;
-      const observaciones = this.observacionesDesdeDetalle(detalle);
+      const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones);
       const devuelto =
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
       /* Campo OPCIONAL: `observaciones === null` = el SGC no lo informa (no se toca).
        * Si dejo de estar devuelto, se limpia. Respaldo del motivo si faltÃ³ el webhook. */
-      const cambiosObservaciones = !devuelto
-        ? { observaciones: [] as SgcObservacionDocumento[] }
-        : observaciones !== null
+      const observacionesAbiertas = (observaciones ?? []).filter(
+        (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
+      );
+      const hayObservacionesAbiertas = observacionesAbiertas.length > 0;
+      /* Observacion suelta: el SGC puede informar observations[] sin devolver el flujo.
+       * Se conserva para alertar al cliente; no se fuerza el lifecycle local. */
+      const cambiosObservaciones = devuelto
+        ? (observaciones !== null ? { observaciones } : {})
+        : hayObservacionesAbiertas
           ? { observaciones }
-          : {};
+          : { observaciones: [] as SgcObservacionDocumento[] };
       const motivoRespaldo =
         !preservar && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
           ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
@@ -275,21 +283,31 @@ export class SgcIntegracionApplicationService {
       if (!preservar && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
         await habilitarOrdenPagoAutomatica(this.solicitudRepo, solicitudId);
       }
-      /* Devolucion/rechazo detectado por sync (webhook perdido): notifica al cliente una vez
-       * por transicion (o por motivo nuevo en una ronda posterior). */
+      /* Devolucion/rechazo o una observacion suelta detectada por sync: notifica al
+       * cliente una vez por transicion/nuevo conjunto de observaciones. */
       const esDevolucion =
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
       const estabaDevuelto =
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
-      const motivoNuevo = observaciones?.[0]?.message ?? null;
-      if (
+      const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
+      const clavesPrevias = new Set(
+        (expediente.observaciones ?? []).map((o) => o.observationId ?? `${o.title ?? ""}|${o.message}`),
+      );
+      const nuevas = observacionesAbiertas.filter(
+        (o) => !clavesPrevias.has(o.observationId ?? `${o.title ?? ""}|${o.message}`),
+      );
+      const requiereCambio =
+        observacionesAbiertas.length === 0 ||
+        observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);
+      const notificar =
         !preservar &&
-        esDevolucion &&
-        (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))
-      ) {
-        const documentos = (observaciones ?? [])
+        requiereCambio &&
+        ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
+          (!esDevolucion && nuevas.length > 0));
+      if (notificar) {
+        const documentos = observacionesAbiertas
           .map((o) => o.title?.trim() || o.message.slice(0, 120))
           .filter((t) => t.length > 0);
         await notificarDevolucionSgc(
@@ -320,15 +338,20 @@ export class SgcIntegracionApplicationService {
       if (!expediente.contractId) continue;
       try {
         const detalle = await this.client.consultarExpediente(expediente.contractId);
-        const observaciones = this.observacionesDesdeDetalle(detalle);
+        const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones);
         const devuelto =
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
-        const cambiosObservaciones = !devuelto
-          ? { observaciones: [] as SgcObservacionDocumento[] }
-          : observaciones !== null
+        const observacionesAbiertas = (observaciones ?? []).filter(
+          (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
+        );
+        const hayObservacionesAbiertas = observacionesAbiertas.length > 0;
+        /* Observacion suelta: el SGC puede informar observations[] sin devolver el flujo. */
+        const cambiosObservaciones = devuelto
+          ? (observaciones !== null ? { observaciones } : {})
+          : hayObservacionesAbiertas
             ? { observaciones }
-            : {};
+            : { observaciones: [] as SgcObservacionDocumento[] };
         const motivoRespaldo =
           !expediente.bypassAprobado && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
             ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
@@ -346,20 +369,30 @@ export class SgcIntegracionApplicationService {
         if (!expediente.bypassAprobado && esAprobadoSgc(detalle.lifecycleStatus) && !esAprobadoSgc(expediente.lifecycleStatus)) {
           await habilitarOrdenPagoAutomatica(this.solicitudRepo, expediente.solicitudId);
         }
-        /* Devolucion detectada por polling (webhook perdido): notifica una vez por transicion. */
+        /* Devolucion/rechazo o una observacion suelta detectada por polling. */
         const esDevolucion =
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
         const estabaDevuelto =
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
-        const motivoNuevo = observaciones?.[0]?.message ?? null;
-        if (
+        const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
+        const clavesPrevias = new Set(
+          (expediente.observaciones ?? []).map((o) => o.observationId ?? `${o.title ?? ""}|${o.message}`),
+        );
+        const nuevas = observacionesAbiertas.filter(
+          (o) => !clavesPrevias.has(o.observationId ?? `${o.title ?? ""}|${o.message}`),
+        );
+        const requiereCambio =
+          observacionesAbiertas.length === 0 ||
+          observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);
+        const notificar =
           !expediente.bypassAprobado &&
-          esDevolucion &&
-          (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))
-        ) {
-          const documentos = (observaciones ?? [])
+          requiereCambio &&
+          ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
+            (!esDevolucion && nuevas.length > 0));
+        if (notificar) {
+          const documentos = observacionesAbiertas
             .map((o) => o.title?.trim() || o.message.slice(0, 120))
             .filter((t) => t.length > 0);
           await notificarDevolucionSgc(
@@ -460,7 +493,7 @@ export class SgcIntegracionApplicationService {
       reserva = await this.client.reservarSubida(
         expediente.contractId,
         { ...reservaInput, documentId: reserva.documentId },
-        { idempotencySuffix: `retry/${Date.now()}` },
+        { idempotencySuffix: `${SGC_IDEMPOTENCY_RETRY_PREFIX}/${Date.now()}` },
       );
       await this.repo.actualizarDocumento(documento.documentId, {
         currentVersionId: reserva.versionId,
@@ -621,44 +654,58 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * ReenvÃ­a el trÃ¡mite al SGC tras una devoluciÃ³n (rechazo): sube **el contrato firmado
-   * del cliente** como versiÃ³n nueva del contrato del expediente y reabre la ronda con
-   * `POST /contracts/{id}/resend` (doc Â§8.1). Limpia la casuÃ­stica declarada al terminar.
+   * Reenvía el trámite al SGC tras una devolución: sube el contrato firmado **solo si la
+   * observación es del contrato** (v7: si solo observaron anexos, no hace falta otra versión
+   * del principal), versiona los anexos corregidos y reabre la ronda con `/resend`.
    */
-  async reenviarCorreccionAlSgc(solicitudId: string, reenviadoPor: string): Promise<SgcDocumentoEntity | null> {
-    if (!this.config.enabled) return null;
+  async reenviarCorreccionAlSgc(
+    solicitudId: string,
+    reenviadoPor: string,
+  ): Promise<{ reenviado: boolean; documento: SgcDocumentoEntity | null }> {
+    const sinDocumento = { reenviado: false, documento: null } as const;
+    if (!this.config.enabled) return sinDocumento;
     const detalle = await this.solicitudRepo.detalle(solicitudId);
-    if (!detalle) return null;
+    if (!detalle) return sinDocumento;
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
-    if (!expediente?.contractId) return null;
+    if (!expediente?.contractId) return sinDocumento;
 
     /* Devolucion del SGC: primero se versionan los anexos corregidos (el SGC exige que la
      * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
      * cuando el lifecycle es rejected/observed). */
     await this.subirAnexosDeSolicitud(solicitudId);
 
-    /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
-    const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (d) =>
-      this.documentoVigente(d) && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
-    const pieza = firmado
-      ? { url: firmado.url, nombre: firmado.nombre }
-      : this.seleccionarContrato(detalle);
-    if (!pieza) return null;
+    const observaciones = detalle.sgcObservaciones ?? [];
+    const requiereContrato =
+      observaciones.length === 0 ||
+      observaciones.some(
+        (o) =>
+          o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED &&
+          (o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT),
+      );
 
     const actual = await this.client.consultarExpediente(expediente.contractId);
-    const contratoSgc = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
-    if (!contratoSgc) return null;
-
-    const stands = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
-    const documento = await this.subirDocumentoDesdeUrl(solicitudId, {
-      category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
-      title: SGC_TITULOS_DOCUMENTO.CONTRATO_FIRMADO,
-      fileName: `contrato-firmado-${this.slugArchivo(stands)}.pdf`,
-      url: pieza.url,
-      documentId: contratoSgc.documentId,
-      replacementReason: SGC_SUBSANACION_MOTIVO,
-    });
-    if (!documento) return null;
+    let documento: SgcDocumentoEntity | null = null;
+    if (requiereContrato) {
+      /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
+      const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (d) =>
+        this.documentoVigente(d) && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+      const pieza = firmado
+        ? { url: firmado.url, nombre: firmado.nombre }
+        : this.seleccionarContrato(detalle);
+      if (!pieza) return sinDocumento;
+      const contratoSgc = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
+      if (!contratoSgc) return sinDocumento;
+      const stands = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
+      documento = await this.subirDocumentoDesdeUrl(solicitudId, {
+        category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+        title: SGC_TITULOS_DOCUMENTO.CONTRATO_FIRMADO,
+        fileName: `contrato-firmado-${this.slugArchivo(stands)}.pdf`,
+        url: pieza.url,
+        documentId: contratoSgc.documentId,
+        replacementReason: SGC_SUBSANACION_MOTIVO,
+      });
+      if (!documento) return sinDocumento;
+    }
 
     /* Una sola llamada por ronda; la clave incluye la version del expediente en el SGC. */
     try {
@@ -674,7 +721,7 @@ export class SgcIntegracionApplicationService {
         /flujo activo|already active|already in progress/i.test(err.message);
       if (!yaActivo) throw err;
     }
-    /* AuditorÃ­a: cierra la ronda vigente con quiÃ©n/cuÃ¡ndo reenviÃ³ y la versiÃ³n corregida. */
+    /* Auditoría: cierra la ronda vigente con quién/cuándo reenvió y la versión corregida. */
     const subsanaciones = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
     const pendiente = subsanaciones.filter((r) => r.estado !== "reenviado").pop();
     /* Si el admin no declaro una ronda (correccion iniciada por el cliente), se registra
@@ -690,8 +737,8 @@ export class SgcIntegracionApplicationService {
       await this.repo
         .marcarSubsanacionReenviada(aMarcar.id, {
           reenviadoPor,
-          documentId: documento.documentId ?? null,
-          versionId: documento.currentVersionId ?? null,
+          documentId: documento?.documentId ?? null,
+          versionId: documento?.currentVersionId ?? null,
         })
         .catch(() => undefined);
     }
@@ -699,7 +746,7 @@ export class SgcIntegracionApplicationService {
     await this.repo
       .actualizarExpediente(expediente.id, { subsanacionMotivo: null, subsanacionModo: null, lastError: null })
       .catch(() => undefined);
-    return documento;
+    return { reenviado: true, documento };
   }
 
   /** Empuja los documentos **del cliente** (`userId` no nulo) como anexos del SGC. */
@@ -738,6 +785,12 @@ export class SgcIntegracionApplicationService {
     const puedeVersionarAnexos =
       expediente?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
       expediente?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED;
+    /* v7: un faltante (`documentId: null` / requiresNewDocument) exige un archivo NUEVO,
+     * no una version del adjunto existente aunque comparta requisito. */
+    const observacionesFaltantes = (expediente?.observaciones ?? []).filter(
+      (o) => !o.documentId || o.requiresNewDocument === true,
+    );
+    const fechaPorUrl = new Map(detalle.docsAdjuntos.map((d) => [d.url, d.createdAt]));
     if (expediente?.contractId) {
       try {
         const actual = await this.client.consultarExpediente(expediente.contractId);
@@ -798,7 +851,14 @@ export class SgcIntegracionApplicationService {
         continue;
       }
       vistos.add(clave);
-      const documentIdCandidato = puedeVersionarAnexos
+      const esFaltante = observacionesFaltantes.some((o) => {
+        const obsMs = dateUtils.toMs(o.createdAt ?? null);
+        const docMs = dateUtils.toMs(fechaPorUrl.get(doc.url) ?? null);
+        if (obsMs === null || docMs === null || docMs <= obsMs) return false;
+        if (o.title && (titulo === o.title || doc.nombre === o.title)) return true;
+        return !o.title;
+      });
+      const documentIdCandidato = !esFaltante && puedeVersionarAnexos
         ? documentIdPorTitulo.get(titulo) ?? (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined)
         : undefined;
       const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;
@@ -837,7 +897,7 @@ export class SgcIntegracionApplicationService {
    * Si llega el `status` del documento como observed/rejected sin detalle, se sintetiza
    * una observacion generica apuntando a ese documento.
    */
-  private observacionesDesdeDetalle(detalle: SgcExpedienteDetalle): SgcObservacionDocumento[] | null {
+  private observacionesDesdeDetalle(detalle: SgcExpedienteDetalle, previas?: SgcObservacionDocumento[] | null): SgcObservacionDocumento[] | null {
     const lista: SgcObservacionDocumento[] = [];
     let informado = false;
     for (const doc of detalle.documents ?? []) {
@@ -857,10 +917,31 @@ export class SgcIntegracionApplicationService {
           documentId: doc.documentId,
           category: doc.category,
           title: doc.title,
-          message: "El SGC observÃ³ este documento.",
-          status: "open",
+          message: "El SGC observó este documento.",
+          status: SGC_OBSERVACION_ESTADOS.OPEN,
         });
       }
+    }
+    /* Documentos que el SGC espera y no existen: cada uno exige un archivo nuevo. */
+    for (const doc of detalle.missingDocuments ?? []) {
+      const yaInformado = lista.some(
+        (o) => !o.documentId && (o.title ?? "").trim() === (doc.title ?? "").trim(),
+      );
+      if (yaInformado) continue;
+      informado = true;
+      lista.push({
+        documentId: null,
+        category: doc.category ?? SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: doc.title,
+        message: `Falta adjuntar: ${doc.title || "documento solicitado"}.`,
+        status: SGC_OBSERVACION_ESTADOS.OPEN,
+        requiresDocumentChange: true,
+        requiresNewDocument: true,
+        createdAt:
+          (previas ?? []).find(
+            (o) => !o.documentId && (o.title ?? '').trim() === (doc.title ?? '').trim(),
+          )?.createdAt ?? detalle.updatedAt,
+      });
     }
     return informado ? lista : null;
   }

@@ -39,8 +39,8 @@ export const PLANTILLAS_ALERTA_EN: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Document cancelled or rejected",
     mensaje: `The billing system cancelled or rejected document '${documento}' for installment ${cuota}. It will be reissued; check the IIMP account statement.`,
   }),
-  "documentos-observados": ({ stands, total }) => ({
+  "documentos-observados": ({ stands, total, documentos }) => ({
     titulo: "Documents observed",
-    mensaje: `The reviewing area observed ${total} document(s) of request ${stands}. Upload the new versions and resubmit the request for review.`,
+    mensaje: `The reviewing area observed ${total} document(s) of request ${stands}.${documentos?.length ? ` Documents: ${documentos.join("; ")}.` : ""} Upload the new versions and resubmit the request for review.`,
   }),
 };

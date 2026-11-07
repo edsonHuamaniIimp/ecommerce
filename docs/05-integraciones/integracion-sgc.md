@@ -672,3 +672,31 @@ flowchart TD
 ### Referencias
 - [propuesta-observaciones-por-documento-sgc.md](./propuesta-observaciones-por-documento-sgc.md)
 - [integracion-factura-401-sie.md](./integracion-factura-401-sie.md) (401 de SIE resuelto)
+
+## Actualizaci?n 6-nov-2026: gu?a v7 ? una observaci?n = un archivo
+
+- Antes de reenviar se cuentan las observaciones abiertas. Cada una exige **un archivo**:
+  - con `documentId` ? una versi?n nueva de ese documento;
+  - con `documentId: null` / `requiresNewDocument: true` ? un archivo nuevo.
+- La UI muestra **?te piden N, llevas M?** y bloquea el reenv?o hasta cubrir todas.
+  El servidor valida lo mismo y responde `409` con el detalle de faltantes.
+- Si el SGC responde `422 "Todav?a falta: ?"`, se muestra un mensaje guiado con el
+  detalle, no el error crudo.
+- `missingDocuments[]` del detalle se incorpora al listado de faltantes (como
+  observaciones nuevas) y `resolvedAt` se persiste cuando el SGC lo informa.
+- Reenv?o: si la observaci?n es solo de anexos, **no se sube una versi?n nueva del
+  contrato**; si la observaci?n es del contrato, s?. `observationCount` se deriva del
+  n?mero de observaciones abiertas.
+- Pendiente de una siguiente fase: recordatorios autom?ticos hasta que el cliente
+  subsane (requiere definir cadencia y canales).
+- El sync/cron tambi?n detecta **observaciones sueltas** (`documents[].observations[]`)
+  aunque el lifecycle no cambie; las guarda y notifica al cliente sin forzar el estado local.
+- La alerta de campana incluye el detalle de los documentos observados; el correo mantiene
+  la lista completa y el motivo.
+## Actualizaci?n v8 (6-nov-2026): no subir durante la revisi?n
+
+- Mientras el expediente est? en revisi?n (despu?s de `/resend` y hasta `workflow.returned`/
+  `workflow.rejected`), el SGC responde `409` al reservar subida:
+  "La revisi?n est? en curso: espere a que el expediente se devuelva para corregir o subir archivos."
+- No se reintenta: la UI solo permite subir en borrador, devuelto o rechazado; el outbox marca
+  el intento como no reintentable y espera la devoluci?n.

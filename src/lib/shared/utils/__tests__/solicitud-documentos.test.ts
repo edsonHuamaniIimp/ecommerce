@@ -16,6 +16,7 @@ import {
   puedeClienteSubirAnexosSgc,
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
+  estadoCorreccionSgc,
   observacionesSgcSubsanadas,
   sgcObservacionesAbiertas,
   tieneObservacionSgcAnexos,
@@ -475,6 +476,68 @@ describe("observaciones SGC por documento", () => {
 
   it("ignora observaciones administrativas sin cambio documental", () => {
     const s = { ...devuelto, sgcObservaciones: [{ ...obsAnexo, requiresDocumentChange: false }] };
+    expect(observacionesSgcSubsanadas(s)).toBe(true);
+  });
+});
+
+describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
+  const obs = (id: string, extra: Record<string, unknown> = {}) => ({
+    observationId: id,
+    documentId: `doc-${id}`,
+    requisito: `req-${id}`,
+    title: `Documento ${id}`,
+    message: `Corrige ${id}`,
+    status: "open",
+    createdAt: "2026-11-03T21:51:29.930Z",
+    requiresDocumentChange: true,
+    ...extra,
+  });
+  const doc = (id: string, requisito: string, createdAt: string) => ({
+    id,
+    userId: CLIENTE,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+    requisito,
+    nombre: `${id}.pdf`,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt,
+  });
+
+  it("exige un archivo por cada observacion abierta", () => {
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [obs("a"), obs("b")],
+      docsAdjuntos: [doc("fa", "req-a", "2026-11-03T22:10:00.000Z")],
+    };
+    const r = estadoCorreccionSgc(s);
+    expect(r.requeridos).toBe(2);
+    expect(r.cubiertos).toBe(1);
+    expect(r.faltantes).toHaveLength(1);
+    expect(r.faltantes[0]?.tipo).toBe("version");
+  });
+
+  it("un faltante sin documentId exige un archivo nuevo, no reutiliza el mismo", () => {
+    const faltante = (id: string) => obs(id, { documentId: null, requiresNewDocument: true, requisito: null });
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [faltante("a"), faltante("b")],
+      docsAdjuntos: [doc("nuevo", "req-x", "2026-11-03T22:10:00.000Z")],
+    };
+    const r = estadoCorreccionSgc(s);
+    expect(r.requeridos).toBe(2);
+    expect(r.cubiertos).toBe(1);
+    expect(r.faltantes[0]?.tipo).toBe("nuevo");
+  });
+
+  it("no cuenta observaciones administrativas ni resueltas", () => {
+    const s = {
+      ...devuelto,
+      sgcObservaciones: [
+        obs("admin", { requiresDocumentChange: false }),
+        obs("resuelta", { status: "resolved" }),
+      ],
+      docsAdjuntos: [],
+    };
+    expect(estadoCorreccionSgc(s)).toEqual({ requeridos: 0, cubiertos: 0, faltantes: [] });
     expect(observacionesSgcSubsanadas(s)).toBe(true);
   });
 });

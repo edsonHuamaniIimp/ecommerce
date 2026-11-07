@@ -23,10 +23,10 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -586,6 +586,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
                         const obsSgc = sgcObservacionesAbiertas(row);
+                        const correccionSgc = estadoCorreccionSgc(row);
                         const obsSgcCorregidas = obsSgc.length > 0 && observacionesSgcSubsanadas(row);
                         return (
                           <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
@@ -593,7 +594,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span className="font-semibold">Acción requerida: </span>
                               {obsSgc.length > 0
                                 ? obsSgcCorregidas
-                                  ? reenvioSgcYaEnviado(row) ? "La corrección fue enviada. El área legal la está revisando." : "La corrección fue registrada. Solicita una nueva revisión."
+                                  ? reenvioSgcYaEnviado(row) ? "La corrección fue enviada. El área legal la está revisando." : correccionSgc.faltantes.length === 0 ? "La corrección fue registrada. Solicita una nueva revisión." : `Te piden ${correccionSgc.requeridos} archivos; llevas ${correccionSgc.cubiertos}.`
                                   : obsSgc.length === 1
                                     ? "El área legal observó un documento. Corrígelo y solicita una nueva revisión."
                                     : `El área legal observó ${obsSgc.length} documentos. Corrígelos y solicita una nueva revisión.`
@@ -1284,10 +1285,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                           {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El área legal observó el contrato. Corrígelo y fírmalo de nuevo."}
                         </p>
-                        {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== "resolved" && o.message && esObservacionSgcContrato(o)) && (
+                        {(detailRow.sgcObservaciones ?? []).some((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message && esObservacionSgcContrato(o)) && (
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
                             {(detailRow.sgcObservaciones ?? [])
-                              .filter((o) => o.status !== "resolved" && o.message && esObservacionSgcContrato(o))
+                              .filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message && esObservacionSgcContrato(o))
                               .map((o, i) => (
                                 <li key={o.observationId ?? `obs-sgc-${i}`}>
                                   • {o.title ?? o.nombre ?? "Documento"}

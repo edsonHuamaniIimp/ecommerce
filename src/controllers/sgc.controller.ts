@@ -4,6 +4,7 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION, SGC_SUBSANACION_MODOS } from "@/lib/shared/constants";
 import type { SgcDocumentCategory, SgcSubsanacionModo } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
+import { esErrorRevisionEnCurso } from "@/lib/shared/utils/sgc";
 
 export const sgcController = {
   async detalle(request: Request): Promise<NextResponse> {
@@ -82,14 +83,21 @@ export const sgcController = {
       return error(API_ERROR_CODES.VALIDATION, "category debe ser contract o annex", 400);
     }
 
-    const documento = await services.sgc.subirDocumentoDesdeUrl(body.solicitudId, {
-      category: body.category as SgcDocumentCategory,
-      title: body.title ?? "Documento",
-      url: body.url,
-      documentId: body.documentId ?? null,
-    });
-    if (!documento) return error(API_ERROR_CODES.INTERNAL, "No se pudo subir el documento al SGC", 500);
-    return success(documento);
+    try {
+      const documento = await services.sgc.subirDocumentoDesdeUrl(body.solicitudId, {
+        category: body.category as SgcDocumentCategory,
+        title: body.title ?? "Documento",
+        url: body.url,
+        documentId: body.documentId ?? null,
+      });
+      if (!documento) return error(API_ERROR_CODES.INTERNAL, "No se pudo subir el documento al SGC", 500);
+      return success(documento);
+    } catch (err) {
+      if (esErrorRevisionEnCurso(err)) {
+        return error(API_ERROR_CODES.CONFLICT, "El SGC está revisando el expediente; espera a que lo devuelva para subir correcciones.", 409);
+      }
+      throw err;
+    }
   },
 
   async subirAnexos(request: Request): Promise<NextResponse> {
@@ -102,7 +110,10 @@ export const sgcController = {
     try {
       const documentos = await services.sgc.subirAnexosDeSolicitud(body.solicitudId);
       return success({ enviados: documentos.length, documentos });
-    } catch {
+    } catch (err) {
+      if (esErrorRevisionEnCurso(err)) {
+        return error(API_ERROR_CODES.CONFLICT, "El SGC está revisando el expediente; espera a que lo devuelva para subir correcciones.", 409);
+      }
       await services.sgcOutbox.encolar(SGC_OUTBOX_OPERACION.SUBIR_ANEXOS, { solicitudId: body.solicitudId });
       return error(API_ERROR_CODES.INTERNAL, "No se pudieron subir los anexos; se reintentara", 500);
     }
@@ -186,14 +197,14 @@ export const sgcController = {
     const body = (await request.json()) as { solicitudId?: string };
     if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
-    const documento = await services.sgc.reenviarCorreccionAlSgc(body.solicitudId, session.email);
-    if (!documento) {
+    const resultado = await services.sgc.reenviarCorreccionAlSgc(body.solicitudId, session.email);
+    if (!resultado.reenviado) {
       return error(
         API_ERROR_CODES.VALIDATION,
         "Falta el contrato firmado del cliente (o el expediente no tiene contrato en el SGC).",
         400,
       );
     }
-    return success(documento);
+    return success(resultado);
   },
 };

@@ -26,7 +26,7 @@ export async function notificarDevolucionSgc(
           userId: detalle.userId,
           tipo: ALERTA_TIPOS.DOCUMENTOS_OBSERVADOS,
           clave: ALERTA_CLAVES.DOCUMENTOS_OBSERVADOS,
-          datos: { stands: detalle.standCode, total: lista.length },
+          datos: { stands: detalle.standCode, total: lista.length, documentos: lista },
           url: `/dashboard/mis-solicitudes?solicitud=${solicitudId}`,
         })
         .catch(() => {});

@@ -1,8 +1,9 @@
 import type { ISgcOutboxRepository } from "@/domain/ports/sgc-outbox-repository";
 import type { SgcOutboxEntity } from "@/domain/models/sgc";
 import type { SgcIntegracionApplicationService, SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
-import { SGC_OUTBOX_OPERACION } from "@/lib/shared/constants";
+import { SGC_OUTBOX_MAX_INTENTOS, SGC_OUTBOX_OPERACION } from "@/lib/shared/constants";
 import { calcularBackoffMs } from "@/lib/shared/utils/sgc-outbox";
+import { esErrorRevisionEnCurso } from "@/lib/shared/utils/sgc";
 
 const MAX_ERROR_LENGTH = 500;
 
@@ -42,9 +43,15 @@ export class SgcOutboxApplicationService {
         await this.repo.marcarEnviado(item.id);
         enviados += 1;
       } catch (err) {
+        const mensaje = err instanceof Error ? err.message : "Error desconocido en el outbox";
+        if (esErrorRevisionEnCurso(err)) {
+          /* v8: la revision en curso no se reintenta; se espera la devolucion. */
+          await this.repo.marcarError(item.id, mensaje.slice(0, MAX_ERROR_LENGTH), new Date(), SGC_OUTBOX_MAX_INTENTOS);
+          fallidos += 1;
+          continue;
+        }
         const intentos = item.intentos + 1;
         const programadoAt = new Date(Date.now() + calcularBackoffMs(item.intentos));
-        const mensaje = err instanceof Error ? err.message : "Error desconocido en el outbox";
         await this.repo.marcarError(item.id, mensaje.slice(0, MAX_ERROR_LENGTH), programadoAt, intentos);
         fallidos += 1;
       }

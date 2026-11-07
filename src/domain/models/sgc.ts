@@ -208,7 +208,11 @@ export interface SgcObservacionDocumento {
   severity?: string | null;
   message: string;
   requiresDocumentChange?: boolean | null;
+  /** true = el faltante exige un archivo nuevo (documentId null). */
+  requiresNewDocument?: boolean | null;
   status?: string | null;
+  /** Fecha en que el SGC marco la observacion como resuelta (opcional). */
+  resolvedAt?: string | null;
   createdBy?: string | null;
   createdAt?: string | null;
 }
@@ -246,6 +250,8 @@ export interface SgcExpedienteDetalle {
   createdAt: string;
   updatedAt: string;
   documents: SgcDocumentoResumen[];
+  /** Documentos que el SGC espera y aun no existen (opcional). */
+  missingDocuments?: SgcDocumentoResumen[] | null;
   steps: SgcStep[];
   history: SgcHistoryItem[];
 }

@@ -8,7 +8,8 @@ import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, observacionesSgcSubsanadas, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, estadoCorreccionSgc } from "@/lib/shared/utils/solicitud-documentos";
+import { SgcApiError } from "@/domain/models/sgc";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -178,7 +179,7 @@ export class SolicitudesApplicationService {
           userId: detalle.userId,
           tipo: ALERTA_TIPOS.DOCUMENTOS_OBSERVADOS,
           clave: ALERTA_CLAVES.DOCUMENTOS_OBSERVADOS,
-          datos: { stands: detalle.standCode, total: docIds.length },
+          datos: { stands: detalle.standCode, total: docIds.length, documentos },
           url: `/dashboard/mis-solicitudes?solicitud=${data.solicitudId}`,
         }).catch(() => {});
       }
@@ -326,15 +327,30 @@ export class SolicitudesApplicationService {
           409,
         );
       }
-      if (sgcObservacionesAbiertas(detalle).length > 0 && !observacionesSgcSubsanadas(detalle)) {
+      const correccionSgc = estadoCorreccionSgc(detalle);
+      if (correccionSgc.requeridos > 0 && correccionSgc.faltantes.length > 0) {
+        const detalleFaltantes = correccionSgc.faltantes.map((f) => f.title).join(", ");
         throw new DomainError(
-          "Corrige los documentos observados por el area legal antes de solicitar una nueva revision.",
+          `Te piden ${correccionSgc.requeridos} archivos; llevas ${correccionSgc.cubiertos}. Falta: ${detalleFaltantes}.`,
           API_ERROR_CODES.CONFLICT,
           409,
         );
       }
-      const documento = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
-      if (!documento) {
+      let resultadoReenvio: Awaited<ReturnType<NonNullable<typeof this.sgcIntegracion>["reenviarCorreccionAlSgc"]>> | null | undefined;
+      try {
+        resultadoReenvio = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
+      } catch (err) {
+        if (err instanceof SgcApiError && err.status === 422 && /todav[ií]a falta|still missing/i.test(err.message)) {
+          const mensaje = err.message.replace(/^SGC\s*422:\s*/i, "").slice(0, 300);
+          throw new DomainError(
+            `El SGC indica que todavía falta documentación: ${mensaje}`,
+            API_ERROR_CODES.CONFLICT,
+            409,
+          );
+        }
+        throw err;
+      }
+      if (!resultadoReenvio?.reenviado) {
         throw new DomainError(
           "No se pudo enviar la solicitud para una nueva revision. Intenta de nuevo o contacta al administrador.",
           API_ERROR_CODES.CONFLICT,

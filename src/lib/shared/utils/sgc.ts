@@ -159,6 +159,12 @@ const MAX_TEXTO_OBSERVACION = 200;
  * la integracion no lo envian): devuelve `null` cuando no viene como arreglo para que los
  * llamadores puedan distinguir "no informado" de "sin observaciones" (arreglo vacio).
  */
+/** Error del SGC cuando el expediente esta en revision (v8): no se debe subir ni reintentar. */
+export function esErrorRevisionEnCurso(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  const message = err instanceof Error ? err.message : "";
+  return status === 409 && /revisi[oó]n est[aá] en curso|review.*in progress/i.test(message);
+}
 export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocumento[] | null {
   if (!Array.isArray(raw)) return null;
   const texto = (valor: unknown, max = MAX_TEXTO_OBSERVACION): string | null =>
@@ -190,7 +196,9 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
       severity: texto(o.severity, 20),
       message: mensaje,
       requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
+      requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
       status: texto(o.status, 20),
+      resolvedAt: texto(o.resolvedAt, 40),
       createdBy: creadoPor,
       createdAt: texto(o.createdAt, 40),
     });

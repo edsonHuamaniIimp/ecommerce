@@ -27,7 +27,7 @@ export interface AlertaDatosMap {
   "revision-completada": { stands: string };
   "contrato-firmado-subido": { stands: string };
   "factura-anulada-rechazada": { cuota: number; documento: string };
-  "documentos-observados": { stands: string; total: number };
+  "documentos-observados": { stands: string; total: number; documentos?: string[] };
 }
 
 export type AlertaDatos = AlertaDatosMap[AlertaClave];

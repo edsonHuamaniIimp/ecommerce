@@ -1,4 +1,4 @@
-import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_LIFECYCLE_STATUSES, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_FALTANTE_TIPOS, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD, type SgcFaltanteTipo } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 import { dateUtils } from "./date";
 
@@ -36,6 +36,8 @@ export interface SgcObservacionLike {
   status?: string | null;
   createdAt?: string | null;
   requiresDocumentChange?: boolean | null;
+  requiresNewDocument?: boolean | null;
+  resolvedAt?: string | null;
 }
 
 /** Campos de la solicitud necesarios para decidir si el cliente puede subir documentos. */
@@ -92,13 +94,13 @@ function sgcDevuelto(s: SolicitudDocumentosGate): boolean {
 /** Observaciones del SGC aun vigentes (no resueltas) con mensaje. */
 export function sgcObservacionesAbiertas(s: SolicitudDocumentosGate): SgcObservacionLike[] {
   return (s.sgcObservaciones ?? []).filter(
-    (o) => o.status !== "resolved" && (o.message ?? "").trim().length > 0,
+    (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
   );
 }
 
 /** La observacion apunta al contrato (principal) y no a un anexo. */
 export function esObservacionSgcContrato(o: SgcObservacionLike): boolean {
-  return o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === "contract";
+  return o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT;
 }
 
 /** La observacion apunta a un anexo/documento del cliente. */
@@ -114,42 +116,80 @@ export function tieneObservacionSgcAnexos(s: SolicitudDocumentosGate): boolean {
   return sgcObservacionesAbiertas(s).some(esObservacionSgcAnexo);
 }
 
+export interface FaltanteCorreccionSgc {
+  observationId?: string | null;
+  title: string;
+  tipo: SgcFaltanteTipo;
+}
+
+export interface EstadoCorreccionSgc {
+  requeridos: number;
+  cubiertos: number;
+  faltantes: FaltanteCorreccionSgc[];
+}
+
 /**
- * True si cada observacion vigente del SGC ya tiene una correccion del cliente
- * **posterior** a la observacion (contrato firmado o anexo reemplazado).
- * Las observaciones administrativas (`requiresDocumentChange: false`) no bloquean.
+ * Calcula cuantas correcciones pide el SGC y cuantas estan cubiertas.
+ * Regla v7: una observacion abierta = un archivo (version o archivo nuevo).
+ * Las observaciones administrativas (`requiresDocumentChange: false`) no cuentan.
  */
-export function observacionesSgcSubsanadas(s: SolicitudDocumentosGate): boolean {
+export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccionSgc {
   const observaciones = sgcObservacionesAbiertas(s).filter((o) => o.requiresDocumentChange !== false);
-  if (observaciones.length === 0) return true;
+  if (observaciones.length === 0) return { requeridos: 0, cubiertos: 0, faltantes: [] };
+
   const docs = (s.docsAdjuntos ?? []).filter(
     (d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
   );
-  return observaciones.every((o) => {
+  const esCliente = (d: DocumentoLike) => (d.userId ?? null) === (s.userId ?? null);
+  const claveDoc = (d: DocumentoLike, index: number) =>
+    d.id ?? `${d.categoria ?? ""}:${d.requisito ?? ""}:${d.createdAt ?? ""}:${index}`;
+  const usados = new Set<string>();
+  const faltantes: FaltanteCorreccionSgc[] = [];
+  let cubiertos = 0;
+
+  for (const o of observaciones) {
     const obsMs = dateUtils.toMs(o.createdAt ?? null);
-    if (obsMs === null) return false;
-    const esCliente = (d: DocumentoLike) => (d.userId ?? null) === (s.userId ?? null);
-    if (esObservacionSgcContrato(o)) {
-      return docs.some(
-        (d) =>
-          esCliente(d) &&
-          d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
-          (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs,
-      );
-    }
+    const esNuevo = !o.documentId || o.requiresNewDocument === true;
     const identificado = (d: DocumentoLike) =>
       Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
       Boolean(o.requisito && d.requisito === o.requisito) ||
       Boolean(o.nombre && d.nombre === o.nombre);
     const sinIdentificador = !o.documentoLocalId && !o.requisito && !o.nombre;
-    return docs.some(
-      (d) =>
-        esCliente(d) &&
-        d.categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO &&
-        (sinIdentificador || identificado(d)) &&
-        (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs,
-    );
-  });
+
+    const indice = obsMs === null
+      ? -1
+      : docs.findIndex((d, i) => {
+          const clave = claveDoc(d, i);
+          if (usados.has(clave) || !esCliente(d)) return false;
+          if ((dateUtils.toMs(d.createdAt ?? null) ?? 0) <= obsMs) return false;
+          if (esObservacionSgcContrato(o)) {
+            return d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+          }
+          if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.ANEXO) return false;
+          return esNuevo || sinIdentificador || identificado(d);
+        });
+
+    if (indice >= 0) {
+      usados.add(claveDoc(docs[indice]!, indice));
+      cubiertos += 1;
+    } else {
+      faltantes.push({
+        observationId: o.observationId ?? null,
+        title: o.title ?? o.nombre ?? "Documento",
+        tipo: esNuevo ? SGC_FALTANTE_TIPOS.NUEVO : SGC_FALTANTE_TIPOS.VERSION,
+      });
+    }
+  }
+
+  return { requeridos: observaciones.length, cubiertos, faltantes };
+}
+
+/**
+ * True si cada observacion vigente del SGC ya tiene una correccion del cliente
+ * posterior a la observacion (una por observacion).
+ */
+export function observacionesSgcSubsanadas(s: SolicitudDocumentosGate): boolean {
+  return estadoCorreccionSgc(s).faltantes.length === 0;
 }
 
 /**

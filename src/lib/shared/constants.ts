@@ -2692,6 +2692,22 @@ export const SGC_DOCUMENT_CATEGORIES = {
 
 export type SgcDocumentCategory = (typeof SGC_DOCUMENT_CATEGORIES)[keyof typeof SGC_DOCUMENT_CATEGORIES];
 
+/** Estados de una observacion por documento del SGC. */
+export const SGC_OBSERVACION_ESTADOS = {
+  OPEN: "open",
+  RESOLVED: "resolved",
+} as const;
+
+export type SgcObservacionEstado = (typeof SGC_OBSERVACION_ESTADOS)[keyof typeof SGC_OBSERVACION_ESTADOS];
+
+/** Tipo de correccion pedida por una observacion abierta. */
+export const SGC_FALTANTE_TIPOS = {
+  VERSION: "version",
+  NUEVO: "nuevo",
+} as const;
+
+export type SgcFaltanteTipo = (typeof SGC_FALTANTE_TIPOS)[keyof typeof SGC_FALTANTE_TIPOS];
+
 export const SGC_STAGES = {
   DRAFTING: "drafting",
   INTERNAL_REVIEW: "internal-review",
@@ -2831,6 +2847,8 @@ export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
 /** Prefijo de la Idempotency-Key en los POST documentales (reserve/complete), guia v5. */
 export const SGC_IDEMPOTENCY_DOC_PREFIX = "stands/documento";
+/** Sufijo para renovar un ticket de subida cuyo presigned URL expiro. */
+export const SGC_IDEMPOTENCY_RETRY_PREFIX = "retry";
 /** Prefijo de la Idempotency-Key al reabrir el tramite tras subsanar (POST /resend). */
 export const SGC_IDEMPOTENCY_RESEND_PREFIX = "stands/resend";
 export const SGC_WEBHOOK_TOLERANCE_SECONDS = 300;

@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   comparacionTiempoConstante,
   construirIdempotencyKey,
@@ -160,6 +160,8 @@ describe("normalizarObservacionesSgc (campo OPCIONAL del SGC)", () => {
         severity: "blocking",
         message: "Adjuntar Vigencia de Poder actualizada.",
         requiresDocumentChange: true,
+        requiresNewDocument: null,
+        resolvedAt: null,
         status: "open",
         createdBy: "Matias Freundt",
         createdAt: "2026-11-02T21:23:00Z",

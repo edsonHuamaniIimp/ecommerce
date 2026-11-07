@@ -18,6 +18,9 @@ export interface SgcObservacionSolicitud {
   severity?: string | null;
   status?: string | null;
   requiresDocumentChange?: boolean | null;
+  /** true = el faltante exige un archivo nuevo (documentId null). */
+  requiresNewDocument?: boolean | null;
+  resolvedAt?: string | null;
   createdBy?: string | null;
   createdAt?: string | null;
 }

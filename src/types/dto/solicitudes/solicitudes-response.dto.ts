@@ -105,6 +105,8 @@ export interface SolicitudDTO {
     severity?: string | null;
     status?: string | null;
     requiresDocumentChange?: boolean | null;
+    requiresNewDocument?: boolean | null;
+    resolvedAt?: string | null;
     createdBy?: string | null;
     createdAt?: string | null;
   }> | null;
