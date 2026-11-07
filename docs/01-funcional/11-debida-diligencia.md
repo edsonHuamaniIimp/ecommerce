@@ -3,6 +3,7 @@
 > **Estado:** implementado y verificado en el repositorio.
 > **Modulo:** Debida Diligencia (DD), separado del resto del sistema por permisos `dd:*`.
 > **Diseno de referencia:** [`10-debida-diligencia-stitch.md`](./10-debida-diligencia-stitch.md).
+> **Alcance definitivo y handoff UI:** [`14-debida-diligencia-v2-alcance.md`](./14-debida-diligencia-v2-alcance.md).
 > **Fuente de verdad tecnica:** `src/lib/shared/constants.ts`,
 > `src/application/debida-diligencia/`,
 > `src/infrastructure/persistence/debida-diligencia-repository.ts` y
@@ -319,6 +320,11 @@ La revalidación **no crea un estado nuevo de la DD ni una tabla nueva**. Usa:
 | `DebidaDiligenciaDocumento.estado` | `null` (no existe), `cargado`, `observado`, `aprobado` |
 | `DebidaDiligencia.fechaAprobacion` | no se modifica |
 | `DebidaDiligencia.fechaVencimiento` | no se modifica |
+
+El registro externo importado usa además `DD_DECLARACION_VIGENCIA_ESTADOS`:
+`no_corresponde`, `no_envio`, `pendiente`, `cargado`, `observado` y `aprobado`.
+`no_corresponde` y `aprobado` no bloquean; `no_envio`, `pendiente`, `cargado` y
+`observado` bloquean `aptoParaContratar` y se muestran en Solicitudes.
 
 Las fechas de la DD representan la aprobación histórica y su vigencia de 6 meses.
 La fecha de validación de la declaración se conserva en el documento, la observación
