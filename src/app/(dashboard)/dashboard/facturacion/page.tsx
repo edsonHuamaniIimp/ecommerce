@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
-import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle } from "lucide-react";
+import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
 import { uploadService } from "@/lib/client/api/services/upload-service";
@@ -11,6 +11,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { useConfirm } from "@/hooks/use-confirm";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { DocumentoPreviewDialog } from "@/components/shared/documento-preview-dialog";
+import { NotificarRecordatoriosDialog } from "@/components/facturacion/notificar-recordatorios-dialog";
 import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, REQUERIMIENTOS_FACTURACION, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
@@ -259,6 +260,8 @@ export default function FacturacionPage() {
   const [total, setTotal] = useState(0);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<FacturacionItem | null>(null);
+  /** Modal de recordatorios por correo (sin solicitud / documentos pendientes). */
+  const [notifyOpen, setNotifyOpen] = useState(false);
   /** Documento abierto en la vista previa (modal en la misma pagina). */
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   const [payOpen, setPayOpen] = useState(false);
@@ -502,10 +505,16 @@ export default function FacturacionPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            <span>Facturacion</span>
-            <Badge variant="secondary" className="text-[10px] ml-2">{total} registros</Badge>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              <span>Facturacion</span>
+              <Badge variant="secondary" className="text-[10px] ml-2">{total} registros</Badge>
+            </span>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setNotifyOpen(true)}>
+              <Bell className="h-3.5 w-3.5" />
+              <span>Notificar</span>
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -678,6 +687,15 @@ export default function FacturacionPage() {
           )}
         </CardContent>
       </Card>
+
+      <NotificarRecordatoriosDialog
+        open={notifyOpen}
+        onOpenChange={setNotifyOpen}
+        onEnviado={() => {
+          if (eventoId) void loadStats(eventoId);
+          void load(page);
+        }}
+      />
 
       {/* Detail dialog — solo lectura, organizado por objetivo de informacion */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>

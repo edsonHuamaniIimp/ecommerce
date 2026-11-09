@@ -68,6 +68,17 @@ export interface DatosPlantilla {
     tipo: string;
     numero: string;
   };
+  /** Recordatorio: la empresa tiene pagos pendientes y aun no registro su solicitud de factura. */
+  "facturacion-recordatorio-solicitud": {
+    razonSocial: string;
+    standCodes: string;
+  };
+  /** Recordatorio: la empresa declaro requisitos pero faltan documentos en su cuenta corriente. */
+  "facturacion-recordatorio-documentos": {
+    razonSocial: string;
+    standCodes: string;
+    faltantes: string[];
+  };
   /** Debida Diligencia: expediente recibido y en revision. */
   "dd-recibida": { codigo: string; razonSocial: string };
   /** Debida Diligencia: expediente observado (correcciones solicitadas). */

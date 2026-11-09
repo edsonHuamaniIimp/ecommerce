@@ -437,6 +437,48 @@ export const plantillasEn: PlantillasEmail = {
     };
   },
 
+  "facturacion-recordatorio-solicitud": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Request your stand invoice - IIMP",
+      html: envoltura(
+        "Invoice request pending",
+        `
+        <p>Hello, the invoice for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> has not been requested yet.</p>
+        <p>Go to <strong>My documents</strong> in the Client Portal, review your installments and click <strong>Send invoice request</strong> on the first pending installment. If your company requires a PO, service entry sheet, supplier platform registration, valuation or other documents, you can declare and attach them in the same form.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Request my invoice</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
+  "facturacion-recordatorio-documentos": ({ razonSocial, standCodes, faltantes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Pending documents for your invoice - IIMP",
+      html: envoltura(
+        "Pending documents",
+        `
+        <p>Hello, the invoice request for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> has declared requirements whose documents have not been registered in the IIMP yet.</p>
+        <p style="font-size:13px;color:#475569"><strong>Pending documents:</strong></p>
+        ${listaHtml(faltantes.map(esc))}
+        <p>Go to <strong>My documents</strong>, open the <strong>Documents for your invoice</strong> panel of the installment and upload each pending document.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Upload documents</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Due diligence received (${codigo}) - IIMP`,
     html: envoltura(

@@ -16,9 +16,10 @@ import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, TIPOS_ARCHIVO_IIMP, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
+import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { tiposDocumentosPorRequisitos, tiposRequeridosPorRequisitos } from "@/lib/shared/utils/requisitos-facturacion";
 
 const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.PENDIENTE]: "Pendiente",
@@ -26,36 +27,6 @@ const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.ARCHIVADO]: "Archivado",
   [ESTADOS_FACTURACION.CANCELADO]: "Cancelado",
 };
-
-/**
- * Tipos de documento del panel "Documentos para tu factura" segun los requisitos
- * declarados por el cliente: OC/HES/valorizacion solo si los marco; con "ninguna
- * de las anteriores" solo quedan las constancias de pago. Sin declaracion, todos.
- */
-function tiposDocumentosPorRequisitos(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
-  const pagos: TipoArchivoIImp[] = [TIPOS_ARCHIVO_IIMP.DETRACCION, TIPOS_ARCHIVO_IIMP.DIFERENCIA, TIPOS_ARCHIVO_IIMP.PAGO_TOTAL];
-  if (!requisitos) {
-    return [TIPOS_ARCHIVO_IIMP.OC, TIPOS_ARCHIVO_IIMP.HES, TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION, ...pagos];
-  }
-  if (requisitos.ninguna) return pagos;
-  const tipos: TipoArchivoIImp[] = [];
-  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
-  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
-  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
-  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
-  return [...tipos, ...pagos];
-}
-
-/** Tipos documentales exigidos por la declaracion del cliente (sin constancias de pago). */
-function tiposRequeridosFacturacion(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
-  if (!requisitos || requisitos.ninguna) return [];
-  const tipos: TipoArchivoIImp[] = [];
-  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
-  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
-  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
-  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
-  return tipos;
-}
 
 /**
  * Aviso de deuda documental: verifica los archivos reales de la cuenta corriente
@@ -73,7 +44,7 @@ function AvisoDocumentosPendientes({
   refreshKey: number;
   onSubir: (cuotaId: string, numero: number, tipos: TipoArchivoIImp[]) => void;
 }) {
-  const requeridos = tiposRequeridosFacturacion(row.requisitos);
+  const requeridos = tiposRequeridosPorRequisitos(row.requisitos);
   const requeridosKey = requeridos.join("|");
   const cuotaObjetivo = row.requisitos?.cuota ?? 1;
   const cuota = row.cuotas.find((c) => c.numero === cuotaObjetivo) ?? row.cuotas[0];

@@ -437,6 +437,48 @@ export const plantillasEs: PlantillasEmail = {
     };
   },
 
+  "facturacion-recordatorio-solicitud": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Solicita tu factura de stand - IIMP",
+      html: envoltura(
+        "Solicitud de factura pendiente",
+        `
+        <p>Hola, te recordamos que la facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> aún no fue solicitada.</p>
+        <p>Ingresa a <strong>Mis documentos</strong> en el Portal del Cliente, revisa tus cuotas y pulsa <strong>Enviar solicitud de factura</strong> en la primera cuota pendiente. Si tu empresa requiere OC, HES, registro en plataforma, valorización u otros documentos, podrás declararlos y adjuntarlos en el mismo formulario.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Solicitar mi factura</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
+  "facturacion-recordatorio-documentos": ({ razonSocial, standCodes, faltantes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Documentos pendientes para tu factura - IIMP",
+      html: envoltura(
+        "Documentos pendientes",
+        `
+        <p>Hola, la solicitud de facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> tiene requisitos declarados que aún no registran sus documentos en el IIMP.</p>
+        <p style="font-size:13px;color:#475569"><strong>Documentos pendientes:</strong></p>
+        ${listaHtml(faltantes.map(esc))}
+        <p>Ingresa a <strong>Mis documentos</strong>, abre el panel <strong>Documentos para tu factura</strong> de la cuota y sube cada documento pendiente.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Subir documentos</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Debida diligencia recibida (${codigo}) - IIMP`,
     html: envoltura(

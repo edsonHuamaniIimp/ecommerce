@@ -3,8 +3,8 @@ import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { services } from "@/lib/server/services";
-import { adjuntarComprobanteFiscalSchema } from "@/validators/facturacion.validator";
-import type { AdjuntarComprobanteFiscalRequestDTO } from "@/types/dto/facturacion";
+import { adjuntarComprobanteFiscalSchema, enviarRecordatoriosSchema } from "@/validators/facturacion.validator";
+import type { AdjuntarComprobanteFiscalRequestDTO, EnviarRecordatoriosRequestDTO } from "@/types/dto/facturacion";
 
 const service = services.facturacion;
 
@@ -46,6 +46,27 @@ export const facturacionController = {
     /* Contrato firmado vigente del SGC (enlace de descarga de vida corta); null si no aplica. */
     const contratoFirmadoSgc = await services.sgc.obtenerDescargaContrato(solicitudId).catch(() => null);
     return success({ ...expediente, contratoFirmadoSgc });
+  },
+
+  /** Candidatos a recordatorio: sin solicitud de factura y con documentos declarados pendientes. */
+  async recordatorios(): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarGestion(session.permissions);
+    return success(await services.recordatoriosFacturacion.listarCandidatos());
+  },
+
+  /** Envia los recordatorios seleccionados por correo (con enlace al manual del cliente). */
+  async enviarRecordatorios(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarGestion(session.permissions);
+    const parsed = enviarRecordatoriosSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const body: EnviarRecordatoriosRequestDTO = parsed.data;
+    return success(await services.recordatoriosFacturacion.enviar(body, session.email));
   },
 
   async agregarCuota(request: Request): Promise<NextResponse> {

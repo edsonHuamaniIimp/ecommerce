@@ -760,6 +760,17 @@ export const REQUERIMIENTOS_FACTURACION = {
 } as const;
 export type RequerimientoFacturacion = (typeof REQUERIMIENTOS_FACTURACION)[keyof typeof REQUERIMIENTOS_FACTURACION];
 
+/**
+ * Grupos de recordatorio de facturacion (boton "Notificar" de la bandeja):
+ * empresas con pagos pendientes que aun no registraron su solicitud de factura
+ * y empresas registradas que declararon requisitos pero no subieron sus documentos.
+ */
+export const RECORDATORIOS_FACTURACION = {
+  SIN_SOLICITUD: "sin_solicitud",
+  DOCUMENTOS_PENDIENTES: "documentos_pendientes",
+} as const;
+export type RecordatorioFacturacion = (typeof RECORDATORIOS_FACTURACION)[keyof typeof RECORDATORIOS_FACTURACION];
+
 
 export const ESTADOS_CUOTA = {
   PENDIENTE: "pendiente",
@@ -2229,6 +2240,7 @@ export const ACCIONES_FACTURACION = {
   ACTUALIZAR: "actualizar",
   ELIMINAR: "eliminar",
   ELIMINAR_CUOTA: "eliminar_cuota",
+  NOTIFICAR_RECORDATORIO: "notificar_recordatorio",
 } as const;
 
 /** Autores tecnicos que firman movimientos automaticos del sistema. */

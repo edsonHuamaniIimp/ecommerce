@@ -45,6 +45,7 @@ import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client
 import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
 import { ArchivosCuentaCorrienteApplicationService } from "@/application/facturacion-iimp/archivos-cuenta-service";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
+import { RecordatoriosFacturacionApplicationService } from "@/application/facturacion/recordatorios-facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
 import { ContratoApplicationService } from "@/application/contratos/contrato-service";
@@ -118,6 +119,7 @@ export const services = {
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   reportesSolicitudes: new ReportesSolicitudesApplicationService(reportesSolicitudesRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo, reservaIimpClient),
+  recordatoriosFacturacion: new RecordatoriosFacturacionApplicationService(facturacionRepo, reservaIimpClient, authRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),

@@ -166,6 +166,30 @@ Modal por objetivo, con tabs:
 - Ver detalle (expediente), archivar (facturación completada), cambiar tipo de pago y
   eliminar (baja lógica). No hay registro manual de pagos en la bandeja.
 
+### 5.6 Notificar recordatorios
+
+Botón **Notificar** en la cabecera de la bandeja; abre un modal con dos listas que se
+verifican contra el IIMP al abrir y al enviar:
+
+- **Sin solicitud de factura**: facturaciones en proceso (`pendiente`) con cuotas sin pagar
+  cuya solicitud aún no tiene contrato ni cuenta corriente del IIMP (no se envió la primera
+  solicitud desde Mis documentos). No se listan empresas sin cuotas pendientes.
+- **Documentos pendientes**: solicitudes registradas (contrato + cuenta corriente) que
+  declararon requisitos (OC, HES, valorización, otros) y no tienen registrado el documento
+  del tipo declarado en la cuenta corriente. Aplica la misma regla que el aviso de Mis
+  documentos: cubre el documento global (`cuota = null`) o el de la cuota de origen de la
+  declaración (`requisitos.cuota`, por defecto 1).
+- Empresas sin correo de facturación se muestran deshabilitadas (no se envían).
+- Las cuentas que no responden en el IIMP no se listan (`noVerificados`) para evitar avisos
+  incorrectos.
+- Selección individual o "seleccionar todas"; el envío revalida la lista y registra cada
+  correo en `facturacion_historial` (`notificar_recordatorio`).
+- Los correos incluyen el enlace a Mis documentos y al **manual del cliente**
+  (`/manual/facturacion`).
+
+Endpoints internos: `GET /api/facturacion/recordatorios` y
+`POST /api/facturacion/recordatorios/enviar` (requieren `facturacion:view` o admin).
+
 ## 6. Estados y transiciones
 
 | Entidad | Estados |
@@ -201,6 +225,10 @@ Alternativa a evaluar: revertir el estado al recibir `2` (pendiente de decisión
 
 - Plantilla `revision-resultado`: al aprobarse la solicitud, el correo incluye el paso a
   paso para enviar la solicitud de factura (CTA a "Mis documentos").
+- Plantilla `facturacion-recordatorio-solicitud`: recordatorio a empresas con pagos
+  pendientes que aún no enviaron su solicitud de factura (CTA a Mis documentos + manual).
+- Plantilla `facturacion-recordatorio-documentos`: recordatorio con la lista de documentos
+  declarados pendientes (CTA a subir documentos + manual).
 - Adjuntar comprobante fiscal de una cuota notifica al cliente.
 - Los textos usan tildes correctas (revisión, áreas, ocasión, sección, documentación,
   reevaluación, automático).
