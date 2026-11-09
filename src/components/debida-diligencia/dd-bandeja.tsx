@@ -282,17 +282,18 @@ export function DdBandeja() {
         beneficiariosNacionalidades: string;
         beneficiariosPorcentajes: string;
       };
-      const filasExportacion: FilaExportacion[] = filas.flatMap((fila) => {
+      const unir = (valores: string[]) =>
+        valores.filter((valor) => valor.trim().length > 0).join(" | ");
+      /* Una fila por expediente: los vinculos multiples van en la misma celda. */
+      const filasExportacion: FilaExportacion[] = filas.map((fila) => {
         const vinculos = fila.tipoRelacionComercial.length > 0
           ? fila.tipoRelacionComercial
-          : [""];
+          : [];
         const beneficiarios = fila.beneficiarios ?? [];
-        const unir = (valores: string[]) =>
-          valores.filter((valor) => valor.trim().length > 0).join(" | ");
-        return vinculos.map((vinculo) => ({
+        return {
           ...fila,
-          vinculoExportacion: vinculo
-            ? DD_VINCULO_LABELS[vinculo] ?? vinculo
+          vinculoExportacion: vinculos.length > 0
+            ? unir(vinculos.map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo))
             : "-",
           beneficiariosNombres: unir(beneficiarios.map((b) => b.nombre)),
           beneficiariosDocumentos: unir(beneficiarios.map((b) => b.documento)),
@@ -300,7 +301,7 @@ export function DdBandeja() {
           beneficiariosPorcentajes: unir(
             beneficiarios.map((b) => `${b.porcentaje}%`),
           ),
-        }));
+        };
       });
       const columnas: ColumnaExportacion<FilaExportacion>[] = [
         { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
