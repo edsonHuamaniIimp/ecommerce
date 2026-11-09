@@ -39,6 +39,12 @@ export const PLANTILLAS_ALERTA_EN: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Document cancelled or rejected",
     mensaje: `The billing system cancelled or rejected document '${documento}' for installment ${cuota}. It will be reissued; check the IIMP account statement.`,
   }),
+  "sgc-contrato-observado": ({ stands, empresa, autoRegenerado }) => ({
+    titulo: "Contract observed by the SGC",
+    mensaje: autoRegenerado
+      ? `The SGC observed the contract of ${empresa ?? "the request"} (stand ${stands}). It was regenerated automatically; the client must sign the new version.`
+      : `The SGC observed the contract of ${empresa ?? "the request"} (stand ${stands}). Review and regenerate the contract so the client can sign it.`,
+  }),
   "documentos-observados": ({ stands, total, documentos }) => ({
     titulo: "Documents observed",
     mensaje: `The reviewing area observed ${total} document(s) of request ${stands}.${documentos?.length ? ` Documents: ${documentos.join("; ")}.` : ""} Upload the new versions and resubmit the request for review.`,

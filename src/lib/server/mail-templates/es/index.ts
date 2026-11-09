@@ -545,4 +545,23 @@ export const plantillasEs: PlantillasEmail = {
       PIE_ES,
     ),
   }),
+  "sgc-contrato-observado": ({ standCode, empresa, motivo, autoRegenerado, url }) => ({
+    subject: `Contrato observado por el SGC - Stand ${standCode} - IIMP`,
+    html: envoltura(
+      "Contrato observado por el SGC",
+      `
+      <p>El SGC observó el contrato de <strong>${esc(empresa)}</strong> para el stand <strong>${esc(standCode)}</strong>.</p>
+      <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        ${autoRegenerado
+          ? "El contrato fue regenerado automáticamente. El cliente debe firmar la nueva versión."
+          : "Revisa y regenera el contrato para que el cliente lo firme."}
+      </p>
+      ${motivo ? `<p style="font-size:13px;color:#475569"><strong>Motivo:</strong> ${esc(motivo)}</p>` : ""}
+      <div style="text-align:center;margin:20px 0">
+        <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar solicitud</a>
+      </div>
+      `,
+      PIE_ES,
+    ),
+  }),
 };

@@ -34,6 +34,12 @@ export const PLANTILLAS_ALERTA_ES: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Documento anulado o rechazado",
     mensaje: `El sistema de facturacion anulo o rechazo el documento '${documento}' de la cuota ${cuota}. Se reemitira; revisa la cuenta corriente del IIMP.`,
   }),
+  "sgc-contrato-observado": ({ stands, empresa, autoRegenerado }) => ({
+    titulo: "Contrato observado por el SGC",
+    mensaje: autoRegenerado
+      ? `El SGC observo el contrato de ${empresa ?? "la solicitud"} (stand ${stands}). Se regenero automaticamente; el cliente debe firmar la nueva version.`
+      : `El SGC observo el contrato de ${empresa ?? "la solicitud"} (stand ${stands}). Revisa y regenera el contrato para que el cliente lo firme.`,
+  }),
   "documentos-observados": ({ stands, total, documentos }) => ({
     titulo: "Documentos observados",
     mensaje: `El area revisora observo ${total} documento(s) de la solicitud ${stands}.${documentos?.length ? ` Documentos: ${documentos.join("; ")}.` : ""} Reemplaza las nuevas versiones y reenvia la solicitud a revision.`,

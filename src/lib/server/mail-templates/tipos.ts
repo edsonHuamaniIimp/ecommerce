@@ -85,6 +85,14 @@ export interface DatosPlantilla {
     justificacion: string;
     url: string;
   };
+  /** Aviso interno al Asociado cuando el SGC observa el contrato. */
+  "sgc-contrato-observado": {
+    standCode: string;
+    empresa: string;
+    motivo: string;
+    autoRegenerado: boolean;
+    url: string;
+  };
 }
 
 export type PlantillaEmailKind = keyof DatosPlantilla;

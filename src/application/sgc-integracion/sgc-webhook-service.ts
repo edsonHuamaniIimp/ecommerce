@@ -10,6 +10,9 @@ import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
 import { notificarDevolucionSgc } from "./notificar-devolucion";
+import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
+import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
+import type { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 
@@ -33,6 +36,8 @@ export class SgcWebhookApplicationService {
     /* Opcionales: notifican al cliente cuando el SGC aprueba (best-effort). */
     private readonly solicitudes?: ISolicitudesRepository,
     private readonly auth?: IAuthRepository,
+    private readonly contrato?: ContratoApplicationService,
+    private readonly configuracion?: ConfiguracionApplicationService,
   ) {}
 
   async procesar(payload: SgcWebhookPayload, deliveryId?: string | null): Promise<SgcWebhookResultado> {
@@ -152,6 +157,21 @@ export class SgcWebhookApplicationService {
         .map((o) => o.title?.trim() || o.message.slice(0, 120))
         .filter((t) => t.length > 0);
       await notificarDevolucionSgc(this.solicitudes, expediente.solicitudId, motivoNuevo, documentos);
+    }
+    if (notificarDevolucion && esDevolucion && this.solicitudes) {
+      const observacionesContrato = cambios.observaciones ?? expediente.observaciones ?? [];
+      const resultadoContrato = await procesarContratoObservadoSgc({
+        solicitudId: expediente.solicitudId,
+        observaciones: observacionesContrato,
+        solicitudes: this.solicitudes,
+        contrato: this.contrato,
+      });
+      await notificarContratoObservadoSgc({
+        solicitudId: expediente.solicitudId,
+        resultado: resultadoContrato,
+        solicitudes: this.solicitudes,
+        configuracion: this.configuracion,
+      });
     }
     /* Aprobado el contrato (Vigente), la orden de facturacion se genera sola. */
     if (aprobadoAhora && this.solicitudes) {

@@ -301,6 +301,24 @@ export class ContratoApplicationService {
   }
 
   /**
+   * Regenera el contrato desde la plantilla cuando el SGC observa el contrato.
+   * Se ejecuta como sistema (sin depender de una sesion del Asociado) y habilita
+   * la firma del cliente para la nueva version.
+   */
+  async regenerarContratoParaSgc(solicitudId: string): Promise<ContratoGenerado> {
+    const detalle = await this.solicitudes.detalle(solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const generado = await this.generar({
+      solicitudId,
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+      userSub: detalle.userId ?? "system",
+      userEmail: detalle.email ?? undefined,
+    });
+    await this.solicitudes.habilitarContrato(solicitudId).catch(() => undefined);
+    return generado;
+  }
+
+  /**
    * Borrador del contrato (paso Contrato del wizard): genera el DOCX/PDF con los stands
    * seleccionados y las cuotas configuradas SIN crear la solicitud ni persistir nada.
    * La solicitud recien se crea al enviar la reserva (paso Confirmar).

@@ -90,8 +90,10 @@ const sgcClient: ISgcClient =
     ? new SgcClient({ apiUrl: getSgcApiUrl(), apiKey: getSgcApiKey(), timeoutMs: getSgcTimeoutMs() })
     : new SgcClientMock();
 const documentoOrigen = new DocumentoOrigen();
-const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgcRepo, sgcClient, documentoOrigen, sgcConfig);
-const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo);
+const contratoApp = new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage(), eventoRepo);
+const configuracionApp = new ConfiguracionApplicationService(configuracionRepo);
+const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgcRepo, sgcClient, documentoOrigen, sgcConfig, contratoApp, configuracionApp);
+const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo, contratoApp, configuracionApp);
 const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
 const auditoria = new AuditoriaApplicationService(new AuditoriaPrismaRepository());
@@ -119,10 +121,10 @@ export const services = {
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
-  contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage(), eventoRepo),
+  contrato: contratoApp,
   alertas: new AlertasApplicationService(authRepo),
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
-  configuracion: new ConfiguracionApplicationService(configuracionRepo),
+  configuracion: configuracionApp,
   auditoria,
   ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
   debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator),

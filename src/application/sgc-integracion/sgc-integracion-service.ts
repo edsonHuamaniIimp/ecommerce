@@ -2,6 +2,8 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
+import type { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import type {
   SgcCampoTipo,
   SgcCrearExpedienteInput,
@@ -38,6 +40,7 @@ import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
 import { habilitarOrdenPagoAutomatica } from "./orden-pago-automatica";
 import { notificarDevolucionSgc } from "./notificar-devolucion";
+import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -65,6 +68,8 @@ export class SgcIntegracionApplicationService {
     private readonly client: ISgcClient,
     private readonly documentoOrigen: IDocumentoOrigen,
     private readonly config: SgcIntegracionConfig,
+    private readonly contrato?: ContratoApplicationService,
+    private readonly configuracion?: ConfiguracionApplicationService,
   ) {}
 
   /** True si la integracion SGC esta activada en el servidor (`SGC_ENABLED=1`). */
@@ -316,6 +321,20 @@ export class SgcIntegracionApplicationService {
           motivoNuevo ?? expediente.devolucionMotivo ?? null,
           documentos,
         );
+        if (esDevolucion) {
+          const resultadoContrato = await procesarContratoObservadoSgc({
+            solicitudId,
+            observaciones: observacionesAbiertas,
+            solicitudes: this.solicitudRepo,
+            contrato: this.contrato,
+          });
+          await notificarContratoObservadoSgc({
+            solicitudId,
+            resultado: resultadoContrato,
+            solicitudes: this.solicitudRepo,
+            configuracion: this.configuracion,
+          });
+        }
       }
       return preservar ? { ...detalle, lifecycleStatus: expediente.lifecycleStatus } : detalle;
     } catch {
@@ -401,6 +420,20 @@ export class SgcIntegracionApplicationService {
             motivoNuevo ?? expediente.devolucionMotivo ?? null,
             documentos,
           );
+          if (esDevolucion) {
+            const resultadoContrato = await procesarContratoObservadoSgc({
+              solicitudId: expediente.solicitudId,
+              observaciones: observacionesAbiertas,
+              solicitudes: this.solicitudRepo,
+              contrato: this.contrato,
+            });
+            await notificarContratoObservadoSgc({
+              solicitudId: expediente.solicitudId,
+              resultado: resultadoContrato,
+              solicitudes: this.solicitudRepo,
+              configuracion: this.configuracion,
+            });
+          }
         }
         sincronizados += 1;
       } catch (err) {

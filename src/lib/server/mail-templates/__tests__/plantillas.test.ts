@@ -54,6 +54,7 @@ const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
   "dd-aprobada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", fechaVencimiento: "2026-11-12" },
   "dd-rechazada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
   "dd-legal-revision": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
+  "sgc-contrato-observado": { standCode: "523", empresa: "PRODIMIN S.A.C.", motivo: "Corrige el contrato", autoRegenerado: true, url: "https://ejemplo.pe/dashboard/solicitudes" },
   "documentos-observados": {
     standCodes: "197",
     documentos: ["Vigencia de Poder (o equivalente, en caso de empresa extranjera)"],
