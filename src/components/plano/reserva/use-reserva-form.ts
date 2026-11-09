@@ -162,12 +162,10 @@ export function useReservaForm(
     setFirmaDigitalAplicada(false);
   }, [tipoCambioEvento]);
 
-  useEffect(() => {
-    if (moneda === MONEDAS_CONTRATO.PEN && !tipoCambioValido(tipoCambioEvento)) {
-      setMonedaState(MONEDAS_CONTRATO.USD);
-      setContrato(null);
-    }
-  }, [moneda, tipoCambioEvento]);
+  /* Derivado: si el evento pierde el TC, no se usa PEN aunque el estado haya quedado ahi. */
+  const monedaEfectiva: MonedaContrato = moneda === MONEDAS_CONTRATO.PEN && !tipoCambioValido(tipoCambioEvento)
+    ? MONEDAS_CONTRATO.USD
+    : moneda;
 
   const selectedCount = selectedIds.length;
   const singleStand = selectedCount === 1;
@@ -199,13 +197,13 @@ export function useReservaForm(
   const stepDone = useCallback((step: number): boolean => {
     if (selectedCount === 0) return false;
     if (step === 0) return isStepDatosCompleto(formDatos) && adicionalesValidos;
-    if (step === 1) return (moneda === MONEDAS_CONTRATO.USD || tipoCambioValido(tipoCambioEvento))
+    if (step === 1) return (monedaEfectiva === MONEDAS_CONTRATO.USD || tipoCambioValido(tipoCambioEvento))
       && cuotasConfigValidas(cuotasConfig, configCuotas)
       && (sinContrato || datosContratoValidos(contratoEfectivo));
     if (step === 2) return anexosCompletos && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
     if (step === 3) return confirmado && aceptaRepresentante && (sinContrato || (Boolean(contrato) && firmaReservaLista(contratoFirmadoUrl, firmaDigitalAplicada)));
     return false;
-  }, [selectedCount, formDatos, adicionalesValidos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada, sinContrato, moneda, tipoCambioEvento]);
+  }, [selectedCount, formDatos, adicionalesValidos, anexosCompletos, cuotasConfig, configCuotas, contratoEfectivo, contrato, confirmado, aceptaRepresentante, contratoFirmadoUrl, firmaDigitalAplicada, sinContrato, monedaEfectiva, tipoCambioEvento]);
 
   const canGoStep = useCallback((step: number): boolean => {
     if (step === 0) return true;
@@ -340,7 +338,7 @@ export function useReservaForm(
     }
     const result = await gessService.reservar({
       standIds,
-      moneda,
+      moneda: monedaEfectiva,
       cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
       ...(holdId ? { holdId } : {}),
       datos: {
@@ -368,7 +366,7 @@ export function useReservaForm(
       return "";
     }
     return result.solicitudId;
-  }, [selectedIds, linkedMap, formDatos, cuotasConfig, moneda]);
+  }, [selectedIds, linkedMap, formDatos, cuotasConfig, monedaEfectiva]);
 
   /** IDs (gess_stand) de la seleccion actual; "" si no se pudieron resolver. */
   const standIdsSeleccionados = useCallback((): string[] => {
@@ -421,7 +419,7 @@ export function useReservaForm(
       await guardarRepresentantes();
       const data = await contratosService.borrador({
         standIds,
-        moneda,
+        moneda: monedaEfectiva,
         cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
         idioma: idiomaODefecto(leerIdiomaCookie()),
         contrato: contratoPayload(),
@@ -441,7 +439,7 @@ export function useReservaForm(
     } finally {
       if (esRespuestaVigente(seq, key)) setGenerandoContrato(false);
     }
-  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey, selectedIds, guardarRepresentantes, moneda]);
+  }, [cuotasConfig, standIdsSeleccionados, contratoPayload, currentKey, selectedIds, guardarRepresentantes, monedaEfectiva]);
 
   /** Paso 4: sube el contrato firmado por el cliente (descargado y firmado manualmente). */
   const subirContratoFirmado = async (file: File) => {
@@ -525,7 +523,7 @@ export function useReservaForm(
         setSubmitStage(ETAPAS_ENVIO_RESERVA.GENERANDO_CONTRATO);
         const generado = await contratosService.generar({
           solicitudId,
-          moneda,
+          moneda: monedaEfectiva,
           cuotas: cuotasConfig.map((c) => ({ porcentaje: c.porcentaje, fechaVencimiento: c.fecha })),
           idioma: idiomaODefecto(leerIdiomaCookie()),
           contrato: contratoPayload(),
@@ -622,7 +620,7 @@ export function useReservaForm(
     confirmado, setConfirmado,
     aceptaRepresentante, setAceptaRepresentante,
     cuotasConfig, setCuotasConfig: actualizarCuotas,
-    moneda, setMoneda: actualizarMoneda,
+    moneda: monedaEfectiva, setMoneda: actualizarMoneda,
     tipoCambioEvento,
     configCuotas,
     contratoDatos: contratoEfectivo, setContratoDatos,

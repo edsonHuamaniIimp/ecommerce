@@ -191,7 +191,13 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   }, [eventoId, tipoEvento, codigoEvento]);
 
   const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
-  const [tipoCambioEvento, setTipoCambioEvento] = useState<number | null>(null);
+  const [tipoCambioEventoCache, setTipoCambioEventoCache] = useState<{ eventoId: string | null; tipoCambio: number | null }>({
+    eventoId: null,
+    tipoCambio: null,
+  });
+  const tipoCambioEvento = tipoCambioEventoCache.eventoId === (sesionReserva?.eventoId ?? null)
+    ? tipoCambioEventoCache.tipoCambio
+    : null;
 
   const {
     reservaOpen, setReservaOpen,
@@ -232,18 +238,21 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
   } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL, tipoCambioEvento });
 
   useEffect(() => {
-    if (!sesionReserva?.eventoId) {
-      setTipoCambioEvento(null);
-      return;
-    }
+    const eventoId = sesionReserva?.eventoId;
+    if (!eventoId) return;
     let activo = true;
-    eventosServiceClient.configuracionPublica(sesionReserva.eventoId)
+    eventosServiceClient.configuracionPublica(eventoId)
       .then((data) => {
         if (!activo) return;
         const valor = typeof data.tipoCambio === "number" ? data.tipoCambio : Number(data.tipoCambio);
-        setTipoCambioEvento(Number.isFinite(valor) && valor > 0 ? valor : null);
+        setTipoCambioEventoCache({
+          eventoId,
+          tipoCambio: Number.isFinite(valor) && valor > 0 ? valor : null,
+        });
       })
-      .catch(() => { if (activo) setTipoCambioEvento(null); });
+      .catch(() => {
+        if (activo) setTipoCambioEventoCache({ eventoId, tipoCambio: null });
+      });
     return () => { activo = false; };
   }, [sesionReserva?.eventoId, reservaOpen]);
 

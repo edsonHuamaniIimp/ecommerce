@@ -4,6 +4,7 @@ import { internalApi } from "./internal-api";
 import type { SolicitudesPaginatedDTO, SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import type { SgcUrlDescargaDTO } from "@/types/dto/sgc/url-descarga.dto";
+import type { MonedaContrato } from "@/lib/shared/utils/moneda";
 
 interface RevisionSalidaDTO {
   id: string;
@@ -99,8 +100,8 @@ export const solicitudesService = {
   },
 
   /** Cambia USD/PEN mientras no exista cobranza; invalida contrato/firma y vuelve a revision. */
-  cambiarMoneda(body: { solicitudId: string; moneda: "USD" | "PEN" }) {
-    return internalApi.post<{ moneda: "USD" | "PEN"; tipoCambio: number }>(
+  cambiarMoneda(body: { solicitudId: string; moneda: MonedaContrato }) {
+    return internalApi.post<{ moneda: MonedaContrato; tipoCambio: number }>(
       `/api/solicitudes/cambiar-moneda`,
       body,
     );

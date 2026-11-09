@@ -29,6 +29,7 @@ import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
+import { MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
@@ -277,7 +278,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [sgcContratoUrl, setSgcContratoUrl] = useState<string | null>(null);
   const detailRequestRef = useRef(0);
   const [monedaRow, setMonedaRow] = useState<SolicitudRow | null>(null);
-  const [nuevaMoneda, setNuevaMoneda] = useState<"USD" | "PEN">("USD");
+  const [nuevaMoneda, setNuevaMoneda] = useState<MonedaContrato>(MONEDAS_CONTRATO.USD);
   const [cambiandoMoneda, setCambiandoMoneda] = useState(false);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const documentoEstadoLabels = useMaestraLabels(
@@ -346,7 +347,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
   const abrirCambioMoneda = (row: SolicitudRow) => {
     setMonedaRow(row);
-    setNuevaMoneda(row.moneda === "PEN" ? "PEN" : "USD");
+    setNuevaMoneda(row.moneda === MONEDAS_CONTRATO.PEN ? MONEDAS_CONTRATO.PEN : MONEDAS_CONTRATO.USD);
   };
 
   const confirmarCambioMoneda = async () => {
@@ -357,7 +358,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
         solicitudId: monedaRow.id,
         moneda: nuevaMoneda,
       });
-      toast.success(`Moneda cambiada a ${nuevaMoneda === "PEN" ? "Soles" : "Dólares"}. El contrato se regenerará en la nueva revisión.`);
+      toast.success(`Moneda cambiada a ${nuevaMoneda === MONEDAS_CONTRATO.PEN ? "Soles" : "Dólares"}. El contrato se regenerará en la nueva revisión.`);
       setMonedaRow(null);
       await load(page, search, perPage);
       if (detailOpen && detailRow?.id === monedaRow.id) {
@@ -1615,15 +1616,15 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     type="button"
-                    variant={nuevaMoneda === "USD" ? "default" : "outline"}
-                    onClick={() => setNuevaMoneda("USD")}
+                    variant={nuevaMoneda === MONEDAS_CONTRATO.USD ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda(MONEDAS_CONTRATO.USD)}
                   >
                     Dólares (USD)
                   </Button>
                   <Button
                     type="button"
-                    variant={nuevaMoneda === "PEN" ? "default" : "outline"}
-                    onClick={() => setNuevaMoneda("PEN")}
+                    variant={nuevaMoneda === MONEDAS_CONTRATO.PEN ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda(MONEDAS_CONTRATO.PEN)}
                   >
                     Soles (PEN)
                   </Button>

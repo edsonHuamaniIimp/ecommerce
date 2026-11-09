@@ -79,13 +79,13 @@ export class SolicitudesApplicationService {
       throw new DomainError("La solicitud no tiene un plan de cuotas para recalcular.", API_ERROR_CODES.CONFLICT, 409);
     }
 
-    const monedaActual = detalle.moneda === MONEDAS.PEN ? "PEN" : "USD";
+    const monedaActual = detalle.moneda === MONEDAS.PEN ? MONEDAS.PEN : MONEDAS.USD;
     if (monedaActual === params.moneda) {
       return { moneda: params.moneda, tipoCambio: detalle.tipoCambio ?? 1 };
     }
 
     let tipoCambio = 1;
-    if (params.moneda === "PEN") {
+    if (params.moneda === MONEDAS.PEN) {
       const evento = detalle.eventoId && this.eventoRepo
         ? await this.eventoRepo.findById(detalle.eventoId).catch(() => null)
         : null;
