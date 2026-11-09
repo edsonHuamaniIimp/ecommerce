@@ -952,7 +952,20 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
           <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
             <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
               <DialogTitle className="text-sm font-semibold text-foreground">Estado de solicitud</DialogTitle>
-              {detailRow && <EstadoSolicitudBadge estado={detailRow.estadoSolicitud} />}
+              <div className="flex items-center gap-2">
+                {detailRow && !soloLectura && puedeCambiarMonedaSolicitud(detailRow) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    title="Cambiar moneda del contrato"
+                    onClick={() => abrirCambioMoneda(detailRow)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                )}
+                {detailRow && <EstadoSolicitudBadge estado={detailRow.estadoSolicitud} />}
+              </div>
             </div>
           </DialogHeader>
           {/* Body */}
