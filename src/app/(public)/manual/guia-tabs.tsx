@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ShieldCheck, Store } from "lucide-react";
+import { Receipt, ShieldCheck, Store } from "lucide-react";
 
-export type GuiaManual = "reservas" | "dd";
+export type GuiaManual = "reservas" | "dd" | "facturacion";
 
 const GUIAS: {
   id: GuiaManual;
@@ -23,6 +23,13 @@ const GUIAS: {
     label: "Debida diligencia",
     descripcion: "Formulario, vigencia y documentos",
     icon: ShieldCheck,
+  },
+  {
+    id: "facturacion",
+    href: "/manual/facturacion",
+    label: "Facturación",
+    descripcion: "Requisitos, solicitud y facturas",
+    icon: Receipt,
   },
 ];
 

@@ -56,19 +56,19 @@ Diagramas de este acuerdo (carpeta de entrega):
 
 | Tema | Acuerdo |
 |---|---|
-| **Solicitud de factura** | Requiere que la **1ª cuota** tenga **al menos 1 OC y 1 HES** (validación bloqueante en UI y backend de ContratosStands; cuentan los documentos generales, sin cuota). En las cuotas 2–3 son **opcionales**. La detracción y la diferencia se adjuntan después, al pagar |
+| **Solicitud de factura** | Los requisitos son **declarativos y referenciales**: el cliente marca OC, HES, plataforma, valorización, otros o "ninguna de las anteriores" y adjunta al menos un documento por tipo declarado (la cuota del documento es la de la bandeja). **No se bloquea** por falta de OC/HES. La carga de constancias de pago se hace al pagar cada cuota |
 | **Plan de cuotas** | Hasta **3 cuotas** por reserva. La reserva se registra **una sola vez**; la notificación es **por cuota** (1 a 3) |
 | **Auth M2M** | `x-api-key` (misma clave compartida del Sistema de Montaje). En local/túnel no se exige; en producción es obligatoria |
-| **Umbral de detracción** | SPOT aplica si la cuota supera **S/ 700** (convertir si la cuota está en USD). Cuota ≤ S/ 700 → **pago único** sin detracción |
-| **Orden de pago** | Libre: puede pagarse **primero la detracción o primero la diferencia** (ambos son independientes) |
-| **Plazo de detracción** | La constancia puede registrarse **hasta 1 mes después** del pago del resto |
+| **Detracción** | SPOT aplica si la cuota supera **S/ 700** (convertir si la cuota está en USD). Cuota ≤ S/ 700 → **pago único** sin detracción. El plazo de la detracción es normativo y lo gestiona Facturación; la UI ya no muestra plazos |
 | **Pagos parciales** | ContratosStands **no trackea parciales**: cada voucher/pago se notifica; el **SIE decide** si el pago quedó completo (`0`) o sigue pendiente (`1`) |
 | **Estados** | `0` PAGADA · `1` PENDIENTE (incluye parciales) · `2` ANULADA **o rechazo** (código **homologado** con la declaración del SIE; no existe código separado de rechazo) |
-| **Efecto de `2`** | Limpia el documento de la cuota (vuelve a pendiente de documento); **no revierte el pago** (por confirmar — §7 #2) |
+| **Efecto de `2`** | Limpia el documento de la cuota (vuelve a pendiente de documento); **no revierte el pago** (decisión operativa; si se requiere, corrección manual autorizada con registro en el historial) |
+| **Fecha de emisión** | Campo opcional `fechaEmision` (`YYYY-MM-DD`, no futura) en la notificación; se guarda en la cuota y se muestra al cliente y en la bandeja |
 | **Justificación de rechazo** | Con `estadoPago: 2` el SIE envía la **justificación** (`justificacion`, obligatoria, máx. 500 caracteres); queda en el historial de facturación |
 | **Re-emisión** | Si el documento se reemite, basta reenviarlo: reemplaza al anterior (sin `Idempotency-Key`) |
 | **Rechazo bidireccional** | ContratosStands podrá solicitar el rechazo al SIE por la API de este (canal por definir — §7 #3) |
 | **Cierre** | Con **todas** las cuotas en `0`, ContratosStands cierra la facturación y la solicitud (`pagado`) |
+| **Pagos en la plataforma** | ContratosStands **no gestiona pagos** en la bandeja de Facturación: refleja el estado notificado. El cobro y las confirmaciones los gestiona Facturación y Cobranzas |
 
 ---
 
@@ -76,12 +76,12 @@ Diagramas de este acuerdo (carpeta de entrega):
 
 ### 5.1 ContratosStands
 
-1. **Reserva**: exigir OC+HES de la primera cuota (UI + backend) y registrar la reserva en `POST /stands/reserva` con `NumeroSolicitud` y `Archivos`.
-2. **Cuenta corriente**: mantener los documentos (OC/HES/detracción/diferencia/pago total/valorización-cotización) vía `/stands/archivos`, en cualquier orden y momento. En la UI, `PAGO_TOTAL` es excluyente con `DETRACCION`/`DIFERENCIA` de una misma cuota.
+1. **Reserva**: registrar la solicitud de factura en `POST /stands/reserva` con `NumeroSolicitud` y `Archivos`, según los requisitos declarados por el cliente (sin bloqueo por OC/HES).
+2. **Cuenta corriente**: mantener los documentos (OC/HES/detracción/diferencia/pago total/valorización-cotización/otros requisitos) vía `/stands/archivos`, en cualquier orden y momento. En la UI, `PAGO_TOTAL` es excluyente con `DETRACCION`/`DIFERENCIA` de una misma cuota.
 3. **API entrante**: exponer `POST /api/integracion/factura` conforme a la guía técnica (validaciones, 400/401/404).
 4. **Efectos por estado**: `0` → cuota pagada + cierre si no quedan pendientes; `1` → registrar documento sin cambiar estado; `2` → limpiar documento sin revertir pago.
 5. **Sin tracking de parciales**: confiar en el estado que determina el SIE en cada notificación.
-6. **Visibilidad**: mostrar al cliente el documento notificado y la marca de anulación; microcopy del umbral/orden/plazo de detracción.
+6. **Visibilidad**: mostrar al cliente el documento notificado, su fecha de emisión real y la marca de anulación; los requisitos y vouchers son referenciales.
 7. **Entrega de la clave** de producción por canal seguro.
 
 ### 5.2 Sistema de facturación (SIE)
@@ -97,9 +97,9 @@ Diagramas de este acuerdo (carpeta de entrega):
 
 ### 5.3 Cliente (exhibidor)
 
-1. Adjuntar **OC y HES** (obligatorias en la **1ª cuota**; opcionales en las cuotas 2–3) al solicitar la reserva/factura.
-2. Pagar la cuota (única si ≤ S/ 700; diferencia y detracción en cualquier orden si > S/ 700; la detracción hasta 1 mes después).
-3. Subir los vouchers en "Mis pagos" para que se registren en la cuenta corriente del IIMP.
+1. Declarar sus requisitos de facturación (OC, HES, plataforma, valorización, otros o "ninguna") y adjuntar al menos un documento por tipo declarado al enviar la solicitud.
+2. Pagar la cuota (única si ≤ S/ 700; diferencia y detracción en cualquier orden si > S/ 700).
+3. Subir las constancias de pago en "Mis documentos" (referenciales) para que se registren en la cuenta corriente del IIMP.
 
 ### 5.4 servicio-eventos (IIMP)
 
@@ -125,7 +125,7 @@ Diagramas de este acuerdo (carpeta de entrega):
 | # | Tema | Responsable |
 |---|---|---|
 | 1 | Canal de entrega del **voucher** al SIE (¿consume la cuenta corriente `/stands/archivos` o exige endpoint propio?) | SIE |
-| 2 | ¿`2` después de `0` debe **revertir** el estado de pago de la cuota? (hoy solo limpia el documento) | SIE |
+| 2 | `2` después de `0`: **resuelto** — no revierte el pago; la corrección es manual y autorizada (registrada en el historial) | ContratosStands / Facturación |
 | 3 | Canal/endpoint del SIE para **recibir la solicitud de rechazo** de ContratosStands (bidireccional) | SIE |
 | 4 | Confirmación explícita: pago parcial con detracción → `1` hasta completar ambos pagos | SIE |
 | 5 | Clave compartida de producción (`x-api-key`) | ContratosStands (entrega por canal seguro) |
@@ -143,3 +143,6 @@ Contra el túnel de pruebas al ambiente local de ContratosStands:
 | `2` (ANULADA): documento limpiado de la cuota | ✅ |
 | `400` con `estadoPago: 3` o texto; `404` con contrato inexistente o reserva anulada | ✅ |
 | Historial de facturación firmado por `iimp` en cada notificación | ✅ |
+| `fechaEmision` guardada y devuelta en la respuesta (QA/producción) | ✅ |
+| `401` sin `x-api-key` o sin `INTEGRACION_API_KEY` en el ambiente | ✅ |
+| Anulación (`2`) de una cuota pagada: documento limpio y estado de pago conservado; corrección manual verificada (COELPRA, 05-11-2026) | ✅ |

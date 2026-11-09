@@ -1,121 +1,230 @@
-# Facturación y pagos
+# Facturación y documentos
 
 > Fuente: `src/app/(dashboard)/dashboard/facturacion/**`,
-> `src/app/api/facturacion/**`, `src/application/facturacion/**`,
+> `src/app/(dashboard)/dashboard/mis-pagos/**`, `src/app/api/facturacion/**`,
+> `src/app/api/pagos/**`, `src/application/facturacion/**`,
+> `src/application/facturacion-iimp/**`, `src/application/pagos/**`,
 > `src/infrastructure/persistence/facturacion-repository.ts`.
+>
+> Integraciones: [`api-facturacion-entrante.md`](../05-integraciones/api-facturacion-entrante.md)
+> (API del sistema de facturación hacia ContratosStands) y
+> [`integracion-reserva-iimp.md`](../05-integraciones/integracion-reserva-iimp.md)
+> (reserva y archivos de la cuenta corriente).
 
-## 1. Propósito
+## 1. Propósito y alcance
 
-Gestionar el cobro de las solicitudes de stands: listar registros de facturación, ver
-detalle, administrar cuotas, registrar pagos con comprobante, archivar y dar de baja.
-Persistencia local en PostgreSQL vía Prisma.
+Gestionar la **facturación de las solicitudes de stands**: requisitos del cliente,
+solicitud de factura, documentos por cuota, emisión de facturas por el sistema de
+facturación externo, su visualización/descarga y el seguimiento del estado de las cuotas.
+
+**Los pagos no se gestionan en esta vista.** El cobro y la confirmación de pagos los
+gestiona el área de Facturación y Cobranzas del IIMP (sistema externo); ContratosStands
+solo refleja el estado que le notifican. Los documentos y vouchers que adjunta el cliente
+son **referenciales**.
 
 ## 2. Roles y permisos
 
-- **Admin**: permiso `facturacion:view` en `/dashboard/facturacion` y `/api/facturacion`
-  (`middleware.ts`). No está asignado a ningún rol no-admin; hoy solo `admin` lo ejerce (por bypass).
-- **Exhibidor (cliente)**: vista propia `/dashboard/mis-pagos` + API `/api/pagos`, con permisos
-  `pagos:view` (ver el plan de cuotas) y `pagos:manage` (agregar/editar/eliminar cuotas). Ambas
-  acciones validan además **propiedad**: la facturación debe pertenecer a una solicitud del
-  `userId`/`email` de la sesión (`PagosApplicationService`).
-- **Pasarela Niubiz deshabilitada**: `NIUBIZ_HABILITADO = false` (`constants.ts`). La UI oculta los
-  botones de pago y `/api/facturacion/niubizz/*` responde **503** (`SERVICE_UNAVAILABLE`).
+- **Facturación / Admin**: bandeja `/dashboard/facturacion` (`facturacion:view` o
+  `admin:full`): listado, expediente, archivar, cambiar tipo y dar de baja.
+- **Exhibidor (cliente)**: `/dashboard/mis-pagos` ("Mis documentos") con `pagos:view`
+  y `pagos:manage`; toda operación valida que la cuota sea de una solicitud propia.
+- **Niubiz deshabilitado**: `NIUBIZ_HABILITADO = false`; las rutas de pasarela responden 503.
 
 ## 3. Pantallas
 
 | Ruta | Uso |
 |---|---|
-| `/dashboard/facturacion` | Admin: listado + acciones (ver, archivar, configurar, eliminar, registrar pago) |
-| `/dashboard/mis-pagos` | Cliente: sus planes de pago (cuotas); ver/configurar si `pagos:manage` |
-| `/dashboard/facturacion/pago?facturacionId=` | Pago con pasarela Niubiz (**deshabilitado**) |
-| `/dashboard/facturacion/pago/response?facturacionId=&transactionToken=` | Retorno de la pasarela (**deshabilitado**) |
-| `/dashboard/facturacion/pago/error` | Cancelación/timeout |
+| `/dashboard/mis-pagos` | Cliente: documentos de sus solicitudes (cuotas, requisitos, facturas, constancias) |
+| `/dashboard/facturacion` | Facturación: bandeja de solicitudes, indicadores y expediente |
+| `/dashboard/configuracion` | Admin: contacto de facturación (varios correos y teléfonos) y configuración del portal |
+| `/dashboard/facturacion/pago*` | Pasarela Niubiz (**deshabilitada**) |
 
-## 4. Tipos y modos
+## 4. Vista del cliente — "Mis documentos"
 
-- `TIPOS_FACTURACION` (`constants.ts:381-385`): `niubizz` (pasarela) | `manual`. Por defecto `manual`.
-- `modoPago`: `completo` | `cuotas` (default `cuotas`).
+### 4.1 Requisitos de facturación (un solo modal)
 
-## 5. Flujo funcional
+Al pulsar el ícono de **solicitar factura** de una cuota se abre un único modal:
 
-### 5.1 Listado y administración
-- `GET /api/facturacion/listar?eventoId=&page=&per_page=` (paginado de 10, incluye cuotas y estado de la solicitud).
-- Acciones por fila: ver detalle, archivar (solo `pagado`), configurar/eliminar (si no `archivado`), pagar (si `pendiente`).
-- `POST /api/facturacion/agregar-cuota` `{facturacionId, monto, fechaVencimiento?}`.
-- `POST /api/facturacion/pagar-cuota` `{cuotaId, comprobante?}` → si no quedan cuotas pendientes, marca facturación `pagado` y la **solicitud** `pagado`.
-  - En la vista admin, cada cuota muestra el **voucher adjuntado por el cliente** (enlace) y el botón **"Confirmar"** que
-    registra el pago reutilizando ese voucher (sin volver a subirlo); si no hay voucher, ofrece subir un comprobante propio.
-- `POST /api/facturacion/eliminar-cuota` (borrado duro) · `PATCH /api/facturacion/actualizar` · `DELETE /api/facturacion/eliminar` (baja lógica).
+1. **Checklist de requisitos** de la empresa (marcar los que apliquen):
+   - Orden de compra (OC).
+   - Hoja de entrada de servicio (HES).
+   - Registro en plataforma o portal de proveedores → **obligatorios** el nombre y el
+     enlace (`http://` o `https://`); se resaltan en ámbar si faltan.
+   - Valorización o cotización aprobada.
+   - Otros requisitos → **obligatorio** especificar el texto.
+   - **Ninguna de las anteriores** (empresa extranjera o sin OC/HES).
+   - Marcar cualquier requisito desmarca "Ninguna"; marcar "Ninguna" limpia el resto.
+2. **Documentos a adjuntar** (por cada tipo declarado):
+   - Se habilita una sección de carga por tipo (OC, HES, valorización, otros requisitos).
+   - Es **obligatorio al menos un documento por tipo declarado** (badge "Obligatorio",
+     borde ámbar y aviso de faltantes); se pueden adjuntar varios y quitarlos.
+   - La **cuota es la de la bandeja** (no se elige); cada archivo se registra en la
+     cuenta corriente del IIMP con ese número de cuota.
+3. **Enviar solicitud de factura**: valida requisitos y documentos y llama a
+   `POST /api/pagos/solicitar-factura` con `{cuotaId, archivos, requisitos}`.
 
-### 5.2 Origen de los registros
-No se crean desde la página: se crean al **generar la orden de pago** de una solicitud
-(`solicitudes-repository.ts:378-400`), que pone la solicitud en `pendiente_pago` y crea
-`Facturacion` tipo `manual`, moneda `US$`.
+Efecto: se registra la **reserva** en el IIMP (contrato y cuenta corriente) y la
+declaración de requisitos en `solicitud.requisitos_facturacion` (con la cuota de
+origen). **No se emite la factura en ese momento**: el sistema de facturación emite la
+factura de cada cuota en su fecha.
 
-**Automático desde el SGC**: al aprobarse el contrato (webhook `workflow.approved` con
-`finalization=active`, o el **bypass del admin**), se genera la orden de pago sola
-(`orden-pago-automatica.ts` → `marcarOrdenPago`); el botón manual del detalle queda como
-respaldo.
+### 4.2 Documentos para tu factura (panel por cuota)
 
-### 5.3 Pago con Niubiz — DESHABILITADO
-`NIUBIZ_HABILITADO = false`. El código y las páginas se conservan para reactivar:
-- El botón "Pagar ahora / Pagar con Niubizz" en Mis Solicitudes ya **no se muestra** (el helper
-  `puedePagarNiubizz` incluye el flag).
-- `/api/facturacion/niubizz/sesion` y `/confirmar` responden **503** (`SERVICE_UNAVAILABLE`).
-- El tipo `niubizz` no se puede seleccionar en el modal de configuración de facturación (opción deshabilitada).
+Con la reserva registrada, el ícono de documentos abre el panel de la **cuenta corriente**
+del IIMP asociada a la cuota:
 
-### 5.4 Pagos del exhibidor (cliente) — `/dashboard/mis-pagos`
-- `GET /api/pagos/listar?page=&per_page=` → facturaciones **del cliente** (solicitud con su `userId`/`email`) de
-  **solicitudes vigentes** (`flgActivo`); incluye cuotas. Sin filtro por evento activo: el cliente ve
-  todos sus planes de pago (el evento de la sesión podía ocultar planes pendientes de otros eventos).
-- `GET /api/pagos/detalle?id=` → detalle (valida propiedad; 404/403 si no aplica).
-- `POST /api/pagos/agregar-cuota` `{facturacionId, monto, fechaVencimiento?}` (requiere `pagos:manage`).
-- `POST /api/pagos/actualizar-cuota` `{cuotaId, monto?, fechaVencimiento?}` (requiere `pagos:manage`).
-- `POST /api/pagos/eliminar-cuota` `{cuotaId}` (requiere `pagos:manage`); al eliminar, las cuotas
-  restantes se **renumeran** secuencialmente (1..n).
-- `POST /api/pagos/adjuntar-voucher` `{cuotaId, comprobante}` (requiere `pagos:manage`): adjunta o
-  reemplaza el **voucher de pago** de una cuota sin cambiar su estado. La vista muestra el enlace
-  "Voucher" cuando existe.
-- **Con voucher adjunto la cuota queda bloqueada**: no se puede editar ni eliminar (el backend
-  responde **409** y la UI oculta los botones de configuración); queda "pendiente de confirmacion"
-  hasta que el admin registre el pago.
-- El cliente **no** registra pagos ni archiva/elimina facturaciones: eso queda en el flujo admin.
-- **Registrar reserva (antes "Solicitar factura")** (cliente): con la reserva pendiente de pago, un
-  ícono por cuota llama a `POST /api/pagos/solicitar-factura` `{cuotaId}`: registra la reserva en
-  el IIMP (stands `RESERVADO`, contrato + cuenta corriente con `NumeroSolicitud` único). **v2: el
-  IIMP ya no emite comprobantes al reservar**; factura cada cuota en su fecha al contacto de Pagos.
-  Los datos fiscales salen del **snapshot del paso 1 del wizard** (`solicitud.datos_facturacion`);
-  la empresa vinculada es opcional (enriquece). Boleta a persona natural usa servicio-persona por
-  DNI. No requiere `pagos:manage`; valida propiedad de la cuota. Con la reserva registrada, el
-  mismo ícono abre los **documentos de la cuenta corriente** (`GET /api/pagos/archivos`,
-  `POST /api/pagos/archivos-agregar`, `POST /api/pagos/archivos-eliminar`): links de OC, HES,
-  constancia de detracción y de la diferencia. Detalle:
-  [integracion-reserva-iimp.md](../05-integraciones/integracion-reserva-iimp.md).
+- Tipos disponibles (v6): `OC`, `HES`, `DETRACCION`, `DIFERENCIA`, `PAGO_TOTAL`,
+  `VALORIZACION_COTIZACION` y `OTROS_REQUISITOS`.
+- Los tipos se filtran según los **requisitos declarados** de la solicitud.
+- Si un tipo (OC/HES/valorización/otros) **ya tiene un archivo en esa cuota**, deja de
+  ofrecerse en el selector; la bandeja lo sigue mostrando agrupado por cuota.
+- Al seleccionar o soltar un archivo se pide confirmación y se sube **directo a la
+  bandeja**; también se puede pegar un enlace.
+- Las constancias de pago son **referenciales**: Facturación valida los pagos por los
+  canales formales.
 
-## 6. Estados
+### 4.3 Seguimiento por cuota
 
-- `ESTADOS_FACTURACION`: `pendiente` → `pagado` (automático al pagar todas las cuotas) → `archivado` (manual). `cancelado` **declarado pero sin uso**.
-- `ESTADOS_CUOTA`: `pendiente` → `pagado`. `vencido` **declarado pero sin transición ni job**.
+Cada cuota muestra:
 
-## 7. Reglas de negocio
+- **Fecha de emisión**: la real notificada por el sistema de facturación (o emitida por
+  el IIMP) y, si no existe, la programada del plan.
+- Estado de la cuota: pendiente / pagado.
+- **Siguiente cuota**: se resalta la primera cuota no pagada cuando falta ≤
+  `DIAS_ANTICIPACION_CUOTA` (15 días) para su fecha de emisión programada
+  ("se emite en N días", "se emite hoy" o "fecha de emisión pasada"); si la factura ya
+  se emitió, muestra "Factura emitida · pendiente de pago".
+- **Solicitud de factura pendiente**: si la reserva aún no se registró en el IIMP, se
+  resalta la cuota sugerida ("Solicitar factura aquí").
 
-- La facturación se cierra (`pagado`) solo cuando no quedan cuotas pendientes.
-- **La suma de las cuotas no puede superar `montoTotal`** (validado en `PagosApplicationService`
-  al agregar/editar; la vista deshabilita "Agregar cuota" cuando el plan está 100% distribuido).
-- `archivado` es irreversible desde la UI (el backend no lo impide).
-- Eliminar = baja lógica (`flgActivo=false`).
-- Historial en `facturacion_historial` (`agregar_cuota`, `pagar_cuota`, `actualizar`, `eliminar`, `eliminar_cuota`).
+### 4.4 Facturas
 
-## 8. Limitaciones y observaciones
+- Visualización y descarga mediante el proxy `GET /api/pagos/factura?cuotaId=`
+  (`&inline=1` para abrir en el navegador; sin `inline` descarga).
+- El proxy valida sesión y propiedad (Facturación/Admin pueden descargar cualquiera),
+  entrega solo PDF (firma `%PDF-`), aplica cabeceras seguras y devuelve **409** si la
+  factura fue anulada.
+- La URL del PDF se construye con `FACTURAS_PDF_URL_TEMPLATE` y `FACTURAS_EMISOR_RUC`
+  (bucket público del ecosistema IIMP).
 
-- **`cancelado` y `vencido` sin implementar**.
-- **Monto heurístico**: se calcula desde `rawData.monto|precio|importe` o parseando `medidas` (`solicitudes-repository.ts:385-390`), no de un tarifario formal.
-- **Modo `completo` sin flujo propio**: la única vía de pago es `pagar-cuota`.
-- ~~Posible 403 para `cliente`~~ **resuelto**: el exhibidor usa `/dashboard/mis-pagos` + `/api/pagos`
-  (permisos `pagos:view`/`pagos:manage` + validación de propiedad). `/dashboard/facturacion` sigue siendo admin.
-- **Niubiz deshabilitado** (`NIUBIZ_HABILITADO=false`). Al reactivar: en local está mockeado; en
-  producción usa proxy `IIMP_PROXY_URL` con `event`/`id_event`/`siecode_event` **hardcodeados**
-  (`niubizz-client.ts`). `confirmarPago` lee `respuesta_api` de la cuota, campo **inexistente** en el schema/DTO.
-- **Sin pago en línea**: el cobro real hoy es manual (admin registra `pagar-cuota` con comprobante).
-- La página de pago asume **USD fijo** (`pago/page.tsx:87`) sin usar `fact.moneda`.
-- Desajuste de tipos en `actualizar` (tipado `{tipo?}` vs. envío de `estado`/`modoPago`).
+### 4.5 Contacto de facturación
+
+Botón **"Contacto"** en Mis documentos: modal con los correos (`mailto:`) y teléfonos
+(`tel:`) configurados en `/dashboard/configuracion` (varios por lista, máximo 5 de cada
+uno; validación y deduplicado al guardar).
+
+## 5. Bandeja de Facturación — `/dashboard/facturacion`
+
+### 5.1 Indicadores (cards clickeables)
+
+| Card | Definición |
+|---|---|
+| **Total** | Todas las facturaciones activas |
+| **Sin solicitud de factura** | La reserva aún no se registró en el IIMP (el cliente no envió su solicitud) |
+| **Solicitudes enviadas sin factura** | Reserva registrada, pero ninguna cuota tiene documento de factura |
+| **Facturas generadas** | Al menos una cuota tiene documento de factura |
+| **Facturas anuladas** | Alguna cuota tiene un documento anulado/rechazado vigente como anulación |
+
+No se muestran indicadores ni acciones de **pago**: el cobro lo gestiona Contabilidad.
+El estado de la facturación se muestra como **"En proceso"** / **"Completado"**.
+
+### 5.2 Filtros
+
+- Búsqueda por stand, correo, RUC (snapshot y cuentas) o contrato IIMP.
+- **Requerimiento**: todos / sin solicitud de factura / solicitud enviada sin factura /
+  con factura generada / sin factura / factura anulada (backend:
+  `REQUERIMIENTOS_FACTURACION`).
+- Tipo: manual / Niubizz (`NIUBIZ_HABILITADO`).
+
+### 5.3 Columnas y progreso
+
+- **Cuotas**: chips numerados por cuota (verde = pagada, azul = facturada, gris =
+  pendiente de facturar) y resumen "X/N facturadas · Y/N pagadas".
+- Con el filtro **Con factura generada**, la tabla muestra **una fila por cuota
+  facturada** (datos de la solicitud con `rowSpan`) y la columna **"Emisión de
+  factura"** con la fecha real de emisión (o "—" si no fue notificada; no se usa la
+  programada).
+- **Fecha de solicitud**: fecha de creación de la facturación.
+
+### 5.4 Expediente (ojito)
+
+Modal por objetivo, con tabs:
+
+- **Cuotas y documentos**: contrato IIMP, cuenta corriente, total y una tarjeta por
+  cuota con estado, fecha de emisión, factura IIMP/SIE y documentos del cliente
+  (archivos de cuenta corriente, voucher y comprobante fiscal) con vista previa,
+  apertura en pestaña y descarga.
+- **Contacto y facturación**: snapshot de facturación de la reserva, representante
+  legal, responsable de pagos y coordinación EXTEMIN.
+- **Empresa**: ficha completa.
+- **Solicitud y anexos**: datos de la solicitud, **checklist de requisitos tal como lo
+  respondió el cliente** (marcados y no marcados, con cuota de origen, plataforma y
+  otros), contrato firmado (SGC) y documentos de la solicitud.
+
+### 5.5 Acciones
+
+- Ver detalle (expediente), archivar (facturación completada), cambiar tipo de pago y
+  eliminar (baja lógica). No hay registro manual de pagos en la bandeja.
+
+## 6. Estados y transiciones
+
+| Entidad | Estados |
+|---|---|
+| **Facturación** | `pendiente` → `pagado` (cuando todas las cuotas están pagadas) → `archivado` (manual). `cancelado` declarado sin uso |
+| **Cuota** | `pendiente` → `pagado` (notificación `estadoPago: 0` o corrección autorizada); `vencido` declarado sin transición |
+| **Solicitud** | `pendiente_pago` → `pagado` (al cerrarse la facturación) |
+| **Documento de factura** | Vigente / anulado (se limpia al recibir `estadoPago: 2`) |
+
+La facturación y la solicitud se cierran **solo** cuando no quedan cuotas pendientes.
+
+## 7. Integración con el sistema de facturación (API entrante)
+
+`POST /api/integracion/factura` (M2M, header `x-api-key`, ver guía técnica):
+
+- `estadoPago: 0` → registra documento y **marca la cuota pagada**; si no quedan
+  pendientes, cierra facturación y solicitud.
+- `estadoPago: 1` → registra el documento (y `fechaEmision` si viene); **no cambia el
+  estado de la cuota**.
+- `estadoPago: 2` → anulación/rechazo: limpia el documento de la cuota; **no revierte el
+  estado de pago**. Requiere `justificacion` (máx. 500) y genera alerta a Facturación.
+- `fechaEmision` (opcional, `YYYY-MM-DD`, no futura): fecha real de emisión; se guarda en
+  la cuota y se muestra en Mis documentos y en la bandeja.
+- Reemisión: se envía el nuevo documento (reemplaza al anterior; sin `Idempotency-Key`).
+
+**Caso excepcional (documentado)**: si una cuota quedó pagada por un `0` y luego el
+documento se anula (`2`) y se reemite (`1`), la cuota sigue pagada porque `2` no revierte
+el pago y `1` no cambia el estado. La corrección se hace de forma **manual y autorizada**
+(`UPDATE` de `estado` a `pendiente` + registro en `facturacion_historial` con autor).
+Alternativa a evaluar: revertir el estado al recibir `2` (pendiente de decisión).
+
+## 8. Correos
+
+- Plantilla `revision-resultado`: al aprobarse la solicitud, el correo incluye el paso a
+  paso para enviar la solicitud de factura (CTA a "Mis documentos").
+- Adjuntar comprobante fiscal de una cuota notifica al cliente.
+- Los textos usan tildes correctas (revisión, áreas, ocasión, sección, documentación,
+  reevaluación, automático).
+
+## 9. Configuración del portal
+
+`/dashboard/configuracion`:
+- **Contacto de facturación**: listas dinámicas de correos y teléfonos (máx. 5 por lista),
+  validación de formato y deduplicado. Se muestran en el botón "Contacto" de Mis documentos.
+- Contactos generales, enlaces, parámetros de reserva y mantenimiento.
+
+## 10. Reglas de negocio
+
+- La suma de cuotas no puede superar `montoTotal`.
+- La facturación de una reserva se registra **una sola vez**; la notificación es por cuota.
+- Los requisitos y documentos del cliente son **referenciales**.
+- `PAGO_TOTAL` es excluyente con `DETRACCION`/`DIFERENCIA` de una misma cuota.
+- Eliminar una facturación es baja lógica (`flgActivo = false`).
+- Historial en `facturacion_historial` (`agregar_cuota`, `pagar_cuota`, `actualizar`,
+  `eliminar`, `eliminar_cuota`, `adjuntar_voucher`, `documento_iimp`).
+
+## 11. Limitaciones conocidas
+
+- `cancelado` (facturación) y `vencido` (cuota) declarados sin transición ni job.
+- El monto de la reserva es heurístico (rawData/precio/medidas), no de un tarifario.
+- Niubiz deshabilitado; sin pago en línea.
+- La corrección de estados por anulaciones con pago previo es manual (ver §7).

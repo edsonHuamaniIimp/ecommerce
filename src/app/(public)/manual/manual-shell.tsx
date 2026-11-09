@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronRight,
   LifeBuoy,
+  Receipt,
   ShieldCheck,
   Store,
 } from "lucide-react";
@@ -39,7 +40,19 @@ const GUIAS = {
     href: "/manual/dd",
     icon: ShieldCheck,
   },
+  facturacion: {
+    nombre: "Facturación",
+    detalle: "Requisitos, solicitud y facturas",
+    href: "/manual/facturacion",
+    icon: Receipt,
+  },
 } as const;
+
+const GUIA_SIGUIENTE: Record<GuiaManual, keyof typeof GUIAS> = {
+  reservas: "dd",
+  dd: "facturacion",
+  facturacion: "reservas",
+};
 
 export function ManualShell({
   guia,
@@ -53,7 +66,7 @@ export function ManualShell({
   toc,
   html,
 }: ManualShellProps) {
-  const otraGuia = guia === "reservas" ? GUIAS.dd : GUIAS.reservas;
+  const otraGuia = GUIAS[GUIA_SIGUIENTE[guia]];
   const OtroIcono = otraGuia.icon;
 
   return (
