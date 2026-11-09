@@ -25,7 +25,7 @@ import {
 } from "@/lib/shared/constants";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { anexosBloqueantesFaltantes, contratoFirmadoPendienteReemplazo, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoFirmadoPendienteReemplazo, esObservacionSgcContrato, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -257,6 +257,8 @@ export function SolicitudReview({
       d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
       d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
   );
+  /* Observacion del contrato desde el SGC (no marca el documento local como observado). */
+  const sgcContratoObservado = sgcObservacionesAbiertas(row).find(esObservacionSgcContrato) ?? null;
   /* El contrato firmado por el cliente fue observado y aun no tiene reemplazo. */
   const contratoFirmadoObservadoPendiente = contratoFirmadoPendienteReemplazo(row);
   /*
@@ -282,8 +284,16 @@ export function SolicitudReview({
       contratoAdminReemplazado &&
       dateUtils.isAfter(contratoAdminActivo.createdAt, contratoAdminReemplazado.createdAt),
   );
+  /* Si el admin regenero despues de la observacion del SGC, ya no se ofrece regenerar. */
+  const contratoRegeneradoSgc = Boolean(
+    sgcContratoObservado?.createdAt &&
+      contratoAdminActivo &&
+      dateUtils.isAfter(contratoAdminActivo.createdAt, sgcContratoObservado.createdAt),
+  );
   const contratoRegenerado =
-    contratoAdminRegenerado || (contratoFirmadoObservadoPendiente && tieneContratoAdminNuevo);
+    contratoAdminRegenerado ||
+    (contratoFirmadoObservadoPendiente && tieneContratoAdminNuevo) ||
+    contratoRegeneradoSgc;
   /* El cliente ya volvio a firmar la correccion: no corresponde regenerar otra vez. */
   const contratoCorregidoYaFirmado = hayFirmadoPosteriorAlContratoCorregido(row);
 
@@ -633,14 +643,16 @@ export function SolicitudReview({
                 </div>
               </div>
               {(isAdmin || canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO)) &&
-                (contratoAdminObservado || contratoFirmadoObservadoPendiente) && (
+                (contratoAdminObservado || contratoFirmadoObservadoPendiente || Boolean(sgcContratoObservado)) && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <p className="text-[11px] text-foreground">
                     {contratoRegenerado
                       ? "El contrato ya fue regenerado y enviado. Esperando que el cliente lo firme."
-                      : contratoAdminObservado
-                        ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
-                        : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
+                      : sgcContratoObservado
+                        ? "El área legal observó el contrato. Genera la versión corregida y habilita la firma del cliente."
+                        : contratoAdminObservado
+                          ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
+                          : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
                   </p>
                   {contratoRegenerado ? (
                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
