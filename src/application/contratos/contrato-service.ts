@@ -3,6 +3,7 @@ import 'server-only';
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
@@ -892,15 +893,38 @@ export class ContratoApplicationService {
   private convertirConSoffice(inPath: string): Promise<Buffer | null> {
     return new Promise((resolve) => {
       const outPath = inPath.replace(/\.docx$/, ".pdf");
-      const proc = spawn(this.resolverSoffice(), ["--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath], { stdio: "ignore" });
-      proc.on("error", () => resolve(null));
+      /* El usuario del contenedor no tiene HOME escribible: sin un perfil propio,
+       * LibreOffice no inicia y la conversion devuelve null (contrato solo DOCX). */
+      const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "lo-profile-"));
+      const profileUrl = pathToFileURL(profileDir).href;
+      const limpiar = () => {
+        fs.rmSync(profileDir, { recursive: true, force: true });
+      };
+      const proc = spawn(
+        this.resolverSoffice(),
+        [`-env:UserInstallation=${profileUrl}`, "--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath],
+        { stdio: "ignore" },
+      );
+      let terminado = false;
+      const finalizar = (buf: Buffer | null) => {
+        if (terminado) return;
+        terminado = true;
+        clearTimeout(timer);
+        limpiar();
+        resolve(buf);
+      };
+      const timer = setTimeout(() => {
+        proc.kill();
+        finalizar(null);
+      }, CONVERSION_PDF_TIMEOUT_MS);
+      proc.on("error", () => finalizar(null));
       proc.on("close", (code) => {
         if (code === 0 && fs.existsSync(outPath)) {
           const buf = fs.readFileSync(outPath);
           fs.rmSync(outPath, { force: true });
-          resolve(buf);
+          finalizar(buf);
         } else {
-          resolve(null);
+          finalizar(null);
         }
       });
     });
