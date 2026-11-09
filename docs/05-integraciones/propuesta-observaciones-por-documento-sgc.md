@@ -139,11 +139,18 @@ Incluir `observations[]` y `currentVersionNumber` para auditoría/historial por 
 
 Con estos ejemplos montamos las pruebas y validamos el mapeo end-to-end.
 
-## 7. Estado de implementación (2026-11-03)
+## 7. Estado de implementación (actualizado 6-nov-2026)
 
-- La guía v6 del SGC ya envía `observations[]` por documento; ContratosStands las
+- La guía v6+ del SGC ya envía `observations[]` por documento; ContratosStands las
   persiste y las muestra al cliente con el documento y el motivo exactos.
+- v7: se exige **un archivo por observación**, se soportan `requiresNewDocument` y
+  `missingDocuments[]`, y la UI muestra “te piden N, llevas M”.
 - Se implementó el reemplazo guiado del documento observado, la validación previa al
   reenvío y el estado **"Revisión solicitada"** para evitar reenvíos duplicados.
+- El reenvío sube contrato solo si la observación es del contrato; si son solo anexos,
+  no se versiona el principal.
+- v8: el sync/polling detecta observaciones sueltas y la alerta de campana incluye el
+  detalle; no se sube nada mientras el expediente está en revisión y el outbox no
+  reintenta ese `409`.
 - Los campos siguen siendo **opcionales**: si no llegan observaciones, el flujo legacy
   se mantiene sin cambios.
