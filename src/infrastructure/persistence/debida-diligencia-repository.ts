@@ -983,7 +983,19 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           empresa: { select: empresaSelect },
           evento: { select: eventoSelect },
           beneficiarios: { orderBy: { orden: "asc" } },
-          documentos: { select: { tipo: true, estado: true } },
+          documentos: {
+            select: {
+              tipo: true,
+              estado: true,
+              nombre: true,
+              url: true,
+              versiones: {
+                orderBy: { version: "desc" },
+                take: 1,
+                select: { version: true, nombre: true, url: true },
+              },
+            },
+          },
           observaciones: { where: { estado: DD_OBSERVACION_ESTADOS.ABIERTA }, select: { id: true } },
           reputacion: { select: { estado: true } },
         },
@@ -1135,6 +1147,16 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
             d.estado !== DD_DOCUMENTO_ESTADOS.PENDIENTE,
         ).length,
         documentoTotal: DD_DOCUMENTOS_REQUERIDOS.length,
+        documentos: row.documentos.map((documento) => {
+          const principal = documento.versiones[0];
+          return {
+            tipo: documento.tipo as DdDocumentoTipo,
+            nombre: principal?.nombre ?? documento.nombre,
+            url: principal?.url ?? documento.url,
+            estado: documento.estado as DdDocumentoEstado,
+            version: principal?.version ?? null,
+          };
+        }),
         fechaEnvio: row.fechaEnvio ?? null,
         fechaAprobacion: row.fechaAprobacion ?? null,
         fechaVencimiento: row.fechaVencimiento ?? null,

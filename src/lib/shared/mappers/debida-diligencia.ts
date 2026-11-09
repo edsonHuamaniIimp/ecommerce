@@ -387,6 +387,7 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     solicitudesAlquiler: row.solicitudesAlquiler,
     documentoCargados: row.documentoCargados,
     documentoTotal: row.documentoTotal,
+    documentos: row.documentos,
     fechaEnvio: fecha(row.fechaEnvio),
     fechaAprobacion: fecha(row.fechaAprobacion),
     fechaVencimiento: fecha(row.fechaVencimiento),

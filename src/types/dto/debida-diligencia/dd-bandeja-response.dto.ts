@@ -1,5 +1,14 @@
 import type { DdBeneficiarioDTO, DdEmpresaDTO } from "./dd-expediente.dto";
 
+export interface DdBandejaDocumentoDTO {
+  tipo: string;
+  nombre: string;
+  url: string;
+  estado: string;
+  /** Ultima version cargada; null si el documento es legacy y no tiene historial. */
+  version: number | null;
+}
+
 export interface DdBandejaRowDTO {
   id: string;
   codigo: string;
@@ -19,6 +28,7 @@ export interface DdBandejaRowDTO {
   solicitudesAlquiler: number;
   documentoCargados: number;
   documentoTotal: number;
+  documentos: DdBandejaDocumentoDTO[];
   fechaEnvio: string | null;
   fechaAprobacion: string | null;
   fechaVencimiento: string | null;
