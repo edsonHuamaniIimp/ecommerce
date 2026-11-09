@@ -32,7 +32,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory } from "@/lib/shared/constants";
-import { construirIdempotencyKey, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -623,7 +623,7 @@ export class SgcIntegracionApplicationService {
     return this.subirDocumentoDesdeUrl(solicitudId, {
       category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
       title: SGC_TITULOS_DOCUMENTO.CONTRATO,
-      fileName: `contrato-${this.slugArchivo(stands)}.pdf`,
+      fileName: `contrato-${this.slugArchivo(stands)}.${extensionArchivo(contrato.nombre)}`,
       url: contrato.url,
     });
   }
@@ -699,7 +699,7 @@ export class SgcIntegracionApplicationService {
       documento = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
         title: SGC_TITULOS_DOCUMENTO.CONTRATO_FIRMADO,
-        fileName: `contrato-firmado-${this.slugArchivo(stands)}.pdf`,
+        fileName: `contrato-firmado-${this.slugArchivo(stands)}.${extensionArchivo(pieza.nombre)}`,
         url: pieza.url,
         documentId: contratoSgc.documentId,
         replacementReason: SGC_SUBSANACION_MOTIVO,

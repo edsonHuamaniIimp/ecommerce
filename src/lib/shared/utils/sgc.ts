@@ -87,6 +87,11 @@ export async function verificarFirmaSgc(params: {
 }
 
 /** Mime declarado exacto segun la extension del archivo (formatos admitidos por el SGC). */
+export function extensionArchivo(nombre: string): string {
+  const ext = (nombre.split(".").pop() ?? "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return ext || "pdf";
+}
+
 export function mimeDesdeNombre(nombre: string): string {
   const ext = nombre.split(".").pop()?.toLowerCase() ?? "";
   return SGC_MIME_TYPES[ext] ?? SGC_MIME_TYPE_DEFAULT;
