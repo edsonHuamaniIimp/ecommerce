@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PERSONALIZADAS, type Idioma } from "@/lib/shared/constants";
+import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PERSONALIZADAS, MONEDAS, type Idioma } from "@/lib/shared/constants";
 import { fechasCuotasEstructuralmenteValidas } from "@/lib/shared/utils/cuotas";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -48,6 +48,8 @@ const contratoDatosSchema = z.object({
  */
 export const generarContratoSchema = z.object({
   solicitudId: z.string().uuid("solicitudId invalido"),
+  /** Moneda del contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   /** Cuotas del plan; si faltan (p.ej. admin regenerando en una correccion SGC) se usa el plan persistido. */
@@ -63,6 +65,8 @@ export const generarContratoSchema = z.object({
  */
 export const borradorContratoSchema = z.object({
   standIds: z.array(z.string().uuid("standId invalido")).min(1, "Selecciona al menos un stand").max(50, "Demasiados stands"),
+  /** Moneda del contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   cuotas: cuotasContratoSchema,

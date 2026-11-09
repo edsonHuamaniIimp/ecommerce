@@ -9,6 +9,8 @@ import type { Idioma } from "@/lib/shared/constants";
 export const contratosService = {
   generar(body: {
     solicitudId: string;
+    /** Moneda del contrato. */
+    moneda?: "USD" | "PEN";
     /** Cuotas configuradas (1..3): porcentaje + fecha de pago (yyyy-mm-dd). Si faltan (admin regenerando) se usa el plan persistido. */
     cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
     /** Idioma del contrato (F3): el que ve el usuario en la UI. */
@@ -27,6 +29,7 @@ export const contratosService = {
   /** Borrador del contrato (paso Contrato): NO crea la solicitud. */
   borrador(body: {
     standIds: string[];
+    moneda?: "USD" | "PEN";
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
@@ -38,6 +41,7 @@ export const contratosService = {
   /** Firma digital del borrador (antes de que exista la solicitud). */
   firmarBorrador(body: {
     standIds: string[];
+    moneda?: "USD" | "PEN";
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */

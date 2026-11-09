@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, CheckCircle2, CreditCard, FileSignature, FileText, ShieldCheck } from "lucide-react";
 import { Input, Label } from "@nrivera-iimp/ui-kit-iimp";
-import { BADGE_STYLES, MODALIDADES_CUOTAS, MONEDAS, PORCENTAJES_POR_MODALIDAD, VALIDACIONES, type ModalidadCuotas } from "@/lib/shared/constants";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { BADGE_STYLES, MODALIDADES_CUOTAS, PORCENTAJES_POR_MODALIDAD, VALIDACIONES, type ModalidadCuotas } from "@/lib/shared/constants";
+import { importesEnMoneda, MONEDAS_CONTRATO, simboloMoneda, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -14,8 +14,13 @@ import type { DatosContratoForm } from "./interfaces";
 import type { CuotaConfig } from "./use-reserva-form";
 
 interface Props {
-  /** Precios netos (USD) de los stands seleccionados. */
+  /** Precios netos base (USD) de los stands seleccionados. */
   precios: number[];
+  /** Moneda elegida para el contrato. */
+  moneda: MonedaContrato;
+  /** Tipo de cambio del evento (soles por dolar). */
+  tipoCambio: number | null;
+  onMonedaChange: (moneda: MonedaContrato) => void;
   /** Cronograma personalizado de la empresa (Modalidad 4), si existe. */
   configCuotas: ConfigCuotasEmpresa | null;
   /** Cuotas configuradas por el cliente: porcentaje + fecha (1..N, hasta 9). */
@@ -40,10 +45,14 @@ const OPCIONES: Array<{ cantidad: ModalidadCuotas; etiqueta: string; detalle: st
  * Paso 2: el cliente elige una modalidad de pago fija. Las fechas y porcentajes
  * los determina el cronograma del contrato; no se editan a mano.
  */
-export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato, sinContrato = true }: Props) {
-  const neto = precios.reduce((s, p) => s + p, 0);
-  const importes = calcularImportes(neto);
-  const moneda = MONEDAS.USD;
+export function StepPagos({ precios, moneda, tipoCambio, onMonedaChange, configCuotas, cuotas, onCuotasChange, contratoDatos, onContratoDatosChange, contrato, sinContrato = true }: Props) {
+  const netoUsd = precios.reduce((s, p) => s + p, 0);
+  const penDisponible = tipoCambioValido(tipoCambio);
+  const monedaEfectiva = moneda === MONEDAS_CONTRATO.PEN && !penDisponible
+    ? MONEDAS_CONTRATO.USD
+    : moneda;
+  const importes = importesEnMoneda(netoUsd, monedaEfectiva, tipoCambio);
+  const monedaLabel = simboloMoneda(monedaEfectiva);
   const hoy = dateUtils.todayLimaInputValue();
   const contratoOk = datosContratoValidos(contratoDatos);
   /* Lookups del API: RUC (SUNAT) y DNI del representante (RENIEC). */
@@ -157,6 +166,43 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
         </p>
       </div>
 
+      {/* Moneda del contrato */}
+      <div className="rounded-xl border border-border bg-card px-3 py-3">
+        <p className="text-[10px] font-semibold tracking-wider text-primary uppercase">Moneda del contrato</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            aria-pressed={moneda === MONEDAS_CONTRATO.USD}
+            onClick={() => onMonedaChange(MONEDAS_CONTRATO.USD)}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+              moneda === MONEDAS_CONTRATO.USD
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/50"
+            }`}
+          >
+            Dólares (USD)
+          </button>
+          <button
+            type="button"
+            aria-pressed={moneda === MONEDAS_CONTRATO.PEN}
+            disabled={!penDisponible}
+            onClick={() => onMonedaChange(MONEDAS_CONTRATO.PEN)}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              moneda === MONEDAS_CONTRATO.PEN
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/50"
+            }`}
+          >
+            Soles (PEN)
+          </button>
+        </div>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+          {penDisponible
+            ? `Tipo de cambio del evento: 1 USD = ${simboloMoneda(MONEDAS_CONTRATO.PEN)} ${tipoCambio?.toFixed(4)}`
+            : "El evento todavía no tiene configurado un tipo de cambio para soles."}
+        </p>
+      </div>
+
       {/* Resumen de importes */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="border-b border-border bg-secondary px-3 py-2 text-[10px] font-semibold tracking-wider text-primary uppercase">
@@ -165,15 +211,15 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
         <div className="space-y-1.5 px-3 py-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Valor venta (neto)</span>
-            <span className="font-medium text-foreground">{numberUtils.monto(importes.valorVenta, moneda, { decimales: 2 })}</span>
+            <span className="font-medium text-foreground">{numberUtils.monto(importes.valorVenta, monedaLabel, { decimales: 2 })}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">IGV (18%)</span>
-            <span className="font-medium text-foreground">{numberUtils.monto(importes.igv, moneda, { decimales: 2 })}</span>
+            <span className="font-medium text-foreground">{numberUtils.monto(importes.igv, monedaLabel, { decimales: 2 })}</span>
           </div>
           <div className="flex items-center justify-between border-t border-border pt-1.5 text-sm">
             <span className="font-semibold text-foreground">Total a pagar</span>
-            <span className="font-bold text-primary">{numberUtils.monto(importes.total, moneda, { decimales: 2 })}</span>
+            <span className="font-bold text-primary">{numberUtils.monto(importes.total, monedaLabel, { decimales: 2 })}</span>
           </div>
         </div>
       </div>
@@ -217,7 +263,7 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
                     />
                     <span className="text-muted-foreground">%</span>
                     <span className="w-20 text-right font-semibold text-foreground">
-                      {numberUtils.monto(cuota.monto, moneda, { decimales: 2 })}
+                      {numberUtils.monto(cuota.monto, monedaLabel, { decimales: 2 })}
                     </span>
                   </span>
                 </div>
@@ -292,7 +338,7 @@ export function StepPagos({ precios, configCuotas, cuotas, onCuotasChange, contr
                   <span className="font-semibold text-foreground">{cuota.numero}. {cuota.porcentaje}%</span>
                   <span className="text-muted-foreground">{fechaVisible(cuota.fechaVencimiento ?? "")}</span>
                   <span className="text-right font-semibold text-foreground">
-                    {numberUtils.monto(cuota.monto, moneda, { decimales: 2 })}
+                    {numberUtils.monto(cuota.monto, monedaLabel, { decimales: 2 })}
                   </span>
                 </div>
               ))}

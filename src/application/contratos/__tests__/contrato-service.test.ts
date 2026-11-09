@@ -1018,4 +1018,33 @@ describe("ContratoApplicationService.generar — contrato posterior", () => {
       userPermissions: [],
     })).rejects.toMatchObject({ status: 409 });
   });
+
+  it("genera el contrato en soles usando el tipo de cambio y las cuentas PEN", async () => {
+    const { svc, storage, solicitudes } = build({
+      detalle: {
+        moneda: "PEN",
+        tipoCambio: 3.75,
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("S/ 8,850.00");
+    expect(texto).toContain("S/ 7,500.00");
+    expect(texto).toContain("191-2654259-0-95");
+    expect(texto).toContain("002-191-002654259095-50");
+    expect(texto).toContain("000-00372668");
+    expect(texto).not.toContain("000-00-372668");
+    expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ moneda: "PEN", tipoCambio: 3.75 }),
+    );
+  });
 });

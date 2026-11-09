@@ -40,7 +40,7 @@ export const reservaController = {
       ip: requestMetadata(request).ip,
     });
     if (!result.ok) {
-      return error(API_ERROR_CODES.CONFLICT, "Algunos stands ya estan reservados", 409);
+      return error(API_ERROR_CODES.CONFLICT, result.message, 409);
     }
     if (result.solicitudId) {
       const meta = requestMetadata(request);

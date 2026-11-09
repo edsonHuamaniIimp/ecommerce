@@ -37,3 +37,51 @@ describe("sumarMontos", () => {
     expect(sumarMontos([])).toBe(0);
   });
 });
+
+describe("redondear2 (precision monetaria)", () => {
+  it.each([
+    [1.005, 1.01],
+    [2.675, 2.68],
+    [1694.915, 1694.92],
+    [0.1 + 0.2, 0.3],
+    [0.004, 0],
+    [0.005, 0.01],
+    [999999.994, 999999.99],
+    [999999.995, 1000000],
+  ])("redondea %s a %s", (entrada, esperado) => {
+    expect(redondear2(entrada)).toBe(esperado);
+  });
+
+  it("rechaza montos no finitos", () => {
+    expect(() => redondear2(Number.NaN)).toThrow(TypeError);
+    expect(() => redondear2(Number.POSITIVE_INFINITY)).toThrow(TypeError);
+  });
+});
+
+describe("calcularImportes (centavos exactos)", () => {
+  it.each([
+    [0, { valorVenta: 0, igv: 0, total: 0 }],
+    [0.01, { valorVenta: 0.01, igv: 0, total: 0.01 }],
+    [1.005, { valorVenta: 1.01, igv: 0.18, total: 1.19 }],
+    [1694.915, { valorVenta: 1694.92, igv: 305.09, total: 2000.01 }],
+  ])("calcula %s sin perder centavos", (neto, esperado) => {
+    expect(calcularImportes(neto)).toEqual(esperado);
+  });
+
+  it("rechaza netos negativos o no finitos", () => {
+    expect(() => calcularImportes(-1)).toThrow(TypeError);
+    expect(() => calcularImportes(Number.NaN)).toThrow(TypeError);
+    expect(() => calcularImportes(Number.POSITIVE_INFINITY)).toThrow(TypeError);
+  });
+});
+
+describe("sumarMontos (suma exacta en centavos)", () => {
+  it.each([
+    [[0.1, 0.2], 0.3],
+    [[1.005, 2.675], 3.69],
+    [[13735.2, 10301.4, 10301.4], 34338],
+    [[0.01, 0.01, 0.01], 0.03],
+  ])("suma %j", (montos, esperado) => {
+    expect(sumarMontos(montos.map((monto) => ({ monto })))).toBe(esperado);
+  });
+});

@@ -8,6 +8,7 @@ import type { Idioma } from "@/lib/shared/constants";
  */
 export interface FirmarBorradorContratoRequestDTO {
   standIds: string[];
+  moneda?: "USD" | "PEN";
   idioma?: Idioma;
   cuotas: CuotaBorradorDTO[];
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */

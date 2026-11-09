@@ -12,6 +12,8 @@ export interface DatosFacturacionRequestDTO {
 
 export interface ReservaRequestDTO {
   standIds: string[];
+  /** Moneda elegida para la solicitud/contrato (USD | PEN). */
+  moneda?: "USD" | "PEN";
   /** Hold temporal creado al abrir el wizard. */
   holdId?: string;
   documentos?: string[];

@@ -39,7 +39,7 @@ export interface PrecioStandFuente {
 function numeroDesdeMedidas(medidas: string | null | undefined): number | null {
   const texto = String(medidas ?? "").trim();
   if (!texto) return null;
-  const esPrecio = /US\$|USD|\$/i.test(texto) || /^[\d.,]+$/.test(texto);
+  const esPrecio = /US\$|USD|PEN|S\/|SOLES|\$/i.test(texto) || /^[\d.,]+$/.test(texto);
   if (!esPrecio) return null;
   const num = parseFloat(texto.replace(/[^0-9.]/g, ""));
   return Number.isFinite(num) ? num : null;

@@ -14,6 +14,7 @@ import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
 function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null } | null = null): IAuthRepository {
@@ -298,6 +299,44 @@ describe("ReservaApplicationService - snapshot de cuotas", () => {
           expect.objectContaining({ porcentaje: 30, fechaVencimiento: "2027-06-15" }),
         ]),
       }),
+    );
+  });
+});
+describe("ReservaApplicationService - moneda del contrato", () => {
+  it("convierte el precio a soles antes del IGV y guarda el snapshot", async () => {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      crearRevisionInicial: vi.fn(async () => ({})),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const eventoRepo = {
+      findById: vi.fn(async () => ({ tipoCambio: 3.75 })),
+    } as unknown as IEventoRepository;
+    const svc = new ReservaApplicationService(repo, solicitudesRepo, authRepoFalso(), undefined, undefined, eventoRepo);
+
+    const res = await svc.crear({
+      standIds: ["g1"],
+      eventoId: "evt-1",
+      userSub: "user-1",
+      moneda: "PEN",
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+    });
+
+    expect(res.ok).toBe(true);
+    expect(solicitudesRepo.crearSolicitud).toHaveBeenCalledWith(
+      ["g1"],
+      "user-1",
+      undefined,
+      null,
+      { actor: "user-1", ip: null },
+      { moneda: "PEN", tipoCambio: 3.75 },
+    );
+    expect(solicitudesRepo.guardarPlanCuotas).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({ moneda: "PEN", tipoCambio: 3.75 }),
     );
   });
 });

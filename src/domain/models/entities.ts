@@ -88,6 +88,8 @@ export interface EventoEntity {
   flgActivo: boolean;
   flgVisible: boolean;
   plano: string;
+  /** Soles por dolar para contratos en PEN; null = PEN no habilitado. */
+  tipoCambio?: number | null;
   eventoPadre?: EventoPadreEntity;
   createdAt?: Date;
   updatedAt?: Date;
@@ -226,6 +228,8 @@ export interface RevisionHistorialEntity {
 
 export interface SolicitudRow {
   id: string;
+  /** Version de evento de los stands de la solicitud (para resolver el TC del evento). */
+  eventoId?: string | null;
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
@@ -235,8 +239,12 @@ export interface SolicitudRow {
   standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
-  /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
+  /** Precio base de la reserva en USD (del stand simple o suma de la reserva multiple). */
   precio?: number;
+  /** Moneda elegida para el contrato (USD | PEN). */
+  moneda?: string;
+  /** Tipo de cambio aplicado al crear la solicitud (soles por dolar; 1 para USD). */
+  tipoCambio?: number | null;
   empresa: string | null;
   /** Pais ISO alpha-2 de la empresa vinculada. */
   pais?: string | null;
@@ -321,6 +329,10 @@ export interface PlanCuotasSolicitud {
   /** `completo` | `cuotas` | `tres_cuotas` | `personalizado` (ver MODOS_PAGO). */
   modalidad: string;
   cuotas: PlanCuotasItem[];
+  /** Moneda de los montos del plan (USD | PEN). */
+  moneda?: string;
+  /** Tipo de cambio aplicado al crear el plan (soles por dolar). */
+  tipoCambio?: number | null;
 }
 
 /**

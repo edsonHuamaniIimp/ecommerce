@@ -41,8 +41,10 @@ export class EventoApplicationService {
     plano?: string;
     imagen?: string;
     modal_info?: ModalInfoConfig | null;
+    /** Soles por dolar; null deshabilita PEN para esta version. */
+    tipo_cambio?: number | null;
   }) {
-    const mapped: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible" | "plano" | "imagen">> = {};
+    const mapped: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "flgActivo" | "flgVisible" | "plano" | "imagen" | "tipoCambio">> = {};
     if (data.estado !== undefined) mapped.estado = data.estado;
     if (data.anio !== undefined) mapped.anio = data.anio;
     if (data.fecha_inicio !== undefined) mapped.fechaInicio = data.fecha_inicio ? new Date(data.fecha_inicio) : null;
@@ -51,6 +53,7 @@ export class EventoApplicationService {
     if (data.flg_visible !== undefined) mapped.flgVisible = data.flg_visible;
     if (data.plano !== undefined) mapped.plano = data.plano;
     if (data.imagen !== undefined) mapped.imagen = data.imagen;
+    if (data.tipo_cambio !== undefined) mapped.tipoCambio = data.tipo_cambio;
 
     const tipoEvento = data.tipo_evento;
     const codigoEvento = data.codigo_evento;
@@ -73,6 +76,7 @@ export class EventoApplicationService {
         flgVisible: data.flg_visible,
         plano: data.plano,
         modalInfo: data.modal_info,
+        tipoCambio: data.tipo_cambio,
       });
     }
     if (data.id) return this.repo.update(data.id, mapped);

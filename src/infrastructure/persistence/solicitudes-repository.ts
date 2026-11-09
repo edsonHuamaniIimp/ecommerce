@@ -10,6 +10,7 @@ import { areasRevisionLocal, observadaPorArea } from "@/lib/shared/utils/revisio
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
+import { convertirNeto, simboloMoneda } from "@/lib/shared/utils/moneda";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -132,6 +133,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     updatedAt: r.updatedAt,
   }));
 
+  let eventoId: string | null = null;
   let standCode = "";
   let standCodes: string[] = [];
   let standsDetalle: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }> = [];
@@ -155,6 +157,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     const stand = row.gessStand;
     if (stand) {
       /* El cliente ve el codigo comercial; el prefijo tecnico "BLOQUE-" del plano se omite. */
+      eventoId = stand.eventoId ?? null;
       standCode = codigoComercialStand(stand.standCode);
       standCodes = [standCode];
       standsDetalle = [{ standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
@@ -202,6 +205,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     const firstStand = stands[0];
     if (firstStand) {
       const first = firstStand.gessStand;
+      eventoId = first.eventoId ?? null;
       tipoStand = first.tipoStand;
       medidas = first.medidas;
       estado = first.estado;
@@ -350,6 +354,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
 
     return {
     id: solicitudId,
+    eventoId,
     gessStandId,
     standCode,
     standCodes,
@@ -366,6 +371,8 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     pabellon,
     ubicacion,
     precio,
+    moneda: row.moneda ?? "USD",
+    tipoCambio: row.tipoCambio ?? null,
     documentosCategorias,
     empresaMontajistaId,
     empresaMontajistaNombre,
@@ -764,6 +771,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     email?: string,
     datosFacturacion?: DatosFacturacionSolicitud | null,
     auditoria?: { actor?: string | null; ip?: string | null },
+    moneda?: { moneda: string; tipoCambio: number | null },
   ): Promise<string> {
     const created = await prisma.solicitud.create({
       data: {
@@ -771,6 +779,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         userId: userId ?? null,
         email: email ?? null,
         datosFacturacion: (datosFacturacion ?? undefined) as never,
+        moneda: moneda?.moneda ?? "USD",
+        tipoCambio: moneda?.tipoCambio ?? 1,
         createdBy: auditoria?.actor ?? null,
         updatedBy: auditoria?.actor ?? null,
         createdIp: auditoria?.ip ?? null,
@@ -880,7 +890,10 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async marcarOrdenPago(solicitudId: string): Promise<void> {
     await prisma.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
 
-    const sol = await prisma.solicitud.findUnique({ where: { id: solicitudId }, select: { gessStandId: true, planCuotas: true } });
+    const sol = await prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true },
+    });
     const stands = sol?.gessStandId
       ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
       : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
@@ -891,18 +904,22 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
      * se mantiene el comportamiento anterior (precio base del stand).
      */
     const plan = sol?.planCuotas as
-      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }> }
+      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }>; moneda?: string; tipoCambio?: number | null }
       | null;
     const cuotasPlan = plan?.cuotas ?? [];
+    const moneda = plan?.moneda ?? sol?.moneda ?? MONEDAS.USD;
+    const tipoCambio = plan?.tipoCambio ?? sol?.tipoCambio ?? 1;
+    const montoBaseUsd = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
     const montoTotal = cuotasPlan.length > 0
       ? sumarMontos(cuotasPlan)
-      : stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+      : convertirNeto(montoBaseUsd, moneda, tipoCambio);
 
+    const monedaFacturacion = simboloMoneda(moneda);
     const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
     const facturacion = existing
-      ? await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal } })
+      ? await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal, moneda: monedaFacturacion } })
       : await prisma.facturacion.create({
-          data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: MONEDAS.US_DOLAR },
+          data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: monedaFacturacion },
         });
 
     /*
@@ -1166,6 +1183,54 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     });
   }
 
+  async cambiarMonedaSolicitud(
+    solicitudId: string,
+    data: {
+      moneda: string;
+      tipoCambio: number;
+      plan: PlanCuotasSolicitud;
+      actor: string | null;
+    },
+  ): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.solicitud.update({
+        where: { id: solicitudId },
+        data: {
+          moneda: data.moneda,
+          tipoCambio: data.tipoCambio,
+          planCuotas: data.plan as never,
+          contratoHabilitado: false,
+          estado: ESTADOS_SOLICITUD.PENDIENTE,
+          updatedBy: data.actor,
+        },
+      });
+
+      await tx.solicitudDocumento.updateMany({
+        where: {
+          solicitudId,
+          flgActivo: true,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          categoria: {
+            in: [
+              TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+              TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            ],
+          },
+        },
+        data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+      });
+
+      await tx.revision.updateMany({
+        where: { solicitudId },
+        data: {
+          estado: RESULTADOS_APROBACION.PENDIENTE,
+          comentario: null,
+          updatedBy: data.actor,
+        },
+      });
+    });
+  }
+
   /**
    * RF-11: un unico contrato generado por el sistema por solicitud (idempotente).
    * Si ya existe uno vigente lo actualiza (refrescando `createdAt`: una regeneracion cuenta
@@ -1258,6 +1323,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       iimpContrato: row.iimpContrato ?? null,
       iimpCuentaCorriente: row.iimpCuentaCorriente ?? null,
       email: row.email ?? null,
+      moneda: row.moneda ?? MONEDAS.USD,
+      tipoCambio: row.tipoCambio ?? null,
       tipoEvento: evento?.tipoEvento ?? null,
       codigoEvento: evento?.codigoEvento ?? null,
       stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),

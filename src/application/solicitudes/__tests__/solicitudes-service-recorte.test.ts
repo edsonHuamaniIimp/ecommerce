@@ -48,6 +48,7 @@ function repoMock(): ISolicitudesRepository {
     findNombreUsuario: vi.fn().mockResolvedValue(null),
     guardarRecortePlano: vi.fn(),
     guardarPlanCuotas: vi.fn(),
+    cambiarMonedaSolicitud: vi.fn(),
     habilitarContrato: vi.fn(),
     upsertContratoSistema: vi.fn(),
     guardarReservaIImp: vi.fn(),

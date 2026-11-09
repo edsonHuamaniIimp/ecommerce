@@ -109,6 +109,7 @@ function cuerpo(input: ReservaIimpInput): Record<string, unknown> {
     NumeroSolicitud: input.numeroSolicitud,
     TipEvCod: input.tipEvCod,
     EvenCod: input.evenCod,
+    ...(input.moneda ? { Moneda: input.moneda } : {}),
     Stands: input.stands,
     TipoFacturacion: input.tipoFacturacion,
     TipDocFacturacion: input.tipDocFacturacion,

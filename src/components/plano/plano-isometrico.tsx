@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -20,6 +20,7 @@ import { textosReserva } from "@/lib/shared/textos/reserva";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
@@ -27,8 +28,8 @@ import { toast } from "sonner";
 import * as THREE from "three";
 
 /* ================================================================
-   PLANO ISOMÉTRICO — GESS edition.
-   Construcción del layout en src/lib/planos/gess/construccion.ts
+   PLANO ISOMÃ‰TRICO â€” GESS edition.
+   ConstrucciÃ³n del layout en src/lib/planos/gess/construccion.ts
    ================================================================ */
 
 import { Bloque3D, Floor, FurnitureRenderer } from "./plano-3d-componentes";
@@ -189,6 +190,9 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     return () => { cancelled = true; };
   }, [eventoId, tipoEvento, codigoEvento]);
 
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  const [tipoCambioEvento, setTipoCambioEvento] = useState<number | null>(null);
+
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -223,9 +227,25 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     representantesAdicionales,
     setRepresentantesAdicionales,
     firmarDigitalmente,
-  } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL });
+    moneda,
+    setMoneda,
+  } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL, tipoCambioEvento });
 
-  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  useEffect(() => {
+    if (!sesionReserva?.eventoId) {
+      setTipoCambioEvento(null);
+      return;
+    }
+    let activo = true;
+    eventosServiceClient.configuracionPublica(sesionReserva.eventoId)
+      .then((data) => {
+        if (!activo) return;
+        const valor = typeof data.tipoCambio === "number" ? data.tipoCambio : Number(data.tipoCambio);
+        setTipoCambioEvento(Number.isFinite(valor) && valor > 0 ? valor : null);
+      })
+      .catch(() => { if (activo) setTipoCambioEvento(null); });
+    return () => { activo = false; };
+  }, [sesionReserva?.eventoId, reservaOpen]);
 
   useEffect(() => {
     if (!openReserva || !dataReady) return;
@@ -439,7 +459,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
                 const bid = [...linkedMap.entries()].find(([, v]) => v === detailModal)?.[0];
                 const item = items.find((it) => it.id === bid);
                 const label = item ? blockLabel(item.type).label : "";
-                return <span>Detalles: {label} — {codigoComercialStand(detailModal.standCode ?? bid)}</span>;
+                return <span>Detalles: {label} â€” {codigoComercialStand(detailModal.standCode ?? bid)}</span>;
               })() : <span>Detalles</span>}
             </DialogTitle>
           </DialogHeader>
@@ -447,13 +467,13 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
                 <div><span className="text-muted-foreground">Codigo</span><p className="font-mono font-medium">{detailModal.standCode}</p></div>
-                <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Precio</span><p className="font-medium text-emerald-700">{detailModal.medidas ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "â€”"}</p></div>
+                <div><span className="text-muted-foreground">Precio</span><p className="font-medium text-emerald-700">{detailModal.medidas ?? "â€”"}</p></div>
                 <div>
                   <span className="text-muted-foreground">Estado</span>
                   <div className="mt-0.5">
                     <Badge variant={detailModal.estado === ESTADOS_STAND_LEGACY.RESERVADO ? "destructive" : "default"} className="text-[10px]">
-                      <span>{detailModal.estado ?? "—"}</span>
+                      <span>{detailModal.estado ?? "â€”"}</span>
                     </Badge>
                   </div>
                 </div>
@@ -531,6 +551,9 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
+        moneda={moneda}
+        tipoCambio={tipoCambioEvento}
+        onMonedaChange={setMoneda}
         selectedLabels={selectedLabels}
         selectedItems={selected.map(sel => {
           const info = linkedMap.get(sel.id);
@@ -600,7 +623,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">‹</span>
+              <span className="text-lg">â€¹</span>
             </button>
             { }
             <img src={imgCarousel.images[imgCarousel.idx]} alt="" className="max-h-[70vh] w-full object-contain" />
@@ -609,14 +632,14 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">›</span>
+              <span className="text-lg">â€º</span>
             </button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* Post-submit modal — multi-stand flow explanation */}
+      {/* Post-submit modal â€” multi-stand flow explanation */}
       <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
         <DialogContent className="sm:max-w-md rounded-2xl border-0 shadow-xl">
           <DialogHeader>
@@ -673,3 +696,4 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
 function Legend({ color, label }: { color: string; label: string }) {
   return <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm border" style={{ backgroundColor: color }} />{label}</span>;
 }
+

@@ -25,6 +25,8 @@ interface RevisionDTO {
 
 export interface SolicitudDTO {
   id: string;
+  /** Version de evento de los stands (TC del evento). */
+  eventoId?: string | null;
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
@@ -34,8 +36,12 @@ export interface SolicitudDTO {
   standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
-  /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
+  /** Precio base de la reserva en USD (del stand simple o suma de la reserva multiple). */
   precio: number;
+  /** Moneda elegida para el contrato (USD | PEN). */
+  moneda: string;
+  /** Tipo de cambio aplicado al crear la solicitud (soles por dolar; 1 para USD). */
+  tipoCambio: number | null;
   empresa: string | null;
   /** Pais ISO alpha-2 de la empresa vinculada. */
   pais?: string | null;

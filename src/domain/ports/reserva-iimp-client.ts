@@ -39,6 +39,8 @@ export interface ReservaIimpInput {
   numeroSolicitud: string;
   tipEvCod: number;
   evenCod: number;
+  /** Moneda de la reserva (USD | PEN). */
+  moneda?: string | null;
   stands: string[];
   tipoFacturacion: string;
   tipDocFacturacion: string;

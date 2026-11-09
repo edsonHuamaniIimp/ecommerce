@@ -67,7 +67,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     return row;
   }
 
-  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>) {
+  async update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano" | "tipoCambio">>) {
     const updateData: Record<string, unknown> = {};
     if (data.estado !== undefined) updateData.estado = data.estado;
     if (data.anio !== undefined) updateData.anio = data.anio;
@@ -77,6 +77,7 @@ export class EventoPrismaRepository implements IEventoRepository {
     if (data.flgActivo !== undefined) updateData.flgActivo = data.flgActivo;
     if (data.flgVisible !== undefined) updateData.flgVisible = data.flgVisible;
     if (data.plano !== undefined) updateData.plano = data.plano === "" ? null : data.plano;
+    if (data.tipoCambio !== undefined) updateData.tipoCambio = data.tipoCambio;
     const row = await prisma.evento.update({ where: { id }, data: updateData });
     return row;
   }
@@ -109,6 +110,13 @@ export class EventoPrismaRepository implements IEventoRepository {
     } catch (err) {
       console.error("[upsertByTipoCodigo] Error:", err);
       throw err;
+    }
+
+    if (data.tipoCambio !== undefined) {
+      await prisma.evento.updateMany({
+        where: { tipoEvento, codigoEvento },
+        data: { tipoCambio: data.tipoCambio },
+      });
     }
 
     return { id: `${tipoEvento}-${codigoEvento}` } as EventoEntity;

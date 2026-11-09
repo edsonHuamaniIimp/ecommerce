@@ -12,4 +12,6 @@ export interface UpdateEventoRequestDTO {
   flg_visible?: boolean;
   plano?: string;
   modal_info?: ModalInfoConfig | null;
+  /** Soles por dolar; null deshabilita PEN para la version. */
+  tipo_cambio?: number | null;
 }

@@ -11,6 +11,8 @@ export interface EventoPresalaDTO {
   imagen: string | null;
   plano?: string | null;
   flgVisible?: boolean;
+  /** Soles por dolar; null = PEN no habilitado. */
+  tipoCambio?: number | null;
   /** Config del modal informativo de /mapa (solo admin/dashboard). */
   modal_info?: ModalInfoConfig | null;
 }

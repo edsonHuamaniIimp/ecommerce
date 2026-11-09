@@ -1,7 +1,10 @@
 import { z } from "zod";
+import { MONEDAS } from "@/lib/shared/constants";
 
 export const reservaRequestSchema = z.object({
   standIds: z.array(z.string()).min(1),
+  /** Moneda elegida para la solicitud/contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Hold creado al abrir el wizard. */
   holdId: z.string().uuid().optional(),
   documentos: z.array(z.string()).optional(),

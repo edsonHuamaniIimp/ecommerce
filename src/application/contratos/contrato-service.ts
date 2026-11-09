@@ -17,15 +17,17 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
 import type { EmpresaRepresentanteAdicionalEntity } from "@/domain/models/empresa";
 import type { DatosContrato } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, MONEDAS, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { calcularImportes } from "@/lib/shared/utils/importes";
+import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCambioValido, CUENTAS_CONTRATO, MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
@@ -88,6 +90,8 @@ const PNG_1PX_BASE64 =
 
 export interface GenerarContratoInput {
   solicitudId: string;
+  /** Moneda solicitada (la solicitud ya guarda el snapshot; se conserva por compatibilidad). */
+  moneda?: MonedaContrato;
   /** Cuotas configuradas por el cliente (1..3); si falta usa el plan persistido. */
   cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
   /** Idioma del documento (es|en); si falta se resuelve el del cliente. */
@@ -119,6 +123,8 @@ export interface FirmarContratoInput {
 export interface GenerarBorradorInput {
   /** IDs (gess_stand) de los stands seleccionados. */
   standIds: string[];
+  /** Moneda elegida (USD | PEN). */
+  moneda?: MonedaContrato;
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
   idioma?: Idioma;
   /** Email de la cuenta autenticada (empresa y firma del perfil). */
@@ -132,6 +138,7 @@ export interface GenerarBorradorInput {
 /** Firma digital del borrador (antes de que exista la solicitud). */
 export interface FirmarBorradorInput {
   standIds: string[];
+  moneda?: MonedaContrato;
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
   idioma?: Idioma;
   email: string;
@@ -165,6 +172,7 @@ export class ContratoApplicationService {
     private readonly gess: IGessRepository,
     private readonly auth: IAuthRepository,
     private readonly storage: StorageAdapter,
+    private readonly eventoRepo?: IEventoRepository,
   ) {}
 
   async generar(input: GenerarContratoInput): Promise<ContratoGenerado> {
@@ -238,8 +246,14 @@ export class ContratoApplicationService {
     const configCuotasEmpresa = empresa?.configCuotas
       ?? (emailPropietario ? (await this.auth.findPerfilByEmail(emailPropietario).catch(() => null))?.empresa?.configCuotas : null)
       ?? null;
+    const moneda: MonedaContrato = esMonedaContrato(detalle.moneda) ? detalle.moneda : MONEDAS_CONTRATO.USD;
+    const tipoCambio = detalle.tipoCambio ?? 1;
+    if (moneda === MONEDAS_CONTRATO.PEN && !tipoCambioValido(tipoCambio)) {
+      throw new DomainError("La solicitud no tiene un tipo de cambio valido para soles.", API_ERROR_CODES.CONFLICT, 409);
+    }
+    const neto = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
-      detalle.precio ?? 0,
+      neto,
       cuotasSolicitadas,
       {
         permitirPersonalizado: isAdmin || usandoPlanPersistido,
@@ -249,7 +263,7 @@ export class ContratoApplicationService {
     );
 
     /* Snapshot del plan: fuente de verdad para regenerar el contrato y para Facturacion. */
-    await this.solicitudes.guardarPlanCuotas(input.solicitudId, { modalidad, cuotas: plan });
+    await this.solicitudes.guardarPlanCuotas(input.solicitudId, { modalidad, cuotas: plan, moneda, tipoCambio });
 
     const base = `contrato-${(detalle.standCode || input.solicitudId.slice(0, 8)).replace(/[^A-Za-z0-9_-]/g, "")}-${Date.now()}`;
     const generado = await this.renderContrato({
@@ -262,6 +276,7 @@ export class ContratoApplicationService {
       plan,
       porcentajes,
       modalidad,
+      moneda,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
       base,
@@ -303,7 +318,19 @@ export class ContratoApplicationService {
     const { modulos, gruposPabellon } = await this.construirModulos(
       stands.map((s) => ({ bloqueId: s.bloqueId ?? s.standCode, codigoComercial: s.standCode, tipoStand: s.tipoStand, pabellon: null })),
     );
-    const neto = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+    const moneda: MonedaContrato = input.moneda ?? MONEDAS_CONTRATO.USD;
+    let tipoCambio = 1;
+    if (moneda === MONEDAS_CONTRATO.PEN) {
+      const eventoId = stands[0]?.eventoId;
+      const evento = eventoId && this.eventoRepo ? await this.eventoRepo.findById(eventoId).catch(() => null) : null;
+      const tcEvento = evento?.tipoCambio;
+      if (!tipoCambioValido(tcEvento)) {
+        throw new DomainError("El evento no tiene un tipo de cambio configurado para contratos en soles.", API_ERROR_CODES.CONFLICT, 409);
+      }
+      tipoCambio = tcEvento;
+    }
+    const netoUsd = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+    const neto = convertirNeto(netoUsd, moneda, tipoCambio);
     const configCuotasEmpresa = empresa?.configCuotas
       ?? (await this.auth.findPerfilByEmail(input.email).catch(() => null))?.empresa?.configCuotas
       ?? null;
@@ -323,6 +350,7 @@ export class ContratoApplicationService {
       plan,
       porcentajes,
       modalidad,
+      moneda,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
       base,
@@ -414,7 +442,7 @@ export class ContratoApplicationService {
 
     const plan = planCuotasConFechas(importes.total, porcentajes, fechas);
     if (plan.some((c) => c.monto < CUOTA_MONTO_MINIMO)) {
-      throw new DomainError(`Cada cuota debe ser de al menos US$ ${CUOTA_MONTO_MINIMO.toFixed(2)}.`, API_ERROR_CODES.VALIDATION, 400);
+      throw new DomainError(`Cada cuota debe ser de al menos ${CUOTA_MONTO_MINIMO.toFixed(2)} en la moneda del contrato.`, API_ERROR_CODES.VALIDATION, 400);
     }
     const modalidad = opciones?.modalidadPersistida
       ?? (usaConfigEmpresa ? MODOS_PAGO.PERSONALIZADO : modalidadDeCuotas(porcentajes));
@@ -485,6 +513,7 @@ export class ContratoApplicationService {
     plan: ReturnType<typeof planCuotasConFechas>;
     porcentajes: number[];
     modalidad: string;
+    moneda: MonedaContrato;
     firmaExhibidorBase64?: string;
     /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
     contrato?: DatosContrato | null;
@@ -673,6 +702,15 @@ export class ContratoApplicationService {
       actividad: textoActividad,
       modulos,
       planos: planosData,
+      moneda: params.moneda,
+      simbolo_moneda: simboloMoneda(params.moneda),
+      moneda_codigo: etiquetaMoneda(params.moneda),
+      cta_corriente: CUENTAS_CONTRATO[params.moneda].cuentaCorriente,
+      cta_interbancaria: CUENTAS_CONTRATO[params.moneda].cuentaInterbancaria,
+      cta_detraccion: CUENTAS_CONTRATO[params.moneda].cuentaDetraccion,
+      tipo_cuenta: esContratoEn
+        ? params.moneda
+        : CUENTAS_CONTRATO[params.moneda].tipoCuenta,
       monto_total: monto(importes.total),
       valor_venta: monto(importes.valorVenta),
       igv: monto(importes.igv),

@@ -4,12 +4,14 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MONEDAS, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
+import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { getAppUrl } from "@/lib/server/app-url";
@@ -28,6 +30,7 @@ export class ReservaApplicationService {
     private readonly authRepo: IAuthRepository,
     private readonly standEvents?: StandEventPublisher,
     private readonly configuracionRepo?: IConfiguracionRepository,
+    private readonly eventoRepo?: IEventoRepository,
   ) {}
 
   /** Duracion configurada del hold; 25 minutos si no hay configuracion. */
@@ -145,6 +148,8 @@ export class ReservaApplicationService {
     };
     userEmail?: string;
     userSub?: string;
+    /** Moneda elegida para el contrato (USD | PEN). Default USD. */
+    moneda?: string;
     /** Evento de la sesion: los stands deben pertenecer a el. */
     eventoId?: string;
     /** Hold creado al abrir el wizard; se convierte en reserva. */
@@ -208,6 +213,27 @@ export class ReservaApplicationService {
       return { ok: false, message: "Conflicto", conflicted };
     }
 
+    const monedaSolicitada = request.moneda ?? MONEDAS.USD;
+    if (!esMonedaContrato(monedaSolicitada)) {
+      return { ok: false, message: "Moneda no valida", conflicted: standCodes };
+    }
+    const moneda: MonedaContrato = monedaSolicitada;
+    let tipoCambio = 1;
+    if (moneda === MONEDAS.PEN) {
+      const evento = eventoComun && this.eventoRepo
+        ? await this.eventoRepo.findById(eventoComun).catch(() => null)
+        : null;
+      const tcEvento = evento?.tipoCambio;
+      if (!tipoCambioValido(tcEvento)) {
+        return {
+          ok: false,
+          message: "El evento no tiene un tipo de cambio configurado para contratos en soles.",
+          conflicted: standCodes,
+        };
+      }
+      tipoCambio = tcEvento;
+    }
+
     // Fase 2: aplicar los cambios solo si todo paso la validacion.
     if (request.holdId) {
       const holdValido = request.userSub
@@ -261,6 +287,7 @@ export class ReservaApplicationService {
           contactEmail ?? undefined,
           snapshot,
           { actor: request.userSub ?? null, ip: request.ip ?? null },
+          { moneda, tipoCambio },
         );
         for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
           await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
@@ -268,13 +295,16 @@ export class ReservaApplicationService {
 
         /* Snapshot del cronograma elegido: el contrato se genera al final. */
         if (request.cuotas && request.cuotas.length > 0) {
-          const neto = validos.reduce((total, stand) => total + stand.precio, 0);
+          const netoUsd = validos.reduce((total, stand) => total + stand.precio, 0);
+          const neto = convertirNeto(netoUsd, moneda, tipoCambio);
           const importes = calcularImportes(neto);
           const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
           const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
           await this.solicitudesRepo.guardarPlanCuotas(solicitudId, {
             modalidad: modalidadDeCuotas(porcentajes),
             cuotas: planCuotasConFechas(importes.total, porcentajes, fechas),
+            moneda,
+            tipoCambio,
           });
         }
 

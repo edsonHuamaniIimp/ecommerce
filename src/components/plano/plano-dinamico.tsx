@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -27,6 +27,7 @@ import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } fro
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { usePortalConfig } from "@/hooks/use-portal-config";
 import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
@@ -35,8 +36,8 @@ import { toast } from "sonner";
 import * as THREE from "three";
 
 /* ================================================================
-   PLANO ISOMÉTRICO — GESS edition.
-   Construcción del layout en src/lib/planos/gess/construccion.ts
+   PLANO ISOMÃ‰TRICO â€” GESS edition.
+   ConstrucciÃ³n del layout en src/lib/planos/gess/construccion.ts
    ================================================================ */
 
 import { Bloque3D, Floor, FurnitureRenderer } from "./plano-3d-componentes";
@@ -47,7 +48,7 @@ interface GessLinked {
   tipoStand: string | null;
   /** Pabellon del evento al que pertenece el stand (viene del vinculo/importacion). */
   pabellon: string | null;
-  /** Area comercial del stand en m² (API liststand o inferida del tipo). */
+  /** Area comercial del stand en mÂ² (API liststand o inferida del tipo). */
   area: string | null;
   empresa: string | null;
   empresaLogo: string | null;
@@ -380,7 +381,7 @@ const estado = estadoDb ?? estadoApi;
 const empresa = ((r.empresa ?? null) as string | null) || (apiRow ? ((apiRow.company ?? apiRow.empresa ?? apiRow.razon_social ?? null) as string | null) : null);
 const pabellon = (r.pabellon ?? null) as string | null;
 const areaApi = apiRow ? String(apiRow.area ?? "").trim() : "";
-const area = areaApi ? `${areaApi} m²` : areaDesdeTipoStand(tipoStand);
+const area = areaApi ? `${areaApi} mÂ²` : areaDesdeTipoStand(tipoStand);
           /* Precio mostrado como `medidas` (compatibilidad del plano): catalogo por tipo + fallback de la fila. */
           const precio = resolverPrecioStand({
             medidas: (r.medidas ?? null) as string | null,
@@ -470,6 +471,9 @@ map.set(String(bloqueId), {
   }, [bloqueInicial, dataReady, linkedMap, planoId, seleccionarSolo, carritoInfoDe]);
 
   const sinContrato = CONTRATO_SIEMPRE_AL_FINAL;
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  const [tipoCambioEvento, setTipoCambioEvento] = useState<number | null>(null);
+
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -504,9 +508,25 @@ map.set(String(bloqueId), {
     representantesAdicionales,
     setRepresentantesAdicionales,
     firmarDigitalmente,
-  } = useReservaForm(idsGlobales, linkedMap, { sinContrato });
+    moneda,
+    setMoneda,
+  } = useReservaForm(idsGlobales, linkedMap, { sinContrato, tipoCambioEvento });
 
-  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  useEffect(() => {
+    if (!sesionReserva?.eventoId) {
+      setTipoCambioEvento(null);
+      return;
+    }
+    let activo = true;
+    eventosServiceClient.configuracionPublica(sesionReserva.eventoId)
+      .then((data) => {
+        if (!activo) return;
+        const valor = typeof data.tipoCambio === "number" ? data.tipoCambio : Number(data.tipoCambio);
+        setTipoCambioEvento(Number.isFinite(valor) && valor > 0 ? valor : null);
+      })
+      .catch(() => { if (activo) setTipoCambioEvento(null); });
+    return () => { activo = false; };
+  }, [sesionReserva?.eventoId, reservaOpen]);
 
   /** Verificando el perfil antes de abrir el wizard (bloquea el boton mientras consulta). */
   const [verificandoPerfil, setVerificandoPerfil] = useState(false);
@@ -523,7 +543,7 @@ map.set(String(bloqueId), {
     }
     if (idsGlobales.length > maxStandsReserva) {
       toast.warning(
-        `No puedes continuar con la reserva: solo se permite un máximo de ${maxStandsReserva} stands. ` +
+        `No puedes continuar con la reserva: solo se permite un mÃ¡ximo de ${maxStandsReserva} stands. ` +
           `Quita los stands adicionales para continuar.`,
       );
       return false;
@@ -738,7 +758,7 @@ map.set(String(bloqueId), {
                     </div>
                     <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
                       {c.tipoLabel ?? ""}
-                      {info?.tipoStand ? ` • ${info.tipoStand}` : ""}
+                      {info?.tipoStand ? ` â€¢ ${info.tipoStand}` : ""}
                     </p>
                     {precioItem && (
                       <p className="mt-1 text-sm font-bold text-gold">{precioItem}</p>
@@ -940,8 +960,8 @@ map.set(String(bloqueId), {
         </div>
         {panelAyuda && (
           <div className="pointer-events-none absolute bottom-4 left-3 right-14 z-10 rounded-xl bg-primary/85 px-3 py-1 text-center text-[10px] font-medium leading-tight text-primary-foreground shadow sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:whitespace-nowrap sm:rounded-full sm:text-left sm:text-[11px]">
-            <span className="sm:hidden">{modoOriginal ? "Arrastra para girar la vista · 2 dedos para zoom" : "Arrastra para mover el plano · 2 dedos para zoom"}</span>
-            <span className="hidden sm:inline">{modoOriginal ? "Modo guiado: arrastrar gira la vista sobre los ejes X/Y · Rueda para zoom" : "Modo manual: arrastrar mueve el plano · Rueda para zoom"}</span>
+            <span className="sm:hidden">{modoOriginal ? "Arrastra para girar la vista Â· 2 dedos para zoom" : "Arrastra para mover el plano Â· 2 dedos para zoom"}</span>
+            <span className="hidden sm:inline">{modoOriginal ? "Modo guiado: arrastrar gira la vista sobre los ejes X/Y Â· Rueda para zoom" : "Modo manual: arrastrar mueve el plano Â· Rueda para zoom"}</span>
           </div>
         )}
         {hoverStand && (
@@ -1046,11 +1066,11 @@ map.set(String(bloqueId), {
           {detailModal && (
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-lg border border-border bg-secondary p-3 text-xs">
-                <div><span className="text-muted-foreground">Pabellón</span><p className="font-medium">{detailModal.pabellon ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Área</span><p className="font-medium">{detailModal.area ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Código</span><p className="font-mono font-semibold text-primary">{detailModal.standCode}</p></div>
-                <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "—"}</p></div>
-                <div><span className="text-muted-foreground">Precio</span><p className="font-medium">{detailModal.medidas ?? "—"}</p></div>
+                <div><span className="text-muted-foreground">PabellÃ³n</span><p className="font-medium">{detailModal.pabellon ?? "â€”"}</p></div>
+                <div><span className="text-muted-foreground">Ãrea</span><p className="font-medium">{detailModal.area ?? "â€”"}</p></div>
+                <div><span className="text-muted-foreground">CÃ³digo</span><p className="font-mono font-semibold text-primary">{detailModal.standCode}</p></div>
+                <div><span className="text-muted-foreground">Tipo</span><p className="font-medium">{detailModal.tipoStand ?? "â€”"}</p></div>
+                <div><span className="text-muted-foreground">Precio</span><p className="font-medium">{detailModal.medidas ?? "â€”"}</p></div>
                 <div>
                   <span className="text-muted-foreground">Estado</span>
                   <div className="mt-0.5">
@@ -1234,6 +1254,9 @@ map.set(String(bloqueId), {
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
+        moneda={moneda}
+        tipoCambio={tipoCambioEvento}
+        onMonedaChange={setMoneda}
         selectedLabels={selectedLabels}
         selectedItems={entradasCarrito.map(c => {
           const info = linkedMap.get(c.bloqueId);
@@ -1402,7 +1425,7 @@ map.set(String(bloqueId), {
         </Dialog>
       )}
 
-      {/* Post-submit modal — multi-stand flow explanation */}
+      {/* Post-submit modal â€” multi-stand flow explanation */}
       <Dialog open={postSubmitOpen} onOpenChange={setPostSubmitOpen}>
         <DialogContent className="rounded-xl border-border sm:max-w-md">
           <DialogHeader>
@@ -1488,3 +1511,4 @@ function Legend({ color, label }: { color: string; label: string }) {
     </span>
   );
 }
+

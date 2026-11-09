@@ -16,6 +16,8 @@ export interface CuotaContratoRequestDTO {
  */
 export interface GenerarContratoRequestDTO {
   solicitudId: string;
+  /** Moneda del contrato (USD | PEN). */
+  moneda?: "USD" | "PEN";
   /** Idioma del contrato (F3); si falta se resuelve el idioma del cliente. */
   idioma?: Idioma;
   /** Cuotas configuradas (1..3, porcentajes suman 100%; fechas ascendentes desde hoy). */

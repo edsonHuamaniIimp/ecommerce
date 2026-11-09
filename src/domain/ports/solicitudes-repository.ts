@@ -58,7 +58,14 @@ export interface ISolicitudesRepository {
     reviewerEmail: string;
   }): Promise<RevisionEntity>;
   crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity>;
-    crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null, auditoria?: { actor?: string | null; ip?: string | null }): Promise<string>;
+    crearSolicitud(
+      standIds: string[],
+      userId?: string,
+      email?: string,
+      datosFacturacion?: DatosFacturacionSolicitud | null,
+      auditoria?: { actor?: string | null; ip?: string | null },
+      moneda?: { moneda: string; tipoCambio: number | null },
+    ): Promise<string>;
   touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void>;
   crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string }): Promise<void>;
   crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity>;
@@ -95,6 +102,19 @@ export interface ISolicitudesRepository {
   /** RF-10/11: persiste el plan de cuotas configurado por el cliente (snapshot). */
   guardarPlanCuotas(solicitudId: string, plan: PlanCuotasSolicitud): Promise<void>;
   /**
+   * Cambia la moneda de una solicitud sin cobranza, actualizando el snapshot del plan,
+   * reemplazando contratos/firmas locales y devolviendo las revisiones a pendiente.
+   */
+  cambiarMonedaSolicitud(
+    solicitudId: string,
+    data: {
+      moneda: string;
+      tipoCambio: number;
+      plan: PlanCuotasSolicitud;
+      actor: string | null;
+    },
+  ): Promise<void>;
+  /**
    * RF-11: crea o actualiza el contrato generado por el sistema (categoria `contrato`,
    * `uploadedBy = "sistema"`), garantizando un unico contrato vigente por solicitud.
    */
@@ -114,6 +134,8 @@ export interface ISolicitudesRepository {
     iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
     email: string | null;
+    moneda: string;
+    tipoCambio: number | null;
     tipoEvento: number | null;
     codigoEvento: number | null;
     stands: string[];

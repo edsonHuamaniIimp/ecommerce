@@ -39,6 +39,8 @@ model Evento {
   flgActivo     Boolean   @default(true) @map("flg_activo")
   flgVisible    Boolean   @default(true) @map("flg_visible")
   plano         String    @default("gess") @db.VarChar(50)
+  /// Tipo de cambio del evento: soles por dolar. Null = no se puede elegir PEN.
+  tipoCambio   Float?    @map("tipo_cambio")
   eventoPadre        EventoPadre         @relation(fields: [eventoPadreId], references: [id])
   tiposStand         TipoStand[]
   stands             Stand[]
@@ -532,6 +534,10 @@ model Solicitud {
   recortePlanoUrl     String?   @map("recorte_plano_url") @db.VarChar(500)
   /// RF-10/11: snapshot del plan de cuotas configurado al reservar { modalidad, cuotas[] }.
   planCuotas          Json?     @map("plan_cuotas")
+  /// Moneda elegida para la solicitud/contrato (USD | PEN).
+  moneda              String    @default("USD") @db.VarChar(3)
+  /// Tipo de cambio aplicado al crear la solicitud (soles por dolar; 1 para USD).
+  tipoCambio          Float?    @map("tipo_cambio")
   /// Datos comerciales/fiscales capturados en el paso 1 del wizard (payload del IIMP).
   datosFacturacion    Json?     @map("datos_facturacion")
   /// Declaracion del cliente sobre los requisitos de facturacion (checklist de la solicitud).

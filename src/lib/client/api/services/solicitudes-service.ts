@@ -98,6 +98,14 @@ export const solicitudesService = {
     return internalApi.post<RevisionSalidaDTO>(`/api/solicitudes/revisar`, body);
   },
 
+  /** Cambia USD/PEN mientras no exista cobranza; invalida contrato/firma y vuelve a revision. */
+  cambiarMoneda(body: { solicitudId: string; moneda: "USD" | "PEN" }) {
+    return internalApi.post<{ moneda: "USD" | "PEN"; tipoCambio: number }>(
+      `/api/solicitudes/cambiar-moneda`,
+      body,
+    );
+  },
+
   /** Reenvio del cliente tras la observacion local: valida reemplazos y vuelve a revision. */
   reenviarObservacion(body: { solicitudId: string }) {
     return internalApi.post<{ ok: boolean }>(`/api/solicitudes/reenviar-observacion`, body);

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine } from "lucide-react";
+import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -25,9 +25,10 @@ import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { precioTexto } from "@/lib/shared/utils/precio-stand";
+import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
+import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
@@ -275,6 +276,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
   const [sgcContratoUrl, setSgcContratoUrl] = useState<string | null>(null);
   const detailRequestRef = useRef(0);
+  const [monedaRow, setMonedaRow] = useState<SolicitudRow | null>(null);
+  const [nuevaMoneda, setNuevaMoneda] = useState<"USD" | "PEN">("USD");
+  const [cambiandoMoneda, setCambiandoMoneda] = useState(false);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const documentoEstadoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DOCUMENTO_ESTADO,
@@ -340,7 +344,34 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     }
   };
 
-  /** RF-08 (F2): genera el PNG del recorte y lo guarda en la solicitud para el contrato. */
+  const abrirCambioMoneda = (row: SolicitudRow) => {
+    setMonedaRow(row);
+    setNuevaMoneda(row.moneda === "PEN" ? "PEN" : "USD");
+  };
+
+  const confirmarCambioMoneda = async () => {
+    if (!monedaRow) return;
+    setCambiandoMoneda(true);
+    try {
+      await solicitudesService.cambiarMoneda({
+        solicitudId: monedaRow.id,
+        moneda: nuevaMoneda,
+      });
+      toast.success(`Moneda cambiada a ${nuevaMoneda === "PEN" ? "Soles" : "Dólares"}. El contrato se regenerará en la nueva revisión.`);
+      setMonedaRow(null);
+      await load(page, search, perPage);
+      if (detailOpen && detailRow?.id === monedaRow.id) {
+        await openDetail(monedaRow.id);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo cambiar la moneda");
+    } finally {
+      setCambiandoMoneda(false);
+    }
+  };
+
+  /** RF-08 (F2): genera el PNG del recorte y lo guarda
+   en la solicitud para el contrato. */
   const guardarRecortePng = async () => {
     if (!recorteBloque) return;
     const blob = await recorteRef.current?.exportarPng();
@@ -514,6 +545,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {!soloLectura && puedeCambiarMonedaSolicitud(row) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            title="Cambiar moneda del contrato"
+                            onClick={() => abrirCambioMoneda(row)}
+                          >
+                            <Settings2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {row.flgActivo === false && (
                           <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}><span>Dada de baja</span></Badge>
                         )}
@@ -524,7 +566,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div className="space-y-3 px-4 py-3">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                         <Dato label="Empresa" valor={row.empresa} />
-                        <Dato label="Precio" valor={precioTexto(row.precio)} />
+                        <Dato label="Precio" valor={formatearPrecioSolicitud(row.precio, row.moneda, row.tipoCambio)} />
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
@@ -759,7 +801,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </TableCell>
                         <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "-"}</TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "-"}</TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{formatearPrecioSolicitud(row.precio, row.moneda, row.tipoCambio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
                           {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
@@ -865,6 +907,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               </>
                             );
                           })()}
+                          {!soloLectura && puedeCambiarMonedaSolicitud(row) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                              title="Cambiar moneda del contrato"
+                              onClick={() => abrirCambioMoneda(row)}
+                            >
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                           </div>
                         </TableCell>
@@ -1540,6 +1593,59 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cambiar moneda */}
+      <Dialog open={!!monedaRow} onOpenChange={(open) => { if (!open && !cambiandoMoneda) setMonedaRow(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Settings2 className="h-4 w-4 text-primary" />
+              <span>Cambiar moneda del contrato</span>
+            </DialogTitle>
+          </DialogHeader>
+          {monedaRow && (
+            <div className="space-y-4 text-xs">
+              <p className="text-muted-foreground">
+                Solicitud <span className="font-mono font-semibold text-foreground">{standTitulo(monedaRow)}</span>
+              </p>
+              <div className="space-y-1.5">
+                <p className="font-medium text-foreground">Nueva moneda</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={nuevaMoneda === "USD" ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda("USD")}
+                  >
+                    Dólares (USD)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={nuevaMoneda === "PEN" ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda("PEN")}
+                  >
+                    Soles (PEN)
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                Se recalculará el cronograma con el TC del evento. El contrato actual se marcará como reemplazado, se invalidarán las firmas locales y la solicitud volverá a revisión. No aplica si ya existe Facturación, pago, reserva IIMP o aprobación del SGC.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={cambiandoMoneda} onClick={() => setMonedaRow(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={cambiandoMoneda || !monedaRow || nuevaMoneda === monedaRow.moneda}
+              onClick={() => { void confirmarCambioMoneda(); }}
+            >
+              {cambiandoMoneda ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Confirmar cambio
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

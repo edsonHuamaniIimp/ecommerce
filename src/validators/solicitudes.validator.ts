@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, MONEDAS, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
@@ -29,6 +29,11 @@ export const solicitudesPaisesSchema = z.object({
 
 export const solicitudesDetalleSchema = z.object({
   id: z.string().uuid(),
+});
+
+export const solicitudesCambiarMonedaSchema = z.object({
+  solicitudId: z.string().uuid(),
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]),
 });
 
 export const solicitudesRevisarSchema = z.object({

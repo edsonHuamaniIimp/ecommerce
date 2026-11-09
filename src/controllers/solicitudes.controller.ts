@@ -6,7 +6,7 @@ import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/consta
 import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesCambiarMonedaSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
 import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
@@ -395,6 +395,33 @@ export const solicitudesController = {
       { to: parsed.data.to, modo: parsed.data.modo },
     );
     return success({ ok: true });
+  },
+
+  /** El cliente (o staff) cambia USD/PEN antes de que exista cobranza. */
+  async cambiarMoneda(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const parsed = solicitudesCambiarMonedaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const resultado = await services.solicitudes.cambiarMoneda({
+      ...parsed.data,
+      userSub: session.sub,
+      userPermissions: session.permissions,
+      actor: session.email,
+    });
+    await auditarOperacion(
+      request,
+      session,
+      "cambiar-moneda",
+      parsed.data.solicitudId,
+      `Cambio de moneda a ${resultado.moneda}`,
+      { moneda: resultado.moneda, tipoCambio: resultado.tipoCambio },
+    );
+    return success(resultado);
   },
 
   async modificar(request: Request): Promise<NextResponse> {

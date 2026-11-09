@@ -16,6 +16,8 @@ export interface CuotaBorradorDTO {
 export interface GenerarBorradorContratoRequestDTO {
   /** IDs (`gess_stand`) de los stands seleccionados. */
   standIds: string[];
+  /** Moneda del contrato (USD | PEN). */
+  moneda?: "USD" | "PEN";
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma?: Idioma;
   cuotas: CuotaBorradorDTO[];

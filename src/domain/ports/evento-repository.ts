@@ -17,6 +17,8 @@ export interface EventoMetadataUpdate {
   flgVisible?: boolean;
   plano?: string | null;
   modalInfo?: ModalInfoConfig | null;
+  /** Soles por dolar; null deshabilita PEN para esta version. */
+  tipoCambio?: number | null;
 }
 
 export interface EventoCriteria {
@@ -39,7 +41,7 @@ export interface IEventoRepository {
     fechaInicio?: Date;
     fechaFin?: Date;
   }): Promise<EventoEntity>;
-  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano">>): Promise<EventoEntity>;
+  update(id: string, data: Partial<Pick<EventoEntity, "estado" | "anio" | "fechaInicio" | "fechaFin" | "imagen" | "flgActivo" | "flgVisible" | "plano" | "tipoCambio">>): Promise<EventoEntity>;
   upsertByTipoCodigo(tipoEvento: number, codigoEvento: number, data: EventoMetadataUpdate): Promise<EventoEntity>;
 
   /** Config del modal informativo de /mapa para una version de evento. */

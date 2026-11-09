@@ -28,6 +28,16 @@ export const eventosController = {
     return success(await services.presala.listarTodas());
   },
 
+  /** Config publica minima de una version (moneda/tipo de cambio para el wizard). */
+  async config(request: Request): Promise<NextResponse> {
+    const id = new URL(request.url).searchParams.get("id")?.trim();
+    if (!id) return error(API_ERROR_CODES.VALIDATION, "id requerido", 400);
+
+    const evento = await services.eventos.obtenerPorId(id);
+    if (!evento) return error(API_ERROR_CODES.NOT_FOUND, "Evento no encontrado", 404);
+    return success({ tipoCambio: evento.tipoCambio ?? null });
+  },
+
   /** Config del modal informativo de /mapa por version de evento. */
   async modalInfo(request: Request): Promise<NextResponse> {
     const { searchParams } = new URL(request.url);
@@ -64,7 +74,8 @@ export const eventosController = {
     const tocaEdicion =
       body.anio !== undefined || body.fecha_inicio !== undefined || body.fecha_fin !== undefined ||
       body.plano !== undefined || body.imagen !== undefined ||
-      body.modal_info !== undefined || body.tipo_evento !== undefined || body.codigo_evento !== undefined;
+      body.modal_info !== undefined || body.tipo_evento !== undefined || body.codigo_evento !== undefined ||
+      body.tipo_cambio !== undefined;
     const tocaToggle = body.estado !== undefined || body.flg_visible !== undefined || body.flg_activo !== undefined;
 
     if (tocaEdicion && !puede(session.permissions, PERMISSIONS.EVENTS_EDIT)) {

@@ -147,6 +147,7 @@ export class SolicitarFacturaApplicationService {
       numeroSolicitud,
       tipEvCod: datos.tipoEvento,
       evenCod: datos.codigoEvento,
+      moneda: datos.moneda,
       stands: datos.stands,
       cuotas,
       ...(archivosNormalizados.length > 0 ? { archivos: archivosNormalizados } : {}),
@@ -199,7 +200,7 @@ export class SolicitarFacturaApplicationService {
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
-    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
+    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; moneda?: string | null; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
   ): Promise<ReservaIimpInput> {
     /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
      * factura en silencio: si ninguna fuente trae un tipo valido, se rechaza. */

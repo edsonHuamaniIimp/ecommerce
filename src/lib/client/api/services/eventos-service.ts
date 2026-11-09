@@ -12,6 +12,12 @@ export const eventosServiceClient = {
   obtener(id: string) {
     return internalApi.get<Record<string, unknown>>(`/api/eventos/listar?id=${encodeURIComponent(id)}`);
   },
+  /** Config publica minima para el wizard (no expone metadata del evento). */
+  configuracionPublica(id: string) {
+    return internalApi.get<{ tipoCambio: number | null }>(
+      `/api/eventos/config?id=${encodeURIComponent(id)}`,
+    );
+  },
   modalInfo(tipoEvento: number, codigoEvento: number) {
     return internalApi.get<ModalInfoConfig | null>(`/api/eventos/modal-info?tipoEvento=${tipoEvento}&codigoEvento=${codigoEvento}`);
   },

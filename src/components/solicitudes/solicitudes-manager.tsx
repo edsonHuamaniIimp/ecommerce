@@ -13,7 +13,7 @@ import { maestraService } from "@/lib/client/api/services/maestra-service";
 import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc, origenesObservacion } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
-import { precioTexto } from "@/lib/shared/utils/precio-stand";
+import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudesListFiltros } from "@/lib/client/api/services/solicitudes-service";
@@ -65,7 +65,7 @@ const SOLICITUDES_EXPORT_COLUMNAS = [
   "Usuario",
   "Correo",
   "Tipo stand",
-  "Precio USD",
+  "Precio",
   "Estado",
   "Revision Asociado",
   "Revision Legal",
@@ -92,7 +92,7 @@ function filaExportacion(row: SolicitudRow, estadoLabels: Record<string, string>
     row.nombreUsuario ?? "",
     row.email ?? "",
     row.tipoStand ?? "",
-    row.precio ?? 0,
+    formatearPrecioSolicitud(row.precio, row.moneda, row.tipoCambio),
     estadoLabels[row.estadoSolicitud] ?? ESTADOS_SOLICITUD_LABELS[estado] ?? row.estadoSolicitud,
     estadoRev(REVISION_AREAS.ASOCIADO),
     estadoRev(REVISION_AREAS.LEGAL),
@@ -1034,7 +1034,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                   <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-muted-foreground ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
                   <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "â€”"}</span></div>
                   <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "â€”"}</span></div>
-                  <div><span className="text-muted-foreground">Precio:</span> <span>{precioTexto(detailRow.precio)}</span></div>
+                  <div><span className="text-muted-foreground">Precio:</span> <span>{formatearPrecioSolicitud(detailRow.precio, detailRow.moneda, detailRow.tipoCambio)}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "â€”"}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Estado:</span>{" "}
                     <Badge className={`text-[10px] ${

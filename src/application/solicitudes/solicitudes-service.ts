@@ -2,7 +2,7 @@ import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginate
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -17,6 +17,11 @@ import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import type { JwtPayload } from "@/lib/server/auth";
 import type { ModoNotificacion } from "@/lib/shared/constants";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
+import { convertirNeto, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
+import { calcularImportes } from "@/lib/shared/utils/importes";
+import { planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 
 export class SolicitudesApplicationService {
   readonly repo: ISolicitudesRepository;
@@ -25,6 +30,7 @@ export class SolicitudesApplicationService {
     repo: ISolicitudesRepository,
     private readonly sgcIntegracion?: SgcIntegracionApplicationService,
     private readonly storage?: StorageAdapter,
+    private readonly eventoRepo?: IEventoRepository,
   ) {
     this.repo = repo;
   }
@@ -39,6 +45,79 @@ export class SolicitudesApplicationService {
 
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
     return this.repo.detalle(solicitudId);
+  }
+
+  /**
+   * Cambia USD <-> PEN antes de que exista cobranza.
+   * Recalcula el plan, invalida contrato/firma local y devuelve la solicitud a revisión.
+   */
+  async cambiarMoneda(params: {
+    solicitudId: string;
+    moneda: MonedaContrato;
+    userSub: string;
+    userPermissions: string[];
+    actor: string | null;
+  }): Promise<{ moneda: MonedaContrato; tipoCambio: number }> {
+    const detalle = await this.repo.detalle(params.solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+
+    const esAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL);
+    const esStaff = esAdmin
+      || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_GESTION)
+      || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
+    if (!esStaff && detalle.userId !== params.userSub) {
+      throw new DomainError("No puedes cambiar la moneda de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    if (!puedeCambiarMonedaSolicitud(detalle)) {
+      throw new DomainError(
+        "La moneda no se puede cambiar porque ya existe facturación, pago, reserva IIMP o aprobación del SGC.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!detalle.planCuotas?.cuotas?.length) {
+      throw new DomainError("La solicitud no tiene un plan de cuotas para recalcular.", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const monedaActual = detalle.moneda === MONEDAS.PEN ? "PEN" : "USD";
+    if (monedaActual === params.moneda) {
+      return { moneda: params.moneda, tipoCambio: detalle.tipoCambio ?? 1 };
+    }
+
+    let tipoCambio = 1;
+    if (params.moneda === "PEN") {
+      const evento = detalle.eventoId && this.eventoRepo
+        ? await this.eventoRepo.findById(detalle.eventoId).catch(() => null)
+        : null;
+      const tcEvento = evento?.tipoCambio;
+      if (!tipoCambioValido(tcEvento)) {
+        throw new DomainError("El evento no tiene un tipo de cambio configurado para soles.", API_ERROR_CODES.CONFLICT, 409);
+      }
+      tipoCambio = tcEvento;
+    }
+
+    const plan = detalle.planCuotas;
+    const neto = convertirNeto(detalle.precio ?? 0, params.moneda, tipoCambio);
+    const importes = calcularImportes(neto);
+    const nuevoPlan = {
+      modalidad: plan.modalidad,
+      cuotas: planCuotasConFechas(
+        importes.total,
+        plan.cuotas.map((cuota) => cuota.porcentaje),
+        plan.cuotas.map((cuota) => cuota.fechaVencimiento),
+      ),
+      moneda: params.moneda,
+      tipoCambio,
+    };
+
+    await this.repo.cambiarMonedaSolicitud(params.solicitudId, {
+      moneda: params.moneda,
+      tipoCambio,
+      plan: nuevoPlan,
+      actor: params.actor,
+    });
+
+    return { moneda: params.moneda, tipoCambio };
   }
 
   /**
