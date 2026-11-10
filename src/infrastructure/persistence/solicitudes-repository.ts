@@ -592,10 +592,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           none: {
             flgActivo: true,
             categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
-            OR: [
-              { estado: null },
-              { estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO },
-            ],
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
           },
         },
       });
@@ -605,10 +602,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
           none: {
             flgActivo: true,
             categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
-            OR: [
-              { estado: null },
-              { estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO },
-            ],
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
           },
         },
       });
