@@ -79,6 +79,13 @@ export interface DatosPlantilla {
     standCodes: string;
     faltantes: string[];
   };
+  /** Aviso: la factura de una cuota ya fue emitida y esta disponible en el portal. */
+  "facturacion-factura-disponible": {
+    razonSocial: string;
+    standCodes: string;
+    numero: string;
+    fechaEmision?: string | null;
+  };
   /** Debida Diligencia: expediente recibido y en revision. */
   "dd-recibida": { codigo: string; razonSocial: string };
   /** Debida Diligencia: expediente observado (correcciones solicitadas). */

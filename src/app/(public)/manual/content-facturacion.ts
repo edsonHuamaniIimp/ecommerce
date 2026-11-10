@@ -94,6 +94,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <ul>
 <li>Se registra tu <strong>solicitud de factura</strong> y se crea la reserva en el sistema del IIMP (contrato y cuenta corriente).</li>
 <li>Tus requisitos quedan guardados para que Facturación los revise.</li>
+<li>Verás el aviso <strong>"Solicitud de factura enviada · tu factura está en proceso de emisión"</strong> en Mis documentos.</li>
 <li>Recibirás un correo de <strong>Facturación y Cobranzas</strong> con las indicaciones de pago.</li>
 </ul>
 <blockquote>
@@ -104,8 +105,8 @@ export const MANUAL_FACTURACION_HTML: string = `
 <h2 id="seccion-5">5. ¿Qué pasa después del envío?</h2>
 <p>La factura <strong>no se emite de inmediato</strong>: Facturación emite la factura de <strong>cada cuota en su fecha</strong>.</p>
 <ul>
-<li>Mientras no se emita, verás la <strong>fecha de emisión programada</strong> de la cuota.</li>
-<li>Cuando la factura se emite, el portal muestra la <strong>fecha de emisión real</strong> y el documento queda disponible para ver y descargar.</li>
+<li>Mientras no se emita, verás la <strong>fecha de emisión programada</strong> de la cuota y el aviso de que tu factura está <strong>en proceso de emisión</strong>.</li>
+<li>Cuando la factura se emite, el portal muestra la <strong>fecha de emisión real</strong> y el documento queda disponible para ver y descargar. También <strong>recibirás un correo</strong> avisando que la factura está disponible.</li>
 <li>Si Facturación anula o rechaza una factura, verás la marca y el motivo; la cuota queda pendiente de un nuevo documento.</li>
 <li>Cuando Facturación confirma el pago de todas las cuotas, la solicitud pasa a <strong>pagado</strong>.</li>
 </ul>
@@ -124,7 +125,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 </ul>
 <hr>
 <h2 id="seccion-7">7. Documentos de cada cuota</h2>
-<p>Con la solicitud enviada, el <strong>ícono de documentos</strong> (carpetas) de la cuota abre el panel <strong>Documentos para tu factura</strong> (marcado en rojo en la Figura 4):</p>
+<p>Cuando la cuota <strong>ya tiene su factura emitida</strong>, el <strong>ícono de documentos</strong> (carpetas) abre el panel <strong>Documentos para tu factura</strong> (marcado en rojo en la Figura 4). Mientras la factura aún no se emite, la cuota muestra el ícono de factura en estado pendiente y <strong>no</strong> te pide documentos adicionales.</p>
 <p><img src="/manual/img/fact-03a-tarjeta-documentos.png" alt="Icono de documentos"><br><em>Figura 4 — Ícono de documentos por cuota.</em></p>
 <ul>
 <li><strong>Constancia de detracción</strong> (SPOT).</li>
@@ -140,7 +141,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 
 <hr>
 <h2 id="seccion-8">8. Ver y descargar tus facturas</h2>
-<p>En cada cuota con factura verás una fila con el nombre del documento y tres acciones. Pulsa el <strong>ícono de descarga</strong> de la fila de la factura (marcado en rojo en la Figura 6).</p>
+<p>En cada cuota con factura verás una fila con el nombre del documento y tres acciones. Pulsa el <strong>ícono de descarga</strong> de la fila de la factura (marcado en rojo en la Figura 6). Cuando la factura se emite, también <strong>recibirás un correo</strong> de aviso en el correo de facturación.</p>
 <p><img src="/manual/img/fact-06a-tarjeta-factura.png" alt="Icono de descarga de factura"><br><em>Figura 6 — Ícono de descarga en la cuota facturada.</em></p>
 <ul>
 <li><strong>Vista previa</strong>: abre la factura en un modal de la misma página.</li>
@@ -167,7 +168,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <p><strong>Subí mi constancia de pago y sigue "Pendiente", ¿qué pasa?</strong><br>Las constancias son referenciales y no cambian el estado. Facturación valida el pago por sus canales y actualiza la cuota cuando lo confirma.</p>
 <p><strong>¿Qué hago si mi factura fue anulada?</strong><br>Revisa el motivo en la cuota. Facturación gestiona la reemisión; cuando se emita la nueva factura aparecerá con su fecha y podrás descargarla.</p>
 <p><strong>¿Cuándo pasa mi solicitud a "Pagado"?</strong><br>Cuando todas las cuotas estén pagadas y confirmadas por Facturación.</p>
-<p><strong>¿Puedo agregar más documentos después?</strong><br>Sí, desde el ícono de documentos de cada cuota en <strong>Mis documentos</strong>.</p>
+<p><strong>¿Puedo agregar más documentos después?</strong><br>Sí, cuando la cuota ya tiene factura emitida puedes usar el ícono de documentos de esa cuota en <strong>Mis documentos</strong>.</p>
 <hr>
 <h2 id="seccion-11">11. Soporte</h2>
 <p>Para dudas sobre requisitos, documentos o facturas:</p>

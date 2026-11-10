@@ -10,7 +10,10 @@ import {
 import { DomainError } from "@/lib/server/router";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { getAppUrl } from "@/lib/server/app-url";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { dateUtils } from "@/lib/shared/utils/date";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { NotificacionFacturaRequestDTO, NotificacionFacturaResponseDTO } from "@/types/dto/facturacion";
@@ -28,6 +31,7 @@ export class NotificacionFacturaApplicationService {
   constructor(
     private readonly solicitudes: Pick<ISolicitudesRepository, "findSolicitudIdPorNumeroIImp" | "findSolicitudIdPorContrato" | "crearAlertaRol">,
     private readonly facturacion: Pick<IFacturacionRepository, "findFacturacionIdPorSolicitud" | "detalle" | "registrarNotificacionFactura">,
+    private readonly auth: IAuthRepository,
   ) {}
 
   async registrar(input: NotificacionFacturaRequestDTO): Promise<NotificacionFacturaResponseDTO> {
@@ -48,7 +52,10 @@ export class NotificacionFacturaApplicationService {
     }
 
     const facturacion = await this.facturacion.detalle(facturacionId);
-    const cuota = facturacion?.cuotas.find((c) => c.numero === input.cuota);
+    if (!facturacion) {
+      throw new DomainError("La solicitud no tiene una facturacion activa", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+    const cuota = facturacion.cuotas.find((c) => c.numero === input.cuota);
     if (!cuota) {
       throw new DomainError(`La facturacion no tiene la cuota ${input.cuota}`, API_ERROR_CODES.NOT_FOUND, 404);
     }
@@ -63,6 +70,35 @@ export class NotificacionFacturaApplicationService {
       },
       AUTORES_SISTEMA.IIMP,
     );
+
+    /*
+     * Aviso al cliente de que la factura ya esta disponible. Solo cuando el
+     * documento es nuevo o cambio su fecha de emision (evita correos repetidos
+     * en reintentos del SIE); nunca en anulaciones/rechazos.
+     */
+    if (estadoPago !== ESTADOS_PAGO_EXTERNO.ANULADA && facturacion.correoSolicitante) {
+      const esNuevaFactura =
+        documento !== cuota.documentoSie ||
+        (fechaEmision !== null && fechaEmision !== cuota.documentoSieFechaEmision);
+      if (esNuevaFactura) {
+        try {
+          const idioma = await resolverIdiomaDestinatario(this.auth, facturacion.correoSolicitante);
+          await enviarEmailPlantilla({
+            to: facturacion.correoSolicitante,
+            plantilla: "facturacion-factura-disponible",
+            idioma,
+            datos: {
+              razonSocial: facturacion.empresaFacturacion ?? "su empresa",
+              standCodes: facturacion.standCode,
+              numero: documento,
+              fechaEmision,
+            },
+          });
+        } catch {
+          /* El correo no bloquea la notificacion M2M. */
+        }
+      }
+    }
 
     /* Anulacion o rechazo (mismo codigo 2): alerta operativa a Facturacion para reemitir. */
     if (estadoPago === ESTADOS_PAGO_EXTERNO.ANULADA) {

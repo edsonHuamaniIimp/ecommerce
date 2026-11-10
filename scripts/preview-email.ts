@@ -65,6 +65,12 @@ const DATOS: { [K in PlantillaEmailKind]: DatosPlantilla[K] } = {
     standCodes: "BLOQUE-01",
     faltantes: ["Orden de compra (OC)", "Hoja de entrada (HES)"],
   },
+  "facturacion-factura-disponible": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+    numero: "F001-1234",
+    fechaEmision: "2026-11-13",
+  },
   "sgc-contrato-observado": { standCode: "523", empresa: "PRODIMIN S.A.C.", motivo: "Corrige el contrato", autoRegenerado: true, url: "https://ejemplo.pe/dashboard/solicitudes" },
   "documentos-observados": {
     standCodes: "BLOQUE-01",

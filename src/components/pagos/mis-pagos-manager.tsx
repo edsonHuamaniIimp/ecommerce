@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, RefreshCw, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, RefreshCw, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { Pagination } from "@/components/shared/pagination";
@@ -27,6 +27,11 @@ const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.ARCHIVADO]: "Archivado",
   [ESTADOS_FACTURACION.CANCELADO]: "Cancelado",
 };
+
+/** true si la cuota ya tiene una factura vigente (SIE o IIMP). */
+function cuotaConFactura(cuota: CuotaPagoDTO): boolean {
+  return !cuota.documentoSieAnulado && Boolean(cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento);
+}
 
 /**
  * Aviso de deuda documental: verifica los archivos reales de la cuenta corriente
@@ -252,12 +257,21 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       : null;
     return (
     <div className="space-y-2">
-      {!row.iimpContrato && !soloLectura && row.cuotas.length > 0 && (
+      {!row.iimpContrato && row.cuotas.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
           <span className="text-foreground">
             <strong>Solicitud de factura pendiente:</strong> aún no enviaste tu solicitud de factura.
             {cuotaSugerida ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.` : ""}
+          </span>
+        </div>
+      )}
+      {row.iimpContrato && !row.cuotas.some(cuotaConFactura) && (
+        <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-[11px]">
+          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
+          <span className="text-foreground">
+            <strong>Solicitud de factura enviada.</strong> Tu factura está en proceso de emisión; te
+            avisaremos por correo cuando esté disponible.
           </span>
         </div>
       )}
@@ -327,7 +341,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                     <span>Voucher</span>
                   </a>
                 )}
-                {(cuota.comprobanteFiscal || cuota.iimpDocumento) && !cuota.documentoSieAnulado ? (
+                {/* Descarga de la factura emitida (SIE o IIMP). */}
+                {(cuota.comprobanteFiscal || cuota.iimpDocumento) && !cuota.documentoSieAnulado && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
@@ -348,26 +363,48 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                ) : (puedeGestionar || soloLectura) && row.iimpContrato ? (
-                  cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        disabled={soloLectura}
-                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
-                      >
-                        <Files className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>{soloLectura ? "Solo lectura: Documentos para tu factura (OC, HES y pagos)" : "Documentos para tu factura (OC, HES y pagos)"}</span>
-                    </TooltipContent>
-                  </Tooltip>
-                  )
-                ) : (puedeGestionar || soloLectura) ? (
+                )}
+                {/* "Documentos para tu factura" solo cuando la cuota ya tiene factura emitida. */}
+                {!cuota.documentoSieAnulado &&
+                  (cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento) &&
+                  cuota.estado !== ESTADOS_CUOTA.PAGADO &&
+                  (puedeGestionar || soloLectura) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          disabled={soloLectura}
+                          onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
+                        >
+                          <Files className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <span>{soloLectura ? "Solo lectura: Documentos para tu factura (OC, HES y pagos)" : "Documentos para tu factura (OC, HES y pagos)"}</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* Solicitud enviada sin factura: icono de factura pendiente (sin accion). */}
+                {row.iimpContrato &&
+                  !cuota.documentoSieAnulado &&
+                  !(cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
+                            <FileDown className="h-3.5 w-3.5 opacity-60" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <span>Factura pendiente de emisión</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* Sin solicitud: enviar la solicitud de factura (requisitos y adjuntos). */}
+                {!row.iimpContrato && (puedeGestionar || soloLectura) && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -384,7 +421,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       <span>{soloLectura ? "Solo lectura: Solicitar factura" : "Solicitar factura"}</span>
                     </TooltipContent>
                   </Tooltip>
-                ) : null}
+                )}
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>

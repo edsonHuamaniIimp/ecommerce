@@ -479,6 +479,26 @@ export const plantillasEn: PlantillasEmail = {
     };
   },
 
+  "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
+    subject: `Invoice available (${numero}) - IIMP`,
+    html: envoltura(
+      "Invoice available",
+      `
+      <p>The invoice for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> is now available in the Client Portal.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+        ${fila("Stand", esc(standCodes))}
+        ${fila("Document", esc(numero))}
+        ${fechaEmision ? fila("Issue date", esc(fechaEmision)) : ""}
+      </table>
+      <div style="text-align:center;margin:20px 0">
+        <a href="${getAppUrl()}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my invoice</a>
+      </div>
+      <p style="font-size:13px;color:#475569">Go to <strong>My documents</strong> and download it from the corresponding installment. You can also check the <a href="${getAppUrl()}/manual/facturacion" style="color:#1b365d">billing manual</a>.</p>
+    `,
+      PIE_EN,
+    ),
+  }),
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Due diligence received (${codigo}) - IIMP`,
     html: envoltura(

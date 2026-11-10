@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTORES_SISTEMA, ESTADOS_PAGO_EXTERNO } from "@/lib/shared/constants";
 import { NotificacionFacturaApplicationService } from "../notificacion-factura-service";
+import { enviarEmailPlantilla } from "@/lib/server/email";
+import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 
@@ -12,9 +14,49 @@ vi.mock("@/lib/server/router", () => ({
     }
   },
 }));
+vi.mock("@/lib/server/email", () => ({
+  enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
+}));
+vi.mock("@/lib/server/idioma", () => ({
+  resolverIdiomaPeticion: vi.fn().mockResolvedValue("es"),
+}));
 
 /* estadoPago: 0 PAGADA | 1 PENDIENTE | 2 ANULADA */
 const BASE = { numeroSolicitud: "CTRS-s1", cuota: 1, documento: "F001-1234.pdf", estadoPago: ESTADOS_PAGO_EXTERNO.PAGADA };
+
+const CUOTA = {
+  id: "cu1",
+  numero: 1,
+  monto: 100,
+  fechaVencimiento: null,
+  estado: "pendiente",
+  comprobante: null,
+  comprobanteFiscal: null,
+  documentoSie: null,
+  documentoSieAnulado: false,
+  documentoSieJustificacion: null,
+  documentoSieFechaEmision: null,
+  iimpDocumento: null,
+};
+
+const FACTURACION = {
+  id: "f1",
+  solicitudId: "sol-1",
+  tipo: "manual",
+  estado: "pendiente",
+  montoTotal: 200,
+  moneda: "US$",
+  modoPago: "cuotas",
+  planCliente: true,
+  standCode: "159",
+  correoSolicitante: "cliente@geo-logic.pe",
+  empresaFacturacion: "GEO-LOGIC PERU S.R.L.",
+  requisitos: null,
+  iimpContrato: "0000000008",
+  iimpCuentaCorriente: "8",
+  createdAt: "2026-11-09T00:00:00.000Z",
+  cuotas: [CUOTA, { ...CUOTA, id: "cu2", numero: 2 }],
+};
 
 function mocks() {
   const solicitudes = {
@@ -24,17 +66,22 @@ function mocks() {
   } as unknown as Pick<ISolicitudesRepository, "findSolicitudIdPorNumeroIImp" | "findSolicitudIdPorContrato" | "crearAlertaRol">;
   const facturacion = {
     findFacturacionIdPorSolicitud: vi.fn(async () => "f1"),
-    detalle: vi.fn(async () => ({ id: "f1", cuotas: [{ id: "cu1", numero: 1 }, { id: "cu2", numero: 2 }] })),
+    detalle: vi.fn(async () => FACTURACION),
     registrarNotificacionFactura: vi.fn(async () => {}),
   } as unknown as Pick<IFacturacionRepository, "findFacturacionIdPorSolicitud" | "detalle" | "registrarNotificacionFactura">;
-  return { solicitudes, facturacion };
+  const auth = { findPerfilByEmail: vi.fn(async () => null) } as unknown as IAuthRepository;
+  return { solicitudes, facturacion, auth };
 }
 
 function servicio(m: ReturnType<typeof mocks>) {
-  return new NotificacionFacturaApplicationService(m.solicitudes, m.facturacion);
+  return new NotificacionFacturaApplicationService(m.solicitudes, m.facturacion, m.auth);
 }
 
 describe("NotificacionFacturaApplicationService", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("registra documento y pago (0 = PAGADA) por NumeroSolicitud", async () => {
     const m = mocks();
     const r = await servicio(m).registrar(BASE);
@@ -159,5 +206,49 @@ describe("NotificacionFacturaApplicationService", () => {
     await expect(servicio(m).registrar({ ...BASE, estadoPago: 3 })).rejects.toMatchObject({ status: 400 });
     await expect(servicio(m).registrar({ ...BASE, estadoPago: "PAGADO" as never })).rejects.toMatchObject({ status: 400 });
     expect(m.facturacion.registrarNotificacionFactura).not.toHaveBeenCalled();
+  });
+
+  it("avisa al cliente por correo cuando la factura aparece por primera vez", async () => {
+    const m = mocks();
+    await servicio(m).registrar({ ...BASE, fechaEmision: "2026-11-05" });
+
+    expect(enviarEmailPlantilla).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "cliente@geo-logic.pe",
+        plantilla: "facturacion-factura-disponible",
+        datos: expect.objectContaining({
+          razonSocial: "GEO-LOGIC PERU S.R.L.",
+          standCodes: "159",
+          numero: "F001-1234.pdf",
+          fechaEmision: "2026-11-05",
+        }),
+      }),
+    );
+  });
+
+  it("no repite el aviso si el documento y la fecha ya estaban registrados", async () => {
+    const m = mocks();
+    vi.mocked(m.facturacion.detalle).mockResolvedValue({
+      ...FACTURACION,
+      cuotas: [
+        { ...CUOTA, documentoSie: "F001-1234.pdf", documentoSieFechaEmision: "2026-11-05" },
+        FACTURACION.cuotas[1]!,
+      ],
+    });
+
+    await servicio(m).registrar({ ...BASE, fechaEmision: "2026-11-05" });
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
+  });
+
+  it("no envia aviso al cliente cuando la factura se anula", async () => {
+    const m = mocks();
+    await servicio(m).registrar({
+      ...BASE,
+      estadoPago: ESTADOS_PAGO_EXTERNO.ANULADA,
+      justificacion: "Rechazada por Facturacion",
+    });
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
 });

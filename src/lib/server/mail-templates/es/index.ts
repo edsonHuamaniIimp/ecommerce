@@ -479,6 +479,26 @@ export const plantillasEs: PlantillasEmail = {
     };
   },
 
+  "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
+    subject: `Factura disponible (${numero}) - IIMP`,
+    html: envoltura(
+      "Factura disponible",
+      `
+      <p>La factura de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> ya está disponible en el Portal del Cliente.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+        ${fila("Stand", esc(standCodes))}
+        ${fila("Documento", esc(numero))}
+        ${fechaEmision ? fila("Fecha de emisión", esc(fechaEmision)) : ""}
+      </table>
+      <div style="text-align:center;margin:20px 0">
+        <a href="${getAppUrl()}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver mi factura</a>
+      </div>
+      <p style="font-size:13px;color:#475569">Ingresa a <strong>Mis documentos</strong> y descárgala desde la cuota correspondiente. También puedes consultar el <a href="${getAppUrl()}/manual/facturacion" style="color:#1b365d">manual de facturación</a>.</p>
+    `,
+      PIE_ES,
+    ),
+  }),
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Debida diligencia recibida (${codigo}) - IIMP`,
     html: envoltura(

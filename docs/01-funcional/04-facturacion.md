@@ -71,7 +71,10 @@ factura de cada cuota en su fecha.
 ### 4.2 Documentos para tu factura (panel por cuota)
 
 Con la reserva registrada, el ícono de documentos abre el panel de la **cuenta corriente**
-del IIMP asociada a la cuota:
+del IIMP asociada a la cuota. El ícono aparece **solo cuando la cuota ya tiene factura
+emitida** (SIE/IIMP); mientras la factura no llega, la cuota muestra el ícono de factura
+en estado pendiente y no solicita documentos adicionales. Así el cliente no confunde la
+declaración inicial de requisitos con una carga documental posterior:
 
 - Tipos disponibles (v6): `OC`, `HES`, `DETRACCION`, `DIFERENCIA`, `PAGO_TOTAL`,
   `VALORIZACION_COTIZACION` y `OTROS_REQUISITOS`.
@@ -96,6 +99,8 @@ Cada cuota muestra:
   se emitió, muestra "Factura emitida · pendiente de pago".
 - **Solicitud de factura pendiente**: si la reserva aún no se registró en el IIMP, se
   resalta la cuota sugerida ("Solicitar factura aquí").
+- **Factura en proceso**: con la solicitud enviada y ninguna cuota facturada, se muestra
+  el aviso "Solicitud de factura enviada · tu factura está en proceso de emisión".
 
 ### 4.4 Facturas
 
@@ -106,6 +111,9 @@ Cada cuota muestra:
   factura fue anulada.
 - La URL del PDF se construye con `FACTURAS_PDF_URL_TEMPLATE` y `FACTURAS_EMISOR_RUC`
   (bucket público del ecosistema IIMP).
+- Cuando el SIE notifica una factura nueva (o cambia su fecha de emisión), se envía al
+  cliente la plantilla `facturacion-factura-disponible` (no se repite en reintentos ni en
+  anulaciones).
 
 ### 4.5 Contacto de facturación
 
@@ -229,6 +237,8 @@ Alternativa a evaluar: revertir el estado al recibir `2` (pendiente de decisión
   pendientes que aún no enviaron su solicitud de factura (CTA a Mis documentos + manual).
 - Plantilla `facturacion-recordatorio-documentos`: recordatorio con la lista de documentos
   declarados pendientes (CTA a subir documentos + manual).
+- Plantilla `facturacion-factura-disponible`: aviso al cliente cuando el SIE registra una
+  factura nueva (CTA a Mis documentos + manual).
 - Adjuntar comprobante fiscal de una cuota notifica al cliente.
 - Los textos usan tildes correctas (revisión, áreas, ocasión, sección, documentación,
   reevaluación, automático).
