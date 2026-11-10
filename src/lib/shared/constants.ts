@@ -886,6 +886,20 @@ export type SolicitudesFiltroDd = (typeof SOLICITUDES_FILTRO_DD)[keyof typeof SO
 
 export type SolicitudesFiltroSgc = (typeof SOLICITUDES_FILTRO_SGC)[keyof typeof SOLICITUDES_FILTRO_SGC];
 
+/** Filtros de contrato de la bandeja de solicitudes. */
+export const SOLICITUDES_FILTRO_CONTRATO = {
+  SIN_GENERADO: "sin_generado",
+  SIN_FIRMADO: "sin_firmado",
+} as const;
+
+export type SolicitudesFiltroContrato =
+  (typeof SOLICITUDES_FILTRO_CONTRATO)[keyof typeof SOLICITUDES_FILTRO_CONTRATO];
+
+export const SOLICITUDES_FILTRO_CONTRATO_LABELS: Record<SolicitudesFiltroContrato, string> = {
+  [SOLICITUDES_FILTRO_CONTRATO.SIN_GENERADO]: "Sin contrato generado",
+  [SOLICITUDES_FILTRO_CONTRATO.SIN_FIRMADO]: "Sin contrato firmado",
+};
+
 export const SOLICITUDES_FILTRO_SGC_LABELS: Record<SolicitudesFiltroSgc, string> = {
   [SOLICITUDES_FILTRO_SGC.CON]: "Con expediente SGC",
   [SOLICITUDES_FILTRO_SGC.SIN]: "Sin expediente SGC",

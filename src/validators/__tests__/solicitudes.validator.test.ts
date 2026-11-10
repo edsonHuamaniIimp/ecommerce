@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, SOLICITUDES_FILTRO_CONTRATO } from "@/lib/shared/constants";
 import { solicitudesListarSchema, solicitudesPaisesSchema } from "../solicitudes.validator";
 
 const EVENTO_ID = "11111111-1111-4111-8111-111111111111";
@@ -37,6 +37,20 @@ describe("solicitudesListarSchema - filtro de pais", () => {
       expect(parsed.data.page).toBe(2);
       expect(parsed.data.per_page).toBe(25);
     }
+  });
+});
+
+describe("solicitudesListarSchema - filtro de contrato", () => {
+  it("acepta los filtros sin contrato generado y sin contrato firmado", () => {
+    for (const contrato of Object.values(SOLICITUDES_FILTRO_CONTRATO)) {
+      const parsed = solicitudesListarSchema.safeParse({ eventoId: EVENTO_ID, contrato });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.contrato).toBe(contrato);
+    }
+  });
+
+  it("rechaza valores desconocidos", () => {
+    expect(solicitudesListarSchema.safeParse({ eventoId: EVENTO_ID, contrato: "sin_todo" }).success).toBe(false);
   });
 });
 

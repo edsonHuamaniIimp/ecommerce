@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { areasRevisionLocal, observadaPorArea } from "@/lib/shared/utils/revision-areas";
@@ -585,6 +585,33 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       and.push({ sgcExpediente: { is: { lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED } } });
     } else if (params.sgc === SOLICITUDES_FILTRO_SGC.RECHAZADO) {
       and.push({ sgcExpediente: { is: { lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED } } });
+    }
+    if (params.contrato === SOLICITUDES_FILTRO_CONTRATO.SIN_GENERADO) {
+      and.push({
+        docsAdjuntos: {
+          none: {
+            flgActivo: true,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+            OR: [
+              { estado: null },
+              { estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO },
+            ],
+          },
+        },
+      });
+    } else if (params.contrato === SOLICITUDES_FILTRO_CONTRATO.SIN_FIRMADO) {
+      and.push({
+        docsAdjuntos: {
+          none: {
+            flgActivo: true,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            OR: [
+              { estado: null },
+              { estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO },
+            ],
+          },
+        },
+      });
     }
     if (params.desde || params.hasta) {
       and.push({

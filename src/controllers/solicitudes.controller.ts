@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
-import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
+import type { SolicitudesFiltroContrato, SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
 import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
@@ -127,6 +127,7 @@ export const solicitudesController = {
       pais: url.searchParams.get("pais") ?? undefined,
       areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
       sgc: url.searchParams.get("sgc") ?? undefined,
+      contrato: url.searchParams.get("contrato") ?? undefined,
       docsObservados: url.searchParams.get("docsObservados") ?? undefined,
       observadoPor: url.searchParams.get("observadoPor") ?? undefined,
       desde: url.searchParams.get("desde") ?? undefined,
@@ -165,6 +166,7 @@ export const solicitudesController = {
           pais: parsed.pais ?? null,
           areaPendiente: parsed.areaPendiente ?? null,
           sgc: parsed.sgc ?? null,
+          contrato: parsed.contrato ?? null,
           docsObservados: parsed.docsObservados === "true",
           observadoPor: parsed.observadoPor ?? null,
           desde: parsed.desde ?? null,
@@ -184,6 +186,7 @@ export const solicitudesController = {
       pais: parsed.pais,
       areaPendiente: parsed.areaPendiente,
       sgc: parsed.sgc as SolicitudesFiltroSgc | undefined,
+      contrato: parsed.contrato as SolicitudesFiltroContrato | undefined,
       docsObservados: parsed.docsObservados === "true",
       observadoPor: parsed.observadoPor,
       desde: parsed.desde,

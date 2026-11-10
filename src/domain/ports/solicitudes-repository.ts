@@ -27,6 +27,8 @@ export interface SolicitudesListParams {
   areaPendiente?: string;
   /** Situacion del expediente SGC. */
   sgc?: "con" | "sin" | "observado" | "rechazado";
+  /** Contrato generado/firmado: solo solicitudes que aun no lo tienen. */
+  contrato?: "sin_generado" | "sin_firmado";
   /** Solo solicitudes con documentos observados por el revisor. */
   docsObservados?: boolean;
   /** Origen de la observacion cuando el estado es OBSERVADO. */

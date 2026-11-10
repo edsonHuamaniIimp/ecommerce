@@ -10,7 +10,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_CONTRATO_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc, origenesObservacion } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
@@ -382,6 +382,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     filters.pais,
     filters.areaPendiente,
     filters.sgc,
+    filters.contrato,
     filters.docsObservados ? "observados" : undefined,
     filters.observadoPor,
     filters.desde,
@@ -737,6 +738,21 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                     <SelectItem value="todos"><span>Cualquier estado SGC</span></SelectItem>
                     {Object.values(SOLICITUDES_FILTRO_SGC).map((valor) => (
                       <SelectItem key={valor} value={valor}><span>{SOLICITUDES_FILTRO_SGC_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-contrato">Contrato</label>
+                <Select
+                  value={filters.contrato ?? "todos"}
+                  onValueChange={(v) => aplicarFiltros({ ...filters, contrato: v === "todos" ? undefined : v })}
+                >
+                  <SelectTrigger id="filtro-contrato" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Cualquier contrato</span></SelectItem>
+                    {Object.values(SOLICITUDES_FILTRO_CONTRATO).map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{SOLICITUDES_FILTRO_CONTRATO_LABELS[valor]}</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
