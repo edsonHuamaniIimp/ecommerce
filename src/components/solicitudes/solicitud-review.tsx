@@ -585,7 +585,9 @@ export function SolicitudReview({
                 ? "Contrato (administrador)"
                 : key === "contrato-firmado"
                   ? "Contrato firmado (cliente)"
-                  : etiquetaRequisito(actual.requisito) ?? actual.nombre;
+                  : key === `categoria:${TIPOS_DOCUMENTO_SOLICITUD.ANEXO}`
+                    ? "Documentos anexos"
+                    : etiquetaRequisito(actual.requisito) ?? actual.nombre;
               return { key, actual, anteriores, etiqueta, fecha: fechaMs(ordenadas[0]!) };
             })
             .sort((a, b) => {
