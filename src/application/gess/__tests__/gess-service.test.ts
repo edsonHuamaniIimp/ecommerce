@@ -313,6 +313,26 @@ describe("GessApplicationService pre-reservas", () => {
     expect(repo.update).not.toHaveBeenCalled();
   });
 
+  it("rechaza pre-reservar un stand sin bloque 3D", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "disponible", bloqueId: null }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.preReservar(["g1"], { razonSocial: "GLORIA S.A.", ruc: null, sie: null, logoUrl: null }, null, "admin"))
+      .rejects.toMatchObject({ status: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza pre-reservar un stand con precio comercial 0.00", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ id: "g1", estado: "disponible", medidas: "0.00 USD" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.preReservar(["g1"], { razonSocial: "GLORIA S.A.", ruc: null, sie: null, logoUrl: null }, null, "admin"))
+      .rejects.toMatchObject({ status: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
   it("exige razon social", async () => {
     const repo = mockRepo();
     const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
@@ -427,6 +447,7 @@ describe("GessApplicationService pre-reservas", () => {
 describe("GessApplicationService.vincular (bloque unico por evento)", () => {
   it("mapea el conflicto unico (bloque ya vinculado) a un error claro", async () => {
     const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ medidas: "7440.00 USD" }));
     vi.mocked(repo.update).mockRejectedValueOnce(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
     const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
 
@@ -435,10 +456,29 @@ describe("GessApplicationService.vincular (bloque unico por evento)", () => {
 
   it("vincula sin error cuando no hay conflicto", async () => {
     const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ medidas: "7440.00 USD" }));
     vi.mocked(repo.update).mockResolvedValueOnce(stand({ bloqueId: "E-102" }));
     const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
 
     const r = await svc.vincular("g1", "E-102");
     expect(r.bloqueId).toBe("E-102");
+  });
+
+  it("no vincula un stand con precio comercial 0.00", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValueOnce(stand({ medidas: "0.00 USD" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.vincular("g1", "E-102")).rejects.toMatchObject({ status: 409 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it("permite desvincular un stand sin validar precio", async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.update).mockResolvedValueOnce(stand({ bloqueId: null, medidas: "0.00 USD" }));
+    const svc = new GessApplicationService(repo, api, planoRepo, catalogoMock());
+
+    await expect(svc.vincular("g1", null)).resolves.toMatchObject({ bloqueId: null });
+    expect(repo.findById).not.toHaveBeenCalled();
   });
 });

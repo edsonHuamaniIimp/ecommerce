@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { PRECIO_STAND_DEFAULT } from "@/lib/shared/constants";
 import {
+  esStandComercialVinculable,
+  precioComercialExplicito,
   precioNumericoDesdeTipo,
   precioTexto,
   precioTextoDesdeTipo,
+  resolverPrecioComercialStand,
   resolverPrecioStand,
 } from "../precio-stand";
 
@@ -63,5 +66,20 @@ describe("resolverPrecioStand", () => {
   it("cae al catalogo/default sin datos", () => {
     expect(resolverPrecioStand({ medidas: null, tipoStand: "PREFERENCIAL" })).toBe(3000);
     expect(resolverPrecioStand({ medidas: null, tipoStand: null })).toBe(PRECIO_STAND_DEFAULT);
+  });
+});
+
+describe("precio comercial explícito", () => {
+  it("distingue un precio 0.00 de un stand sin precio", () => {
+    expect(precioComercialExplicito({ medidas: "0.00 USD", tipoStand: "ESTANDAR_01" })).toBe(0);
+    expect(precioComercialExplicito({ medidas: "3x3", tipoStand: "ESTANDAR_01" })).toBeNull();
+    expect(resolverPrecioComercialStand({ medidas: "0.00 USD", tipoStand: "ESTANDAR_01" })).toBe(0);
+    expect(resolverPrecioComercialStand({ medidas: "3x3", tipoStand: "ESTANDAR_01" })).toBe(2000);
+  });
+
+  it("no permite vincular stands con precio explícito 0.00", () => {
+    expect(esStandComercialVinculable({ medidas: "0.00 USD", tipoStand: "ESTANDAR_01" })).toBe(false);
+    expect(esStandComercialVinculable({ medidas: "7440.00 USD", tipoStand: "ESTANDAR_01" })).toBe(true);
+    expect(esStandComercialVinculable({ medidas: null, tipoStand: "ESTANDAR_01" })).toBe(true);
   });
 });

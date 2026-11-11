@@ -12,6 +12,7 @@ import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
 import { calcularPrevisualizacionSync, type PrevisualizacionSyncGess } from "@/lib/shared/utils/gess-sync";
+import { esStandComercialVinculable } from "@/lib/shared/utils/precio-stand";
 
 type ApiRow = Record<string, unknown>;
 
@@ -212,7 +213,11 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
    * el combobox sigue permitiendo buscar por numero/tipo/precio.
    */
   const opcionesParaBloque = (bloqueId: string): GessStandRow[] => {
-    const base = dbRows.filter((row) => !row.bloqueId || row.bloqueId === bloqueId);
+    const base = dbRows.filter(
+      (row) =>
+        (!row.bloqueId || row.bloqueId === bloqueId) &&
+        esStandComercialVinculable({ medidas: row.medidas, tipoStand: row.tipoStand, rawData: row.rawData }),
+    );
     if (clavesPabellonSel.length === 0) return base;
     const delFiltro = base.filter((row) => clavesPabellonSel.includes(stringUtils.claveComparacion(row.pabellon)));
     return delFiltro.length > 0 ? delFiltro : base;
@@ -500,7 +505,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
           <CardContent className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">
-                {filteredBloques.length} de {BLOQUE_IDS.length} bloques 3D — {dbRows.length} registros en BD — {vinculados} vinculados
+                {filteredBloques.length} de {BLOQUE_IDS.length} bloques 3D - {dbRows.length} registros en BD - {vinculados} vinculados
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Los stands con precio comercial 0.00 no se muestran para vincular.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {pabellones.length > 0 && (

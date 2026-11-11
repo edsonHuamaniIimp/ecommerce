@@ -100,6 +100,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
         tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
         planoCodigo: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : pabellonSel?.codigo,
         sinPabellon: filtros.pabellon === SIN_PABELLON,
+        soloVinculados: true,
       });
       setRows(respuesta.data);
       setPagination({
@@ -343,6 +344,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
           tipo: filtros.tipo === UI_SENTINEL.TODOS ? undefined : filtros.tipo,
           planoCodigo: filtros.pabellon === UI_SENTINEL.TODOS || filtros.pabellon === SIN_PABELLON ? undefined : pabellonSel?.codigo,
           sinPabellon: filtros.pabellon === SIN_PABELLON,
+          soloVinculados: true,
         });
         acumulados.push(...respuesta.data);
         totalPaginas = respuesta.pagination.total_pages;
@@ -356,7 +358,8 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
         return;
       }
       const columnas: ColumnaExportacion<GessStandDTO>[] = [
-        { encabezado: "Stand", valor: (r) => r.standCode },
+        { encabezado: "Código comercial", valor: (r) => r.standCode },
+        { encabezado: "Bloque 3D", valor: (r) => r.bloqueId ?? "" },
         { encabezado: "Pabellon", valor: (r) => pabellonDe(r) },
         { encabezado: "Tipo", valor: (r) => r.tipoStand ?? "" },
         { encabezado: "Estado", valor: (r) => estadoStandBadge(r.estado)?.texto ?? r.estado ?? "" },
@@ -443,7 +446,6 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
             <SelectContent>
               <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los pabellones</span></SelectItem>
               {pabellonesPlano.map((p) => <SelectItem key={p.label} value={p.label}><span>{p.label}</span></SelectItem>)}
-              <SelectItem value={SIN_PABELLON}><span>{SIN_PABELLON}</span></SelectItem>
             </SelectContent>
           </Select>
           <Select value={tipo} onValueChange={(v) => cambiarFiltro({ tipo: v })}>
@@ -468,6 +470,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
         </div>
         <p className="text-xs text-muted-foreground">
           {pagination.total} stands &middot; seleccionados: {seleccion.size}
+          <span className="ml-1 text-[11px]">(solo stands vinculados a bloques 3D)</span>
         </p>
       </CardHeader>
       <CardContent>
@@ -482,7 +485,8 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Stand</TableHead>
+                  <TableHead>Código comercial</TableHead>
+                  <TableHead>Bloque 3D</TableHead>
                   <TableHead>Pabellon</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -512,6 +516,7 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
                         />
                       </TableCell>
                       <TableCell className="font-mono text-xs">{r.standCode}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.bloqueId ?? "-"}</TableCell>
                       <TableCell className="text-xs">{pabellonDe(r)}</TableCell>
                       <TableCell className="text-xs">{r.tipoStand ?? "-"}</TableCell>
                       <TableCell>

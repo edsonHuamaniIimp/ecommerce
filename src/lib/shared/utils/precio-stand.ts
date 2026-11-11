@@ -56,6 +56,36 @@ function numeroDesdeRawData(rawData: unknown): number | null {
 }
 
 /**
+ * Precio informado explícitamente por el API/BD, incluyendo el valor 0.00.
+ * Devuelve null cuando el stand no trae ningún dato de precio.
+ */
+export function precioComercialExplicito(stand: PrecioStandFuente): number | null {
+  const desdeMedidas = numeroDesdeMedidas(stand.medidas);
+  if (desdeMedidas !== null) return desdeMedidas;
+  return numeroDesdeRawData(stand.rawData);
+}
+
+/**
+ * Un stand es vinculable comercialmente si no trae un precio explícito inválido.
+ * Los registros del API con `0.00` son datos incompletos/duplicados y no deben
+ * poder asociarse a un bloque 3D.
+ */
+export function esStandComercialVinculable(stand: PrecioStandFuente): boolean {
+  const precio = precioComercialExplicito(stand);
+  return precio === null || precio > 0;
+}
+
+/**
+ * Precio para reportes: respeta el 0.00 explícito y solo usa el catálogo
+ * cuando el stand realmente no informa precio.
+ */
+export function resolverPrecioComercialStand(stand: PrecioStandFuente): number {
+  const explicito = precioComercialExplicito(stand);
+  if (explicito !== null) return explicito;
+  return precioNumericoDesdeTipo(stand.tipoStand) ?? PRECIO_STAND_DEFAULT;
+}
+
+/**
  * Resuelve el precio (USD) de un stand. Prioridad:
  *  1. `medidas` cuando es un texto de precio ("2000.00 US$", "1200"), no una medida ("3x3").
  *  2. `rawData.monto | rawData.precio | rawData.importe` (payload de la API externa).

@@ -6,7 +6,7 @@ import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { GessStandEntity } from "@/domain/models/entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
-import { precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
+import { esStandComercialVinculable, precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
 import { claveTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
@@ -56,7 +56,7 @@ export class GessApplicationService {
 
   async listar(
     eventoId: string,
-    params: { page: number; perPage: number; search?: string; estado?: string; tipo?: string; bloqueIds?: string[]; planoCodigo?: string; sinPabellon?: boolean },
+    params: { page: number; perPage: number; search?: string; estado?: string; tipo?: string; bloqueIds?: string[]; planoCodigo?: string; sinPabellon?: boolean; soloVinculados?: boolean },
     viewer?: EmpresaViewer | null,
   ) {
     /*
@@ -130,6 +130,19 @@ export class GessApplicationService {
   }
 
   async vincular(id: string, bloqueId: string | null) {
+    if (bloqueId) {
+      const stand = await this.repo.findById(id);
+      if (!stand) {
+        throw new DomainError("Stand no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+      }
+      if (!esStandComercialVinculable({ medidas: stand.medidas, tipoStand: stand.tipoStand, rawData: stand.rawData })) {
+        throw new DomainError(
+          "No se puede vincular: el stand no tiene precio comercial válido (0.00). Corrige o desactiva el registro primero.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
     try {
       return await this.repo.update(id, { bloqueId });
     } catch (e) {
@@ -162,6 +175,18 @@ export class GessApplicationService {
       throw new DomainError("Ingresa la empresa (razon social) o un titulo", API_ERROR_CODES.VALIDATION, 400);
     }
     const encontrados = await this.validarStands(standIds, ESTADOS_STAND.DISPONIBLE, "pre-reservar");
+    const invalidos = encontrados.filter(
+      (stand) =>
+        !stand.bloqueId ||
+        !esStandComercialVinculable({ medidas: stand.medidas, tipoStand: stand.tipoStand, rawData: stand.rawData }),
+    );
+    if (invalidos.length > 0) {
+      throw new DomainError(
+        `No se puede pre-reservar: ${invalidos.map((s) => s.standCode).join(", ")} no tiene bloque 3D o precio comercial válido.`,
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
     const at = new Date();
     for (const stand of encontrados) {
       await this.repo.update(stand.id, {

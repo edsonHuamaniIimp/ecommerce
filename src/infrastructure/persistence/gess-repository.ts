@@ -8,8 +8,16 @@ export class GessPrismaRepository implements IGessRepository {
     const where: Record<string, unknown> = { eventoId };
     if (params.estado) where.estado = params.estado;
     if (params.tipo) where.tipoStand = params.tipo;
-    if (params.sinPabellon) where.bloqueId = null;
-    else if (params.bloqueIds && params.bloqueIds.length > 0) where.bloqueId = { in: params.bloqueIds };
+    if (params.sinPabellon) {
+      where.bloqueId = null;
+    } else if (params.bloqueIds && params.bloqueIds.length > 0) {
+      where.bloqueId = { in: params.bloqueIds };
+      if (params.soloVinculados) {
+        where.AND = [{ bloqueId: { not: null } }];
+      }
+    } else if (params.soloVinculados) {
+      where.bloqueId = { not: null };
+    }
     if (params.search) {
       const q = params.search.trim();
       where.OR = ["standCode", "tipoStand", "estado", "empresa", "bloqueId"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } }));

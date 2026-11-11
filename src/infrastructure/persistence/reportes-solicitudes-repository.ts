@@ -1,10 +1,10 @@
-﻿import "server-only";
+import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
 import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ReporteExportacion, ReporteExportacionSolicitud, ReporteExportacionStand, ReporteSolicitudesPreReservas, ReporteStandRegistro, ResumenPaisSolicitudes } from "@/domain/models/reportes";
-import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { resolverPrecioComercialStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
@@ -410,7 +410,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
 
       const claveStand = fila.stand_id ? `${fila.solicitud_id}|${fila.stand_id}` : `${fila.solicitud_id}|sin-stand`;
       if (!stands.has(claveStand)) {
-        const precio = fila.stand_id ? resolverPrecioStand({ tipoStand: fila.tipo_stand, medidas: fila.medidas, rawData: fila.raw_data }) : 0;
+        const precio = fila.stand_id ? resolverPrecioComercialStand({ tipoStand: fila.tipo_stand, medidas: fila.medidas, rawData: fila.raw_data }) : 0;
         const standCode = fila.stand_code ? codigoComercialStand(fila.stand_code) : null;
         stands.set(claveStand, {
           solicitudId: fila.solicitud_id,
@@ -571,7 +571,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         pabellon: fila.pabellon,
         tipoStand: fila.tipo_stand,
         empresa: fila.empresa,
-        precio: resolverPrecioStand({
+        precio: resolverPrecioComercialStand({
           tipoStand: fila.tipo_stand,
           medidas: fila.medidas,
           rawData: fila.raw_data,
@@ -587,4 +587,3 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
   }
 
 }
-
