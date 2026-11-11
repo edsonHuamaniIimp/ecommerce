@@ -49,4 +49,8 @@ export const PLANTILLAS_ALERTA_EN: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Documents observed",
     mensaje: `The reviewing area observed ${total} document(s) of request ${stands}.${documentos?.length ? ` Documents: ${documentos.join("; ")}.` : ""} Upload the new versions and resubmit the request for review.`,
   }),
+  "contrato-regenerado-representantes": ({ stands }) => ({
+    titulo: "Contract regenerated due to representative changes",
+    mensaje: `Your company's legal representatives were updated, so the contract for request ${stands} was regenerated with the new signers. Review the new version and sign it.`,
+  }),
 };

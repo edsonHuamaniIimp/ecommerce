@@ -84,4 +84,26 @@ export const firmarContratoSchema = z.object({
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
+  /** Sellos vectoriales: uno por firmante (principal primero). */
+  sellos: z
+    .array(
+      z.object({
+        esSello: z.boolean(),
+        nombres: z.string(),
+        apellidos: z.string(),
+        fecha: z.string(),
+        imagen: z.string().optional(),
+        secciones: z.array(
+          z.object({
+            pagina: z.number().int().min(1),
+            x: z.number(),
+            y: z.number(),
+            w: z.number(),
+            h: z.number(),
+          }),
+        ).max(4),
+      }),
+    )
+    .max(10)
+    .optional(),
 });

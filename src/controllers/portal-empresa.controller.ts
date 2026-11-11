@@ -6,6 +6,7 @@ import { getSession, signToken } from "@/lib/server/auth";
 import { setTokenCookie } from "@/lib/server/utils/cookie";
 import { mapEmpresaToDTO } from "@/lib/shared/mappers/empresa";
 import { guardarRepresentantesAdicionalesSchema, validarDatosEmpresaSchema } from "@/validators/empresas.validator";
+import { mismoConjuntoRepresentantes } from "@/lib/shared/utils/representantes-adicionales";
 import type { ValidarDatosEmpresaRequestDTO } from "@/types/dto/empresas";
 
 /** Endpoints del Portal del Cliente para la empresa del propio usuario. */
@@ -27,8 +28,16 @@ export const portalEmpresaController = {
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
+    const empresaAntes = await services.empresas.obtenerDatosPortal(session.email);
     const empresa = await services.empresas.actualizarRepresentantesPortal(session.email, parsed.data.representantes);
-    return success(mapEmpresaToDTO(empresa));
+    const cambiaron = !mismoConjuntoRepresentantes(
+      empresaAntes.representantesAdicionales ?? [],
+      empresa.representantesAdicionales ?? [],
+    );
+    const contratosRegenerados = cambiaron
+      ? await services.contrato.regenerarPorCambioRepresentantes(empresa.id).catch(() => 0)
+      : 0;
+    return success({ ...mapEmpresaToDTO(empresa), contratosRegenerados });
   },
 
   /** Validacion/actualizacion de los datos contractuales en el primer ingreso. */
@@ -41,8 +50,16 @@ export const portalEmpresaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const body: ValidarDatosEmpresaRequestDTO = parsed.data;
+    const empresaAntes = await services.empresas.obtenerDatosPortal(session.email);
     const { empresa, correoNuevo } = await services.empresas.validarDatosPortal(session.email, body);
-    const res = success(mapEmpresaToDTO(empresa));
+    const cambiaron = !mismoConjuntoRepresentantes(
+      empresaAntes.representantesAdicionales ?? [],
+      body.representantesAdicionales ?? [],
+    );
+    const contratosRegenerados = cambiaron
+      ? await services.contrato.regenerarPorCambioRepresentantes(empresa.id).catch(() => 0)
+      : 0;
+    const res = success({ ...mapEmpresaToDTO(empresa), contratosRegenerados });
     /* La cuenta (usuario = RUC) adopto el correo del representante: renueva la sesion. */
     if (correoNuevo) {
       const token = await signToken(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
+import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
@@ -42,10 +43,19 @@ interface Pendiente {
 interface Firmante {
   key: string;
   nombre: string;
+  nombres?: string;
+  apellidos?: string;
   rol: string;
   firmaUrl: string | null;
   principal: boolean;
   rep?: EmpresaRepresentanteAdicionalDTO;
+}
+
+/** Separa un nombre completo en nombres y apellidos (dos ultimas palabras). */
+function separarNombreCompleto(nombre: string): { nombres: string; apellidos: string } {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 2) return { nombres: partes[0] ?? "", apellidos: partes.slice(1).join(" ") };
+  return { nombres: partes.slice(0, -2).join(" "), apellidos: partes.slice(-2).join(" ") };
 }
 
 export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
@@ -56,6 +66,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [firmaWorkspaceOpen, setFirmaWorkspaceOpen] = useState(false);
+  const [abriendoFirma, setAbriendoFirma] = useState(false);
+  const [pngOriginales, setPngOriginales] = useState<Record<string, string>>({});
+  const [contratoPreviewUrl, setContratoPreviewUrl] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   /** Corte de la iteracion actual: solo se elimina lo subido despues de la ultima revision. */
@@ -71,41 +85,55 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const [subiendoFirmaId, setSubiendoFirmaId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const firmaRef = useRef<HTMLInputElement>(null);
+  const resumeAutomaticoRef = useRef<(() => void) | null>(null);
   const firmaObjetivoRef = useRef<string | null>(null);
   const requisitoRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
-  useEffect(() => {
-    let activo = true;
-    void perfilService.get()
-      .then((perfil) => {
-        if (!activo) return;
-        const nombrePrincipal = perfil?.representanteNombre?.trim() ||
-          perfil?.empresa?.representanteLegalNombre?.trim() ||
-          perfil?.email ||
-          "Representante legal";
-        const principal: Firmante = {
-          key: "principal",
-          nombre: nombrePrincipal,
-          rol: "Representante legal principal",
-          firmaUrl: perfil?.firmaUrl ?? null,
-          principal: true,
-        };
-        const adicionales: Firmante[] = (perfil?.empresa?.representantesAdicionales ?? []).map((rep) => ({
-          key: rep.id,
-          nombre: rep.nombre,
-          rol: "Representante legal adicional",
-          firmaUrl: rep.firmaUrl ?? null,
-          principal: false,
-          rep,
-        }));
-        setFirmantes([principal, ...adicionales]);
-      })
-      .catch(() => {});
-    return () => {
-      activo = false;
+  const cargarFirmantes = useCallback(async (): Promise<void> => {
+    const perfil = await perfilService.get().catch(() => null);
+    const nombrePrincipal = perfil?.representanteNombre?.trim() ||
+      perfil?.empresa?.representanteLegalNombre?.trim() ||
+      perfil?.email ||
+      "Representante legal";
+    const partesPrincipal = separarNombreCompleto(nombrePrincipal);
+    /* El nombre del firmante SIEMPRE sale del Representante legal (nombre completo),
+     * nunca de los campos de identidad de la cuenta (nombre/apellidos del usuario). */
+    const principal: Firmante = {
+      key: "principal",
+      nombre: nombrePrincipal,
+      nombres: partesPrincipal.nombres,
+      apellidos: partesPrincipal.apellidos,
+      rol: "Representante legal principal",
+      firmaUrl: perfil?.firmaUrl ?? null,
+      principal: true,
     };
-  }, [solicitud.id]);
+    const adicionales: Firmante[] = (perfil?.empresa?.representantesAdicionales ?? []).map((rep) => {
+      const partes = separarNombreCompleto(rep.nombre);
+      return {
+        key: rep.id,
+        nombre: rep.nombre,
+        nombres: partes.nombres,
+        apellidos: partes.apellidos,
+        rol: "Representante legal adicional",
+        firmaUrl: rep.firmaUrl ?? null,
+        principal: false,
+        rep,
+      };
+    });
+    setFirmantes([principal, ...adicionales]);
+    const originales: Record<string, string> = {};
+    if (perfil?.firmaUrl) originales.principal = perfil.firmaUrl;
+    for (const rep of perfil?.empresa?.representantesAdicionales ?? []) {
+      if (rep.firmaUrl) originales[rep.id] = rep.firmaUrl;
+    }
+    setPngOriginales(originales);
+  }, []);
+
+  useEffect(() => {
+    const tarea = setTimeout(() => { void cargarFirmantes(); }, 0);
+    return () => clearTimeout(tarea);
+  }, [solicitud.id, cargarFirmantes]);
 
   const handleUpload = async (file: File) => {
     /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
@@ -189,10 +217,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setError(null);
     try {
       const url = await uploadService.subir(file);
+      setPngOriginales((prev) => ({ ...prev, [objetivo]: url }));
       if (objetivo === "principal") {
         await perfilService.update({ firmaUrl: url });
         setFirmantes((prev) => prev.map((f) => f.principal ? { ...f, firmaUrl: url } : f));
         toast.success("Firma del representante principal cargada.");
+        setTimeout(() => { resumeAutomaticoRef.current?.(); }, 150);
         return;
       }
 
@@ -216,6 +246,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       await portalEmpresaService.guardarRepresentantes(adicionales);
       setFirmantes(actualizados);
       toast.success("Firma del representante adicional cargada.");
+      setTimeout(() => { resumeAutomaticoRef.current?.(); }, 150);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo subir la firma.");
     } finally {
@@ -248,13 +279,22 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const observacionContratoSgc = observacionesSgc.find(
     (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,
   ) ?? null;
-  const firmantesSinFirma = firmantes.filter((f) => !f.firmaUrl);
+  const firmantesSinFirma = firmantes.filter((f) => !pngOriginales[f.key]);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
 
   /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma de cada representante. */
-  const handleFirmarDigital = async () => {
-    if (!firmasCompletas) {
+  const handleFirmarDigital = async (sellos?: Array<{
+    esSello: boolean;
+    nombres: string;
+    apellidos: string;
+    fecha: string;
+    imagen?: string;
+    secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+  }>) => {
+    const capturasCompletas = Boolean(sellos?.length) &&
+      sellos!.every((s) => s.esSello || Boolean(s.imagen));
+    if (!capturasCompletas && !firmasCompletas) {
       const nombres = firmantesSinFirma.map((f) => f.nombre).join(", ");
       setError(nombres
         ? `Sube la firma PNG de: ${nombres}.`
@@ -267,7 +307,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       if (soloFirmaDigital && !contratoAdmin) {
         await contratosService.generar({ solicitudId: solicitud.id });
       }
-      const firmado = await contratosService.firmar({ solicitudId: solicitud.id });
+      const firmado = await contratosService.firmar({ solicitudId: solicitud.id, sellos });
       const urlFirmado = firmado.pdfUrl ?? firmado.docxUrl;
       await solicitudesService.uploadDocumento({
         solicitudId: solicitud.id,
@@ -284,6 +324,34 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       setError(e instanceof Error ? e.message : "No se pudo firmar digitalmente. Verifica las firmas de los representantes e intenta de nuevo.");
     }
     setSending(false);
+  };
+
+  /** Abre el lienzo de firma; genera el PDF si aun no existe. */
+  const abrirFirmaWorkspace = async () => {
+    if (abriendoFirma) return;
+    const existente = contratoPreviewUrl ?? contratoAdmin?.url ?? null;
+    if (existente) {
+      if (!/\.pdf($|\?)/i.test(existente)) {
+        setError("El contrato vigente no tiene una version PDF para previsualizar.");
+        return;
+      }
+      setContratoPreviewUrl(existente);
+      setFirmaWorkspaceOpen(true);
+      return;
+    }
+    setAbriendoFirma(true);
+    setError(null);
+    try {
+      const generado = await contratosService.generar({ solicitudId: solicitud.id });
+      const url = generado.pdfUrl;
+      if (!url) throw new Error("El contrato se genero sin PDF; no se puede mostrar la vista de firma.");
+      setContratoPreviewUrl(url);
+      setFirmaWorkspaceOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo preparar la vista de firma.");
+    } finally {
+      setAbriendoFirma(false);
+    }
   };
   /* Documentos del cliente: anexos y contrato firmado (el modo define cual se muestra). */
   const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId);
@@ -302,9 +370,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     contratoAdmin && firmadoActivo &&
     dateUtils.isSameOrAfter(firmadoActivo.createdAt, contratoAdmin.createdAt),
   );
-  /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
-  const puedeFirmarDigital = (soloFirmaDigital || contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO) &&
-    firmasCompletas && !firmaManualVigente && !firmaManualPendiente;
+  /* La vista de firma solo aplica a la plantilla generada y sin una firma manual vigente. */
+  const puedeAbrirFirma = firmantes.length > 0 &&
+    !firmaManualVigente &&
+    !firmaManualPendiente &&
+    (!contratoAdmin || contratoAdmin.origen === ORIGENES_DOCUMENTO.GENERADO);
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
   const faltanObs = observadosAnexos.filter((obs) => {
@@ -355,7 +425,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               <p className="text-[11px] font-semibold text-foreground">
                 Ya tienes una firma manual vigente. Si deseas firmar digitalmente, elimina primero esa firma.
               </p>
-            ) : puedeFirmarDigital ? (
+            ) : puedeAbrirFirma ? (
               <p className="text-[11px] font-semibold text-foreground">
                 Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de cada representante, o descargarlo, firmarlo y subir tu versión firmada.
               </p>
@@ -494,7 +564,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
               <p className="text-[11px] text-muted-foreground">Cargando representantes...</p>
             ) : (
               <div className="space-y-1.5">
-                {firmantes.map((f) => (
+                {firmantes.map((f) => {
+                  const png = pngOriginales[f.key];
+                  return (
                   <div key={f.key} className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -504,13 +576,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         </Badge>
                       </div>
                       <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {f.firmaUrl ? "Firma cargada" : "Firma pendiente"} · {f.rol}
+                        {png ? "Firma cargada" : "Firma pendiente"} · {f.rol}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      {f.firmaUrl && (
+                      {png && (
                         <img
-                          src={f.firmaUrl}
+                          src={png}
                           alt={`Firma de ${f.nombre}`}
                           className="h-8 max-w-[90px] object-contain"
                         />
@@ -527,12 +599,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         <span>
                           {subiendoFirmaId === f.key
                             ? "Subiendo..."
-                            : f.firmaUrl ? "Cambiar firma" : "Subir firma"}
+                            : png ? "Cambiar firma" : "Subir firma"}
                         </span>
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -698,10 +771,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             </p>
           )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-            {esContrato && (contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO || soloFirmaDigital) && (
-              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={firmantesSinFirma.length > 0 ? `Sube la firma PNG de: ${firmantesSinFirma.map((f) => f.nombre).join(", ")}.` : !puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
-                <PenLine className="mr-1 h-3 w-3" />
-                {sending ? "Firmando..." : "Firmar digitalmente"}
+            {esContrato && (
+              <Button
+                size="sm"
+                className="w-full rounded-full text-xs font-semibold sm:w-auto"
+                disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma}
+                title={!puedeAbrirFirma ? "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
+                onClick={() => { void abrirFirmaWorkspace(); }}
+              >
+                {abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
+                {abriendoFirma ? "Preparando..." : "Firmar digitalmente"}
               </Button>
             )}
             {!soloFirmaDigital && (
@@ -798,6 +877,37 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           )}
         </DialogContent>
       </Dialog>
+
+      {firmaWorkspaceOpen && contratoPreviewUrl && (
+        <FirmaContratoWorkspace
+          contratoUrl={contratoPreviewUrl}
+          firmantes={firmantes}
+          pngOriginales={pngOriginales}
+          onPendienteAutomatico={(fn) => { resumeAutomaticoRef.current = fn; }}
+          onRepresentantesActualizados={async () => {
+            await cargarFirmantes();
+            const detalle = await solicitudesService.detalle(solicitud.id).catch(() => null);
+            const contratosAdmin = (detalle?.docsAdjuntos ?? [])
+              .filter((d) =>
+                d.userId === null &&
+                (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria == null) &&
+                (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+              )
+              .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0));
+            const nuevo = contratosAdmin[0];
+            if (nuevo?.url) setContratoPreviewUrl(nuevo.url);
+          }}
+          onFinalizar={async (sellos) => {
+            await handleFirmarDigital(sellos);
+            setFirmaWorkspaceOpen(false);
+          }}
+          onFaltaFirma={(key) => {
+            toast.info("Selecciona la firma PNG del representante.");
+            abrirSelectorFirma(key);
+          }}
+          onClose={() => setFirmaWorkspaceOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SgcIntegracionApplicationService } from "../sgc-integracion-service";
 import type { SgcIntegracionConfig } from "../sgc-integracion-service";
 import type { ISgcRepository } from "@/domain/ports/sgc-repository";
@@ -154,6 +154,7 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     datosReservaIImp: vi.fn(),
     findSolicitudIdPorNumeroIImp: vi.fn(),
     findSolicitudIdPorContrato: vi.fn(),
+    listarIdsPorEmpresa: vi.fn().mockResolvedValue([]),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {

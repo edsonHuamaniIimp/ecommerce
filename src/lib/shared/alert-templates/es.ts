@@ -44,4 +44,8 @@ export const PLANTILLAS_ALERTA_ES: { [K in AlertaClave]: (datos: AlertaDatosMap[
     titulo: "Documentos observados",
     mensaje: `El area revisora observo ${total} documento(s) de la solicitud ${stands}.${documentos?.length ? ` Documentos: ${documentos.join("; ")}.` : ""} Reemplaza las nuevas versiones y reenvia la solicitud a revision.`,
   }),
+  "contrato-regenerado-representantes": ({ stands }) => ({
+    titulo: "Contrato regenerado por cambio de representantes",
+    mensaje: `Se actualizaron los representantes legales de tu empresa, por lo que el contrato de la solicitud ${stands} se regenero con los nuevos firmantes. Revisa la nueva version y firmala.`,
+  }),
 };

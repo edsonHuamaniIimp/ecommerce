@@ -14,6 +14,7 @@ export const ALERTA_CLAVES = {
   FACTURA_ANULADA_RECHAZADA: "factura-anulada-rechazada",
   DOCUMENTOS_OBSERVADOS: "documentos-observados",
   SGC_CONTRATO_OBSERVADO: "sgc-contrato-observado",
+  CONTRATO_REGENERADO_REPRESENTANTES: "contrato-regenerado-representantes",
 } as const;
 
 export type AlertaClave = (typeof ALERTA_CLAVES)[keyof typeof ALERTA_CLAVES];
@@ -30,6 +31,7 @@ export interface AlertaDatosMap {
   "factura-anulada-rechazada": { cuota: number; documento: string };
   "documentos-observados": { stands: string; total: number; documentos?: string[] };
   "sgc-contrato-observado": { stands: string; empresa?: string | null; autoRegenerado: boolean; motivo?: string | null };
+  "contrato-regenerado-representantes": { stands: string };
 }
 
 export type AlertaDatos = AlertaDatosMap[AlertaClave];

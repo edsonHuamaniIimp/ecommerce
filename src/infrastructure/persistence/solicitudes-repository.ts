@@ -702,6 +702,34 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
+  async listarIdsPorEmpresa(
+    empresaId: string,
+    ruc: string | null,
+    sieCode: string | null,
+  ): Promise<string[]> {
+    const { userIds, emails } = await usuariosDeEmpresa(empresaId);
+    const referencias = [ruc, sieCode].filter((v): v is string => Boolean(v));
+    const provisionales = ruc ? [{ email: { startsWith: `acceso-${ruc.toLowerCase()}@acceso.iimp` } }] : [];
+    const filas = await prisma.solicitud.findMany({
+      where: {
+        flgActivo: true,
+        OR: [
+          ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+          ...(emails.length > 0 ? [{ email: { in: emails } }] : []),
+          ...provisionales,
+          ...(referencias.length > 0
+            ? [
+                { gessStand: { is: { empresa: { in: referencias } } } },
+                { stands: { some: { gessStand: { empresa: { in: referencias } } } } },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true },
+    });
+    return filas.map((fila) => fila.id);
+  }
+
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
     const row = await prisma.solicitud.findUnique({
       where: { id: solicitudId },

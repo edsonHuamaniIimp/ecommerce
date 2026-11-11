@@ -22,7 +22,19 @@ export const contratosService = {
   },
 
   /** Firma digital con la imagen del perfil; devuelve el contrato firmado (RF-12). */
-  firmar(body: { solicitudId: string; idioma?: Idioma; contrato?: DatosContratoDTO }) {
+  firmar(body: {
+    solicitudId: string;
+    idioma?: Idioma;
+    contrato?: DatosContratoDTO;
+    sellos?: Array<{
+      esSello: boolean;
+      nombres: string;
+      apellidos: string;
+      fecha: string;
+      imagen?: string;
+      secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+    }>;
+  }) {
     return internalApi.post<{ docxUrl: string; pdfUrl: string | null; nombre: string }>("/api/contratos/firmar", body);
   },
 

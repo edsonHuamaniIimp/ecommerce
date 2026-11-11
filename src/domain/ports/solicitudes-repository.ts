@@ -49,6 +49,8 @@ export interface SolicitudesPaginatedResult {
 
 export interface ISolicitudesRepository {
   listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult>;
+  /** IDs de las solicitudes de una empresa (por usuarios vinculados o RUC/SIE), para regenerar contratos. */
+  listarIdsPorEmpresa(empresaId: string, ruc: string | null, sieCode: string | null): Promise<string[]>;
   /** Conteo por pais para ordenar el filtro sin alterar la paginacion de la bandeja. */
   paisesConteo?(params: { eventoId: string; incluirInactivas?: boolean }): Promise<PaisConteo[]>;
   detalle(solicitudId: string): Promise<SolicitudRow | null>;

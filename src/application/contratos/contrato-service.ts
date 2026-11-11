@@ -9,6 +9,7 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import ImageModule from "docxtemplater-image-module-free";
 import sharp from "sharp";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { concatenarAnexosPdf } from "./anexos-pdf";
 
@@ -25,6 +26,7 @@ import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCambioValido, CUENTAS_CONTRATO, MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
@@ -88,6 +90,16 @@ export const ANEXOS_PDF_CONTRATO: Record<Idioma, string[]> = {
 const PNG_1PX_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAJYAAAA3CAYAAADuQbOpAAAACXBIWXMAAAPoAAAD6AG1e1JrAAABHElEQVR4nO2SsQnAABCEfv+lzRIJR8TCXsQDLmrAyw2aqqnuiwaN1VjXWE1wf2kwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNngA4xNS816GO2oAAAAASUVORK5CYII=";
 
+export interface SelloVectorialFirma {
+  esSello: boolean;
+  nombres: string;
+  apellidos: string;
+  fecha: string;
+  /** Imagen capturada (cursor) en base64 (dataURL); solo cuando NO es sello. */
+  imagen?: string;
+  secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+}
+
 export interface GenerarContratoInput {
   solicitudId: string;
   /** Moneda solicitada (la solicitud ya guarda el snapshot; se conserva por compatibilidad). */
@@ -106,6 +118,10 @@ export interface GenerarContratoInput {
   userPermissions: string[];
   /** Al firmar se genera el PDF firmado pero NO se reemplaza el contrato del admin. */
   registrarContrato?: boolean;
+  /** Sellos vectoriales (uno por firmante, principal primero). */
+  sellosFirmantes?: SelloVectorialFirma[];
+  /** true = estampar imagenes de firma reales (solo al firmar; el contrato del admin va sin firmas). */
+  estamparFirmas?: boolean;
 }
 
 export interface FirmarContratoInput {
@@ -117,6 +133,8 @@ export interface FirmarContratoInput {
   userEmail?: string;
   userSub: string;
   userPermissions: string[];
+  /** Sellos vectoriales (uno por firmante, principal primero). */
+  sellosVectoriales?: SelloVectorialFirma[];
 }
 
 /** Borrador del contrato del wizard (paso Contrato): aun NO existe solicitud. */
@@ -279,6 +297,8 @@ export class ContratoApplicationService {
       moneda,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
+      sellosFirmantes: input.sellosFirmantes,
+      estamparFirmas: input.estamparFirmas,
       base,
     });
 
@@ -316,6 +336,58 @@ export class ContratoApplicationService {
     });
     await this.solicitudes.habilitarContrato(solicitudId).catch(() => undefined);
     return generado;
+  }
+
+  /**
+   * Regenera el contrato de las solicitudes de una empresa cuando cambia la lista
+   * de representantes adicionales (0->1, 1->0, reemplazos...). Crea una NUEVA
+   * version del contrato del administrador y habilita la firma; el firmado
+   * anterior queda como historial (no se elimina ni se invalida).
+   */
+  async regenerarPorCambioRepresentantes(empresaId: string): Promise<number> {
+    const empresa = await this.empresas.findById(empresaId).catch(() => null);
+    if (!empresa) return 0;
+    const ids = await this.solicitudes.listarIdsPorEmpresa(
+      empresa.id,
+      empresa.ruc ?? null,
+      empresa.sieCode ?? null,
+    );
+    let regeneradas = 0;
+    for (const solicitudId of ids) {
+      const detalle = await this.solicitudes.detalle(solicitudId).catch(() => null);
+      if (!detalle) continue;
+      if (
+        detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE &&
+        detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO
+      ) {
+        continue;
+      }
+      try {
+        await this.generar({
+          solicitudId,
+          userPermissions: [PERMISSIONS.ADMIN_FULL],
+          userSub: detalle.userId ?? "system",
+          userEmail: detalle.email ?? undefined,
+          registrarContrato: true,
+        });
+        await this.solicitudes.habilitarContrato(solicitudId).catch(() => undefined);
+        if (detalle.userId) {
+          await this.solicitudes
+            .crearAlertaReserva({
+              userId: detalle.userId,
+              tipo: "reserva",
+              clave: ALERTA_CLAVES.CONTRATO_REGENERADO_REPRESENTANTES,
+              datos: { stands: detalle.standCode ?? solicitudId },
+              url: "/dashboard/mis-solicitudes",
+            })
+            .catch(() => undefined);
+        }
+        regeneradas += 1;
+      } catch {
+        /* Una solicitud que no se pueda regenerar no rompe el guardado de representantes. */
+      }
+    }
+    return regeneradas;
   }
 
   /**
@@ -371,6 +443,7 @@ export class ContratoApplicationService {
       moneda,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
+      estamparFirmas: Boolean(input.firmaExhibidorBase64),
       base,
     });
   }
@@ -535,6 +608,10 @@ export class ContratoApplicationService {
     firmaExhibidorBase64?: string;
     /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
     contrato?: DatosContrato | null;
+    /** Sellos vectoriales (uno por firmante, principal primero). */
+    sellosFirmantes?: SelloVectorialFirma[];
+    /** true = estampar imagenes reales de firma (solo al firmar). */
+    estamparFirmas?: boolean;
     base: string;
   }): Promise<ContratoGenerado> {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
@@ -653,6 +730,8 @@ export class ContratoApplicationService {
     })();
     const firmasRepresentantes = await this.prepararFirmasRepresentantes(
       empresa?.representantesAdicionales ?? [],
+      (params.sellosFirmantes ?? []).slice(1),
+      params.estamparFirmas === true,
     );
     const firmasExhibidor = [
       {
@@ -851,44 +930,158 @@ export class ContratoApplicationService {
 
     const emailFirmante = input.userEmail ?? detalle.email;
     const perfil = emailFirmante ? await this.auth.findPerfilByEmail(emailFirmante) : null;
-    if (!perfil?.firmaUrl) {
-      throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
+    const sellos = input.sellosVectoriales ?? [];
+    const capturasCompletas = sellos.length > 0 && sellos.every((s) => s.esSello || s.imagen);
+    if (!capturasCompletas) {
+      if (!perfil?.firmaUrl) {
+        throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
+      }
+      const empresaFirmanteId = emailFirmante
+        ? await this.auth.findEmpresaIdDeUsuario(emailFirmante).catch(() => null)
+        : null;
+      const empresaFirmante = empresaFirmanteId ? await this.empresas.findById(empresaFirmanteId) : null;
+      const representantesSinFirma = (empresaFirmante?.representantesAdicionales ?? []).filter((rep) => !rep.firmaUrl);
+      if (representantesSinFirma.length > 0) {
+        throw new DomainError(
+          `Antes de firmar, sube la firma digital de: ${representantesSinFirma.map((rep) => rep.nombre).join(", ")}.`,
+          API_ERROR_CODES.VALIDATION,
+          409,
+        );
+      }
     }
 
-    const empresaFirmanteId = emailFirmante
-      ? await this.auth.findEmpresaIdDeUsuario(emailFirmante).catch(() => null)
-      : null;
-    const empresaFirmante = empresaFirmanteId ? await this.empresas.findById(empresaFirmanteId) : null;
-    const representantesSinFirma = (empresaFirmante?.representantesAdicionales ?? []).filter((rep) => !rep.firmaUrl);
-    if (representantesSinFirma.length > 0) {
-      throw new DomainError(
-        `Antes de firmar, sube la firma digital de: ${representantesSinFirma.map((rep) => rep.nombre).join(", ")}.`,
-        API_ERROR_CODES.VALIDATION,
-        409,
-      );
-    }
+    const base64DeImagen = (imagen: string) => {
+      const coma = imagen.indexOf(",");
+      return coma >= 0 ? imagen.slice(coma + 1) : imagen;
+    };
 
-    const imagen = await this.leerImagenFirma(perfil.firmaUrl);
-    const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
+    let firmaPrincipal = PNG_1PX_BASE64;
+    if (sellos[0]?.esSello) {
+      firmaPrincipal = PNG_1PX_BASE64;
+    } else if (sellos[0]?.imagen) {
+      const capturada = await sharp(Buffer.from(base64DeImagen(sellos[0].imagen), "base64"))
+        .resize({ width: 480, withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      firmaPrincipal = capturada.toString("base64");
+    } else if (perfil?.firmaUrl) {
+      const imagen = await this.leerImagenFirma(perfil.firmaUrl);
+      const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
+      firmaPrincipal = png.toString("base64");
+    }
 
     const generado = await this.generar({
       solicitudId: input.solicitudId,
       idioma: input.idioma,
-      firmaExhibidorBase64: png.toString("base64"),
+      firmaExhibidorBase64: firmaPrincipal,
       contrato: input.contrato,
+      sellosFirmantes: sellos,
+      estamparFirmas: true,
       userEmail: input.userEmail,
       userSub: input.userSub,
       userPermissions: input.userPermissions,
       registrarContrato: false,
     });
-    return { docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl, nombre: generado.nombre };
+
+    let pdfUrl = generado.pdfUrl;
+    if (sellos.some((s) => s.esSello) && generado.pdfUrl) {
+      const pdfBytes = await this.leerImagenFirma(generado.pdfUrl);
+      const pdfVectorial = await this.estamparSellosVectoriales(pdfBytes, sellos);
+      if (pdfVectorial) {
+        pdfUrl = await this.storage.upload(pdfVectorial, `${generado.nombre}.pdf`, "application/pdf");
+      }
+    }
+    return { docxUrl: generado.docxUrl, pdfUrl, nombre: generado.nombre };
+  }
+
+  /**
+   * Estampa los sellos digitales como texto y rectangulo VECTORIAL encima del PDF
+   * firmado (nitidez de texto nativo, sin raster). Las coordenadas vienen en puntos
+   * PDF desde la deteccion de zonas que hace la vista de firma.
+   */
+  private async estamparSellosVectoriales(
+    pdfBytes: Buffer,
+    sellos: SelloVectorialFirma[],
+  ): Promise<Buffer | null> {
+    try {
+      const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const colorSello = rgb(0.106, 0.212, 0.365);
+      const colorFecha = rgb(0.278, 0.345, 0.412);
+
+      for (const sello of sellos) {
+        if (!sello.esSello) continue;
+        for (const seccion of sello.secciones) {
+          const page = doc.getPage(seccion.pagina - 1);
+          if (!page) continue;
+          const x = seccion.x;
+          const y = seccion.y;
+          const w = seccion.w;
+          const h = seccion.h;
+          const centro = x + w / 2;
+
+          page.drawRectangle({
+            x,
+            y,
+            width: w,
+            height: h,
+            borderColor: colorSello,
+            borderWidth: 1.4,
+          });
+
+          const dibujarLinea = (texto: string, size: number, baseY: number, bold: boolean) => {
+            const fuente = bold ? fontBold : font;
+            const maxWidth = Math.max(10, w - 8);
+            let tamano = size;
+            const anchoBase = fuente.widthOfTextAtSize(texto, tamano);
+            if (anchoBase > maxWidth) {
+              tamano = size * (maxWidth / anchoBase);
+            }
+            const ancho = fuente.widthOfTextAtSize(texto, tamano);
+            page.drawText(texto, {
+              x: centro - ancho / 2,
+              y: baseY,
+              size: tamano,
+              font: fuente,
+              color: bold ? colorSello : colorFecha,
+            });
+          };
+
+          dibujarLinea("Firmado digitalmente por", 6.5, y + h - 10, false);
+          dibujarLinea((sello.nombres || "-").trim().toUpperCase(), 8, y + h - 20, true);
+          dibujarLinea((sello.apellidos || "-").trim().toUpperCase(), 8, y + h - 29, true);
+          dibujarLinea(sello.fecha || dateUtils.formatDateTime(dateUtils.now()), 6, y + h - 38.5, false);
+        }
+      }
+
+      const salida = await doc.save();
+      return Buffer.from(salida);
+    } catch {
+      return null;
+    }
   }
 
   /** Prepara la imagen de firma de cada representante adicional para la plantilla. */
   private async prepararFirmasRepresentantes(
     representantes: EmpresaRepresentanteAdicionalEntity[],
+    sellosAdicionales: SelloVectorialFirma[] = [],
+    estamparFirmas = false,
   ): Promise<Array<{ nombre_representante: string; firma_representante: string }>> {
-    return Promise.all(representantes.map(async (rep) => {
+    return Promise.all(representantes.map(async (rep, index) => {
+      const sello = sellosAdicionales[index];
+      if (!estamparFirmas || sello?.esSello) {
+        return { nombre_representante: rep.nombre, firma_representante: PNG_1PX_BASE64 };
+      }
+      if (sello?.imagen) {
+        const coma = sello.imagen.indexOf(",");
+        const base64 = coma >= 0 ? sello.imagen.slice(coma + 1) : sello.imagen;
+        const capturada = await sharp(Buffer.from(base64, "base64"))
+          .resize({ width: 480, withoutEnlargement: true })
+          .png()
+          .toBuffer();
+        return { nombre_representante: rep.nombre, firma_representante: capturada.toString("base64") };
+      }
       if (!rep.firmaUrl) {
         return { nombre_representante: rep.nombre, firma_representante: PNG_1PX_BASE64 };
       }

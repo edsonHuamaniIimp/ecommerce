@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SolicitudesApplicationService } from "../solicitudes-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow } from "@/domain/models/entities";
@@ -55,6 +55,7 @@ function repoMock(): ISolicitudesRepository {
     datosReservaIImp: vi.fn(),
     findSolicitudIdPorNumeroIImp: vi.fn(),
     findSolicitudIdPorContrato: vi.fn(),
+    listarIdsPorEmpresa: vi.fn().mockResolvedValue([]),
   };
 }
 
