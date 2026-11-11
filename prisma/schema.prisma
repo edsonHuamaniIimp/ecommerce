@@ -444,6 +444,8 @@ model GessStand {
   tipoStand             String?   @map("tipo_stand") @db.VarChar(100)
   medidas               String?   @db.VarChar(100)
   estado                String?   @db.VarChar(50)
+  /// Baja logica: false = registro comercial desactivado (no se borra).
+  flgActivo             Boolean   @default(true) @map("flg_activo")
   empresa               String?   @db.VarChar(200)
   pabellon              String?   @db.VarChar(50)
   ubicacion             String?   @db.VarChar(100)
@@ -492,6 +494,7 @@ model GessStand {
   @@unique([eventoId, standCode])
   @@unique([eventoId, bloqueId])
   @@index([eventoId])
+  @@index([eventoId, flgActivo])
   @@index([bloqueId])
   @@index([initialUserId])
   @@index([holdId])

@@ -135,6 +135,9 @@ export class GessApplicationService {
       if (!stand) {
         throw new DomainError("Stand no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
       }
+      if (stand.flgActivo === false) {
+        throw new DomainError("No se puede vincular: el stand está inactivo.", API_ERROR_CODES.CONFLICT, 409);
+      }
       if (!esStandComercialVinculable({ medidas: stand.medidas, tipoStand: stand.tipoStand, rawData: stand.rawData })) {
         throw new DomainError(
           "No se puede vincular: el stand no tiene precio comercial válido (0.00). Corrige o desactiva el registro primero.",
@@ -177,6 +180,7 @@ export class GessApplicationService {
     const encontrados = await this.validarStands(standIds, ESTADOS_STAND.DISPONIBLE, "pre-reservar");
     const invalidos = encontrados.filter(
       (stand) =>
+        stand.flgActivo === false ||
         !stand.bloqueId ||
         !esStandComercialVinculable({ medidas: stand.medidas, tipoStand: stand.tipoStand, rawData: stand.rawData }),
     );

@@ -102,8 +102,10 @@ export interface GessStandEntity {
   standCode: string;
   tipoStand: string | null;
   medidas: string | null;
-  estado: string | null;
-  empresa: string | null;
+    estado: string | null;
+    /** Baja logica: false = registro desactivado. */
+    flgActivo?: boolean;
+    empresa: string | null;
   /** Logo de la empresa/usuario que reservo el stand (solo en la respuesta de listar). */
   empresaLogo?: string | null;
   /** Imagen referencial del tipo de stand (solo en la respuesta de listar). */

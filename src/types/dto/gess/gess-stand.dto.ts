@@ -6,6 +6,7 @@ export interface GessStandDTO {
   tipoStand: string | null;
   medidas: string | null;
   estado: string | null;
+  flgActivo?: boolean;
   empresa: string | null;
   /** Logo de la empresa/usuario que reservo el stand (se pinta en el mapa). */
   empresaLogo?: string | null;

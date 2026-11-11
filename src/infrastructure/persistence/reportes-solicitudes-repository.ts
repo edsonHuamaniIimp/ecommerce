@@ -362,7 +362,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           ur.nombre_empresa AS usuario_empresa
         FROM rel r
         JOIN solicitud s ON s.id = r.solicitud_id
-        LEFT JOIN gess_stand gs ON gs.id = r.gess_stand_id
+        JOIN gess_stand gs ON gs.id = r.gess_stand_id AND gs.flg_activo = true
         LEFT JOIN LATERAL (
           SELECT x.empresa_id, x.nombre, x.apellidos, x.nombre_empresa
           FROM user_role x
@@ -481,7 +481,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           se.devolucion_requiere_cambio AS sgc_devolucion_requiere_cambio
         FROM rel r
         JOIN solicitud s ON s.id = r.solicitud_id
-        JOIN gess_stand gs ON gs.id = r.gess_stand_id
+        JOIN gess_stand gs ON gs.id = r.gess_stand_id AND gs.flg_activo = true
         LEFT JOIN LATERAL (
           SELECT x.empresa_id, x.nombre_empresa
           FROM user_role x
@@ -540,6 +540,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           LIMIT 1
         ) p ON true
         WHERE gs.estado = ${ESTADOS_STAND.PRE_RESERVADO}
+          AND gs.flg_activo = true
           ${filtroEvento}
       )
       SELECT * FROM solicitudes
