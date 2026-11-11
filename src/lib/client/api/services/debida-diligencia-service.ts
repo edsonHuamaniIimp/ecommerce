@@ -138,7 +138,7 @@ export const debidaDiligenciaService = {
 
   /** Deriva manualmente empresa, representante y beneficiarios a Comunicaciones. */
   derivarComunicaciones(expedienteId: string) {
-    return internalApi.post<{ derivados: number }>("/api/debida-diligencia/derivar-comunicaciones", { expedienteId });
+    return internalApi.post<{ derivados: number; existentes: number; total: number }>("/api/debida-diligencia/derivar-comunicaciones", { expedienteId });
   },
 
   bandejaLegal(params: DdBandejaQueryDTO = {}) {

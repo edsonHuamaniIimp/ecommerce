@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
@@ -37,6 +37,7 @@ const COLOR_FINAL: Record<DdMatrizResultadoFinal, string> = {
   [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: COLORES.danger,
   [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: COLORES.gold,
   [DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION]: COLORES.primary,
+  [DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA]: COLORES.muted,
 };
 
 /** Mismos tonos de la matriz oficial: naranja = nacional, celeste = extranjero. */
@@ -289,3 +290,4 @@ export function DdMatrizResumen({ resumen }: { resumen: DdMatrizEvaluacionResume
     </div>
   );
 }
+

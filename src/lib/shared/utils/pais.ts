@@ -127,3 +127,8 @@ export function nombrePais(codigo: string | null | undefined): string {
 export function esPaisNacional(codigo: string | null | undefined): boolean {
   return codigo === PAIS_DEFAULT;
 }
+
+/** true cuando un nombre, gentilicio o codigo ISO corresponde a Peru. */
+export function esPaisPeru(valor: string | null | undefined): boolean {
+  return esPaisNacional(paisDeTexto(valor));
+}

@@ -2,7 +2,10 @@
 export interface DdMatrizEvaluacionFilaDTO {
   id: string;
   expedienteId: string;
+  eventoId: string;
+  eventoLabel: string;
   codigo: string;
+  expedienteEstado: string;
   empresaRazonSocial: string;
   empresaRuc: string;
   motivo: string | null;
@@ -24,5 +27,11 @@ export interface DdMatrizEvaluacionFilaDTO {
   cmpResultado: string | null;
   cmpConclusion: string | null;
   resultadoFinal: string | null;
+  /** Casos reputacionales creados por la derivación a Comunicaciones. */
+  reputacionCasos: number;
+  /** Casos aún pendientes o en análisis en Comunicaciones. */
+  reputacionPendientes: number;
+  /** Casos con hallazgos registrados por Comunicaciones. */
+  reputacionConHallazgos: number;
   updatedAt: string;
 }

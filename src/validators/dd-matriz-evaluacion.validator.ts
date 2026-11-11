@@ -1,9 +1,12 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_AMBITOS,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_EXPORT_MAX,
+  DD_MATRIZ_FINAL_COMENTARIO_MAX,
+  DD_MATRIZ_LISTAS,
   DD_MATRIZ_OBSERVACION_MAX,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -41,6 +44,7 @@ const bloqueSchema = z
 
 /** Consulta de la lista de la matriz. */
 export const ddMatrizEvaluacionQuerySchema = z.object({
+  eventoId: z.string().trim().max(64).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(DD_MATRIZ_EVAL_PER_PAGE_MAX).default(DD_MATRIZ_PER_PAGE_DEFAULT),
   search: z.string().trim().max(200).optional(),
@@ -61,10 +65,15 @@ export const ddMatrizEvaluacionQuerySchema = z.object({
     .enum(["true", "false"])
     .transform((v) => v === "true")
     .optional(),
+  porEmpresa: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
 });
 
 /** Exportacion: ids elegidos o los filtros de la lista. */
 export const ddMatrizEvaluacionExportarSchema = z.object({
+  eventoId: z.string().trim().max(64).optional(),
   ids: z.array(z.string().trim().min(1).max(60)).min(1).max(DD_MATRIZ_EXPORT_MAX).optional(),
   search: z.string().trim().max(200).optional(),
   tipo: z.enum(valores(DD_MATRIZ_TIPOS_VINCULO)).optional(),
@@ -73,6 +82,11 @@ export const ddMatrizEvaluacionExportarSchema = z.object({
   sinPais: z.boolean().optional(),
   resultadoFinal: z.string().trim().max(40).optional(),
   sinEvaluar: z.boolean().optional(),
+});
+
+export const ddMatrizAutomatizarSchema = z.object({
+  vinculoId: z.string().trim().min(1).max(64),
+  codigo: z.string().trim().min(1).max(40),
 });
 
 export const ddMatrizEvaluacionAbrirQuerySchema = z.object({
@@ -119,6 +133,7 @@ export const ddMatrizEvaluacionGuardarSchema = z.object({
   resultadoFinal: valorCatalogo,
   finalFecha: fechaNullable,
   finalPor: textoNullable(200),
+  finalComentario: textoNullable(DD_MATRIZ_FINAL_COMENTARIO_MAX),
 });
 
 /** Alta manual de un vinculo (persona o empresa vinculada). */
@@ -138,5 +153,18 @@ export const ddMatrizEvaluacionAdjuntoEliminarSchema = z.object({
   id: z.string().trim().min(1).max(60),
 });
 
+/** Categorias de evidencia por criterio: `criterio_<codigo de lista>`. */
+const CATEGORIAS_CRITERIO = DD_MATRIZ_LISTAS.map((lista) => `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`);
+const CATEGORIAS_ADJUNTO = [
+  ...Object.values(DD_MATRIZ_ADJUNTO_CATEGORIAS),
+  ...CATEGORIAS_CRITERIO,
+];
+
 /** Categoria enviada en la carga multipart de un adjunto. */
-export const ddMatrizEvaluacionAdjuntoCategoriaSchema = z.enum(valores(DD_MATRIZ_ADJUNTO_CATEGORIAS));
+export const ddMatrizEvaluacionAdjuntoCategoriaSchema = z
+  .string()
+  .trim()
+  .refine((valor) => CATEGORIAS_ADJUNTO.includes(valor), {
+    message: "Categoría de adjunto inválida",
+  });
+

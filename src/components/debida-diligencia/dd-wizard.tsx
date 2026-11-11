@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -13,16 +13,9 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  Input,
-  Label,
   Progress,
   RadioGroup,
   RadioGroupItem,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@nrivera-iimp/ui-kit-iimp";
 import {
   ArrowLeft,
@@ -33,14 +26,13 @@ import {
   Info,
   Loader2,
   Lock,
-  Plus,
   ShieldCheck,
-  Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import { PaisSelect } from "@/components/shared/pais-select";
 import { DdStepper } from "./dd-stepper";
+import { DdWizardPaso2 } from "./dd-wizard-paso2";
+import { DdWizardPaso3 } from "./dd-wizard-paso3";
 import { DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
 import { DdRadioIndicator } from "./dd-radio-indicator";
@@ -48,8 +40,6 @@ import { debidaDiligenciaService } from "@/lib/client/api/services/debida-dilige
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { useConfirm } from "@/hooks/use-confirm";
 import {
-  DD_ACTIVIDADES_ECONOMICAS,
-  DD_ACTIVIDAD_OTRO,
   BADGE_STYLES,
   BYTES_POR_MB,
   DD_DOCUMENTO_ACCEPT,
@@ -71,21 +61,20 @@ import {
   DD_OBSERVACION_AREA_LABELS,
   DD_OBSERVACION_ESTADOS,
   DD_PAIS_DEFAULT,
-  DD_PORCENTAJE_PARTICIPACION_MIN,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
   DD_PASOS,
   DD_RUTAS,
-  DD_VINCULO_LABELS,
-  DD_VINCULOS,
   REGEX_DNI,
   REGEX_RUC,
   type DdDocumentoEstado,
   type DdDocumentoTipo,
+  type DdTipoVinculoPersona,
   type DdVinculo,
 } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { esPaisPeru } from "@/lib/shared/utils/pais";
 import type {
   DdDocumentoVersionDTO,
   DdEmpresaDTO,
@@ -93,12 +82,13 @@ import type {
   DdGuardarRequestDTO,
 } from "@/types/dto/debida-diligencia";
 
-interface BeneficiarioForm {
+export interface BeneficiarioForm {
   id: string;
   nombre: string;
   documento: string;
   nacionalidad: string;
   porcentaje: string;
+  tipoVinculoPersona: string;
 }
 
 interface Props {
@@ -127,8 +117,9 @@ function documentosDesde(expediente: DdExpedienteDTO | null): DocumentoForm[] {
   }));
 }
 
-interface FormState {
+export interface FormState {
   tipoRelacionComercial: DdVinculo[];
+  tipoRelacionComercialOtro: string;
   actividadEconomica: string;
   actividadEconomicaOtro: string;
   paisConstitucion: string;
@@ -151,13 +142,22 @@ function nuevoBeneficiario(): BeneficiarioForm {
     nombre: "",
     documento: "",
     nacionalidad: "",
-    porcentaje: "",
+    porcentaje: "0",
+    tipoVinculoPersona: "",
   };
 }
 
 function formDesde(empresa: DdEmpresaDTO | null, expediente: DdExpedienteDTO | null): FormState {
+  const representanteNacionalidad =
+    expediente?.representanteNacionalidad ?? DD_PAIS_DEFAULT;
+  const representanteTipoDocumento =
+    expediente?.representanteTipoDocumento ??
+    (esPaisPeru(representanteNacionalidad)
+      ? DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI
+      : DD_TIPOS_DOCUMENTO_REPRESENTANTE.PASAPORTE);
   return {
     tipoRelacionComercial: (expediente?.tipoRelacionComercial as DdVinculo[] | undefined) ?? [],
+    tipoRelacionComercialOtro: expediente?.tipoRelacionComercialOtro ?? "",
     actividadEconomica: expediente?.actividadEconomica ?? "",
     actividadEconomicaOtro: expediente?.actividadEconomicaOtro ?? "",
     paisConstitucion: expediente?.paisConstitucion ?? DD_PAIS_DEFAULT,
@@ -172,11 +172,10 @@ function formDesde(empresa: DdEmpresaDTO | null, expediente: DdExpedienteDTO | n
     declaraVerdad: expediente?.declaraVerdad ?? false,
     representanteNombre:
       expediente?.representanteNombre ?? empresa?.representanteLegalNombre ?? "",
-    representanteTipoDocumento:
-      expediente?.representanteTipoDocumento ?? DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI,
+    representanteTipoDocumento,
     representanteDocumento:
       expediente?.representanteDocumento ?? empresa?.representanteLegalDni ?? "",
-    representanteNacionalidad: expediente?.representanteNacionalidad ?? DD_PAIS_DEFAULT,
+    representanteNacionalidad,
   };
 }
 
@@ -188,6 +187,7 @@ function beneficiariosDesde(expediente: DdExpedienteDTO | null): BeneficiarioFor
     documento: b.documento,
     nacionalidad: b.nacionalidad,
     porcentaje: String(b.porcentaje),
+    tipoVinculoPersona: b.tipoVinculoPersona ?? "",
   }));
 }
 
@@ -297,6 +297,29 @@ export function DdWizard({
     setError(null);
   };
 
+  const cambiarNacionalidadRepresentante = (valor: string) => {
+    representanteLookupSeq.current += 1;
+    if (representanteLookupTimer.current) clearTimeout(representanteLookupTimer.current);
+    setBuscandoRepresentante(false);
+    setRepresentanteValidado(null);
+    setCampo("representanteNacionalidad", valor);
+    if (esPaisPeru(valor)) {
+      if (form.representanteTipoDocumento !== DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI) {
+        setCampo("representanteTipoDocumento", DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI);
+      }
+    } else if (form.representanteTipoDocumento === DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI) {
+      setCampo("representanteTipoDocumento", DD_TIPOS_DOCUMENTO_REPRESENTANTE.PASAPORTE);
+    }
+  };
+
+  const cambiarTipoDocumentoRepresentante = (valor: string) => {
+    representanteLookupSeq.current += 1;
+    if (representanteLookupTimer.current) clearTimeout(representanteLookupTimer.current);
+    setBuscandoRepresentante(false);
+    setRepresentanteValidado(null);
+    setCampo("representanteTipoDocumento", valor);
+  };
+
   const cambiarBeneficiario = (id: string, campo: keyof Omit<BeneficiarioForm, "id">, valor: string) => {
     setBeneficiarios((prev) =>
       prev.map((b) => (b.id === id ? { ...b, [campo]: valor } : b)),
@@ -341,6 +364,7 @@ export function DdWizard({
 
   const consultarBeneficiario = async (beneficiario: BeneficiarioForm, secuencia: number) => {
     if (secuencia !== (lookupSeq.current[beneficiario.id] ?? 0)) return;
+    if (!esPaisPeru(beneficiario.nacionalidad)) return;
     const documento = beneficiario.documento.trim();
     if (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento)) return;
 
@@ -369,14 +393,17 @@ export function DdWizard({
   };
 
   const actualizarDocumentoBeneficiario = (beneficiario: BeneficiarioForm, valor: string) => {
-    const documento = valor.replace(/\D/g, "").slice(0, 11);
+    const esPeruano = esPaisPeru(beneficiario.nacionalidad);
+    const documento = esPeruano
+      ? valor.replace(/\D/g, "").slice(0, 11)
+      : valor.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 20);
     cambiarBeneficiario(beneficiario.id, "documento", documento);
     const temporizador = lookupTimers.current[beneficiario.id];
     if (temporizador) clearTimeout(temporizador);
     const secuencia = (lookupSeq.current[beneficiario.id] ?? 0) + 1;
     lookupSeq.current[beneficiario.id] = secuencia;
     setBuscandoBeneficiario(null);
-    if (REGEX_DNI.test(documento) || REGEX_RUC.test(documento)) {
+    if (esPeruano && (REGEX_DNI.test(documento) || REGEX_RUC.test(documento))) {
       lookupTimers.current[beneficiario.id] = setTimeout(() => {
         void consultarBeneficiario({ ...beneficiario, documento }, secuencia);
       }, 500);
@@ -391,7 +418,13 @@ export function DdWizard({
     representanteLookupSeq.current += 1;
     const secuencia = representanteLookupSeq.current;
     if (representanteLookupTimer.current) clearTimeout(representanteLookupTimer.current);
-    if (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento)) return;
+    if (
+      !esPaisPeru(form.representanteNacionalidad) ||
+      form.representanteTipoDocumento !== DD_TIPOS_DOCUMENTO_REPRESENTANTE.DNI ||
+      (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento))
+    ) {
+      return;
+    }
 
     representanteLookupTimer.current = setTimeout(() => {
       void (async () => {
@@ -446,6 +479,7 @@ export function DdWizard({
 
   const construirPayload = (): DdGuardarRequestDTO => ({
     tipoRelacionComercial: form.tipoRelacionComercial,
+    tipoRelacionComercialOtro: form.tipoRelacionComercialOtro || null,
     actividadEconomica: form.actividadEconomica || null,
     actividadEconomicaOtro: form.actividadEconomicaOtro || null,
     paisConstitucion: form.paisConstitucion || null,
@@ -462,7 +496,10 @@ export function DdWizard({
       nombre: b.nombre.trim(),
       documento: b.documento.trim(),
       nacionalidad: b.nacionalidad.trim(),
-      porcentaje: Number(b.porcentaje),
+      porcentaje: Number(b.porcentaje || 0),
+      tipoVinculoPersona: b.tipoVinculoPersona
+        ? (b.tipoVinculoPersona as DdTipoVinculoPersona)
+        : null,
     })),
     documentos: documentos.map((d) => ({
       tipo: d.tipo,
@@ -779,309 +816,26 @@ export function DdWizard({
           ) : null}
 
           {paso === 2 ? (
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <Label className="text-xs"><span>Tipos de relación comercial con el IIMP *</span></Label>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Puedes seleccionar más de una opción.
-                  </p>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {Object.values(DD_VINCULOS).map((vinculo) => {
-                      const marcado = form.tipoRelacionComercial.includes(vinculo);
-                      return (
-                        <label
-                          key={vinculo}
-                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
-                            marcado ? "border-primary bg-primary/5 text-foreground" : "border-border text-muted-foreground"
-                          }`}
-                        >
-                          <Checkbox
-                            checked={marcado}
-                            onCheckedChange={(valor) =>
-                              setCampo(
-                                "tipoRelacionComercial",
-                                valor === true
-                                  ? [...form.tipoRelacionComercial, vinculo]
-                                  : form.tipoRelacionComercial.filter((item) => item !== vinculo),
-                              )
-                            }
-                          />
-                          <span>{DD_VINCULO_LABELS[vinculo]}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs"><span>País de constitución *</span></Label>
-                  <Input
-                    value={form.paisConstitucion}
-                    onChange={(e) => setCampo("paisConstitucion", e.target.value)}
-                    className="mt-1 h-9 text-sm"
-                    placeholder={DD_PAIS_DEFAULT}
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs"><span>Razón social</span></Label>
-                  <Input value={empresa?.razonSocial ?? ""} readOnly className="mt-1 h-9 bg-secondary text-sm" />
-                </div>
-
-                <div>
-                  <Label className="text-xs"><span>RUC</span></Label>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Input value={empresa?.ruc ?? ""} readOnly className="h-9 bg-secondary font-mono text-sm" />
-                    <Badge className={`pointer-events-none shrink-0 gap-1 text-[10px] ${BADGE_STYLES.SUCCESS}`}>
-                      <CheckCircle2 className="h-2.5 w-2.5" />
-                      <span>Registrado</span>
-                    </Badge>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs"><span>Actividad económica principal *</span></Label>
-                  <Select
-                    value={form.actividadEconomica || undefined}
-                    onValueChange={(valor) => setCampo("actividadEconomica", valor)}
-                  >
-                    <SelectTrigger className="mt-1 h-9 w-full text-sm">
-                      <SelectValue placeholder="Seleccione el sector" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DD_ACTIVIDADES_ECONOMICAS.map((actividad) => (
-                        <SelectItem key={actividad} value={actividad}>
-                          <span>{actividad}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {form.actividadEconomica === DD_ACTIVIDAD_OTRO ? (
-                  <div>
-                    <Label className="text-xs"><span>En caso de haber marcado Otro, indicar cuál *</span></Label>
-                    <Input
-                      value={form.actividadEconomicaOtro}
-                      onChange={(e) => setCampo("actividadEconomicaOtro", e.target.value)}
-                      className="mt-1 h-9 text-sm"
-                      placeholder="Detalle la actividad económica"
-                    />
-                  </div>
-                ) : null}
-
-                <div>
-                  <Label className="text-xs"><span>Sitio web de la empresa *</span></Label>
-                  <Input
-                    value={form.sitioWeb}
-                    onChange={(e) => setCampo("sitioWeb", e.target.value)}
-                    className="mt-1 h-9 text-sm"
-                    placeholder="https://www.empresa.com"
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground"><span>Se usa para la revisión reputacional de Comunicaciones.</span></p>
-                </div>
-
-                <div>
-                  <Label className="text-xs"><span>Correo de contacto del representante legal *</span></Label>
-                  <Input
-                    type="email"
-                    value={form.emailRepresentante}
-                    onChange={(e) => setCampo("emailRepresentante", e.target.value)}
-                    className="mt-1 h-9 text-sm"
-                    placeholder="representante@empresa.com"
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground"><span>Aquí recibirá las observaciones.</span></p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-lg border border-gold-soft/60 border-l-[3px] border-l-gold bg-gold/10 p-4">
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-                <p className="text-xs leading-relaxed text-foreground">
-                  Puede reservar un stand, pero no avanzará en las aprobaciones hasta completar la debida diligencia.
-                </p>
-              </div>
-            </div>
+            <DdWizardPaso2 empresa={empresa} form={form} setCampo={setCampo} />
           ) : null}
 
           {paso === 3 ? (
-            <div className="space-y-6">
-              <section className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Representante legal</h2>
-                  <p className="text-xs text-muted-foreground">Persona que actúa en nombre de la empresa.</p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <Label className="text-xs"><span>Nombre completo *</span></Label>
-                    <Input
-                      value={form.representanteNombre}
-                      onChange={(e) => setCampo("representanteNombre", e.target.value)}
-                      className="mt-1 h-9 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs"><span>Tipo de documento *</span></Label>
-                    <Select
-                      value={form.representanteTipoDocumento}
-                      onValueChange={(valor) => {
-                        setCampo("representanteTipoDocumento", valor);
-                        setRepresentanteValidado(null);
-                      }}
-                    >
-                      <SelectTrigger className="mt-1 h-9 w-full text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(DD_TIPOS_DOCUMENTO_REPRESENTANTE).map((tipo) => (
-                          <SelectItem key={tipo} value={tipo}><span>{tipo}</span></SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs"><span>Número de documento *</span></Label>
-                    <Input
-                      value={form.representanteDocumento}
-                      onChange={(e) => actualizarDocumentoRepresentante(e.target.value)}
-                      className="mt-1 h-9 text-sm"
-                      inputMode="numeric"
-                      autoComplete="off"
-                    />
-                    {buscandoRepresentante ? (
-                      <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>Consultando RENIEC / SUNAT...</span>
-                      </p>
-                    ) : representanteValidado ? (
-                      <p className="mt-1 text-[10px] font-medium text-success">
-                        Validado con {representanteValidado === "DNI" ? "RENIEC" : "SUNAT"}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div>
-                    <Label className="text-xs"><span>Nacionalidad *</span></Label>
-                    <PaisSelect
-                      id="representanteNacionalidad"
-                      value={form.representanteNacionalidad}
-                      onChange={(valor) => setCampo("representanteNacionalidad", valor)}
-                      valueMode="nombre"
-                      mostrarCodigo={false}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4 border-t border-border pt-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">Beneficiarios finales (10% o más)</h2>
-                    <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-                      Declare todas las personas naturales o jurídicas que posean directa o indirectamente el
-                      10% o más de participación.
-                    </p>
-                  </div>
-                  <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={agregarBeneficiario}>
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Agregar beneficiario</span>
-                  </Button>
-                </div>
-
-                {beneficiarios.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border bg-secondary/40 px-4 py-6 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      No se declararon beneficiarios finales. Agregue uno si alguna persona posee el 10% o más.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {beneficiarios.map((b, indice) => (
-                      <div key={b.id} className="rounded-lg border border-border bg-card p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Beneficiario {indice + 1}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                            onClick={() => quitarBeneficiario(b.id)}
-                            aria-label={`Eliminar beneficiario ${indice + 1}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
-                          <div className="lg:col-span-3">
-                            <Label className="text-[11px]"><span>Documento *</span></Label>
-                            <div className="mt-1 flex items-center gap-2">
-                              <Input
-                                value={b.documento}
-                                onChange={(e) => actualizarDocumentoBeneficiario(b, e.target.value)}
-                                className="h-8 w-full text-xs"
-                                placeholder="DNI / RUC"
-                                inputMode="numeric"
-                                autoComplete="off"
-                                maxLength={11}
-                              />
-                            </div>
-                            {buscandoBeneficiario === b.id ? (
-                              <p className="mt-1 flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>Consultando RENIEC / SUNAT...</span>
-                              </p>
-                            ) : beneficiariosValidados[b.id] ? (
-                              <p className="mt-1 text-[10px] font-medium text-success">
-                                Validado con {beneficiariosValidados[b.id] === "DNI" ? "RENIEC" : "SUNAT"}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="sm:col-span-2 lg:col-span-5">
-                            <Label className="text-[11px]"><span>Nombre o razón social *</span></Label>
-                            <Input
-                              value={b.nombre}
-                              onChange={(e) => cambiarBeneficiario(b.id, "nombre", e.target.value)}
-                              className="mt-1 h-8 text-xs"
-                            />
-                          </div>
-                          <div className="lg:col-span-2">
-                            <Label className="text-[11px]"><span>Nacionalidad *</span></Label>
-                            <PaisSelect
-                              id={`beneficiarioNacionalidad-${b.id}`}
-                              value={b.nacionalidad}
-                              onChange={(valor) => cambiarBeneficiario(b.id, "nacionalidad", valor)}
-                              valueMode="nombre"
-                              mostrarCodigo={false}
-                            />
-                          </div>
-                          <div className="lg:col-span-2">
-                            <Label className="text-[11px]"><span>% de participación *</span></Label>
-                            <Input
-                              type="number"
-                              inputMode="decimal"
-                              min={DD_PORCENTAJE_PARTICIPACION_MIN}
-                              max={100}
-                              step={0.01}
-                              value={b.porcentaje}
-                              onChange={(e) => cambiarBeneficiario(b.id, "porcentaje", e.target.value)}
-                              className="mt-1 h-8 w-full max-w-[140px] text-xs"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <div className="flex items-start gap-3 rounded-lg border border-gold-soft/60 border-l-[3px] border-l-gold bg-gold/10 p-4">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-                <p className="text-xs leading-relaxed text-foreground">
-                  Esta información se contrasta con registros públicos y listas restrictivas.
-                </p>
-              </div>
-            </div>
+            <DdWizardPaso3
+              form={form}
+              setCampo={setCampo}
+              beneficiarios={beneficiarios}
+              beneficiariosValidados={beneficiariosValidados}
+              buscandoBeneficiario={buscandoBeneficiario}
+              buscandoRepresentante={buscandoRepresentante}
+              representanteValidado={representanteValidado}
+              actualizarDocumentoRepresentante={actualizarDocumentoRepresentante}
+              cambiarNacionalidadRepresentante={cambiarNacionalidadRepresentante}
+              cambiarTipoDocumentoRepresentante={cambiarTipoDocumentoRepresentante}
+              actualizarDocumentoBeneficiario={actualizarDocumentoBeneficiario}
+              cambiarBeneficiario={cambiarBeneficiario}
+              agregarBeneficiario={agregarBeneficiario}
+              quitarBeneficiario={quitarBeneficiario}
+            />
           ) : null}
 
           {paso === 4 ? (
@@ -1311,7 +1065,7 @@ export function DdWizard({
           <div className="mb-3 flex items-center justify-between gap-2 text-xs">
             <span className="font-semibold text-primary">Paso {paso} de {DD_PASOS.length}</span>
             <span className="text-[11px] text-muted-foreground">
-              {paso === 1 ? "Siguiente: Datos de la empresa" : paso === 2 ? "Siguiente: Representante y beneficiarios" : paso === 3 ? "Siguiente: Documentos" : "Último paso"}
+              {paso === 1 ? "Siguiente: Datos de la empresa" : paso === 2 ? "Siguiente: Representante y vínculos" : paso === 3 ? "Siguiente: Documentos" : "Último paso"}
             </span>
           </div>
           <Progress className="mb-4 h-1.5" value={(paso / DD_PASOS.length) * 100} />
@@ -1387,3 +1141,6 @@ export function DdWizard({
     </div>
   );
 }
+
+
+

@@ -153,3 +153,69 @@ strict-boundaries, utility-services, iimp-ui-kit). Cargar solo la que aplique.
 - Proyecto 12 — Matriz DD V2 (modelo/vista/migración): item `13490668741`.
 - Proyecto 13 — Refinamientos funcionales DD: item `13490782338`.
 - Item 10 — Módulo de Debida Diligencia EXTEMIN 2027 (base): item `13346041383`.
+
+## 10. Estado del working tree al 2026-11-09 (avance grande SIN COMMIT)
+
+Además del commit `0f8c35e`, el worktree tiene trabajo avanzado por otra sesión, aún
+**sin commitear**:
+
+### Matriz DD (decisión de UI — doc 18)
+
+- `dd-matriz-bandeja.tsx`: bandeja operativa con KPIs, agrupación por empresa, sujetos
+  por área, acciones masivas y paginación por empresa.
+- `dd-matriz-excel.tsx`: hoja horizontal con las **54 columnas A–BB**, columnas fijas
+  de contexto y exportación.
+- `dd-matriz-revision-vinculo.tsx` y `dd-matriz-decision-vinculo.tsx`.
+- `matriz/page.tsx` con tres vistas (Bandeja / Matriz de evaluación 54 columnas /
+  Extendida) y `matriz/[id]/page.tsx`.
+- Ajustes en `dd-matriz-badges`, `dd-matriz-resumen` y evaluación (lista/detalle).
+
+### Repositorio documental e importación
+
+- Página `/debida-diligencia/repositorio`, `dd-repositorio.tsx`,
+  `dd-documentos-base-dialog.tsx` y `dd-importar-carpeta.tsx`.
+- `utils/dd-repositorio-import.ts` (+ tests): nomenclatura y clasificación por nombre.
+- Clasificación de archivos con IA: puerto, adaptador OpenAI
+  (`OPENAI_API_KEY`, `OPENAI_CLASSIFIER_MODEL=gpt-4o-mini`), servicio, DTOs, validator
+  y endpoint.
+
+### Informes
+
+- Página `/debida-diligencia/informes`, `dd-informe-bandeja.tsx`,
+  `dd-informe-detalle.tsx` y `utils/dd-informe.ts` (+ tests).
+
+### Wizard V2
+
+- `dd-wizard-paso2.tsx` (relaciones comerciales múltiples + opción "Otro") y
+  `dd-wizard-paso3.tsx` (personas vinculadas con tipo de vínculo), integrados en
+  `dd-wizard.tsx`.
+
+### Backend y flujo de estados (doc 19)
+
+- Actualizaciones en servicio, repositorio, controller, validators, DTOs, mapper y
+  constantes DD (estados por nivel, homologación de bandeja, decisión por relación).
+- Migración aditiva `20261109120000_add_dd_tipo_relacion_otro`
+  (`tipo_relacion_comercial_otro` en `debida_diligencia`), aplicada en `contratos_dd`.
+
+### Documentos nuevos
+
+- `18-debida-diligencia-v2-matriz-ui.md` — decisión de UI de la matriz (Stitch base
+  `d5697867c569404d92a1d5fbd73dba80`).
+- `19-debida-diligencia-v2-flujo-estados.md` — flujo real de estados, hallazgos P0/P1/P2
+  y homologación de la bandeja.
+
+### Verificación al 2026-11-09
+
+- `npx tsc --noEmit`: sin errores.
+- `npx vitest run src/lib/shared/utils src/application/debida-diligencia`:
+  **49 archivos / 526 tests passed**.
+- Migración `tipo_relacion_otro` registrada en `_prisma_migrations`.
+
+### Notas para continuar
+
+- **Commitear este avance** en `feature/dd-v2` antes de seguir (todo es trabajo DD).
+- `qa` avanzó con commits **no-DD** (contratos en soles/moneda, SGC contrato observado,
+  etc.); el branch DD está detrás de `qa` y no debe traerlos hasta coordinar.
+- Pendiente del doc 18 §9: enlazar la matriz a `DdRelacionComercial`, edición en línea
+  con evidencia por celda, resultado/bloqueo por relación y validación de los 54 campos
+  contra el Excel oficial.

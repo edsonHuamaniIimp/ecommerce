@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { COLUMNAS_MATRIZ_EXCEL, GRUPOS_MATRIZ_EXCEL, filaMatrizExcel } from "../dd-matriz-excel";
 import type { DdMatrizBloqueDTO, DdMatrizEvaluacionExportFilaDTO } from "@/types/dto/debida-diligencia";
 import { DD_MATRIZ_COLORES } from "@/lib/shared/constants";
@@ -18,6 +18,8 @@ function fila(parcial: {
 }): DdMatrizEvaluacionExportFilaDTO {
   return {
     expedienteCodigo: "DD-2026-0107",
+    eventoId: "evento-1",
+    eventoLabel: "PERUMIN 2027",
     fechaIngreso: "2026-10-04T00:00:00.000Z",
     fechaRevisionExpediente: "2026-10-19T00:00:00.000Z",
     revisadoPor: "importacion_masiva",
@@ -38,6 +40,7 @@ function fila(parcial: {
       ...parcial.empresa,
     },
     vinculo: {
+      id: "v-empresa",
       tipo: "empresa",
       nombre: "MAPTEK S.A.C.",
       tipoDocumento: "RUC",
@@ -171,3 +174,4 @@ describe("filaMatrizExcel", () => {
     expect((v[col("FECHA DE REVISIÓN POR SIG")] as Date).toISOString().slice(0, 10)).toBe("2026-10-19");
   });
 });
+

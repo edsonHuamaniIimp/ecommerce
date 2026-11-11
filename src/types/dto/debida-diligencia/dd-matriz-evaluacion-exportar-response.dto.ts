@@ -20,6 +20,8 @@ export interface DdMatrizExportEmpresaDTO {
 
 /** Vinculo evaluado (la empresa o una persona ligada a ella). */
 export interface DdMatrizExportVinculoDTO {
+  /** Id de la fila de matriz; permite abrir el detalle desde la vista Excel. */
+  id: string;
   tipo: string;
   nombre: string;
   tipoDocumento: string | null;
@@ -38,6 +40,8 @@ export interface DdMatrizExportVinculoDTO {
 /** Una fila de la exportacion en el formato de la matriz oficial de Asociados. */
 export interface DdMatrizEvaluacionExportFilaDTO {
   expedienteCodigo: string;
+  eventoId: string;
+  eventoLabel: string;
   fechaIngreso: string;
   fechaRevisionExpediente: string | null;
   revisadoPor: string | null;

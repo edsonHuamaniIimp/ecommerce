@@ -19,7 +19,7 @@ import {
   Skeleton,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { ArrowLeft, FileText, Loader2, Lock, Paperclip, RefreshCw, Save, Trash2, Upload } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Lock, Paperclip, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type {
   DdMatrizAdjuntoDTO,
@@ -32,6 +32,7 @@ import {
   DdMatrizAmbitoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { PaisSelect } from "@/components/shared/pais-select";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -48,10 +49,12 @@ import {
   DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
   DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_CONCLUSIONES,
+  DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_OBSERVACION_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADO_LABELS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_SIN_VALOR,
@@ -66,7 +69,7 @@ import {
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { evaluarBloqueArea } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { evaluarBloqueArea, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { nombrePais } from "@/lib/shared/utils/pais";
 
 /** Borde de acento por color de encabezado de la matriz oficial (lila / naranja / celeste). */
@@ -212,12 +215,13 @@ function Adjuntos({ vinculoId, adjuntos, categorias, puedeEditar, onCambio }: Ad
         <ul className="space-y-1">
           {visibles.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-2 rounded-md bg-card px-2 py-1.5 text-xs">
-              <a href={a.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1.5 text-primary hover:underline">
+              <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-1.5 text-primary hover:underline">
                 <FileText className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{a.nombre}</span>
               </a>
               <span className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground">
-                <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[a.categoria as DdMatrizAdjuntoCategoria] ?? a.categoria} · {formatearTamano(a.tamano)}</span>
+                <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[a.categoria as DdMatrizAdjuntoCategoria] ?? a.categoria} � {formatearTamano(a.tamano)}</span>
+                <DdEvidenciaPreviewButton url={a.url} nombre={a.nombre} mimeType={a.mimeType} />
                 {puedeEditar ? (
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Quitar adjunto" onClick={() => { void quitar(a); }}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -400,7 +404,13 @@ interface IdentidadForm {
 const IDENTIDAD_VACIA: IdentidadForm = { nombre: "", tipoDocumento: "", documento: "", nacionalidad: "", cargo: "" };
 
 /** Detalle completo de un vinculo de la Matriz de evaluacion DD (vista a pantalla completa). */
-export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
+export function DdMatrizEvaluacionDetalle({
+  id,
+  onVolverRevision,
+}: {
+  id: string;
+  onVolverRevision?: () => void;
+}) {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const [detalle, setDetalle] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
@@ -411,6 +421,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   const [final, setFinal] = useState<string | null>(null);
   const [finalPor, setFinalPor] = useState("");
   const [finalFecha, setFinalFecha] = useState("");
+  const [finalComentario, setFinalComentario] = useState("");
   const [identidad, setIdentidad] = useState<IdentidadForm>(IDENTIDAD_VACIA);
   const [returnTo] = useState<string>(() => {
     if (typeof window === "undefined") return DD_RUTAS.MATRIZ;
@@ -428,6 +439,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
     setFinal(d.resultadoFinal);
     setFinalPor(d.finalPor ?? "");
     setFinalFecha(d.finalFecha?.slice(0, 10) ?? "");
+    setFinalComentario(d.finalComentario ?? "");
     setIdentidad({ nombre: d.nombre, tipoDocumento: d.tipoDocumento ?? "", documento: d.documento ?? "", nacionalidad: d.nacionalidad ?? "", cargo: d.cargo ?? "" });
   }, []);
 
@@ -485,7 +497,10 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
   const finalCambio =
     (final ?? "") !== (detalle.resultadoFinal ?? "") ||
     finalPor !== (detalle.finalPor ?? "") ||
-    finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "");
+    finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "") ||
+    finalComentario !== (detalle.finalComentario ?? "");
+  const finalComentarioRequerido =
+    final === DD_MATRIZ_RESULTADOS_FINALES.NO_APTO && !finalComentario.trim();
   const identidadCambio =
     identidad.nombre !== detalle.nombre ||
     identidad.tipoDocumento !== (detalle.tipoDocumento ?? "") ||
@@ -499,40 +514,62 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
     detalle.listas.filter((l) => l.color === DD_MATRIZ_COLORES.COMUN),
   ].filter((g) => g.length > 0);
 
-  const volverABandeja = returnTo.includes("/debida-diligencia/bandeja");
-
   const guardarBloque = (clave: "sig" | "reputacional" | "compliance") =>
     (valor: BloqueGuardar) =>
       guardar(clave, { [clave]: valor }, "Evaluación guardada");
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <Button asChild variant="ghost" size="sm" className="-ml-2 h-7 gap-1 text-xs text-muted-foreground">
-            <Link href={returnTo}><ArrowLeft className="h-3.5 w-3.5" /><span>{volverABandeja ? "Volver a la bandeja" : "Matriz de evaluación DD"}</span></Link>
-          </Button>
-          <h1 className="flex items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
-            <DdPaisBandera pais={detalle.pais} />
-            <span>{detalle.nombre}</span>
-          </h1>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}><span>{DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo}</span></Badge>
-            <DdMatrizAmbitoBadge valor={detalle.ambito} />
-            {detalle.origen === DD_MATRIZ_ORIGENES.MANUAL ? <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>Manual</span></Badge> : null}
-            <span>{detalle.expediente.empresaRazonSocial} · {detalle.expediente.codigo}</span>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <Link href={DD_RUTAS.MATRIZ} className="hover:text-primary">Matriz de evaluación DD</Link>
+              <span>/</span>
+              <span>Detalle de vínculo</span>
+            </div>
+            <h1 className="flex min-w-0 items-center gap-2.5 text-xl font-semibold tracking-tight sm:text-2xl">
+              <DdPaisBandera pais={detalle.pais} />
+              <span className="truncate">{detalle.nombre}</span>
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}><span>{DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo}</span></Badge>
+              <DdMatrizAmbitoBadge valor={detalle.ambito} />
+              {detalle.origen === DD_MATRIZ_ORIGENES.MANUAL ? <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>Manual</span></Badge> : null}
+              <span className="truncate">{detalle.expediente.empresaRazonSocial} · {detalle.expediente.codigo}</span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {onVolverRevision ? (
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onVolverRevision}>
+                <FileText className="h-3.5 w-3.5" /><span>Volver a revisión</span>
+              </Button>
+            ) : null}
+            <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} />
+            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setLoading(true); void cargar(); }}>
+              <RefreshCw className="h-3.5 w-3.5" /><span>Recargar</span>
+            </Button>
+            {permisos.puedeEliminar ? (
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs text-destructive" onClick={() => { void eliminar(); }}>
+                <Trash2 className="h-3.5 w-3.5" /><span>Eliminar vínculo</span>
+              </Button>
+            ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} />
-          <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setLoading(true); void cargar(); }}>
-            <RefreshCw className="h-3.5 w-3.5" /><span>Recargar</span>
-          </Button>
-          {permisos.puedeEliminar ? (
-            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs text-destructive" onClick={() => { void eliminar(); }}>
-              <Trash2 className="h-3.5 w-3.5" /><span>Eliminar vínculo</span>
-            </Button>
-          ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.03] p-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <Search className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div>
+              <p className="text-xs font-semibold text-foreground">Revisión del vínculo</p>
+              <p className="text-[11px] text-muted-foreground">
+                Revisa listas restrictivas, evidencias y conclusiones por área antes de registrar la decisión final.
+              </p>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            La decisión se registra en la sección Conclusión final.
+          </p>
         </div>
       </div>
 
@@ -688,6 +725,20 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
                 {grupo.map((lista) => (
                   <Campo key={lista.codigo} etiqueta={lista.label} id={`lista-${lista.codigo}`}>
                     <SelectCatalogo id={`lista-${lista.codigo}`} valor={listas[lista.codigo]} opciones={DD_MATRIZ_SI_NO_NA_LABELS} deshabilitado={!permisos.editarListas} onCambio={(v) => setListas({ ...listas, [lista.codigo]: v })} />
+                    {(() => {
+                      const fuenteUrl = urlFuenteLista(lista.codigo, detalle.nombre, detalle.documento);
+                      return fuenteUrl ? (
+                        <a
+                          href={fuenteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>Consultar fuente</span>
+                        </a>
+                      ) : null;
+                    })()}
                   </Campo>
                 ))}
               </div>
@@ -766,7 +817,7 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
         color={DD_MATRIZ_COLORES.EXTRANJERO}
         acciones={
           permisos.editarFinal ? (
-            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!finalCambio || guardando === "final"} onClick={() => { void guardar("final", { ...((final ?? "") !== (detalle.resultadoFinal ?? "") ? { resultadoFinal: final ?? "" } : {}), ...(finalPor !== (detalle.finalPor ?? "") ? { finalPor } : {}), ...(finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "") ? { finalFecha: finalFecha || null } : {}) }, "Resultado final guardado"); }}>
+            <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!finalCambio || finalComentarioRequerido || guardando === "final"} onClick={() => { void guardar("final", { ...((final ?? "") !== (detalle.resultadoFinal ?? "") ? { resultadoFinal: final ?? "" } : {}), ...(finalPor !== (detalle.finalPor ?? "") ? { finalPor } : {}), ...(finalFecha !== (detalle.finalFecha?.slice(0, 10) ?? "") ? { finalFecha: finalFecha || null } : {}), ...(finalComentario !== (detalle.finalComentario ?? "") ? { finalComentario: finalComentario || null } : {}) }, "Resultado final guardado"); }}>
               {guardando === "final" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span>Guardar</span>
             </Button>
@@ -783,6 +834,27 @@ export function DdMatrizEvaluacionDetalle({ id }: { id: string }) {
           <Campo etiqueta="Fecha" id="final-fecha">
             <Input id="final-fecha" type="date" className="h-8 text-xs" disabled={!permisos.editarFinal} value={finalFecha} onChange={(e) => setFinalFecha(e.target.value)} />
           </Campo>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="final-comentario" className="text-[10px] font-medium uppercase text-muted-foreground">
+            <span>Comentario interno</span>
+          </Label>
+          <Textarea
+            id="final-comentario"
+            className="min-h-24 text-xs"
+            maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
+            disabled={!permisos.editarFinal || !final}
+            placeholder={
+              final
+                ? "Sustento interno de la conclusión final. No se muestra al cliente."
+                : "Selecciona un estado final para habilitar el comentario."
+            }
+            value={finalComentario}
+            onChange={(e) => setFinalComentario(e.target.value)}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Obligatorio para cualquier estado final. Solo visible para el equipo interno.
+          </p>
         </div>
       </Seccion>
 

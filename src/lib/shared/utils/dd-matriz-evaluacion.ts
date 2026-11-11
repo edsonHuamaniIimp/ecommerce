@@ -8,6 +8,7 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
   DD_MATRIZ_GRUPOS_LISTA,
+  DD_MATRIZ_LISTA_URLS,
   DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADO_ALIAS,
   DD_MATRIZ_RESULTADO_FINAL_ALIAS,
@@ -106,6 +107,30 @@ export function derivarAmbito(datos: DatosAmbito): DdMatrizAmbito {
   if (DOCUMENTOS_EXTRANJEROS.has(documento)) return DD_MATRIZ_AMBITOS.EXTRANJERO;
   if (DOCUMENTOS_NACIONALES.has(documento)) return DD_MATRIZ_AMBITOS.NACIONAL;
   return DD_MATRIZ_AMBITOS.NACIONAL;
+}
+
+/** Etiqueta de cantidad de vinculos con plural correcto. */
+export function etiquetaCantidadVinculos(total: number): string {
+  return `${total} ${total === 1 ? "vínculo" : "vínculos"}`;
+}
+
+/** URL oficial del criterio, con busqueda directa cuando el portal lo permite. */
+export function fuenteAutomatizable(codigo: string): boolean {
+  return DD_MATRIZ_LISTA_URLS[codigo]?.automatizable !== false;
+}
+
+export function urlFuenteLista(
+  codigo: string,
+  nombre?: string | null,
+  documento?: string | null,
+): string | null {
+  const fuente = DD_MATRIZ_LISTA_URLS[codigo];
+  if (!fuente) return null;
+  if (!fuente.consultaParam) return fuente.url;
+  const termino = (nombre ?? "").trim() || (documento ?? "").trim();
+  return termino
+    ? `${fuente.url}${fuente.consultaParam}${encodeURIComponent(termino)}`
+    : fuente.url;
 }
 
 /** Listas restrictivas que aplican a un vinculo segun su tipo y ambito. */

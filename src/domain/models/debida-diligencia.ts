@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   DdAccionRevision,
   DdDocumentoEstado,
   DdAccionLegal,
@@ -43,6 +43,7 @@ export interface DdBeneficiarioEntity {
   documento: string;
   nacionalidad: string;
   porcentaje: number;
+  tipoVinculoPersona: string | null;
 }
 
 export interface DdDocumentoVersionEntity {
@@ -139,6 +140,7 @@ export interface DdExpedienteEntity {
   motivoImportacion: string | null;
   importacionId: string | null;
   tipoRelacionComercial: DdVinculo[];
+  tipoRelacionComercialOtro: string | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
@@ -198,6 +200,8 @@ export interface DdEvaluacionEmpresa {
 export interface DdReputacionCasoEntity {
   id: string;
   nombreARevisar: string;
+  /** Rol o cargo del nombre dentro del expediente. */
+  cargo: string | null;
   /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
   nacionalidad: string | null;
   sitioWeb: string | null;
@@ -357,6 +361,8 @@ export interface DdReputacionRow {
   codigo: string;
   empresa: DdEmpresaResumen;
   nombreARevisar: string;
+  /** Rol o cargo del nombre dentro del expediente. */
+  cargo: string | null;
   /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
   nacionalidad: string | null;
   sitioWeb: string | null;
@@ -532,6 +538,7 @@ export interface DdEmpresasResult {
 
 export interface DdGuardarData {
   tipoRelacionComercial: DdVinculo[];
+  tipoRelacionComercialOtro: string | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
@@ -544,7 +551,14 @@ export interface DdGuardarData {
   representanteTipoDocumento: string | null;
   representanteDocumento: string | null;
   representanteNacionalidad: string | null;
-  beneficiarios: { orden: number; nombre: string; documento: string; nacionalidad: string; porcentaje: number }[];
+  beneficiarios: {
+    orden: number;
+    nombre: string;
+    documento: string;
+    nacionalidad: string;
+    porcentaje: number;
+      tipoVinculoPersona: string | null;
+  }[];
   documentos: { tipo: DdDocumentoTipo; nombre: string; url: string; estado: DdDocumentoEstado }[];
 }
 
@@ -587,3 +601,7 @@ export interface DdReputacionActualizacion {
   revisor: string;
   cerrar: boolean;
 }
+
+
+
+

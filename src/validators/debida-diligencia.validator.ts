@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import {
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
@@ -16,6 +16,7 @@ import {
   DD_PER_PAGE_DEFAULT,
   DD_PORCENTAJE_MAX,
   DD_REPUTACION_RESULTADOS,
+  DD_TIPOS_VINCULO_PERSONA,
   DD_VINCULOS,
   REGEX_EMAIL,
   REGEX_NACIONALIDAD,
@@ -65,6 +66,10 @@ const beneficiarioSchema = z.object({
     .number()
     .min(0, "El porcentaje no puede ser negativo")
     .max(DD_PORCENTAJE_MAX, "El porcentaje no puede superar 100"),
+  tipoVinculoPersona: z
+    .enum(valores(DD_TIPOS_VINCULO_PERSONA))
+    .nullable()
+    .optional(),
 });
 
 const documentoSchema = z.object({
@@ -77,6 +82,7 @@ const documentoSchema = z.object({
 /** Guardado del wizard (borrador o correccion). Los campos son opcionales para permitir guardar por pasos. */
 export const ddGuardarSchema = z.object({
   tipoRelacionComercial: tipoRelacionSchema,
+  tipoRelacionComercialOtro: textoNullable(200),
   actividadEconomica: textoNullable(120),
   actividadEconomicaOtro: textoNullable(200),
   paisConstitucion: textoNullable(80),
@@ -268,3 +274,5 @@ export const ddClientesQuerySchema = z.object({
   resultado: z.enum(valores(DD_RESULTADOS)).optional(),
   estadoEvaluacion: z.enum(valores(DD_ESTADOS_EVALUACION)).optional(),
 });
+
+

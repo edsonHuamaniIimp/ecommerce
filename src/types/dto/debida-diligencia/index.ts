@@ -1,4 +1,4 @@
-export type {
+﻿export type {
   DdBeneficiarioDTO,
   DdDocumentoDTO,
   DdDocumentoVersionDTO,
@@ -53,6 +53,11 @@ export type {
   DdReputacionRowDTO,
 } from "./dd-reputacion.dto";
 export type { DdReputacionQueryDTO } from "./dd-reputacion-query.dto";
+export type {
+  DdConfiguracionDTO,
+  DdConfiguracionRequestDTO,
+  DdAuditoriaItemDTO,
+} from "./dd-configuracion.dto";
 export type { DdReputacionResolverRequestDTO } from "./dd-reputacion-resolver-request.dto";
 export type { DdMatrizEvaluacionQueryDTO } from "./dd-matriz-evaluacion-query.dto";
 export type { DdMatrizEvaluacionFilaDTO } from "./dd-matriz-evaluacion-fila.dto";
@@ -81,3 +86,13 @@ export type { DdMatrizConteoDTO, DdMatrizEvaluacionResumenDTO } from "./dd-matri
 export type { DdMatrizEvaluacionVinculoRequestDTO } from "./dd-matriz-evaluacion-vinculo-request.dto";
 export type { DdMatrizEvaluacionAdjuntoEliminarRequestDTO } from "./dd-matriz-evaluacion-adjunto-request.dto";
 export type { DdMatrizEvaluacionAdjuntoResponseDTO } from "./dd-matriz-evaluacion-adjunto-response.dto";
+export type {
+  DdClasificarArchivosArchivoDTO,
+  DdClasificarArchivosRequestDTO,
+  DdClasificarArchivosVinculoDTO,
+} from "./dd-clasificar-archivos-request.dto";
+export type {
+  DdClasificarArchivosResponseDTO,
+  DdClasificarArchivosSugerenciaDTO,
+} from "./dd-clasificar-archivos-response.dto";
+

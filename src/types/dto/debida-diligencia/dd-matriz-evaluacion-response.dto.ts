@@ -3,6 +3,7 @@ import type { DdMatrizEvaluacionFilaDTO } from "./dd-matriz-evaluacion-fila.dto"
 /** Respuesta paginada de la lista de la Matriz de evaluacion DD. */
 export interface DdMatrizEvaluacionResponseDTO {
   data: DdMatrizEvaluacionFilaDTO[];
+  /** Total de filas; con `porEmpresa` es el total de expedientes/empresas. */
   total: number;
   page: number;
   perPage: number;

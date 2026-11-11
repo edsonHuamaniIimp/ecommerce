@@ -20,7 +20,10 @@ export function mapDdMatrizEvaluacionFilaToDTO(fila: DdMatrizFilaEntity): DdMatr
   return {
     id: fila.id,
     expedienteId: fila.expediente.expedienteId,
+    eventoId: fila.expediente.eventoId,
+    eventoLabel: fila.expediente.eventoLabel,
     codigo: fila.expediente.codigo,
+    expedienteEstado: fila.expediente.estado,
     empresaRazonSocial: fila.expediente.empresaRazonSocial,
     empresaRuc: fila.expediente.empresaRuc,
     motivo: fila.expediente.motivo,
@@ -41,6 +44,9 @@ export function mapDdMatrizEvaluacionFilaToDTO(fila: DdMatrizFilaEntity): DdMatr
     cmpResultado: fila.cmpResultado,
     cmpConclusion: fila.cmpConclusion,
     resultadoFinal: fila.resultadoFinal,
+    reputacionCasos: fila.reputacionCasos,
+    reputacionPendientes: fila.reputacionPendientes,
+    reputacionConHallazgos: fila.reputacionConHallazgos,
     updatedAt: fila.updatedAt.toISOString(),
   };
 }
@@ -137,6 +143,7 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     resultadoFinal: vinculo.resultadoFinal,
     finalFecha: iso(vinculo.finalFecha),
     finalPor: vinculo.finalPor,
+    finalComentario: vinculo.finalComentario,
     adjuntos: adjuntos.map(mapDdMatrizAdjuntoToDTO),
     permisos,
     updatedAt: vinculo.updatedAt.toISOString(),
@@ -150,6 +157,8 @@ export function mapDdMatrizExportFilaToDTO(item: DdMatrizExportItem): DdMatrizEv
   const ctx = vinculo.expediente;
   return {
     expedienteCodigo: ctx.codigo,
+    eventoId: ctx.eventoId,
+    eventoLabel: ctx.eventoLabel,
     fechaIngreso: ctx.fechaIngreso.toISOString(),
     fechaRevisionExpediente: iso(ctx.fechaRevision),
     revisadoPor: ctx.revisadoPor,
@@ -169,6 +178,7 @@ export function mapDdMatrizExportFilaToDTO(item: DdMatrizExportItem): DdMatrizEv
       listas: origen.listas,
     },
     vinculo: {
+      id: vinculo.id,
       tipo: vinculo.tipo,
       nombre: vinculo.nombre,
       tipoDocumento: vinculo.tipoDocumento,

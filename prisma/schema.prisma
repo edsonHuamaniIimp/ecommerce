@@ -1287,6 +1287,8 @@ model DebidaDiligencia {
 
   /// Tipos de relacion comercial con el IIMP (ver DD_VINCULOS). Admite varios.
   tipoRelacionComercial  String[] @default([]) @map("tipo_relacion_comercial")
+  /// Detalle cuando el tipo de relacion comercial es "Otro".
+  tipoRelacionComercialOtro String? @map("tipo_relacion_comercial_otro") @db.VarChar(200)
   /// Actividad economica principal (catalogo DD_ACTIVIDADES_ECONOMICAS).
   actividadEconomica     String? @map("actividad_economica") @db.VarChar(120)
   /// Detalle cuando la actividad economica es "Otro".
@@ -1352,6 +1354,28 @@ model DebidaDiligencia {
   @@index([origen])
   @@index([importacionId])
   @@map("debida_diligencia")
+}
+
+/// Configuracion unica del modulo Debida Diligencia (backoffice).
+model DdConfiguracion {
+  id                         String   @id @default("default") @db.VarChar(20)
+  plazoDiasHabiles           Int      @default(3) @map("plazo_dias_habiles")
+  estadoCierreAutomatico     String   @default("sin_respuesta") @map("estado_cierre_automatico") @db.VarChar(30)
+  exigirEvidencia            Boolean  @default(true) @map("exigir_evidencia")
+  permitirNaSinEvidencia     Boolean  @default(true) @map("permitir_na_sin_evidencia")
+  revalidacionDeclaracion    Boolean  @default(true) @map("revalidacion_declaracion")
+  noAptoBloqueaEmpresa       Boolean  @default(true) @map("no_apto_bloquea_empresa")
+  legalSoloDerivacionSig     Boolean  @default(true) @map("legal_solo_derivacion_sig")
+  vigenciaMeses              Int      @default(6) @map("vigencia_meses")
+  permitirReutilizacionVinculo Boolean @default(true) @map("permitir_reutilizacion_vinculo")
+  manualUrl                  String?  @map("manual_url") @db.VarChar(500)
+  reglamentoUrl              String?  @map("reglamento_url") @db.VarChar(500)
+  plantillaInformeUrl        String?  @map("plantilla_informe_url") @db.VarChar(500)
+  linkListasUrl              String?  @map("link_listas_url") @db.VarChar(500)
+  updatedBy                  String?  @map("updated_by") @db.VarChar(200)
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  @@map("dd_configuracion")
 }
 
 /// Beneficiario final con 10% o mas de participacion.
@@ -1599,6 +1623,8 @@ model DdMatrizVinculo {
   resultadoFinal String?   @map("resultado_final") @db.VarChar(30)
   finalFecha     DateTime? @map("final_fecha")
   finalPor       String?   @map("final_por") @db.VarChar(200)
+  /// Comentario interno de la conclusion final; no se publica al cliente.
+  finalComentario String?  @map("final_comentario") @db.VarChar(1000)
 
   /// Relacion comercial V2 a la que pertenece la fila (null en filas legacy).
   relacionComercialId String? @map("relacion_comercial_id")

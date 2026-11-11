@@ -1,4 +1,4 @@
-import {
+﻿import {
   DD_ACTIVIDADES_ECONOMICAS,
   DD_ACTIVIDAD_OTRO,
   DD_DIAS_POR_VENCER,
@@ -11,7 +11,6 @@ import {
   DD_ORIGENES,
   DD_RESULTADOS,
   DD_PORCENTAJE_MAX,
-  DD_PORCENTAJE_PARTICIPACION_MIN,
   REGEX_EMAIL,
   REGEX_NACIONALIDAD,
   DD_ESTADO_SIN_INICIAR_LABEL,
@@ -21,6 +20,7 @@ import {
   DD_REPUTACION_RESULTADO_A_ESTADO,
   DD_VIGENCIA_MESES,
   DD_VINCULO_LABELS,
+  DD_VINCULOS,
   type DdDocumentoTipo,
   type DdEstado,
   type DdEstadoEvaluacion,
@@ -72,6 +72,7 @@ export const ddUtils = {
   /** Validacion del paso 2: datos de la empresa. */
   validarEmpresa(datos: {
     tipoRelacionComercial: string[];
+    tipoRelacionComercialOtro?: string;
     actividadEconomica: string;
     actividadEconomicaOtro: string;
     paisConstitucion: string;
@@ -79,6 +80,12 @@ export const ddUtils = {
     emailRepresentante: string;
   }): string | null {
     if (datos.tipoRelacionComercial.length === 0) return "Seleccione al menos un tipo de relación comercial con el IIMP.";
+    if (
+      datos.tipoRelacionComercial.includes(DD_VINCULOS.OTRO) &&
+      !datos.tipoRelacionComercialOtro?.trim()
+    ) {
+      return "Indique el detalle del vínculo comercial Otro.";
+    }
     if (!datos.actividadEconomica) return "Seleccione la actividad económica principal.";
     if (!DD_ACTIVIDADES_ECONOMICAS.includes(datos.actividadEconomica as never)) {
       return "Seleccione una actividad económica válida del catálogo.";
@@ -99,7 +106,7 @@ export const ddUtils = {
     representanteNombre: string;
     representanteDocumento: string;
     representanteNacionalidad: string;
-    beneficiarios: { nombre: string; documento: string; nacionalidad: string; porcentaje: string }[];
+    beneficiarios: { nombre: string; documento: string; nacionalidad: string; porcentaje: string; tipoVinculoPersona?: string }[];
   }): string | null {
     if (!datos.representanteNombre.trim()) return "Ingrese el nombre del representante legal.";
     if (!datos.representanteDocumento.trim()) return "Ingrese el documento del representante legal.";
@@ -108,24 +115,22 @@ export const ddUtils = {
       return "Ingrese una nacionalidad válida para el representante legal.";
     }
     for (const [indice, beneficiario] of datos.beneficiarios.entries()) {
+      if (!beneficiario.tipoVinculoPersona?.trim()) {
+        return `Seleccione el tipo de vínculo del beneficiario ${indice + 1}.`;
+      }
       if (
         !beneficiario.nombre.trim() ||
         !beneficiario.documento.trim() ||
-        !beneficiario.nacionalidad.trim() ||
-        !beneficiario.porcentaje.trim()
+        !beneficiario.nacionalidad.trim()
       ) {
         return `Complete los datos del beneficiario ${indice + 1}.`;
       }
       if (!REGEX_NACIONALIDAD.test(beneficiario.nacionalidad.trim())) {
         return `Ingrese una nacionalidad válida para el beneficiario ${indice + 1}.`;
       }
-      const porcentaje = Number(beneficiario.porcentaje);
-      if (
-        Number.isNaN(porcentaje) ||
-        porcentaje < DD_PORCENTAJE_PARTICIPACION_MIN ||
-        porcentaje > DD_PORCENTAJE_MAX
-      ) {
-        return `El porcentaje del beneficiario ${indice + 1} debe estar entre ${DD_PORCENTAJE_PARTICIPACION_MIN}% y ${DD_PORCENTAJE_MAX}%.`;
+      const porcentaje = beneficiario.porcentaje.trim() ? Number(beneficiario.porcentaje) : 0;
+      if (Number.isNaN(porcentaje) || porcentaje < 0 || porcentaje > DD_PORCENTAJE_MAX) {
+        return `El porcentaje del beneficiario ${indice + 1} debe estar entre 0% y ${DD_PORCENTAJE_MAX}%.`;
       }
     }
     return null;
@@ -356,6 +361,7 @@ export const ddUtils = {
     aceptaVerificacion: boolean;
     declaraVerdad: boolean;
     tipoRelacionComercial: string[];
+    tipoRelacionComercialOtro?: string | null;
     actividadEconomica: string | null;
     actividadEconomicaOtro: string | null;
     paisConstitucion: string | null;
@@ -374,6 +380,12 @@ export const ddUtils = {
     if (!expediente.declaraVerdad) errores.push(DD_MENSAJES.DECLARACION_VERACIDAD);
     if (expediente.tipoRelacionComercial.length === 0) {
       errores.push("Seleccione al menos un tipo de relación comercial con el IIMP.");
+    }
+    if (
+      expediente.tipoRelacionComercial.includes(DD_VINCULOS.OTRO) &&
+      !expediente.tipoRelacionComercialOtro?.trim()
+    ) {
+      errores.push("Indique el detalle del vínculo comercial Otro.");
     }
     if (!expediente.actividadEconomica) errores.push("Seleccione la actividad económica principal.");
     if (
@@ -502,3 +514,4 @@ export const ddUtils = {
     return DD_ESTADO_SIN_INICIAR_LABEL;
   },
 };
+

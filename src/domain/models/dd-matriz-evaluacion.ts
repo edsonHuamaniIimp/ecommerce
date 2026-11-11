@@ -44,6 +44,8 @@ export interface DdMatrizGenerales {
 /** Contexto del expediente que acompana a cada vinculo (solo lectura). */
 export interface DdMatrizExpedienteContexto {
   expedienteId: string;
+  eventoId: string;
+  eventoLabel: string;
   codigo: string;
   estado: string;
   empresaRazonSocial: string;
@@ -85,6 +87,7 @@ export interface DdMatrizVinculoEntity extends DdMatrizGenerales {
   resultadoFinal: string | null;
   finalFecha: Date | null;
   finalPor: string | null;
+  finalComentario: string | null;
   creadoPor: string;
   actualizadoPor: string | null;
   createdAt: Date;
@@ -110,15 +113,27 @@ export interface DdMatrizFilaEntity {
   cmpResultado: string | null;
   cmpConclusion: string | null;
   resultadoFinal: string | null;
+  reputacionCasos: number;
+  reputacionPendientes: number;
+  reputacionConHallazgos: number;
   updatedAt: Date;
   expediente: Pick<
     DdMatrizExpedienteContexto,
-    "expedienteId" | "codigo" | "empresaRazonSocial" | "empresaRuc" | "motivo" | "eventoProyecto" | "fechaIngreso"
+    | "expedienteId"
+    | "eventoId"
+    | "eventoLabel"
+    | "codigo"
+    | "estado"
+    | "empresaRazonSocial"
+    | "empresaRuc"
+    | "motivo"
+    | "eventoProyecto"
+    | "fechaIngreso"
   >;
 }
 
 export interface DdMatrizListarParams {
-  eventoId: string;
+  eventoId?: string;
   page: number;
   perPage: number;
   search?: string;
@@ -131,6 +146,8 @@ export interface DdMatrizListarParams {
   resultadoFinal?: string;
   /** Solo filas sin ningun resultado final registrado. */
   sinEvaluar?: boolean;
+  /** Si es true, la pagina cuenta expedientes/empresas y devuelve todos sus sujetos. */
+  porEmpresa?: boolean;
 }
 
 /** Pais con vinculos en el evento y cuantos (opciones del filtro de pais). */
@@ -154,6 +171,7 @@ export interface DdMatrizConteo {
 
 /** Indicadores de la matriz del evento activo (todos los vinculos enviados). */
 export interface DdMatrizResumenEntity {
+  empresas: number;
   total: number;
   resultadoFinal: DdMatrizConteo[];
   ambito: DdMatrizConteo[];
@@ -203,6 +221,7 @@ export interface DdMatrizVinculoCambios {
   resultadoFinal?: string | null;
   finalFecha?: Date | null;
   finalPor?: string | null;
+  finalComentario?: string | null;
   actualizadoPor: string;
 }
 

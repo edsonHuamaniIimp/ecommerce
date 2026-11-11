@@ -7,6 +7,8 @@
 > **Handoff Stitch anterior:** [`10-debida-diligencia-stitch.md`](./10-debida-diligencia-stitch.md).
 > **Matriz de navegación:** [`15-debida-diligencia-navegacion.md`](./15-debida-diligencia-navegacion.md).
 > **Diagrama de actividades:** [`16-debida-diligencia-actividades.md`](./16-debida-diligencia-actividades.md).
+> **Decisión de UI de la matriz:** [`18-debida-diligencia-v2-matriz-ui.md`](./18-debida-diligencia-v2-matriz-ui.md)
+> — la vista principal es una matriz tipo Excel A–BB en el proyecto Stitch refinado.
 > **Matriz de estructura:** `C:\Users\ASUSVivobook\Downloads\MATRIZ EVALUACIÓN DE DEBIDA DILIGENCIA actualizado_Vsist (1).xlsx`.
 > **Transcripción de referencia:** reunión de transferencia del 27/10/2026.
 

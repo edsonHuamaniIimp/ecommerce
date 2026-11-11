@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -32,22 +31,21 @@ import type {
   DdMatrizEvaluacionResumenDTO,
 } from "@/types/dto/debida-diligencia";
 import {
-  DdMatrizAmbitoBadge,
   DdMatrizConclusionBadge,
   DdMatrizConclusionComplianceBadge,
   DdMatrizResultadoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
 import { DdMatrizResumen } from "./dd-matriz-resumen";
+import { DdEventoSelect } from "./dd-evento-select";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
-  BADGE_STYLES,
+  DD_EVENTO_TODOS,
   DD_MATRIZ_AMBITO_LABELS,
   DD_MATRIZ_FILTRO_SIN_EVALUAR,
   DD_MATRIZ_FILTRO_SIN_PAIS,
   DD_MATRIZ_FILTRO_TODOS,
-  DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
@@ -56,12 +54,12 @@ import {
   REGEX_PAIS,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
-import { dateUtils } from "@/lib/shared/utils/date";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
 
 interface Filtros {
+  eventoId: string;
   page: number;
   perPage: number;
   search: string;
@@ -72,6 +70,7 @@ interface Filtros {
 }
 
 const FILTROS_INICIALES: Filtros = {
+  eventoId: DD_EVENTO_TODOS,
   page: 1,
   perPage: DD_MATRIZ_PER_PAGE_DEFAULT,
   search: "",
@@ -85,6 +84,7 @@ const FILTROS_INICIALES: Filtros = {
 function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO {
   const sinEvaluar = filtros.resultadoFinal === DD_MATRIZ_FILTRO_SIN_EVALUAR;
   return {
+    eventoId: filtros.eventoId,
     search: filtros.search.trim() || undefined,
     tipo: filtros.tipo !== DD_MATRIZ_FILTRO_TODOS ? filtros.tipo : undefined,
     ambito: filtros.ambito !== DD_MATRIZ_FILTRO_TODOS ? filtros.ambito : undefined,
@@ -103,8 +103,33 @@ function consultaDe(filtros: Filtros) {
 const etiqueta = <T extends string>(catalogo: Record<T, string>, valor: string | null): string =>
   valor ? (catalogo[valor as T] ?? valor) : "";
 
+function EstadoAreaExtendido({
+  resultado,
+  conclusion,
+  compliance = false,
+}: {
+  resultado: string | null;
+  conclusion: string | null;
+  compliance?: boolean;
+}) {
+  if (!resultado && !conclusion) {
+    return <span className="text-[11px] text-muted-foreground">Pendiente</span>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {resultado ? <DdMatrizResultadoBadge valor={resultado} /> : <span className="text-[11px] text-muted-foreground">Pendiente</span>}
+      {conclusion
+        ? compliance
+          ? <DdMatrizConclusionComplianceBadge valor={conclusion} />
+          : <DdMatrizConclusionBadge valor={conclusion} />
+        : <span className="text-[11px] text-muted-foreground">Pendiente</span>}
+    </div>
+  );
+}
+
 /** Lista de la Matriz de evaluacion DD: una fila por vinculo (empresa o persona ligada). */
-export function DdMatrizEvaluacionLista() {
+export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" } = {}) {
   const [data, setData] = useState<DdMatrizEvaluacionResponseDTO | null>(null);
   const [resumen, setResumen] = useState<DdMatrizEvaluacionResumenDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +148,7 @@ export function DdMatrizEvaluacionLista() {
       const respuesta = await ddMatrizEvaluacionService.listar(consultaDe(actual));
       setData(respuesta);
       /* Despues de listar: la lista sincroniza las filas automaticas que los stats cuentan. */
-      if (conResumen) setResumen(await ddMatrizEvaluacionService.resumen());
+      if (conResumen) setResumen(await ddMatrizEvaluacionService.resumen(actual.eventoId));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar la matriz");
     } finally {
@@ -204,7 +229,9 @@ export function DdMatrizEvaluacionLista() {
             ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
-            Evaluación de debida diligencia por vínculo: cada empresa y las personas ligadas a ella.
+            {variante === "extendida"
+              ? "Vista extendida: estado final de SIG, Reputacional y Compliance por vínculo."
+              : "Evaluación de debida diligencia por vínculo: cada empresa y las personas ligadas a ella."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -254,7 +281,11 @@ export function DdMatrizEvaluacionLista() {
           </div>
 
           {filtersOpen ? (
-            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground">Evento</label>
+                <DdEventoSelect value={filtros.eventoId} onChange={(valor) => aplicar({ eventoId: valor }, true)} incluirTodos />
+              </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mx-filtro-tipo">Tipo de vínculo</label>
                 <Select value={filtros.tipo} onValueChange={(valor) => aplicar({ tipo: valor })}>
@@ -322,7 +353,7 @@ export function DdMatrizEvaluacionLista() {
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={filtros.perPage} columns={10} />
+            <TableSkeleton rows={filtros.perPage} columns={11} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay vínculos en este filtro.</p>
@@ -341,22 +372,23 @@ export function DdMatrizEvaluacionLista() {
                 </div>
               ) : null}
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-[1400px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8">
                         <Checkbox checked={estadoCabecera} aria-label="Seleccionar los vínculos de esta página" onCheckedChange={(v) => alternarPagina(v === true)} />
                       </TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Vínculo</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide md:table-cell">Empresa</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">Ingreso</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">País</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Nac. / Extr.</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide lg:table-cell">SIG</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Reputacional</TableHead>
-                      <TableHead className="hidden text-[10px] uppercase tracking-wide xl:table-cell">Compliance</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide">Resultado final</TableHead>
-                      <TableHead className="text-right text-[10px] uppercase tracking-wide">Acciones</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Vínculo (Sujeto / Persona)</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Evento</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">RUC / Documento</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Relación comercial</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">País / Nac-Extr</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">SIG (Resultado + Conclusión)</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Reputacional (Resultado + Conclusión)</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Derivación Comunicaciones</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide">Compliance / Legal (Resultado + Conclusión)</TableHead>
+                      <TableHead className="text-center text-[10px] uppercase tracking-wide">Resultado final</TableHead>
+                      <TableHead className="text-center text-[10px] uppercase tracking-wide">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -367,52 +399,62 @@ export function DdMatrizEvaluacionLista() {
                         </TableCell>
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.nombre}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            {[fila.tipoDocumento, fila.documento].filter(Boolean).join(" ") || "Sin documento"}
+                          <p className="text-[10px] text-muted-foreground">
+                            {etiqueta<DdMatrizTipoVinculo>(DD_MATRIZ_TIPO_VINCULO_LABELS, fila.tipo)}
+                            {fila.cargo ? ` � ${fila.cargo}` : ""}
                           </p>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                            <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}>
-                              <span>{etiqueta<DdMatrizTipoVinculo>(DD_MATRIZ_TIPO_VINCULO_LABELS, fila.tipo)}</span>
-                            </Badge>
-                            {fila.origen === DD_MATRIZ_ORIGENES.MANUAL ? (
-                              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>Manual</span></Badge>
-                            ) : null}
-                          </div>
                         </TableCell>
-                        <TableCell className="hidden max-w-[220px] md:table-cell">
-                          <p className="truncate text-xs text-foreground">{fila.empresaRazonSocial}</p>
-                          <p className="text-[10px] text-muted-foreground">{fila.codigo}{fila.eventoProyecto ? ` · ${fila.eventoProyecto}` : ""}</p>
+                        <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground">
+                          {fila.eventoLabel}
                         </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-[11px] text-muted-foreground lg:table-cell">
-                          {dateUtils.format(fila.fechaIngreso)}
+                        <TableCell className="font-mono text-[11px] text-muted-foreground">
+                          {fila.documento || fila.empresaRuc || "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[220px] truncate text-xs text-foreground">
+                          {fila.motivo || "—"}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5">
                             <DdPaisBandera pais={fila.pais} />
-                            {fila.pais ? <span className="hidden font-mono text-[11px] text-muted-foreground xl:inline">{fila.pais}</span> : null}
+                            <span className="text-[11px] text-muted-foreground">
+                              {fila.pais ?? "—"} ({DD_MATRIZ_AMBITO_LABELS[fila.ambito as keyof typeof DD_MATRIZ_AMBITO_LABELS] ?? fila.ambito})
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell><DdMatrizAmbitoBadge valor={fila.ambito} /></TableCell>
-                        <TableCell className="hidden lg:table-cell">
-                          <div className="space-y-1">
-                            <DdMatrizResultadoBadge valor={fila.sigResultado} />
-                            <DdMatrizConclusionBadge valor={fila.sigConclusion} />
-                          </div>
+                        <TableCell>
+                          <EstadoAreaExtendido resultado={fila.sigResultado} conclusion={fila.sigConclusion} />
                         </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          <div className="space-y-1">
-                            <DdMatrizResultadoBadge valor={fila.repResultado} />
-                            <DdMatrizConclusionBadge valor={fila.repConclusion} />
-                          </div>
+                        <TableCell>
+                          <EstadoAreaExtendido resultado={fila.repResultado} conclusion={fila.repConclusion} />
                         </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          <div className="space-y-1">
-                            <DdMatrizResultadoBadge valor={fila.cmpResultado} />
-                            <DdMatrizConclusionComplianceBadge valor={fila.cmpConclusion} />
-                          </div>
+                        <TableCell>
+                          {fila.reputacionCasos === 0 ? (
+                            <span className="inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
+                              No derivado
+                            </span>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold text-emerald-800">
+                                Derivado
+                              </span>
+                              <p className="text-[9px] text-muted-foreground">
+                                {fila.reputacionPendientes > 0
+                                  ? `${fila.reputacionPendientes} pendiente(s)`
+                                  : "Comunicaciones completo"}
+                              </p>
+                              {fila.reputacionConHallazgos > 0 ? (
+                                <p className="text-[9px] font-medium text-destructive">
+                                  {fila.reputacionConHallazgos} con hallazgo(s)
+                                </p>
+                              ) : null}
+                            </div>
+                          )}
                         </TableCell>
-                        <TableCell><DdMatrizResultadoFinalBadge valor={fila.resultadoFinal} /></TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
+                          <EstadoAreaExtendido resultado={fila.cmpResultado} conclusion={fila.cmpConclusion} compliance />
+                        </TableCell>
+                        <TableCell className="text-center"><DdMatrizResultadoFinalBadge valor={fila.resultadoFinal} /></TableCell>
+                        <TableCell className="text-center">
                           <Button asChild variant="outline" size="sm" className="h-7 gap-1 text-[11px]">
                             <Link href={`${DD_RUTAS.MATRIZ}/${fila.id}`} title="Abrir detalle del vínculo">
                               <Eye className="h-3.5 w-3.5" />

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   DdBandejaResult,
   DdClientesResult,
   DdEmpresaEstadoEntity,
@@ -84,6 +84,7 @@ export function mapDdExpedienteToDTO(
     motivoImportacion: expediente.motivoImportacion,
     importacionId: expediente.importacionId,
     tipoRelacionComercial: expediente.tipoRelacionComercial,
+    tipoRelacionComercialOtro: expediente.tipoRelacionComercialOtro,
     actividadEconomica: expediente.actividadEconomica,
     actividadEconomicaOtro: expediente.actividadEconomicaOtro,
     paisConstitucion: expediente.paisConstitucion,
@@ -449,8 +450,9 @@ export function mapDdReputacionRowToDTO(row: DdReputacionGrupo["casos"][number])
     id: row.id,
     expedienteId: row.expedienteId,
     codigo: row.codigo,
-    empresa: { razonSocial: row.empresa.razonSocial },
+    empresa: { razonSocial: row.empresa.razonSocial, ruc: row.empresa.ruc },
     nombreARevisar: row.nombreARevisar,
+    cargo: row.cargo,
     nacionalidad: row.nacionalidad,
     sitioWeb: row.sitioWeb,
     estado: row.estado,
@@ -469,7 +471,7 @@ function mapDdReputacionGrupoToDTO(grupo: DdReputacionGrupo): DdReputacionGrupoD
   return {
     expedienteId: grupo.expedienteId,
     codigo: grupo.codigo,
-    empresa: { razonSocial: grupo.empresa.razonSocial },
+    empresa: { razonSocial: grupo.empresa.razonSocial, ruc: grupo.empresa.ruc },
     casos: grupo.casos.map(mapDdReputacionRowToDTO),
     totalCasos: grupo.totalCasos,
     pendientes: grupo.pendientes,
@@ -487,3 +489,5 @@ export function mapDdReputacionToDTO(resultado: DdReputacionResult): DdReputacio
     totalPages: resultado.totalPages,
   };
 }
+
+

@@ -1,8 +1,9 @@
-import type { DdReputacionEstado, DdReputacionResultado } from "@/lib/shared/constants";
+﻿import type { DdReputacionEstado, DdReputacionResultado } from "@/lib/shared/constants";
 
 /** Solo el nombre visible: Comunicaciones no accede a la ficha completa del cliente. */
 export interface DdReputacionEmpresaDTO {
   razonSocial: string;
+  ruc: string;
 }
 
 export interface DdReputacionRowDTO {
@@ -11,6 +12,8 @@ export interface DdReputacionRowDTO {
   codigo: string;
   empresa: DdReputacionEmpresaDTO;
   nombreARevisar: string;
+  /** Rol o cargo del nombre dentro del expediente. */
+  cargo: string | null;
   /** Nacionalidad del representante o beneficiario; null para la empresa/sin coincidencia. */
   nacionalidad: string | null;
   sitioWeb: string | null;
@@ -43,3 +46,4 @@ export interface DdReputacionResponseDTO {
   perPage: number;
   totalPages: number;
 }
+

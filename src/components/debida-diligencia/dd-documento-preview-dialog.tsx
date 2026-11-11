@@ -12,13 +12,15 @@ import { ExternalLink } from "lucide-react";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 
 interface Props {
-  documento: { url: string; nombre: string } | null;
+  documento: { url: string; nombre: string; mimeType?: string | null } | null;
   onClose: () => void;
 }
 
 /** Vista previa inline del documento cargado (PDF o imagen). */
 export function DdDocumentoPreviewDialog({ documento, onClose }: Props) {
-  const esPdf = archivoUtils.esPdf(documento?.url);
+  const esPdf =
+    archivoUtils.esPdf(documento?.url) ||
+    Boolean(documento?.mimeType?.toLowerCase().includes("pdf"));
 
   return (
     <Dialog open={Boolean(documento)} onOpenChange={(valor) => { if (!valor) onClose(); }}>

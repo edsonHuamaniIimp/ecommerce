@@ -53,8 +53,12 @@ import { ConfiguracionPrismaRepository } from "@/infrastructure/persistence/conf
 import { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import { DebidaDiligenciaPrismaRepository } from "@/infrastructure/persistence/debida-diligencia-repository";
 import { DebidaDiligenciaApplicationService } from "@/application/debida-diligencia/debida-diligencia-service";
+import { DdConfiguracionPrismaRepository } from "@/infrastructure/persistence/dd-configuracion-repository";
+import { DdConfiguracionApplicationService } from "@/application/debida-diligencia/dd-configuracion-service";
 import { DdMatrizEvaluacionPrismaRepository } from "@/infrastructure/persistence/dd-matriz-evaluacion-repository";
 import { DdMatrizEvaluacionApplicationService } from "@/application/debida-diligencia/dd-matriz-evaluacion-service";
+import { DdClasificarArchivosApplicationService } from "@/application/debida-diligencia/dd-clasificar-archivos-service";
+import { OpenAiClasificadorArchivosClient } from "@/infrastructure/external/openai-clasificador-archivos-client";
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
@@ -74,6 +78,7 @@ const reportesSolicitudesRepo = new ReportesSolicitudesPrismaRepository();
 const usuarioRepo = new UsuarioPrismaRepository();
 const configuracionRepo = new ConfiguracionPrismaRepository();
 const debidaDiligenciaRepo = new DebidaDiligenciaPrismaRepository();
+const ddConfiguracionRepo = new DdConfiguracionPrismaRepository();
 const debidaDiligenciaNotificacion = new DebidaDiligenciaNotificacion();
 const debidaDiligenciaDocumentoValidator = new DebidaDiligenciaDocumentoValidator();
 const kbServiciosClient = new KbServiciosClient();
@@ -125,7 +130,9 @@ export const services = {
   configuracion: new ConfiguracionApplicationService(configuracionRepo),
   auditoria,
   ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
-  debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator),
+  ddClasificarArchivos: new DdClasificarArchivosApplicationService(new OpenAiClasificadorArchivosClient()),
+  debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator, ddConfiguracionRepo),
+  ddConfiguracion: new DdConfiguracionApplicationService(ddConfiguracionRepo),
   gessRepo,
   roleRepo,
 };

@@ -20,6 +20,7 @@ const BASE = "/api/debida-diligencia/matriz-evaluacion";
 export const ddMatrizEvaluacionService = {
   listar(params: DdMatrizEvaluacionQueryDTO = {}) {
     const qs = new URLSearchParams();
+    if (params.eventoId) qs.set("eventoId", params.eventoId);
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
@@ -29,13 +30,15 @@ export const ddMatrizEvaluacionService = {
     if (params.sinPais) qs.set("sinPais", "true");
     if (params.resultadoFinal) qs.set("resultadoFinal", params.resultadoFinal);
     if (params.sinEvaluar) qs.set("sinEvaluar", "true");
+    if (params.porEmpresa) qs.set("porEmpresa", "true");
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdMatrizEvaluacionResponseDTO>(`${BASE}${sufijo}`);
   },
 
-  /** Indicadores (stats) de toda la matriz del evento activo. */
-  resumen() {
-    return internalApi.get<DdMatrizEvaluacionResumenDTO>(`${BASE}/resumen`);
+  /** Indicadores (stats) de toda la matriz del evento o de todos. */
+  resumen(eventoId?: string) {
+    const qs = eventoId ? `?eventoId=${encodeURIComponent(eventoId)}` : "";
+    return internalApi.get<DdMatrizEvaluacionResumenDTO>(`${BASE}/resumen${qs}`);
   },
 
   /** Id de la fila de la empresa de un expediente (abre su detalle en la matriz). */
@@ -64,6 +67,10 @@ export const ddMatrizEvaluacionService = {
     return internalApi.post<{ ok: boolean }>(`${BASE}/vinculo/eliminar`, { id });
   },
 
+  automatizarEvidencia(vinculoId: string, codigo: string) {
+    return internalApi.post<DdMatrizEvaluacionAdjuntoResponseDTO>(`${BASE}/automatizar`, { vinculoId, codigo });
+  },
+
   subirAdjunto(vinculoId: string, categoria: string, file: File) {
     const formData = new FormData();
     formData.append("file", file);
@@ -76,3 +83,4 @@ export const ddMatrizEvaluacionService = {
     return internalApi.post<{ ok: boolean }>(`${BASE}/adjunto/eliminar`, body);
   },
 };
+

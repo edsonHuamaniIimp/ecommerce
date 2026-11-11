@@ -4,6 +4,7 @@ import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/mode
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
+  DD_EVENTO_TODOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_EXPORT_MAX,
@@ -48,12 +49,15 @@ function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoE
     resultadoFinal: null,
     finalFecha: null,
     finalPor: null,
+    finalComentario: null,
     creadoPor: "sistema",
     actualizadoPor: null,
     createdAt: new Date("2026-10-01T00:00:00Z"),
     updatedAt: new Date("2026-10-01T00:00:00Z"),
     expediente: {
       expedienteId: "exp-1",
+      eventoId: "evento-1",
+      eventoLabel: "PERUMIN 2027",
       codigo: "DD-2026-0001",
       estado: "aprobada",
       empresaRazonSocial: "YURA S.A.",
@@ -90,6 +94,7 @@ function informe(): DdMatrizAdjuntoEntity {
 function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = []) {
   const repo = {
     sincronizarEvento: vi.fn().mockResolvedValue(0),
+    sincronizarTodosEventos: vi.fn().mockResolvedValue(0),
     listar: vi.fn(),
     listarParaExportar: vi.fn().mockResolvedValue([]),
     resumen: vi.fn(),
@@ -130,6 +135,14 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     await servicio.listar(sesion([]), { page: 1, perPage: 10 });
     expect(repo.sincronizarEvento).toHaveBeenCalledWith("evento-1", "usuario@iimp.org.pe");
     await expect(servicio.listar({ ...sesion([]), eventoId: undefined }, {})).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("listar con todos los eventos sincroniza el universo y no filtra por evento", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listar.mockResolvedValue({ data: [], total: 0 });
+    await servicio.listar(sesion([]), { eventoId: DD_EVENTO_TODOS, page: 1, perPage: 10 });
+    expect(repo.sincronizarTodosEventos).toHaveBeenCalledWith("usuario@iimp.org.pe");
+    expect(repo.listar.mock.calls[0]?.[0].eventoId).toBeUndefined();
   });
 
   it("SIG: ACEPTADO fija SIN OBSERVACIONES por defecto (acepta formato de negocio)", async () => {
@@ -199,7 +212,7 @@ describe("DdMatrizEvaluacionApplicationService", () => {
 
   it("resultado final: lo registra SIG o Compliance y acepta variantes", async () => {
     const { servicio, repo } = crear(vinculo());
-    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "APTO CON OBSERVACIONES" });
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "APTO CON OBSERVACIONES", finalComentario: "Sustento interno" });
     const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
     expect(cambios?.resultadoFinal).toBe(DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES);
     expect(cambios?.finalPor).toBe("usuario@iimp.org.pe");
@@ -272,12 +285,53 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
       id: "v-1",
       resultadoFinal: "APTO",
+      finalComentario: "Sustento interno",
       finalPor: "Jasmin Obregon",
       finalFecha: "2026-10-20",
     });
     const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
     expect(cambios?.finalPor).toBe("Jasmin Obregon");
     expect(cambios?.finalFecha?.toISOString().slice(0, 10)).toBe("2026-10-20");
+  });
+
+  it("guarda el comentario interno de la conclusion final", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      resultadoFinal: "APTO CON OBSERVACIONES",
+      finalComentario: "  Observación menor sustentada  ",
+    });
+    const cambios = repo.actualizarVinculo.mock.calls[0]?.[1];
+    expect(cambios?.finalComentario).toBe("Observación menor sustentada");
+  });
+
+  it("exige comentario interno para cualquier resultado final", async () => {
+    const { servicio } = crear(vinculo());
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: "APTO",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("exige comentario interno cuando el resultado final es NO APTO", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+      finalComentario: "Hallazgo crítico confirmado.",
+    });
+    expect(repo.actualizarVinculo.mock.calls[0]?.[1].finalComentario).toBe(
+      "Hallazgo crítico confirmado.",
+    );
   });
 
   it("pais: SIG fija el pais (acepta nombre o ISO) y el pais decide el ambito", async () => {

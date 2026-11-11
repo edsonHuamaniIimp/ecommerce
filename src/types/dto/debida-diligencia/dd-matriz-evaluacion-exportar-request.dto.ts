@@ -3,6 +3,7 @@
  * Con `ids` se exportan solo esos vinculos; sin `ids` se aplican los mismos filtros de la lista.
  */
 export interface DdMatrizEvaluacionExportarRequestDTO {
+  eventoId?: string;
   ids?: string[];
   search?: string;
   tipo?: string;

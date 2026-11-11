@@ -6,6 +6,8 @@ export interface DdMatrizConteoDTO {
 
 /** Indicadores de la Matriz de evaluacion DD del evento activo. */
 export interface DdMatrizEvaluacionResumenDTO {
+  /** Empresas (expedientes) con al menos un sujeto evaluado en el evento. */
+  empresas: number;
   total: number;
   resultadoFinal: DdMatrizConteoDTO[];
   ambito: DdMatrizConteoDTO[];

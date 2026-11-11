@@ -44,6 +44,9 @@ import {
   DD_OBSERVACION_AREA_LABELS,
   DD_ORIGEN_LABELS,
   DD_ORIGENES,
+  DD_MATRIZ_FINAL_COMENTARIO_MAX,
+  DD_MATRIZ_RESULTADO_FINAL_LABELS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_OBSERVACION_ESTADOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
@@ -54,6 +57,7 @@ import {
   DD_VIGENCIA_MESES,
   type DdAccionRevision,
   type DdDocumentoTipo,
+  type DdMatrizResultadoFinal,
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -73,17 +77,31 @@ function DatoResumen({ label, children }: { label: string; children: ReactNode }
   );
 }
 
+type FilaRevision = Pick<DdBandejaRowDTO, "id" | "codigo" | "estado"> & {
+  empresa: Pick<DdBandejaRowDTO["empresa"], "razonSocial" | "ruc">;
+};
+
 interface Props {
-  fila: DdBandejaRowDTO;
+  fila: FilaRevision;
   puedeMatriz: boolean;
   onClose: () => void;
   onDone: () => void;
+  onResultadoFinal?: (resultado: DdMatrizResultadoFinal, comentario?: string) => Promise<void> | void;
 }
 
 const ACCIONES = [
-  { value: DD_ACCIONES_REVISION.APROBAR, label: "Aprobar", detalle: `La empresa quedará aprobada por ${DD_VIGENCIA_MESES} meses.` },
-  { value: DD_ACCIONES_REVISION.OBSERVAR, label: "Solicitar correcciones", detalle: "El cliente podrá corregir y solicitar una nueva evaluación." },
-  { value: DD_ACCIONES_REVISION.RECHAZAR, label: "Derivar a Legal", detalle: "Legal revisará la solicitud y emitirá un informe antes de notificar al cliente." },
+  { value: DD_ACCIONES_REVISION.APROBAR, label: "APTO", detalle: `La empresa quedará APTO por ${DD_VIGENCIA_MESES} meses.` },
+  { value: DD_ACCIONES_REVISION.OBSERVAR, label: "DOCUMENTACIÓN OBSERVADA", detalle: "El cliente podrá corregir y solicitar una nueva evaluación." },
+  { value: DD_ACCIONES_REVISION.RECHAZAR, label: "DERIVAR A LEGAL", detalle: "Legal revisará la solicitud y emitirá un informe antes de notificar al cliente." },
+] as const;
+
+const FINALES = [
+  { value: DD_MATRIZ_RESULTADOS_FINALES.APTO, detalle: "Cierra la evaluación como apta." },
+  { value: DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES, detalle: "Aprobación con observaciones o seguimiento." },
+  { value: DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA, detalle: "El cliente debe subsanar documentación." },
+  { value: DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION, detalle: "Normalmente automático mientras hay pendientes." },
+  { value: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO, detalle: "Rechazo definitivo; debe quedar sustentado." },
+  { value: DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA, detalle: "Cierre por vencimiento del plazo de respuesta." },
 ] as const;
 
 const REVALIDACION_ESTADO_LABELS: Record<string, string> = {
@@ -92,7 +110,7 @@ const REVALIDACION_ESTADO_LABELS: Record<string, string> = {
 };
 
 /** Revision de Logistica: resumen, documentos y decision en un modal con tabs. */
-export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
+export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultadoFinal }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [detalle, setDetalle] = useState<DdExpedienteDTO | null>(null);
   const [matriz, setMatriz] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
@@ -106,6 +124,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
   const [informeLogisticaUrl, setInformeLogisticaUrl] = useState("");
   const [derivando, setDerivando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [guardandoFinal, setGuardandoFinal] = useState<DdMatrizResultadoFinal | null>(null);
+  const [resultadoFinalSeleccionado, setResultadoFinalSeleccionado] =
+    useState<DdMatrizResultadoFinal | null>(null);
+  const [comentarioFinal, setComentarioFinal] = useState("");
   const [revalidacionGuardando, setRevalidacionGuardando] = useState(false);
   const [textoRevalidacion, setTextoRevalidacion] = useState("");
   const [revalidacionError, setRevalidacionError] = useState<string | null>(null);
@@ -154,7 +176,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
         return ddMatrizEvaluacionService.detalle(id);
       })
       .then((respuesta) => {
-        if (activo && respuesta) setMatriz(respuesta);
+        if (activo && respuesta) {
+          setMatriz(respuesta);
+          setResultadoFinalSeleccionado(respuesta.resultadoFinal as DdMatrizResultadoFinal | null);
+          setComentarioFinal(respuesta.finalComentario ?? "");
+        }
       })
       .catch((e) => {
         if (activo) setMatrizError(e instanceof Error ? e.message : "No se pudo cargar la matriz");
@@ -229,11 +255,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
 
   /** Deriva explicitamente los nombres a Comunicaciones (accion independiente de la decision). */
   const derivarNombresAComunicaciones = async () => {
-    if (derivando || reputacion.length > 0) return;
+    if (derivando) return;
     const ok = await confirm({
-      title: "Derivar a Comunicaciones",
+      title: reputacion.length > 0 ? "Enviar nombres nuevos a Comunicaciones" : "Derivar a Comunicaciones",
       description:
-        "Se enviaran el nombre de la empresa, del representante legal y de los beneficiarios a revision reputacional. No cambia el estado del expediente.",
+        "Se enviarán a revisión reputacional la empresa, el representante, los beneficiarios y los vínculos de la matriz que aún no tengan un caso. No cambia el estado del expediente.",
       confirmLabel: "Derivar",
     });
     if (!ok) return;
@@ -241,7 +267,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
     setError(null);
     try {
       const resultado = await debidaDiligenciaService.derivarComunicaciones(fila.id);
-      toast.success(`${resultado.derivados} nombre(s) derivados a Comunicaciones`);
+      if (resultado.derivados === 0) {
+        toast.info("No hay nombres nuevos para Comunicaciones");
+      } else {
+        toast.success(`${resultado.derivados} nombre(s) nuevo(s) derivado(s) a Comunicaciones`);
+      }
       const actualizado = await debidaDiligenciaService.detalle(fila.id);
       setDetalle(actualizado);
       onDone();
@@ -326,6 +356,33 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
     }
   };
 
+  const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal) => {
+    if (!onResultadoFinal || guardandoFinal) return;
+    if (!comentarioFinal.trim()) {
+      setError("Escribe el comentario interno antes de registrar la conclusión final");
+      return;
+    }
+    const ok = await confirm({
+      title: `Registrar ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`,
+      description: "Se actualizará el resultado final del vínculo de empresa en la matriz.",
+      confirmLabel: "Registrar resultado",
+    });
+    if (!ok) return;
+    setGuardandoFinal(resultado);
+    setError(null);
+    try {
+      await onResultadoFinal(resultado, comentarioFinal.trim() || undefined);
+      toast.success(`Resultado final: ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`);
+      onDone();
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : "No se pudo registrar el resultado final";
+      setError(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoFinal(null);
+    }
+  };
+
   const guardar = async () => {
     if (!accionPermitida) {
       setError(
@@ -360,13 +417,13 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
 
     const esAprobar = accion === DD_ACCIONES_REVISION.APROBAR;
     const ok = await confirm({
-      title: esAprobar ? "Aprobar debida diligencia" : accion === DD_ACCIONES_REVISION.OBSERVAR ? "Solicitar correcciones" : "Derivar a Legal",
+      title: esAprobar ? "Registrar APTO" : accion === DD_ACCIONES_REVISION.OBSERVAR ? "Registrar DOCUMENTACIÓN OBSERVADA" : "Derivar a Legal",
       description: esAprobar
-        ? `La empresa quedará aprobada por ${DD_VIGENCIA_MESES} meses, con vencimiento calculado desde hoy.`
+        ? `La empresa quedará APTO por ${DD_VIGENCIA_MESES} meses, con vencimiento calculado desde hoy.`
         : accion === DD_ACCIONES_REVISION.OBSERVAR
           ? "Se notificará al contacto declarado con las observaciones y podrá corregir y solicitar una nueva evaluación."
           : "El expediente se enviará a revisión de Legal. El cliente no será notificado hasta que Legal emita su informe y decisión.",
-      confirmLabel: esAprobar ? "Aprobar" : accion === DD_ACCIONES_REVISION.OBSERVAR ? "Solicitar correcciones" : "Derivar a Legal",
+      confirmLabel: esAprobar ? "Registrar APTO" : accion === DD_ACCIONES_REVISION.OBSERVAR ? "Registrar DOCUMENTACIÓN OBSERVADA" : "Derivar a Legal",
       destructive: false,
     });
     if (!ok) return;
@@ -392,9 +449,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
       });
       toast.success(
         accion === DD_ACCIONES_REVISION.APROBAR
-          ? "Debida diligencia aprobada"
+          ? "Resultado APTO registrado"
           : accion === DD_ACCIONES_REVISION.OBSERVAR
-            ? "Observaciones registradas"
+            ? "Documentación observada registrada"
             : "Debida diligencia derivada a Legal",
       );
       onDone();
@@ -941,6 +998,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
 
             <aside className="flex min-h-0 flex-col border-t border-border bg-secondary/20 lg:border-l lg:border-t-0">
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+                {!onResultadoFinal ? (
                 <div>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Decisión</h3>
                   {retornoLegal && !sinDecision ? (
@@ -995,7 +1053,76 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                     })}
                   </RadioGroup>
                 </div>
+                ) : null}
 
+                {onResultadoFinal ? (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusión final</h3>
+                    <p className="text-[10px] leading-snug text-muted-foreground">
+                      Registra la conclusión final del vínculo. Los estados automáticos también se pueden registrar manualmente.
+                    </p>
+                    <div className="grid gap-1.5">
+                      {FINALES.map((opcion) => (
+                        <button
+                          key={opcion.value}
+                          type="button"
+                          className={`w-full rounded-lg border p-3 text-left transition hover:bg-secondary/50 disabled:cursor-not-allowed disabled:opacity-50 ${
+                            resultadoFinalSeleccionado === opcion.value
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-card"
+                          }`}
+                          disabled={guardandoFinal !== null}
+                          onClick={() => setResultadoFinalSeleccionado(opcion.value)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-foreground">
+                              {DD_MATRIZ_RESULTADO_FINAL_LABELS[opcion.value]}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{opcion.detalle}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="final-comentario" className="text-[10px] font-medium uppercase text-muted-foreground">
+                        <span>Comentario interno</span>
+                      </Label>
+                      <Textarea
+                        id="final-comentario"
+                        className="min-h-20 text-xs"
+                        maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
+                        disabled={!resultadoFinalSeleccionado}
+                        value={comentarioFinal}
+                        onChange={(event) => { setComentarioFinal(event.target.value); setError(null); }}
+                        placeholder={
+                          resultadoFinalSeleccionado
+                            ? "Sustento interno de la conclusión final. No se muestra al cliente."
+                            : "Selecciona un estado final para habilitar el comentario."
+                        }
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Obligatorio para cualquier estado final. Solo visible para el equipo interno.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full gap-1.5 text-xs"
+                      disabled={!resultadoFinalSeleccionado || !comentarioFinal.trim() || guardandoFinal !== null}
+                      onClick={() => {
+                        if (resultadoFinalSeleccionado) {
+                          void registrarResultadoFinal(resultadoFinalSeleccionado);
+                        }
+                      }}
+                    >
+                      {guardandoFinal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      <span>Registrar conclusión final</span>
+                    </Button>
+                  </div>
+                ) : null}
+
+                {!onResultadoFinal ? (
+                <>
                 <div className="space-y-2">
                   <Label className="text-xs"><span>Comentario para el cliente</span></Label>
                   <Textarea
@@ -1024,6 +1151,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                     </p>
                   </div>
                 ) : null}
+                </>
+                ) : null}
 
                 <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -1038,21 +1167,22 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                     variant="outline"
                     size="sm"
                     className="shrink-0 gap-1.5 text-xs"
-                    disabled={derivando || reputacion.length > 0 || sinDecision}
+                    disabled={derivando || sinDecision}
                     onClick={() => { void derivarNombresAComunicaciones(); }}
                   >
                     {derivando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    <span>{reputacion.length > 0 ? "Ya derivado" : "Derivar a Comunicaciones"}</span>
+                    <span>{reputacion.length > 0 ? "Enviar nuevos a Comunicaciones" : "Derivar a Comunicaciones"}</span>
                   </Button>
                 </div>
               </div>
 
               <div className="shrink-0 space-y-2 border-t border-border bg-card p-4">
-                {requiereComentarioGeneral ? (
+                {!onResultadoFinal && requiereComentarioGeneral ? (
                   <p className="text-[11px] font-medium text-warning">
                     Describe la observación general antes de solicitar correcciones.
                   </p>
                 ) : null}
+                {!onResultadoFinal ? (
                 <Button
                   type="button"
                   size="sm"
@@ -1063,6 +1193,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone }: Props) {
                   {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                   <span>Guardar decisión</span>
                 </Button>
+                ) : null}
                 <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={onClose} disabled={guardando}>
                   <span>Cerrar</span>
                 </Button>

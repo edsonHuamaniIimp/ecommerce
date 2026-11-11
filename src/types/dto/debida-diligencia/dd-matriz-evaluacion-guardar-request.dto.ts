@@ -44,4 +44,6 @@ export interface DdMatrizEvaluacionGuardarRequestDTO {
   finalFecha?: string | null;
   /** Quien registra el resultado final; si no se envia se registra el usuario que guarda. */
   finalPor?: string | null;
+  /** Comentario interno de la conclusion final; no se muestra al cliente. */
+  finalComentario?: string | null;
 }

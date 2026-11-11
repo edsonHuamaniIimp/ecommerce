@@ -30,6 +30,7 @@ import type {
 import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligencia-repository";
 import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-diligencia-notificacion";
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
+import type { IDdConfiguracionRepository } from "@/domain/ports/dd-configuracion-repository";
 import type {
   DdGuardarRequestDTO,
   DdRegularizarVigenciaRequestDTO,
@@ -95,6 +96,7 @@ export class DebidaDiligenciaApplicationService {
     private readonly authRepo: IAuthRepository,
     private readonly notificaciones: IDebidaDiligenciaNotificacionPort,
     private readonly documentoValidator: IDebidaDiligenciaDocumentoValidator,
+    private readonly configuracionRepo?: IDdConfiguracionRepository,
   ) {}
 
   private esAdmin(session: DdSession): boolean {
@@ -109,6 +111,25 @@ export class DebidaDiligenciaApplicationService {
     if (!this.tienePermiso(session, permiso)) {
       throw new DomainError("Sin permiso para acceder a Debida Diligencia", API_ERROR_CODES.FORBIDDEN, 403);
     }
+  }
+
+  /** La configuracion es opcional en pruebas; en produccion siempre se inyecta. */
+  private async noAptoBloqueaEmpresa(): Promise<boolean> {
+    if (!this.configuracionRepo) return false;
+    const config = await this.configuracionRepo.obtener();
+    return config?.noAptoBloqueaEmpresa !== false;
+  }
+
+  private conBloqueoNoApto(
+    evaluacion: DdEvaluacionEmpresa,
+    bloqueada: boolean,
+  ): DdEvaluacionEmpresa {
+    if (!bloqueada) return evaluacion;
+    return {
+      ...evaluacion,
+      aptoParaContratar: false,
+      mensaje: DD_MENSAJES.NO_APTO_BLOQUEA_EMPRESA,
+    };
   }
 
   private async empresaDelUsuario(session: DdSession): Promise<string> {
@@ -417,6 +438,7 @@ export class DebidaDiligenciaApplicationService {
 
     const data: DdGuardarData = {
       tipoRelacionComercial: dto.tipoRelacionComercial,
+      tipoRelacionComercialOtro: dto.tipoRelacionComercialOtro ?? null,
       actividadEconomica: dto.actividadEconomica ?? null,
       actividadEconomicaOtro: dto.actividadEconomicaOtro ?? null,
       paisConstitucion: dto.paisConstitucion ?? null,
@@ -435,6 +457,7 @@ export class DebidaDiligenciaApplicationService {
         documento: b.documento,
         nacionalidad: b.nacionalidad,
         porcentaje: b.porcentaje,
+        tipoVinculoPersona: b.tipoVinculoPersona ?? null,
       })),
       documentos: dto.documentos.map((d) => ({
         tipo: d.tipo,
@@ -778,6 +801,11 @@ export class DebidaDiligenciaApplicationService {
         ])
       : [null, null];
 
+    const bloqueada =
+      empresaId && (await this.noAptoBloqueaEmpresa())
+        ? await this.repo.tieneVinculoNoApto(empresaId)
+        : false;
+
     const actualVigente =
       actual?.estado === DD_ESTADOS.APROBADA &&
       ddUtils.estadoVigencia(
@@ -812,29 +840,29 @@ export class DebidaDiligenciaApplicationService {
           : declaracionVigenciaEstado === DD_DOCUMENTO_ESTADOS.CARGADO
             ? "La Declaración jurada de vigencia de información está pendiente de validación. La solicitud no puede revisarse hasta que sea aprobada."
             : "La empresa tiene una DD APTA y vigente, pero le falta la Declaración jurada de vigencia de información. La solicitud no puede revisarse hasta que sea cargada y aprobada.";
-      return {
+      return this.conBloqueoNoApto({
         ...interna,
         vigente: true,
         aptoParaContratar: false,
         requiereDeclaracionVigencia: true,
         declaracionVigenciaEstado,
         mensaje,
-      };
+      }, bloqueada);
     }
     if (interna.aptoParaContratar) {
-      return interna;
+      return this.conBloqueoNoApto(interna, bloqueada);
     }
 
     const externa = await this.repo.findEmpresaEstado(
       empresa?.ruc ?? null,
       razonSocial ?? empresa?.razonSocial ?? null,
     );
-    if (!externa) return interna;
+    if (!externa) return this.conBloqueoNoApto(interna, bloqueada);
     /*
      * Si existe un registro externo, su mensaje es el que necesita ver el revisor
      * (declaracion faltante, vencida, no apta), aunque no sea apto.
      */
-    return this.evaluacionDeEmpresaExterna(externa, empresa);
+    return this.conBloqueoNoApto(this.evaluacionDeEmpresaExterna(externa, empresa), bloqueada);
   }
 
   /** Evaluacion de la DD manual/externa: cuenta como aprobada si esta APTA y vigente. */
@@ -993,10 +1021,25 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
     });
     const ahora = dateUtils.now();
+    const config = this.configuracionRepo ? await this.configuracionRepo.obtener() : null;
+    const bloqueoActivo = this.configuracionRepo
+      ? config?.noAptoBloqueaEmpresa !== false
+      : false;
+    const bloqueadas = new Set<string>();
+    if (bloqueoActivo) {
+      await Promise.all(
+        resultado.data.map(async (empresa) => {
+          if (await this.repo.tieneVinculoNoAptoPorDocumento(empresa.documento)) {
+            bloqueadas.add(empresa.documento);
+          }
+        }),
+      );
+    }
 
     return {
       ...resultado,
       data: resultado.data.map((empresa) => {
+        const bloqueada = bloqueadas.has(empresa.documento);
         const fechaAprobacion = empresa.fechaAprobacion ?? empresa.fechaRevision;
         const fechaVencimiento =
           empresa.fechaVencimiento ??
@@ -1016,8 +1059,9 @@ export class DebidaDiligenciaApplicationService {
           declaracionValida &&
           (empresa.resultado === DD_RESULTADOS.APTO ||
             empresa.resultado === DD_RESULTADOS.APTO_CON_OBSERVACIONES);
-        const mensaje =
-          empresa.resultado === DD_RESULTADOS.NO_APTO
+        const mensaje = bloqueada
+          ? DD_MENSAJES.NO_APTO_BLOQUEA_EMPRESA
+          : empresa.resultado === DD_RESULTADOS.NO_APTO
             ? "No habilitada para establecer vínculos con el IIMP."
             : empresa.resultado === DD_RESULTADOS.PENDIENTE
               ? "Debida diligencia pendiente de validación."
@@ -1036,8 +1080,8 @@ export class DebidaDiligenciaApplicationService {
           diasVigenciaRestantes: fechaVencimiento
             ? Math.max(0, dateUtils.diffInDays(ahora, fechaVencimiento) ?? 0)
             : null,
-          puedeReservar: empresa.resultado !== DD_RESULTADOS.NO_APTO,
-          puedeAvanzar,
+          puedeReservar: empresa.resultado !== DD_RESULTADOS.NO_APTO && !bloqueada,
+          puedeAvanzar: puedeAvanzar && !bloqueada,
           mensaje,
         };
       }),
@@ -1268,6 +1312,7 @@ export class DebidaDiligenciaApplicationService {
 
     const data: DdGuardarData = {
       tipoRelacionComercial: expediente.tipoRelacionComercial,
+      tipoRelacionComercialOtro: expediente.tipoRelacionComercialOtro,
       actividadEconomica: expediente.actividadEconomica,
       actividadEconomicaOtro: expediente.actividadEconomicaOtro,
       paisConstitucion: expediente.paisConstitucion,
@@ -1286,6 +1331,7 @@ export class DebidaDiligenciaApplicationService {
         documento: beneficiario.documento,
         nacionalidad: beneficiario.nacionalidad,
         porcentaje: beneficiario.porcentaje,
+        tipoVinculoPersona: beneficiario.tipoVinculoPersona ?? null,
       })),
       documentos: [
         ...expediente.documentos
@@ -1637,21 +1683,46 @@ export class DebidaDiligenciaApplicationService {
    * Deriva manualmente los nombres del expediente (empresa, representante y
    * beneficiarios) a la revision reputacional de Comunicaciones.
    */
-  async derivarComunicaciones(dto: { expedienteId: string }, session: DdSession): Promise<{ derivados: number }> {
+  async derivarComunicaciones(
+    dto: { expedienteId: string },
+    session: DdSession,
+  ): Promise<{ derivados: number; existentes: number; total: number }> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
     const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
     if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
-    const yaDerivado = await this.repo.tieneCasosReputacion(expediente.id);
-    if (yaDerivado) {
-      throw new DomainError("Los nombres ya fueron derivados a Comunicaciones", API_ERROR_CODES.CONFLICT, 409);
+
+    const sinEvaluar = await this.repo.listarVinculosSinEvaluar(expediente.id);
+    if (sinEvaluar.length > 0) {
+      throw new DomainError(
+        `Completa la evaluación SIG de todos los vínculos antes de derivar: ${sinEvaluar.join(", ")}`,
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
     }
-    const nombres = ddUtils.nombresARevisar(expediente);
+
+    const nombres = [
+      ...new Set([
+        ...ddUtils.nombresARevisar(expediente),
+        ...(await this.repo.listarNombresMatriz(expediente.id)),
+      ]),
+    ];
     if (nombres.length === 0) {
       throw new DomainError("El expediente no tiene nombres para derivar", API_ERROR_CODES.VALIDATION, 400);
     }
+
+    const existentes = new Set(
+      (await this.repo.listarNombresReputacion(expediente.id)).map((nombre) =>
+        nombre.toLocaleLowerCase(),
+      ),
+    );
+    const nuevos = nombres.filter((nombre) => !existentes.has(nombre.toLocaleLowerCase()));
+    if (nuevos.length === 0) {
+      return { derivados: 0, existentes: existentes.size, total: nombres.length };
+    }
+
     await this.repo.crearCasosReputacion(
       expediente.id,
-      nombres.map((nombre) => ({
+      nuevos.map((nombre) => ({
         nombreARevisar: nombre,
         sitioWeb: expediente.sitioWeb,
         derivadoPor: session.email,
@@ -1661,18 +1732,18 @@ export class DebidaDiligenciaApplicationService {
       "derivar-comunicaciones",
       `debida_diligencia:${expediente.codigo}`,
       session.email,
-      `Logística derivó ${nombres.length} nombre(s) a Comunicaciones`,
+      `Logística derivó ${nuevos.length} nombre(s) a Comunicaciones`,
     );
     await this.registrarHistorial(expediente.id, {
       tipo: DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES,
       area: DD_OBSERVACION_AREAS.COMUNICACION,
       estado: expediente.estado,
       titulo: "Revisión reputacional derivada",
-      detalle: `Logística derivó ${nombres.length} nombre(s) a Comunicaciones.`,
+      detalle: `Logística derivó ${nuevos.length} nombre(s) a Comunicaciones.`,
       actor: session.email,
-      metadata: { nombres: nombres.length },
+      metadata: { nombres: nuevos.length, existentes: existentes.size },
     });
-    return { derivados: nombres.length };
+    return { derivados: nuevos.length, existentes: existentes.size, total: nombres.length };
   }
 
   /** Panel del modulo: KPIs y agregados de vigencia/vinculo. */
@@ -1904,7 +1975,7 @@ export class DebidaDiligenciaApplicationService {
       await this.notificaciones.notificarLogistica(
         actualizado.derivadoPor,
         `Comunicaciones registró el resultado de la revisión reputacional: ${ddUtils.etiquetaReputacion(resultado)}.`,
-        DD_RUTAS.BANDEJA,
+        DD_RUTAS.MATRIZ,
       );
     }
   }

@@ -1,5 +1,6 @@
 /** Filtros de la lista de la Matriz de evaluacion DD. */
 export interface DdMatrizEvaluacionQueryDTO {
+  eventoId?: string;
   page?: number;
   perPage?: number;
   search?: string;
@@ -11,4 +12,6 @@ export interface DdMatrizEvaluacionQueryDTO {
   sinPais?: boolean;
   resultadoFinal?: string;
   sinEvaluar?: boolean;
+  /** Pagina por expediente/empresa y devuelve todos sus sujetos evaluados. */
+  porEmpresa?: boolean;
 }

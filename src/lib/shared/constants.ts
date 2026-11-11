@@ -454,6 +454,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "dd:reputacion",
     "dd:panel",
     "dd:matriz",
+    "dd:admin",
   ],
   [ROLES.ASOCIADO]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:asociado"],
   [ROLES.LOGISTICA]: ["dashboard:view", "eventos:datos", "stands:manage", "stands:pre_reservar", "stands:plano", "auspicios:view", "read:reservas", "approve:logistica", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:panel", "dd:revision", "dd:matriz"],
@@ -519,6 +520,7 @@ export const ALL_PERMISSIONS = [
   { key: "dd:reputacion", label: "Revision reputacional", descripcion: "Evaluar imagen y reputacion de los nombres derivados por Logistica (Comunicaciones)", section: "debida_diligencia" },
   { key: "dd:panel", label: "Panel de Debida Diligencia", descripcion: "Ver KPIs, vigencias y matriz de empresas del modulo", section: "debida_diligencia" },
   { key: "dd:matriz", label: "Matriz de evaluacion DD", descripcion: "Registrar la matriz de evaluacion de debida diligencia por vinculo (empresa/persona)", section: "debida_diligencia" },
+  { key: "dd:admin", label: "Administracion de Debida Diligencia", descripcion: "Configurar reglas, plazos, links y auditoria del modulo", section: "debida_diligencia" },
 ] as const;
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]["key"];
@@ -572,6 +574,7 @@ export const PERMISSIONS = {
   DD_REPUTACION: "dd:reputacion",
   DD_PANEL: "dd:panel",
   DD_MATRIZ: "dd:matriz",
+  DD_ADMIN: "dd:admin",
 } as const satisfies Record<string, Permission>;
 
 /**
@@ -1377,6 +1380,9 @@ export const DD_RUTAS = {
   LEGAL: "/dashboard/debida-diligencia/legal",
   REPUTACION: "/dashboard/debida-diligencia/reputacion",
   MATRIZ: "/dashboard/debida-diligencia/matriz",
+  REPOSITORIO: "/dashboard/debida-diligencia/repositorio",
+  INFORMES: "/dashboard/debida-diligencia/informes",
+  CONFIGURACION: "/dashboard/debida-diligencia/configuracion",
 } as const;
 
 /** Etiqueta para empresas sin expediente de debida diligencia. */
@@ -1400,6 +1406,8 @@ export const DD_MENSAJES = {
     "Debe cargar la declaración jurada de vigencia de información.",
   ACTIVIDAD_OTRO: "Indique cuál es la actividad económica.",
   DOCUMENTOS_OBLIGATORIOS: "Cargue los cuatro documentos obligatorios.",
+  NO_APTO_BLOQUEA_EMPRESA:
+    "La empresa está bloqueada: uno de sus vínculos quedó NO APTO en la matriz de Debida Diligencia.",
 } as const;
 
 export const DD_ESTADOS = {
@@ -1413,6 +1421,28 @@ export const DD_ESTADOS = {
 } as const;
 
 /** Estados agrupados en el filtro/card "Pendientes". */
+/** Estados al vencer el plazo configurable de respuesta de una DD. */
+export const DD_CONFIG_CIERRE_ESTADOS = {
+  SIN_RESPUESTA: "sin_respuesta",
+  RECHAZADA: DD_ESTADOS.RECHAZADA,
+  OBSERVADA: DD_ESTADOS.OBSERVADA,
+} as const;
+
+export type DdConfigCierreEstado =
+  (typeof DD_CONFIG_CIERRE_ESTADOS)[keyof typeof DD_CONFIG_CIERRE_ESTADOS];
+
+export const DD_CONFIG_CIERRE_LABELS: Record<string, string> = {
+  [DD_CONFIG_CIERRE_ESTADOS.SIN_RESPUESTA]: "SIN RESPUESTA",
+  [DD_CONFIG_CIERRE_ESTADOS.RECHAZADA]: "RECHAZADA",
+  [DD_CONFIG_CIERRE_ESTADOS.OBSERVADA]: "OBSERVADA",
+};
+
+export const DD_CONFIG_VIGENCIAS = [
+  { meses: 3, label: "3 meses" },
+  { meses: 6, label: "6 meses" },
+  { meses: 12, label: "1 año" },
+] as const;
+
 export const DD_ESTADOS_PENDIENTES = [
   DD_ESTADOS.BORRADOR,
   DD_ESTADOS.PENDIENTE,
@@ -1455,7 +1485,8 @@ export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
 
 /**
  * Estado de la declaracion jurada de vigencia en el registro externo de DD.
- * `null` en datos legacy significa "sin informacion" y no bloquea por si solo.
+ * 
+ull` en datos legacy significa "sin informacion" y no bloquea por si solo.
  */
 export const DD_DECLARACION_VIGENCIA_ESTADOS = {
   NO_CORRESPONDE: "no_corresponde",
@@ -1501,8 +1532,8 @@ export const DD_ESTADO_EVALUACION_LABELS: Record<DdEstadoEvaluacion, string> = {
 /** Pasos del formulario de Debida Diligencia (misma fuente para stepper y wizard). */
 export const DD_PASOS: { numero: number; label: string; corto: string }[] = [
   { numero: 1, label: "Consentimientos", corto: "Consentimientos" },
-  { numero: 2, label: "Empresa", corto: "Empresa" },
-  { numero: 3, label: "Representante y beneficiarios", corto: "Representante" },
+  { numero: 2, label: "Empresa y vínculos comerciales", corto: "Empresa y vínculos" },
+  { numero: 3, label: "Representante y vínculos", corto: "Representante y vínculos" },
   { numero: 4, label: "Documentos", corto: "Documentos" },
 ];
 
@@ -1864,7 +1895,8 @@ export const DD_IMPORT_EVENTO_TIPOS: Record<string, number> = {
  * Cada catalogo guarda el CODIGO canonico (snake_case) y su etiqueta visible, que es
  * el termino exacto que usa el area de Asociados en la matriz oficial. Los ALIAS
  * permiten aceptar tambien la variante del Excel / de desarrollo (con o sin tilde,
- * "N.A" / "N.A." / "NO APLICA", etc.); ver `normalizarValorMatriz`. */
+ * "N.A" / "N.A." / "NO APLICA", etc.); ver 
+ormalizarValorMatriz`. */
 
 /** Tipo de vinculo evaluado: la propia empresa o una persona/entidad ligada a ella. */
 export const DD_MATRIZ_TIPOS_VINCULO = {
@@ -1958,7 +1990,7 @@ export type DdMatrizConclusion = (typeof DD_MATRIZ_CONCLUSIONES)[keyof typeof DD
 export const DD_MATRIZ_CONCLUSION_LABELS: Record<DdMatrizConclusion, string> = {
   [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES]: "SIN OBSERVACIONES",
   [DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]: "REQUIERE DEBIDA DILIGENCIA REFORZADA",
-  [DD_MATRIZ_CONCLUSIONES.EN_REVISION]: "EN REVISION",
+  [DD_MATRIZ_CONCLUSIONES.EN_REVISION]: "EN REVISIÓN",
 };
 
 export const DD_MATRIZ_CONCLUSION_ALIAS: Record<string, DdMatrizConclusion> = {
@@ -1995,24 +2027,28 @@ export const DD_MATRIZ_CONCLUSION_COMPLIANCE_ALIAS: Record<string, DdMatrizConcl
 export const DD_MATRIZ_RESULTADOS_FINALES = {
   APTO: "apto",
   APTO_CON_OBSERVACIONES: "apto_con_observaciones",
-  NO_APTO: "no_apto",
   DOCUMENTACION_OBSERVADA: "documentacion_observada",
   EN_REVISION: "en_revision",
+  NO_APTO: "no_apto",
+  SIN_RESPUESTA: "sin_respuesta",
 } as const;
 export type DdMatrizResultadoFinal = (typeof DD_MATRIZ_RESULTADOS_FINALES)[keyof typeof DD_MATRIZ_RESULTADOS_FINALES];
 
 export const DD_MATRIZ_RESULTADO_FINAL_LABELS: Record<DdMatrizResultadoFinal, string> = {
   [DD_MATRIZ_RESULTADOS_FINALES.APTO]: "APTO",
   [DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES]: "APTO CON OBSERVACIONES",
-  [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: "NO APTO",
-  [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: "DOCUMENTACION OBSERVADA",
+  [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: "DOCUMENTACIÓN OBSERVADA",
   [DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION]: "EN REVISIÓN",
+  [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: "NO APTO",
+  [DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA]: "SIN RESPUESTA",
 };
 
 /** El Excel usa tambien "PENDIENTE" como resultado final: se trata como EN REVISION. */
 export const DD_MATRIZ_RESULTADO_FINAL_ALIAS: Record<string, DdMatrizResultadoFinal> = {
   PENDIENTE: DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
   "DOCUMENTACION OBSERVADA": DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+  "SIN RESPUESTA DE LA EMPRESA": DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
+  "SIN RESPUESTA DE EMPRESA": DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
 };
 
 /** Areas que evaluan en la matriz (cada una escribe solo su seccion). */
@@ -2101,8 +2137,58 @@ export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
   { codigo: "dea", label: "Registra antecedentes en DEA", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
 ];
 
+/**
+ * Fuente oficial de cada criterio. `consultaParam` solo se usa en portales
+ * que aceptan el nombre/documento por query string.
+ */
+export const DD_MATRIZ_LISTA_URLS: Record<
+  string,
+  { url: string; consultaParam?: string; automatizable?: boolean; inputSelector?: string }
+> = {
+  indecopi: {
+    url: "https://enlinea.indecopi.gob.pe/miraaquienlecompras/#/busqueda-simple",
+  },
+  ofac: {
+    url: "https://sanctionssearch.ofac.treas.gov/Default.aspx",
+    inputSelector: "#ctl00_MainContent_txtLastName",
+  },
+  naciones_unidas: { url: "https://scsanctions.un.org/consolidated" },
+  opensanctions: {
+    url: "https://www.opensanctions.org/search/",
+    consultaParam: "?q=",
+  },
+  ohmyfin: { url: "https://app.ohmyfin.ai/sanctions", automatizable: false },
+  sanciones_reino_unido: {
+    url: "https://search-uk-sanctions-list.service.gov.uk/",
+    inputSelector: "#search",
+  },
+  sanciones_canada: {
+    url: "https://www.international.gc.ca/world-monde/international_relations-relations_internationales/sanctions/consolidated-consolide.aspx?lang=eng",
+    inputSelector: "",
+  },
+  sanciones_europa: {
+    url: "https://webgate.ec.europa.eu/fsd/fsf/public/files/pdfFullSanctionsList/content?token=dG9rZW4tMjAxNw",
+  },
+  sanciones_australia: {
+    url: "https://www.dfat.gov.au/sites/default/files/Australian_Sanctions_Consolidated_List.xlsx",
+    automatizable: false,
+  },
+  banco_mundial: {
+    url: "https://www.worldbank.org/en/projects-operations/procurement/debarred-firms",
+    inputSelector: "",
+  },
+  interpol: {
+    url: "https://www.interpol.int/en/How-we-work/Notices/Red-Notices/View-Red-Notices",
+  },
+  dea: {
+    url: "https://www.dea.gov/fugitives/all",
+    consultaParam: "?keywords=",
+  },
+};
+
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
+export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
 export const DD_MATRIZ_ADJUNTOS_MAX = 10;
 export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
@@ -2125,7 +2211,81 @@ export const DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS: Record<DdMatrizAdjuntoCategoria
 };
 
 /** Formatos admitidos al adjuntar informe o sustento. */
-export const DD_MATRIZ_ADJUNTO_ACCEPT = ".pdf,.jpg,.jpeg,.png,.docx";
+export const DD_MATRIZ_ADJUNTO_EXTENSIONES = ["pdf", "jpg", "jpeg", "png", "docx"] as const;
+export const DD_MATRIZ_ADJUNTO_ACCEPT = DD_MATRIZ_ADJUNTO_EXTENSIONES.map((extension) => `.${extension}`).join(",");
+
+/** Prefijo de las categorias de evidencia por criterio (`criterio_<codigo>`). */
+export const DD_MATRIZ_CRITERIO_PREFIJO = "criterio_";
+
+/** Tipos de fila del Centro documental. */
+export const DD_REPOSITORIO_TIPOS = {
+  DOCUMENTO: "documento",
+  EVIDENCIA: "evidencia",
+} as const;
+export type DdRepositorioTipo = (typeof DD_REPOSITORIO_TIPOS)[keyof typeof DD_REPOSITORIO_TIPOS];
+export const DD_REPOSITORIO_TIPO_LABELS: Record<DdRepositorioTipo, string> = {
+  [DD_REPOSITORIO_TIPOS.DOCUMENTO]: "Documento base",
+  [DD_REPOSITORIO_TIPOS.EVIDENCIA]: "Evidencia",
+};
+
+/** Tabs de tipologia del Centro documental. */
+export const DD_REPOSITORIO_TABS = {
+  TODOS: "todos",
+  DOCUMENTOS: "documentos",
+  EVIDENCIAS: "evidencias",
+} as const;
+export type DdRepositorioTab = (typeof DD_REPOSITORIO_TABS)[keyof typeof DD_REPOSITORIO_TABS];
+
+/** Areas mostradas en el filtro y en la tabla del Centro documental. */
+export const DD_REPOSITORIO_AREAS = {
+  DOCUMENTO_BASE: "Documento base",
+  SIG: "SIG",
+  REPUTACIONAL: "Reputacional",
+  LEGAL: "Legal",
+  MATRIZ: "Matriz",
+} as const;
+export type DdRepositorioArea = (typeof DD_REPOSITORIO_AREAS)[keyof typeof DD_REPOSITORIO_AREAS];
+
+export const DD_REPOSITORIO_AREA_OPCIONES: { value: string; label: string }[] = [
+  { value: DD_FILTRO_TODAS, label: "Todas las áreas" },
+  { value: DD_REPOSITORIO_AREAS.DOCUMENTO_BASE, label: "Documento base" },
+  { value: DD_REPOSITORIO_AREAS.SIG, label: "SIG" },
+  { value: DD_REPOSITORIO_AREAS.REPUTACIONAL, label: "Reputacional" },
+  { value: DD_REPOSITORIO_AREAS.LEGAL, label: "Legal" },
+  { value: DD_REPOSITORIO_AREAS.MATRIZ, label: "Matriz" },
+];
+
+export const DD_REPOSITORIO_FUENTES = {
+  PORTAL: "Portal del expositor",
+  EVIDENCIA: "Evidencia de matriz",
+  ADJUNTO: "Adjunto de área",
+} as const;
+
+export const DD_REPOSITORIO_RESPONSABLE_EXPEDIENTE = "Expediente";
+export const DD_REPOSITORIO_EMPRESAS_POR_PAGINA = 8;
+export const DD_REPOSITORIO_SKELETON_ROWS = 8;
+export const DD_REPOSITORIO_SKELETON_COLUMNS = 7;
+export const DD_REPOSITORIO_IMPORT_EXTENSIONES = {
+  PDF: "pdf",
+  ZIP: "zip",
+  XLSX: "xlsx",
+} as const;
+export const DD_REPOSITORIO_IMPORT_FORMATOS = DD_MATRIZ_ADJUNTO_EXTENSIONES.map((extension) => `.${extension}`) as readonly string[];
+export const DD_REPOSITORIO_IMPORT_ACCEPT = DD_REPOSITORIO_IMPORT_FORMATOS.join(",");
+export const DD_REPOSITORIO_IMPORT_MAX_VISIBLES = 5;
+export const DD_REPOSITORIO_IMPORT_NOMENCLATURA = "01. [nombre] [concepto] [RUC/DNI]";
+export const DD_REPOSITORIO_IMPORT_MAX_ARCHIVOS = 100;
+
+export const DD_REPOSITORIO_IMPORT_CATEGORIAS = [
+  { value: DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO, label: DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO] },
+  { value: DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME, label: DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME] },
+  { value: DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO, label: DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO] },
+  { value: DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO, label: DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO] },
+  ...DD_MATRIZ_LISTAS.map((lista) => ({
+    value: `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`,
+    label: `Criterio: ${lista.label}`,
+  })),
+] as const;
 
 /** Porcentaje minimo de participacion para declarar un beneficiario final. */
 export const DD_PORCENTAJE_PARTICIPACION_MIN = 10;
@@ -2986,7 +3146,8 @@ export const ANEXOS_BLOQUEANTES: string[] = [ANEXOS_KEYS.VIGENCIA_PODER, ANEXOS_
 
 /**
  * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:
- *  - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
+ *  - 
+uevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
  *    el contrato nuevo esté adjunto antes de poder firmarlo.
  *  - `mismo_contrato`: el cliente vuelve a firmar el contrato que ya tenía (puede firmar de inmediato).
  */
@@ -3000,7 +3161,8 @@ export type SgcSubsanacionModo = (typeof SGC_SUBSANACION_MODOS)[keyof typeof SGC
  * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
  * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
  * motivo, y puede repetirse N veces (una por cada devolución). El `modo` define si el cliente
- * debe esperar a un contrato corregido del admin (`nuevo_contrato`) o puede firmar el vigente.
+ * debe esperar a un contrato corregido del admin (
+uevo_contrato`) o puede firmar el vigente.
  */
 export const SGC_SUBSANACION_SUGERENCIAS: { modo: SgcSubsanacionModo; titulo: string; texto: string }[] = [
   {
@@ -3100,7 +3262,7 @@ export const DD_ESTADO_RELACION_LABELS: Record<DdEstadoRelacion, string> = {
   [DD_ESTADOS_RELACION.EN_LEGAL]: "En revisión legal",
   [DD_ESTADOS_RELACION.APROBADA]: "APTO",
   [DD_ESTADOS_RELACION.RECHAZADA]: "NO APTO",
-  [DD_ESTADOS_RELACION.SIN_RESPUESTA]: "Sin respuesta",
+  [DD_ESTADOS_RELACION.SIN_RESPUESTA]: "SIN RESPUESTA",
 };
 
 /** Rol de una persona vinculada dentro de la empresa (no es la relación comercial). */
@@ -3135,3 +3297,10 @@ export const DD_VINCULOS_PERSONA_CON_PORCENTAJE: readonly DdTipoVinculoPersona[]
 
 /** Plazo por defecto (días hábiles) para que el cliente responda una observación. */
 export const DD_PLAZO_RESPUESTA_DIAS_DEFAULT = 3;
+
+
+
+
+
+
+

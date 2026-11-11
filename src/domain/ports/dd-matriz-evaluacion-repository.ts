@@ -19,9 +19,11 @@ export interface IDdMatrizEvaluacionRepository {
    * existentes. Es idempotente. Devuelve cuantas filas nuevas creo.
    */
   sincronizarEvento(eventoId: string, usuario: string): Promise<number>;
+  /** Sincroniza las filas de todos los eventos con expedientes enviados. */
+  sincronizarTodosEventos(usuario: string): Promise<number>;
   listar(params: DdMatrizListarParams): Promise<DdMatrizListarResult>;
   /** Indicadores de toda la matriz del evento (para los stats). */
-  resumen(eventoId: string): Promise<DdMatrizResumenEntity>;
+  resumen(eventoId?: string): Promise<DdMatrizResumenEntity>;
   /** Vinculos completos (con datos de su empresa) para exportar a Excel. */
   listarParaExportar(params: DdMatrizExportarParams): Promise<DdMatrizExportItem[]>;
   findVinculo(id: string): Promise<DdMatrizVinculoEntity | null>;

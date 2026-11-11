@@ -16,6 +16,7 @@ import {
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
 import {
   DdMatrizAmbitoBadge,
   DdMatrizConclusionBadge,
@@ -90,9 +91,12 @@ function AdjuntosMatriz({
             <FileText className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{adjunto.nombre}</span>
           </a>
-          <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
-            <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[adjunto.categoria as DdMatrizAdjuntoCategoria] ?? adjunto.categoria}</span>
-          </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
+              <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[adjunto.categoria as DdMatrizAdjuntoCategoria] ?? adjunto.categoria}</span>
+            </Badge>
+            <DdEvidenciaPreviewButton url={adjunto.url} nombre={adjunto.nombre} mimeType={adjunto.mimeType} />
+          </div>
         </li>
       ))}
     </ul>
@@ -260,6 +264,7 @@ export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props
           </DatoMatriz>
           <DatoMatriz etiqueta="Registrado por">{detalle.finalPor ?? null}</DatoMatriz>
           <DatoMatriz etiqueta="Fecha">{dateUtils.format(detalle.finalFecha)}</DatoMatriz>
+          <DatoMatriz etiqueta="Comentario interno">{detalle.finalComentario ?? null}</DatoMatriz>
         </div>
       </SeccionMatriz>
 

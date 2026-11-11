@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { DdMatrizEvaluacionDetalle } from "@/components/debida-diligencia/dd-matriz-evaluacion-detalle";
+import { DdMatrizDecisionVinculo } from "@/components/debida-diligencia/dd-matriz-decision-vinculo";
+import { DdMatrizRevisionVinculo } from "@/components/debida-diligencia/dd-matriz-revision-vinculo";
 import { DdAccesoDenegado } from "@/components/debida-diligencia/dd-acceso-denegado";
 import { useSesion } from "@/hooks/use-sesion";
 import { PERMISSIONS } from "@/lib/shared/constants";
@@ -11,6 +13,7 @@ import { tienePermiso } from "@/lib/shared/utils/permisos";
 export default function DebidaDiligenciaMatrizDetallePage() {
   const params = useParams<{ id: string }>();
   const { session, cargando } = useSesion();
+  const [modo, setModo] = useState<"revision" | "edicion">("revision");
 
   if (cargando) {
     return (
@@ -25,5 +28,9 @@ export default function DebidaDiligenciaMatrizDetallePage() {
     return <DdAccesoDenegado mensaje="La matriz de evaluación está reservada a las áreas que evalúan la debida diligencia." />;
   }
 
-  return <DdMatrizEvaluacionDetalle id={params.id} />;
+  return modo === "revision" ? (
+    <DdMatrizRevisionVinculo id={params.id} onEditar={() => setModo("edicion")} />
+  ) : (
+    <DdMatrizDecisionVinculo id={params.id} onVolverRevision={() => setModo("revision")} />
+  );
 }

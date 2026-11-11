@@ -11,6 +11,7 @@ import {
   normalizarSiNoNa,
   normalizarTextoMatriz,
   resolverPais,
+  urlFuenteLista,
 } from "../dd-matriz-evaluacion";
 import {
   DD_MATRIZ_AMBITOS,
@@ -18,6 +19,8 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
   DD_MATRIZ_GRUPOS_LISTA,
+  DD_MATRIZ_LISTA_URLS,
+  DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_SI_NO_NA,
@@ -74,7 +77,10 @@ describe("mapper de valores (negocio y desarrollo)", () => {
     expect(normalizarConclusionCompliance("RECHAZADO")).toBe(DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO);
     expect(normalizarResultadoFinal("APTO CON OBSERVACIONES")).toBe(DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES);
     expect(normalizarResultadoFinal("DOCUMENTACION OBSERVADA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA);
+    expect(normalizarResultadoFinal("DOCUMENTACIÓN OBSERVADA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA);
     expect(normalizarResultadoFinal("PENDIENTE")).toBe(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION);
+    expect(normalizarResultadoFinal("SIN RESPUESTA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
+    expect(normalizarResultadoFinal("SIN RESPUESTA DE LA EMPRESA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
   });
 });
 
@@ -141,6 +147,26 @@ describe("listasAplicables", () => {
     const persona = listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.EXTRANJERO);
     expect(persona).toHaveLength(12);
     expect(persona.map((x) => x.codigo)).toContain("conflicto_interes");
+  });
+
+  it("todas las fuentes configuradas son HTTPS y pertenecen a un criterio existente", () => {
+    for (const [codigo, fuente] of Object.entries(DD_MATRIZ_LISTA_URLS)) {
+      expect(fuente.url).toMatch(/^https:\/\//);
+      expect(DD_MATRIZ_LISTAS.some((lista) => lista.codigo === codigo)).toBe(true);
+    }
+  });
+
+  it("arma busqueda directa para OpenSanctions y DEA sin romper el nombre", () => {
+    expect(urlFuenteLista("opensanctions", "YURA S.A.", null)).toBe(
+      "https://www.opensanctions.org/search/?q=YURA%20S.A.",
+    );
+    expect(urlFuenteLista("dea", "JUAN PEREZ", null)).toBe(
+      "https://www.dea.gov/fugitives/all?keywords=JUAN%20PEREZ",
+    );
+    expect(urlFuenteLista("indecopi", "YURA S.A.", null)).toBe(
+      "https://enlinea.indecopi.gob.pe/miraaquienlecompras/#/busqueda-simple",
+    );
+    expect(urlFuenteLista("oefa", "YURA S.A.", null)).toBeNull();
   });
 });
 

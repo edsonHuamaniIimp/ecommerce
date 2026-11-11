@@ -180,6 +180,16 @@ export interface IDebidaDiligenciaRepository {
   listarReputacion(params: DdReputacionParams): Promise<DdReputacionResult>;
   /** Actualiza un caso reputacional. */
   actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string }>;
+  /** Indica si la empresa tiene al menos un vinculo con resultado final NO APTO. */
+  tieneVinculoNoApto(empresaId: string): Promise<boolean>;
+  /** Igual que tieneVinculoNoApto, buscando por RUC/documento de la empresa. */
+  tieneVinculoNoAptoPorDocumento(documento: string): Promise<boolean>;
+  /** Nombres de todos los vinculos de la matriz del expediente. */
+  listarNombresMatriz(expedienteId: string): Promise<string[]>;
+  /** Nombres que ya tienen un caso reputacional en el expediente. */
+  listarNombresReputacion(expedienteId: string): Promise<string[]>;
+  /** Vinculos del expediente que aun no tienen resultado SIG. */
+  listarVinculosSinEvaluar(expedienteId: string): Promise<string[]>;
   /** Revisa si el expediente ya tiene casos reputacionales. */
   tieneCasosReputacion(expedienteId: string): Promise<boolean>;
   /** Registra en auditoria una accion del modulo. */

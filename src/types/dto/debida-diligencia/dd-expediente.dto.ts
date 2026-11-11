@@ -1,4 +1,4 @@
-import type { DdEstadoEvaluacion, DdResultado } from "@/lib/shared/constants";
+﻿import type { DdEstadoEvaluacion, DdResultado } from "@/lib/shared/constants";
 
 /** Estado consolidado del registro externo/manual de DD. */
 export interface DdEstadoExternoDTO {
@@ -38,6 +38,8 @@ export interface DdBeneficiarioDTO {
   documento: string;
   nacionalidad: string;
   porcentaje: number;
+  /** Rol del vínculo: representante, apoderado, director, beneficiario, socio o empresa vinculada. */
+  tipoVinculoPersona: string | null;
 }
 
 export interface DdDocumentoVersionDTO {
@@ -102,6 +104,7 @@ export interface DdExpedienteDTO {
   motivoImportacion: string | null;
   importacionId: string | null;
   tipoRelacionComercial: string[];
+  tipoRelacionComercialOtro: string | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
@@ -160,3 +163,5 @@ export interface DdMiExpedienteDTO {
   /** Estado del documento declaracion_vigencia; null si aun no existe. */
   declaracionVigenciaEstado: string | null;
 }
+
+

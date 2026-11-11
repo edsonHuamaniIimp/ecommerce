@@ -11,6 +11,7 @@ import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { ddArchivoUtils } from "@/lib/shared/utils/debida-diligencia-archivo";
 import { mapDdMatrizAdjuntoToDTO } from "@/lib/shared/mappers/dd-matriz-evaluacion";
 import { ddMatrizEvaluacionAdjuntoCategoriaSchema } from "@/validators/dd-matriz-evaluacion.validator";
+import type { DdMatrizAdjuntoCategoria } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 
 const MIME_POR_EXTENSION: Record<string, string> = {
@@ -47,7 +48,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     eventoId: session.eventoId,
   };
   try {
-    await services.ddMatrizEvaluacion.autorizarAdjunto(sesionDd, vinculoId, categoria.data);
+    await services.ddMatrizEvaluacion.autorizarAdjunto(sesionDd, vinculoId, categoria.data as DdMatrizAdjuntoCategoria);
   } catch (err) {
     if (err instanceof DomainError) return error(err.code, err.message, err.status);
     throw err;
@@ -67,7 +68,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const url = await getStorage().upload(Buffer.from(bytes), `${randomUUID()}.${extension}`, mimeType);
     const adjunto = await services.ddMatrizEvaluacion.registrarAdjunto(sesionDd, {
       vinculoId,
-      categoria: categoria.data,
+      categoria: categoria.data as DdMatrizAdjuntoCategoria,
       nombre: file.name,
       url,
       mimeType,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nombrePais, ordenarPaisesPorConteo, paisDeTexto } from "../pais";
+import { esPaisPeru, nombrePais, ordenarPaisesPorConteo, paisDeTexto } from "../pais";
 
 describe("paisDeTexto (mapper de pais: ISO, nombre y gentilicio)", () => {
   it("acepta codigo ISO alpha-2 y alpha-3 en cualquier caja", () => {
@@ -33,6 +33,21 @@ describe("paisDeTexto (mapper de pais: ISO, nombre y gentilicio)", () => {
     expect(paisDeTexto(null)).toBeNull();
     expect(paisDeTexto("Atlantida")).toBeNull();
     expect(paisDeTexto("--")).toBeNull();
+  });
+});
+
+describe("esPaisPeru", () => {
+  it("reconoce Perú por nombre, código y gentilicio", () => {
+    expect(esPaisPeru("Perú")).toBe(true);
+    expect(esPaisPeru("PE")).toBe(true);
+    expect(esPaisPeru("Peruana")).toBe(true);
+  });
+
+  it("rechaza otros países y valores vacíos", () => {
+    expect(esPaisPeru("Chile")).toBe(false);
+    expect(esPaisPeru("US")).toBe(false);
+    expect(esPaisPeru("")).toBe(false);
+    expect(esPaisPeru(null)).toBe(false);
   });
 });
 

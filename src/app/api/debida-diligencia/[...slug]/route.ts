@@ -1,6 +1,7 @@
 import { createRouter } from "@/lib/server/router";
 import { debidaDiligenciaController } from "@/controllers/debida-diligencia.controller";
 import { ddMatrizEvaluacionController } from "@/controllers/dd-matriz-evaluacion.controller";
+import { ddConfiguracionController } from "@/controllers/dd-configuracion.controller";
 
 export const { GET, POST } = createRouter({
   GET: {
@@ -16,9 +17,11 @@ export const { GET, POST } = createRouter({
     matriz: (req) => debidaDiligenciaController.matriz(req),
     "matriz-evaluacion": (req) => ddMatrizEvaluacionController.listar(req),
     "matriz-evaluacion/detalle": (req) => ddMatrizEvaluacionController.detalle(req),
-    "matriz-evaluacion/resumen": () => ddMatrizEvaluacionController.resumen(),
+    "matriz-evaluacion/resumen": (req) => ddMatrizEvaluacionController.resumen(req),
     "matriz-evaluacion/abrir": (req) => ddMatrizEvaluacionController.abrir(req),
     "reputacion/listar": (req) => debidaDiligenciaController.reputacionListar(req),
+    "configuracion": () => ddConfiguracionController.obtener(),
+    "configuracion/auditoria": () => ddConfiguracionController.auditoria(),
   },
   POST: {
     nueva: () => debidaDiligenciaController.iniciarNueva(),
@@ -29,10 +32,14 @@ export const { GET, POST } = createRouter({
     "derivar-comunicaciones": (req) => debidaDiligenciaController.derivarComunicaciones(req),
     "legal/resolver": (req) => debidaDiligenciaController.resolverLegal(req),
     "reputacion/resolver": (req) => debidaDiligenciaController.reputacionResolver(req),
+    "configuracion": (req) => ddConfiguracionController.actualizar(req),
     "matriz-evaluacion/exportar": (req) => ddMatrizEvaluacionController.exportar(req),
+    "matriz-evaluacion/automatizar": (req) => ddMatrizEvaluacionController.automatizar(req),
     "matriz-evaluacion/guardar": (req) => ddMatrizEvaluacionController.guardar(req),
     "matriz-evaluacion/vinculo": (req) => ddMatrizEvaluacionController.agregarVinculo(req),
     "matriz-evaluacion/vinculo/eliminar": (req) => ddMatrizEvaluacionController.eliminarVinculo(req),
     "matriz-evaluacion/adjunto/eliminar": (req) => ddMatrizEvaluacionController.eliminarAdjunto(req),
+    "clasificar-archivos": (req) => debidaDiligenciaController.clasificarArchivos(req),
   },
 });
+

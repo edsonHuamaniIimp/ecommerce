@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
@@ -8,6 +8,7 @@ import {
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_TIPOS,
   DD_RESULTADOS,
+  DD_VINCULOS,
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 
@@ -281,6 +282,56 @@ describe("validaciones por paso", () => {
     expect(
       ddUtils.validarEmpresa({ ...empresa, tipoRelacionComercial: [] }),
     ).toContain("al menos un tipo");
+    expect(
+      ddUtils.validarEmpresa({
+        ...empresa,
+        tipoRelacionComercial: [DD_VINCULOS.OTRO],
+        tipoRelacionComercialOtro: "",
+      }),
+    ).toContain("detalle del vínculo comercial Otro");
+    expect(
+      ddUtils.validarEmpresa({
+        ...empresa,
+        tipoRelacionComercial: [DD_VINCULOS.OTRO],
+        tipoRelacionComercialOtro: "Convenio de cooperación",
+      }),
+    ).toBeNull();
+  });
+
+  it("acepta participación 0 o vacía y rechaza porcentajes fuera de rango", () => {
+    const datos = {
+      representanteNombre: "María Torres",
+      representanteDocumento: "09876543",
+      representanteNacionalidad: "Perú",
+      beneficiarios: [
+        {
+          nombre: "Inversiones Sur S.A.C.",
+          documento: "20123456789",
+          nacionalidad: "Perú",
+          porcentaje: "0",
+          tipoVinculoPersona: "beneficiario_final",
+        },
+      ],
+    };
+    expect(ddUtils.validarRepresentante(datos)).toBeNull();
+    expect(
+      ddUtils.validarRepresentante({
+        ...datos,
+        beneficiarios: [{ ...datos.beneficiarios[0]!, porcentaje: "" }],
+      }),
+    ).toBeNull();
+    expect(
+      ddUtils.validarRepresentante({
+        ...datos,
+        beneficiarios: [{ ...datos.beneficiarios[0]!, porcentaje: "101" }],
+      }),
+    ).toContain("entre 0% y 100%");
+    expect(
+      ddUtils.validarRepresentante({
+        ...datos,
+        beneficiarios: [{ ...datos.beneficiarios[0]!, tipoVinculoPersona: "" }],
+      }),
+    ).toContain("Seleccione el tipo de vínculo");
   });
 
   it("mapea el resultado reputacional al estado persistido", () => {
@@ -303,3 +354,4 @@ describe("ddPuedeEditar", () => {
     expect(ddUtils.puedeEditar(DD_ESTADOS.RECHAZADA)).toBe(false);
   });
 });
+

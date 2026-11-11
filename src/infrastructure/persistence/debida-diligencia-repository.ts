@@ -49,6 +49,8 @@ import {
   DD_FILTRO_POR_VENCER,
   DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA,
   DD_FILTRO_VENCIDA,
+  DD_TIPO_VINCULO_PERSONA_LABELS,
+  DD_TIPOS_VINCULO_PERSONA,
   DD_FILTRO_SIN_INICIAR,
   DD_MULTIPLES_FILTRO,
   DD_FILTRO_TODAS,
@@ -59,6 +61,7 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_ESTADOS_PENDIENTES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
@@ -118,7 +121,7 @@ const reputacionInclude = {
       empresa: { select: empresaSelect },
       representanteNombre: true,
       representanteNacionalidad: true,
-      beneficiarios: { select: { nombre: true, nacionalidad: true } },
+      beneficiarios: { select: { nombre: true, nacionalidad: true, tipoVinculoPersona: true } },
       observaciones: { where: { estado: DD_OBSERVACION_ESTADOS.ABIERTA } },
     },
   },
@@ -155,6 +158,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     motivoImportacion: row.motivoImportacion ?? null,
     importacionId: row.importacionId ?? null,
     tipoRelacionComercial: row.tipoRelacionComercial as DdExpedienteEntity["tipoRelacionComercial"],
+    tipoRelacionComercialOtro: row.tipoRelacionComercialOtro ?? null,
     actividadEconomica: row.actividadEconomica ?? null,
     actividadEconomicaOtro: row.actividadEconomicaOtro ?? null,
     paisConstitucion: row.paisConstitucion ?? null,
@@ -200,6 +204,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
       documento: b.documento,
       nacionalidad: b.nacionalidad,
       porcentaje: Number(b.porcentaje),
+      tipoVinculoPersona: b.tipoVinculoPersona ?? null,
     })),
     documentos: row.documentos.map((d) => ({
       id: d.id,
@@ -231,6 +236,7 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     reputacion: row.reputacion.map((r) => ({
       id: r.id,
       nombreARevisar: r.nombreARevisar,
+      cargo: cargoNombreARevisar(row, r.nombreARevisar),
       nacionalidad: ddUtils.nacionalidadNombreARevisar(row, r.nombreARevisar),
       sitioWeb: r.sitioWeb ?? null,
       estado: r.estado as DdReputacionCasoEntity["estado"],
@@ -247,6 +253,16 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
   };
 }
 
+function cargoNombreARevisar(expediente: ReputacionRow["expediente"], nombre: string): string | null {
+  const buscado = nombre.trim();
+  if (buscado === expediente.empresa.razonSocial.trim()) return "Empresa";
+  if (expediente.representanteNombre?.trim() === buscado) return "Representante legal";
+  const beneficiario = expediente.beneficiarios.find((item) => item.nombre.trim() === buscado);
+  if (!beneficiario) return null;
+  const rol = beneficiario.tipoVinculoPersona ?? DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL;
+  return DD_TIPO_VINCULO_PERSONA_LABELS[rol as keyof typeof DD_TIPO_VINCULO_PERSONA_LABELS] ?? "Beneficiario final";
+}
+
 function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
   return {
     id: row.id,
@@ -254,6 +270,7 @@ function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
     codigo: row.expediente.codigo,
     empresa: mapEmpresa(row.expediente.empresa),
     nombreARevisar: row.nombreARevisar,
+    cargo: cargoNombreARevisar(row.expediente, row.nombreARevisar),
     nacionalidad: ddUtils.nacionalidadNombreARevisar(row.expediente, row.nombreARevisar),
     sitioWeb: row.sitioWeb ?? null,
     estado: row.estado as DdReputacionGrupo["casos"][number]["estado"],
@@ -416,6 +433,56 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     return row as unknown as DdEmpresaEstadoEntity | null;
   }
 
+  async tieneVinculoNoApto(empresaId: string): Promise<boolean> {
+    const row = await prisma.ddMatrizVinculo.findFirst({
+      where: {
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+        expediente: { empresaId },
+      },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  async tieneVinculoNoAptoPorDocumento(documento: string): Promise<boolean> {
+    const doc = documento.trim();
+    if (!doc) return false;
+    const row = await prisma.ddMatrizVinculo.findFirst({
+      where: {
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+        expediente: { empresa: { ruc: { equals: doc, mode: "insensitive" } } },
+      },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  async listarNombresMatriz(expedienteId: string): Promise<string[]> {
+    const filas = await prisma.ddMatrizVinculo.findMany({
+      where: { expedienteId },
+      select: { nombre: true },
+      orderBy: { createdAt: "asc" },
+    });
+    return [...new Set(filas.map((fila) => fila.nombre.trim()).filter(Boolean))];
+  }
+
+  async listarNombresReputacion(expedienteId: string): Promise<string[]> {
+    const filas = await prisma.debidaDiligenciaReputacion.findMany({
+      where: { expedienteId },
+      select: { nombreARevisar: true },
+    });
+    return [...new Set(filas.map((fila) => fila.nombreARevisar.trim()).filter(Boolean))];
+  }
+
+  async listarVinculosSinEvaluar(expedienteId: string): Promise<string[]> {
+    const filas = await prisma.ddMatrizVinculo.findMany({
+      where: { expedienteId, sigResultado: null },
+      select: { nombre: true },
+      orderBy: { createdAt: "asc" },
+    });
+    return [...new Set(filas.map((fila) => fila.nombre.trim()).filter(Boolean))];
+  }
+
   async siguienteCodigo(anio: string): Promise<string> {
     const prefijo = `${DD_CODIGO_PREFIJO}-${anio}-`;
     /*
@@ -542,6 +609,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         where: { id },
         data: {
           tipoRelacionComercial: data.tipoRelacionComercial,
+          tipoRelacionComercialOtro: data.tipoRelacionComercialOtro,
           actividadEconomica: data.actividadEconomica,
           actividadEconomicaOtro: data.actividadEconomicaOtro,
           paisConstitucion: data.paisConstitucion,
@@ -568,6 +636,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
             documento: b.documento,
             nacionalidad: b.nacionalidad,
             porcentaje: b.porcentaje,
+                  tipoVinculoPersona: b.tipoVinculoPersona ?? null,
           })),
         });
       }
@@ -1125,6 +1194,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           documento: beneficiario.documento,
           nacionalidad: beneficiario.nacionalidad,
           porcentaje: Number(beneficiario.porcentaje),
+          tipoVinculoPersona: beneficiario.tipoVinculoPersona ?? null,
         })),
         fechaInicio: row.origen === DD_ORIGENES.IMPORTADO ? row.fechaEnvio : row.createdAt,
         fechaCreacion: row.createdAt,

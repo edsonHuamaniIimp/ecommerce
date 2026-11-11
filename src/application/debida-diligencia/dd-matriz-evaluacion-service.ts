@@ -19,10 +19,12 @@ import type {
 } from "@/types/dto/debida-diligencia";
 import {
   API_ERROR_CODES,
+  DD_EVENTO_TODOS,
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_ADJUNTOS_MAX,
   DD_MATRIZ_AREAS,
   DD_MATRIZ_EXPORT_MAX,
+  DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -110,6 +112,13 @@ export class DdMatrizEvaluacionApplicationService {
     return session.eventoId;
   }
 
+  /** `todos` o vacio = transversal; sin filtro explicito conserva el evento activo. */
+  private eventoFiltro(session: DdSession, eventoId?: string): string | undefined {
+    const valor = eventoId?.trim();
+    if (valor === DD_EVENTO_TODOS) return undefined;
+    return valor || this.eventoRequerido(session);
+  }
+
   private calcularPermisos(
     session: DdSession,
     vinculo: DdMatrizVinculoEntity,
@@ -165,8 +174,10 @@ export class DdMatrizEvaluacionApplicationService {
   /** Lista paginada; antes sincroniza las filas automaticas con los expedientes del evento. */
   async listar(session: DdSession, query: DdMatrizEvaluacionQueryDTO): Promise<DdMatrizListarResultado> {
     this.exigirAcceso(session);
-    const eventoId = this.eventoRequerido(session);
-    const nuevas = await this.repo.sincronizarEvento(eventoId, session.email);
+    const eventoId = this.eventoFiltro(session, query.eventoId);
+    const nuevas = eventoId
+      ? await this.repo.sincronizarEvento(eventoId, session.email)
+      : await this.repo.sincronizarTodosEventos(session.email);
 
     const page = Math.max(1, query.page ?? 1);
     const perPage = query.perPage ?? DD_MATRIZ_PER_PAGE_DEFAULT;
@@ -181,6 +192,7 @@ export class DdMatrizEvaluacionApplicationService {
       sinPais: query.sinPais,
       resultadoFinal: query.resultadoFinal,
       sinEvaluar: query.sinEvaluar,
+      porEmpresa: query.porEmpresa,
     });
     return {
       data: resultado.data,
@@ -193,16 +205,16 @@ export class DdMatrizEvaluacionApplicationService {
     };
   }
 
-  /** Indicadores de toda la matriz del evento activo. */
-  async resumen(session: DdSession): Promise<DdMatrizResumenEntity> {
+  /** Indicadores de toda la matriz del evento o de todos los eventos. */
+  async resumen(session: DdSession, eventoId?: string): Promise<DdMatrizResumenEntity> {
     this.exigirAcceso(session);
-    return this.repo.resumen(this.eventoRequerido(session));
+    return this.repo.resumen(this.eventoFiltro(session, eventoId));
   }
 
   /** Vinculos completos para el Excel de la matriz: los ids elegidos o los filtros de la lista. */
   async exportar(session: DdSession, filtros: DdMatrizEvaluacionExportarRequestDTO): Promise<DdMatrizExportItem[]> {
     this.exigirAcceso(session);
-    const eventoId = this.eventoRequerido(session);
+    const eventoId = this.eventoFiltro(session, filtros.eventoId);
     const items = await this.repo.listarParaExportar({
       eventoId,
       ids: filtros.ids,
@@ -223,7 +235,7 @@ export class DdMatrizEvaluacionApplicationService {
     }
     await this.repo.registrarAuditoria(
       "matriz_exportar",
-      eventoId,
+      eventoId ?? "todos",
       session.email,
       `Matriz DD: exportación de ${items.length} vínculo(s)${filtros.ids ? " (selección)" : ""}`,
     );
@@ -367,13 +379,19 @@ export class DdMatrizEvaluacionApplicationService {
       cambios.compliance = { ...evaluado, ...this.sello(dto.compliance, ahora, session.email) };
     }
 
-    if (dto.resultadoFinal !== undefined || dto.finalFecha !== undefined || dto.finalPor !== undefined) {
+    if (
+      dto.resultadoFinal !== undefined ||
+      dto.finalFecha !== undefined ||
+      dto.finalPor !== undefined ||
+      dto.finalComentario !== undefined
+    ) {
       if (!permisos.editarFinal) this.prohibido("El resultado final lo registra SIG o Compliance");
       if (dto.resultadoFinal !== undefined) {
         if (normalizarTextoMatriz(dto.resultadoFinal) === "") {
           cambios.resultadoFinal = null;
           cambios.finalFecha = null;
           cambios.finalPor = null;
+          cambios.finalComentario = null;
         } else {
           const final = normalizarResultadoFinal(dto.resultadoFinal);
           if (!final) throw new DomainError("Resultado final no reconocido", API_ERROR_CODES.VALIDATION, 400);
@@ -382,9 +400,36 @@ export class DdMatrizEvaluacionApplicationService {
           cambios.finalPor = session.email;
         }
       }
+      if (dto.finalComentario !== undefined) {
+        const comentario = dto.finalComentario?.trim() || null;
+        if (comentario && comentario.length > DD_MATRIZ_FINAL_COMENTARIO_MAX) {
+          throw new DomainError(
+            `El comentario final supera el máximo de ${DD_MATRIZ_FINAL_COMENTARIO_MAX} caracteres`,
+            API_ERROR_CODES.VALIDATION,
+            400,
+          );
+        }
+        cambios.finalComentario = comentario;
+      }
       /* Lo escrito a mano (fecha / quien registra) prevalece sobre el sello automatico. */
       if (dto.finalFecha !== undefined) cambios.finalFecha = this.fechaDe(dto.finalFecha);
       if (dto.finalPor !== undefined) cambios.finalPor = dto.finalPor?.trim() || null;
+
+      const finalEfectivo =
+        cambios.resultadoFinal !== undefined ? cambios.resultadoFinal : vinculo.resultadoFinal;
+      const comentarioEfectivo =
+        cambios.finalComentario !== undefined ? cambios.finalComentario : vinculo.finalComentario;
+      if (
+        (dto.resultadoFinal !== undefined || dto.finalComentario !== undefined) &&
+        finalEfectivo &&
+        !comentarioEfectivo?.trim()
+      ) {
+        throw new DomainError(
+          "El resultado final requiere un comentario interno de sustento",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
     }
 
     let actualizado = await this.repo.actualizarVinculo(dto.id, cambios);

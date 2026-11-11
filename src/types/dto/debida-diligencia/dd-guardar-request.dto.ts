@@ -1,8 +1,14 @@
-import type { DdDocumentoEstado, DdDocumentoTipo, DdVinculo } from "@/lib/shared/constants";
+﻿import type {
+  DdDocumentoEstado,
+  DdDocumentoTipo,
+  DdTipoVinculoPersona,
+  DdVinculo,
+} from "@/lib/shared/constants";
 
 /** Datos que el cliente guarda desde el wizard de 4 pasos. */
 export interface DdGuardarRequestDTO {
   tipoRelacionComercial: DdVinculo[];
+  tipoRelacionComercialOtro: string | null;
   actividadEconomica: string | null;
   actividadEconomicaOtro: string | null;
   paisConstitucion: string | null;
@@ -20,6 +26,7 @@ export interface DdGuardarRequestDTO {
     documento: string;
     nacionalidad: string;
     porcentaje: number;
+    tipoVinculoPersona?: DdTipoVinculoPersona | null;
   }[];
   documentos: {
     tipo: DdDocumentoTipo;
@@ -28,3 +35,5 @@ export interface DdGuardarRequestDTO {
     estado: DdDocumentoEstado;
   }[];
 }
+
+

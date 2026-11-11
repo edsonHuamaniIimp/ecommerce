@@ -97,6 +97,7 @@ export interface DdMatrizEvaluacionDetalleDTO {
   resultadoFinal: string | null;
   finalFecha: string | null;
   finalPor: string | null;
+  finalComentario: string | null;
   adjuntos: DdMatrizAdjuntoDTO[];
   permisos: DdMatrizPermisosDTO;
   updatedAt: string;

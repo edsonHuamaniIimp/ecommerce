@@ -28,6 +28,7 @@ import {
   ddReputacionResolverSchema,
   ddRevisarSchema,
 } from "@/validators/debida-diligencia.validator";
+import { ddClasificarArchivosSchema } from "@/validators/dd-clasificar-archivos.validator";
 import type { DdMiExpedienteDTO } from "@/types/dto/debida-diligencia";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
 
@@ -237,6 +238,18 @@ export const debidaDiligenciaController = {
   },
 
   /** Detalle de un expediente. */
+  /** Sugerencias de vínculo/categoría para archivos de una empresa (solo nombres). */
+  async clasificarArchivos(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const raw = await request.json();
+    const parsed = ddClasificarArchivosSchema.safeParse(raw);
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const resultado = await services.ddClasificarArchivos.clasificar(parsed.data, session);
+    return success(resultado);
+  },
+
   async detalle(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
     const id = new URL(request.url).searchParams.get("id")?.trim();

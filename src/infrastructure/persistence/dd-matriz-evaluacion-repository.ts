@@ -28,7 +28,11 @@ import {
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
+  DD_REPUTACION_ESTADOS,
+  DD_TIPOS_VINCULO_PERSONA,
+  DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_VINCULO_LABELS,
+  TIPOS_EVENTO_LABELS,
   type DdMatrizAdjuntoCategoria,
   type DdMatrizAmbito,
   type DdMatrizOrigen,
@@ -55,6 +59,7 @@ const include = {
       createdAt: true,
       revisadoPor: true,
       fechaRevision: true,
+      evento: { select: { id: true, tipoEvento: true, codigoEvento: true, anio: true } },
       empresa: { select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, actividadEconomica: true } },
     },
   },
@@ -83,6 +88,8 @@ interface FilaDeseada {
 function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto {
   return {
     expedienteId: row.id,
+    eventoId: row.evento.id,
+    eventoLabel: `${TIPOS_EVENTO_LABELS[row.evento.tipoEvento] ?? "Evento"} ${row.evento.anio}`,
     codigo: row.codigo,
     estado: row.estado,
     empresaRazonSocial: row.empresa.razonSocial,
@@ -145,6 +152,7 @@ function mapVinculo(row: VinculoRow): DdMatrizVinculoEntity {
     resultadoFinal: row.resultadoFinal,
     finalFecha: row.finalFecha,
     finalPor: row.finalPor,
+    finalComentario: row.finalComentario,
     creadoPor: row.creadoPor,
     actualizadoPor: row.actualizadoPor,
     createdAt: row.createdAt,
@@ -153,7 +161,42 @@ function mapVinculo(row: VinculoRow): DdMatrizVinculoEntity {
   };
 }
 
-function mapFila(row: VinculoRow): DdMatrizFilaEntity {
+interface ReputacionConteo {
+  casos: number;
+  pendientes: number;
+  conHallazgos: number;
+}
+
+const SIN_REPUTACION: ReputacionConteo = { casos: 0, pendientes: 0, conHallazgos: 0 };
+
+async function contarReputacion(expedienteIds: string[]): Promise<Map<string, ReputacionConteo>> {
+  const conteos = new Map<string, ReputacionConteo>();
+  if (expedienteIds.length === 0) return conteos;
+
+  const filas = await prisma.debidaDiligenciaReputacion.groupBy({
+    by: ["expedienteId", "estado"],
+    where: { expedienteId: { in: [...new Set(expedienteIds)] } },
+    _count: { _all: true },
+  });
+
+  for (const fila of filas) {
+    const actual = conteos.get(fila.expedienteId) ?? { ...SIN_REPUTACION };
+    actual.casos += fila._count._all;
+    if (
+      fila.estado === DD_REPUTACION_ESTADOS.POR_REVISAR ||
+      fila.estado === DD_REPUTACION_ESTADOS.EN_ANALISIS
+    ) {
+      actual.pendientes += fila._count._all;
+    }
+    if (fila.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS) {
+      actual.conHallazgos += fila._count._all;
+    }
+    conteos.set(fila.expedienteId, actual);
+  }
+  return conteos;
+}
+
+function mapFila(row: VinculoRow, reputacion: ReputacionConteo = SIN_REPUTACION): DdMatrizFilaEntity {
   const ctx = mapContexto(row.expediente);
   return {
     id: row.id,
@@ -172,10 +215,16 @@ function mapFila(row: VinculoRow): DdMatrizFilaEntity {
     cmpResultado: row.cmpResultado,
     cmpConclusion: row.cmpConclusion,
     resultadoFinal: row.resultadoFinal,
+    reputacionCasos: reputacion.casos,
+    reputacionPendientes: reputacion.pendientes,
+    reputacionConHallazgos: reputacion.conHallazgos,
     updatedAt: row.updatedAt,
     expediente: {
       expedienteId: ctx.expedienteId,
+      eventoId: ctx.eventoId,
+      eventoLabel: ctx.eventoLabel,
       codigo: ctx.codigo,
+      estado: ctx.estado,
       empresaRazonSocial: ctx.empresaRazonSocial,
       empresaRuc: ctx.empresaRuc,
       motivo: ctx.motivo,
@@ -233,7 +282,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, estadoContribuyente: true, actividadEconomica: true },
         },
         beneficiarios: {
-          select: { id: true, nombre: true, documento: true, nacionalidad: true, porcentaje: true },
+          select: { id: true, nombre: true, documento: true, nacionalidad: true, porcentaje: true, tipoVinculoPersona: true },
           orderBy: { orden: "asc" },
         },
       },
@@ -291,6 +340,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       }
       for (const b of exp.beneficiarios) {
         const pais = resolverPais({ nacionalidad: b.nacionalidad });
+        const rol = b.tipoVinculoPersona ?? DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL;
         deseadas.push({
           expedienteId: exp.id,
           tipo: DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
@@ -299,7 +349,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           tipoDocumento: null,
           documento: b.documento,
           nacionalidad: b.nacionalidad,
-          cargo: `${DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO]} (${b.porcentaje.toString()}%)`,
+          cargo: `${DD_TIPO_VINCULO_PERSONA_LABELS[rol as keyof typeof DD_TIPO_VINCULO_PERSONA_LABELS] ?? DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO]} (${b.porcentaje.toString()}%)`,
           pais,
           ambito: derivarAmbito({ paisIso: pais }),
           direccionLegal: null,
@@ -441,13 +491,28 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     return creadas;
   }
 
+  async sincronizarTodosEventos(usuario: string): Promise<number> {
+    const eventos = await prisma.debidaDiligencia.findMany({
+      where: { estado: { not: DD_ESTADOS.BORRADOR } },
+      select: { eventoId: true },
+      distinct: ["eventoId"],
+    });
+    let creadas = 0;
+    for (const evento of eventos) {
+      creadas += await this.sincronizarEvento(evento.eventoId, usuario);
+    }
+    return creadas;
+  }
+
   /** Filtros compartidos por la lista y la exportacion. */
   private construirWhere(
     params: Omit<DdMatrizListarParams, "page" | "perPage">,
   ): Prisma.DdMatrizVinculoWhereInput {
-    const and: Prisma.DdMatrizVinculoWhereInput[] = [
-      { expediente: { eventoId: params.eventoId, estado: { not: DD_ESTADOS.BORRADOR } } },
-    ];
+    const expediente: Prisma.DebidaDiligenciaWhereInput = {
+      estado: { not: DD_ESTADOS.BORRADOR },
+    };
+    if (params.eventoId) expediente.eventoId = params.eventoId;
+    const and: Prisma.DdMatrizVinculoWhereInput[] = [{ expediente }];
     if (params.tipo) and.push({ tipo: params.tipo });
     if (params.ambito) and.push({ ambito: params.ambito });
     if (params.pais) and.push({ pais: params.pais });
@@ -471,6 +536,46 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async listar(params: DdMatrizListarParams): Promise<DdMatrizListarResult> {
     const where = this.construirWhere(params);
+    const expedientePaises: Prisma.DebidaDiligenciaWhereInput = {
+      estado: { not: DD_ESTADOS.BORRADOR },
+    };
+    if (params.eventoId) expedientePaises.eventoId = params.eventoId;
+    const paisesPromise = prisma.ddMatrizVinculo.groupBy({
+      by: ["pais"],
+      where: {
+        pais: { not: null },
+        expediente: expedientePaises,
+      },
+      _count: { _all: true },
+      orderBy: { _count: { pais: "desc" } },
+    });
+
+    if (params.porEmpresa) {
+      /* La bandeja pagina por expediente/empresa, no por fila de vinculo. */
+      const [rows, paises] = await Promise.all([
+        prisma.ddMatrizVinculo.findMany({
+          where,
+          include,
+          orderBy: [{ expediente: { codigo: "desc" } }, { createdAt: "asc" }],
+        }),
+        paisesPromise,
+      ]);
+      const grupos = new Map<string, VinculoRow[]>();
+      for (const row of rows) {
+        const actual = grupos.get(row.expedienteId);
+        if (actual) actual.push(row);
+        else grupos.set(row.expedienteId, [row]);
+      }
+      const empresas = [...grupos.values()];
+      const inicio = (params.page - 1) * params.perPage;
+      const pagina = empresas.slice(inicio, inicio + params.perPage).flat();
+      const reputacion = await contarReputacion(pagina.map((row) => row.expedienteId));
+      return {
+        data: pagina.map((row) => mapFila(row, reputacion.get(row.expedienteId))),
+        total: empresas.length,
+        paises: paises.flatMap((p) => (p.pais ? [{ pais: p.pais, total: p._count._all }] : [])),
+      };
+    }
 
     const [total, rows, paises] = await Promise.all([
       prisma.ddMatrizVinculo.count({ where }),
@@ -481,27 +586,22 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         skip: (params.page - 1) * params.perPage,
         take: params.perPage,
       }),
-      prisma.ddMatrizVinculo.groupBy({
-        by: ["pais"],
-        where: {
-          pais: { not: null },
-          expediente: { eventoId: params.eventoId, estado: { not: DD_ESTADOS.BORRADOR } },
-        },
-        _count: { _all: true },
-        orderBy: { _count: { pais: "desc" } },
-      }),
+      paisesPromise,
     ]);
+    const reputacion = await contarReputacion(rows.map((row) => row.expedienteId));
     return {
-      data: rows.map(mapFila),
+      data: rows.map((row) => mapFila(row, reputacion.get(row.expedienteId))),
       total,
       paises: paises.flatMap((p) => (p.pais ? [{ pais: p.pais, total: p._count._all }] : [])),
     };
   }
 
-  async resumen(eventoId: string): Promise<DdMatrizResumenEntity> {
-    const enEvento: Prisma.DdMatrizVinculoWhereInput = {
-      expediente: { eventoId, estado: { not: DD_ESTADOS.BORRADOR } },
+  async resumen(eventoId?: string): Promise<DdMatrizResumenEntity> {
+    const expediente: Prisma.DebidaDiligenciaWhereInput = {
+      estado: { not: DD_ESTADOS.BORRADOR },
     };
+    if (eventoId) expediente.eventoId = eventoId;
+    const enEvento: Prisma.DdMatrizVinculoWhereInput = { expediente };
     const agrupar = async (
       campo: "resultadoFinal" | "ambito" | "tipo" | "sigResultado" | "repResultado" | "cmpResultado",
     ): Promise<DdMatrizConteo[]> => {
@@ -513,8 +613,13 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       return filas.map((f) => ({ valor: (f as Record<string, unknown>)[campo] as string | null, total: f._count._all }));
     };
 
-    const [total, resultadoFinal, ambito, tipo, sig, reputacional, compliance, paises, requierenReforzada, pendientesCompliance, enRevision] =
+    const [empresas, total, resultadoFinal, ambito, tipo, sig, reputacional, compliance, paises, requierenReforzada, pendientesCompliance, enRevision] =
       await Promise.all([
+        prisma.ddMatrizVinculo.groupBy({
+          by: ["expedienteId"],
+          where: enEvento,
+          _count: { _all: true },
+        }),
         prisma.ddMatrizVinculo.count({ where: enEvento }),
         agrupar("resultadoFinal"),
         agrupar("ambito"),
@@ -547,6 +652,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       ]);
 
     return {
+      empresas: empresas.length,
       total,
       resultadoFinal,
       ambito,
@@ -563,7 +669,13 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async listarParaExportar(params: DdMatrizExportarParams): Promise<DdMatrizExportItem[]> {
     const where: Prisma.DdMatrizVinculoWhereInput = params.ids
-      ? { id: { in: params.ids }, expediente: { eventoId: params.eventoId, estado: { not: DD_ESTADOS.BORRADOR } } }
+      ? {
+          id: { in: params.ids },
+          expediente: {
+            estado: { not: DD_ESTADOS.BORRADOR },
+            ...(params.eventoId ? { eventoId: params.eventoId } : {}),
+          },
+        }
       : this.construirWhere(params);
     const rows = await prisma.ddMatrizVinculo.findMany({
       where,
@@ -646,6 +758,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     if (cambios.resultadoFinal !== undefined) data.resultadoFinal = cambios.resultadoFinal;
     if (cambios.finalFecha !== undefined) data.finalFecha = cambios.finalFecha;
     if (cambios.finalPor !== undefined) data.finalPor = cambios.finalPor;
+    if (cambios.finalComentario !== undefined) data.finalComentario = cambios.finalComentario;
 
     const row = await prisma.ddMatrizVinculo.update({ where: { id }, data, include });
     return mapVinculo(row);

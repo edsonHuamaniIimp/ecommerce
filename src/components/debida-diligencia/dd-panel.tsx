@@ -665,9 +665,9 @@ export function DdPanel() {
               ) : null}
               <div className="flex justify-end">
                 <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <a href={DD_RUTAS.BANDEJA}>
+                  <a href={DD_RUTAS.MATRIZ}>
                     <FileText className="h-3.5 w-3.5" />
-                    <span>Ir a la bandeja</span>
+                    <span>Ir a Matriz DD</span>
                   </a>
                 </Button>
               </div>
