@@ -205,10 +205,7 @@ async function detectarFirmas(doc: PDFDocumentProxy, cantidadFirmantes: number):
     }
   }
 
-  const pages = Array.from(
-    { length: Math.min(doc.numPages, Math.max(pageContrato, pageDeclaracion)) },
-    (_, index) => index + 1,
-  );
+  const pages = Array.from({ length: doc.numPages }, (_, index) => index + 1);
   return { pages, slots };
 }
 function PaginaPdf({
@@ -237,8 +234,27 @@ function PaginaPdf({
   onDropFirma: (index: number, tipo: FirmaSlot["tipo"], x?: number, y?: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const contenedorRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    const nodo = contenedorRef.current;
+    if (!nodo || visible) return;
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        if (entradas.some((entrada) => entrada.isIntersecting)) {
+          setVisible(true);
+          observador.disconnect();
+        }
+      },
+      { root: null, rootMargin: "900px 0px", threshold: 0 },
+    );
+    observador.observe(nodo);
+    return () => observador.disconnect();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
     let activo = true;
     let renderTask: { cancel: () => void } | null = null;
     void doc.getPage(pageNumber).then((page) => {
@@ -257,7 +273,7 @@ function PaginaPdf({
       activo = false;
       renderTask?.cancel();
     };
-  }, [doc, pageNumber]);
+  }, [doc, pageNumber, visible]);
 
   const slotsPagina = slots
     .map((slot, index) => ({ slot, index }))
@@ -287,6 +303,7 @@ function PaginaPdf({
 
   return (
       <div
+        ref={contenedorRef}
         data-pagina={pageNumber}
         className={`relative mx-auto w-full overflow-hidden rounded-md border bg-white shadow-sm aspect-[595.32/841.92] ${
           arrastrando ? "border-primary ring-2 ring-primary/30" : "border-border"
@@ -297,7 +314,11 @@ function PaginaPdf({
         }}
         onDrop={soltarEnPagina}
       >
-      <canvas ref={canvasRef} className="h-full w-full" />
+      {visible ? (
+        <canvas ref={canvasRef} className="h-full w-full" />
+      ) : (
+        <div className="h-full w-full bg-white" />
+      )}
       {slotsPagina.map(({ slot, index }) => {
         const firmante = firmantes[slot.signerIndex];
         if (!firmante) return null;
@@ -912,7 +933,7 @@ export function FirmaContratoWorkspace({
             ) : pdf ? (
               <div className="space-y-4">
                 <p className="rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
-                  Zonas de firma de referencia en las páginas {[...new Set(pdf.slots.map((slot) => slot.pageNumber))].sort((a, b) => a - b).join(" y ")}. Arrastra el sello y suéltalo donde debe quedar: la firma se coloca en ese punto, no en el centro del recuadro.
+                  Zonas de firma de referencia en las páginas {[...new Set(pdf.slots.map((slot) => slot.pageNumber))].sort((a, b) => a - b).join(" y ")}. El contrato incluye todas sus páginas (con anexos): arrastra el sello y suéltalo donde debe quedar; la firma se coloca en ese punto, no en el centro del recuadro.
                 </p>
                 {pdf.pages.map((pageNumber) => (
                   <PaginaPdf
