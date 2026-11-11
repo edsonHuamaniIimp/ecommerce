@@ -275,6 +275,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const observacionesSgc = (solicitud.sgcObservaciones ?? []).filter(
     (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message.trim().length > 0,
   );
+  const observacionesSgcAnexos = observacionesSgc.filter((o) => !esObservacionSgcContrato(o));
+  const correccionSgcAnexos = estadoCorreccionSgc({
+    ...solicitud,
+    sgcObservaciones: observacionesSgcAnexos,
+  });
+  const observacionesSgcAnexosCorregidas =
+    observacionesSgcAnexos.length > 0 && correccionSgcAnexos.faltantes.length === 0;
   const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
   const correccionSgc = estadoCorreccionSgc(solicitud);
   const observacionesSgcSinFila = observacionesSgc.filter(
@@ -426,7 +433,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     <div className="flex flex-col flex-1 min-h-0">
       <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
         <h3 className="text-sm font-semibold text-foreground">
-          {soloFirmaDigital ? "Firmar contrato" : esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}
+          {soloFirmaDigital
+            ? observacionContratoSgc ? "Subsanar contrato" : "Firmar contrato"
+            : esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}
         </h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
@@ -488,16 +497,26 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             </p>
           </div>
         )}
-        {!esContrato && observacionesSgc.length > 0 && (
-          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcCorregidas ? "Corrección registrada" : `Te piden ${correccionSgc.requeridos} archivos; llevas ${correccionSgc.cubiertos}.`}
+        {esContrato && observacionContratoSgc && !observacionesSgcCorregidas && (
+          <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
+            Para subsanar, haz clic en <strong>Firmar contrato corregido</strong>. No debes subir el contrato.
+          </p>
+        )}
+        {!esContrato && observacionContratoSgc && (
+          <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
+            El contrato se subsana aparte con <strong>Subsanar observación</strong>. En esta ventana reemplaza solo los anexos.
+          </p>
+        )}
+        {!esContrato && observacionesSgcAnexos.length > 0 && (
+          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcAnexosCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcAnexosCorregidas ? "text-success" : "text-destructive"}`}>
+              {observacionesSgcAnexosCorregidas ? "Corrección registrada" : `Te piden ${correccionSgcAnexos.requeridos} archivos; llevas ${correccionSgcAnexos.cubiertos}.`}
             </p>
-            {observacionesSgcCorregidas ? (
+            {observacionesSgcAnexosCorregidas ? (
               <p className="mt-0.5 text-[11px] text-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
             ) : (
               <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
-                {observacionesSgc.map((o, i) => (
+                {observacionesSgcAnexos.map((o, i) => (
                   <li key={o.observationId ?? `obs-sgc-${i}`}>
                     • {o.title ?? o.nombre ?? "Documento"}
                     {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
@@ -803,11 +822,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 size="sm"
                 className="w-full rounded-full text-xs font-semibold sm:w-auto"
                 disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma}
-                title={!puedeAbrirFirma ? "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
+                title={!puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
                 onClick={() => { void abrirFirmaWorkspace(); }}
               >
                 {abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
-                {abriendoFirma ? "Preparando..." : "Firmar digitalmente"}
+                {abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
               </Button>
             )}
             {!soloFirmaDigital && (
