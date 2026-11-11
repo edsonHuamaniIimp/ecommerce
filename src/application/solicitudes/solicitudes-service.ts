@@ -10,6 +10,7 @@ import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/ut
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, estadoCorreccionSgc } from "@/lib/shared/utils/solicitud-documentos";
 import { SgcApiError } from "@/domain/models/sgc";
+import { sgcEnRevisionLegal } from "@/lib/shared/utils/sgc-estado";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -201,6 +202,15 @@ export class SolicitudesApplicationService {
       throw new Error(`Estado invalido: ${data.estado}`);
     }
 
+    const detalleActual = await this.repo.detalle(data.solicitudId);
+    if (detalleActual && sgcEnRevisionLegal(detalleActual.sgcStage, detalleActual.sgcLifecycleStatus)) {
+      throw new DomainError(
+        "El expediente SGC esta en revision Legal. No puedes cambiar el estado local hasta que el SGC lo devuelva.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+
     /*
      * Observacion de documentos (solo Asociado): exige justificacion y al menos un
      * documento vigente; los documentos pasan a estado `observado` (baja logica por
@@ -282,16 +292,20 @@ export class SolicitudesApplicationService {
 
     const revision = await this.repo.crearOActualizarRevision(data);
 
-    // Only send alerts when transitioning FROM pendiente (first review)
-    if (!revision.fuePrimeraRevision) return revision;
-
     const sgcHabilitado = isSgcEnabled();
-    if (sgcHabilitado && data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
+    const aprobacionNueva =
+      data.area === SGC_TRIGGER_REVISION_AREA &&
+      data.estado === RESULTADOS_APROBACION.APROBADO &&
+      revision.estadoAnterior !== RESULTADOS_APROBACION.APROBADO;
+    if (sgcHabilitado && aprobacionNueva) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
       /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
        * "Enviar al SGC para revisión". Best-effort: no rompe la aprobacion si el SGC falla. */
       await this.sgcIntegracion?.enviarExpedienteAlSgc(data.solicitudId, data.reviewerEmail);
     }
+
+    // Only send alerts when transitioning FROM pendiente (first review)
+    if (!revision.fuePrimeraRevision) return revision;
     const nextRole = !sgcHabilitado && data.area === REVISION_AREAS.ASOCIADO && data.estado === RESULTADOS_APROBACION.APROBADO
       ? ROLES.LEGAL
       : REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];

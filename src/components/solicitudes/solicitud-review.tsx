@@ -40,7 +40,7 @@ import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { SgcDocumentoUpload } from "@/components/sgc/sgc-documento-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
-import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
+import { puedeGenerarOrdenPago, sgcAprobado, sgcEnRevisionLegal } from "@/lib/shared/utils/sgc-estado";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -428,6 +428,7 @@ export function SolicitudReview({
 
   const requiereSgc = mostrarSgc;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
+  const sgcEnLegal = sgcEnRevisionLegal(row.sgcStage, row.sgcLifecycleStatus);
   // El SGC devolvio (observed) o rechazo (rejected): ahi si se puede reemplazar el contrato.
   const sgcSubsanable =
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
@@ -449,6 +450,7 @@ export function SolicitudReview({
   /** Se puede observar mientras el paso Asociado esta editable. */
   const puedeObservar =
     !ddAccionesBloqueadas &&
+    !sgcEnLegal &&
     currentArea === REVISION_AREAS.ASOCIADO &&
     (!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) &&
     canReview;
@@ -916,6 +918,13 @@ export function SolicitudReview({
           </Badge>
         </div>
 
+        {sgcEnLegal && (
+          <p className="rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
+            El expediente está en revisión Legal (SGC). Los cambios de estado están inhabilitados
+            hasta que el SGC lo devuelva.
+          </p>
+        )}
+
         {/* Audit info */}
         {currentRev?.createdBy && (
           <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
@@ -947,6 +956,8 @@ export function SolicitudReview({
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs font-medium"
+                disabled={sgcEnLegal}
+                title={sgcEnLegal ? "El expediente está en revisión Legal (SGC)" : undefined}
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="h-3 w-3" />
@@ -962,7 +973,7 @@ export function SolicitudReview({
         )}
 
         {/* Pending or editing — show form */}
-        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin) && (
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin) && !sgcEnLegal && (
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Comentario / Justificacion</Label>

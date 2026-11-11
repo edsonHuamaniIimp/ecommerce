@@ -52,6 +52,7 @@ function mapRevision(r: RevisionRow): RevisionEntity {
     updatedBy: r.updatedBy,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    estadoAnterior: null,
     fuePrimeraRevision: false,
   };
 }
@@ -779,6 +780,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         },
       });
       const result = mapRevision(updated);
+      result.estadoAnterior = existing.estado;
       result.fuePrimeraRevision = existing.estado === RESULTADOS_APROBACION.PENDIENTE;
       return result;
     }
@@ -794,6 +796,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       },
     });
     const result = mapRevision(created);
+    result.estadoAnterior = null;
     result.fuePrimeraRevision = true;
     return result;
   }
@@ -810,6 +813,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       data: { solicitudId, area, estado: ESTADOS_REVISION.PENDIENTE },
     });
     const result = mapRevision(created);
+    result.estadoAnterior = null;
     result.fuePrimeraRevision = false;
     return result;
   }
@@ -1074,6 +1078,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         updatedBy: r.updatedBy,
         createdAt: r.createdAt ?? dateUtils.now(),
         updatedAt: r.updatedAt ?? dateUtils.now(),
+        estadoAnterior: null,
         fuePrimeraRevision: false,
       })),
       historial: historial.map((h) => ({

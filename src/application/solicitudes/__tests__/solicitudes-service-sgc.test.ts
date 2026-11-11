@@ -5,7 +5,7 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_STAGES } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 
 vi.mock("@/lib/server/router", () => ({
@@ -18,7 +18,12 @@ vi.mock("@/lib/server/email", () => ({
   enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
 }));
 
-function revision(area: string, estado: string): RevisionEntity {
+function revision(
+  area: string,
+  estado: string,
+  estadoAnterior: string | null = RESULTADOS_APROBACION.PENDIENTE,
+  fuePrimeraRevision = true,
+): RevisionEntity {
   return {
     id: "r1",
     solicitudId: "sol-1",
@@ -29,7 +34,8 @@ function revision(area: string, estado: string): RevisionEntity {
     updatedBy: null,
     createdAt: new Date("2026-09-15T00:00:00.000Z"),
     updatedAt: new Date("2026-09-15T00:00:00.000Z"),
-    fuePrimeraRevision: true,
+    estadoAnterior,
+    fuePrimeraRevision,
   };
 }
 
@@ -173,6 +179,61 @@ describe("SolicitudesApplicationService + SGC", () => {
     });
 
     expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
+  });
+
+  it("deberia disparar SGC al aprobar despues de una observacion", async () => {
+    const sgc = sgcMock();
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.crearOActualizarRevision = vi.fn().mockResolvedValue(
+      revision(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO, RESULTADOS_APROBACION.OBSERVADO, false),
+    );
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.revisar({
+      solicitudId: "sol-1",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      reviewerEmail: "asociado@iimp.org.pe",
+    });
+
+    expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
+    expect(sgc.enviarExpedienteAlSgc).toHaveBeenCalledWith("sol-1", "asociado@iimp.org.pe");
+  });
+
+  it("no reenvia al SGC si la revision ya estaba aprobada", async () => {
+    const sgc = sgcMock();
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.crearOActualizarRevision = vi.fn().mockResolvedValue(
+      revision(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO, RESULTADOS_APROBACION.APROBADO, false),
+    );
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.revisar({
+      solicitudId: "sol-1",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      reviewerEmail: "asociado@iimp.org.pe",
+    });
+
+    expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
+  });
+
+  it("bloquea cambios locales mientras el SGC esta en revision Legal", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.detalle = vi.fn().mockResolvedValue(
+      detalleMultistand({ sgcEnabled: true, sgcStage: SGC_STAGES.INTERNAL_REVIEW }),
+    );
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.revisar({
+        solicitudId: "sol-1",
+        area: REVISION_AREAS.ASOCIADO,
+        estado: RESULTADOS_APROBACION.APROBADO,
+        reviewerEmail: "asociado@iimp.org.pe",
+      }),
+    ).rejects.toThrow(/revision Legal/);
+    expect(repo.crearOActualizarRevision).not.toHaveBeenCalled();
   });
 
   it("deberia no disparar si Asociado aun queda pendiente", async () => {

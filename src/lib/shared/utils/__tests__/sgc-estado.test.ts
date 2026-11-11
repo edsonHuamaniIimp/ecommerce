@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { puedeGenerarOrdenPago, sgcAplica, sgcAprobado } from "../sgc-estado";
-import { SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
+import { puedeGenerarOrdenPago, sgcAplica, sgcAprobado, sgcEnRevisionLegal } from "../sgc-estado";
+import { SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
 
 describe("sgc-estado", () => {
   it("sgcAplica es false sin expediente y true si existe correlacion", () => {
@@ -13,6 +13,14 @@ describe("sgc-estado", () => {
     expect(sgcAprobado(SGC_LIFECYCLE_STATUSES.ACTIVE)).toBe(true);
     expect(sgcAprobado(SGC_LIFECYCLE_STATUSES.OBSERVED)).toBe(false);
     expect(sgcAprobado(null)).toBe(false);
+  });
+
+  it("detecta el expediente en revision Legal del SGC", () => {
+    expect(sgcEnRevisionLegal(SGC_STAGES.INTERNAL_REVIEW, null)).toBe(true);
+    expect(sgcEnRevisionLegal(SGC_STAGES.INTERNAL_REVIEW, SGC_LIFECYCLE_STATUSES.OBSERVED)).toBe(false);
+    expect(sgcEnRevisionLegal(SGC_STAGES.INTERNAL_REVIEW, SGC_LIFECYCLE_STATUSES.REJECTED)).toBe(false);
+    expect(sgcEnRevisionLegal(SGC_STAGES.APPROVAL, null)).toBe(false);
+    expect(sgcEnRevisionLegal(null, null)).toBe(false);
   });
 
   it("permite orden de pago cuando Legal es local (no delegada)", () => {

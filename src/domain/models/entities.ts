@@ -200,6 +200,8 @@ export interface RevisionEntity {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Estado de la revisión antes de esta actualización (null = revisión nueva). */
+  estadoAnterior: string | null;
   fuePrimeraRevision: boolean;
 }
 

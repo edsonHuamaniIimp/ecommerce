@@ -159,6 +159,7 @@ class InMemorySolicitudesRepository {
       updatedBy: null,
       createdAt: ahora,
       updatedAt: ahora,
+      estadoAnterior: null,
       fuePrimeraRevision,
     };
   }
