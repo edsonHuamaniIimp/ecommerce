@@ -96,7 +96,9 @@ export interface ReporteStandRegistro {
   standCode: string | null;
   bloqueId: string | null;
   pabellon: string | null;
+  tipoStand: string | null;
   empresa: string | null;
+  precio: number;
   ruc: string | null;
   sie: string | null;
   estado: string | null;

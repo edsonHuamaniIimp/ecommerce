@@ -46,6 +46,9 @@ interface FilaStandRegistro {
   bloque_id: string | null;
   pabellon: string | null;
   empresa: string | null;
+  tipo_stand: string | null;
+  medidas: string | null;
+  raw_data: unknown;
   ruc: string | null;
   sie: string | null;
   estado: string | null;
@@ -464,6 +467,9 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
             NULLIF(ur.nombre_empresa, ''),
             s.email
           ) AS empresa,
+          gs.tipo_stand,
+          gs.medidas,
+          gs.raw_data,
           e.ruc,
           NULL::text AS sie,
           s.estado,
@@ -511,6 +517,9 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
             NULLIF(gs.pre_reserva_titulo, ''),
             NULLIF(gs.empresa, '')
           ) AS empresa,
+          gs.tipo_stand,
+          gs.medidas,
+          gs.raw_data,
           gs.pre_reserva_ruc AS ruc,
           gs.pre_reserva_sie AS sie,
           gs.estado,
@@ -560,7 +569,13 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
         standCode: fila.stand_code ? codigoComercialStand(fila.stand_code) : null,
         bloqueId: fila.bloque_id,
         pabellon: fila.pabellon,
+        tipoStand: fila.tipo_stand,
         empresa: fila.empresa,
+        precio: resolverPrecioStand({
+          tipoStand: fila.tipo_stand,
+          medidas: fila.medidas,
+          rawData: fila.raw_data,
+        }),
         ruc: fila.ruc,
         sie: fila.sie,
         estado,
