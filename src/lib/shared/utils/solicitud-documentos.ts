@@ -461,8 +461,7 @@ export function contratoFirmadoPendienteReemplazo(s: SolicitudDocumentosGate): b
 export function contratoHabilitadoPendienteFirma(s: SolicitudDocumentosGate): boolean {
   if (
     s.contratoHabilitado !== true ||
-    (s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE &&
-      s.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO)
+    s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE
   ) {
     return false;
   }

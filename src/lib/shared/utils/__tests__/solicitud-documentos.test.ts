@@ -374,19 +374,19 @@ describe("contratoClientePendienteFirma — contrato posterior", () => {
     })).toBe(false);
   });
 
-  it("muestra la firma en una observacion del SGC cuando el contrato es posterior al firmado", () => {
+  it("no muestra la firma inicial en una observacion: se usa Subsanar", () => {
     expect(contratoClientePendienteFirma({
       ...base,
       estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
       contratoHabilitado: true,
       docsAdjuntos: [contratoAdmin, firmado("2026-10-17T10:00:00.000Z")],
-    })).toBe(true);
+    })).toBe(false);
     expect(contratoClientePendienteFirma({
       ...base,
       estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
       contratoHabilitado: true,
       docsAdjuntos: [contratoAdmin],
-    })).toBe(true);
+    })).toBe(false);
   });
 });
 

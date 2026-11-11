@@ -12,7 +12,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
+import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
 import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
@@ -286,6 +286,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const observacionContratoSgc = observacionesSgc.find(
     (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,
   ) ?? null;
+  const contratoSgcPendiente = observacionContratoSgcPendiente(solicitud);
+  const requiereNuevoContratoSgc = contratoSgcPendiente && (
+    !contratoAdmin ||
+    contratoAdmin.origen !== ORIGENES_DOCUMENTO.GENERADO ||
+    !observacionContratoSgc?.createdAt ||
+    dateUtils.isBefore(contratoAdmin.createdAt, observacionContratoSgc.createdAt)
+  );
   const firmantesSinFirma = firmantes.filter((f) => !pngOriginales[f.key]);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
@@ -316,7 +323,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     setSending(true);
     setError(null);
     try {
-      if (soloFirmaDigital && !contratoAdmin) {
+      if (soloFirmaDigital && (requiereNuevoContratoSgc || !contratoAdmin) && !contratoPreviewUrl) {
         await contratosService.generar({ solicitudId: solicitud.id });
       }
       const firmado = await contratosService.firmar({ solicitudId: solicitud.id, sellos });
@@ -341,7 +348,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   /** Abre el lienzo de firma; genera el PDF si aun no existe. */
   const abrirFirmaWorkspace = async () => {
     if (abriendoFirma) return;
-    const existente = contratoPreviewUrl ?? contratoAdmin?.url ?? null;
+    const existente = requiereNuevoContratoSgc ? null : (contratoPreviewUrl ?? contratoAdmin?.url ?? null);
     if (modoPrueba && !existente) {
       toast.info("Modo prueba: esta solicitud aún no tiene contrato para probar.");
       return;
@@ -388,9 +395,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   );
   /* La vista de firma solo aplica a la plantilla generada y sin una firma manual vigente. */
   const puedeAbrirFirma = firmantes.length > 0 &&
-    !firmaManualVigente &&
     !firmaManualPendiente &&
-    (!contratoAdmin || contratoAdmin.origen === ORIGENES_DOCUMENTO.GENERADO);
+    (contratoSgcPendiente || (!firmaManualVigente && (!contratoAdmin || contratoAdmin.origen === ORIGENES_DOCUMENTO.GENERADO)));
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
   const faltanObs = observadosAnexos.filter((obs) => {

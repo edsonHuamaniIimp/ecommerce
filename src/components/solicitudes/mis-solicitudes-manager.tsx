@@ -738,7 +738,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
                               onClick={() => abrirAccionCliente(row, "contrato")}>
                               <Upload className="h-3.5 w-3.5" />
-                              <span>Firmar contrato</span>
+                              <span>Subsanar observación</span>
                             </Button>
                           )}
                           {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
@@ -888,7 +888,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
                                 onClick={() => abrirAccionCliente(row, "contrato")}>
                                 <Upload className="h-3.5 w-3.5" />
-                                <span>Firmar contrato</span>
+                                <span>Subsanar observación</span>
                               </Button>
                             )}
                             {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
@@ -1404,7 +1404,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                       <div>
-                        <p className="text-xs font-semibold text-destructive">Firmar contrato corregido</p>
+                        <p className="text-xs font-semibold text-destructive">Subsanar contrato</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                           {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El área legal observó el contrato. Corrígelo y fírmalo de nuevo."}
                         </p>
