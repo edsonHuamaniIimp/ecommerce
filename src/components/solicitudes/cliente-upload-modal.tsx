@@ -40,6 +40,7 @@ interface Pendiente {
   url: string;
   nombre: string;
   requisito: string | null;
+  observacionId?: string | null;
 }
 
 interface Firmante {
@@ -90,6 +91,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const resumeAutomaticoRef = useRef<(() => void) | null>(null);
   const firmaObjetivoRef = useRef<string | null>(null);
   const requisitoRef = useRef<string | null>(null);
+  const observacionRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
   const cargarFirmantes = useCallback(async (): Promise<void> => {
@@ -154,15 +156,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
-      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current }]);
+      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current, observacionId: observacionRef.current }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
     setUploading(false);
   };
 
-  const abrirSelector = (requisito: string | null) => {
+  const abrirSelector = (requisito: string | null, observacionId: string | null = null) => {
     requisitoRef.current = requisito;
+    observacionRef.current = observacionId;
     const input = fileRef.current;
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
@@ -526,24 +529,6 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             )}
           </div>
         )}
-        {!esContrato && observacionesSgcSinFila.length > 0 && (
-          <div className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-warning">Documentos solicitados sin ficha</p>
-            <div className="mt-1 space-y-1">
-              {observacionesSgcSinFila.map((o, i) => (
-                <div key={o.observationId ?? `obs-sgc-sin-fila-${i}`} className="flex items-center gap-2 text-[11px] text-foreground">
-                  <span className="min-w-0 flex-1">
-                    <span className="font-semibold">{o.title ?? "Documento faltante"}</span>: {o.message}
-                  </span>
-                  <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
-                    disabled={uploading} onClick={() => abrirSelector(null)}>
-                    Adjuntar
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         {esContrato && contratoAdmin && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
             <div className="min-w-0">
@@ -750,6 +735,64 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                             {observacionFaltante || !existente || observado ? "Adjuntar" : "Reemplazar"}
                           </Button>
                         )}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {observacionesSgcSinFila.map((o, i) => {
+                const local = (o.documentoLocalId
+                  ? anexos.find((d) => d.id === o.documentoLocalId)
+                  : undefined)
+                  ?? (o.nombre ? anexos.find((d) => d.nombre === o.nombre) : undefined)
+                  ?? null;
+                const corregida = !correccionSgcAnexos.faltantes.some((f) =>
+                  o.observationId
+                    ? f.observationId === o.observationId
+                    : f.title === (o.title ?? o.nombre ?? "Documento"),
+                );
+                const idxPendiente = pendientes.findIndex((p) =>
+                  o.observationId ? p.observacionId === o.observationId : p.requisito === null,
+                );
+                const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
+                return (
+                  <div
+                    key={o.observationId ?? `obs-sgc-sin-fila-${i}`}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${corregida ? "border-border/70 bg-background" : "border-warning/50 bg-warning/5"}`}
+                  >
+                    {local
+                      ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="flex-1">
+                      {o.title ?? o.nombre ?? "Documento adicional"}
+                      {corregida
+                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validación del área legal</span>
+                        : <span className="block text-[10px] text-destructive">Área legal: {o.message}</span>}
+                    </span>
+                    {pendiente ? (
+                      <span className="flex shrink-0 items-center gap-2">
+                        {local && (
+                          <a href={local.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ver</a>
+                        )}
+                        <span className="text-[10px] font-medium text-emerald-600">Listo para enviar</span>
+                        <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="flex shrink-0 items-center gap-2">
+                        {local && (
+                          <a href={local.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ver</a>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                          disabled={uploading}
+                          onClick={() => abrirSelector(null, o.observationId ?? null)}
+                        >
+                          {local ? "Reemplazar" : "Adjuntar"}
+                        </Button>
                       </span>
                     )}
                   </div>
