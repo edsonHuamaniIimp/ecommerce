@@ -6,6 +6,8 @@ import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-sol
 import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ReporteExportacion, ReporteExportacionSolicitud, ReporteExportacionStand, ReporteSolicitudesPreReservas, ReporteStandRegistro, ResumenPaisSolicitudes } from "@/domain/models/reportes";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
+import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { ESTADOS_STAND, REPORTES_SIN_PAIS, REPORTES_TIPOS_REGISTRO, TIPOS_PLANO } from "@/lib/shared/constants";
 
 interface FilaExportacion {
@@ -50,6 +52,9 @@ interface FilaStandRegistro {
   email: string | null;
   fecha: Date | null;
   nota: string | null;
+  revisiones: unknown;
+  sgc_lifecycle_status: string | null;
+  sgc_devolucion_requiere_cambio: boolean | null;
 }
 
 export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudesRepository {
@@ -464,7 +469,10 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           s.estado,
           s.email,
           s.created_at AS fecha,
-          NULL::text AS nota
+          NULL::text AS nota,
+          rev.revisiones,
+          se.lifecycle_status AS sgc_lifecycle_status,
+          se.devolucion_requiere_cambio AS sgc_devolucion_requiere_cambio
         FROM rel r
         JOIN solicitud s ON s.id = r.solicitud_id
         JOIN gess_stand gs ON gs.id = r.gess_stand_id
@@ -475,6 +483,12 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           LIMIT 1
         ) ur ON true
         LEFT JOIN empresa e ON e.id = ur.empresa_id
+        LEFT JOIN LATERAL (
+          SELECT json_agg(json_build_object('area', rv.area, 'estado', rv.estado)) AS revisiones
+          FROM revision rv
+          WHERE rv.solicitud_id = s.id
+        ) rev ON true
+        LEFT JOIN sgc_expediente se ON se.solicitud_id = s.id
         LEFT JOIN LATERAL (
           SELECT p.nombre
           FROM plano_bloque pb
@@ -502,7 +516,10 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           gs.estado,
           NULL::text AS email,
           gs.pre_reserva_at AS fecha,
-          gs.pre_reserva_nota AS nota
+          gs.pre_reserva_nota AS nota,
+          NULL::json AS revisiones,
+          NULL::text AS sgc_lifecycle_status,
+          NULL::boolean AS sgc_devolucion_requiere_cambio
         FROM gess_stand gs
         LEFT JOIN LATERAL (
           SELECT p.nombre
@@ -522,19 +539,36 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
       ORDER BY pabellon NULLS LAST, stand_code NULLS LAST, tipo
     `);
 
-    return filas.map((fila): ReporteStandRegistro => ({
-      tipo: fila.tipo as ReporteStandRegistro["tipo"],
-      standCode: fila.stand_code ? codigoComercialStand(fila.stand_code) : null,
-      bloqueId: fila.bloque_id,
-      pabellon: fila.pabellon,
-      empresa: fila.empresa,
-      ruc: fila.ruc,
-      sie: fila.sie,
-      estado: fila.estado,
-      email: fila.email,
-      fecha: fila.fecha ? fila.fecha.toISOString() : null,
-      nota: fila.nota,
-    }));
+    return filas.map((fila): ReporteStandRegistro => {
+      const revisiones = Array.isArray(fila.revisiones)
+        ? (fila.revisiones as Array<{ area: string; estado: string }>)
+        : [];
+      const estado = fila.tipo === REPORTES_TIPOS_REGISTRO.SOLICITUD
+        ? estadoSolicitudConSgc(
+            fila.estado,
+            revisiones,
+            {
+              lifecycleStatus: fila.sgc_lifecycle_status,
+              devolucionRequiereCambio: fila.sgc_devolucion_requiere_cambio,
+            },
+            isSgcEnabled(),
+          )
+        : null;
+
+      return {
+        tipo: fila.tipo as ReporteStandRegistro["tipo"],
+        standCode: fila.stand_code ? codigoComercialStand(fila.stand_code) : null,
+        bloqueId: fila.bloque_id,
+        pabellon: fila.pabellon,
+        empresa: fila.empresa,
+        ruc: fila.ruc,
+        sie: fila.sie,
+        estado,
+        email: fila.email,
+        fecha: fila.fecha ? fila.fecha.toISOString() : null,
+        nota: fila.nota,
+      };
+    });
   }
 
 }

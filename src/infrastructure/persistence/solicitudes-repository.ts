@@ -6,7 +6,8 @@ import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, Reevaluacio
 import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
-import { areasRevisionLocal, observadaPorArea } from "@/lib/shared/utils/revision-areas";
+import { observadaPorArea } from "@/lib/shared/utils/revision-areas";
+import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
@@ -57,65 +58,11 @@ function mapRevision(r: RevisionRow): RevisionEntity {
   };
 }
 
-function computeEstadoSolicitud(
-  revisiones: RevisionEntity[],
-  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
-): string {
-  /* El rechazo/devolucion del SGC es una observacion para el cliente; no crea revision local. */
-  /*
-   * Devolucion/rechazo del SGC: se muestra como OBSERVADO y exige correccion.
-   * El flag null es data legacy (no guardaba `requiresDocumentChange`) y se
-   * trata como devolucion con cambio; solo false representa validacion interna.
-   * No se modifica la columna persistida, solo el estado calculado de la bandeja.
-   */
-  if (
-    (sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
-      sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
-    sgc.devolucionRequiereCambio !== false
-  ) {
-    return ESTADOS_SOLICITUD.OBSERVADO;
-  }
-  if (revisiones.length === 0) return ESTADOS_SOLICITUD.PENDIENTE;
-  const todasPendientes = revisiones.every((r) => r.estado === ESTADOS_REVISION.PENDIENTE);
-  if (todasPendientes) return ESTADOS_SOLICITUD.PENDIENTE;
-  /* Observacion local: el flujo se detiene hasta que el cliente reemplace y reenvie. */
-  if (revisiones.some((r) => r.estado === ESTADOS_REVISION.OBSERVADO)) return ESTADOS_SOLICITUD.OBSERVADO;
-  const algunaRespondio = revisiones.some((r) => r.estado !== ESTADOS_REVISION.PENDIENTE);
-  const todasRespondieron = areasRevisionLocal(revisiones, { sgcEnabled: isSgcEnabled() }).every((area) => {
-    const rev = revisiones.find((r) => r.area === area);
-    return rev && rev.estado !== "pendiente";
-  });
-  if (!todasRespondieron && algunaRespondio) return ESTADOS_SOLICITUD.EN_PROCESO;
-  if (todasRespondieron) {
-    const algunaRechazada = revisiones.some((r) => r.estado === ESTADOS_REVISION.RECHAZADO);
-    return algunaRechazada ? ESTADOS_SOLICITUD.RECHAZADO : ESTADOS_SOLICITUD.APROBADO;
-  }
-  return ESTADOS_SOLICITUD.PENDIENTE;
-}
-
 function motivoWebhookSgc(payload: Prisma.JsonValue): string {
   const data = (payload as { data?: { reason?: unknown } } | null)?.data;
   return typeof data?.reason === "string" && data.reason.trim()
     ? data.reason.trim().slice(0, 500)
     : "Evento recibido del SGC";
-}
-
-/** El estado SGC observado/rechazado manda sobre el estado persistido anterior. */
-function estadoSolicitudConSgc(
-  estadoPersistido: string | null,
-  revisiones: RevisionEntity[],
-  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
-): string {
-  const calculado = computeEstadoSolicitud(revisiones, sgc);
-  /* No revertir un estado terminal de pago por una respuesta tardia del SGC. */
-  if (
-    calculado === ESTADOS_SOLICITUD.OBSERVADO &&
-    estadoPersistido !== ESTADOS_SOLICITUD.PENDIENTE_PAGO &&
-    estadoPersistido !== ESTADOS_SOLICITUD.PAGADO
-  ) {
-    return calculado;
-  }
-  return estadoPersistido || calculado;
 }
 
 async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
@@ -385,7 +332,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     iimpClienteCodigo: row.iimpClienteCodigo ?? null,
     iimpReserva: (row.iimpReserva ?? null) as unknown,
     iimpReservaAt: row.iimpReservaAt ?? null,
-    estadoSolicitud: estadoSolicitudConSgc(row.estado, revisiones, row.sgcExpediente),
+    estadoSolicitud: estadoSolicitudConSgc(row.estado, revisiones, row.sgcExpediente, isSgcEnabled()),
     flgActivo: row.flgActivo,
     contratoHabilitado: row.contratoHabilitado,
     documentos,
@@ -650,6 +597,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
             r.estado,
             r.revisiones as unknown as RevisionEntity[],
             r.sgcExpediente,
+            isSgcEnabled(),
           );
           if (params.estado && estado !== params.estado) return false;
           if (!params.observadoPor) return true;
