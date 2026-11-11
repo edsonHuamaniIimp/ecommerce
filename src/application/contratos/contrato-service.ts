@@ -334,7 +334,7 @@ export class ContratoApplicationService {
       userSub: detalle.userId ?? "system",
       userEmail: detalle.email ?? undefined,
     });
-    await this.solicitudes.habilitarContrato(solicitudId).catch(() => undefined);
+    await this.solicitudes.habilitarContrato(solicitudId);
     return generado;
   }
 

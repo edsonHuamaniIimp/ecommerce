@@ -366,17 +366,27 @@ describe("contratoClientePendienteFirma — contrato posterior", () => {
     })).toBe(false);
   });
 
-  it("oculta la firma si el cliente ya firmo o la solicitud no esta pendiente", () => {
+  it("oculta la firma si el cliente ya firmo la version vigente", () => {
     expect(contratoClientePendienteFirma({
       ...base,
       contratoHabilitado: true,
-      docsAdjuntos: [firmado("2026-10-19T10:00:00.000Z")],
+      docsAdjuntos: [contratoAdmin, firmado("2026-10-19T10:00:00.000Z")],
     })).toBe(false);
+  });
+
+  it("muestra la firma en una observacion del SGC cuando el contrato es posterior al firmado", () => {
     expect(contratoClientePendienteFirma({
       ...base,
       estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
       contratoHabilitado: true,
-    })).toBe(false);
+      docsAdjuntos: [contratoAdmin, firmado("2026-10-17T10:00:00.000Z")],
+    })).toBe(true);
+    expect(contratoClientePendienteFirma({
+      ...base,
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      contratoHabilitado: true,
+      docsAdjuntos: [contratoAdmin],
+    })).toBe(true);
   });
 });
 

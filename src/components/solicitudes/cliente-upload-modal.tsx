@@ -12,7 +12,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
+import { esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
 import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
@@ -278,7 +278,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
   const correccionSgc = estadoCorreccionSgc(solicitud);
   const observacionesSgcSinFila = observacionesSgc.filter(
-    (o) => !ANEXOS_REQUERIDOS.some((a) => a.key === o.requisito),
+    (o) =>
+      !ANEXOS_REQUERIDOS.some((a) => a.key === o.requisito) &&
+      /* El contrato no es un anexo: se firma desde el flujo de contrato. */
+      !esObservacionSgcContrato(o),
   );
   const observacionContratoSgc = observacionesSgc.find(
     (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,

@@ -2,7 +2,7 @@ import type { ISgcRepository, ActualizarSgcExpedienteData } from "@/domain/ports
 import type { ISgcWebhookRepository } from "@/domain/ports/sgc-webhook-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
-import type { SgcWebhookPayload } from "@/domain/models/sgc";
+import type { SgcObservacionDocumento, SgcWebhookPayload } from "@/domain/models/sgc";
 import { SGC_EVENT_TYPES, SGC_FINALIZATION, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
 import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
@@ -102,7 +102,7 @@ export class SgcWebhookApplicationService {
         cambios.devolucionEstrategia = textoONull(data.strategy, 30);
         /* Campo OPCIONAL: observaciones por documento. Si no viene, no se toca (compatibilidad). */
         const observaciones = normalizarObservacionesSgc(data.observations);
-        if (observaciones) cambios.observaciones = observaciones;
+        if (observaciones) cambios.observaciones = this.conFechasObservaciones(observaciones, expediente.observaciones, payload.createdAt);
         if (requiereCambio) cambios.lifecycleStatus = SGC_LIFECYCLE_STATUSES.OBSERVED;
         break;
       }
@@ -122,7 +122,7 @@ export class SgcWebhookApplicationService {
         cambios.devolucionEstrategia = textoONull(data.strategy, 30);
         {
           const observaciones = normalizarObservacionesSgc(data.observations);
-          if (observaciones) cambios.observaciones = observaciones;
+          if (observaciones) cambios.observaciones = this.conFechasObservaciones(observaciones, expediente.observaciones, payload.createdAt);
         }
         break;
       case SGC_EVENT_TYPES.CONTRACT_CLOSED:
@@ -152,31 +152,53 @@ export class SgcWebhookApplicationService {
       esDevolucion &&
       cambios.devolucionRequiereCambio !== false &&
       (!estadoPrevioDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo));
+    /*
+     * Regeneracion idempotente aunque la notificacion ya se haya enviado: si la
+     * regeneracion fallo en una entrega anterior, el cliente no tendria boton de firma.
+     */
+    const resultadoContrato =
+      esDevolucion && cambios.devolucionRequiereCambio !== false && this.solicitudes
+        ? await procesarContratoObservadoSgc({
+            solicitudId: expediente.solicitudId,
+            observaciones: cambios.observaciones ?? expediente.observaciones ?? [],
+            solicitudes: this.solicitudes,
+            contrato: this.contrato,
+          })
+        : null;
     if (notificarDevolucion && this.solicitudes) {
       const documentos = (cambios.observaciones ?? [])
         .map((o) => o.title?.trim() || o.message.slice(0, 120))
         .filter((t) => t.length > 0);
       await notificarDevolucionSgc(this.solicitudes, expediente.solicitudId, motivoNuevo, documentos);
-    }
-    if (notificarDevolucion && esDevolucion && this.solicitudes) {
-      const observacionesContrato = cambios.observaciones ?? expediente.observaciones ?? [];
-      const resultadoContrato = await procesarContratoObservadoSgc({
-        solicitudId: expediente.solicitudId,
-        observaciones: observacionesContrato,
-        solicitudes: this.solicitudes,
-        contrato: this.contrato,
-      });
-      await notificarContratoObservadoSgc({
-        solicitudId: expediente.solicitudId,
-        resultado: resultadoContrato,
-        solicitudes: this.solicitudes,
-        configuracion: this.configuracion,
-      });
+      if (resultadoContrato) {
+        await notificarContratoObservadoSgc({
+          solicitudId: expediente.solicitudId,
+          resultado: resultadoContrato,
+          solicitudes: this.solicitudes,
+          configuracion: this.configuracion,
+        });
+      }
     }
     /* Aprobado el contrato (Vigente), la orden de facturacion se genera sola. */
     if (aprobadoAhora && this.solicitudes) {
       await habilitarOrdenPagoAutomatica(this.solicitudes, expediente.solicitudId);
     }
+  }
+
+  /** Conserva la fecha de una observacion previa si el payload no la trae. */
+  private conFechasObservaciones(
+    observaciones: SgcObservacionDocumento[],
+    previas: SgcObservacionDocumento[] | null | undefined,
+    fallback: string,
+  ): SgcObservacionDocumento[] {
+    return observaciones.map((o) => {
+      const previa = (previas ?? []).find(
+        (p) =>
+          (o.observationId && p.observationId === o.observationId) ||
+          (!o.observationId && o.documentId && p.documentId === o.documentId),
+      );
+      return { ...o, createdAt: o.createdAt ?? previa?.createdAt ?? fallback };
+    });
   }
 
   /** Correo "resultado de revision" al cliente cuando Legal (SGC) aprueba. Best-effort. */

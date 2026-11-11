@@ -311,6 +311,17 @@ export class SgcIntegracionApplicationService {
         requiereCambio &&
         ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
           (!esDevolucion && nuevas.length > 0));
+      /* La regeneracion se reintenta en cada sync aunque la notificacion ya se haya
+       * enviado: si fallo en la primera pasada, el cliente nunca veria el boton de firma. */
+      const resultadoContrato =
+        !preservar && esDevolucion && requiereCambio
+          ? await procesarContratoObservadoSgc({
+              solicitudId,
+              observaciones: observacionesAbiertas,
+              solicitudes: this.solicitudRepo,
+              contrato: this.contrato,
+            })
+          : null;
       if (notificar) {
         const documentos = observacionesAbiertas
           .map((o) => o.title?.trim() || o.message.slice(0, 120))
@@ -321,13 +332,7 @@ export class SgcIntegracionApplicationService {
           motivoNuevo ?? expediente.devolucionMotivo ?? null,
           documentos,
         );
-        if (esDevolucion) {
-          const resultadoContrato = await procesarContratoObservadoSgc({
-            solicitudId,
-            observaciones: observacionesAbiertas,
-            solicitudes: this.solicitudRepo,
-            contrato: this.contrato,
-          });
+        if (resultadoContrato) {
           await notificarContratoObservadoSgc({
             solicitudId,
             resultado: resultadoContrato,
@@ -410,6 +415,16 @@ export class SgcIntegracionApplicationService {
           requiereCambio &&
           ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
             (!esDevolucion && nuevas.length > 0));
+        /* Reintento idempotente: cubre un fallo de regeneracion en el webhook/lectura previa. */
+        const resultadoContrato =
+          !expediente.bypassAprobado && esDevolucion && requiereCambio
+            ? await procesarContratoObservadoSgc({
+                solicitudId: expediente.solicitudId,
+                observaciones: observacionesAbiertas,
+                solicitudes: this.solicitudRepo,
+                contrato: this.contrato,
+              })
+            : null;
         if (notificar) {
           const documentos = observacionesAbiertas
             .map((o) => o.title?.trim() || o.message.slice(0, 120))
@@ -420,13 +435,7 @@ export class SgcIntegracionApplicationService {
             motivoNuevo ?? expediente.devolucionMotivo ?? null,
             documentos,
           );
-          if (esDevolucion) {
-            const resultadoContrato = await procesarContratoObservadoSgc({
-              solicitudId: expediente.solicitudId,
-              observaciones: observacionesAbiertas,
-              solicitudes: this.solicitudRepo,
-              contrato: this.contrato,
-            });
+          if (resultadoContrato) {
             await notificarContratoObservadoSgc({
               solicitudId: expediente.solicitudId,
               resultado: resultadoContrato,
@@ -937,21 +946,31 @@ export class SgcIntegracionApplicationService {
       if (Array.isArray(doc.observations)) {
         informado = true;
         for (const obs of normalizarObservacionesSgc(doc.observations) ?? []) {
+          const previa = (previas ?? []).find(
+            (p) =>
+              (obs.observationId && p.observationId === obs.observationId) ||
+              (!obs.observationId && obs.documentId && p.documentId === obs.documentId),
+          );
           lista.push({
             ...obs,
             documentId: obs.documentId ?? doc.documentId,
             category: obs.category ?? doc.category,
             title: obs.title ?? doc.title,
+            /* El detalle puede omitir createdAt: se conserva el de la observacion previa
+             * para no perder la comparacion con los documentos corregidos. */
+            createdAt: obs.createdAt ?? previa?.createdAt ?? detalle.updatedAt,
           });
         }
       } else if (doc.status === "observed" || doc.status === "rejected") {
         informado = true;
+        const previa = (previas ?? []).find((p) => p.documentId === doc.documentId);
         lista.push({
           documentId: doc.documentId,
           category: doc.category,
           title: doc.title,
           message: "El SGC observó este documento.",
           status: SGC_OBSERVACION_ESTADOS.OPEN,
+          createdAt: previa?.createdAt ?? detalle.updatedAt,
         });
       }
     }

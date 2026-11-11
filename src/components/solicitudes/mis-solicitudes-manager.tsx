@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 import { MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
@@ -403,13 +403,24 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     setClienteUploadOpen(true);
   };
 
-  /** Modo prueba (solo admin en "Ver como"): abre la firma sin ejecutar nada ni guardar cambios. */
-  const abrirPruebaFirma = async (row: SolicitudRow) => {
+  /** Modo prueba (solo admin en "Ver como"): abre la accion del cliente sin ejecutar nada. */
+  const abrirPruebaCliente = async (row: SolicitudRow, modo: "contrato" | "anexos") => {
     const data = await solicitudesService.detalle(row.id);
     setClienteUploadRow(data);
-    setClienteUploadModo("contrato");
+    setClienteUploadModo(modo);
     setClienteUploadPrueba(true);
     setClienteUploadOpen(true);
+  };
+
+  /** Modo prueba (solo admin en "Ver como"): abre la firma sin ejecutar nada ni guardar cambios. */
+  const abrirPruebaFirma = async (row: SolicitudRow) => {
+    await abrirPruebaCliente(row, "contrato");
+  };
+
+  /** Accion del cliente; en "Ver como" se abre en modo prueba. */
+  const abrirAccionCliente = (row: SolicitudRow, modo: "contrato" | "anexos") => {
+    if (soloLectura) void abrirPruebaCliente(row, modo);
+    else void openClienteUpload(row, modo);
   };
 
   /** Reenvio tras observacion local o devolucion del SGC: el backend valida y ejecuta. */
@@ -701,8 +712,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             </Button>
                           )}
                           {contratoClientePendienteFirma(row) && (
-                            <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                            <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                              onClick={() => abrirAccionCliente(row, "contrato")}>
                               <PenLine className="h-3.5 w-3.5" />
                               <span>Firmar contrato</span>
                             </Button>
@@ -722,16 +733,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
+                            {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && observacionContratoSgcPendiente(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                              title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
+                              onClick={() => abrirAccionCliente(row, "contrato")}>
                               <Upload className="h-3.5 w-3.5" />
-                              <span>Corregir: subir contrato firmado</span>
+                              <span>Firmar contrato</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                              title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                              onClick={() => abrirAccionCliente(row, "anexos")}>
                               <Upload className="h-3.5 w-3.5" />
                               <span>Subir / reemplazar documentos</span>
                             </Button>
@@ -849,8 +862,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               </Button>
                             )}
                             {contratoClientePendienteFirma(row) && (
-                              <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                                onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                              <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                onClick={() => abrirAccionCliente(row, "contrato")}>
                                 <PenLine className="h-3.5 w-3.5" />
                                 <span>Firmar contrato</span>
                               </Button>
@@ -870,16 +883,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
+                          {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && observacionContratoSgcPendiente(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
-                                onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                                title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
+                                onClick={() => abrirAccionCliente(row, "contrato")}>
                                 <Upload className="h-3.5 w-3.5" />
-                                <span>Corregir: subir contrato firmado</span>
+                                <span>Firmar contrato</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
-                                onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                                title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                                onClick={() => abrirAccionCliente(row, "anexos")}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Subir / reemplazar documentos</span>
                               </Button>
@@ -1311,8 +1326,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                      <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => abrirAccionCliente(detailRow, "contrato")}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
@@ -1346,7 +1361,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
                             {/* Observaciones de anexos del área legal (SGC) por documento */}
-              {!soloLectura && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
+              {(esAdmin || !soloLectura) && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
                 <ModalSection title="Acción requerida">
                   <div className={`flex flex-col gap-3 rounded-lg border p-3 ${observacionesSgcSubsanadas(detailRow) ? "border-success/30 bg-success/10" : "border-warning/30 bg-warning/10"}`}>
                     <div className="flex items-start gap-3">
@@ -1373,7 +1388,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     </div>
                     {!observacionesSgcSubsanadas(detailRow) && enVentanaDocumentosSgc(detailRow) && (
                       <Button size="sm" className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                        title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                        onClick={() => abrirAccionCliente(detailRow, "anexos")}>
                         <Upload className="h-3.5 w-3.5" />
                         <span>Subir / reemplazar documentos</span>
                       </Button>
@@ -1382,13 +1398,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || (tieneObservacionSgcContrato(detailRow) && !observacionesSgcSubsanadas(detailRow))) && (
+              {(esAdmin || !soloLectura) && detailRow && enVentanaSubsanacionSgc(detailRow) && !contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && observacionContratoSgcPendiente(detailRow) && (
                 <ModalSection title="Acción requerida">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                       <div>
-                        <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
+                        <p className="text-xs font-semibold text-destructive">Firmar contrato corregido</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                           {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El área legal observó el contrato. Corrígelo y fírmalo de nuevo."}
                         </p>
@@ -1405,7 +1421,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </ul>
                         )}
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
+                          Firma el contrato corregido para que la administración lo reenvíe al SGC.
                         </p>
                       </div>
                     </div>
@@ -1421,14 +1437,15 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                      <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => abrirAccionCliente(detailRow, "contrato")}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
                       {enVentanaDocumentosSgc(detailRow) && (
                         <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto"
-                          onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                          title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                          onClick={() => abrirAccionCliente(detailRow, "anexos")}>
                           <Upload className="h-3.5 w-3.5" />
                           <span>Subir / reemplazar documentos</span>
                         </Button>
@@ -1456,7 +1473,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   </div>
                   {enVentanaDocumentosSgc(detailRow) && (
                     <Button size="sm" variant="outline" className="w-full gap-1.5"
-                      onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                      title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                      onClick={() => abrirAccionCliente(detailRow, "anexos")}>
                       <Upload className="h-3.5 w-3.5" />
                       <span>Subir / reemplazar documentos</span>
                     </Button>

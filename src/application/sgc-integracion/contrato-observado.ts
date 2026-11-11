@@ -3,7 +3,7 @@ import type { ConfiguracionApplicationService } from "@/application/configuracio
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SgcObservacionDocumento } from "@/domain/models/sgc";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
-import { ESTADOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, ROLES, SGC_OBSERVACION_ESTADOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_DOCUMENTO_SOLICITUD, ROLES, SGC_OBSERVACION_ESTADOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -59,23 +59,15 @@ export async function procesarContratoObservadoSgc(params: {
         (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
     )
     .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0))[0];
+  const fechaObservacion = observacion.createdAt ?? detalle.updatedAt;
 
-  if (admin && dateUtils.isAfter(admin.createdAt, observacion.createdAt)) {
+  if (admin && dateUtils.isAfter(admin.createdAt, fechaObservacion)) {
     return { aplica: true, auto: false, yaRegenerado: true, error: null, observacion };
-  }
-  if (!admin || admin.origen !== ORIGENES_DOCUMENTO.GENERADO) {
-    return {
-      aplica: true,
-      auto: false,
-      yaRegenerado: false,
-      error: "El contrato observado no es generado por el sistema; requiere revision manual.",
-      observacion,
-    };
   }
   if (!params.contrato) {
     return { aplica: true, auto: false, yaRegenerado: false, error: "Servicio de contratos no disponible", observacion };
   }
-  if (dateUtils.toMs(observacion.createdAt) === null) {
+  if (dateUtils.toMs(fechaObservacion) === null) {
     return { aplica: true, auto: false, yaRegenerado: false, error: "La observacion no tiene fecha", observacion };
   }
 

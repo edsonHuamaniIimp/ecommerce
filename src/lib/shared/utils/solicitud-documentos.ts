@@ -193,6 +193,23 @@ export function observacionesSgcSubsanadas(s: SolicitudDocumentosGate): boolean 
 }
 
 /**
+ * True solo si la observacion del contrato sigue pendiente. No se deja arrastrar
+ * por una observacion de anexo que aun no se corrigio.
+ */
+export function observacionContratoSgcPendiente(s: SolicitudDocumentosGate): boolean {
+  const observaciones = sgcObservacionesAbiertas(s).filter(esObservacionSgcContrato);
+  if (observaciones.length === 0) return false;
+  const faltantes = estadoCorreccionSgc(s).faltantes;
+  return observaciones.some((o) =>
+    faltantes.some((f) =>
+      o.observationId
+        ? f.observationId === o.observationId
+        : f.title === (o.title ?? o.nombre ?? "Documento"),
+    ),
+  );
+}
+
+/**
  * Modo de subsanacion efectivo. Si la declaracion es previa a la columna `modo`
  * (null), se infiere del texto sugerido elegido por el admin (sin ediciones).
  */
@@ -444,18 +461,35 @@ export function contratoFirmadoPendienteReemplazo(s: SolicitudDocumentosGate): b
 export function contratoHabilitadoPendienteFirma(s: SolicitudDocumentosGate): boolean {
   if (
     s.contratoHabilitado !== true ||
-    s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE
+    (s.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE &&
+      s.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO)
   ) {
     return false;
   }
-  const firmado = (s.docsAdjuntos ?? [])
-    .filter((d) =>
-      (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
-      d.userId === s.userId &&
-      d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+  const docs = s.docsAdjuntos ?? [];
+  const vigente = (d: DocumentoLike) =>
+    !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+  const contratoAdmin = docs
+    .filter(
+      (d) =>
+        vigente(d) &&
+        d.userId === null &&
+        (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO ||
+          d.categoria === null ||
+          d.categoria === undefined),
     )
     .sort(porFechaDesc)[0];
-  return !firmado;
+  const firmado = docs
+    .filter(
+      (d) =>
+        vigente(d) &&
+        d.userId === s.userId &&
+        d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    )
+    .sort(porFechaDesc)[0];
+  if (!contratoAdmin) return !firmado;
+  if (!firmado) return true;
+  return (dateUtils.toMs(firmado.createdAt) ?? 0) < (dateUtils.toMs(contratoAdmin.createdAt) ?? 0);
 }
 
 /** El cliente solo puede firmar cuando el revisor habilito la firma. */
