@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, CardContent, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { Building2, CircleAlert, ClipboardList, FileSpreadsheet, Globe2, Loader2, RefreshCw } from "lucide-react";
+import { Building2, CircleAlert, ClipboardList, Download, FileSpreadsheet, Globe2, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { MapaMundialPaises } from "@/components/reportes/mapa-mundial-paises";
@@ -43,6 +43,7 @@ export default function ReportesSolicitudesPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncData, setSyncData] = useState<RespuestaSyncPaises | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingStands, setExportingStands] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
 
   const cargar = useCallback(
@@ -162,6 +163,30 @@ export default function ReportesSolicitudesPage() {
     }
   };
 
+  const exportarSolicitudesPreReservas = async () => {
+    setExportingStands(true);
+    try {
+      const qs = new URLSearchParams();
+      if (session?.eventoId) qs.set("eventoId", session.eventoId);
+      const response = await fetch(`/api/reportes/exportar-solicitudes-pre-reservas?${qs.toString()}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(payload?.error?.message ?? `No se pudo generar el Excel (${response.status})`);
+      }
+      const blob = await response.blob();
+      const disposicion = response.headers.get("Content-Disposition") ?? "";
+      const nombre = /filename="([^"]+)"/.exec(disposicion)?.[1] ?? "reporte-solicitudes-pre-reservas.xlsx";
+      archivoUtils.descargarBlob(blob, nombre);
+      toast.success("Excel de solicitudes y pre-reservas generado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo descargar el Excel");
+    } finally {
+      setExportingStands(false);
+    }
+  };
+
 
   const puedeSincronizar = session?.permissions?.includes(PERMISSIONS.EMPRESAS_MANAGE) ||
     session?.permissions?.includes(PERMISSIONS.ADMIN_FULL);
@@ -179,7 +204,7 @@ export default function ReportesSolicitudesPage() {
       tieneEvento
       ancho="amplio"
     >
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -189,6 +214,17 @@ export default function ReportesSolicitudesPage() {
         >
           {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
           <span>{exporting ? "Generando..." : "Descargar Excel"}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => void exportarSolicitudesPreReservas()}
+          disabled={exportingStands || loading}
+          title="Solo solicitudes y pre-reservas activas, una fila por stand"
+        >
+          {exportingStands ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+          <span>{exportingStands ? "Generando..." : "Solicitudes + pre-reservas"}</span>
         </Button>
       </div>
 

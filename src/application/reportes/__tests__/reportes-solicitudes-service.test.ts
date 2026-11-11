@@ -9,6 +9,7 @@ function repoFake(): IReportesSolicitudesRepository {
     empresasPorPais: vi.fn().mockResolvedValue([]),
     mapaPabellones: vi.fn().mockResolvedValue({ pabellones: [], bloques: [] }),
     exportacion: vi.fn().mockResolvedValue({ empresas: [], solicitudes: [], stands: [] }),
+    exportacionSolicitudesPreReservas: vi.fn().mockResolvedValue([]),
   };
 }
 

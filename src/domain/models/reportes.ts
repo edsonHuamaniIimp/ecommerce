@@ -89,3 +89,20 @@ export interface ReporteExportacion {
   solicitudes: ReporteExportacionSolicitud[];
   stands: ReporteExportacionStand[];
 }
+
+/** Fila unificada por stand: solicitud activa o pre-reserva activa. */
+export interface ReporteStandRegistro {
+  tipo: "solicitud" | "pre_reserva";
+  standCode: string | null;
+  bloqueId: string | null;
+  pabellon: string | null;
+  empresa: string | null;
+  ruc: string | null;
+  sie: string | null;
+  estado: string | null;
+  email: string | null;
+  fecha: string | null;
+  nota: string | null;
+}
+
+export type ReporteSolicitudesPreReservas = ReporteStandRegistro[];

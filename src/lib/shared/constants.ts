@@ -662,6 +662,19 @@ export const REPORTES_ALCANCES = {
 
 export type ReporteAlcance = (typeof REPORTES_ALCANCES)[keyof typeof REPORTES_ALCANCES];
 
+/** Origen de cada fila del reporte unificado por stand. */
+export const REPORTES_TIPOS_REGISTRO = {
+  SOLICITUD: "solicitud",
+  PRE_RESERVA: "pre_reserva",
+} as const;
+
+export type ReporteTipoRegistro = (typeof REPORTES_TIPOS_REGISTRO)[keyof typeof REPORTES_TIPOS_REGISTRO];
+
+export const REPORTES_TIPOS_REGISTRO_LABELS: Record<ReporteTipoRegistro, string> = {
+  [REPORTES_TIPOS_REGISTRO.SOLICITUD]: "Solicitud",
+  [REPORTES_TIPOS_REGISTRO.PRE_RESERVA]: "Pre-reservado",
+};
+
 export const REPORTES_VISTAS = {
   PAISES: "paises",
   PABELLONES: "pabellones",

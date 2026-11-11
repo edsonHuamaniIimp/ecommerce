@@ -1,8 +1,8 @@
 import ExcelJS from "exceljs";
-import { ESTADOS_SOLICITUD_LABELS } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD_LABELS, REPORTES_TIPOS_REGISTRO, REPORTES_TIPOS_REGISTRO_LABELS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { nombrePais } from "@/lib/shared/utils/pais";
-import type { ReporteExportacion } from "@/domain/models/reportes";
+import type { ReporteExportacion, ReporteSolicitudesPreReservas } from "@/domain/models/reportes";
 
 interface MetadataExportacion {
   eventoId?: string;
@@ -151,6 +151,56 @@ export async function construirExcelReporte(
     activa: siNo(fila.activa),
     tipoStand: fila.tipoStand ?? "",
     precio: fila.precio,
+  })));
+
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+export async function construirExcelSolicitudesPreReservas(
+  filas: ReporteSolicitudesPreReservas,
+  metadata: { eventoId?: string; generadoEn: Date },
+): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "IIMP ContratosStands";
+  workbook.created = metadata.generadoEn;
+
+  const totalSolicitudes = filas.filter((fila) => fila.tipo === REPORTES_TIPOS_REGISTRO.SOLICITUD).length;
+  const totalPreReservas = filas.filter((fila) => fila.tipo === REPORTES_TIPOS_REGISTRO.PRE_RESERVA).length;
+
+  agregarHoja(workbook, "Resumen", [
+    { header: "Campo", key: "campo", width: 28 },
+    { header: "Valor", key: "valor", width: 32 },
+  ], [
+    { campo: "Generado", valor: dateUtils.formatDateTime(metadata.generadoEn.toISOString()) },
+    { campo: "Evento", valor: metadata.eventoId ?? "Todos" },
+    { campo: "Alcance", valor: "Solo activos" },
+    { campo: "Filas por stand", valor: filas.length },
+    { campo: "Solicitudes", valor: totalSolicitudes },
+    { campo: "Pre-reservas", valor: totalPreReservas },
+  ]);
+
+  agregarHoja(workbook, "Solicitudes y pre-reservas", [
+    { header: "Tipo de registro", key: "tipo", width: 18 },
+    { header: "Stand", key: "stand", width: 16 },
+    { header: "Pabellón", key: "pabellon", width: 32 },
+    { header: "Empresa / título", key: "empresa", width: 42 },
+    { header: "RUC / RUT", key: "ruc", width: 18 },
+    { header: "SIE", key: "sie", width: 16 },
+    { header: "Estado solicitud", key: "estado", width: 18 },
+    { header: "Correo", key: "email", width: 34 },
+    { header: "Fecha", key: "fecha", width: 22 },
+    { header: "Nota", key: "nota", width: 36 },
+  ], filas.map((fila) => ({
+    tipo: REPORTES_TIPOS_REGISTRO_LABELS[fila.tipo] ?? fila.tipo,
+    stand: fila.standCode ?? "",
+    pabellon: fila.pabellon ?? "",
+    empresa: fila.empresa ?? "",
+    ruc: fila.ruc ?? "",
+    sie: fila.sie ?? "",
+    estado: fila.tipo === REPORTES_TIPOS_REGISTRO.SOLICITUD ? textoEstado(fila.estado) : "",
+    email: fila.email ?? "",
+    fecha: fila.fecha ? dateUtils.formatDateTime(fila.fecha) : "",
+    nota: fila.nota ?? "",
   })));
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
