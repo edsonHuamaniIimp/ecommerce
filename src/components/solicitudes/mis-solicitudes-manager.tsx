@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine, Settings2 } from "lucide-react";
+import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine, Settings2, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -23,7 +23,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
@@ -293,6 +293,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
   const [clienteUploadModo, setClienteUploadModo] = useState<"contrato" | "anexos">("anexos");
+  const [clienteUploadPrueba, setClienteUploadPrueba] = useState(false);
   /** RF-08: preview del recorte del pabellon con el stand destacado. */
   const [recorteBloque, setRecorteBloque] = useState<{ solicitudId: string; bloqueIds: string[]; etiqueta: string } | null>(null);
   const [guardandoRecorte, setGuardandoRecorte] = useState(false);
@@ -302,6 +303,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
   const { session: sesion } = useSesion();
+  const esAdmin = Boolean(sesion?.permissions?.includes(PERMISSIONS.ADMIN_FULL));
   const puedePagar = (row: SolicitudRow) => !soloLectura && puedePagarNiubizz(row);
   const puedeReevaluar = (row: SolicitudRow) => !soloLectura && puedeSolicitarReevaluacion(row);
 
@@ -397,6 +399,16 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     const data = await solicitudesService.detalle(row.id);
     setClienteUploadRow(data);
     setClienteUploadModo(modo);
+    setClienteUploadPrueba(false);
+    setClienteUploadOpen(true);
+  };
+
+  /** Modo prueba (solo admin en "Ver como"): abre la firma sin ejecutar nada ni guardar cambios. */
+  const abrirPruebaFirma = async (row: SolicitudRow) => {
+    const data = await solicitudesService.detalle(row.id);
+    setClienteUploadRow(data);
+    setClienteUploadModo("contrato");
+    setClienteUploadPrueba(true);
     setClienteUploadOpen(true);
   };
 
@@ -695,6 +707,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Firmar contrato</span>
                             </Button>
                           )}
+                          {esAdmin && soloLectura && (
+                            <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
+                              title="Modo prueba: no guarda ni firma nada"
+                              onClick={() => { void abrirPruebaFirma(row); }}>
+                              <FlaskConical className="h-3.5 w-3.5" />
+                              <span>Probar firma</span>
+                            </Button>
+                          )}
                           {!soloLectura && enVentanaLegalSgc(row) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 border-border sm:w-auto"
                               onClick={() => { void openClienteUpload(row, "anexos"); }}>
@@ -835,6 +855,14 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Firmar contrato</span>
                               </Button>
                             )}
+                            {esAdmin && soloLectura && (
+                              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
+                                title="Modo prueba: no guarda ni firma nada"
+                                onClick={() => { void abrirPruebaFirma(row); }}>
+                                <FlaskConical className="h-3.5 w-3.5" />
+                                <span>Probar firma</span>
+                              </Button>
+                            )}
                             {!soloLectura && enVentanaLegalSgc(row) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 border-border text-xs"
                                 onClick={() => { void openClienteUpload(row, "anexos"); }}>
@@ -953,6 +981,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
             <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
               <DialogTitle className="text-sm font-semibold text-foreground">Estado de solicitud</DialogTitle>
               <div className="flex items-center gap-2">
+                {esAdmin && soloLectura && detailRow && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 rounded-full px-2.5 text-[10px]"
+                    title="Abre la firma en modo prueba: no guarda ni firma nada"
+                    onClick={() => { void abrirPruebaFirma(detailRow); }}
+                  >
+                    <FlaskConical className="h-3 w-3" />
+                    <span>Probar firma</span>
+                  </Button>
+                )}
                 {detailRow && !soloLectura && puedeCambiarMonedaSolicitud(detailRow) && (
                   <Button
                     variant="ghost"
@@ -1600,7 +1640,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
             <ClienteUploadModal
               solicitud={clienteUploadRow}
               modo={clienteUploadModo}
-              onClose={() => setClienteUploadOpen(false)}
+              modoPrueba={clienteUploadPrueba}
+              onClose={() => { setClienteUploadOpen(false); setClienteUploadPrueba(false); }}
               onSaved={() => {
                 void load(page, search, perPage);
                 if (detailOpen && detailRow) void openDetail(detailRow.id);

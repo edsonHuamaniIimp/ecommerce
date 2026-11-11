@@ -21,6 +21,8 @@ interface Props {
   solicitud: SolicitudDTO;
   /** "contrato" = subir el contrato firmado; "anexos" = documentos anexos del SGC. */
   modo?: "contrato" | "anexos";
+  /** Modo prueba (solo admin en "Ver como"): permite probar la firma sin guardar ni firmar nada. */
+  modoPrueba?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -58,7 +60,7 @@ function separarNombreCompleto(nombre: string): { nombres: string; apellidos: st
   return { nombres: partes.slice(0, -2).join(" "), apellidos: partes.slice(-2).join(" ") };
 }
 
-export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
+export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = false, onClose, onSaved }: Props) {
   const esContrato = modo === "contrato";
   /** Politica fija: solo firma digital, sin subida manual del contrato. */
   /* Politica fija: todo contrato se firma digitalmente desde Mis solicitudes. */
@@ -136,6 +138,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   }, [solicitud.id, cargarFirmantes]);
 
   const handleUpload = async (file: File) => {
+    if (modoPrueba) { toast.info("Modo prueba: no se guardan documentos."); return; }
     /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
     if (requisitoRef.current || !esContrato) {
       const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
@@ -172,6 +175,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   };
 
   const handleEnviar = async () => {
+    if (modoPrueba) { toast.info("Modo prueba: no se envía nada."); return; }
     if (pendientes.length === 0) return;
     setSending(true);
     setError(null);
@@ -292,6 +296,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     imagen?: string;
     secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
   }>) => {
+    if (modoPrueba) {
+      toast.info("Modo prueba: no se firmó nada.");
+      onClose();
+      return;
+    }
     const capturasCompletas = Boolean(sellos?.length) &&
       sellos!.every((s) => s.esSello || Boolean(s.imagen));
     if (!capturasCompletas && !firmasCompletas) {
@@ -330,6 +339,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const abrirFirmaWorkspace = async () => {
     if (abriendoFirma) return;
     const existente = contratoPreviewUrl ?? contratoAdmin?.url ?? null;
+    if (modoPrueba && !existente) {
+      toast.info("Modo prueba: esta solicitud aún no tiene contrato para probar.");
+      return;
+    }
     if (existente) {
       if (!/\.pdf($|\?)/i.test(existente)) {
         setError("El contrato vigente no tiene una version PDF para previsualizar.");
@@ -409,6 +422,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
+        {modoPrueba && (
+          <p className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-[11px] font-semibold text-warning">
+            MODO PRUEBA: puedes probar el flujo de firma, pero no se guardará ni se firmará nada.
+          </p>
+        )}
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
           {soloFirmaDigital ? (
             <p className="text-[11px] font-semibold text-foreground">
@@ -735,7 +753,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                     </Badge>
                   )}
                   {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                  {!soloFirmaDigital && puedeEliminarDoc(doc) && (
+                  {!modoPrueba && !soloFirmaDigital && puedeEliminarDoc(doc) && (
                     <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
                       onClick={() => setDeleteConfirm(doc.id)}>
                       <Trash2 className="h-3 w-3" />
@@ -883,6 +901,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           contratoUrl={contratoPreviewUrl}
           firmantes={firmantes}
           pngOriginales={pngOriginales}
+          modoPrueba={modoPrueba}
           onPendienteAutomatico={(fn) => { resumeAutomaticoRef.current = fn; }}
           onRepresentantesActualizados={async () => {
             await cargarFirmantes();

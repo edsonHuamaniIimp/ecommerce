@@ -58,6 +58,8 @@ interface Props {
   contratoUrl: string;
   firmantes: FirmanteFirma[];
   pngOriginales?: Record<string, string>;
+  /** Modo prueba: no guarda firmas, no regenera ni firma el contrato. */
+  modoPrueba?: boolean;
   onPendienteAutomatico?: (resume: () => void) => void;
   onRepresentantesActualizados?: () => Promise<void>;
   onFinalizar: (sellos: SelloVectorialEnvio[]) => Promise<void>;
@@ -531,6 +533,7 @@ export function FirmaContratoWorkspace({
   contratoUrl,
   firmantes,
   pngOriginales,
+  modoPrueba = false,
   onPendienteAutomatico,
   onRepresentantesActualizados,
   onFinalizar,
@@ -551,6 +554,8 @@ export function FirmaContratoWorkspace({
   const [repsSaving, setRepsSaving] = useState(false);
   const [repsForm, setRepsForm] = useState<RepresentanteAdicionalForm[]>([]);
   const [repsErrores, setRepsErrores] = useState<RepresentanteAdicionalErrores[]>([]);
+  const [previewFirmado, setPreviewFirmado] = useState<string | null>(null);
+  const [generandoPreview, setGenerandoPreview] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
@@ -723,6 +728,7 @@ export function FirmaContratoWorkspace({
   };
 
   const guardarReps = async () => {
+    if (modoPrueba) return;
     const errores = erroresRepresentantesAdicionales(repsForm);
     if (errores.some((e) => Object.keys(e).length > 0)) {
       setRepsErrores(errores);
@@ -767,6 +773,10 @@ export function FirmaContratoWorkspace({
 
   const firmarAutomaticamente = async () => {
     if (finalizando || guardando) return;
+    if (modoPrueba) {
+      await generarPreviewFirmado();
+      return;
+    }
 
     const firmantesAuto: FirmanteFirma[] = firmantes;
     if (slotsFirmados > 0) {
@@ -880,7 +890,70 @@ export function FirmaContratoWorkspace({
       };
     });
 
+  const generarPreviewFirmado = async () => {
+    if (!pdf) return;
+    setGenerandoPreview(true);
+    setError(null);
+    try {
+      const respuesta = await fetch(contratoUrl);
+      const bytes = new Uint8Array(await respuesta.arrayBuffer());
+      const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+      const documento = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const fuente = await documento.embedFont(StandardFonts.Helvetica);
+      const fuenteNegrita = await documento.embedFont(StandardFonts.HelveticaBold);
+      const colorSello = rgb(0.106, 0.212, 0.365);
+
+      for (const slot of pdf.slots) {
+        const firmante = firmantes[slot.signerIndex];
+        if (!firmante) continue;
+        const pagina = documento.getPage(slot.pageNumber - 1);
+        if (!pagina) continue;
+        const x = slot.x * PAGE_ANCHO_A4;
+        const w = slot.w * PAGE_ANCHO_A4;
+        const h = slot.h * PAGE_ALTO_A4;
+        const y = (1 - (slot.y + slot.h)) * PAGE_ALTO_A4;
+
+        if (selloPorFirmante[firmante.key]) {
+          pagina.drawRectangle({ x, y, width: w, height: h, borderColor: colorSello, borderWidth: 1.4 });
+          const centro = x + w / 2;
+          const linea = (texto: string, size: number, baseY: number, negrita: boolean) => {
+            const activa = negrita ? fuenteNegrita : fuente;
+            const maxWidth = Math.max(10, w - 8);
+            let tamano = size;
+            const anchoBase = activa.widthOfTextAtSize(texto, tamano);
+            if (anchoBase > maxWidth) tamano = size * (maxWidth / anchoBase);
+            const ancho = activa.widthOfTextAtSize(texto, tamano);
+            pagina.drawText(texto, { x: centro - ancho / 2, y: baseY, size: tamano, font: activa, color: colorSello });
+          };
+          linea("Firmado digitalmente por", 6.5, y + h - 10, false);
+          linea((firmante.nombres?.trim() || firmante.nombre).toUpperCase(), 8, y + h - 20, true);
+          linea((firmante.apellidos?.trim() || "").toUpperCase(), 8, y + h - 29, true);
+          linea(dateUtils.formatDateTime(new Date()), 6, y + h - 38.5, false);
+          continue;
+        }
+
+        const url = firmaSlotDe(slot.signerIndex, slot.tipo) ?? pngOriginales?.[firmante.key] ?? null;
+        if (!url) continue;
+        const imagenBytes = await (await fetch(url)).arrayBuffer();
+        const imagen = await documento.embedPng(imagenBytes);
+        pagina.drawImage(imagen, { x, y, width: w, height: h });
+      }
+
+      const salida = await documento.save();
+      const blob = new Blob([salida as BlobPart], { type: "application/pdf" });
+      setPreviewFirmado(URL.createObjectURL(blob));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo generar la vista previa del contrato firmado.");
+    } finally {
+      setGenerandoPreview(false);
+    }
+  };
+
   const finalizar = async () => {
+    if (modoPrueba) {
+      await generarPreviewFirmado();
+      return;
+    }
     const sinFirma = firmantes.filter((_f, index) => !firmanteCompleto(index));
     if (sinFirma.length > 0) {
       setError(`Falta la firma de: ${sinFirma.map((f) => f.nombre).join(", ")}. Captúrala con cursor o sello antes de firmar.`);
@@ -913,6 +986,11 @@ export function FirmaContratoWorkspace({
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Revisa el contrato y firma en las secciones marcadas. Hay {firmantes.length} firmante(s) y {slotsTotales} sección(es) por firmar.
               </p>
+              {modoPrueba && (
+                <p className="mt-1 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-[10px] font-semibold text-warning">
+                  MODO PRUEBA: puedes probar el flujo completo, pero no se guardará ni se firmará nada.
+                </p>
+              )}
             </div>
             <Badge className="pointer-events-none shrink-0 gap-1 bg-primary/10 text-[10px] text-primary">
               <PenLine className="h-3 w-3" />
@@ -980,13 +1058,15 @@ export function FirmaContratoWorkspace({
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  className="mt-2 w-full text-left text-[10px] font-medium text-primary underline underline-offset-2"
-                  onClick={() => { void abrirReps(); }}
-                >
-                  ¿Necesitas quitar o agregar un firmante adicional?
-                </button>
+                {!modoPrueba && (
+                  <button
+                    type="button"
+                    className="mt-2 w-full text-left text-[10px] font-medium text-primary underline underline-offset-2"
+                    onClick={() => { void abrirReps(); }}
+                  >
+                    ¿Necesitas quitar o agregar un firmante adicional?
+                  </button>
+                )}
               </div>
 
               {firmante && (
@@ -1191,6 +1271,52 @@ export function FirmaContratoWorkspace({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog
+        open={Boolean(previewFirmado)}
+        onOpenChange={(open) => {
+          if (!open && previewFirmado) {
+            URL.revokeObjectURL(previewFirmado);
+            setPreviewFirmado(null);
+          }
+        }}
+      >
+        <DialogContent className="overflow-hidden rounded-xl border-border sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Vista previa del contrato firmado (modo prueba)</DialogTitle>
+          </DialogHeader>
+          {previewFirmado && (
+            <iframe
+              src={previewFirmado}
+              title="Contrato firmado (modo prueba)"
+              className="h-[70vh] w-full rounded border border-border bg-white"
+            />
+          )}
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (previewFirmado) URL.revokeObjectURL(previewFirmado);
+                setPreviewFirmado(null);
+              }}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {generandoPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+          <div className="flex flex-col items-center gap-3 rounded-xl bg-background px-6 py-5 shadow-lg">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm font-semibold text-foreground">Generando vista previa del contrato firmado...</p>
+            <p className="text-xs text-muted-foreground">Modo prueba: no se guardará nada.</p>
+          </div>
+        </div>
+      )}
 
       <Dialog open={repsOpen} onOpenChange={(open) => { if (!repsSaving) setRepsOpen(open); }}>
         <DialogContent className="overflow-hidden rounded-xl border-border sm:max-w-2xl">
