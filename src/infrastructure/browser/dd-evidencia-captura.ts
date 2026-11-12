@@ -1,7 +1,10 @@
 ﻿import "server-only";
 
-import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 import { DomainError } from "@/domain/errors/domain-error";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
@@ -150,6 +153,85 @@ function normalizarTexto(texto: string): string {
     .toLowerCase();
 }
 
+/** Barra de búsqueda tipo navegador para la constancia. */
+function htmlBarraBusqueda(termino: string, coincidencias: number, detalle: string): string {
+  const contador = coincidencias > 0 ? `1 de ${coincidencias}` : "Sin coincidencias";
+  return `<div style="display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid #dadce0;border-radius:8px;padding:7px 12px;box-shadow:0 1px 3px rgba(0,0,0,.18);font:13px Arial,sans-serif">
+    <span style="font-size:14px">&#128269;</span>
+    <span style="min-width:240px;border-bottom:1px solid #dadce0;padding:2px 2px">${escaparHtml(termino)}</span>
+    <span style="color:#5f6368">${contador}</span>
+    <span style="color:#5f6368">&#10005;</span>
+    <span style="color:#9aa0a6;font-size:11px">${escaparHtml(detalle)}</span>
+  </div>`;
+}
+
+/** Captura la primera página del PDF en el visor de Chrome (imagen para la constancia). */
+async function capturarPrimeraPaginaPdf(datos: Uint8Array): Promise<string> {
+  const rutaTemporal = path.join(os.tmpdir(), `dd-${randomUUID()}.pdf`);
+  writeFileSync(rutaTemporal, Buffer.from(datos));
+
+  const browser = await chromium.launch({
+    executablePath: chromePath(),
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+
+  try {
+    const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(`${pathToFileURL(rutaTemporal).href}#page=1`, {
+      waitUntil: "load",
+      timeout: 45000,
+    });
+    await page.waitForTimeout(3500);
+    const captura = await page.screenshot({ type: "png", fullPage: false });
+    return Buffer.from(captura).toString("base64");
+  } finally {
+    await browser.close();
+    try {
+      unlinkSync(rutaTemporal);
+    } catch {
+      /* el temporal se limpia en el siguiente arranque */
+    }
+  }
+}
+
+/** Tabla HTML con las primeras filas de la hoja (para la constancia XLSX). */
+function tablaHojaHtml(libro: import("exceljs").Workbook): string {
+  const hoja = libro.worksheets.find((actual) => actual.rowCount > 1) ?? libro.worksheets[0];
+  if (!hoja) return "";
+
+  const maxFilas = Math.min(hoja.rowCount, 15);
+  const maxColumnas = Math.min(Math.max(hoja.columnCount, 1), 10);
+  const letra = (numero: number) => {
+    let resultado = "";
+    let valor = numero;
+    while (valor > 0) {
+      const resto = (valor - 1) % 26;
+      resultado = String.fromCharCode(65 + resto) + resultado;
+      valor = Math.floor((valor - 1) / 26);
+    }
+    return resultado;
+  };
+
+  const cabecera = Array.from({ length: maxColumnas }, (_, indice) => `<th>${letra(indice + 1)}</th>`).join("");
+  const filas: string[] = [];
+  for (let numero = 1; numero <= maxFilas; numero += 1) {
+    const fila = hoja.getRow(numero);
+    const celdas: string[] = [];
+    for (let columna = 1; columna <= maxColumnas; columna += 1) {
+      const valor = (fila.getCell(columna).text ?? "").trim().slice(0, 90);
+      celdas.push(`<td>${escaparHtml(valor)}</td>`);
+    }
+    filas.push(`<tr><th>${numero}</th>${celdas.join("")}</tr>`);
+  }
+
+  return `<table style="border-collapse:collapse;width:100%;font:10px Arial,sans-serif;margin-top:12px">
+    <thead><tr><th style="background:#f1f3f4;border:1px solid #dadce0;width:24px"></th>${cabecera.replaceAll("<th>", '<th style="background:#f1f3f4;border:1px solid #dadce0">')}</tr></thead>
+    <tbody>${filas.join("").replaceAll("<td>", '<td style="border:1px solid #e0e0e0;padding:2px 4px">')}</tbody>
+  </table>`;
+}
+
 /** Renderiza una constancia HTML a PDF usando Chrome headless. */
 async function renderizarConstancia(html: string): Promise<Buffer> {
   const browser = await chromium.launch({
@@ -232,18 +314,18 @@ async function capturarBusquedaEnPdf(
         .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
         .join("")}</ul>`
     : `<p style="font-size:13px">Sin coincidencias en la lista oficial descargada para esta búsqueda.</p>`;
+  const visor = await capturarPrimeraPaginaPdf(datos);
 
   const html = `<!doctype html><html><head><meta charset="utf-8"></head>
     <body style="font-family:Arial,sans-serif;margin:4px">
-      <h1 style="font-size:16px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
-      <p style="font-size:12px;color:#444;margin:0 0 12px">
-        Término buscado: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · ${fecha}<br>
-        Fuente: ${escaparHtml(url)}<br>
-        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${paginas} páginas · SHA-256: ${hash}
-      </p>
+      <h1 style="font-size:16px;margin:0 0 8px">${escaparHtml(nombre)}</h1>
+      ${htmlBarraBusqueda(termino, coincidencias, `${paginas} páginas`)}
+      <img style="width:100%;border:1px solid #d0d0d0;margin-top:12px" src="data:image/png;base64,${visor}">
       ${lista}
-      <p style="font-size:11px;color:#666;margin-top:16px">
-        Constancia de búsqueda automática sobre la lista oficial. No se adjunta el listado completo.
+      <p style="font-size:11px;color:#555;margin-top:14px;line-height:1.5">
+        Fuente: ${escaparHtml(url)}<br>
+        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${paginas} páginas · SHA-256: ${hash}<br>
+        Búsqueda automática del término "${escaparHtml(termino)}" sobre la lista oficial · ${fecha}. No se adjunta el listado completo.
       </p>
     </body></html>`;
 
@@ -313,18 +395,19 @@ async function capturarBusquedaEnXlsx(
         .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
         .join("")}</ul>`
     : `<p style="font-size:13px">Sin coincidencias en la hoja de cálculo oficial para esta búsqueda.</p>`;
+  const tabla = tablaHojaHtml(libro);
+  const totalFilas = libro.worksheets[0]?.rowCount ?? 0;
 
   const html = `<!doctype html><html><head><meta charset="utf-8"></head>
     <body style="font-family:Arial,sans-serif;margin:4px">
-      <h1 style="font-size:16px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
-      <p style="font-size:12px;color:#444;margin:0 0 12px">
-        Término buscado: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · ${fecha}<br>
-        Fuente: ${escaparHtml(url)}<br>
-        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${libro.worksheets.length} hoja(s) · SHA-256: ${hash}
-      </p>
+      <h1 style="font-size:16px;margin:0 0 8px">${escaparHtml(nombre)}</h1>
+      ${htmlBarraBusqueda(termino, coincidencias, `${totalFilas} filas`)}
+      ${tabla}
       ${lista}
-      <p style="font-size:11px;color:#666;margin-top:16px">
-        Constancia de búsqueda automática sobre la hoja de cálculo oficial. No se adjunta el archivo completo.
+      <p style="font-size:11px;color:#555;margin-top:14px;line-height:1.5">
+        Fuente: ${escaparHtml(url)}<br>
+        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${libro.worksheets.length} hoja(s) · SHA-256: ${hash}<br>
+        Búsqueda automática del término "${escaparHtml(termino)}" en la hoja de cálculo oficial · ${fecha}.
       </p>
     </body></html>`;
 
