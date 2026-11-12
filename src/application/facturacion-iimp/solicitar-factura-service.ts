@@ -184,7 +184,7 @@ export class SolicitarFacturaApplicationService {
     if (enlace && !/^https?:\/\/\S+$/i.test(enlace)) {
       throw new DomainError("El enlace de la plataforma debe ser una URL http(s) valida", API_ERROR_CODES.VALIDATION, 400);
     }
-    return {
+    const normalizado: RequisitosFacturacionInput = {
       oc: input.oc === true,
       hes: input.hes === true,
       plataforma: input.plataforma === true,
@@ -194,6 +194,23 @@ export class SolicitarFacturaApplicationService {
       otros: (input.otros ?? "").trim() || null,
       ninguna: input.ninguna === true,
     };
+    /* El cliente debe declarar al menos un requisito (o marcar "Ninguna"); el modal
+       envia un objeto aun sin seleccion, por eso se valida aqui y no en el null. */
+    const declaro =
+      normalizado.oc ||
+      normalizado.hes ||
+      normalizado.plataforma ||
+      normalizado.valorizacion ||
+      Boolean(normalizado.otros) ||
+      normalizado.ninguna;
+    if (!declaro) {
+      throw new DomainError(
+        "Declara al menos un requisito o marca 'Ninguna de las anteriores'",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    return normalizado;
   }
 
   /** Arma el payload del IIMP desde el snapshot (preferente) y la empresa (enriquecimiento). */

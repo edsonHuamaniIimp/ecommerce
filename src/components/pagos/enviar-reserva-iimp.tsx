@@ -187,10 +187,22 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
   ];
   const cuotaDocumentos = cuotaNumero && cuotaNumero > 0 ? cuotaNumero : null;
   const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
+  /** Debe declarar al menos un requisito o marcar explicitamente "Ninguna de las anteriores". */
+  const sinRequisitoDeclarado =
+    !requisitos.oc &&
+    !requisitos.hes &&
+    !requisitos.plataforma &&
+    !requisitos.valorizacion &&
+    !Boolean((requisitos.otros ?? "").trim()) &&
+    !requisitos.ninguna;
 
   /** Valida requisitos y documentos; luego envia la solicitud de factura. */
   const enviar = async () => {
     if (!cuotaId) return;
+    if (sinRequisitoDeclarado) {
+      setError("Selecciona al menos un requisito o marca \"Ninguna de las anteriores\".");
+      return;
+    }
     if (requisitos.plataforma) {
       if (!requisitos.plataformaNombre?.trim()) {
         setError("Indica el nombre de la plataforma.");
@@ -377,6 +389,15 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
               </p>
             )}
 
+            {sinRequisitoDeclarado && (
+              <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] font-medium text-foreground" role="status">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <span>
+                  Selecciona al menos un requisito o marca <strong>&quot;Ninguna de las anteriores&quot;</strong> para habilitar el envío.
+                </span>
+              </p>
+            )}
+
             <p className="text-[11px] text-muted-foreground">
               <span>
                 Los requisitos y documentos son referenciales: Facturación y Cobranzas valida los pagos
@@ -393,7 +414,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
         </div>
 
         <DialogFooter>
-          <Button className="w-full" disabled={enviando || faltantes.length > 0} onClick={() => { void enviar(); }}>
+          <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado} onClick={() => { void enviar(); }}>
             {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
             <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
           </Button>

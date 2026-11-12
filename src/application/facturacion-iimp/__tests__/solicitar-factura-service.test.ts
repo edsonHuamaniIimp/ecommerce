@@ -174,6 +174,12 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ requisitos: null }));
   });
 
+  it("rechaza una declaracion de requisitos vacia (400)", async () => {
+    const m = mocks();
+    await expect(servicio(m).solicitar("c1", ident, [], {})).rejects.toMatchObject({ status: 400 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
   it("acepta la OC y la HES asociadas a la primera cuota", async () => {
     const m = mocks();
     await expect(servicio(m).solicitar("c1", ident, [
