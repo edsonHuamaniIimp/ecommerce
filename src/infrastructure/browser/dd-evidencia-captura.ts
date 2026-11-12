@@ -432,18 +432,19 @@ export async function capturarEvidenciaPdf(
     }
     await page.waitForTimeout(1500);
 
-    /* Listas consolidadas sin buscador propio (ONU, DEA): la evidencia es la
-       captura de la búsqueda (Ctrl+F) del término, no el listado completo. */
-    if (
-      url.includes("scsanctions.un.org/consolidated") ||
-      url.includes("dea.gov/fugitives")
-    ) {
+    /* Lista consolidada sin buscador propio (ONU): la evidencia es la captura
+       de la búsqueda (Ctrl+F) del término, no el listado completo. */
+    if (url.includes("scsanctions.un.org/consolidated")) {
       return await capturarBusquedaEnLista(page, nombre, termino, url);
     }
 
     /* OpenSanctions/DEA ya traen el término en la URL; en el resto se busca en el formulario. */
     if (!url.includes("?q=") && !url.includes("?keywords=")) {
       await buscarEnPagina(page, termino, inputSelector);
+      /* Portales con formulario propio (DEA): constancia con la búsqueda aplicada. */
+      if (url.includes("dea.gov/fugitives")) {
+        return await capturarBusquedaEnLista(page, nombre, termino, page.url());
+      }
     } else {
       await page.waitForTimeout(3000);
     }
