@@ -73,8 +73,10 @@ Navegación **lineal**: no se avanza de paso si el anterior sigue `pendiente` (`
 
 El contrato de exhibición imprime el cronograma fijo elegido en el wizard (1 cuota 100%,
 2 cuotas 50/50 o 3 cuotas 40/30/30) y usa la Modalidad 4 cuando la empresa tiene un
-cronograma personalizado configurado por el administrador (el cliente solo edita los
-porcentajes). Ver [`13-cuotas-y-contrato.md`](./13-cuotas-y-contrato.md).
+cronograma personalizado configurado por el administrador. En la Modalidad 4 el
+administrador define fechas y porcentajes; el cliente solo visualiza (o edita
+porcentajes solo en configuraciones legacy sin porcentajes). Ver
+[`13-cuotas-y-contrato.md`](./13-cuotas-y-contrato.md).
 
 ## 5. Estados y transiciones
 

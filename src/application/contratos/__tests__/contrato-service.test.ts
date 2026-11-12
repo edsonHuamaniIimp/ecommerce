@@ -247,6 +247,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const configCuotas = {
       maxCuotas: 3,
       fechas: ["2026-11-15", "2027-02-15", "2027-06-15"],
+      porcentajes: [50, 25, 25],
     };
     const { svc, storage, solicitudes } = build({ empresa: { configCuotas } });
 
@@ -271,6 +272,31 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
       "11111111-1111-4111-8111-111111111111",
       expect.objectContaining({ modalidad: MODOS_PAGO.PERSONALIZADO }),
     );
+  });
+
+  it("rechaza porcentajes distintos a los fijados por el administrador", async () => {
+    const { svc, storage } = build({
+      empresa: {
+        configCuotas: {
+          maxCuotas: 2,
+          fechas: ["2026-11-20", "2027-06-15"],
+          porcentajes: [60, 40],
+        },
+      },
+    });
+
+    await expect(
+      svc.generar({
+        solicitudId: "11111111-1111-4111-8111-111111111111",
+        cuotas: [
+          { porcentaje: 50, fechaVencimiento: "2026-11-20" },
+          { porcentaje: 50, fechaVencimiento: "2027-06-15" },
+        ],
+        userSub: "user-1",
+        userPermissions: [],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(storage.upload).not.toHaveBeenCalled();
   });
 
   it("acepta N cuotas en el cronograma personalizado (ejemplo: 4)", async () => {

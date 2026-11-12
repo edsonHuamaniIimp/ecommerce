@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, CheckCircle2, CreditCard, FileSignature, FileText, ShieldCheck } from "lucide-react";
 import { Input, Label } from "@nrivera-iimp/ui-kit-iimp";
-import { BADGE_STYLES, MODALIDADES_CUOTAS, PORCENTAJES_POR_MODALIDAD, VALIDACIONES, type ModalidadCuotas } from "@/lib/shared/constants";
+import { BADGE_STYLES, CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOTAL, MODALIDADES_CUOTAS, PORCENTAJES_POR_MODALIDAD, VALIDACIONES, type ModalidadCuotas } from "@/lib/shared/constants";
 import { importesEnMoneda, MONEDAS_CONTRATO, simboloMoneda, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
-import { configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
+import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
@@ -111,6 +111,7 @@ export function StepPagos({ precios, moneda, tipoCambio, onMonedaChange, configC
   );
 
   const personalizado = configCuotasValida(configCuotas, hoy);
+  const porcentajesFijos = personalizado && configCuotasFijaPorcentajes(configCuotas);
   const seleccionada = opciones.find((opcion) =>
     opcion.fechas &&
     cuotas.length === opcion.fechas.length &&
@@ -238,8 +239,9 @@ export function StepPagos({ precios, moneda, tipoCambio, onMonedaChange, configC
           </div>
           <div className="space-y-3 px-3 py-3">
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Estas son las cuotas y fechas asignadas a tu empresa. Puedes ajustar el
-              porcentaje de cada cuota; la suma debe ser 100%.
+              {porcentajesFijos
+                ? "El IIMP definió las cuotas, fechas y porcentajes. Revisa el cronograma; estos valores no se editan."
+                : "Estas son las cuotas y fechas asignadas a tu empresa. Puedes ajustar el porcentaje de cada cuota; la suma debe ser 100%."}
             </p>
             <div className="overflow-hidden rounded-lg border border-border">
               <div className="grid grid-cols-[auto_1fr_auto] gap-2 border-b border-border bg-secondary/60 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
@@ -252,16 +254,22 @@ export function StepPagos({ precios, moneda, tipoCambio, onMonedaChange, configC
                   <span className="font-semibold text-foreground">{cuota.numero}</span>
                   <span className="text-muted-foreground">{fechaVisible(cuota.fechaVencimiento ?? "")}</span>
                   <span className="flex items-center justify-end gap-1.5">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={String(cuota.porcentaje)}
-                      onChange={(e) => setPorcentaje(i, Number(e.target.value))}
-                      className="h-7 w-[68px] text-center text-xs"
-                    />
-                    <span className="text-muted-foreground">%</span>
+                    {porcentajesFijos ? (
+                      <span className="w-[68px] text-center font-semibold text-foreground">{cuota.porcentaje}%</span>
+                    ) : (
+                      <>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={CUOTAS_PORCENTAJE_TOTAL}
+                          step={CUOTAS_PORCENTAJE_PASO}
+                          value={String(cuota.porcentaje)}
+                          onChange={(e) => setPorcentaje(i, Number(e.target.value))}
+                          className="h-7 w-[68px] text-center text-xs"
+                        />
+                        <span className="text-muted-foreground">%</span>
+                      </>
+                    )}
                     <span className="w-20 text-right font-semibold text-foreground">
                       {numberUtils.monto(cuota.monto, monedaLabel, { decimales: 2 })}
                     </span>

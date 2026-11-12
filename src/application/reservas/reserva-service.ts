@@ -5,14 +5,14 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
-import { ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MONEDAS, ROLES_REVISION_ASOCIADO, ADMIN_USER_ID } from "@/lib/shared/constants";
+import { ADMIN_USER_ID, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MODOS_PAGO, MONEDAS, ROLES_REVISION_ASOCIADO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
-import { modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { configCuotasValida, cuotasCoincidenConfig, modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -170,6 +170,7 @@ export class ReservaApplicationService {
     const perfil = request.userEmail
       ? await this.authRepo.findPerfilByEmail(request.userEmail).catch(() => null)
       : null;
+    const configCuotas = perfil?.empresa?.configCuotas ?? null;
     const ahora = new Date();
     const viewer: EmpresaViewer = {
       ruc: perfil?.empresa?.ruc ?? null,
@@ -211,6 +212,24 @@ export class ReservaApplicationService {
 
     if (conflicted.length > 0) {
       return { ok: false, message: "Conflicto", conflicted };
+    }
+
+    /* El cronograma de la empresa es la fuente de verdad. Se valida antes de
+     * mutar los stands: si el cliente manipula cuotas/fechas o la configuracion
+     * cambio mientras el wizard estaba abierto, no debe quedar una solicitud
+     * huerfana con el stand bloqueado. */
+    if (configCuotasValida(configCuotas)) {
+      const cuotasSolicitadas = (request.cuotas ?? []).map((cuota) => ({
+        porcentaje: cuota.porcentaje,
+        fechaVencimiento: cuota.fechaVencimiento,
+      }));
+      if (!cuotasCoincidenConfig(cuotasSolicitadas, configCuotas)) {
+        return {
+          ok: false,
+          message: "El cronograma de pago no coincide con la configuracion vigente del IIMP. Refresca la pagina para continuar.",
+          conflicted: standCodes,
+        };
+      }
     }
 
     const monedaSolicitada = request.moneda ?? MONEDAS.USD;
@@ -301,7 +320,7 @@ export class ReservaApplicationService {
           const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
           const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
           await this.solicitudesRepo.guardarPlanCuotas(solicitudId, {
-            modalidad: modalidadDeCuotas(porcentajes),
+            modalidad: configCuotasValida(configCuotas) ? MODOS_PAGO.PERSONALIZADO : modalidadDeCuotas(porcentajes),
             cuotas: planCuotasConFechas(importes.total, porcentajes, fechas),
             moneda,
             tipoCambio,

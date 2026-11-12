@@ -542,7 +542,7 @@ describe("EmpresaApplicationService.configurarCuotas", () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
     const service = crearServicio(repo);
-    const config = { maxCuotas: 2, fechas: ["2099-01-15", "2099-06-15"] };
+    const config = { maxCuotas: 2, fechas: ["2099-01-15", "2099-06-15"], porcentajes: [60, 40] };
 
     const conConfig = await service.configurarCuotas(creada.id, config);
     expect(conConfig.configCuotas).toEqual(config);
@@ -551,7 +551,7 @@ describe("EmpresaApplicationService.configurarCuotas", () => {
     expect(sinConfig.configCuotas).toBeNull();
   });
 
-  it("rechaza cantidades o fechas invalidas", async () => {
+  it("rechaza cantidades, fechas o porcentajes invalidos", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
     const service = crearServicio(repo);
@@ -564,6 +564,13 @@ describe("EmpresaApplicationService.configurarCuotas", () => {
     ).rejects.toMatchObject({ status: 400 });
     await expect(
       service.configurarCuotas(creada.id, { maxCuotas: 1, fechas: ["2020-01-15"] }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.configurarCuotas(creada.id, {
+        maxCuotas: 2,
+        fechas: ["2099-01-15", "2099-06-15"],
+        porcentajes: [50, 40],
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 });

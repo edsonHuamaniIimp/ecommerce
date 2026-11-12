@@ -1,4 +1,4 @@
-import { CUOTAS_DIAS_MIN_ENTRE, CUOTAS_FECHA_MAXIMA, CUOTAS_MESES_MAX_POR_CUOTA, HITOS_CUOTAS, MAX_CUOTAS_PERSONALIZADAS, MODALIDADES_CUOTAS, MODOS_PAGO, PORCENTAJES_POR_MODALIDAD, type ModalidadCuotas } from "@/lib/shared/constants";
+import { CUOTAS_DIAS_MIN_ENTRE, CUOTAS_FECHA_MAXIMA, CUOTAS_MESES_MAX_POR_CUOTA, CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOLERANCIA, HITOS_CUOTAS, MAX_CUOTAS_PERSONALIZADAS, MODALIDADES_CUOTAS, MODOS_PAGO, PORCENTAJES_POR_MODALIDAD, type ModalidadCuotas } from "@/lib/shared/constants";
 import { dateUtils } from "./date";
 import { redondear2 } from "./importes";
 
@@ -26,6 +26,22 @@ export interface ConfigCuotasEmpresa {
   maxCuotas: number;
   /** Fechas ISO yyyy-mm-dd, una por cuota, en orden ascendente. */
   fechas: string[];
+  /**
+   * Porcentajes fijos definidos por el IIMP. Si se omite, se mantiene el
+   * comportamiento legacy: el cliente distribuye los porcentajes.
+   */
+  porcentajes?: number[];
+}
+
+/** True si los porcentajes tienen hasta 2 decimales (paso permitido). */
+function porcentajeConPrecisionValida(porcentaje: number): boolean {
+  const pasos = porcentaje / CUOTAS_PORCENTAJE_PASO;
+  return Number.isFinite(pasos) && Math.abs(pasos - Math.round(pasos)) < 1e-9;
+}
+
+/** True si la configuracion fija los porcentajes que debe respetar el cliente. */
+export function configCuotasFijaPorcentajes(config: ConfigCuotasEmpresa | null | undefined): boolean {
+  return Boolean(config && Array.isArray(config.porcentajes) && config.porcentajes.length > 0);
 }
 
 /** True si la configuracion tiene cantidad y fechas validas y futuras. */
@@ -37,11 +53,16 @@ export function configCuotasValida(
   if (!Number.isInteger(config.maxCuotas) || config.maxCuotas < 1 || config.maxCuotas > MAX_CUOTAS_PERSONALIZADAS) return false;
   if (!Array.isArray(config.fechas) || config.fechas.length !== config.maxCuotas) return false;
   const fechas = config.fechas;
-  return fechas.every((fecha, i) => {
+  const fechasValidas = fechas.every((fecha, i) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
     if (fecha <= hoyISO) return false;
     return i === 0 || fecha > (fechas[i - 1] ?? "");
   });
+  if (!fechasValidas) return false;
+  if (config.porcentajes === undefined) return true;
+  if (!Array.isArray(config.porcentajes) || config.porcentajes.length !== config.maxCuotas) return false;
+  if (!config.porcentajes.every(porcentajeConPrecisionValida)) return false;
+  return porcentajesValidos(config.porcentajes, config.maxCuotas);
 }
 
 /** Normaliza la configuracion recibida (trim) para persistirla. */
@@ -49,6 +70,9 @@ export function normalizarConfigCuotas(config: ConfigCuotasEmpresa): ConfigCuota
   return {
     maxCuotas: config.maxCuotas,
     fechas: config.fechas.map((fecha) => fecha.trim()),
+    ...(config.porcentajes
+      ? { porcentajes: config.porcentajes.map((porcentaje) => redondear2(porcentaje)) }
+      : {}),
   };
 }
 
@@ -67,13 +91,14 @@ export function cuotasPersonalizadasIniciales(
   hoyISO: string = dateUtils.todayLimaInputValue(),
 ): Array<{ porcentaje: number; fecha: string }> | null {
   if (!config || !configCuotasValida(config, hoyISO)) return null;
-  const porcentajes = porcentajesEquitativos(config.maxCuotas);
+  const porcentajes = config.porcentajes ?? porcentajesEquitativos(config.maxCuotas);
   return config.fechas.map((fecha, i) => ({ porcentaje: porcentajes[i] ?? 0, fecha }));
 }
 
 /**
  * True si las cuotas usan exactamente las fechas configuradas por el administrador
- * y sus porcentajes son validos (la distribucion es libre).
+ * y sus porcentajes son validos. Si la configuracion define porcentajes, tambien
+ * deben coincidir exactamente.
  */
 export function cuotasCoincidenConfig(
   cuotas: CuotaProgramada[],
@@ -83,6 +108,12 @@ export function cuotasCoincidenConfig(
   if (!config || !configCuotasValida(config, hoyISO)) return false;
   if (cuotas.length !== config.maxCuotas) return false;
   if (!porcentajesValidos(cuotas.map((c) => c.porcentaje), config.maxCuotas)) return false;
+  if (config.porcentajes) {
+    const porcentajesFijos = config.porcentajes;
+    if (!cuotas.every((cuota, i) => Math.abs(cuota.porcentaje - (porcentajesFijos[i] ?? NaN)) < CUOTAS_PORCENTAJE_TOLERANCIA)) {
+      return false;
+    }
+  }
   return cuotas.every((cuota, i) => cuota.fechaVencimiento === config.fechas[i]);
 }
 

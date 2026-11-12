@@ -57,7 +57,7 @@ export interface PerfilResult {
     /** Representantes legales adicionales. */
     representantesAdicionales: EmpresaRepresentanteAdicionalDTO[];
     /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
-    configCuotas: { maxCuotas: number; fechas: string[] } | null;
+    configCuotas: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null;
   } | null;
   /** true = el usuario tiene empresa y le faltan datos obligatorios del representante legal. */
   representanteIncompleto: boolean;

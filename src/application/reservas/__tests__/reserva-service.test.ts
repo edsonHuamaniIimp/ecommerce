@@ -17,11 +17,11 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
-function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null } | null = null): IAuthRepository {
+function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null; configCuotas?: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null } | null = null): IAuthRepository {
   return {
     findPerfilByEmail: vi.fn(async () =>
       perfil
-        ? { empresa: { ruc: perfil.ruc ?? "", razonSocial: perfil.razonSocial ?? "" }, nombreEmpresa: perfil.razonSocial ?? null }
+        ? { empresa: { ruc: perfil.ruc ?? "", razonSocial: perfil.razonSocial ?? "", configCuotas: perfil.configCuotas ?? null }, nombreEmpresa: perfil.razonSocial ?? null }
         : null,
     ),
   } as unknown as IAuthRepository;
@@ -299,6 +299,83 @@ describe("ReservaApplicationService - snapshot de cuotas", () => {
           expect.objectContaining({ porcentaje: 30, fechaVencimiento: "2027-06-15" }),
         ]),
       }),
+    );
+  });
+
+  it("rechaza cuotas que no coinciden con los porcentajes configurados por el IIMP", async () => {
+    const { repo, update } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      crearRevisionInicial: vi.fn(async () => ({})),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = new ReservaApplicationService(
+      repo,
+      solicitudesRepo,
+      authRepoFalso({
+        configCuotas: {
+          maxCuotas: 2,
+          fechas: ["2099-01-15", "2099-06-15"],
+          porcentajes: [60, 40],
+        },
+      }),
+    );
+
+    const res = await svc.crear({
+      standIds: ["g1"],
+      eventoId: "evt-1",
+      userEmail: "cliente@empresa.pe",
+      userSub: "user-1",
+      cuotas: [
+        { porcentaje: 50, fechaVencimiento: "2099-01-15" },
+        { porcentaje: 50, fechaVencimiento: "2099-06-15" },
+      ],
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain("cronograma");
+    expect(update).not.toHaveBeenCalled();
+    expect(solicitudesRepo.guardarPlanCuotas).not.toHaveBeenCalled();
+  });
+
+  it("guarda la Modalidad 4 cuando el cronograma coincide con la configuracion", async () => {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      crearRevisionInicial: vi.fn(async () => ({})),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = new ReservaApplicationService(
+      repo,
+      solicitudesRepo,
+      authRepoFalso({
+        configCuotas: {
+          maxCuotas: 2,
+          fechas: ["2099-01-15", "2099-06-15"],
+          porcentajes: [60, 40],
+        },
+      }),
+    );
+
+    const res = await svc.crear({
+      standIds: ["g1"],
+      eventoId: "evt-1",
+      userEmail: "cliente@empresa.pe",
+      userSub: "user-1",
+      cuotas: [
+        { porcentaje: 60, fechaVencimiento: "2099-01-15" },
+        { porcentaje: 40, fechaVencimiento: "2099-06-15" },
+      ],
+    });
+
+    expect(res.ok).toBe(true);
+    expect(solicitudesRepo.guardarPlanCuotas).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({ modalidad: "personalizado" }),
     );
   });
 });

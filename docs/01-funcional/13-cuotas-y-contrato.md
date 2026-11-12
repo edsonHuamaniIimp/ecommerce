@@ -18,20 +18,25 @@ se trasladan al contrato y a los procesos de regeneración.
 | Tipo | Quién define las fechas | Quién define los porcentajes | Dónde se usa |
 |---|---|---|---|
 | Estándar | Sistema (hitos PERUMIN 38) | Sistema, según modalidad 1/2/3 | Empresas sin configuración personalizada |
-| Personalizada | Administrador en `/dashboard/empresas` | Cliente en el wizard | Empresas con configuración activa |
+| Personalizada | Administrador en `/dashboard/empresas` | Administrador; el cliente solo visualiza | Empresas con configuración activa |
+| Personalizada legacy | Administrador | Cliente en el wizard | Configuraciones antiguas sin `porcentajes` |
 
 La configuración personalizada se guarda por empresa en `empresa.config_cuotas`:
 
 ```json
 {
   "maxCuotas": 3,
-  "fechas": ["2026-11-15", "2027-02-15", "2027-06-15"]
+  "fechas": ["2026-11-15", "2027-02-15", "2027-06-15"],
+  "porcentajes": [50, 25, 25]
 }
 ```
 
 - `maxCuotas`: cantidad exacta de cuotas configuradas por el administrador. Puede ser
   **N cuotas** (1 a 9, límite del API del IIMP). El wizard estándar sigue limitado a 3.
 - `fechas`: una fecha ISO por cuota, estrictamente futura, válida y en orden ascendente.
+- `porcentajes`: opcional. Si existe, debe tener una entrada por cuota, sumar 100% y
+  queda fijo para el cliente. Si se omite, se conserva el comportamiento legacy: el
+  cliente distribuye los porcentajes.
 - `null`: la empresa usa el cronograma estándar.
 
 ## 3. Cronograma estándar
@@ -91,8 +96,9 @@ de reserva (hora `America/Lima`). Si la reserva cae en un hito, ese hito no se u
 En `/dashboard/empresas`, el icono de calendario abre el modal **“Fechas de pago”**:
 
 - Agrega cuotas hasta el máximo permitido (N; tope 9 del IIMP) o quita cuotas.
-- Define una fecha por cuota.
+- Define una fecha y un porcentaje por cuota.
 - Las fechas deben ser futuras, válidas y ascendentes.
+- Los porcentajes deben ser mayores a 0, sumar 100% y respetar hasta 2 decimales.
 - “Usar cronograma estándar” elimina la configuración (`configCuotas = null`).
 - Guardar exige permiso `empresas:manage` (o `admin:full`) y usa
   `POST /api/empresas/configurar-cuotas` con `{ id, configCuotas }`.
@@ -106,21 +112,27 @@ solicitud.
 Si la empresa tiene una configuración válida:
 
 - El wizard muestra **solo** el cronograma personalizado, no los botones estándar.
-- El cliente ve las cuotas y las fechas definidas por el administrador.
-- El cliente **solo edita los porcentajes**; las fechas son de solo lectura.
-- Los porcentajes deben ser mayores a 0, sumar 100% y respetar hasta 2 decimales.
+- El cliente ve las cuotas, fechas y porcentajes definidos por el administrador.
+- Si la configuración incluye `porcentajes`, el cliente **no los edita**; solo revisa
+  el cronograma. Las fechas también son de solo lectura.
+- Si la configuración es legacy (sin `porcentajes`), el cliente solo edita los
+  porcentajes; las fechas siguen siendo de solo lectura.
 - El monto de cada cuota se calcula en el servidor a partir del precio del stand.
-- El contrato marca **Modalidad 4** y contiene el cronograma con los porcentajes del
-  cliente y las fechas del administrador.
+- El contrato marca **Modalidad 4** y contiene el cronograma con los porcentajes y las
+  fechas definidos por el administrador.
 
 Si la configuración no existe, está incompleta o sus fechas ya vencieron, el wizard usa
 el cronograma estándar.
 
 ### 4.3 Validación del servidor
 
-- El servidor no confía en las fechas del cliente.
+- El servidor no confía en las fechas ni en los porcentajes del cliente.
 - Para una empresa con configuración válida, exige que la cantidad de cuotas y las
   fechas coincidan exactamente con `configCuotas`.
+- Si `configCuotas.porcentajes` existe, exige además que cada porcentaje coincida
+  exactamente con el configurado.
+- En `/api/reservas/crear` la validación se ejecuta **antes** de cambiar el estado de
+  los stands, para no dejar una solicitud inválida con el stand bloqueado.
 - Para una empresa sin configuración, exige una modalidad estándar exacta.
 - Los planes históricos persistidos se aceptan aunque sus fechas ya hayan pasado
   (regeneración de contratos antiguos).
@@ -163,8 +175,9 @@ conviven con las fechas fijas del cronograma. Legal aprobó esta coexistencia.
 | Acción | Permiso |
 |---|---|
 | Ver configuración de empresas | `empresas:view` |
-| Configurar fechas de pago | `empresas:manage` o `admin:full` |
-| Ver su cronograma y editar porcentajes | Cliente titular de la solicitud |
+| Configurar fechas y porcentajes de pago | `empresas:manage` o `admin:full` |
+| Ver su cronograma | Cliente titular de la solicitud |
+| Editar porcentajes | Solo si la configuración es legacy (sin `porcentajes`) |
 | Generar/regenerar contrato | Titular o admin según estado de la solicitud |
 
 ## 8. Casos límite
@@ -174,7 +187,10 @@ conviven con las fechas fijas del cronograma. Legal aprobó esta coexistencia.
 - **Sin fechas futuras:** la modalidad no se ofrece; el cliente debe contactar a
   Facturación del IIMP.
 - **Configuración personalizada con fechas inválidas:** se ignora y se usa el estándar.
-- **Cliente envía fechas manipuladas:** el servidor responde 400.
+- **Configuración legacy sin porcentajes:** el cliente puede editar los porcentajes;
+  al guardar desde el administrador, la configuración pasa a porcentajes fijos.
+- **Cliente envía fechas o porcentajes manipulados:** el servidor responde 400 y no
+  crea la solicitud.
 - **Configuración cambiada después de reservar:** el contrato conserva el snapshot.
 - **Plan legacy con fechas pasadas:** se puede regenerar el contrato histórico.
 - **Sin plan persistido:** la regeneración falla con un mensaje claro; no inventa cuotas.
@@ -183,5 +199,7 @@ conviven con las fechas fijas del cronograma. Legal aprobó esta coexistencia.
 
 - `src/lib/shared/utils/__tests__/cuotas.test.ts`
 - `src/application/contratos/__tests__/contrato-service.test.ts`
+- `src/application/reservas/__tests__/reserva-service.test.ts`
 - `src/validators/__tests__/contratos.validator.test.ts`
+- `src/validators/__tests__/empresas.validator.test.ts`
 - `src/application/empresas/__tests__/empresa-service.test.ts`

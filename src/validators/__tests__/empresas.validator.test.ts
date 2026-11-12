@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
-import { actualizarEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
+import { actualizarEmpresaSchema, configurarCuotasEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
 
 describe("crearEmpresaSchema (documento RUC o RUT)", () => {
   it("acepta un RUC de 11 digitos (autodetectado)", () => {
@@ -119,5 +119,44 @@ describe("validarDatosEmpresaSchema", () => {
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
     });
     expect(r.success).toBe(true);
+  });
+});
+describe("configurarCuotasEmpresaSchema", () => {
+  const base = {
+    id: "emp-1",
+    configCuotas: {
+      maxCuotas: 2,
+      fechas: ["2099-01-15", "2099-06-15"],
+      porcentajes: [60, 40],
+    },
+  };
+
+  it("acepta fechas y porcentajes fijos que suman 100%", () => {
+    expect(configurarCuotasEmpresaSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("acepta configuraciones legacy sin porcentajes", () => {
+    expect(configurarCuotasEmpresaSchema.safeParse({
+      id: "emp-1",
+      configCuotas: { maxCuotas: 2, fechas: ["2099-01-15", "2099-06-15"] },
+    }).success).toBe(true);
+  });
+
+  it("rechaza porcentajes incompletos o con suma distinta a 100%", () => {
+    expect(configurarCuotasEmpresaSchema.safeParse({
+      ...base,
+      configCuotas: { ...base.configCuotas, porcentajes: [60] },
+    }).success).toBe(false);
+    expect(configurarCuotasEmpresaSchema.safeParse({
+      ...base,
+      configCuotas: { ...base.configCuotas, porcentajes: [50, 40] },
+    }).success).toBe(false);
+  });
+
+  it("rechaza porcentajes con mas de 2 decimales", () => {
+    expect(configurarCuotasEmpresaSchema.safeParse({
+      ...base,
+      configCuotas: { ...base.configCuotas, porcentajes: [60.001, 39.999] },
+    }).success).toBe(false);
   });
 });
