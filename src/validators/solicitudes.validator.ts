@@ -75,6 +75,12 @@ export const uploadDocumentoSchema = z.object({
   permitirAnexosIniciales: z.boolean().optional(),
   /** Solo la firma digital del servidor puede adjuntar un contrato firmado en estos eventos. */
   firmaDigital: z.boolean().optional(),
+  /** Observacion exacta del SGC que corrige este archivo. */
+  sgcObservationId: z.string().max(64).optional().nullable(),
+  /** Documento del SGC a versionar; null = documento nuevo requerido. */
+  sgcDocumentId: z.string().max(64).optional().nullable(),
+  /** Titulo exacto de la observacion (anexos arbitrarios). */
+  sgcTitle: z.string().trim().max(300).optional().nullable(),
 });
 
 /** RF-08: imagen del recorte del pabellon (se guarda tras subirla a /api/upload). */

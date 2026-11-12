@@ -102,6 +102,9 @@ export interface DocumentoUrl {
   nombre: string;
   /** Requisito del anexo (clave de ANEXOS_REQUERIDOS) para derivar el titulo legible. */
   requisito?: string | null;
+  sgcObservationId?: string | null;
+  sgcDocumentId?: string | null;
+  sgcTitle?: string | null;
 }
 
 /**

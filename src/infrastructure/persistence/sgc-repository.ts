@@ -32,6 +32,8 @@ interface SgcExpedienteRow {
   devolucionDestinoStepId: string | null;
   devolucionEstrategia: string | null;
   observaciones: unknown;
+  contratoRegeneradoObservationId: string | null;
+  contratoRegeneradoAt: Date | null;
 }
 
 interface SgcDocumentoRow {
@@ -69,6 +71,8 @@ function mapExpediente(row: SgcExpedienteRow): SgcExpedienteEntity {
     devolucionDestinoStepId: row.devolucionDestinoStepId ?? null,
     devolucionEstrategia: row.devolucionEstrategia ?? null,
     observaciones: (row.observaciones as SgcExpedienteEntity["observaciones"]) ?? null,
+    contratoRegeneradoObservationId: row.contratoRegeneradoObservationId ?? null,
+    contratoRegeneradoAt: row.contratoRegeneradoAt ?? null,
   };
 }
 

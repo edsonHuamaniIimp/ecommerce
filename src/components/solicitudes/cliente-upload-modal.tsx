@@ -42,6 +42,7 @@ interface Pendiente {
   requisito: string | null;
   observacionId?: string | null;
   observacionTitulo?: string | null;
+  documentoId?: string | null;
 }
 
 interface Firmante {
@@ -94,6 +95,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const requisitoRef = useRef<string | null>(null);
   const observacionRef = useRef<string | null>(null);
   const observacionTituloRef = useRef<string | null>(null);
+  const documentoRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
   const cargarFirmantes = useCallback(async (): Promise<void> => {
@@ -141,34 +143,55 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     return () => clearTimeout(tarea);
   }, [solicitud.id, cargarFirmantes]);
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (files: File[]) => {
     if (modoPrueba) { toast.info("Modo prueba: no se guardan documentos."); return; }
-    /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
-    if (requisitoRef.current || !esContrato) {
-      const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
+    const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
+    const validos = files.filter((file) => {
+      /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
+      if (!requisitoRef.current && esContrato) return true;
       if (!archivoUtils.extensionPermitida(file.name, permitidas)) {
-        setError(`Formato no permitido. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
-        return;
+        setError(`Formato no permitido: ${file.name}. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
+        return false;
       }
       if (file.size > ANEXOS_UPLOAD_MAX_BYTES) {
-        setError(`El archivo supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
-        return;
+        setError(`El archivo ${file.name} supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
+        return false;
       }
-    }
+      return true;
+    });
+    if (validos.length === 0) return;
     setUploading(true);
+    setError(null);
     try {
-      const url = await solicitudesService.subirArchivo(file);
-      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current, observacionId: observacionRef.current, observacionTitulo: observacionTituloRef.current }]);
+      const subidos: Pendiente[] = [];
+      for (const file of validos) {
+        const url = await solicitudesService.subirArchivo(file);
+        subidos.push({
+          url,
+          nombre: file.name,
+          requisito: requisitoRef.current,
+          observacionId: observacionRef.current,
+          observacionTitulo: observacionTituloRef.current,
+          documentoId: documentoRef.current,
+        });
+      }
+      setPendientes(prev => [...prev, ...subidos]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
     setUploading(false);
   };
 
-  const abrirSelector = (requisito: string | null, observacionId: string | null = null, observacionTitulo: string | null = null) => {
+  const abrirSelector = (
+    requisito: string | null,
+    observacionId: string | null = null,
+    observacionTitulo: string | null = null,
+    documentoId: string | null = null,
+  ) => {
     requisitoRef.current = requisito;
     observacionRef.current = observacionId;
     observacionTituloRef.current = observacionTitulo;
+    documentoRef.current = documentoId;
     const input = fileRef.current;
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
@@ -194,6 +217,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           nombre: p.nombre || p.url.split("/").pop() || "documento",
           tipo: esFirmado ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
           requisito: p.requisito,
+          sgcObservationId: p.observacionId ?? null,
+          sgcDocumentId: p.documentoId ?? null,
+          sgcTitle: p.observacionTitulo ?? null,
         });
       }
       toast.success(
@@ -288,6 +314,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   });
   const observacionesSgcAnexosCorregidas =
     observacionesSgcAnexos.length > 0 && correccionSgcAnexos.faltantes.length === 0;
+  const correccionReenviadaSgc = Boolean(solicitud.sgcSubsanacionReenviadaAt);
   const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
   const correccionSgc = estadoCorreccionSgc(solicitud);
   const observacionesSgcSinFila = observacionesSgc.filter(
@@ -346,6 +373,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         requisito: null,
         firmaDigital: true,
+        sgcObservationId: observacionContratoSgc?.observationId ?? null,
+        sgcDocumentId: observacionContratoSgc?.documentId ?? null,
+        sgcTitle: observacionContratoSgc?.title ?? null,
       });
       toast.success("Contrato firmado digitalmente");
       onSaved();
@@ -496,7 +526,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
         {esContrato && observacionContratoSgc && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcCorregidas ? "Corrección registrada" : "Observación del área legal"}
+              {observacionesSgcCorregidas
+                ? correccionReenviadaSgc ? "Corrección enviada al SGC" : "Corrección registrada"
+                : "Observación del área legal"}
             </p>
             <p className="mt-0.5 text-[11px] text-foreground">
               {observacionesSgcCorregidas
@@ -518,7 +550,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
         {!esContrato && observacionesSgcAnexos.length > 0 && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcAnexosCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcAnexosCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcAnexosCorregidas ? "Corrección registrada" : `Te piden ${correccionSgcAnexos.requeridos} archivos; llevas ${correccionSgcAnexos.cubiertos}.`}
+              {observacionesSgcAnexosCorregidas
+                ? correccionReenviadaSgc ? "Corrección enviada al SGC" : "Corrección registrada"
+                : `Te piden ${correccionSgcAnexos.requeridos} archivos; llevas ${correccionSgcAnexos.cubiertos}.`}
             </p>
             {observacionesSgcAnexosCorregidas ? (
               <p className="mt-0.5 text-[11px] text-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
@@ -736,7 +770,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         )}
                         {(!existente || (observacionSgc && !observacionCorregida) || observado) && (
                           <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
-                            disabled={uploading} onClick={() => abrirSelector(a.key)}>
+                            disabled={uploading} onClick={() => abrirSelector(a.key, observacionSgc?.observationId ?? null, observacionSgc?.title ?? null, observacionSgc?.documentId ?? null)}>
                             {observacionFaltante || !existente || observado ? "Adjuntar" : "Reemplazar"}
                           </Button>
                         )}
@@ -798,7 +832,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                           size="sm"
                           className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                           disabled={uploading}
-                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null)}
+                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null, o.documentId ?? null)}
                         >
                           {local ? "Reemplazar" : "Adjuntar"}
                         </Button>
@@ -857,9 +891,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             </div>
           )}
           {!soloFirmaDigital && (
-            <input ref={fileRef} type="file" className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+            <input ref={fileRef} type="file" multiple className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) void handleUpload(files);
               e.target.value = "";
             }} />
           )}

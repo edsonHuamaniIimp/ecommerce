@@ -338,6 +338,8 @@ de Contratos (SGC). Ver `docs/05-integraciones/integracion-sgc.md`.
 | lastSyncedAt | datetime | Sí | Última sincronización. |
 | lastError | string(500) | Sí | Último error (best-effort). |
 | bypassAprobado | boolean | No | Bypass admin: aprobado localmente; el sync-on-read no revierte el estado. |
+| contratoRegeneradoObservationId | string(64) | Sí | Observación de contrato para la que ya se regeneró una versión local (id del SGC o hash estable del contenido). Evita regeneraciones repetidas. |
+| contratoRegeneradoAt | datetime | Sí | Fecha de la regeneración local del contrato corregido. |
 
 Índices: `estadoEnvio`, `stage`.
 
@@ -522,6 +524,9 @@ SGC cubre (RF-13): sin Vigencia de Poderes ni DNI del representante no se envía
 | userId | string(100) | Sí | Titular del documento (`null` = administrador/contrato). |
 | categoria | string(30) | Sí | `contrato` \| `contrato_firmado` \| `anexo` (ver `TIPOS_DOCUMENTO_SOLICITUD`). |
 | requisito | string(30) | Sí | Clave de `ANEXOS_REQUERIDOS` (`ficha-ruc`, `vigencia-poder`, `dni-representante`); `null` = otro anexo. |
+| sgcObservationId | string(64) | Sí | Observación exacta del SGC que corrige este archivo; permite anexos arbitrarios sin inferir por nombre. |
+| sgcDocumentId | string(64) | Sí | Documento del SGC que se versiona/reemplaza; `null` = documento nuevo requerido. |
+| sgcTitle | string(300) | Sí | Título exacto de la observación del SGC (se usa al reenviar el anexo). |
 | flgActivo | boolean | No | Baja lógica. |
 | createdAt | datetime | No | Fecha de subida. |
 

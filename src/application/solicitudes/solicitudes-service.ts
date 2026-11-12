@@ -546,6 +546,12 @@ export class SolicitudesApplicationService {
     permitirAnexosIniciales?: boolean;
     /** True solo cuando el archivo firmado lo genera la firma digital del servidor. */
     firmaDigital?: boolean;
+    /** Observacion exacta del SGC que corrige este archivo. */
+    sgcObservationId?: string | null;
+    /** Documento del SGC a versionar; null = documento nuevo requerido. */
+    sgcDocumentId?: string | null;
+    /** Titulo exacto de la observacion (anexos arbitrarios). */
+    sgcTitle?: string | null;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
 
@@ -629,6 +635,22 @@ export class SolicitudesApplicationService {
       }
       requisito = params.requisito;
     }
+    /*
+     * Metadatos de la observacion SGC: solo tienen sentido en documentos que el
+     * cliente corrige (anexo o contrato firmado). El titulo exacto evita inferir
+     * el documento observado desde el nombre fisico del archivo.
+     */
+    const permiteMetadatosSgc =
+      tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO ||
+      tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+    const sgcObservationId = permiteMetadatosSgc
+      ? (params.sgcObservationId?.trim() || null)
+      : null;
+    const sgcDocumentId = permiteMetadatosSgc
+      ? (params.sgcDocumentId?.trim() || null)
+      : null;
+    const sgcTitle = permiteMetadatosSgc ? (params.sgcTitle?.trim() || null) : null;
+
     let userId: string | null;
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
       userId = null;
@@ -663,19 +685,21 @@ export class SolicitudesApplicationService {
      * Nueva version del cliente: la version vigente del mismo requisito/categoria
      * pasa a `reemplazado` (historial). Nunca se elimina fisicamente.
      */
-    if (!isAdmin && categoria) {
+    /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
+     * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
+    if (!isAdmin && categoria && !sgcObservationId && !sgcDocumentId) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
     /* Alinea el nombre local con el que se enviara al SGC (mismo URL/requisito/stand). */
     let nombreDocumento = params.nombre;
-    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && requisito) {
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && (requisito || sgcTitle)) {
       const detalleCanonico = await this.repo.detalle(params.solicitudId);
       if (detalleCanonico) {
         const identificador = detalleCanonico.standCode || detalleCanonico.standCodes.join("-") || params.solicitudId.slice(0, 8);
         const hash = (await sha256Hex(new TextEncoder().encode(params.url))).slice(0, 6);
         nombreDocumento = nombreArchivoSgc({
-          titulo: tituloSgcDocumento(params.nombre, requisito),
+          titulo: sgcTitle ?? tituloSgcDocumento(params.nombre, requisito),
           nombreOriginal: params.nombre,
           requisito,
           identificador,
@@ -684,14 +708,27 @@ export class SolicitudesApplicationService {
       }
     }
 
-    const doc = await this.repo.crearDocumentoAdjunto(
-      params.solicitudId, params.url, nombreDocumento,
-      userId,
-      params.userEmail,
-      categoria,
-      requisito,
-      sha256Firmado,
-    );
+    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle
+      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle }
+      : null;
+    const doc = sgcMetadata
+      ? await this.repo.crearDocumentoAdjunto(
+          params.solicitudId, params.url, nombreDocumento,
+          userId,
+          params.userEmail,
+          categoria,
+          requisito,
+          sha256Firmado,
+          sgcMetadata,
+        )
+      : await this.repo.crearDocumentoAdjunto(
+          params.solicitudId, params.url, nombreDocumento,
+          userId,
+          params.userEmail,
+          categoria,
+          requisito,
+          sha256Firmado,
+        );
 
     /*
      * Avance del flujo: cuando el cliente sube el contrato firmado, se avisa al

@@ -550,4 +550,29 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     expect(estadoCorreccionSgc(s)).toEqual({ requeridos: 0, cubiertos: 0, faltantes: [] });
     expect(observacionesSgcSubsanadas(s)).toBe(true);
   });
+
+  it("cubre un anexo arbitrario por observationId, no por ser posterior", () => {
+    const observacion = obs("arbitraria", {
+      documentId: null,
+      requisito: null,
+      title: "Vigencia de poder de Apoderado Clase A",
+      requiresNewDocument: true,
+    });
+    const ajeno = {
+      ...doc("ajeno", "req-x", "2026-11-03T22:10:00.000Z"),
+      sgcObservationId: "otra-observacion",
+      sgcTitle: "Otro documento",
+    };
+    const vinculado = {
+      ...doc("vinculado", "req-x", "2026-11-03T22:20:00.000Z"),
+      sgcObservationId: "arbitraria",
+      sgcTitle: "Vigencia de poder de Apoderado Clase A",
+    };
+
+    const sinVinculo = { ...devuelto, sgcObservaciones: [observacion], docsAdjuntos: [ajeno] };
+    expect(observacionesSgcSubsanadas(sinVinculo)).toBe(false);
+
+    const conVinculo = { ...devuelto, sgcObservaciones: [observacion], docsAdjuntos: [ajeno, vinculado] };
+    expect(observacionesSgcSubsanadas(conVinculo)).toBe(true);
+  });
 });

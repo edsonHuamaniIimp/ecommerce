@@ -182,6 +182,9 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       motivoObservacion: d.motivoObservacion,
       observadoPor: d.observadoPor,
       observadoAt: d.observadoAt,
+      sgcObservationId: d.sgcObservationId,
+      sgcDocumentId: d.sgcDocumentId,
+      sgcTitle: d.sgcTitle,
       createdAt: d.createdAt,
     }));
 
@@ -1043,9 +1046,21 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null }): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null, requisito: requisito ?? null, sha256: sha256 ?? null },
+      data: {
+        solicitudId,
+        url,
+        nombre,
+        uploadedBy: email,
+        userId,
+        categoria: categoria ?? null,
+        requisito: requisito ?? null,
+        sha256: sha256 ?? null,
+        sgcObservationId: sgc?.observationId ?? null,
+        sgcDocumentId: sgc?.documentId ?? null,
+        sgcTitle: sgc?.title ?? null,
+      },
     });
     return { ...doc };
   }

@@ -17,6 +17,9 @@ interface DocumentoLike {
   categoria?: string | null;
   userId?: string | null;
   requisito?: string | null;
+  sgcObservationId?: string | null;
+  sgcDocumentId?: string | null;
+  sgcTitle?: string | null;
   createdAt?: string | Date | null;
   /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
   estado?: string | null;
@@ -148,6 +151,9 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
   const claveDoc = (d: DocumentoLike, index: number) =>
     d.id ?? `${d.categoria ?? ""}:${d.requisito ?? ""}:${d.createdAt ?? ""}:${index}`;
   const usados = new Set<string>();
+  /* Si hay archivos nuevos con vinculo SGC, ese vinculo manda. Sin ningun vinculo
+   * (datos previos a esta version) se conserva el matching legacy por fecha. */
+  const hayVinculosSgc = docs.some((d) => Boolean(d.sgcObservationId));
   const faltantes: FaltanteCorreccionSgc[] = [];
   let cubiertos = 0;
 
@@ -155,10 +161,14 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
     const obsMs = dateUtils.toMs(o.createdAt ?? null);
     const esNuevo = !o.documentId || o.requiresNewDocument === true;
     const identificado = (d: DocumentoLike) =>
+      Boolean(o.observationId && d.sgcObservationId === o.observationId) ||
+      Boolean(o.documentId && d.sgcDocumentId === o.documentId) ||
       Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
       Boolean(o.requisito && d.requisito === o.requisito) ||
-      Boolean(o.nombre && d.nombre === o.nombre);
-    const sinIdentificador = !o.documentoLocalId && !o.requisito && !o.nombre;
+      Boolean(o.nombre && d.nombre === o.nombre) ||
+      Boolean(o.title && (d.sgcTitle === o.title || d.nombre === o.title));
+    const sinIdentificador =
+      !o.observationId && !o.documentId && !o.documentoLocalId && !o.requisito && !o.nombre && !o.title;
 
     const indice = obsMs === null
       ? -1
@@ -167,9 +177,21 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
           if (usados.has(clave) || !esCliente(d)) return false;
           if ((dateUtils.toMs(d.createdAt ?? null) ?? 0) <= obsMs) return false;
           if (esObservacionSgcContrato(o)) {
-            return d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+            if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return false;
+            return !o.observationId || !d.sgcObservationId
+              ? true
+              : d.sgcObservationId === o.observationId;
           }
           if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.ANEXO) return false;
+          /* Un vinculo explicito manda: evita que un anexo cualquiera cubra una
+           * observacion arbitraria solo por ser posterior a la devolucion. */
+          if (o.observationId) {
+            if (d.sgcObservationId) return d.sgcObservationId === o.observationId;
+            /* Compatibilidad con correcciones previas sin vinculo: solo cuenta si
+             * coincide exactamente por requisito/nombre/titulo. */
+            if (hayVinculosSgc && !identificado(d)) return false;
+          }
+          if (o.documentId && d.sgcDocumentId) return d.sgcDocumentId === o.documentId;
           return esNuevo || sinIdentificador || identificado(d);
         });
 
