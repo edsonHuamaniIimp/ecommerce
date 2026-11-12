@@ -728,7 +728,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                            {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && observacionContratoSgcPendiente(row) && (
+                            {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && !accionesObservacion(row).contratoCorregidoPendienteFirma && observacionContratoSgcPendiente(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
                               title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
                               onClick={() => openClienteUpload(row, "contrato")}>
@@ -880,7 +880,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                          {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && observacionContratoSgcPendiente(row) && (
+                          {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && !accionesObservacion(row).contratoCorregidoPendienteFirma && observacionContratoSgcPendiente(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
                                 title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
                                 onClick={() => openClienteUpload(row, "contrato")}>
