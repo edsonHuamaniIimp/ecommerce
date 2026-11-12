@@ -417,9 +417,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     await abrirPruebaCliente(row, "contrato");
   };
 
-  /** Accion del cliente; en "Ver como" se abre en modo prueba. */
+  /** Accion del cliente; en "Ver como" (solo admin) se abre en modo prueba. */
   const abrirAccionCliente = (row: SolicitudRow, modo: "contrato" | "anexos") => {
-    if (soloLectura) void abrirPruebaCliente(row, modo);
+    if (esAdmin && soloLectura) void abrirPruebaCliente(row, modo);
     else void openClienteUpload(row, modo);
   };
 
@@ -759,16 +759,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             const a = accionesObservacion(row);
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
+                                {a.contratoCorregidoPendienteFirma && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
-                                    onClick={() => {
-                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
-                                      void openClienteUpload(row, modo);
-                                    }}>
-                                    {a.tieneAnexosObservados
-                                      ? <Upload className="h-3.5 w-3.5" />
-                                      : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    onClick={() => abrirAccionCliente(row, "contrato")}>
+                                    <PenLine className="h-3.5 w-3.5" />
+                                    <span>Firmar contrato corregido</span>
+                                  </Button>
+                                )}
+                                {a.tieneAnexosObservados && (
+                                  <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
+                                    onClick={() => abrirAccionCliente(row, "anexos")}>
+                                    <Upload className="h-3.5 w-3.5" />
+                                    <span>Subir / reemplazar documentos</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -909,16 +911,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             const a = accionesObservacion(row);
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
+                                {a.contratoCorregidoPendienteFirma && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
-                                    onClick={() => {
-                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
-                                      void openClienteUpload(row, modo);
-                                    }}>
-                                    {a.tieneAnexosObservados
-                                      ? <Upload className="h-3.5 w-3.5" />
-                                      : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    onClick={() => abrirAccionCliente(row, "contrato")}>
+                                    <PenLine className="h-3.5 w-3.5" />
+                                    <span>Firmar contrato corregido</span>
+                                  </Button>
+                                )}
+                                {a.tieneAnexosObservados && (
+                                  <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
+                                    onClick={() => abrirAccionCliente(row, "anexos")}>
+                                    <Upload className="h-3.5 w-3.5" />
+                                    <span>Subir / reemplazar documentos</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -1658,7 +1662,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
             <ClienteUploadModal
               solicitud={clienteUploadRow}
               modo={clienteUploadModo}
-              modoPrueba={clienteUploadPrueba}
+              modoPrueba={esAdmin && clienteUploadPrueba}
               onClose={() => { setClienteUploadOpen(false); setClienteUploadPrueba(false); }}
               onSaved={() => {
                 void load(page, search, perPage);

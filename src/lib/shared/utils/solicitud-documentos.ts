@@ -98,9 +98,13 @@ export function sgcObservacionesAbiertas(s: SolicitudDocumentosGate): SgcObserva
   );
 }
 
-/** La observacion apunta al contrato (principal) y no a un anexo. */
+/** La observacion apunta al contrato (principal o firmado por el cliente) y no a un anexo. */
 export function esObservacionSgcContrato(o: SgcObservacionLike): boolean {
-  return o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT;
+  return (
+    o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO ||
+    o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO ||
+    o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT
+  );
 }
 
 /** La observacion apunta a un anexo/documento del cliente. */

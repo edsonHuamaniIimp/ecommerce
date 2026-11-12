@@ -122,6 +122,8 @@ export interface GenerarContratoInput {
   sellosFirmantes?: SelloVectorialFirma[];
   /** true = estampar imagenes de firma reales (solo al firmar; el contrato del admin va sin firmas). */
   estamparFirmas?: boolean;
+  /** true = generacion interna de la firma: el cliente ya paso las validaciones de `firmar`. */
+  esFirma?: boolean;
 }
 
 export interface FirmarContratoInput {
@@ -214,7 +216,7 @@ export class ContratoApplicationService {
     if (!puedeGenerar && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes regenerar el contrato.", API_ERROR_CODES.CONFLICT, 409);
     }
-    if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true) {
+    if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true && input.esFirma !== true) {
       const esPrimeraPlantilla = detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && detalle.docsAdminCount === 0;
       if (!esPrimeraPlantilla) {
         throw new DomainError(
@@ -977,6 +979,7 @@ export class ContratoApplicationService {
       contrato: input.contrato,
       sellosFirmantes: sellos,
       estamparFirmas: true,
+      esFirma: true,
       userEmail: input.userEmail,
       userSub: input.userSub,
       userPermissions: input.userPermissions,

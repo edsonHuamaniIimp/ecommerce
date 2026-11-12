@@ -9,7 +9,7 @@ import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
@@ -293,9 +293,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       /* El contrato no es un anexo: se firma desde el flujo de contrato. */
       !esObservacionSgcContrato(o),
   );
-  const observacionContratoSgc = observacionesSgc.find(
-    (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,
-  ) ?? null;
+  const observacionContratoSgc = observacionesSgc.find(esObservacionSgcContrato) ?? null;
   const contratoSgcPendiente = observacionContratoSgcPendiente(solicitud);
   const requiereNuevoContratoSgc = contratoSgcPendiente && (
     !contratoAdmin ||
@@ -333,7 +331,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     setSending(true);
     setError(null);
     try {
-      if (soloFirmaDigital && (requiereNuevoContratoSgc || !contratoAdmin) && !contratoPreviewUrl) {
+      if (soloFirmaDigital && !contratoAdmin && !contratoPreviewUrl) {
         await contratosService.generar({ solicitudId: solicitud.id });
       }
       const firmado = await contratosService.firmar({ solicitudId: solicitud.id, sellos });
@@ -358,7 +356,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   /** Abre el lienzo de firma; genera el PDF si aun no existe. */
   const abrirFirmaWorkspace = async () => {
     if (abriendoFirma) return;
-    const existente = requiereNuevoContratoSgc ? null : (contratoPreviewUrl ?? contratoAdmin?.url ?? null);
+    const existente = contratoPreviewUrl ?? (requiereNuevoContratoSgc ? null : (contratoAdmin?.url ?? null));
     if (modoPrueba && !existente) {
       toast.info("Modo prueba: esta solicitud aún no tiene contrato para probar.");
       return;
@@ -370,6 +368,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       }
       setContratoPreviewUrl(existente);
       setFirmaWorkspaceOpen(true);
+      return;
+    }
+    if (requiereNuevoContratoSgc) {
+      setError("El administrador aún no generó la versión corregida del contrato. Espera esa versión para firmar.");
       return;
     }
     setAbriendoFirma(true);
