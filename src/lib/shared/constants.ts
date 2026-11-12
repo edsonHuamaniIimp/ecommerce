@@ -2182,7 +2182,6 @@ export const DD_MATRIZ_LISTA_URLS: Record<
   },
   dea: {
     url: "https://www.dea.gov/fugitives/all",
-    consultaParam: "?keywords=",
   },
 };
 

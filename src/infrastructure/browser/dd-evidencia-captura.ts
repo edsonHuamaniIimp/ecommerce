@@ -94,6 +94,15 @@ async function capturarBusquedaEnLista(
   termino: string,
   url: string,
 ): Promise<EvidenciaCapturada> {
+  const contenido = await page.evaluate(() => document.body?.innerText?.length ?? 0);
+  if (contenido < 800) {
+    throw new DomainError(
+      "La fuente oficial no cargó su contenido (posible bloqueo). Revisa manualmente el portal.",
+      API_ERROR_CODES.VALIDATION,
+      502,
+    );
+  }
+
   const coincidencias = await resaltarCoincidencias(page, termino);
 
   await page.evaluate(
@@ -386,7 +395,11 @@ export async function capturarEvidenciaPdf(
   const browser = await chromium.launch({
     executablePath: chromePath(),
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
+    ],
   });
 
   try {
@@ -394,6 +407,13 @@ export async function capturarEvidenciaPdf(
       acceptDownloads: true,
       locale: "es-PE",
       viewport: { width: 1440, height: 1800 },
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      extraHTTPHeaders: {
+        "accept-language": "es-PE,es;q=0.9,en;q=0.8",
+        accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      },
     });
     const page = await context.newPage();
     page.setDefaultTimeout(15000);
@@ -401,13 +421,23 @@ export async function capturarEvidenciaPdf(
     if (htmlInicial) {
       await page.setContent(htmlInicial, { waitUntil: "domcontentloaded" });
     } else {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      const respuesta = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      if (respuesta && respuesta.status() >= 400) {
+        throw new DomainError(
+          `La fuente oficial respondió ${respuesta.status()} (posible bloqueo). Revisa manualmente el portal.`,
+          API_ERROR_CODES.VALIDATION,
+          502,
+        );
+      }
     }
     await page.waitForTimeout(1500);
 
-    /* Listas consolidadas sin buscador propio (ONU): la evidencia es la captura
-       de la búsqueda (Ctrl+F) del término, no el listado completo. */
-    if (url.includes("scsanctions.un.org/consolidated")) {
+    /* Listas consolidadas sin buscador propio (ONU, DEA): la evidencia es la
+       captura de la búsqueda (Ctrl+F) del término, no el listado completo. */
+    if (
+      url.includes("scsanctions.un.org/consolidated") ||
+      url.includes("dea.gov/fugitives")
+    ) {
       return await capturarBusquedaEnLista(page, nombre, termino, url);
     }
 
