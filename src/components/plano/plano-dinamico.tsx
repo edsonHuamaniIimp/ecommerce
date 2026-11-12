@@ -12,7 +12,7 @@ import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, MAX_STANDS_RESERVA_DEFAULT, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
-import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
+import { estadoStandBadge, esStandNoDisponible } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
@@ -404,7 +404,7 @@ map.set(String(bloqueId), {
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
             imagenesCategorias: normalizarCategoriasImagen(r.imagenesCategorias),
-            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION || estado === ESTADOS_STAND.PRE_RESERVADO,
+            reserved: esStandNoDisponible(estado),
             dbId: String(r.id ?? ""),
           });
         }

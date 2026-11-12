@@ -11,6 +11,7 @@ import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA } from "@/lib/shared/constants";
+import { esStandNoDisponible } from "@/lib/shared/utils/estado-stand";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -176,7 +177,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
-            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION || estado === ESTADOS_STAND.PRE_RESERVADO,
+            reserved: esStandNoDisponible(estado),
             dbId: String(r.id ?? ""),
           });
         }

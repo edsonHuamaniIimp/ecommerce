@@ -29,6 +29,23 @@ export function estadoStandBadge(estado: string | null | undefined): EstadoStand
 }
 
 /**
+ * True si el stand NO esta disponible para reservar (se pinta gris en el plano y
+ * no se puede seleccionar). Cubre todos los estados canonicos no disponibles y los
+ * valores heredados de GESS/KB. Debe coincidir con el criterio de bloqueo del
+ * backend (`crearHold` rechaza cualquier estado distinto de `disponible`).
+ */
+export function esStandNoDisponible(estado: string | null | undefined): boolean {
+  if (!estado) return false;
+  return estado === ESTADOS_STAND.EN_PROCESO
+    || estado === ESTADOS_STAND.EN_EVALUACION
+    || estado === ESTADOS_STAND.RESERVADO
+    || estado === ESTADOS_STAND.PRE_RESERVADO
+    || estado === ESTADOS_STAND_LEGACY.RESERVADO
+    || estado === ESTADOS_STAND_LEGACY.EN_EVALUACION
+    || estado === ESTADOS_STAND_LEGACY.RESERVED;
+}
+
+/**
  * Estado **comercial** de un stand para integraciones M2M: se deriva del estado real
  * de la reserva/solicitud (no del estado tecnico del plano).
  *  - sin solicitud activa o rechazada -> `disponible`

@@ -4,8 +4,9 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IPlanoRepository, UbicacionBloque } from "@/domain/ports/plano-repository";
 import type { PlanoEntity, PlanoListItem, PlanoExportJSON, PlanoBloqueEntity, PlanoTipoBloqueEntity, PlanoFurnitureEntity, PlanoSeccionEntity, SeccionOcupacion, PlanoTipoSugerido } from "@/domain/models/plano-entities";
-import { AMBITOS_TIPO_BLOQUE, ESTADOS_STAND, ESTADOS_STAND_LEGACY, FORMAS_BLOQUE, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
+import { AMBITOS_TIPO_BLOQUE, FORMAS_BLOQUE, TIPOS_BLOQUE_GLOBALES, TIPOS_PLANO } from "@/lib/shared/constants";
 import { normalizarCodigoTipo, planSincronizacionCatalogo } from "@/lib/shared/utils/catalogo-tipos";
+import { esStandNoDisponible } from "@/lib/shared/utils/estado-stand";
 import { seccionPuntosUtils } from "@/lib/shared/utils/seccion-puntos";
 
 interface PlanoTipoRow {
@@ -634,9 +635,7 @@ export class PlanoPrismaRepository implements IPlanoRepository {
         select: { estado: true },
       });
       const total = stands.length;
-      const disponibles = stands.filter(
-        (s) => !s.estado || s.estado === ESTADOS_STAND.DISPONIBLE || (s.estado !== ESTADOS_STAND.EN_EVALUACION && s.estado !== ESTADOS_STAND.RESERVADO && s.estado !== ESTADOS_STAND.PRE_RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.RESERVADO && s.estado !== ESTADOS_STAND_LEGACY.EN_EVALUACION),
-      ).length;
+      const disponibles = stands.filter((s) => !esStandNoDisponible(s.estado)).length;
       resultado.push({
         seccionCodigo: seccion.codigo,
         total,

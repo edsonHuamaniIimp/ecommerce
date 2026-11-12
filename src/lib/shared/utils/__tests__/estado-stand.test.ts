@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { esEmpresaDuenaPreReserva } from "../estado-stand";
+import { esEmpresaDuenaPreReserva, esStandNoDisponible } from "../estado-stand";
+import { ESTADOS_STAND, ESTADOS_STAND_LEGACY } from "@/lib/shared/constants";
 
 describe("esEmpresaDuenaPreReserva", () => {
   const stand = {
@@ -39,5 +40,28 @@ describe("esEmpresaDuenaPreReserva", () => {
         { ruc: "20123456789", razonSocial: "Minera Cordillera S.A.C." },
       ),
     ).toBe(false);
+  });
+});
+
+describe("esStandNoDisponible", () => {
+  it("disponible (canonico y legacy available) se puede reservar", () => {
+    expect(esStandNoDisponible(ESTADOS_STAND.DISPONIBLE)).toBe(false);
+    expect(esStandNoDisponible(ESTADOS_STAND_LEGACY.AVAILABLE)).toBe(false);
+    expect(esStandNoDisponible(null)).toBe(false);
+    expect(esStandNoDisponible(undefined)).toBe(false);
+    expect(esStandNoDisponible("")).toBe(false);
+  });
+
+  it("todos los estados canonicos no disponibles bloquean", () => {
+    expect(esStandNoDisponible(ESTADOS_STAND.EN_PROCESO)).toBe(true);
+    expect(esStandNoDisponible(ESTADOS_STAND.EN_EVALUACION)).toBe(true);
+    expect(esStandNoDisponible(ESTADOS_STAND.RESERVADO)).toBe(true);
+    expect(esStandNoDisponible(ESTADOS_STAND.PRE_RESERVADO)).toBe(true);
+  });
+
+  it("estados heredados de GESS/KB bloquean", () => {
+    expect(esStandNoDisponible(ESTADOS_STAND_LEGACY.RESERVADO)).toBe(true);
+    expect(esStandNoDisponible(ESTADOS_STAND_LEGACY.EN_EVALUACION)).toBe(true);
+    expect(esStandNoDisponible(ESTADOS_STAND_LEGACY.RESERVED)).toBe(true);
   });
 });
