@@ -441,12 +441,13 @@ export async function capturarEvidenciaPdf(
     /* OpenSanctions/DEA ya traen el término en la URL; en el resto se busca en el formulario. */
     if (!url.includes("?q=") && !url.includes("?keywords=")) {
       await buscarEnPagina(page, termino, inputSelector);
-      /* Portales con formulario propio (DEA): constancia con la búsqueda aplicada. */
-      if (url.includes("dea.gov/fugitives")) {
-        return await capturarBusquedaEnLista(page, nombre, termino, page.url());
-      }
     } else {
       await page.waitForTimeout(3000);
+    }
+
+    /* Portales con listado propio (DEA): constancia con la búsqueda aplicada. */
+    if (url.includes("dea.gov/fugitives")) {
+      return await capturarBusquedaEnLista(page, nombre, termino, page.url());
     }
 
     const bytes = await page.pdf({
