@@ -41,6 +41,7 @@ interface Pendiente {
   nombre: string;
   requisito: string | null;
   observacionId?: string | null;
+  observacionTitulo?: string | null;
 }
 
 interface Firmante {
@@ -92,6 +93,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const firmaObjetivoRef = useRef<string | null>(null);
   const requisitoRef = useRef<string | null>(null);
   const observacionRef = useRef<string | null>(null);
+  const observacionTituloRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
   const cargarFirmantes = useCallback(async (): Promise<void> => {
@@ -156,16 +158,17 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     setUploading(true);
     try {
       const url = await solicitudesService.subirArchivo(file);
-      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current, observacionId: observacionRef.current }]);
+      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current, observacionId: observacionRef.current, observacionTitulo: observacionTituloRef.current }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
     setUploading(false);
   };
 
-  const abrirSelector = (requisito: string | null, observacionId: string | null = null) => {
+  const abrirSelector = (requisito: string | null, observacionId: string | null = null, observacionTitulo: string | null = null) => {
     requisitoRef.current = requisito;
     observacionRef.current = observacionId;
+    observacionTituloRef.current = observacionTitulo;
     const input = fileRef.current;
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
@@ -754,7 +757,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                     : f.title === (o.title ?? o.nombre ?? "Documento"),
                 );
                 const idxPendiente = pendientes.findIndex((p) =>
-                  o.observationId ? p.observacionId === o.observationId : p.requisito === null,
+                  o.observationId
+                    ? p.observacionId === o.observationId
+                    : (o.title ?? o.nombre)
+                      ? p.observacionTitulo === (o.title ?? o.nombre)
+                      : p.requisito === null,
                 );
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
@@ -791,7 +798,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                           size="sm"
                           className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                           disabled={uploading}
-                          onClick={() => abrirSelector(null, o.observationId ?? null)}
+                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null)}
                         >
                           {local ? "Reemplazar" : "Adjuntar"}
                         </Button>
