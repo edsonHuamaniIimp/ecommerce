@@ -34,6 +34,104 @@ export interface EvidenciaCapturada {
   nombre: string;
 }
 
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Resalta el término en el DOM (equivalente al Ctrl+F del navegador) y devuelve
+ * el número de coincidencias encontradas.
+ */
+async function resaltarCoincidencias(
+  page: import("playwright-core").Page,
+  termino: string,
+): Promise<number> {
+  return page.evaluate((t) => {
+    const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patron = new RegExp(escapar(t), "gi");
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodos: Text[] = [];
+    while (walker.nextNode()) nodos.push(walker.currentNode as Text);
+
+    let total = 0;
+    for (const nodo of nodos) {
+      const texto = nodo.nodeValue ?? "";
+      const coincidencias = [...texto.matchAll(patron)];
+      if (coincidencias.length === 0) continue;
+
+      const fragmento = document.createDocumentFragment();
+      let ultimo = 0;
+      for (const coincidencia of coincidencias) {
+        fragmento.appendChild(document.createTextNode(texto.slice(ultimo, coincidencia.index)));
+        const marca = document.createElement("mark");
+        marca.textContent = coincidencia[0];
+        marca.style.background = "#ffeb3b";
+        marca.style.color = "#000";
+        fragmento.appendChild(marca);
+        ultimo = coincidencia.index + coincidencia[0].length;
+        total += 1;
+      }
+      fragmento.appendChild(document.createTextNode(texto.slice(ultimo)));
+      nodo.parentNode?.replaceChild(fragmento, nodo);
+    }
+    return total;
+  }, termino);
+}
+
+/**
+ * Constancia de búsqueda para listados largos sin buscador (p. ej. lista
+ * consolidada de la ONU): captura la pantalla con el término resaltado o, si no
+ * hay coincidencias, el banner que lo declara. No imprime el listado completo.
+ */
+async function capturarBusquedaEnLista(
+  page: import("playwright-core").Page,
+  nombre: string,
+  termino: string,
+  url: string,
+): Promise<EvidenciaCapturada> {
+  const coincidencias = await resaltarCoincidencias(page, termino);
+
+  await page.evaluate(
+    ({ term, total }) => {
+      const banner = document.createElement("div");
+      banner.style.cssText =
+        "position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#0B2E59;color:#fff;" +
+        "font:15px/1.5 Arial,sans-serif;padding:10px 16px;";
+      banner.textContent =
+        `Búsqueda: "${term}" — ` +
+        (total > 0 ? `${total} coincidencia(s) resaltada(s)` : "Sin coincidencias") +
+        ` — ${new Date().toLocaleString("es-PE")}`;
+      document.body.appendChild(banner);
+      document.body.style.paddingTop = "52px";
+      document.querySelector("mark")?.scrollIntoView({ block: "center" });
+    },
+    { term: termino, total: coincidencias },
+  );
+  await page.waitForTimeout(400);
+
+  const captura = await page.screenshot({ type: "png", fullPage: false });
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+    <body style="font-family:Arial,sans-serif;margin:16px">
+      <h1 style="font-size:15px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
+      <p style="font-size:12px;color:#444;margin:0 0 10px">Término: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · Fuente: ${escaparHtml(url)}</p>
+      <img style="width:100%;border:1px solid #ccc" src="data:image/png;base64,${Buffer.from(captura).toString("base64")}">
+    </body></html>`;
+  await page.setContent(html, { waitUntil: "load" });
+
+  const pdf = await page.pdf({
+    format: "A4",
+    landscape: true,
+    printBackground: true,
+    margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+  });
+
+  return { bytes: Buffer.from(pdf), mimeType: "application/pdf", extension: "pdf", nombre };
+}
+
 async function buscarEnPagina(
   page: import("playwright-core").Page,
   termino: string,
@@ -125,6 +223,12 @@ export async function capturarEvidenciaPdf(
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     }
     await page.waitForTimeout(1500);
+
+    /* Listas consolidadas sin buscador propio (ONU): la evidencia es la captura
+       de la búsqueda (Ctrl+F) del término, no el listado completo. */
+    if (url.includes("scsanctions.un.org/consolidated")) {
+      return await capturarBusquedaEnLista(page, nombre, termino, url);
+    }
 
     /* OpenSanctions/DEA ya traen el término en la URL; en el resto se busca en el formulario. */
     if (!url.includes("?q=") && !url.includes("?keywords=")) {
