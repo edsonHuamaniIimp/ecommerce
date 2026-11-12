@@ -890,6 +890,7 @@ model SolicitudDocumento {
   @@index([initialUserId])
   @@index([sha256])
   @@index([solicitudId, estado])
+  @@index([sgcObservationId])
   @@map("solicitud_documento")
 }
 
