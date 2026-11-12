@@ -133,9 +133,18 @@ export const ddMatrizEvaluacionController = {
       `${randomUUID()}.pdf`,
       captura.mimeType,
     );
+    const categoriaAdjunto =
+      `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}` as DdMatrizAdjuntoCategoria;
+    /* Reemplaza la evidencia previa del mismo criterio (evita duplicados al reintentar). */
+    const adjuntoPrevio = detalle.adjuntos.find(
+      (adjunto) => adjunto.categoria === categoriaAdjunto,
+    );
+    if (adjuntoPrevio) {
+      await services.ddMatrizEvaluacion.eliminarAdjunto(session, adjuntoPrevio.id);
+    }
     const adjunto = await services.ddMatrizEvaluacion.registrarAdjunto(session, {
       vinculoId: parsed.data.vinculoId,
-      categoria: `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}` as DdMatrizAdjuntoCategoria,
+      categoria: categoriaAdjunto,
       nombre: captura.nombre,
       url: urlArchivo,
       mimeType: captura.mimeType,

@@ -2188,7 +2188,7 @@ export const DD_MATRIZ_LISTA_URLS: Record<
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
-export const DD_MATRIZ_ADJUNTOS_MAX = 10;
+export const DD_MATRIZ_ADJUNTOS_MAX = 30;
 export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
 /** Maximo de vinculos por exportacion a Excel. */
