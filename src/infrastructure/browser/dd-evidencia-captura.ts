@@ -1,5 +1,6 @@
 ﻿import "server-only";
 
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 import { DomainError } from "@/domain/errors/domain-error";
@@ -186,6 +187,7 @@ async function capturarBusquedaEnPdf(
 
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const documento = await getDocument({ data: datos }).promise;
+  const paginas = documento.numPages;
 
   const buscado = normalizarTexto(termino);
   const fragmentos: string[] = [];
@@ -215,6 +217,7 @@ async function capturarBusquedaEnPdf(
   }
 
   const fecha = new Date().toLocaleString("es-PE");
+  const hash = createHash("sha256").update(datos).digest("hex");
   const lista = fragmentos.length
     ? `<ul style="font-size:12px;line-height:1.5">${fragmentos
         .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
@@ -226,11 +229,92 @@ async function capturarBusquedaEnPdf(
       <h1 style="font-size:16px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
       <p style="font-size:12px;color:#444;margin:0 0 12px">
         Término buscado: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · ${fecha}<br>
-        Fuente: ${escaparHtml(url)}
+        Fuente: ${escaparHtml(url)}<br>
+        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${paginas} páginas · SHA-256: ${hash}
       </p>
       ${lista}
       <p style="font-size:11px;color:#666;margin-top:16px">
         Constancia de búsqueda automática sobre la lista oficial. No se adjunta el listado completo.
+      </p>
+    </body></html>`;
+
+  return {
+    bytes: await renderizarConstancia(html),
+    mimeType: "application/pdf",
+    extension: "pdf",
+    nombre,
+  };
+}
+
+/**
+ * Constancia de búsqueda para fuentes que entregan una hoja de cálculo (p. ej.
+ * sanciones australianas): descarga el XLSX, busca el término en sus celdas y
+ * genera un PDF pequeño con el resultado y el hash del archivo oficial.
+ */
+async function capturarBusquedaEnXlsx(
+  url: string,
+  termino: string,
+  nombre: string,
+): Promise<EvidenciaCapturada> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new DomainError(
+      "No se pudo descargar la fuente oficial",
+      API_ERROR_CODES.VALIDATION,
+      502,
+    );
+  }
+  const datos = Buffer.from(await response.arrayBuffer());
+
+  const ExcelJS = (await import("exceljs")).default;
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(datos as unknown as Parameters<typeof libro.xlsx.load>[0]);
+
+  const buscado = normalizarTexto(termino);
+  const fragmentos: string[] = [];
+  let coincidencias = 0;
+
+  libro.eachSheet((hoja) => {
+    hoja.eachRow({ includeEmpty: false }, (fila, numero) => {
+      fila.eachCell({ includeEmpty: false }, (celda) => {
+        const texto = normalizarTexto(celda.text ?? "");
+        if (!texto) return;
+
+        let indice = texto.indexOf(buscado);
+        while (indice !== -1) {
+          coincidencias += 1;
+          if (fragmentos.length < 3) {
+            const desde = Math.max(0, indice - 100);
+            const hasta = Math.min(texto.length, indice + buscado.length + 100);
+            fragmentos.push(
+              `Hoja "${hoja.name}", fila ${numero}: …${texto.slice(desde, hasta).trim()}…`,
+            );
+          }
+          indice = texto.indexOf(buscado, indice + buscado.length);
+        }
+      });
+    });
+  });
+
+  const fecha = new Date().toLocaleString("es-PE");
+  const hash = createHash("sha256").update(datos).digest("hex");
+  const lista = fragmentos.length
+    ? `<ul style="font-size:12px;line-height:1.5">${fragmentos
+        .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
+        .join("")}</ul>`
+    : `<p style="font-size:13px">Sin coincidencias en la hoja de cálculo oficial para esta búsqueda.</p>`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+    <body style="font-family:Arial,sans-serif;margin:4px">
+      <h1 style="font-size:16px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
+      <p style="font-size:12px;color:#444;margin:0 0 12px">
+        Término buscado: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · ${fecha}<br>
+        Fuente: ${escaparHtml(url)}<br>
+        Documento: ${datos.byteLength.toLocaleString("es-PE")} bytes · ${libro.worksheets.length} hoja(s) · SHA-256: ${hash}
+      </p>
+      ${lista}
+      <p style="font-size:11px;color:#666;margin-top:16px">
+        Constancia de búsqueda automática sobre la hoja de cálculo oficial. No se adjunta el archivo completo.
       </p>
     </body></html>`;
 
@@ -286,11 +370,7 @@ export async function capturarEvidenciaPdf(
   inputSelector?: string,
 ): Promise<EvidenciaCapturada> {
   if (url.toLowerCase().endsWith(".xlsx")) {
-    throw new DomainError(
-      "La fuente entrega un archivo XLSX; todavía no se convierte automáticamente a PDF",
-      API_ERROR_CODES.VALIDATION,
-      422,
-    );
+    return await capturarBusquedaEnXlsx(url, termino, nombre);
   }
 
   if (url.toLowerCase().endsWith(".pdf") || url.includes("pdfFullSanctionsList")) {
