@@ -301,6 +301,8 @@ export interface SolicitudRow {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
+  /** Ultima sincronizacion del expediente SGC (para sync-on-read con TTL). */
+  sgcLastSyncedAt?: Date | null;
   /** Motivo textual de la ultima devolucion/rechazo del SGC. */
   sgcDevolucionMotivo?: string | null;
   /** true/false si el SGC exige cambio documental; null = no informado. */

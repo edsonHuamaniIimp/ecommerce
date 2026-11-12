@@ -627,6 +627,7 @@ export class SgcIntegracionApplicationService {
         `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/${documento.currentVersionId ?? "manual"}`,
       );
     }
+    await this.consultarExpediente(solicitudId).catch(() => null);
     return documento;
   }
 
@@ -792,6 +793,9 @@ export class SgcIntegracionApplicationService {
     await this.repo
       .actualizarExpediente(expediente.id, { subsanacionMotivo: null, subsanacionModo: null, lastError: null })
       .catch(() => undefined);
+    /* Refresca el estado local tras reabrir la ronda: evita que el cliente siga
+     * viendo "observado" si el SGC ya paso a revision. Best-effort. */
+    await this.consultarExpediente(solicitudId).catch(() => null);
     return { reenviado: true, documento };
   }
 
