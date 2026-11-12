@@ -2885,6 +2885,9 @@ export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
  */
 export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
 
+/** TTL del sync-on-read para no consultar el SGC en cada apertura de detalle. */
+export const SGC_SYNC_ON_READ_TTL_MS = 2 * 60 * 1000;
+
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
 /** Prefijo de la Idempotency-Key en los POST documentales (reserve/complete), guia v5. */

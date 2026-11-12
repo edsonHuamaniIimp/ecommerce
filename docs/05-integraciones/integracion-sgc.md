@@ -732,6 +732,9 @@ Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fe
 - La API del SGC sigue siendo la autoridad: una observación solo queda resuelta cuando el
   SGC la marca `resolved` o acepta el reenvío. La UI muestra “corrección registrada” vs
   “corrección enviada al SGC”, pero no inventa una resolución local.
+- `SolicitudesApplicationService.detalle` hace sync-on-read con TTL de 2 minutos para casos
+  `observed`/`rejected`; así el detalle del cliente no depende de que un admin abra el panel.
+  Tras un reenvío exitoso también se refresca el expediente contra el SGC (best-effort).
 - El vínculo se guarda al subir el archivo. Documentos históricos sin
   `sgc_observation_id`/`sgc_document_id` siguen usando el matching legacy.
 - Si una misma observación requiere más de un archivo, el modelo actual sigue la regla v7

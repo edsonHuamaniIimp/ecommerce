@@ -356,6 +356,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcLastSyncedAt: row.sgcExpediente?.lastSyncedAt ?? null,
     sgcDevolucionMotivo: row.sgcExpediente?.devolucionMotivo ?? null,
     sgcDevolucionRequiereCambio: row.sgcExpediente?.devolucionRequiereCambio ?? null,
     sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,

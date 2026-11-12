@@ -5,7 +5,7 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_STAGES } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 
 vi.mock("@/lib/server/router", () => ({
@@ -470,5 +470,52 @@ describe("SolicitudesApplicationService + SGC", () => {
       ANEXOS_KEYS.FICHA_RUC,
       null,
     );
+  });
+});
+
+describe("SolicitudesApplicationService.detalle con SGC", () => {
+  it("sincroniza on-read un caso observado con copia local vencida", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    const stale = detalleMultistand({
+      sgcEnabled: true,
+      sgcEstadoEnvio: "creado",
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      sgcLastSyncedAt: new Date(Date.now() - 5 * 60 * 1000),
+    });
+    const fresh = {
+      ...stale,
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+      sgcLastSyncedAt: new Date(),
+    };
+    repo.detalle = vi.fn().mockResolvedValueOnce(stale).mockResolvedValueOnce(fresh);
+    const consultarExpediente = vi.fn().mockResolvedValue({ contractId: "contract-1" });
+    const svc = new SolicitudesApplicationService(
+      repo,
+      { consultarExpediente } as unknown as SgcIntegracionApplicationService,
+    );
+
+    const resultado = await svc.detalle("sol-1");
+
+    expect(consultarExpediente).toHaveBeenCalledWith("sol-1");
+    expect(resultado?.sgcLifecycleStatus).toBe(SGC_LIFECYCLE_STATUSES.ACTIVE);
+  });
+
+  it("no llama al SGC si la ultima sincronizacion esta dentro del TTL", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand({
+      sgcEnabled: true,
+      sgcEstadoEnvio: "creado",
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      sgcLastSyncedAt: new Date(),
+    }));
+    const consultarExpediente = vi.fn();
+    const svc = new SolicitudesApplicationService(
+      repo,
+      { consultarExpediente } as unknown as SgcIntegracionApplicationService,
+    );
+
+    await svc.detalle("sol-1");
+
+    expect(consultarExpediente).not.toHaveBeenCalled();
   });
 });

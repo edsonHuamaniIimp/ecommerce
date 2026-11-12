@@ -2,7 +2,7 @@ import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginate
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -45,7 +45,33 @@ export class SolicitudesApplicationService {
   }
 
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
-    return this.repo.detalle(solicitudId);
+    const actual = await this.repo.detalle(solicitudId);
+    if (
+      !actual ||
+      !this.sgcIntegracion ||
+      !actual.sgcEnabled ||
+      !actual.sgcEstadoEnvio ||
+      (actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.OBSERVED &&
+        actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.REJECTED)
+    ) {
+      return actual;
+    }
+
+    /*
+     * Sync-on-read acotado: si el cliente abre un caso devuelto/rechazado y la
+     * copia local esta vieja, se refresca contra el SGC antes de responder.
+     * El TTL evita llamar al SGC en cada apertura y el fallo es best-effort.
+     */
+    const ultimaSync = dateUtils.toMs(actual.sgcLastSyncedAt ?? null);
+    if (ultimaSync !== null && Date.now() - ultimaSync < SGC_SYNC_ON_READ_TTL_MS) {
+      return actual;
+    }
+    try {
+      await this.sgcIntegracion.consultarExpediente(solicitudId);
+      return (await this.repo.detalle(solicitudId)) ?? actual;
+    } catch {
+      return actual;
+    }
   }
 
   /**
