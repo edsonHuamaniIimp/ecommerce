@@ -2171,7 +2171,6 @@ export const DD_MATRIZ_LISTA_URLS: Record<
   },
   sanciones_australia: {
     url: "https://www.dfat.gov.au/sites/default/files/Australian_Sanctions_Consolidated_List.xlsx",
-    automatizable: false,
   },
   banco_mundial: {
     url: "https://www.worldbank.org/en/projects-operations/procurement/debarred-firms",
