@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
+import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
 const BASE = new Date("2026-10-03T00:00:00");
@@ -226,6 +226,41 @@ describe("configuracion personalizada de cuotas por empresa", () => {
       { porcentaje: 33.33, fecha: "2026-11-15" },
       { porcentaje: 33.33, fecha: "2027-02-15" },
       { porcentaje: 33.34, fecha: "2027-06-15" },
+    ]);
+  });
+
+  it("valida porcentajes fijos y exige que coincidan con el plan", () => {
+    const fijo = {
+      maxCuotas: 3,
+      fechas: ["2026-11-15", "2027-02-15", "2027-06-15"],
+      porcentajes: [50, 30, 20],
+    };
+    expect(configCuotasFijaPorcentajes(fijo)).toBe(true);
+    expect(configCuotasFijaPorcentajes(CONFIG)).toBe(false);
+    expect(configCuotasValida(fijo, "2026-10-19")).toBe(true);
+    expect(configCuotasValida({ ...fijo, porcentajes: [50, 30, 10] }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ ...fijo, porcentajes: [50, 30] }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ ...fijo, porcentajes: [50, 30, 20.001] }, "2026-10-19")).toBe(false);
+    expect(cuotasCoincidenConfig([
+      { porcentaje: 50, fechaVencimiento: "2026-11-15" },
+      { porcentaje: 30, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 20, fechaVencimiento: "2027-06-15" },
+    ], fijo, "2026-10-19")).toBe(true);
+    expect(cuotasCoincidenConfig([
+      { porcentaje: 50, fechaVencimiento: "2026-11-15" },
+      { porcentaje: 25, fechaVencimiento: "2027-02-15" },
+      { porcentaje: 25, fechaVencimiento: "2027-06-15" },
+    ], fijo, "2026-10-19")).toBe(false);
+  });
+
+  it("inicializa las cuotas con los porcentajes fijos configurados", () => {
+    expect(cuotasPersonalizadasIniciales({
+      maxCuotas: 2,
+      fechas: ["2026-11-15", "2027-06-15"],
+      porcentajes: [60, 40],
+    }, "2026-10-19")).toEqual([
+      { porcentaje: 60, fecha: "2026-11-15" },
+      { porcentaje: 40, fecha: "2027-06-15" },
     ]);
   });
 });

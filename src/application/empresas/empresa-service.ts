@@ -592,13 +592,14 @@ export class EmpresaApplicationService {
   /**
    * Configura el cronograma personalizado de cuotas de una empresa (Modalidad 4).
    * `null` elimina la configuracion y devuelve la empresa al cronograma estandar.
-   * Las fechas deben ser futuras, estar en orden y coincidir con la cantidad.
+   * Las fechas deben ser futuras, estar en orden y coincidir con la cantidad; si se
+   * envian porcentajes, deben sumar 100% y quedan fijos para el cliente.
    */
   async configurarCuotas(id: string, config: ConfigCuotasEmpresa | null): Promise<EmpresaEntity> {
     await this.obtener(id);
     if (config !== null && !configCuotasValida(config)) {
       throw new DomainError(
-        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas futuras, validas y en orden ascendente.",
+        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas futuras, validas y en orden ascendente; los porcentajes deben sumar 100%.",
         API_ERROR_CODES.VALIDATION,
         400,
       );

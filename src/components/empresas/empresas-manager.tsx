@@ -470,7 +470,7 @@ export function EmpresasManager() {
                                 <CalendarCog className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent side="top"><span>Configurar fechas de pago (Modalidad 4)</span></TooltipContent>
+                            <TooltipContent side="top"><span>Configurar fechas y porcentajes de pago (Modalidad 4)</span></TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>

@@ -47,7 +47,7 @@ interface PerfilDTO {
     /** Representantes adicionales (el principal sigue en representanteLegalNombre). */
     representantesAdicionales?: EmpresaRepresentanteAdicionalDTO[];
     /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
-    configCuotas: { maxCuotas: number; fechas: string[] } | null;
+    configCuotas: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null;
   } | null;
   /** true = tiene empresa y le faltan datos obligatorios del representante legal. */
   representanteIncompleto?: boolean;

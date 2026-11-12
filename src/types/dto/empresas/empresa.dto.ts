@@ -62,7 +62,7 @@ export interface EmpresaDTO {
   /** Representantes adicionales activos. */
   representantesAdicionales: EmpresaRepresentanteAdicionalDTO[];
   /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
-  configCuotas: { maxCuotas: number; fechas: string[] } | null;
+  configCuotas: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null;
   tipoComprobante: string;
   sitioWeb: string | null;
   estado: string;

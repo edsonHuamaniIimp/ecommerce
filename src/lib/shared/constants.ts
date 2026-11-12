@@ -1140,6 +1140,9 @@ export const MAX_REPRESENTANTES_ADICIONALES = 5;
 /** Tolerancia al validar que los porcentajes de las cuotas suman 100%. */
 export const CUOTAS_SUMA_TOLERANCIA = 0.01;
 
+/** Tolerancia al comparar porcentajes configurados contra los enviados. */
+export const CUOTAS_PORCENTAJE_TOLERANCIA = 0.0001;
+
 /** Paso permitido del porcentaje de una cuota (hasta 2 decimales). */
 export const CUOTAS_PORCENTAJE_PASO = 0.01;
 

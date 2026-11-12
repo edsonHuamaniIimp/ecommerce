@@ -31,6 +31,22 @@ describe("cuotasConfigValidas (paso Cuotas del wizard)", () => {
     )).toBe(false);
   });
 
+  it("exige los porcentajes fijos definidos por el IIMP", () => {
+    const config = {
+      maxCuotas: 2,
+      fechas: ["2026-11-20", "2027-04-30"],
+      porcentajes: [60, 40],
+    };
+    expect(cuotasConfigValidas([
+      { porcentaje: 60, fecha: "2026-11-20" },
+      { porcentaje: 40, fecha: "2027-04-30" },
+    ], config, HOY)).toBe(true);
+    expect(cuotasConfigValidas([
+      { porcentaje: 50, fecha: "2026-11-20" },
+      { porcentaje: 50, fecha: "2027-04-30" },
+    ], config, HOY)).toBe(false);
+  });
+
   it("mantiene las modalidades estandar cuando la empresa no tiene configuracion", () => {
     expect(cuotasConfigValidas(
       [
