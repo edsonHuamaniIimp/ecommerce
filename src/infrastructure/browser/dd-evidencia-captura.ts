@@ -132,6 +132,116 @@ async function capturarBusquedaEnLista(
   return { bytes: Buffer.from(pdf), mimeType: "application/pdf", extension: "pdf", nombre };
 }
 
+/** Normaliza texto para búsqueda: minúsculas y sin diacríticos. */
+function normalizarTexto(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** Renderiza una constancia HTML a PDF usando Chrome headless. */
+async function renderizarConstancia(html: string): Promise<Buffer> {
+  const browser = await chromium.launch({
+    executablePath: chromePath(),
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+
+  try {
+    const context = await browser.newContext({ locale: "es-PE" });
+    const page = await context.newPage();
+    await page.setContent(html, { waitUntil: "load" });
+
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "15mm", right: "15mm", bottom: "15mm", left: "15mm" },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Constancia de búsqueda para fuentes que entregan un PDF completo (p. ej.
+ * sanciones europeas): descarga la lista, busca el término en el texto y genera
+ * un PDF pequeño con el resultado. No adjunta el listado completo (10 MB+).
+ */
+async function capturarBusquedaEnPdf(
+  url: string,
+  termino: string,
+  nombre: string,
+): Promise<EvidenciaCapturada> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new DomainError(
+      "No se pudo descargar la fuente oficial",
+      API_ERROR_CODES.VALIDATION,
+      502,
+    );
+  }
+  const datos = new Uint8Array(await response.arrayBuffer());
+
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const documento = await getDocument({ data: datos }).promise;
+
+  const buscado = normalizarTexto(termino);
+  const fragmentos: string[] = [];
+  let coincidencias = 0;
+
+  try {
+    for (let numero = 1; numero <= documento.numPages; numero += 1) {
+      const pagina = await documento.getPage(numero);
+      const contenido = await pagina.getTextContent();
+      const texto = normalizarTexto(
+        contenido.items.map((item) => ("str" in item ? item.str : "")).join(" "),
+      );
+
+      let indice = texto.indexOf(buscado);
+      while (indice !== -1) {
+        coincidencias += 1;
+        if (fragmentos.length < 3) {
+          const desde = Math.max(0, indice - 120);
+          const hasta = Math.min(texto.length, indice + buscado.length + 120);
+          fragmentos.push(`Página ${numero}: …${texto.slice(desde, hasta).trim()}…`);
+        }
+        indice = texto.indexOf(buscado, indice + buscado.length);
+      }
+    }
+  } finally {
+    await documento.destroy();
+  }
+
+  const fecha = new Date().toLocaleString("es-PE");
+  const lista = fragmentos.length
+    ? `<ul style="font-size:12px;line-height:1.5">${fragmentos
+        .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
+        .join("")}</ul>`
+    : `<p style="font-size:13px">Sin coincidencias en la lista oficial descargada para esta búsqueda.</p>`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+    <body style="font-family:Arial,sans-serif;margin:4px">
+      <h1 style="font-size:16px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
+      <p style="font-size:12px;color:#444;margin:0 0 12px">
+        Término buscado: "${escaparHtml(termino)}" · Coincidencias: ${coincidencias} · ${fecha}<br>
+        Fuente: ${escaparHtml(url)}
+      </p>
+      ${lista}
+      <p style="font-size:11px;color:#666;margin-top:16px">
+        Constancia de búsqueda automática sobre la lista oficial. No se adjunta el listado completo.
+      </p>
+    </body></html>`;
+
+  return {
+    bytes: await renderizarConstancia(html),
+    mimeType: "application/pdf",
+    extension: "pdf",
+    nombre,
+  };
+}
+
 async function buscarEnPagina(
   page: import("playwright-core").Page,
   termino: string,
@@ -184,16 +294,7 @@ export async function capturarEvidenciaPdf(
   }
 
   if (url.toLowerCase().endsWith(".pdf") || url.includes("pdfFullSanctionsList")) {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new DomainError("No se pudo descargar la fuente oficial", API_ERROR_CODES.VALIDATION, 502);
-    }
-    return {
-      bytes: Buffer.from(await response.arrayBuffer()),
-      mimeType: "application/pdf",
-      extension: "pdf",
-      nombre,
-    };
+    return await capturarBusquedaEnPdf(url, termino, nombre);
   }
 
   let htmlInicial: string | null = null;
