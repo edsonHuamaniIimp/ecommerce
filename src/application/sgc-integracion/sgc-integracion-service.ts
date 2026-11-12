@@ -983,26 +983,35 @@ export class SgcIntegracionApplicationService {
               (obs.observationId && p.observationId === obs.observationId) ||
               (!obs.observationId && obs.documentId && p.documentId === obs.documentId),
           );
+          /* Solo se reutiliza la fecha si es la MISMA observacion. Una observacion
+           * nueva sin `createdAt` no debe heredar la fecha de una ronda anterior:
+           * eso haria creer al auto-regenerador que el contrato ya fue corregido. */
+          const mismaObservacion =
+            Boolean(obs.observationId && previa?.observationId === obs.observationId) ||
+            Boolean(
+              !obs.observationId &&
+                previa &&
+                obs.documentId &&
+                previa.documentId === obs.documentId &&
+                previa.message === obs.message,
+            );
           lista.push({
             ...obs,
             documentId: obs.documentId ?? doc.documentId,
             category: obs.category ?? doc.category,
             title: obs.title ?? doc.title,
-            /* El detalle puede omitir createdAt: se conserva el de la observacion previa
-             * para no perder la comparacion con los documentos corregidos. */
-            createdAt: obs.createdAt ?? previa?.createdAt ?? detalle.updatedAt,
+            createdAt: obs.createdAt ?? (mismaObservacion ? previa?.createdAt : null) ?? detalle.updatedAt,
           });
         }
       } else if (doc.status === "observed" || doc.status === "rejected") {
         informado = true;
-        const previa = (previas ?? []).find((p) => p.documentId === doc.documentId);
         lista.push({
           documentId: doc.documentId,
           category: doc.category,
           title: doc.title,
-          message: "El SGC observó este documento.",
+          message: "El SGC observ�� este documento.",
           status: SGC_OBSERVACION_ESTADOS.OPEN,
-          createdAt: previa?.createdAt ?? detalle.updatedAt,
+          createdAt: detalle.updatedAt,
         });
       }
     }
