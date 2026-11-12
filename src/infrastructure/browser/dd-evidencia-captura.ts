@@ -275,7 +275,8 @@ async function capturarBusquedaEnXlsx(
   }
   const datos = Buffer.from(await response.arrayBuffer());
 
-  const ExcelJS = (await import("exceljs")).default;
+  const exceljs = await import("exceljs");
+  const ExcelJS = exceljs.default ?? exceljs;
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(datos as unknown as Parameters<typeof libro.xlsx.load>[0]);
 
