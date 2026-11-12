@@ -3,6 +3,7 @@ import {
   CUOTAS_PORCENTAJE_TOTAL,
   FACTURACION_IIMP,
   IIMP_CARGO_REPRESENTANTE,
+  MAX_ARCHIVOS_IIMP_POR_LLAMADA,
   MAX_CUOTAS_IIMP,
   MAX_STANDS_IIMP,
   REGEX_DNI,
@@ -23,6 +24,7 @@ import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
+import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 
 export interface ResultadoSolicitudFactura {
   numeroSolicitud: string;
@@ -176,6 +178,63 @@ export class SolicitarFacturaApplicationService {
       documento,
       payloadEnviado: input,
     };
+  }
+
+  /**
+   * Completa la declaracion de requisitos de una solicitud que ya se registro en
+   * el IIMP con el checklist vacio (casos previos a la validacion). Actualiza solo
+   * el dato local y, si el cliente adjunta documentos, los agrega a la cuenta
+   * corriente existente. No reenvia la reserva (NumeroSolicitud es unico).
+   */
+  async completarRequisitos(
+    cuotaId: string,
+    ident: ClienteIdent,
+    archivos: ReservaIimpArchivoInput[] = [],
+    requisitos: RequisitosFacturacionInput | null = null,
+  ): Promise<void> {
+    const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
+    if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
+    const fact = await this.facturacion.facturacionDeCuota(cuotaId);
+    if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);
+    if (!datos) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (!datos.iimpContrato || Number(datos.iimpCuentaCorriente ?? 0) <= 0) {
+      throw new DomainError(
+        "La reserva aun no esta registrada en el IIMP; envia primero tu solicitud de factura",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!requisitosVacios(datos.requisitosFacturacion as RequisitosFacturacionDeclarados | null)) {
+      throw new DomainError("Los requisitos de facturacion ya fueron declarados", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (!requisitos) {
+      throw new DomainError("Declara al menos un requisito o marca 'Ninguna de las anteriores'", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    const normalizados = this.normalizarRequisitos(requisitos);
+    const cuotasPlan = datos.planCuotas?.cuotas?.length ?? 0;
+    const archivosNormalizados = archivos
+      .filter((archivo) => archivo.link?.trim())
+      .map((archivo) => ({ ...archivo, link: normalizarLinkArchivoIImp(archivo.link) }));
+    for (const archivo of archivosNormalizados) {
+      validarArchivoIImp(archivo, cuotasPlan);
+    }
+    if (archivosNormalizados.length > 0) {
+      const cuenta = { numeroSolicitud: numeroSolicitudIImp(fact.solicitudId) };
+      for (let i = 0; i < archivosNormalizados.length; i += MAX_ARCHIVOS_IIMP_POR_LLAMADA) {
+        await this.reserva.agregarArchivos({
+          ...cuenta,
+          archivos: archivosNormalizados.slice(i, i + MAX_ARCHIVOS_IIMP_POR_LLAMADA),
+        });
+      }
+    }
+
+    const previos = datos.requisitosFacturacion as { cuota?: number } | null;
+    await this.solicitudes.actualizarRequisitosFacturacion(fact.solicitudId, {
+      ...normalizados,
+      cuota: previos?.cuota ?? fact.cuotas.find((c) => c.id === cuotaId)?.numero ?? 1,
+    });
   }
 
   /** Normaliza la declaracion de requisitos y valida el enlace de la plataforma. */

@@ -133,9 +133,10 @@ export interface ISolicitudesRepository {
     /** Declaracion de requisitos de facturacion del cliente (checklist por solicitud). */
     requisitos: unknown | null;
   }): Promise<void>;
+  /** Actualiza la declaracion de requisitos de facturacion de una solicitud ya registrada. */
+  actualizarRequisitosFacturacion(solicitudId: string, requisitos: unknown): Promise<void>;
   /** Datos para armar el payload de `POST /stands/reserva` del IIMP. */
-  datosReservaIImp(solicitudId: string): Promise<{
-    iimpContrato: string | null;
+  datosReservaIImp(solicitudId: string): Promise<{    iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
     email: string | null;
     moneda: string;

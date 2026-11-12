@@ -169,6 +169,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <p><strong>¿Qué hago si mi factura fue anulada?</strong><br>Revisa el motivo en la cuota. Facturación gestiona la reemisión; cuando se emita la nueva factura aparecerá con su fecha y podrás descargarla.</p>
 <p><strong>¿Cuándo pasa mi solicitud a "Pagado"?</strong><br>Cuando todas las cuotas estén pagadas y confirmadas por Facturación.</p>
 <p><strong>¿Puedo agregar más documentos después?</strong><br>Sí, cuando la cuota ya tiene factura emitida puedes usar el ícono de documentos de esa cuota en <strong>Mis documentos</strong>.</p>
+<p><strong>Envié mi solicitud sin marcar requisitos, ¿qué hago?</strong><br>En Mis documentos verás el aviso <strong>"Tu solicitud se envió sin requisitos de facturación"</strong> con el botón <strong>Completar requisitos</strong>. Marca las opciones que correspondan y adjunta los documentos; se guardan sin reenviar la reserva al IIMP.</p>
 <hr>
 <h2 id="seccion-11">11. Soporte</h2>
 <p>Para dudas sobre requisitos, documentos o facturas:</p>

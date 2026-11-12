@@ -188,6 +188,7 @@ function solicitudRepoMock(
     findSolicitudIdPorNumeroIImp: vi.fn(),
     findSolicitudIdPorContrato: vi.fn(),
     listarIdsPorEmpresa: vi.fn().mockResolvedValue([]),
+    actualizarRequisitosFacturacion: vi.fn(),
   };
 }
 function build(

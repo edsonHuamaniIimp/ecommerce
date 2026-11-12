@@ -75,6 +75,7 @@ function repoMock(area: string, estado: string): ISolicitudesRepository {
     findSolicitudIdPorNumeroIImp: vi.fn(),
     findSolicitudIdPorContrato: vi.fn(),
     listarIdsPorEmpresa: vi.fn().mockResolvedValue([]),
+    actualizarRequisitosFacturacion: vi.fn(),
   };
 }
 

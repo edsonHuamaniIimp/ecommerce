@@ -14,6 +14,7 @@ export const { GET, POST } = createRouter({
     "adjuntar-voucher": (req) => pagosController.adjuntarVoucher(req),
     "eliminar-cuota": (req) => pagosController.eliminarCuota(req),
     "solicitar-factura": (req) => pagosController.solicitarFactura(req),
+    "completar-requisitos": (req) => pagosController.completarRequisitos(req),
     "archivos-agregar": (req) => pagosController.agregarArchivo(req),
     "archivos-eliminar": (req) => pagosController.eliminarArchivo(req),
   },

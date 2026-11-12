@@ -125,10 +125,14 @@ function mocks() {
   const solicitudes = {
     datosReservaIImp: vi.fn(async () => datosBase),
     guardarReservaIImp: vi.fn(async () => {}),
+    actualizarRequisitosFacturacion: vi.fn(async () => {}),
   } as unknown as ISolicitudesRepository;
   const auth = { findEmpresaIdDeUsuario: vi.fn(async () => "emp-1") } as unknown as IAuthRepository;
   const empresas = { findById: vi.fn(async () => empresa) } as unknown as IEmpresaRepository;
-  const reserva = { reservar: vi.fn(async () => respuesta) } as unknown as IReservaIimpClient;
+  const reserva = {
+    reservar: vi.fn(async () => respuesta),
+    agregarArchivos: vi.fn(async () => []),
+  } as unknown as IReservaIimpClient;
   const personas = { buscarPorDocumento: vi.fn(async () => persona) } as unknown as IPersonaClient;
   const consultaDocumento = { consultarDni: vi.fn(async () => null) } as unknown as IConsultaDocumentoClient;
   return { facturacion, solicitudes, auth, empresas, reserva, personas, consultaDocumento };
@@ -178,6 +182,65 @@ describe("SolicitarFacturaApplicationService", () => {
     const m = mocks();
     await expect(servicio(m).solicitar("c1", ident, [], {})).rejects.toMatchObject({ status: 400 });
     expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("completa requisitos de una solicitud ya enviada y sube documentos a la cuenta", async () => {
+    const m = mocks();
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      iimpContrato: "0000000008",
+      iimpCuentaCorriente: "8",
+      requisitosFacturacion: { oc: false, hes: false, plataforma: false, valorizacion: false, otros: null, ninguna: false, cuota: 1 },
+    } as never);
+
+    await servicio(m).completarRequisitos(
+      "c1",
+      ident,
+      [{ tipo: "OC", cuota: 1, link: "https://web.iimp.org/archivos/oc-1.pdf" }],
+      { oc: true },
+    );
+
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+    expect(m.reserva.agregarArchivos).toHaveBeenCalledWith({
+      numeroSolicitud: "CTRS-s1",
+      archivos: [expect.objectContaining({ tipo: "OC", cuota: 1 })],
+    });
+    expect(m.solicitudes.actualizarRequisitosFacturacion).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ oc: true, cuota: 1 }),
+    );
+  });
+
+  it("no permite completar requisitos si la reserva aun no se registro (409)", async () => {
+    const m = mocks();
+    await expect(servicio(m).completarRequisitos("c1", ident, [], { ninguna: true })).rejects.toMatchObject({ status: 409 });
+    expect(m.solicitudes.actualizarRequisitosFacturacion).not.toHaveBeenCalled();
+  });
+
+  it("no permite sobrescribir requisitos ya declarados (409)", async () => {
+    const m = mocks();
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      iimpContrato: "0000000008",
+      iimpCuentaCorriente: "8",
+      requisitosFacturacion: { oc: true, cuota: 1 },
+    } as never);
+
+    await expect(servicio(m).completarRequisitos("c1", ident, [], { hes: true })).rejects.toMatchObject({ status: 409 });
+    expect(m.solicitudes.actualizarRequisitosFacturacion).not.toHaveBeenCalled();
+  });
+
+  it("rechaza completar sin declarar ningun requisito (400)", async () => {
+    const m = mocks();
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      iimpContrato: "0000000008",
+      iimpCuentaCorriente: "8",
+      requisitosFacturacion: { oc: false, hes: false, plataforma: false, valorizacion: false, otros: null, ninguna: false, cuota: 1 },
+    } as never);
+
+    await expect(servicio(m).completarRequisitos("c1", ident, [], {})).rejects.toMatchObject({ status: 400 });
+    expect(m.solicitudes.actualizarRequisitosFacturacion).not.toHaveBeenCalled();
   });
 
   it("acepta la OC y la HES asociadas a la primera cuota", async () => {

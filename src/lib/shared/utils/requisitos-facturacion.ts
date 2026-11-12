@@ -13,9 +13,23 @@ export interface RequisitosFacturacionDeclarados {
   cuota?: number;
 }
 
-/** Tipos documentales exigidos por la declaracion del cliente (sin constancias de pago). */
-export function tiposRequeridosPorRequisitos(
+/** true si el cliente no marco ningun requisito ni "Ninguna de las anteriores". */
+export function requisitosVacios(
   requisitos: RequisitosFacturacionDeclarados | null | undefined,
+): boolean {
+  if (!requisitos) return true;
+  return (
+    !requisitos.oc &&
+    !requisitos.hes &&
+    !requisitos.plataforma &&
+    !requisitos.valorizacion &&
+    !(requisitos.otros ?? "").trim() &&
+    !requisitos.ninguna
+  );
+}
+
+/** Tipos documentales exigidos por la declaracion del cliente (sin constancias de pago). */
+export function tiposRequeridosPorRequisitos(  requisitos: RequisitosFacturacionDeclarados | null | undefined,
 ): TipoArchivoIImp[] {
   if (!requisitos || requisitos.ninguna) return [];
   const tipos: TipoArchivoIImp[] = [];

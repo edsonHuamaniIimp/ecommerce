@@ -155,6 +155,7 @@ function solicitudRepoMock(row: SolicitudRow | null): ISolicitudesRepository {
     findSolicitudIdPorNumeroIImp: vi.fn(),
     findSolicitudIdPorContrato: vi.fn(),
     listarIdsPorEmpresa: vi.fn().mockResolvedValue([]),
+    actualizarRequisitosFacturacion: vi.fn(),
   };
 }
 function documentoOrigenMock(): IDocumentoOrigen {

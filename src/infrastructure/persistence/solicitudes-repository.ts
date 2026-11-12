@@ -1309,8 +1309,14 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     });
   }
 
-  async datosReservaIImp(solicitudId: string) {
-    const row = await prisma.solicitud.findUnique({
+  async actualizarRequisitosFacturacion(solicitudId: string, requisitos: unknown): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { requisitosFacturacion: (requisitos ?? null) as never },
+    });
+  }
+
+  async datosReservaIImp(solicitudId: string) {    const row = await prisma.solicitud.findUnique({
       where: { id: solicitudId },
       include: {
         gessStand: { select: { eventoId: true, standApiId: true, standCode: true } },

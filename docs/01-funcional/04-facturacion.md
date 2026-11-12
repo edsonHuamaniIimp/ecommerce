@@ -68,6 +68,14 @@ declaración de requisitos en `solicitud.requisitos_facturacion` (con la cuota d
 origen). **No se emite la factura en ese momento**: el sistema de facturación emite la
 factura de cada cuota en su fecha.
 
+- **Validación**: sin ningún requisito marcado ni "Ninguna de las anteriores" el botón
+  queda deshabilitado y el backend responde **400**.
+- **Solicitudes anteriores sin declaración**: Mis documentos muestra el aviso "Tu
+  solicitud se envió sin requisitos de facturación" con el botón **Completar requisitos**.
+  Guarda la declaración local y sube los documentos a la cuenta corriente existente
+  (`POST /api/pagos/completar-requisitos`); **no reenvía la reserva** al IIMP porque
+  `NumeroSolicitud` es único.
+
 ### 4.2 Documentos para tu factura (panel por cuota)
 
 Con la reserva registrada, el ícono de documentos abre el panel de la **cuenta corriente**

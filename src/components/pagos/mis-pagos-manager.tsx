@@ -19,7 +19,7 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
-import { tiposDocumentosPorRequisitos, tiposRequeridosPorRequisitos } from "@/lib/shared/utils/requisitos-facturacion";
+import { tiposDocumentosPorRequisitos, tiposRequeridosPorRequisitos, requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
 
 const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.PENDIENTE]: "Pendiente",
@@ -137,6 +137,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
 
   /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
   const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; standCode: string; numero: number } | null>(null);
+  /** Solicitudes ya enviadas sin requisitos: el cliente completa el checklist sin reenviar la reserva. */
+  const [completarCuota, setCompletarCuota] = useState<{ cuotaId: string; numero: number; standCode?: string } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
   const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number; tiposPermitidos: TipoArchivoIImp[] } | null>(null);
   const [documentosVersion, setDocumentosVersion] = useState(0);
@@ -242,6 +244,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
     const restante = restanteDe(row);
     /* Cuota donde se sugiere registrar la reserva cuando la solicitud aun no se envio. */
     const cuotaSugerida = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
+    /* Cuota de origen de la declaracion de requisitos (para completarla si quedo vacia). */
+    const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0] ?? null;
     /* Seguimiento: siguiente cuota pendiente. Antes de emitirse la factura se cuenta
        contra su fecha programada; si la factura ya se emitio, se avisa el pago. */
     const cuotaPendiente = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? null;
@@ -273,6 +277,29 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             <strong>Solicitud de factura enviada.</strong> Tu factura está en proceso de emisión; te
             avisaremos por correo cuando esté disponible.
           </span>
+        </div>
+      )}
+      {row.iimpContrato && requisitosVacios(row.requisitos) && (
+        <div className="flex flex-wrap items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <span className="min-w-0 flex-1 text-foreground">
+            <strong>Tu solicitud se envió sin requisitos de facturación.</strong> Complétalos para que
+            Facturación pueda emitir tu factura sin observaciones.
+          </span>
+          {cuotaRequisitos && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 shrink-0 gap-1 rounded-full px-2.5 text-[10px]"
+              disabled={soloLectura}
+              title={soloLectura ? "Solo lectura" : undefined}
+              onClick={() => setCompletarCuota({ cuotaId: cuotaRequisitos.id, numero: cuotaRequisitos.numero, standCode: row.standCode })}
+            >
+              <FileText className="h-3 w-3" />
+              <span>Completar requisitos</span>
+            </Button>
+          )}
         </div>
       )}
       <AvisoDocumentosPendientes
@@ -670,6 +697,16 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             cuotaNumero={reservaCuota?.numero}
             standCode={reservaCuota?.standCode}
             onEnviado={() => { void load(page, perPage); }}
+          />
+
+          <EnviarReservaIimp
+            open={completarCuota !== null}
+            onOpenChange={(v) => { if (!v) setCompletarCuota(null); }}
+            cuotaId={completarCuota?.cuotaId ?? ""}
+            cuotaNumero={completarCuota?.numero}
+            standCode={completarCuota?.standCode}
+            modo="completar"
+            onEnviado={() => { setDocumentosVersion((v) => v + 1); void load(page, perPage); }}
           />
 
           <ArchivosCuentaCorriente
