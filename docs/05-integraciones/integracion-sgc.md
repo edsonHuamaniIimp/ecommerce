@@ -701,3 +701,38 @@ flowchart TD
   "La revisión est? en curso: espere a que el expediente se devuelva para corregir o subir archivos."
 - No se reintenta: la UI solo permite subir en borrador, devuelto o rechazado; el outbox marca
   el intento como no reintentable y espera la devolución.
+
+## Actualización local 12-nov-2026: vínculo explícito archivo ↔ observación SGC
+
+Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fecha o por
+`requisito` (que las observaciones del SGC no siempre incluyen).
+
+- `solicitud_documento` guarda `sgc_observation_id`, `sgc_document_id` y `sgc_title`.
+  - `sgc_observation_id`: observación exacta que ese archivo corrige.
+  - `sgc_document_id`: pieza del SGC que se versiona; `null` = archivo nuevo requerido.
+  - `sgc_title`: título exacto informado por el SGC cuando no existe una fila de
+    `ANEXOS_REQUERIDOS`.
+- `POST /api/solicitudes/upload-doc` acepta esos campos; el modal del cliente permite
+  seleccionar **varios archivos** y conserva los metadatos de la observación para cada uno.
+- `estadoCorreccionSgc` prioriza el vínculo por `observation_id`/`document_id`. Si hay
+  archivos nuevos con vínculo, un anexo cualquiera posterior ya no cubre una observación
+  arbitraria por el solo hecho de ser más nuevo. Se mantiene compatibilidad con correcciones
+  previas sin metadatos (matching por requisito/nombre/título).
+- `subirAnexosDeSolicitud` usa `sgc_document_id` para versionar la pieza correcta, usa el
+  título exacto de la observación y ordena las correcciones más recientes primero; una
+  versión anterior no consume el `documentId` de la corrección.
+- `sgc_expediente` guarda `contrato_regenerado_observation_id` / `contrato_regenerado_at` para
+  no regenerar dos veces la misma observación de contrato y limpiar la marca cuando el
+  expediente deja de estar devuelto.
+- Migración local: `prisma/migrations/20261111210000_add_sgc_observation_links`.
+  **Pendiente aplicarla en cada ambiente**; no se aplicó a producción en esta sesión.
+
+### Límites conocidos de esta fase
+
+- La API del SGC sigue siendo la autoridad: una observación solo queda resuelta cuando el
+  SGC la marca `resolved` o acepta el reenvío. La UI muestra “corrección registrada” vs
+  “corrección enviada al SGC”, pero no inventa una resolución local.
+- El vínculo se guarda al subir el archivo. Documentos históricos sin
+  `sgc_observation_id`/`sgc_document_id` siguen usando el matching legacy.
+- Si una misma observación requiere más de un archivo, el modelo actual sigue la regla v7
+  “una observación = un archivo”; no se inventó una relación N:M sin acuerdo con el SGC.

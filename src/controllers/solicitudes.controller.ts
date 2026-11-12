@@ -641,6 +641,9 @@ export const solicitudesController = {
       requisito: raw.requisito ?? null,
       permitirAnexosIniciales: raw.permitirAnexosIniciales === true,
       firmaDigital: raw.firmaDigital === true,
+      sgcObservationId: raw.sgcObservationId ?? null,
+      sgcDocumentId: raw.sgcDocumentId ?? null,
+      sgcTitle: raw.sgcTitle ?? null,
     });
     await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
     return success(doc);

@@ -43,6 +43,7 @@ import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { esObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 
 export interface SgcIntegracionConfig {
   enabled: boolean;
@@ -282,6 +283,9 @@ export class SgcIntegracionApplicationService {
         lastError: null,
         ...cambiosObservaciones,
         ...motivoRespaldo,
+        ...(devuelto
+          ? {}
+          : { contratoRegeneradoObservationId: null, contratoRegeneradoAt: null }),
       });
       /* Aprobado en el SGC (Vigente o cerrado): la solicitud pasa a pendiente_pago con su
        * orden (idempotente). Cubre los casos sin webhook (QA esta en sink / webhook perdido). */
@@ -320,6 +324,7 @@ export class SgcIntegracionApplicationService {
               observaciones: observacionesAbiertas,
               solicitudes: this.solicitudRepo,
               contrato: this.contrato,
+              sgc: this.repo,
             })
           : null;
       if (notificar) {
@@ -423,6 +428,7 @@ export class SgcIntegracionApplicationService {
                 observaciones: observacionesAbiertas,
                 solicitudes: this.solicitudRepo,
                 contrato: this.contrato,
+                sgc: this.repo,
               })
             : null;
         if (notificar) {
@@ -618,7 +624,7 @@ export class SgcIntegracionApplicationService {
     if (expediente?.contractId) {
       await this.client.reabrirExpediente(
         expediente.contractId,
-        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}`,
+        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/${documento.currentVersionId ?? "manual"}`,
       );
     }
     return documento;
@@ -720,9 +726,7 @@ export class SgcIntegracionApplicationService {
     const requiereContrato =
       observaciones.length === 0 ||
       observaciones.some(
-        (o) =>
-          o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED &&
-          (o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT),
+        (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && esObservacionSgcContrato(o),
       );
 
     const actual = await this.client.consultarExpediente(expediente.contractId);
@@ -753,7 +757,7 @@ export class SgcIntegracionApplicationService {
     try {
       await this.client.reabrirExpediente(
         expediente.contractId,
-        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/v${actual.version ?? 1}`,
+        `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/${documento?.currentVersionId ?? `v${actual.version ?? 1}`}`,
       );
     } catch (err) {
       /* Si ya existe un flujo activo, el reenvio ya se hizo antes: se considera exitoso. */
@@ -809,7 +813,14 @@ export class SgcIntegracionApplicationService {
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos
         .filter((d) => this.documentoVigente(d) && d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
-        .map((d) => ({ url: d.url, nombre: d.nombre, requisito: d.requisito })),
+        .map((d) => ({
+          url: d.url,
+          nombre: d.nombre,
+          requisito: d.requisito,
+          sgcObservationId: d.sgcObservationId ?? null,
+          sgcDocumentId: d.sgcDocumentId ?? null,
+          sgcTitle: d.sgcTitle ?? null,
+        })),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
 
@@ -833,6 +844,13 @@ export class SgcIntegracionApplicationService {
       (o) => !o.documentId || o.requiresNewDocument === true,
     );
     const fechaPorUrl = new Map(detalle.docsAdjuntos.map((d) => [d.url, d.createdAt]));
+    /* La correccion mas reciente va primero: si una observacion tiene version anterior
+     * y corregida, solo la corregida debe consumir el documentId del SGC. */
+    candidatos.sort(
+      (a, b) =>
+        (dateUtils.toMs(fechaPorUrl.get(b.url) ?? null) ?? 0) -
+        (dateUtils.toMs(fechaPorUrl.get(a.url) ?? null) ?? 0),
+    );
     if (expediente?.contractId) {
       try {
         const actual = await this.client.consultarExpediente(expediente.contractId);
@@ -864,7 +882,7 @@ export class SgcIntegracionApplicationService {
       /* Titulo legible por requisito (Ficha RUC, Vigencia de Poder, DNI...). El nombre fisico
        * lleva un hash corto de la URL: la misma pieza produce el mismo nombre (no duplica) y un
        * archivo reemplazado produce uno nuevo (se reenvia como version). */
-      const titulo = tituloSgcDocumento(doc.nombre, doc.requisito);
+      const titulo = doc.sgcTitle?.trim() || tituloSgcDocumento(doc.nombre, doc.requisito);
       const hash = (await sha256Hex(new TextEncoder().encode(doc.url))).slice(0, 6);
       const fileName = nombreArchivoSgc({
         titulo,
@@ -881,11 +899,17 @@ export class SgcIntegracionApplicationService {
         identificador: null,
         hash,
       });
+      const documentIdObjetivo =
+        doc.sgcDocumentId ??
+        documentIdPorTitulo.get(titulo) ??
+        (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined);
       if (
         vistos.has(clave) ||
+        Boolean(documentIdObjetivo && documentIdsUsados.has(documentIdObjetivo)) ||
         doc.url === contratoUrl ||
         clave === contratoClave ||
-        (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo)) ||
+        (!doc.sgcObservationId &&
+          (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo))) ||
         nombresEnSgc.has(doc.nombre) ||
         nombresEnSgc.has(fileNameLegacy) ||
         nombresEnSgc.has(fileName)
@@ -894,6 +918,10 @@ export class SgcIntegracionApplicationService {
       }
       vistos.add(clave);
       const esFaltante = observacionesFaltantes.some((o) => {
+        /* Vinculo explicito del archivo con la observacion: manda sobre fechas/titulos. */
+        if (doc.sgcObservationId && o.observationId) {
+          return doc.sgcObservationId === o.observationId;
+        }
         const obsMs = dateUtils.toMs(o.createdAt ?? null);
         const docMs = dateUtils.toMs(fechaPorUrl.get(doc.url) ?? null);
         if (obsMs === null || docMs === null || docMs <= obsMs) return false;
@@ -901,7 +929,7 @@ export class SgcIntegracionApplicationService {
         return !o.title;
       });
       const documentIdCandidato = !esFaltante && puedeVersionarAnexos
-        ? documentIdPorTitulo.get(titulo) ?? (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined)
+        ? documentIdObjetivo
         : undefined;
       const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;
       if (documentIdExistente) documentIdsUsados.add(documentIdExistente);

@@ -577,6 +577,62 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     );
   });
 
+  it("versiona un anexo arbitrario por documentId aunque el titulo coincida", async () => {
+    const client = clientMock();
+    const titulo = "Vigencia de poder de Apoderado Clase A";
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      documents: [{
+        documentId: "sgc-doc-arbitrario",
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: titulo,
+        currentFileName: "vigencia-poder-anterior.pdf",
+      }],
+    } as never);
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "d-arbitrario",
+        url: "/uploads/vigencia-poder-clase-a.pdf",
+        nombre: "vigencia-poder-clase-a.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: null,
+        sgcObservationId: "obs-arbitraria",
+        sgcDocumentId: "sgc-doc-arbitrario",
+        sgcTitle: titulo,
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [{
+          observationId: "obs-arbitraria",
+          documentId: "sgc-doc-arbitrario",
+          title: titulo,
+          message: "Adjunta la vigencia de poder del apoderado Clase A",
+          status: "open",
+          createdAt: new Date("2026-11-01T00:00:00.000Z").toISOString(),
+        }],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        title: titulo,
+        documentId: "sgc-doc-arbitrario",
+        replacementReason: expect.any(String),
+      }),
+    );
+  });
+
   it("reutiliza el documentId legacy al reemplazar un anexo con nombre random", async () => {
     const client = clientMock();
     vi.mocked(client.consultarExpediente).mockResolvedValue({

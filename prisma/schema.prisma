@@ -342,7 +342,8 @@ model Empresa {
   /// Partida electronica de inscripcion de poderes del representante legal (si aplica).
   partidaElectronica       String?   @map("partida_electronica") @db.VarChar(50)
   /// Configuracion personalizada de cuotas definida por el administrador:
-  /// { maxCuotas: 1..3, fechas: ["yyyy-mm-dd", ...] }. null = cronograma estandar.
+  /// { maxCuotas: 1..9, fechas: ["yyyy-mm-dd", ...], porcentajes?: number[] }.
+  /// Si porcentajes existe, el cliente no los edita; null = cronograma estandar.
   configCuotas             Json?     @map("config_cuotas")
   /// Tipo de comprobante preferido: factura | boleta (ver TIPOS_COMPROBANTE).
   tipoComprobante          String    @default("factura") @map("tipo_comprobante") @db.VarChar(20)
@@ -863,6 +864,12 @@ model SolicitudDocumento {
   categoria   String?  @db.VarChar(30)
   /// Requisito del anexo que cubre el documento (clave de ANEXOS_REQUERIDOS); null = otro anexo.
   requisito   String?  @db.VarChar(30)
+  /// Observacion exacta del SGC que corrige este archivo (permite anexos arbitrarios).
+  sgcObservationId String? @map("sgc_observation_id") @db.VarChar(64)
+  /// Documento del SGC que se versiona/reemplaza; null = documento nuevo requerido por el SGC.
+  sgcDocumentId String? @map("sgc_document_id") @db.VarChar(64)
+  /// Titulo exacto que usa el SGC para la observacion (no se infiere del nombre del archivo).
+  sgcTitle    String?  @map("sgc_title") @db.VarChar(300)
   /// Origen del documento (`generado` = plantilla del sistema | `personalizado` | null = legacy/subida simple).
   origen      String?  @db.VarChar(20)
   /// SHA-256 del archivo firmado: impide reutilizar el mismo firmado en otra solicitud.
@@ -1095,6 +1102,10 @@ model SgcExpediente {
   /// Observaciones por documento de la ultima devolucion del SGC (JSON). Campo OPCIONAL:
   /// la integracion puede no enviarlo (compatibilidad con versiones previas).
   observaciones            Json?
+  /// Observacion de contrato para la que ya se regenero una version local.
+  contratoRegeneradoObservationId String? @map("contrato_regenerado_observation_id") @db.VarChar(64)
+  /// Fecha en que se genero la version corregida del contrato.
+  contratoRegeneradoAt     DateTime? @map("contrato_regenerado_at")
 
   solicitud     Solicitud        @relation(fields: [solicitudId], references: [id])
   documentos    SgcDocumento[]

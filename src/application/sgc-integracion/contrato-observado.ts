@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
 import type { ConfiguracionApplicationService } from "@/application/configuracion/configuracion-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
+import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { SgcObservacionDocumento } from "@/domain/models/sgc";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { ESTADOS_DOCUMENTO_SOLICITUD, ROLES, SGC_OBSERVACION_ESTADOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
@@ -17,6 +19,15 @@ export interface ResultadoContratoObservadoSgc {
   yaRegenerado: boolean;
   error: string | null;
   observacion: SgcObservacionDocumento | null;
+}
+
+/** Clave estable: usa el id del SGC y cae al contenido cuando la integracion no lo envia. */
+function claveObservacionContrato(o: SgcObservacionDocumento): string {
+  if (o.observationId?.trim()) return o.observationId.trim();
+  /* La columna es VARCHAR(64): sin id del SGC se guarda un hash estable del contenido. */
+  return createHash("sha256")
+    .update(`${o.title ?? ""}|${o.message ?? ""}`)
+    .digest("hex");
 }
 
 function observacionContratoAbierta(observaciones: SgcObservacionDocumento[] | null | undefined): SgcObservacionDocumento | null {
@@ -40,10 +51,20 @@ export async function procesarContratoObservadoSgc(params: {
   observaciones: SgcObservacionDocumento[] | null | undefined;
   solicitudes: ISolicitudesRepository;
   contrato?: ContratoApplicationService;
+  sgc?: ISgcRepository;
 }): Promise<ResultadoContratoObservadoSgc> {
   const observacion = observacionContratoAbierta(params.observaciones);
   if (!observacion) {
     return { aplica: false, auto: false, yaRegenerado: false, error: null, observacion: null };
+  }
+
+  const claveObservacion = claveObservacionContrato(observacion);
+  const expediente = await params.sgc?.findExpedientePorSolicitud(params.solicitudId).catch(() => null);
+  if (
+    expediente?.contratoRegeneradoObservationId &&
+    expediente.contratoRegeneradoObservationId === claveObservacion
+  ) {
+    return { aplica: true, auto: false, yaRegenerado: true, error: null, observacion };
   }
 
   const detalle = await params.solicitudes.detalle(params.solicitudId).catch(() => null);
@@ -73,6 +94,14 @@ export async function procesarContratoObservadoSgc(params: {
 
   try {
     await params.contrato.regenerarContratoParaSgc(params.solicitudId);
+    if (expediente) {
+      await params.sgc
+        ?.actualizarExpediente(expediente.id, {
+          contratoRegeneradoObservationId: claveObservacion,
+          contratoRegeneradoAt: new Date(),
+        })
+        .catch(() => undefined);
+    }
     return { aplica: true, auto: true, yaRegenerado: false, error: null, observacion };
   } catch (err) {
     return {

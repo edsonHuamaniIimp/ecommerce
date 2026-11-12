@@ -344,6 +344,9 @@ export interface SgcExpedienteEntity {
   devolucionEstrategia?: string | null;
   /** Observaciones por documento de la ultima devolucion (opcional; [] = sin observaciones). */
   observaciones?: SgcObservacionDocumento[] | null;
+  /** Observacion de contrato para la que ya se genero una version local corregida. */
+  contratoRegeneradoObservationId?: string | null;
+  contratoRegeneradoAt?: Date | null;
 }
 
 export interface SgcWebhookResource {

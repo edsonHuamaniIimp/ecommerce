@@ -8,10 +8,14 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { SgcExpedienteEntity } from "@/domain/models/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import {
+  ESTADOS_DOCUMENTO_SOLICITUD,
   ESTADOS_SOLICITUD,
   SGC_CREATE_STATUS,
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_PREFIX,
+  SGC_LIFECYCLE_STATUSES,
+  SGC_OBSERVACION_ESTADOS,
+  TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 const CONFIG: SgcIntegracionConfig = {
   enabled: true,
@@ -290,5 +294,83 @@ describe("SgcIntegracionApplicationService.aprobarBypass", () => {
     const ok = await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
     expect(ok).toBe(false);
     expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+  });
+});
+
+describe("SgcIntegracionApplicationService.reenviarCorreccionAlSgc", () => {
+  it("versiona el contrato aunque la observacion se haya mapeado como contrato_firmado", async () => {
+    const observacion = {
+      observationId: "obs-contrato",
+      documentId: "sgc-contract-1",
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      title: "Contrato firmado",
+      message: "Corrige el contrato",
+      status: SGC_OBSERVACION_ESTADOS.OPEN,
+      requiresDocumentChange: true,
+      createdAt: "2026-11-01T00:00:00.000Z",
+    };
+    const row = detalle({
+      sgcObservaciones: [observacion],
+      docsAdjuntos: [{
+        id: "firmado",
+        url: "/uploads/contrato-firmado.pdf",
+        nombre: "contrato-firmado.pdf",
+        userId: "user-1",
+        uploadedBy: "cliente@x.pe",
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        requisito: null,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: new Date("2026-11-12T20:20:00.000Z"),
+      }],
+    });
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      documents: [{
+        documentId: "sgc-contract-1",
+        category: "contract",
+        title: "Contrato",
+        currentVersionId: "version-old",
+      }],
+      version: 3,
+    } as never);
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      observaciones: [observacion],
+    }));
+    vi.mocked(repo.crearSubsanacion).mockResolvedValue({
+      id: "sub-1",
+      sgcExpedienteId: "exp-1",
+      ronda: 1,
+      motivo: "Corrige el contrato",
+      estado: "declarado",
+      declaradoPor: "admin@iimp.org.pe",
+      declaradoAt: new Date(),
+      reenviadoPor: null,
+      reenviadoAt: null,
+      documentId: null,
+      versionId: null,
+    });
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(row),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
+    const subir = vi.spyOn(svc, "subirDocumentoDesdeUrl").mockResolvedValue({
+      documentId: "sgc-contract-1",
+      currentVersionId: "version-new",
+    } as never);
+
+    await svc.reenviarCorreccionAlSgc("sol-1", "admin@iimp.org.pe");
+
+    expect(subir).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({
+        category: "contract",
+        documentId: "sgc-contract-1",
+      }),
+    );
   });
 });
