@@ -479,6 +479,37 @@ export const plantillasEs: PlantillasEmail = {
     };
   },
 
+  "facturacion-completar-requisitos": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Completa los requisitos de facturación de tu factura - IIMP",
+      html: envoltura(
+        "Completa tus requisitos de facturación",
+        `
+        <p>Hola, la solicitud de facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> fue enviada, pero quedó <strong>sin requisitos declarados</strong>.</p>
+        <p>Para que Facturación pueda emitir tu factura sin observaciones, completa el checklist con lo que exige tu empresa:</p>
+        <ol style="font-size:13px;color:#475569;padding-left:18px">
+          <li style="margin-bottom:6px">Ingresa a <strong>Mis documentos</strong> en el Portal del Cliente.</li>
+          <li style="margin-bottom:6px">Pulsa <strong>Completar requisitos</strong> en la tarjeta de tu solicitud.</li>
+          <li style="margin-bottom:6px">Marca OC, HES, registro en plataforma, valorización, otros o <strong>"Ninguna de las anteriores"</strong>.</li>
+          <li style="margin-bottom:6px">Adjunta los documentos que apliquen y guarda los cambios.</li>
+        </ol>
+        <p style="font-size:13px;color:#475569">Si tu empresa no requiere documentos, marca <strong>"Ninguna de las anteriores"</strong> y guarda. No necesitas volver a enviar tu solicitud al IIMP.</p>
+        <p style="text-align:center;margin:18px 0 6px 0">
+          <img src="${getAppUrl()}/manual/img/fact-completar-requisitos.png" alt="Botón Completar requisitos en Mis documentos" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px" />
+        </p>
+        <p style="text-align:center;margin:0 0 18px 0;font-size:12px;color:#64748b">En <strong>Mis documentos</strong>, pulsa el botón marcado en rojo.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Completar requisitos</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
   "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
     subject: `Factura disponible (${numero}) - IIMP`,
     html: envoltura(
