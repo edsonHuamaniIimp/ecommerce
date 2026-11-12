@@ -64,6 +64,10 @@ const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
     numero: "F001-1234",
     fechaEmision: "2026-11-13",
   },
+  "facturacion-completar-requisitos": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+  },
   "dd-recibida": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C." },
   "dd-observada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", observaciones: ["Vigencia de poderes vencida."] },
   "dd-aprobada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", fechaVencimiento: "2026-11-12" },

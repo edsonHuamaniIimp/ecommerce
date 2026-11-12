@@ -479,6 +479,37 @@ export const plantillasEn: PlantillasEmail = {
     };
   },
 
+  "facturacion-completar-requisitos": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Complete your invoice requirements - IIMP",
+      html: envoltura(
+        "Complete your invoice requirements",
+        `
+        <p>Hello, the invoice request for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> was sent, but it has <strong>no declared requirements</strong>.</p>
+        <p>So that Billing can issue your invoice without observations, complete the checklist with what your company requires:</p>
+        <ol style="font-size:13px;color:#475569;padding-left:18px">
+          <li style="margin-bottom:6px">Go to <strong>My documents</strong> in the Client Portal.</li>
+          <li style="margin-bottom:6px">Click <strong>Complete requirements</strong> on your request card.</li>
+          <li style="margin-bottom:6px">Select PO, service entry sheet, supplier platform registration, valuation, other or <strong>"None of the above"</strong>.</li>
+          <li style="margin-bottom:6px">Attach the applicable documents and save the changes.</li>
+        </ol>
+        <p style="font-size:13px;color:#475569">If your company does not require documents, select <strong>"None of the above"</strong> and save. You do not need to resend your request to the IIMP.</p>
+        <p style="text-align:center;margin:18px 0 6px 0">
+          <img src="${getAppUrl()}/manual/img/fact-completar-requisitos.png" alt="Complete requirements button in My documents" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px" />
+        </p>
+        <p style="text-align:center;margin:0 0 18px 0;font-size:12px;color:#64748b">In <strong>My documents</strong>, click the button outlined in red.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Complete requirements</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
   "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
     subject: `Invoice available (${numero}) - IIMP`,
     html: envoltura(

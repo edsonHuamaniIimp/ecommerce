@@ -79,6 +79,11 @@ export interface DatosPlantilla {
     standCodes: string;
     faltantes: string[];
   };
+  /** Aviso: la solicitud se envio sin requisitos y el cliente debe completarlos. */
+  "facturacion-completar-requisitos": {
+    razonSocial: string;
+    standCodes: string;
+  };
   /** Aviso: la factura de una cuota ya fue emitida y esta disponible en el portal. */
   "facturacion-factura-disponible": {
     razonSocial: string;
