@@ -971,6 +971,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 );
               })}
             </div>
+            {faltanObs.length > 0 && (
+              <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+                Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
+              </p>
+            )}
           </div>
         )}
 
@@ -1024,11 +1029,6 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
               if (files.length > 0) void handleUpload(files);
               e.target.value = "";
             }} />
-          )}
-          {!soloFirmaDigital && faltanObs.length > 0 && (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
-              Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
-            </p>
           )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
             {esContrato && (
