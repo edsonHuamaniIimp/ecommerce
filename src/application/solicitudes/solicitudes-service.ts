@@ -755,7 +755,7 @@ export class SolicitudesApplicationService {
      */
     /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
      * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
-    if (!isAdmin && categoria && !sgcObservationId && !sgcDocumentId) {
+    if (!isAdmin && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
