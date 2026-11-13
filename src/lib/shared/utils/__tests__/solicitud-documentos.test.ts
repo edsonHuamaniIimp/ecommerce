@@ -17,6 +17,7 @@ import {
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
   estadoCorreccionSgc,
+  esObservacionSgcContrato,
   observacionesSgcSubsanadas,
   sgcObservacionesAbiertas,
   tieneObservacionSgcAnexos,
@@ -642,5 +643,12 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     expect(completo.requeridos).toBe(2);
     expect(completo.cubiertos).toBe(2);
     expect(completo.faltantes).toHaveLength(0);
+  });
+});
+describe("esObservacionSgcContrato", () => {
+  it("reconoce el contrato tanto con categoria como con category del contrato v11", () => {
+    expect(esObservacionSgcContrato({ categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, message: "x" })).toBe(true);
+    expect(esObservacionSgcContrato({ category: "contract", message: "x" })).toBe(true);
+    expect(esObservacionSgcContrato({ category: "annex", message: "x" })).toBe(false);
   });
 });

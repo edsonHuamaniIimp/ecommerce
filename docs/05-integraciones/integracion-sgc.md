@@ -739,3 +739,17 @@ Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fe
   `sgc_observation_id`/`sgc_document_id` siguen usando el matching legacy.
 - Si una misma observación requiere más de un archivo, el modelo actual sigue la regla v7
   “una observación = un archivo”; no se inventó una relación N:M sin acuerdo con el SGC.
+
+## Actualización 13-nov-2026: corrección excepcional sin el cliente
+
+- Se documentó el procedimiento para que un operador autorizado actualice documentos
+  observados y reenvíe al SGC sin esperar a que el cliente ingrese.
+- Solo aplica en casos extremos/urgentes, con autorización y auditoría.
+- **No** aplica a expedientes `active` (vigente), `finalized` (cerrado), `archived` o
+  `closed`, ni a documentos con aprobación final.
+- Observación individual: versión nueva por `documentId`, sin `observationId` suelto.
+- Grupo v11: `observationId` + `pieceId`; sin `pieces[]` no se puede adivinar la pieza.
+- Archivos deben quedar como documentos del cliente (`user_id` no nulo) para enviarse
+  como anexos; el contrato observado requiere firma válida del cliente.
+- Procedimiento completo:
+  [`docs/06-operacion/procedimiento-correccion-excepcional-sgc.md`](../06-operacion/procedimiento-correccion-excepcional-sgc.md).
