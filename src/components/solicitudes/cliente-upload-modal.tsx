@@ -534,7 +534,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2">
             <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-warning" />
             <div>
-              <p className="text-[11px] font-semibold text-warning">Contrato en proceso de regeneración</p>
+              <p className="text-[11px] font-semibold text-warning">Preparando contrato corregido</p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                 El área legal observó el contrato y el sistema está preparando la versión corregida.
                 Cierra esta ventana y vuelve a abrirla en unos segundos para firmar.
@@ -938,11 +938,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 size="sm"
                 className="w-full rounded-full text-xs font-semibold sm:w-auto"
                 disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma || contratoEnRegeneracion}
-                title={contratoEnRegeneracion ? "El contrato corregido se está regenerando. Vuelve a abrir esta ventana en unos segundos." : !puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
+                title={contratoEnRegeneracion ? "Estamos preparando el contrato corregido. Vuelve a abrir esta ventana en unos segundos." : !puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
                 onClick={() => { void abrirFirmaWorkspace(); }}
               >
                 {contratoEnRegeneracion || abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
-                {contratoEnRegeneracion ? "Contrato en regeneración" : abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
+                {contratoEnRegeneracion ? "Preparando contrato corregido..." : abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
               </Button>
             )}
             {!soloFirmaDigital && (
