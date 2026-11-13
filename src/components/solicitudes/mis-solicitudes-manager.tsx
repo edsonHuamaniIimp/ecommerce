@@ -1396,7 +1396,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
                             {/* Observaciones de anexos del área legal (SGC) por documento */}
               {(esAdmin || !soloLectura) && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
-                <ModalSection title="Acción requerida">
+                <ModalSection title="Documentos observados por el área legal">
                   <div className={`flex flex-col gap-3 rounded-lg border p-3 ${observacionesSgcSubsanadas(detailRow) ? "border-success/30 bg-success/10" : "border-warning/30 bg-warning/10"}`}>
                     <div className="flex items-start gap-3">
                       <Upload className={`mt-0.5 h-4 w-4 shrink-0 ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`} />
@@ -1433,7 +1433,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {(esAdmin || !soloLectura) && detailRow && enVentanaSubsanacionSgc(detailRow) && !contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && observacionContratoSgcPendiente(detailRow) && (
-                <ModalSection title="Acción requerida">
+                <ModalSection title="Contrato observado por el área legal">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -1476,14 +1476,6 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
-                      {enVentanaDocumentosSgc(detailRow) && (
-                        <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto"
-                          title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
-                          onClick={() => openClienteUpload(detailRow, "anexos")}>
-                          <Upload className="h-3.5 w-3.5" />
-                          <span>Subir / reemplazar documentos</span>
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </ModalSection>
