@@ -983,9 +983,15 @@ export class SgcIntegracionApplicationService {
 
     const identificador = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
     const vistos = new Set<string>();
+    const enviadosPorGrupo = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
       const clave = doc.nombre || doc.url;
+      const claveGrupo = doc.sgcObservationId
+        ? `${doc.sgcObservationId}:${doc.sgcPieceId ?? normalizarTituloSgc(doc.sgcTitle ?? doc.nombre)}`
+        : null;
+      if (claveGrupo && enviadosPorGrupo.has(claveGrupo)) continue;
+      if (claveGrupo) enviadosPorGrupo.add(claveGrupo);
       /* Titulo legible por requisito (Ficha RUC, Vigencia de Poder, DNI...). El nombre fisico
        * lleva un hash corto de la URL: la misma pieza produce el mismo nombre (no duplica) y un
        * archivo reemplazado produce uno nuevo (se reenvia como version). */

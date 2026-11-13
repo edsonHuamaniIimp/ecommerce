@@ -137,7 +137,21 @@ export class SgcPrismaRepository implements ISgcRepository {
   }
 
   async crearDocumento(data: CrearSgcDocumentoData): Promise<SgcDocumentoEntity> {
-    const row = await prisma.sgcDocumento.create({ data });
+    /* El SGC puede devolver un documentId ya conocido al reintentar una reserva
+     * idempotente. La tabla local tiene document_id unico: se actualiza la
+     * correlacion existente en lugar de fallar con P2002. */
+    const row = await prisma.sgcDocumento.upsert({
+      where: { documentId: data.documentId },
+      create: data,
+      update: {
+        sgcExpedienteId: data.sgcExpedienteId,
+        category: data.category,
+        title: data.title,
+        fileName: data.fileName,
+        checksumSha256: data.checksumSha256,
+        sizeBytes: data.sizeBytes,
+      },
+    });
     return mapDocumento(row);
   }
 
