@@ -1033,7 +1033,7 @@ export class SgcIntegracionApplicationService {
           documentId: doc.documentId,
           category: doc.category,
           title: doc.title,
-          message: "El SGC observ�� este documento.",
+          message: "El SGC observo este documento.",
           status: SGC_OBSERVACION_ESTADOS.OPEN,
           createdAt: detalle.updatedAt,
         });
