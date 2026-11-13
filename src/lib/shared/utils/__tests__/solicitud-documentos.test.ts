@@ -608,4 +608,39 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     expect(completo.cubiertos).toBe(2);
     expect(completo.faltantes).toHaveLength(0);
   });
+
+  it("valida las piezas aceptadas por el SGC y las pendientes", () => {
+    const agrupada = obs("grupo-v11", {
+      documentId: null,
+      requisito: null,
+      title: "Otro representante",
+      requiresNewDocument: true,
+      pieces: [
+        { id: "piece-vigencia", title: "Vigencia", acceptedDocumentId: "doc-vigencia" },
+        { id: "piece-dni", title: "DNI", acceptedDocumentId: null },
+      ],
+    });
+
+    const parcial = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [],
+    });
+    expect(parcial).toMatchObject({ requeridos: 2, cubiertos: 1, faltantes: [{ title: "DNI", pieceId: "piece-dni" }] });
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [{
+        ...agrupada,
+        pieces: [
+          { id: "piece-vigencia", title: "Vigencia", acceptedDocumentId: "doc-vigencia" },
+          { id: "piece-dni", title: "DNI", acceptedDocumentId: "doc-dni" },
+        ],
+      }],
+      docsAdjuntos: [],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
 });

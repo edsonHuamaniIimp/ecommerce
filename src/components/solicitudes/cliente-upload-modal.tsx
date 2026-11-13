@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
@@ -459,6 +459,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     const pendiente = pendientes.some((p) => (p.requisito ?? null) === (obs.requisito ?? null));
     return !reemplazo && !pendiente;
   });
+  const piezasSinArchivo = observacionesSgcSinFila.some((o) =>
+    o.pieces?.some(
+      (piece) =>
+        !piece.acceptedDocumentId &&
+        !pendientes.some((p) => p.piezaId === piece.id),
+    ),
+  );
   const otrosDocs = (esContrato ? firmados : anexos)
     .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
@@ -783,9 +790,28 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="flex-1">
                       {o.title ?? o.nombre ?? "Documento adicional"}
+                      {o.pieces && o.pieces.length > 0 && (
+                        <span className="mt-1 block space-y-0.5">
+                          {o.pieces.map((piece) => {
+                            const aceptada = Boolean(piece.acceptedDocumentId);
+                            const pendientePieza = pendientes.some((p) => p.piezaId === piece.id);
+                            return (
+                              <span key={piece.id} className="flex items-center gap-1.5 text-[10px]">
+                                {aceptada
+                                  ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+                                  : <Clock className="h-3 w-3 shrink-0 text-warning" />}
+                                <span className="truncate">{piece.title}</span>
+                                <span className={aceptada ? "text-emerald-600" : "text-muted-foreground"}>
+                                  {aceptada ? "Recibido" : pendientePieza ? "Listo para enviar" : "Pendiente"}
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </span>
+                      )}
                       {corregida
-                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validaci��n del ǭrea legal</span>
-                        : <span className="block text-[10px] text-destructive">�?rea legal: {o.message}</span>}
+                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validaci������n del ��rea legal</span>
+                        : <span className="block text-[10px] text-destructive">���?rea legal: {o.message}</span>}
                     </span>
                     {pendiente ? (
                       <span className="flex shrink-0 items-center gap-2">
@@ -795,7 +821,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         <span className="text-[10px] font-medium text-emerald-600">
                           Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
                         </span>
-                        {(!o.pieces?.length || siguientePieza) && (
+                        {Boolean(siguientePieza) && (
                           <button
                             type="button"
                             className="text-[10px] text-primary hover:underline"
@@ -924,8 +950,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           </Button>
           {!soloFirmaDigital && (
             <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
-              disabled={sending || pendientes.length === 0 || faltanObs.length > 0}
-              title={faltanObs.length > 0 ? "Reemplaza todos los anexos observados antes de enviar" : undefined}
+              disabled={sending || pendientes.length === 0 || faltanObs.length > 0 || piezasSinArchivo}
+              title={faltanObs.length > 0
+                ? "Reemplaza todos los anexos observados antes de enviar"
+                : piezasSinArchivo
+                  ? "Adjunta un archivo por cada pieza solicitada por el SGC"
+                  : undefined}
               onClick={handleEnviar}>
               {sending ? "Enviando..." : "Enviar documentos"}
             </Button>

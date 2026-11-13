@@ -20,6 +20,7 @@ interface DocumentoLike {
   sgcObservationId?: string | null;
   sgcDocumentId?: string | null;
   sgcTitle?: string | null;
+  sgcPieceId?: string | null;
   createdAt?: string | Date | null;
   /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
   estado?: string | null;
@@ -133,6 +134,7 @@ export interface FaltanteCorreccionSgc {
   observationId?: string | null;
   title: string;
   tipo: SgcFaltanteTipo;
+  pieceId?: string | null;
 }
 
 export interface EstadoCorreccionSgc {
@@ -167,6 +169,32 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
   for (const o of observaciones) {
     const obsMs = dateUtils.toMs(o.createdAt ?? null);
     const esNuevo = !o.documentId || o.requiresNewDocument === true;
+    const piezas = o.pieces?.filter((piece) => Boolean(piece?.id && piece?.title)) ?? null;
+    if (piezas && piezas.length > 0) {
+      requeridos += piezas.length;
+      for (const piece of piezas) {
+        if (piece.acceptedDocumentId) {
+          cubiertos += 1;
+          continue;
+        }
+        const local = docs.find((d, i) => {
+          if (d.sgcPieceId !== piece.id || !esCliente(d) || usados.has(claveDoc(d, i))) return false;
+          return obsMs === null || (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs;
+        });
+        if (local) {
+          usados.add(claveDoc(local, docs.indexOf(local)));
+          cubiertos += 1;
+        } else {
+          faltantes.push({
+            observationId: o.observationId ?? null,
+            title: piece.title,
+            tipo: SGC_FALTANTE_TIPOS.NUEVO,
+            pieceId: piece.id,
+          });
+        }
+      }
+      continue;
+    }
     const esperados = Math.max(1, Math.trunc(o.expectedDocuments ?? 1));
     const identificado = (d: DocumentoLike) =>
       Boolean(o.observationId && d.sgcObservationId === o.observationId) ||
