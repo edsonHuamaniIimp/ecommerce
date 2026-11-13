@@ -235,7 +235,9 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
             }
           } else if (o.documentId && d.sgcDocumentId) {
             if (d.sgcDocumentId !== o.documentId) continue;
-          } else if (!esNuevo && !sinIdentificador && !identificado(d)) {
+          } else if (!sinIdentificador && !identificado(d)) {
+            /* Un faltante con titulo/requisito no puede cubrirse con cualquier
+             * anexo nuevo: debe ser ese documento exacto. */
             continue;
           }
         }

@@ -652,3 +652,32 @@ describe("esObservacionSgcContrato", () => {
     expect(esObservacionSgcContrato({ category: "annex", message: "x" })).toBe(false);
   });
 });
+
+describe("estadoCorreccionSgc en faltantes con titulo", () => {
+  it("no cubre un faltante con un anexo de otro titulo", () => {
+    const obs = {
+      title: "Falta agregar vigencia",
+      message: "Falta agregar vigencia",
+      category: "annex",
+      documentId: null,
+      requiresNewDocument: true,
+      status: "open",
+      createdAt: "2026-11-13T06:41:00.000Z",
+    };
+    const ajeno = {
+      id: "doc-ajeno",
+      nombre: "documento1.pdf",
+      sgcTitle: "documento1",
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      userId: CLIENTE,
+      estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+      createdAt: "2026-11-13T07:00:00.000Z",
+    };
+    expect(estadoCorreccionSgc({ ...devuelto, sgcObservaciones: [obs], docsAdjuntos: [ajeno] }).faltantes).toHaveLength(1);
+    expect(estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [obs],
+      docsAdjuntos: [{ ...ajeno, sgcTitle: "Falta agregar vigencia" }],
+    }).faltantes).toHaveLength(0);
+  });
+});
