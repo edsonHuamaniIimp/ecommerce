@@ -116,7 +116,7 @@ function clientMock(
   return {
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn().mockResolvedValue(undefined),
-    consultarExpediente: vi.fn(),
+    consultarExpediente: vi.fn().mockResolvedValue({ documents: [], missingDocuments: [] }),
     listarExpedientes: vi.fn(),
     reservarSubida: vi
       .fn()

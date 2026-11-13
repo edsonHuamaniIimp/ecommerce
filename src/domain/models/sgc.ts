@@ -249,6 +249,8 @@ export interface SgcDocumentoResumen {
   category: string;
   title: string;
   currentVersionId: string | null;
+  /** Observacion que agrupa este faltante (v11); puede faltar en respuestas antiguas. */
+  observationId?: string | null;
   /** Nombre fisico del archivo en el SGC (lo fijamos nosotros via `fileName`). */
   currentFileName?: string | null;
   /** Estado del documento en el SGC (opcional): pending | approved | observed | rejected. */

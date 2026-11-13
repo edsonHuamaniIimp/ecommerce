@@ -850,11 +850,18 @@ export class SgcIntegracionApplicationService {
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return [];
 
-    /* Agrupaciones del SGC: v11 usa pieces; las devoluciones antiguas pueden
-     * exigir varios archivos solo con expectedDocuments/expectedDocumentTitles. */
+    /* Preferir el detalle fresco del SGC: el JSON local puede haberse guardado
+     * antes de que existiera observationId en los grupos de adjuntos. */
+    const expedienteGrupos = await this.repo.findExpedientePorSolicitud(solicitudId);
+    const sgcGrupos = expedienteGrupos?.contractId
+      ? await this.client.consultarExpediente(expedienteGrupos.contractId).catch(() => null)
+      : null;
+    const observacionesGrupo = sgcGrupos?.missingDocuments?.length
+      ? sgcGrupos.missingDocuments
+      : detalle.sgcObservaciones;
     const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
     const piezasPorTitulo = new Map<string, { observationId: string; pieceId: string }>();
-    for (const o of detalle.sgcObservaciones ?? []) {
+    for (const o of observacionesGrupo ?? []) {
       if (!o.observationId) continue;
       const piezas = new Set((o.pieces ?? []).map((piece) => piece.id).filter(Boolean));
       const esGrupo =
@@ -1139,6 +1146,7 @@ export class SgcIntegracionApplicationService {
       if (yaInformado) continue;
       informado = true;
       lista.push({
+        observationId: doc.observationId ?? null,
         documentId: null,
         category: doc.category ?? SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: doc.title,
