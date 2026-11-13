@@ -725,8 +725,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       )}
                       {observacionSgc && (
                         observacionCorregida
-                          ? <span className="block text-[10px] text-emerald-600">Corregido — pendiente de validación del área legal</span>
-                          : <span className="block text-[10px] text-destructive">Área legal: {observacionSgc.message}</span>
+                          ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
+                          : <span className="block text-[10px] text-destructive">Area legal: {observacionSgc.message}</span>
                       )}
                     </span>
                     {pendiente ? (
@@ -810,8 +810,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         </span>
                       )}
                       {corregida
-                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validaci������n del ��rea legal</span>
-                        : <span className="block text-[10px] text-destructive">���?rea legal: {o.message}</span>}
+                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
+                        : <span className="block text-[10px] text-destructive">Area legal: {o.message}</span>}
                     </span>
                     {pendiente ? (
                       <span className="flex shrink-0 items-center gap-2">
@@ -821,7 +821,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         <span className="text-[10px] font-medium text-emerald-600">
                           Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
                         </span>
-                        {Boolean(siguientePieza) && (
+                        {(siguientePieza || !o.pieces?.length) && (
                           <button
                             type="button"
                             className="text-[10px] text-primary hover:underline"
