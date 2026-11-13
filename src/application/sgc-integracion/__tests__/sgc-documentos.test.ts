@@ -694,6 +694,70 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
   });
 
 
+  it("envia observationId para un grupo antiguo sin pieces", async () => {
+    const client = clientMock();
+    const observacion = {
+      observationId: "obs-grupo-antiguo",
+      documentId: null,
+      title: "Documentos adicionales del representante",
+      message: "Falta adjuntar los documentos del representante.",
+      expectedDocuments: 2,
+      expectedDocumentTitles: ["Vigencia de poder", "DNI"],
+      status: "open",
+      createdAt: new Date().toISOString(),
+    };
+    const row = detalle({
+      sgcObservaciones: [observacion],
+      docsAdjuntos: [
+        {
+          id: "d-vigencia",
+          url: "/uploads/vigencia.pdf",
+          nombre: "vigencia.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: null,
+          sgcObservationId: "obs-grupo-antiguo",
+          sgcPieceId: null,
+          sgcDocumentId: null,
+          sgcTitle: "Vigencia de poder",
+          createdAt: new Date(),
+        },
+        {
+          id: "d-dni",
+          url: "/uploads/dni.pdf",
+          nombre: "dni.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: null,
+          sgcObservationId: "obs-grupo-antiguo",
+          sgcPieceId: null,
+          sgcDocumentId: null,
+          sgcTitle: "DNI",
+          createdAt: new Date(),
+        },
+      ],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [observacion],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(client.reservarSubida).mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ observationId: "obs-grupo-antiguo" }));
+      expect(call[1]).not.toEqual(expect.objectContaining({ pieceId: expect.anything() }));
+    }
+  });
+
+
   it("reutiliza el documentId legacy al reemplazar un anexo con nombre random", async () => {
     const client = clientMock();
     vi.mocked(client.consultarExpediente).mockResolvedValue({
@@ -795,6 +859,57 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       await svc.subirAnexosDeSolicitud("sol-1");
     expect(docs).toHaveLength(1);
   });
+  it("infiere observationId y pieceId desde el titulo cuando el archivo local no los guardo", async () => {
+    const client = clientMock();
+    const observacion = {
+      observationId: "obs-inferida",
+      documentId: null,
+      title: "Representante adicional",
+      message: "Falta adjuntar los documentos del representante.",
+      pieces: [
+        { id: "piece-vigencia", title: "Vigencia de poder", acceptedDocumentId: null },
+        { id: "piece-dni", title: "DNI", acceptedDocumentId: null },
+      ],
+      status: "open",
+      createdAt: new Date().toISOString(),
+    };
+    const row = detalle({
+      sgcObservaciones: [observacion],
+      docsAdjuntos: [{
+        id: "d-inferida",
+        url: "/uploads/vigencia-inferida.pdf",
+        nombre: "vigencia-inferida.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: null,
+        sgcObservationId: null,
+        sgcPieceId: null,
+        sgcDocumentId: null,
+        sgcTitle: "Vigencia de poder",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [observacion],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        observationId: "obs-inferida",
+        pieceId: "piece-vigencia",
+      }),
+    );
+  });
+
   it("deberia excluir el documento del admin (userId null) de los anexos", async () => {
     const client = clientMock();
     const row = detalle({

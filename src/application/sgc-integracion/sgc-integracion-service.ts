@@ -53,6 +53,16 @@ export interface SgcIntegracionConfig {
 
 const MAX_ERROR_LENGTH = 500;
 
+/** Normaliza un titulo para emparejar documentos locales con piezas del SGC. */
+function normalizarTituloSgc(valor: string | null | undefined): string {
+  return (valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 /**
  * Orquesta la creacion del expediente en el SGC a partir de una solicitud
  * aprobada por Legal. Best-effort: ante cualquier fallo del SGC registra el
@@ -508,12 +518,15 @@ export class SgcIntegracionApplicationService {
       declaredMimeType: pieza.mimeType,
       replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
-      /* v11: observationId/pieceId solo se envian juntos para una pieza de un
-       * grupo. Una observacion individual se corrige por documentId; mandar
-       * observationId suelto hace que el SGC lo trate como adjunto agrupado. */
+      /* v11: observationId/pieceId se envian juntos para una pieza de un
+       * grupo. En una observacion agrupada sin pieces (expectedDocuments)
+       * se envia solo observationId; una observacion individual se corrige
+       * por documentId y no debe enviar observationId suelto. */
       ...(pieza.observationId && pieza.pieceId
         ? { observationId: pieza.observationId, pieceId: pieza.pieceId }
-        : {}),
+        : pieza.observationId && pieza.esGrupoSinPiezas
+          ? { observationId: pieza.observationId }
+          : {}),
     };
     let reserva = await this.client.reservarSubida(expediente.contractId, reservaInput);
 
@@ -592,6 +605,8 @@ export class SgcIntegracionApplicationService {
       documentId?: string | null;
       observationId?: string | null;
       pieceId?: string | null;
+      /** true = grupo sin `pieces`; se envia observationId sin pieceId. */
+      esGrupoSinPiezas?: boolean;
       replacementReason?: string;
     },
   ): Promise<SgcDocumentoEntity | null> {
@@ -606,6 +621,7 @@ export class SgcIntegracionApplicationService {
       documentId: params.documentId,
       observationId: params.observationId,
       pieceId: params.pieceId,
+      esGrupoSinPiezas: params.esGrupoSinPiezas,
       replacementReason: params.replacementReason,
     });
   }
@@ -834,38 +850,61 @@ export class SgcIntegracionApplicationService {
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return [];
 
-    /*
-     * Los documentos del cliente viven en dos lugares: la tabla `solicitud_documento`
-     * (`docsAdjuntos`, con `userId`) y la columna JSON legacy `documentos` del stand.
-     * Se consideran ambos, deduplicando por URL y excluyendo el que ya se usa como
-     * contrato (evita subir el mismo archivo como contrato y como anexo).
-     */
-    const piezasPorObservacion = new Map<string, Set<string>>();
+    /* Agrupaciones del SGC: v11 usa pieces; las devoluciones antiguas pueden
+     * exigir varios archivos solo con expectedDocuments/expectedDocumentTitles. */
+    const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
+    const piezasPorTitulo = new Map<string, { observationId: string; pieceId: string }>();
     for (const o of detalle.sgcObservaciones ?? []) {
-      if (!o.observationId || !o.pieces?.length) continue;
-      piezasPorObservacion.set(o.observationId, new Set(o.pieces.map((piece) => piece.id)));
+      if (!o.observationId) continue;
+      const piezas = new Set((o.pieces ?? []).map((piece) => piece.id).filter(Boolean));
+      const esGrupo =
+        piezas.size > 0 ||
+        (o.expectedDocuments ?? 0) > 1 ||
+        (o.expectedDocumentTitles?.length ?? 0) > 1;
+      if (!esGrupo) continue;
+      gruposPorObservacion.set(o.observationId, { piezas, sinPiezas: piezas.size === 0 });
+      for (const piece of o.pieces ?? []) {
+        const titulo = normalizarTituloSgc(piece.title);
+        if (titulo) piezasPorTitulo.set(titulo, { observationId: o.observationId, pieceId: piece.id });
+      }
     }
     const contrato = this.seleccionarContrato(detalle);
     const contratoUrl = contrato?.url;
     const contratoClave = contrato?.nombre || contratoUrl;
+    const datosGrupoDocumento = (d: SolicitudRow["docsAdjuntos"][number]) => {
+      const titulo = normalizarTituloSgc(d.sgcTitle ?? d.nombre);
+      const inferida = piezasPorTitulo.get(titulo);
+      const observationId = d.sgcObservationId ?? inferida?.observationId ?? null;
+      const pieceId = d.sgcPieceId ??
+        (inferida?.observationId === observationId ? inferida.pieceId : null);
+      return {
+        observationId,
+        pieceId,
+        grupo: observationId ? gruposPorObservacion.get(observationId) : undefined,
+      };
+    };
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos
         .filter((d) => {
           if (!this.documentoVigente(d) || d.userId === null || d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return false;
-          /* En un grupo v11 solo se envían las piezas nuevas; los archivos
+          /* En un grupo v11 solo se envian las piezas nuevas; los archivos
            * historicos sin pieceId no deben consumir una pieza del SGC. */
-          const piezas = d.sgcObservationId ? piezasPorObservacion.get(d.sgcObservationId) : undefined;
-          return !piezas || Boolean(d.sgcPieceId && piezas.has(d.sgcPieceId));
+          const { pieceId, grupo } = datosGrupoDocumento(d);
+          if (!grupo || grupo.sinPiezas) return true;
+          return Boolean(pieceId && grupo.piezas.has(pieceId));
         })
-        .map((d) => ({
-          url: d.url,
-          nombre: d.nombre,
-          requisito: d.requisito,
-          sgcObservationId: d.sgcObservationId ?? null,
-          sgcDocumentId: d.sgcDocumentId ?? null,
-          sgcTitle: d.sgcTitle ?? null,
-          sgcPieceId: d.sgcPieceId ?? null,
-        })),
+        .map((d) => {
+          const { observationId, pieceId } = datosGrupoDocumento(d);
+          return {
+            url: d.url,
+            nombre: d.nombre,
+            requisito: d.requisito,
+            sgcObservationId: observationId,
+            sgcDocumentId: d.sgcDocumentId ?? null,
+            sgcTitle: d.sgcTitle ?? null,
+            sgcPieceId: pieceId,
+          };
+        }),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
 
@@ -963,6 +1002,10 @@ export class SgcIntegracionApplicationService {
       const esVersionPorTitulo = observacionesVersion.some(
         (o) => o.title?.trim() === titulo,
       );
+      const grupoDocumento = doc.sgcObservationId
+        ? gruposPorObservacion.get(doc.sgcObservationId)
+        : undefined;
+      const esDocumentoAgrupado = Boolean(grupoDocumento);
       const documentIdObjetivo =
         doc.sgcDocumentId ??
         documentIdPorTitulo.get(titulo) ??
@@ -976,9 +1019,10 @@ export class SgcIntegracionApplicationService {
         (!doc.sgcObservationId &&
           !esVersionPorTitulo &&
           (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo))) ||
-        nombresEnSgc.has(doc.nombre) ||
-        nombresEnSgc.has(fileNameLegacy) ||
-        nombresEnSgc.has(fileName)
+        (!esDocumentoAgrupado &&
+          (nombresEnSgc.has(doc.nombre) ||
+            nombresEnSgc.has(fileNameLegacy) ||
+            nombresEnSgc.has(fileName)))
       ) {
         continue;
       }
@@ -999,19 +1043,22 @@ export class SgcIntegracionApplicationService {
         : undefined;
       const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;
       if (documentIdExistente) documentIdsUsados.add(documentIdExistente);
+      const grupo = grupoDocumento;
       const piezaAgrupada = Boolean(
         doc.sgcObservationId &&
           doc.sgcPieceId &&
-          piezasPorObservacion.get(doc.sgcObservationId)?.has(doc.sgcPieceId),
+          grupo?.piezas.has(doc.sgcPieceId),
       );
+      const grupoSinPiezas = Boolean(grupo?.sinPiezas && doc.sgcObservationId);
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: titulo,
         fileName,
         url: doc.url,
         documentId: documentIdExistente ?? null,
-        observationId: piezaAgrupada ? doc.sgcObservationId : null,
+        observationId: piezaAgrupada || grupoSinPiezas ? doc.sgcObservationId : null,
         pieceId: piezaAgrupada ? doc.sgcPieceId : null,
+        esGrupoSinPiezas: grupoSinPiezas,
         replacementReason: documentIdExistente ? SGC_SUBSANACION_MOTIVO : undefined,
       });
       if (subido) resultados.push(subido);

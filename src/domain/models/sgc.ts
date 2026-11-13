@@ -174,6 +174,8 @@ export interface SgcPiezaDocumental {
   observationId?: string | null;
   /** Pieza del grupo de adjuntos que cubre este archivo (v11). */
   pieceId?: string | null;
+  /** Observacion agrupada sin `pieceId`: enviar el `observationId` suelto. */
+  esGrupoSinPiezas?: boolean;
   replacementReason?: string;
 }
 
