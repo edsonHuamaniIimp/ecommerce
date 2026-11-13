@@ -37,6 +37,35 @@ export class SolicitudesApplicationService {
   }
 
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
+    /* La bandeja del cliente tambien debe reflejar una devolucion nueva del SGC.
+     * Se sincronizan solo sus expedientes no terminales y con TTL; el listado
+     * completo de admin (sin userId) no dispara llamadas masivas. */
+    if (this.sgcIntegracion && params.userId && params.perPage <= 50) {
+      const candidatos = await this.repo.listar({
+        ...params,
+        page: 1,
+        perPage: 100,
+        estado: undefined,
+        observadoPor: undefined,
+        sgc: undefined,
+        docsObservados: false,
+      });
+      const ahora = Date.now();
+      const pendientes = candidatos.data
+        .filter(
+          (r) =>
+            r.sgcEnabled &&
+            r.sgcEstadoEnvio &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.ACTIVE &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.FINALIZED &&
+            (dateUtils.toMs(r.sgcLastSyncedAt ?? null) === null ||
+              ahora - (dateUtils.toMs(r.sgcLastSyncedAt ?? null) ?? 0) >= SGC_SYNC_ON_READ_TTL_MS),
+        )
+        .slice(0, 20);
+      await Promise.all(
+        pendientes.map((r) => this.sgcIntegracion?.consultarExpediente(r.id).catch(() => null)),
+      );
+    }
     return this.repo.listar(params);
   }
 
@@ -51,8 +80,8 @@ export class SolicitudesApplicationService {
       !this.sgcIntegracion ||
       !actual.sgcEnabled ||
       !actual.sgcEstadoEnvio ||
-      (actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.OBSERVED &&
-        actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.REJECTED)
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
     ) {
       return actual;
     }
