@@ -394,11 +394,15 @@ export class SolicitudesApplicationService {
    * Asociado a pendiente y alerta a los revisores. No elimina nada.
    */
   async reenviarObservacion(solicitudId: string, userSub: string, userEmail: string): Promise<void> {
-    const detalle = await this.repo.detalle(solicitudId);
+    let detalle = await this.repo.detalle(solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     if (detalle.userId !== userSub) {
       throw new DomainError("No puedes reenviar una solicitud ajena", API_ERROR_CODES.FORBIDDEN, 403);
     }
+    /* El cliente pudo llegar con una copia local sin piezas. Antes de validar
+     * el reenvío, refrescamos el expediente para conocer las piezas v11. */
+    await this.sgcIntegracion?.consultarExpediente(solicitudId).catch(() => null);
+    detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
     if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
     }

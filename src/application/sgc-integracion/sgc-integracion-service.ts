@@ -832,12 +832,23 @@ export class SgcIntegracionApplicationService {
      * Se consideran ambos, deduplicando por URL y excluyendo el que ya se usa como
      * contrato (evita subir el mismo archivo como contrato y como anexo).
      */
+    const piezasPorObservacion = new Map<string, Set<string>>();
+    for (const o of detalle.sgcObservaciones ?? []) {
+      if (!o.observationId || !o.pieces?.length) continue;
+      piezasPorObservacion.set(o.observationId, new Set(o.pieces.map((piece) => piece.id)));
+    }
     const contrato = this.seleccionarContrato(detalle);
     const contratoUrl = contrato?.url;
     const contratoClave = contrato?.nombre || contratoUrl;
     const candidatos: DocumentoUrl[] = [
       ...detalle.docsAdjuntos
-        .filter((d) => this.documentoVigente(d) && d.userId !== null && d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)
+        .filter((d) => {
+          if (!this.documentoVigente(d) || d.userId === null || d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return false;
+          /* En un grupo v11 solo se envían las piezas nuevas; los archivos
+           * historicos sin pieceId no deben consumir una pieza del SGC. */
+          const piezas = d.sgcObservationId ? piezasPorObservacion.get(d.sgcObservationId) : undefined;
+          return !piezas || Boolean(d.sgcPieceId && piezas.has(d.sgcPieceId));
+        })
         .map((d) => ({
           url: d.url,
           nombre: d.nombre,
