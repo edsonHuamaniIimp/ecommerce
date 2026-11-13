@@ -888,6 +888,22 @@ export class SgcIntegracionApplicationService {
     const observacionesFaltantes = (expediente?.observaciones ?? []).filter(
       (o) => !o.documentId || o.requiresNewDocument === true,
     );
+    /* Si el mismo titulo aparece como version existente y como faltante, la
+     * version existente manda: el SGC valida por documentId y no acepta un
+     * archivo aparte como reemplazo. */
+    const observacionesVersion = (expediente?.observaciones ?? []).filter(
+      (o) =>
+        Boolean(o.documentId) &&
+        o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED &&
+        o.requiresDocumentChange !== false,
+    );
+    const documentIdPorTituloObservado = new Map<string, string>();
+    for (const o of observacionesVersion) {
+      const title = o.title?.trim();
+      if (title && o.documentId && !documentIdPorTituloObservado.has(title)) {
+        documentIdPorTituloObservado.set(title, o.documentId);
+      }
+    }
     const fechaPorUrl = new Map(detalle.docsAdjuntos.map((d) => [d.url, d.createdAt]));
     /* La correccion mas reciente va primero: si una observacion tiene version anterior
      * y corregida, solo la corregida debe consumir el documentId del SGC. */
@@ -944,9 +960,13 @@ export class SgcIntegracionApplicationService {
         identificador: null,
         hash,
       });
+      const esVersionPorTitulo = observacionesVersion.some(
+        (o) => o.title?.trim() === titulo,
+      );
       const documentIdObjetivo =
         doc.sgcDocumentId ??
         documentIdPorTitulo.get(titulo) ??
+        documentIdPorTituloObservado.get(titulo) ??
         (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined);
       if (
         vistos.has(clave) ||
@@ -954,6 +974,7 @@ export class SgcIntegracionApplicationService {
         doc.url === contratoUrl ||
         clave === contratoClave ||
         (!doc.sgcObservationId &&
+          !esVersionPorTitulo &&
           (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo))) ||
         nombresEnSgc.has(doc.nombre) ||
         nombresEnSgc.has(fileNameLegacy) ||
@@ -973,7 +994,7 @@ export class SgcIntegracionApplicationService {
         if (o.title && (titulo === o.title || doc.nombre === o.title)) return true;
         return !o.title;
       });
-      const documentIdCandidato = !esFaltante && puedeVersionarAnexos
+      const documentIdCandidato = (!esFaltante || esVersionPorTitulo) && puedeVersionarAnexos
         ? documentIdObjetivo
         : undefined;
       const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;

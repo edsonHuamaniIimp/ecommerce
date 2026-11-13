@@ -987,3 +987,56 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     );
   });
 });
+
+  it("versiona por titulo aunque el SGC tambien reporte un faltante con el mismo titulo", async () => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({ documents: [] } as never);
+    const titulo = "Falta agregar vigencia de otro representante legal y otra pdf de DNI";
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "doc-falta",
+        url: "/uploads/falta.pdf",
+        nombre: "falta-agregar-vigencia-519.pdf",
+        userId: "user-1",
+        uploadedBy: "cliente@example.com",
+        categoria: "anexo",
+        requisito: null,
+        sgcTitle: titulo,
+        createdAt: new Date("2026-11-13T07:37:00.000Z"),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [
+          {
+            observationId: "obs-version",
+            documentId: "sgc-doc-falta",
+            title: titulo,
+            message: "Corrige el adjunto",
+            status: "open",
+            requiresDocumentChange: true,
+            createdAt: new Date("2026-11-13T06:41:00.000Z").toISOString(),
+          },
+          {
+            title: titulo,
+            documentId: null,
+            message: "Falta adjuntar",
+            status: "open",
+            requiresNewDocument: true,
+            createdAt: new Date("2026-11-13T06:41:00.000Z").toISOString(),
+          },
+        ],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX, documentId: "sgc-doc-falta" }),
+    );
+  });
