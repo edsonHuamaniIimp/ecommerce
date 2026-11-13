@@ -43,6 +43,9 @@ export interface SgcObservacionLike {
   /** Cantidad de archivos que cubren la observacion (default 1). */
   expectedDocuments?: number | null;
   expectedDocumentTitles?: string[] | null;
+  pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+  documentsMissing?: number | null;
+  documentIds?: string[] | null;
   resolvedAt?: string | null;
 }
 

@@ -578,6 +578,8 @@ export class SolicitudesApplicationService {
     sgcDocumentId?: string | null;
     /** Titulo exacto de la observacion (anexos arbitrarios). */
     sgcTitle?: string | null;
+    /** Pieza del grupo de adjuntos del SGC que cubre este archivo. */
+    sgcPieceId?: string | null;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
 
@@ -676,6 +678,7 @@ export class SolicitudesApplicationService {
       ? (params.sgcDocumentId?.trim() || null)
       : null;
     const sgcTitle = permiteMetadatosSgc ? (params.sgcTitle?.trim() || null) : null;
+    const sgcPieceId = permiteMetadatosSgc ? (params.sgcPieceId?.trim() || null) : null;
 
     let userId: string | null;
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
@@ -734,8 +737,8 @@ export class SolicitudesApplicationService {
       }
     }
 
-    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle
-      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle }
+    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle || sgcPieceId
+      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle, pieceId: sgcPieceId }
       : null;
     const doc = sgcMetadata
       ? await this.repo.crearDocumentoAdjunto(

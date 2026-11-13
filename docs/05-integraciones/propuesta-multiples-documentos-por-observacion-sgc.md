@@ -3,6 +3,108 @@
 > Para el equipo de desarrollo del **SGC**. Objetivo: permitir que una observación
 > documental pueda exigir y recibir **más de un archivo**, sin romper el flujo actual.
 
+## Resumen ejecutivo para el equipo SGC
+
+El SGC debe hacer uno de estos dos cambios:
+
+1. **Dividir el faltante en observaciones separadas** (recomendado y más simple):
+   una observación por archivo, cada una con su `observationId`, `title` y
+   `requiresNewDocument: true`.
+2. **Permitir una observación agrupada**: agregar `expectedDocuments` y
+   `expectedDocumentTitles`, aceptar `observationId` en
+   `POST /contracts/{contractId}/documents`, asociar N documentos al mismo
+   `observationId` y resolverla solo cuando lleguen los N.
+
+Además, para que el IIMP pueda corregir sin depender del cliente, el SGC debe
+permitir una **corrección administrativa antes de la aprobación final** (sección 8).
+No debe permitir modificaciones si el expediente ya está `active`, `finalized`,
+`validity`, `closed` o `archived`.
+
+Sin alguno de estos cambios, ContratosStands no puede garantizar que dos archivos
+queden asociados a la misma observación ni que el reenvío sea válido.
+
+## 0. Estado en la guía `APIS_USE_HOOKS (10)`
+
+La versión más reciente de la guía **todavía no** describe varios archivos por una
+misma observación. Al contrario:
+
+- §8.3 dice explícitamente: **“Una observación = un archivo.”**
+- Los archivos faltantes se envían como adjuntos nuevos, **uno por cada archivo
+  pedido**.
+- `/resend` espera `N` archivos nuevos si se pidieron `N` faltantes.
+- `observations[]` sigue siendo un elemento por documento.
+- No existen `expectedDocuments` ni un `observationId` en
+  `POST /contracts/{id}/documents`.
+
+Esta guía sí permite **varios anexos** en general, pero como piezas documentales
+separadas (`documentId` distinto), no como varios archivos bajo una sola
+observación. Este documento es la solicitud para agregar ese caso.
+
+### Por qué el soporte actual de “varios adjuntos” no resuelve este caso
+
+La guía v10 permite subir varios adjuntos sueltos:
+
+```text
+POST /contracts/{id}/documents  documentId:null  -> anexo nuevo 1
+POST /contracts/{id}/documents  documentId:null  -> anexo nuevo 2
+```
+
+Pero no permite saber que ambos pertenecen a **una misma observación**:
+
+- `observations[]` trae **un elemento por documento**.
+- La regla publicada es **“una observación = un archivo”**.
+- No hay `expectedDocuments` ni un grupo de archivos por `observationId`.
+- El detalle no expone cuántos archivos espera una observación agrupada.
+- `/resend` puede pedir “N archivos nuevos”, pero el cliente no sabe a qué
+  observación pertenece cada uno ni cuándo el grupo está completo.
+
+En el caso 519, el SGC devolvió **una sola observación** cuyo texto pide dos
+documentos. Con la guía v10, ContratosStands solo puede interpretar “un archivo
+para esa observación”; el segundo queda sin vínculo explícito.
+
+### Cambio mínimo que necesitamos del servicio SGC
+
+Hay dos alternativas; cualquiera de las dos resuelve el caso:
+
+1. **Recomendada:** dividir los faltantes en observaciones separadas.
+   - Dos `observationId` distintos, cada uno con su `title` y un archivo.
+   - No requiere campos nuevos; es la opción más compatible.
+
+2. **Grupo explícito:** mantener una observación con varios documentos.
+   - Agregar `expectedDocuments` y `expectedDocumentTitles` a la observación.
+   - Aceptar `observationId` en `POST /contracts/{id}/documents`.
+   - Asociar N documentos al mismo `observationId`.
+   - Resolver la observación solo cuando lleguen los N.
+
+Si el equipo del SGC considera que “no hace falta cambiar nada”, debe indicar
+cuál de estas dos opciones ya está implementada y cómo ContratosStands obtiene:
+
+- cuántos archivos espera la observación;
+- qué títulos corresponden a cada archivo;
+- qué `documentId` quedó asociado a cada uno;
+- cuándo el grupo está completo y la observación pasa a `resolved`.
+
+Con la documentación v10 actual, esos cuatro datos no están disponibles. Por eso
+sí se requiere un cambio de contrato de API o la separación en dos observaciones.
+
+## Diferencia clave: documentos del catálogo vs documentos adjuntos
+
+No es lo mismo pedir “N documentos” que pedir “N documentos adjuntos”.
+
+- **Documentos del catálogo:** Ficha RUC, Vigencia de Poder y DNI o Pasaporte del
+  Representante Legal. Cada uno es una observación independiente y se corrige con
+  **un archivo**.
+- **Documentos adjuntos:** una observación genérica de `category: "annex"` que
+  puede pedir **varios archivos** bajo el mismo `observationId`. No son “N
+  vigencias de poder” ni “N DNI” del catálogo; son N adjuntos genéricos.
+
+El caso “Falta agregar vigencia de otro representante legal y otra pdf de DNI”
+pertenece al segundo grupo: ContratosStands debe enviar **varios documentos
+adjuntos**, no crear varias observaciones de los documentos estándar.
+
+`expectedDocuments` aplica solo a esta observación genérica de adjuntos. Nunca
+debe aplicarse a Ficha RUC, Vigencia de Poder o DNI del catálogo.
+
 ## 1. Caso real
 
 En el expediente de PRODIMIN, el SGC devolvió una observación con este texto:
@@ -203,3 +305,58 @@ Si el SGC no puede cambiar el modelo a corto plazo:
 
 La primera opción es la recomendada porque evita PDFs combinados y permite
 trazabilidad por documento.
+
+## 8. Requerimiento adicional: corrección administrativa sin esperar devolución
+
+ContratosStands necesita que el IIMP pueda corregir y reenviar sin depender de
+que el cliente lo haga y sin esperar a que el expediente esté devuelto/rechazado.
+
+La guía v10 actual **no lo permite**: durante la revisión, `POST
+/contracts/{id}/documents` responde `409` y los cambios solo se aceptan cuando el
+expediente está en elaboración, devuelto o rechazado.
+
+### Cambio solicitado
+
+Agregar una operación privilegiada de **corrección administrativa**, solo para el
+actor de integración con rol `contract-manager`/administrador:
+
+1. Abrir una sesión de corrección:
+   `POST /contracts/{contractId}/administrative-correction`
+   - `expectedVersion` obligatorio para control de concurrencia.
+   - `reason` obligatorio.
+   - Permitida solo **antes de la aprobación final**: `drafting`, `internal-review`,
+     `legal-review` o `approval` con aprobación final pendiente.
+   - Prohibida si el expediente ya está **aprobado/vigente/cerrado/archivado**:
+     `lifecycleStatus: "active"` o `"finalized"`, `stage: "validity"` o
+     `"closed"`, o después de `workflow.completed`/`contract.closed`.
+   - Si ya existe aprobación final, debe responder `409` y no modificar contrato,
+     documentos ni versiones.
+   - Devuelve `correctionId` y `expiresAt`.
+
+2. Subir los documentos corregidos usando la misma API de 3 fases:
+   - versiones nuevas sobre el mismo `documentId`;
+   - archivos nuevos con `documentId: null`;
+   - varios archivos con el mismo `observationId`, según la sección 3.
+
+3. Finalizar:
+   `POST /contracts/{contractId}/administrative-correction/{correctionId}/send`
+   - crea una ronda nueva;
+   - invalida las aprobaciones pendientes de la ronda anterior;
+   - conserva historial y versiones;
+   - notifica a Legal/Gerencia;
+   - devuelve `{ round, version, status: "resent" }`.
+
+### Reglas
+
+- La operación debe ser idempotente por `Idempotency-Key`.
+- Debe auditar quién corrigió, cuándo, motivo y versión esperada.
+- Si Legal ya aprobó, debe definir si la corrección reinicia Legal o solo
+  invalida la etapa afectada; no puede quedar una aprobación vieja sobre un
+  documento nuevo.
+- El cliente no debe firmar ni subir nada en este flujo; la corrección y el
+  reenvío los ejecuta el sistema autorizado.
+- La operación no debe permitirse sobre expedientes cerrados, archivados o
+  finalizados.
+
+Sin esta operación, ContratosStands puede regenerar el contrato localmente, pero
+el SGC seguirá rechazando la subida mientras el expediente esté en revisión.

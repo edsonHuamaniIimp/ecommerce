@@ -105,6 +105,7 @@ export interface DocumentoUrl {
   sgcObservationId?: string | null;
   sgcDocumentId?: string | null;
   sgcTitle?: string | null;
+  sgcPieceId?: string | null;
 }
 
 /**
@@ -203,6 +204,33 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
           .map((title) => texto(title))
           .filter((title): title is string => Boolean(title))
       : null;
+    const pieces = Array.isArray(o.pieces)
+      ? o.pieces
+          .slice(0, MAX_OBSERVACIONES)
+          .map((rawPiece) => {
+            if (!rawPiece || typeof rawPiece !== "object") return null;
+            const piece = rawPiece as Record<string, unknown>;
+            const id = texto(piece.id ?? piece.pieceId, 64);
+            const title = texto(piece.title);
+            if (!id || !title) return null;
+            return {
+              id,
+              title,
+              acceptedDocumentId: texto(piece.acceptedDocumentId, 64),
+            };
+          })
+          .filter((piece): piece is NonNullable<typeof piece> => piece !== null)
+      : null;
+    const documentsMissing =
+      typeof o.documentsMissing === "number" && Number.isFinite(o.documentsMissing)
+        ? Math.max(0, Math.trunc(o.documentsMissing))
+        : null;
+    const documentIds = Array.isArray(o.documentIds)
+      ? o.documentIds
+          .slice(0, MAX_OBSERVACIONES)
+          .map((id) => texto(id, 64))
+          .filter((id): id is string => Boolean(id))
+      : null;
     salida.push({
       observationId: texto(o.observationId, 64),
       documentId: texto(o.documentId, 64),
@@ -219,6 +247,9 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
       requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
       ...(expectedDocuments !== null ? { expectedDocuments } : {}),
       ...(expectedDocumentTitles !== null ? { expectedDocumentTitles } : {}),
+      ...(pieces !== null ? { pieces } : {}),
+      ...(documentsMissing !== null ? { documentsMissing } : {}),
+      ...(documentIds !== null ? { documentIds } : {}),
       status: texto(o.status, 20),
       resolvedAt: texto(o.resolvedAt, 40),
       createdBy: creadoPor,

@@ -644,6 +644,7 @@ export const solicitudesController = {
       sgcObservationId: raw.sgcObservationId ?? null,
       sgcDocumentId: raw.sgcDocumentId ?? null,
       sgcTitle: raw.sgcTitle ?? null,
+      sgcPieceId: raw.sgcPieceId ?? null,
     });
     await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
     return success(doc);

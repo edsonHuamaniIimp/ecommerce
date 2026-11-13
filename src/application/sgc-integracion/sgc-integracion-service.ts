@@ -485,6 +485,14 @@ export class SgcIntegracionApplicationService {
 
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return null;
+    /* Un contrato aprobado/vigente/cerrado es inmutable: no se suben nuevas
+     * versiones ni documentos al expediente. */
+    if (
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+    ) {
+      return null;
+    }
 
     const checksumSha256 = await sha256Hex(pieza.bytes);
     const reservaInput: SgcReservarSubidaInput = {
@@ -497,6 +505,7 @@ export class SgcIntegracionApplicationService {
       replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
       ...(pieza.observationId ? { observationId: pieza.observationId } : {}),
+      ...(pieza.pieceId ? { pieceId: pieza.pieceId } : {}),
     };
     let reserva = await this.client.reservarSubida(expediente.contractId, reservaInput);
 
@@ -574,6 +583,7 @@ export class SgcIntegracionApplicationService {
       fileName?: string;
       documentId?: string | null;
       observationId?: string | null;
+      pieceId?: string | null;
       replacementReason?: string;
     },
   ): Promise<SgcDocumentoEntity | null> {
@@ -587,6 +597,7 @@ export class SgcIntegracionApplicationService {
       bytes: contenido.bytes,
       documentId: params.documentId,
       observationId: params.observationId,
+      pieceId: params.pieceId,
       replacementReason: params.replacementReason,
     });
   }
@@ -720,6 +731,13 @@ export class SgcIntegracionApplicationService {
     if (!detalle) return sinDocumento;
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return sinDocumento;
+    /* No se reenvía ni corrige un expediente con aprobación final. */
+    if (
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+      expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+    ) {
+      return sinDocumento;
+    }
 
     /* Devolucion del SGC: primero se versionan los anexos corregidos (el SGC exige que la
      * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
@@ -827,6 +845,7 @@ export class SgcIntegracionApplicationService {
           sgcObservationId: d.sgcObservationId ?? null,
           sgcDocumentId: d.sgcDocumentId ?? null,
           sgcTitle: d.sgcTitle ?? null,
+          sgcPieceId: d.sgcPieceId ?? null,
         })),
       ...extraerDocumentosLegacy(detalle.documentos),
     ];
@@ -947,6 +966,7 @@ export class SgcIntegracionApplicationService {
         url: doc.url,
         documentId: documentIdExistente ?? null,
         observationId: doc.sgcObservationId ?? null,
+        pieceId: doc.sgcPieceId ?? null,
         replacementReason: documentIdExistente ? SGC_SUBSANACION_MOTIVO : undefined,
       });
       if (subido) resultados.push(subido);
@@ -1034,6 +1054,11 @@ export class SgcIntegracionApplicationService {
         status: SGC_OBSERVACION_ESTADOS.OPEN,
         requiresDocumentChange: true,
         requiresNewDocument: true,
+        expectedDocuments: doc.expectedDocuments ?? null,
+        expectedDocumentTitles: doc.expectedDocumentTitles ?? null,
+        documentsMissing: doc.documentsMissing ?? null,
+        documentIds: doc.documentIds ?? null,
+        pieces: doc.pieces ?? null,
         createdAt:
           (previas ?? []).find(
             (o) => !o.documentId && (o.title ?? '').trim() === (doc.title ?? '').trim(),

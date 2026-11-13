@@ -112,6 +112,11 @@ export interface SolicitudDTO {
     status?: string | null;
     requiresDocumentChange?: boolean | null;
     requiresNewDocument?: boolean | null;
+    expectedDocuments?: number | null;
+    expectedDocumentTitles?: string[] | null;
+    pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+    documentsMissing?: number | null;
+    documentIds?: string[] | null;
     resolvedAt?: string | null;
     createdBy?: string | null;
     createdAt?: string | null;

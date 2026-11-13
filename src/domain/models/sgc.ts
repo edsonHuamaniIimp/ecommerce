@@ -140,6 +140,8 @@ export interface SgcReservarSubidaInput {
   documentId?: string | null;
   /** Observacion del SGC que agrupa este archivo con otros adjuntos. */
   observationId?: string | null;
+  /** Pieza del grupo de adjuntos que cubre este archivo (v11). */
+  pieceId?: string | null;
 }
 
 /** Respuesta 201 de reserva de subida */
@@ -170,6 +172,8 @@ export interface SgcPiezaDocumental {
   documentId?: string | null;
   /** Observacion del SGC que agrupa este archivo con otros adjuntos. */
   observationId?: string | null;
+  /** Pieza del grupo de adjuntos que cubre este archivo (v11). */
+  pieceId?: string | null;
   replacementReason?: string;
 }
 
@@ -199,6 +203,13 @@ export interface SgcHistoryItem {
   occurredAt: string;
 }
 
+/** Pieza documental dentro de una observacion agrupada de anexos. */
+export interface SgcObservationPiece {
+  id: string;
+  title: string;
+  acceptedDocumentId?: string | null;
+}
+
 /** Observacion del SGC sobre un documento (campo OPCIONAL de la integracion; puede no venir). */
 export interface SgcObservacionDocumento {
   observationId?: string | null;
@@ -218,6 +229,12 @@ export interface SgcObservacionDocumento {
   expectedDocuments?: number | null;
   /** Titulos esperados por archivo, si el SGC los informa. */
   expectedDocumentTitles?: string[] | null;
+  /** Piezas esperadas de un grupo de adjuntos (v11). */
+  pieces?: SgcObservationPiece[] | null;
+  /** Documentos del grupo aun pendientes. */
+  documentsMissing?: number | null;
+  /** Ids de documentos aceptados para el grupo. */
+  documentIds?: string[] | null;
   status?: string | null;
   /** Fecha en que el SGC marco la observacion como resuelta (opcional). */
   resolvedAt?: string | null;
@@ -236,6 +253,12 @@ export interface SgcDocumentoResumen {
   status?: string | null;
   /** Observaciones por documento (opcional; versiones previas no las envian). */
   observations?: SgcObservacionDocumento[] | null;
+  /** Grupo de adjuntos faltantes (v11): piezas y progreso. */
+  expectedDocuments?: number | null;
+  expectedDocumentTitles?: string[] | null;
+  documentsMissing?: number | null;
+  documentIds?: string[] | null;
+  pieces?: SgcObservationPiece[] | null;
 }
 
 /** Detalle completo del expediente — GET /contracts/{contractId} */

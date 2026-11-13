@@ -43,6 +43,7 @@ interface Pendiente {
   observacionId?: string | null;
   observacionTitulo?: string | null;
   documentoId?: string | null;
+  piezaId?: string | null;
 }
 
 interface Firmante {
@@ -96,6 +97,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const observacionRef = useRef<string | null>(null);
   const observacionTituloRef = useRef<string | null>(null);
   const documentoRef = useRef<string | null>(null);
+  const piezaRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
   const cargarFirmantes = useCallback(async (): Promise<void> => {
@@ -173,6 +175,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           observacionId: observacionRef.current,
           observacionTitulo: observacionTituloRef.current,
           documentoId: documentoRef.current,
+          piezaId: piezaRef.current,
         });
       }
       setPendientes(prev => [...prev, ...subidos]);
@@ -187,11 +190,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     observacionId: string | null = null,
     observacionTitulo: string | null = null,
     documentoId: string | null = null,
+    piezaId: string | null = null,
   ) => {
     requisitoRef.current = requisito;
     observacionRef.current = observacionId;
     observacionTituloRef.current = observacionTitulo;
     documentoRef.current = documentoId;
+    piezaRef.current = piezaId;
     const input = fileRef.current;
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
@@ -220,6 +225,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           sgcObservationId: p.observacionId ?? null,
           sgcDocumentId: p.documentoId ?? null,
           sgcTitle: p.observacionTitulo ?? null,
+          sgcPieceId: p.piezaId ?? null,
         });
       }
       toast.success(
@@ -762,6 +768,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 const pendientesObs = pendientes.filter(coincidePendiente);
                 const idxPendiente = pendientes.findIndex(coincidePendiente);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
+                const siguientePieza = o.pieces?.find((piece) =>
+                  !piece.acceptedDocumentId && !pendientes.some((p) => p.piezaId === piece.id),
+                );
+                const tituloPieza = siguientePieza?.title ?? o.title ?? o.nombre ?? null;
+                const piezaId = siguientePieza?.id ?? null;
                 return (
                   <div
                     key={o.observationId ?? `obs-sgc-sin-fila-${i}`}
@@ -784,14 +795,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         <span className="text-[10px] font-medium text-emerald-600">
                           Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
                         </span>
-                        <button
-                          type="button"
-                          className="text-[10px] text-primary hover:underline"
-                          disabled={uploading}
-                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null, o.documentId ?? null)}
-                        >
-                          Agregar otro
-                        </button>
+                        {(!o.pieces?.length || siguientePieza) && (
+                          <button
+                            type="button"
+                            className="text-[10px] text-primary hover:underline"
+                            disabled={uploading}
+                            onClick={() => abrirSelector(null, o.observationId ?? null, tituloPieza, o.documentId ?? null, piezaId)}
+                          >
+                            Agregar otro
+                          </button>
+                        )}
                         <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
                           <X className="h-3 w-3" />
                         </button>
@@ -806,7 +819,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                           size="sm"
                           className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                           disabled={uploading}
-                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null, o.documentId ?? null)}
+                          onClick={() => abrirSelector(null, o.observationId ?? null, tituloPieza, o.documentId ?? null, piezaId)}
                         >
                           {local ? "Reemplazar" : "Adjuntar"}
                         </Button>

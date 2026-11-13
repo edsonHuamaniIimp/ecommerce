@@ -870,6 +870,8 @@ model SolicitudDocumento {
   sgcDocumentId String? @map("sgc_document_id") @db.VarChar(64)
   /// Titulo exacto que usa el SGC para la observacion (no se infiere del nombre del archivo).
   sgcTitle    String?  @map("sgc_title") @db.VarChar(300)
+  /// Pieza del grupo de adjuntos del SGC que cubre este archivo (v11).
+  sgcPieceId  String?  @map("sgc_piece_id") @db.VarChar(64)
   /// Origen del documento (`generado` = plantilla del sistema | `personalizado` | null = legacy/subida simple).
   origen      String?  @db.VarChar(20)
   /// SHA-256 del archivo firmado: impide reutilizar el mismo firmado en otra solicitud.

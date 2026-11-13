@@ -143,7 +143,7 @@ export const solicitudesService = {
     return internalApi.post<{ contratoHabilitado: boolean }>(`/api/solicitudes/habilitar-contrato`, body);
   },
 
-  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null; permitirAnexosIniciales?: boolean; firmaDigital?: boolean; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null }) {
+  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null; permitirAnexosIniciales?: boolean; firmaDigital?: boolean; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null }) {
     return internalApi.post<Record<string, unknown>>(`/api/solicitudes/upload-doc`, body);
   },
 
