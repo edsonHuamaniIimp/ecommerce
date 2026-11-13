@@ -455,16 +455,6 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   });
   const otrosDocs = (esContrato ? firmados : anexos)
     .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
-  /** Contrato firmado observado sin reemplazo activo posterior: se debe volver a firmar. */
-  const firmadoObservado = esContrato
-    ? firmados.find((obs) =>
-        obs.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO &&
-        !firmados.some((d) =>
-          (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
-          dateUtils.isAfter(d.createdAt, obs.createdAt),
-        ),
-      )
-    : null;
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 
   return (
@@ -487,31 +477,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           {soloFirmaDigital ? (
             <p className="text-[11px] font-semibold text-foreground">
               El contrato de esta solicitud se firma <span className="text-primary">solo digitalmente</span>.
-              Puedes descargar el contrato vigente; no se admite subir un contrato firmado manualmente.
+              La firma se estampa directamente en el sistema con la firma registrada de cada representante.
             </p>
-          ) : esContrato ? (
-            firmadoObservado ? (
-              <p className="text-[11px] font-semibold text-warning">
-                Tu contrato firmado fue observado{firmadoObservado.motivoObservacion ? `: ${firmadoObservado.motivoObservacion}` : "."}{" "}
-                Descarga el contrato vigente, firmalo de nuevo y sube la version corregida.
-              </p>
-            ) : (firmaManualVigente || firmaManualPendiente) ? (
-              <p className="text-[11px] font-semibold text-foreground">
-                Ya tienes una firma manual vigente. Si deseas firmar digitalmente, elimina primero esa firma.
-              </p>
-            ) : puedeAbrirFirma ? (
-              <p className="text-[11px] font-semibold text-foreground">
-                Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de cada representante, o descargarlo, firmarlo y subir tu versión firmada.
-              </p>
-            ) : (
-              <p className="text-[11px] font-semibold text-foreground">
-                Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
-              </p>
-            )
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Obligatorios para la revisión del área legal:</span>{" "}
-              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite.
+              <span className="font-semibold text-foreground">Obligatorios para la revisi��n del ǭrea legal:</span>{" "}
+              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trǭmite.
             </p>
           )}
         </div>
@@ -600,15 +571,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
               >
                 <Eye className="h-3 w-3" />
-                <span>Ver</span>
-              </a>
-              <a
-                href={contratoAdmin.url}
-                download
-                className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
-              >
-                <Download className="h-3 w-3" />
-                <span>Descargar</span>
+                <span>Ver contrato</span>
               </a>
             </div>
           </div>
@@ -685,7 +648,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-5">
         {!esContrato && adminDocs.length > 0 && (
           <div>
-            <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
+            <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (firma digital)" : "Documentos del administrador"}</Label>
             <div className="space-y-1 rounded-md border bg-secondary p-2">
               {adminDocs.map((doc, i) => (
                 <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
@@ -852,7 +815,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           {esContrato && firmadoAnterior && (
             <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
               Firmaste el {dateUtils.formatDateTime(firmadoActivo?.createdAt)}; la version vigente es del{" "}
-              {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Descarga la version vigente y firmala de nuevo.
+              {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Vuelve a firmarlo digitalmente con el boton
+              «Firmar contrato corregido».
             </p>
           )}
           {otrosDocs.length > 0 && (
