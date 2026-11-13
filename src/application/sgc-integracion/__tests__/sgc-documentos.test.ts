@@ -628,11 +628,71 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: titulo,
         documentId: "sgc-doc-arbitrario",
-        observationId: "obs-arbitraria",
         replacementReason: expect.any(String),
       }),
     );
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.not.objectContaining({ observationId: expect.anything() }),
+    );
   });
+
+  it("envia observationId y pieceId solo cuando la observacion es un grupo v11", async () => {
+    const client = clientMock();
+    const row = detalle({
+      sgcObservaciones: [{
+        observationId: "obs-grupo",
+        documentId: null,
+        title: "Vigencia y DNI adicionales",
+        message: "Falta adjuntar vigencia y DNI adicionales.",
+        pieces: [{ id: "piece-1", title: "Vigencia adicional", acceptedDocumentId: null }],
+        status: "open",
+        createdAt: new Date().toISOString(),
+      }],
+      docsAdjuntos: [{
+        id: "d-pieza",
+        url: "/uploads/vigencia-adicional.pdf",
+        nombre: "vigencia-adicional.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: null,
+        sgcObservationId: "obs-grupo",
+        sgcPieceId: "piece-1",
+        sgcDocumentId: null,
+        sgcTitle: "Vigencia adicional",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [{
+          observationId: "obs-grupo",
+          documentId: null,
+          title: "Vigencia y DNI adicionales",
+          message: "Falta adjuntar vigencia y DNI adicionales.",
+          pieces: [{ id: "piece-1", title: "Vigencia adicional", acceptedDocumentId: null }],
+          status: "open",
+          createdAt: new Date().toISOString(),
+        }],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        observationId: "obs-grupo",
+        pieceId: "piece-1",
+      }),
+    );
+  });
+
 
   it("reutiliza el documentId legacy al reemplazar un anexo con nombre random", async () => {
     const client = clientMock();

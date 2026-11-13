@@ -504,8 +504,12 @@ export class SgcIntegracionApplicationService {
       declaredMimeType: pieza.mimeType,
       replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
-      ...(pieza.observationId ? { observationId: pieza.observationId } : {}),
-      ...(pieza.pieceId ? { pieceId: pieza.pieceId } : {}),
+      /* v11: observationId/pieceId solo se envian juntos para una pieza de un
+       * grupo. Una observacion individual se corrige por documentId; mandar
+       * observationId suelto hace que el SGC lo trate como adjunto agrupado. */
+      ...(pieza.observationId && pieza.pieceId
+        ? { observationId: pieza.observationId, pieceId: pieza.pieceId }
+        : {}),
     };
     let reserva = await this.client.reservarSubida(expediente.contractId, reservaInput);
 
@@ -970,14 +974,19 @@ export class SgcIntegracionApplicationService {
         : undefined;
       const documentIdExistente = documentIdCandidato && !documentIdsUsados.has(documentIdCandidato) ? documentIdCandidato : undefined;
       if (documentIdExistente) documentIdsUsados.add(documentIdExistente);
+      const piezaAgrupada = Boolean(
+        doc.sgcObservationId &&
+          doc.sgcPieceId &&
+          piezasPorObservacion.get(doc.sgcObservationId)?.has(doc.sgcPieceId),
+      );
       const subido = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: titulo,
         fileName,
         url: doc.url,
         documentId: documentIdExistente ?? null,
-        observationId: doc.sgcObservationId ?? null,
-        pieceId: doc.sgcPieceId ?? null,
+        observationId: piezaAgrupada ? doc.sgcObservationId : null,
+        pieceId: piezaAgrupada ? doc.sgcPieceId : null,
         replacementReason: documentIdExistente ? SGC_SUBSANACION_MOTIVO : undefined,
       });
       if (subido) resultados.push(subido);
