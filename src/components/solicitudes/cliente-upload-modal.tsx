@@ -805,6 +805,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 );
                 const tituloPieza = siguientePieza?.title ?? o.title ?? o.nombre ?? null;
                 const piezaId = siguientePieza?.id ?? null;
+                const requiereVersionExistente = Boolean(o.documentId);
                 return (
                   <div
                     key={o.observationId ?? `obs-sgc-sin-fila-${i}`}
@@ -814,7 +815,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="flex-1">
-                      {o.title ?? o.nombre ?? "Documento adicional"}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {o.title ?? o.nombre ?? "Documento adicional"}
+                        <Badge className={`pointer-events-none text-[9px] ${requiereVersionExistente ? "border-warning/30 bg-warning/10 text-warning" : "border-primary/20 bg-primary/10 text-primary"}`}>
+                          <span>{requiereVersionExistente ? "Versión corregida" : "Archivo nuevo"}</span>
+                        </Badge>
+                      </span>
                       {o.pieces && o.pieces.length > 0 && (
                         <span className="mt-1 block space-y-0.5">
                           {o.pieces.map((piece) => {
@@ -872,7 +878,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                           disabled={uploading}
                           onClick={() => abrirSelector(null, o.observationId ?? null, tituloPieza, o.documentId ?? null, piezaId)}
                         >
-                          {local ? "Reemplazar" : "Adjuntar"}
+                          {local ? "Reemplazar" : requiereVersionExistente ? "Subir versión corregida" : "Adjuntar archivo nuevo"}
                         </Button>
                       </span>
                     )}
