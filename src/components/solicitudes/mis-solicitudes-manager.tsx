@@ -736,7 +736,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Subsanar observación</span>
                             </Button>
                           )}
-                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
                               title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
                               onClick={() => openClienteUpload(row, "anexos")}>
@@ -888,7 +888,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Subsanar observación</span>
                               </Button>
                             )}
-                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                                 title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
                                 onClick={() => openClienteUpload(row, "anexos")}>
