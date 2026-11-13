@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
@@ -7,8 +7,9 @@ import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesCambiarMonedaSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
@@ -234,6 +235,26 @@ export const solicitudesController = {
       perPage: parsed.per_page,
     });
     const data = await evaluarDdSolicitudes(result.data, parsed.eventoId);
+
+    /* La regeneracion del contrato tarda (DOCX/PDF). Se agenda despues de
+     * enviar la bandeja para no bloquearla; el listado ya muestra la
+     * observacion y el siguiente refresh vera el contrato corregido. */
+    const contratosPendientes = result.data
+      .filter(
+        (row) =>
+          (row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+            row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
+          tieneObservacionSgcContrato(row),
+      )
+      .slice(0, 5);
+    if (contratosPendientes.length > 0) {
+      after(async () => {
+        for (const row of contratosPendientes) {
+          await services.sgc.consultarExpediente(row.id).catch(() => null);
+        }
+      });
+    }
+
     const response = success({ ...result, data });
     if (empresaId) response.headers.set("Cache-Control", "no-store");
     return response;
