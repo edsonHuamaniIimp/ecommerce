@@ -766,6 +766,25 @@ export class SgcIntegracionApplicationService {
       return sinDocumento;
     }
 
+    const actual = await this.client.consultarExpediente(expediente.contractId);
+    const sgcDevuelto =
+      actual.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+      actual.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+    /* La UI puede conservar una observacion local ya resuelta. No se deben
+     * reenviar piezas cuando el SGC ya abrio una nueva ronda: responde 409. */
+    if (!sgcDevuelto) {
+      const observacionesActuales = this.observacionesDesdeDetalle(actual, expediente.observaciones);
+      await this.repo.actualizarExpediente(expediente.id, {
+        stage: actual.stage,
+        lifecycleStatus: actual.lifecycleStatus,
+        version: actual.version,
+        lastSyncedAt: new Date(),
+        lastError: null,
+        ...(observacionesActuales !== null ? { observaciones: observacionesActuales } : {}),
+      }).catch(() => undefined);
+      return { reenviado: true, documento: null };
+    }
+
     /* Devolucion del SGC: primero se versionan los anexos corregidos (el SGC exige que la
      * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
      * cuando el lifecycle es rejected/observed). */
@@ -778,7 +797,6 @@ export class SgcIntegracionApplicationService {
         (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && esObservacionSgcContrato(o),
       );
 
-    const actual = await this.client.consultarExpediente(expediente.contractId);
     let documento: SgcDocumentoEntity | null = null;
     if (requiereContrato) {
       /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
@@ -862,6 +880,17 @@ export class SgcIntegracionApplicationService {
     const observacionesGrupo = sgcGrupos?.missingDocuments?.length
       ? sgcGrupos.missingDocuments
       : detalle.sgcObservaciones;
+    const observacionesResueltas = new Set<string>();
+    for (const o of observacionesGrupo ?? []) {
+      if (!o.observationId) continue;
+      const esperados = Math.max(1, o.expectedDocuments ?? o.expectedDocumentTitles?.length ?? 1);
+      if (
+        o.status === SGC_OBSERVACION_ESTADOS.RESOLVED ||
+        (o.documentsMissing === 0 && (o.documentIds?.length ?? 0) >= esperados)
+      ) {
+        observacionesResueltas.add(o.observationId);
+      }
+    }
     const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
     const piezasPorTitulo = new Map<string, { observationId: string; pieceId: string }>();
     for (const o of observacionesGrupo ?? []) {
@@ -899,7 +928,8 @@ export class SgcIntegracionApplicationService {
           if (!this.documentoVigente(d) || d.userId === null || d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return false;
           /* En un grupo v11 solo se envian las piezas nuevas; los archivos
            * historicos sin pieceId no deben consumir una pieza del SGC. */
-          const { pieceId, grupo } = datosGrupoDocumento(d);
+          const { observationId, pieceId, grupo } = datosGrupoDocumento(d);
+          if (observationId && observacionesResueltas.has(observationId)) return false;
           if (!grupo || grupo.sinPiezas) return true;
           return Boolean(pieceId && grupo.piezas.has(pieceId));
         })
@@ -1154,13 +1184,17 @@ export class SgcIntegracionApplicationService {
       );
       if (yaInformado) continue;
       informado = true;
+      const esperados = Math.max(1, doc.expectedDocuments ?? doc.expectedDocumentTitles?.length ?? 1);
+      const resuelta =
+        doc.status === SGC_OBSERVACION_ESTADOS.RESOLVED ||
+        (doc.documentsMissing === 0 && (doc.documentIds?.length ?? 0) >= esperados);
       lista.push({
         observationId: doc.observationId ?? null,
         documentId: null,
         category: doc.category ?? SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: doc.title,
         message: `Falta adjuntar: ${doc.title || "documento solicitado"}.`,
-        status: SGC_OBSERVACION_ESTADOS.OPEN,
+        status: resuelta ? SGC_OBSERVACION_ESTADOS.RESOLVED : SGC_OBSERVACION_ESTADOS.OPEN,
         requiresDocumentChange: true,
         requiresNewDocument: true,
         expectedDocuments: doc.expectedDocuments ?? null,

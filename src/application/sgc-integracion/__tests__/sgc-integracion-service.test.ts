@@ -325,6 +325,7 @@ describe("SgcIntegracionApplicationService.reenviarCorreccionAlSgc", () => {
     });
     const client = clientMock();
     vi.mocked(client.consultarExpediente).mockResolvedValue({
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
       documents: [{
         documentId: "sgc-contract-1",
         category: "contract",
