@@ -138,6 +138,8 @@ export interface SgcReservarSubidaInput {
   replacementReason?: string;
   /** null/omitido = pieza nueva; id existente = nueva version (subsanacion) */
   documentId?: string | null;
+  /** Observacion del SGC que agrupa este archivo con otros adjuntos. */
+  observationId?: string | null;
 }
 
 /** Respuesta 201 de reserva de subida */
@@ -166,6 +168,8 @@ export interface SgcPiezaDocumental {
   bytes: Uint8Array;
   /** null/omitido = pieza nueva; id existente = nueva version (subsanacion) */
   documentId?: string | null;
+  /** Observacion del SGC que agrupa este archivo con otros adjuntos. */
+  observationId?: string | null;
   replacementReason?: string;
 }
 
@@ -210,6 +214,10 @@ export interface SgcObservacionDocumento {
   requiresDocumentChange?: boolean | null;
   /** true = el faltante exige un archivo nuevo (documentId null). */
   requiresNewDocument?: boolean | null;
+  /** Cantidad de archivos que cubren esta observacion (default 1). Campo opcional. */
+  expectedDocuments?: number | null;
+  /** Titulos esperados por archivo, si el SGC los informa. */
+  expectedDocumentTitles?: string[] | null;
   status?: string | null;
   /** Fecha en que el SGC marco la observacion como resuelta (opcional). */
   resolvedAt?: string | null;

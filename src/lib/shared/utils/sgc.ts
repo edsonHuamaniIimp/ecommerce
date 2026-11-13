@@ -191,6 +191,18 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
         : autor && typeof autor === "object" && typeof (autor as { name?: unknown }).name === "string"
           ? texto((autor as { name: string }).name)
           : null;
+    const expectedRaw =
+      typeof o.expectedDocuments === "number" ? o.expectedDocuments : o.expectedDocumentCount;
+    const expectedDocuments =
+      typeof expectedRaw === "number" && Number.isFinite(expectedRaw) && expectedRaw >= 1
+        ? Math.min(MAX_OBSERVACIONES, Math.trunc(expectedRaw))
+        : null;
+    const expectedDocumentTitles = Array.isArray(o.expectedDocumentTitles)
+      ? o.expectedDocumentTitles
+          .slice(0, MAX_OBSERVACIONES)
+          .map((title) => texto(title))
+          .filter((title): title is string => Boolean(title))
+      : null;
     salida.push({
       observationId: texto(o.observationId, 64),
       documentId: texto(o.documentId, 64),
@@ -205,6 +217,8 @@ export function normalizarObservacionesSgc(raw: unknown): SgcObservacionDocument
       message: mensaje,
       requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
       requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
+      ...(expectedDocuments !== null ? { expectedDocuments } : {}),
+      ...(expectedDocumentTitles !== null ? { expectedDocumentTitles } : {}),
       status: texto(o.status, 20),
       resolvedAt: texto(o.resolvedAt, 40),
       createdBy: creadoPor,

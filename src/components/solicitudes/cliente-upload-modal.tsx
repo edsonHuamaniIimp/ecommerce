@@ -753,13 +753,14 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                     ? f.observationId === o.observationId
                     : f.title === (o.title ?? o.nombre ?? "Documento"),
                 );
-                const idxPendiente = pendientes.findIndex((p) =>
+                const coincidePendiente = (p: Pendiente) =>
                   o.observationId
                     ? p.observacionId === o.observationId
                     : (o.title ?? o.nombre)
                       ? p.observacionTitulo === (o.title ?? o.nombre)
-                      : p.requisito === null,
-                );
+                      : p.requisito === null;
+                const pendientesObs = pendientes.filter(coincidePendiente);
+                const idxPendiente = pendientes.findIndex(coincidePendiente);
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 return (
                   <div
@@ -772,15 +773,25 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                     <span className="flex-1">
                       {o.title ?? o.nombre ?? "Documento adicional"}
                       {corregida
-                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validación del área legal</span>
-                        : <span className="block text-[10px] text-destructive">Área legal: {o.message}</span>}
+                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validaci��n del ǭrea legal</span>
+                        : <span className="block text-[10px] text-destructive">�?rea legal: {o.message}</span>}
                     </span>
                     {pendiente ? (
                       <span className="flex shrink-0 items-center gap-2">
                         {local && (
                           <a href={local.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ver</a>
                         )}
-                        <span className="text-[10px] font-medium text-emerald-600">Listo para enviar</span>
+                        <span className="text-[10px] font-medium text-emerald-600">
+                          Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-[10px] text-primary hover:underline"
+                          disabled={uploading}
+                          onClick={() => abrirSelector(null, o.observationId ?? null, o.title ?? o.nombre ?? null, o.documentId ?? null)}
+                        >
+                          Agregar otro
+                        </button>
                         <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
                           <X className="h-3 w-3" />
                         </button>

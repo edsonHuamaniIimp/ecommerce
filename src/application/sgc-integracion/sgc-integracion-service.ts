@@ -496,6 +496,7 @@ export class SgcIntegracionApplicationService {
       declaredMimeType: pieza.mimeType,
       replacementReason: pieza.replacementReason || SGC_MOTIVO_CARGA_INICIAL,
       documentId: pieza.documentId ?? null,
+      ...(pieza.observationId ? { observationId: pieza.observationId } : {}),
     };
     let reserva = await this.client.reservarSubida(expediente.contractId, reservaInput);
 
@@ -572,6 +573,7 @@ export class SgcIntegracionApplicationService {
       /** Nombre fisico legible; si falta, se usa el nombre del archivo de origen. */
       fileName?: string;
       documentId?: string | null;
+      observationId?: string | null;
       replacementReason?: string;
     },
   ): Promise<SgcDocumentoEntity | null> {
@@ -584,6 +586,7 @@ export class SgcIntegracionApplicationService {
       mimeType: contenido.mimeType,
       bytes: contenido.bytes,
       documentId: params.documentId,
+      observationId: params.observationId,
       replacementReason: params.replacementReason,
     });
   }
@@ -943,6 +946,7 @@ export class SgcIntegracionApplicationService {
         fileName,
         url: doc.url,
         documentId: documentIdExistente ?? null,
+        observationId: doc.sgcObservationId ?? null,
         replacementReason: documentIdExistente ? SGC_SUBSANACION_MOTIVO : undefined,
       });
       if (subido) resultados.push(subido);

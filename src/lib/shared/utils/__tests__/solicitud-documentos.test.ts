@@ -575,4 +575,37 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     const conVinculo = { ...devuelto, sgcObservaciones: [observacion], docsAdjuntos: [ajeno, vinculado] };
     expect(observacionesSgcSubsanadas(conVinculo)).toBe(true);
   });
+
+  it("exige la cantidad de archivos de una observacion agrupada", () => {
+    const agrupada = obs("grupo", {
+      documentId: null,
+      requisito: null,
+      title: "Vigencia y DNI del otro representante",
+      requiresNewDocument: true,
+      expectedDocuments: 2,
+    });
+    const primero = {
+      ...doc("vigencia", "req-x", "2026-11-03T22:10:00.000Z"),
+      sgcObservationId: "grupo",
+    };
+    const segundo = {
+      ...doc("dni", "req-x", "2026-11-03T22:20:00.000Z"),
+      sgcObservationId: "grupo",
+    };
+
+    expect(estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero],
+    })).toMatchObject({ requeridos: 2, cubiertos: 1, faltantes: [{ title: "Vigencia y DNI del otro representante" }] });
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero, segundo],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
 });

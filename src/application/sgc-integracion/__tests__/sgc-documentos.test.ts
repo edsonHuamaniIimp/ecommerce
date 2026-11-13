@@ -628,6 +628,7 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
         category: SGC_DOCUMENT_CATEGORIES.ANNEX,
         title: titulo,
         documentId: "sgc-doc-arbitrario",
+        observationId: "obs-arbitraria",
         replacementReason: expect.any(String),
       }),
     );
