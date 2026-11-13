@@ -337,6 +337,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     !observacionContratoSgc?.createdAt ||
     dateUtils.isBefore(contratoAdmin.createdAt, observacionContratoSgc.createdAt)
   );
+  /* El contrato observado aun no tiene la version corregida del administrador:
+   * se bloquea la firma y se muestra el estado de regeneracion. */
+  const contratoEnRegeneracion = esContrato && requiereNuevoContratoSgc;
   const firmantesSinFirma = firmantes.filter((f) => !pngOriginales[f.key]);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
@@ -446,6 +449,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   );
   /* La vista de firma solo aplica a la plantilla generada y sin una firma manual vigente. */
   const puedeAbrirFirma = firmantes.length > 0 &&
+    !contratoEnRegeneracion &&
     !firmaManualPendiente &&
     (contratoSgcPendiente || (!firmaManualVigente && (!contratoAdmin || contratoAdmin.origen === ORIGENES_DOCUMENTO.GENERADO)));
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
@@ -521,10 +525,22 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             </p>
           </div>
         )}
-        {esContrato && observacionContratoSgc && !observacionesSgcCorregidas && (
+        {esContrato && observacionContratoSgc && !observacionesSgcCorregidas && !contratoEnRegeneracion && (
           <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
             Para subsanar, haz clic en <strong>Firmar contrato corregido</strong>. No debes subir el contrato.
           </p>
+        )}
+        {contratoEnRegeneracion && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2">
+            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-warning" />
+            <div>
+              <p className="text-[11px] font-semibold text-warning">Contrato en proceso de regeneración</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                El área legal observó el contrato y el sistema está preparando la versión corregida.
+                Cierra esta ventana y vuelve a abrirla en unos segundos para firmar.
+              </p>
+            </div>
+          </div>
         )}
         {!esContrato && observacionContratoSgc && (
           <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
@@ -552,7 +568,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             )}
           </div>
         )}
-        {esContrato && contratoAdmin && (
+        {esContrato && contratoAdmin && !contratoEnRegeneracion && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -921,12 +937,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
               <Button
                 size="sm"
                 className="w-full rounded-full text-xs font-semibold sm:w-auto"
-                disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma}
-                title={!puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
+                disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma || contratoEnRegeneracion}
+                title={contratoEnRegeneracion ? "El contrato corregido se está regenerando. Vuelve a abrir esta ventana en unos segundos." : !puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
                 onClick={() => { void abrirFirmaWorkspace(); }}
               >
-                {abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
-                {abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
+                {contratoEnRegeneracion || abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
+                {contratoEnRegeneracion ? "Contrato en regeneración" : abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
               </Button>
             )}
             {!soloFirmaDigital && (
