@@ -500,6 +500,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   };
   const pendientesDeObservacion = (o: SgcObservacionLike) =>
     pendientes.filter(coincidePendienteObservacion(o));
+  const documentosObservacion = (o: SgcObservacionLike) =>
+    anexos.filter((d) => {
+      if (d.estado && d.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) return false;
+      if (o.observationId && d.sgcObservationId === o.observationId) return true;
+      if (o.documentId && d.sgcDocumentId === o.documentId) return true;
+      if (d.sgcPieceId && o.pieces?.some((piece) => piece.id === d.sgcPieceId)) return true;
+      const titulos = o.expectedDocumentTitles ?? [];
+      if (d.sgcTitle && (d.sgcTitle === o.title || titulos.includes(d.sgcTitle))) return true;
+      return Boolean(o.requisito && d.requisito === o.requisito);
+    });
   const piezasSinArchivo = observacionesSgcAnexos.some((o) => {
     const tieneFaltante = correccionSgcAnexos.faltantes.some((f) =>
       o.observationId
@@ -517,7 +527,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     correccionSgcAnexos.cubiertos + pendientesSgcAnexos,
   );
   const otrosDocs = (esContrato ? firmados : anexos)
-    .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
+    .filter((d) => {
+      if (d.requisito || (d.estado && d.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO)) return false;
+      if (esContrato) return true;
+      /* Los archivos vinculados a una observacion del SGC pertenecen al grupo,
+       * no a "Otros documentos". */
+      return !d.sgcObservationId && !d.sgcDocumentId && !d.sgcTitle && !d.sgcPieceId;
+    });
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 
   return (
@@ -838,7 +854,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                 const idxPendiente = pendientes.findIndex(coincidePendienteObservacion(o));
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
                 const totalEsperados = totalEsperadoObservacion(o);
-                const aceptados = aceptadosObservacion(o);
+                const aceptados = Math.min(
+                  totalEsperados,
+                  Math.max(aceptadosObservacion(o), documentosObservacion(o).length),
+                );
                 const siguienteIndice = aceptados + pendientesObs.length;
                 const siguientePieza = o.pieces?.find((piece) =>
                   !piece.acceptedDocumentId && !pendientes.some((p) => p.piezaId === piece.id),
@@ -856,7 +875,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       title: piece.title,
                       estado: piece.acceptedDocumentId
                         ? "Recibido"
-                        : pendientes.some((p) => p.piezaId === piece.id)
+                        : pendientes.some((p) => p.piezaId === piece.id) ||
+                            documentosObservacion(o).some((d) => d.sgcPieceId === piece.id)
                           ? "Listo para enviar"
                           : "Pendiente",
                     }))
@@ -915,14 +935,17 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                           Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
                         </span>
                         {puedeAgregar && (
-                          <button
+                          <Button
                             type="button"
-                            className="text-[10px] text-primary hover:underline"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 gap-1.5 rounded-full px-2.5 text-[11px]"
                             disabled={uploading}
                             onClick={() => abrirSelector(null, o.observationId ?? null, tituloSiguiente, o.documentId ?? null, piezaId)}
                           >
-                            Agregar archivo {numeroSiguiente} de {totalEsperados}
-                          </button>
+                            <Upload className="h-3 w-3" />
+                            <span>Agregar archivo {numeroSiguiente} de {totalEsperados}</span>
+                          </Button>
                         )}
                         <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
                           <X className="h-3 w-3" />

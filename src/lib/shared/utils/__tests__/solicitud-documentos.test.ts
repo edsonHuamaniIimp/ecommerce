@@ -610,6 +610,35 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     expect(completo.faltantes).toHaveLength(0);
   });
 
+  it("reconoce un grupo sin observationId por los titulos esperados", () => {
+    const agrupada = obs("grupo-sin-id", {
+      observationId: null,
+      documentId: null,
+      requisito: null,
+      title: "Documentos adicionales de nuevo representante",
+      requiresNewDocument: true,
+      expectedDocuments: 2,
+      expectedDocumentTitles: ["Vigencia de poder", "DNI del representante"],
+    });
+    const primero = {
+      ...doc("vigencia", "req-x", "2026-11-03T22:10:00.000Z"),
+      sgcTitle: "Vigencia de poder",
+    };
+    const segundo = {
+      ...doc("dni", "req-x", "2026-11-03T22:20:00.000Z"),
+      sgcTitle: "DNI del representante",
+    };
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero, segundo],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
+
   it("valida las piezas aceptadas por el SGC y las pendientes", () => {
     const agrupada = obs("grupo-v11", {
       documentId: null,
