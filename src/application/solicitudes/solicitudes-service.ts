@@ -63,7 +63,11 @@ export class SolicitudesApplicationService {
         )
         .slice(0, 20);
       await Promise.all(
-        pendientes.map((r) => this.sgcIntegracion?.consultarExpediente(r.id).catch(() => null)),
+        pendientes.map((r) =>
+          this.sgcIntegracion
+            ?.consultarExpediente(r.id, { regenerarContrato: false })
+            .catch(() => null),
+        ),
       );
     }
     return this.repo.listar(params);

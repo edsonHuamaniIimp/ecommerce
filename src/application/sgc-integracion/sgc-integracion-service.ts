@@ -244,8 +244,12 @@ export class SgcIntegracionApplicationService {
   }
 
   /** Consulta el detalle del expediente en el SGC y sincroniza la correlacion local. */
-  async consultarExpediente(solicitudId: string): Promise<SgcExpedienteDetalle | null> {
+  async consultarExpediente(
+    solicitudId: string,
+    opciones?: { regenerarContrato?: boolean },
+  ): Promise<SgcExpedienteDetalle | null> {
     if (!this.config.enabled) return null;
+    const regenerarContrato = opciones?.regenerarContrato !== false;
 
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente?.contractId) return null;
@@ -318,7 +322,7 @@ export class SgcIntegracionApplicationService {
       /* La regeneracion se reintenta en cada sync aunque la notificacion ya se haya
        * enviado: si fallo en la primera pasada, el cliente nunca veria el boton de firma. */
       const resultadoContrato =
-        !preservar && esDevolucion && requiereCambio
+        regenerarContrato && !preservar && esDevolucion && requiereCambio
           ? await procesarContratoObservadoSgc({
               solicitudId,
               observaciones: observacionesAbiertas,
