@@ -401,8 +401,10 @@ export class SolicitudesApplicationService {
     }
     /* El cliente pudo llegar con una copia local sin piezas. Antes de validar
      * el reenvío, refrescamos el expediente para conocer las piezas v11. */
-    await this.sgcIntegracion?.consultarExpediente(solicitudId).catch(() => null);
-    detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
+    if (typeof this.sgcIntegracion?.consultarExpediente === "function") {
+      await this.sgcIntegracion.consultarExpediente(solicitudId).catch(() => null);
+      detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
+    }
     if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
     }
