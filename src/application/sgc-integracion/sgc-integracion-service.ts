@@ -26,6 +26,7 @@ import {
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_OBSERVACION_ESTADOS,
   SGC_RECONCILIAR_MAX_POR_CORRIDA,
+  SGC_RECONCILIAR_TIME_BUDGET_MS,
   SGC_SUBSANACION_MOTIVO,
   SGC_TITULOS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
@@ -377,7 +378,9 @@ export class SgcIntegracionApplicationService {
       .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
       .slice(0, SGC_RECONCILIAR_MAX_POR_CORRIDA);
     let sincronizados = 0;
+    const inicio = Date.now();
     for (const expediente of expedientes) {
+      if (Date.now() - inicio >= SGC_RECONCILIAR_TIME_BUDGET_MS) break;
       if (!expediente.contractId) continue;
       try {
         const detalle = await this.client.consultarExpediente(expediente.contractId);

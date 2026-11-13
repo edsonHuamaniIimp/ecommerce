@@ -2885,6 +2885,13 @@ export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
  */
 export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
 
+/**
+ * Presupuesto de tiempo por corrida de reconciliacion. El cron pasa por
+ * CloudFront (timeout de origen ~60 s): se corta antes para responder con las
+ * sincronizaciones completadas y continuar el resto en la siguiente corrida.
+ */
+export const SGC_RECONCILIAR_TIME_BUDGET_MS = 40_000;
+
 /** TTL del sync-on-read para no consultar el SGC en cada apertura de detalle. */
 export const SGC_SYNC_ON_READ_TTL_MS = 2 * 60 * 1000;
 
