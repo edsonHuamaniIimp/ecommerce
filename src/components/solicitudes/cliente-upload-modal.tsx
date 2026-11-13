@@ -340,6 +340,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   /* El contrato observado aun no tiene la version corregida del administrador:
    * se bloquea la firma y se muestra el estado de regeneracion. */
   const contratoEnRegeneracion = esContrato && requiereNuevoContratoSgc;
+  const contratoCorregidoListo = Boolean(
+    esContrato && contratoSgcPendiente && !requiereNuevoContratoSgc && contratoAdmin,
+  );
   const firmantesSinFirma = firmantes.filter((f) => !pngOriginales[f.key]);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
@@ -511,7 +514,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             <p className="mt-0.5 text-[11px] text-foreground">{solicitud.revisionAsociado.comentario}</p>
           </div>
         )}
-        {esContrato && observacionContratoSgc && !contratoEnRegeneracion && (
+        {esContrato && observacionContratoSgc && !contratoEnRegeneracion && !contratoCorregidoListo && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
               {observacionesSgcCorregidas
@@ -525,10 +528,16 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             </p>
           </div>
         )}
-        {esContrato && observacionContratoSgc && !observacionesSgcCorregidas && !contratoEnRegeneracion && (
-          <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
-            Para subsanar, haz clic en <strong>Firmar contrato corregido</strong>. No debes subir el contrato.
-          </p>
+        {contratoCorregidoListo && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-success/30 bg-success/10 px-2.5 py-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+            <div>
+              <p className="text-[11px] font-semibold text-success">Contrato corregido listo</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                Revisa el contrato y confirma la firma digital para enviar la corrección.
+              </p>
+            </div>
+          </div>
         )}
         {contratoEnRegeneracion && (
           <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2">
@@ -573,10 +582,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                  Contrato vigente del administrador
+                  {contratoCorregidoListo ? "Contrato corregido para firmar" : "Contrato vigente del administrador"}
                 </p>
                 <Badge className="pointer-events-none text-[9px] bg-primary/10 text-primary border-primary/20">
-                  <span>Version vigente</span>
+                  <span>{contratoCorregidoListo ? "Listo para firmar" : "Version vigente"}</span>
                 </Badge>
               </div>
               <p className="truncate text-[11px] font-medium text-foreground">{contratoAdmin.nombre}</p>
@@ -878,13 +887,6 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           <Label className="text-xs">
             {esContrato ? `Tus contratos firmados (${otrosDocs.length})` : "Otros documentos (opcional)"}
           </Label>
-          {esContrato && firmadoAnterior && !contratoEnRegeneracion && (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
-              Firmaste el {dateUtils.formatDateTime(firmadoActivo?.createdAt)}; la version vigente es del{" "}
-              {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Vuelve a firmarlo digitalmente con el boton
-              «Firmar contrato corregido».
-            </p>
-          )}
           {otrosDocs.length > 0 && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
               {otrosDocs.map((doc, index) => (
