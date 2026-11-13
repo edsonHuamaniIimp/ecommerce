@@ -149,10 +149,10 @@ function adminDocReciente(row: SolicitudRow) {
 /** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
 function ModalSection({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{title}</h4>
-        {meta && <span className="text-[11px] text-muted-foreground">{meta}</span>}
+    <section className="rounded-xl border border-border/80 bg-card p-4 shadow-sm shadow-black/[0.03]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+        <h4 className="text-xs font-semibold text-foreground">{title}</h4>
+        {meta && <span className="text-[11px] font-medium text-muted-foreground">{meta}</span>}
       </div>
       {children}
     </section>
@@ -989,12 +989,29 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
           setSgcContratoUrl(null);
         }
       }}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden sm:max-w-3xl lg:max-w-5xl">
           {/* Header */}
-          <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
-            <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
-              <DialogTitle className="text-sm font-semibold text-foreground">Estado de solicitud</DialogTitle>
-              <div className="flex items-center gap-2">
+          <DialogHeader className="shrink-0 border-b border-border pb-4 text-left">
+            <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Solicitud
+                </p>
+                <DialogTitle className="mt-1 flex flex-wrap items-center gap-2 text-base font-semibold text-foreground">
+                  <span>Detalle de la solicitud</span>
+                  {detailRow && (
+                    <span className="rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+                      {standTitulo(detailRow)}
+                    </span>
+                  )}
+                </DialogTitle>
+                {detailRow && (
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {detailRow.empresa ?? "Sin empresa"} · {dateUtils.formatDateTime(detailRow.createdAt)}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 {esAdmin && soloLectura && detailRow && (
                   <Button
                     variant="outline"
@@ -1023,19 +1040,29 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
             </div>
           </DialogHeader>
           {/* Body */}
-          <div className="flex-1 min-h-0 space-y-2 overflow-y-auto py-4">
+          <div className="flex-1 min-h-0 space-y-3 overflow-y-auto px-1 py-4 sm:px-2">
           {detailRow && (
             <>
               {/* Resumen */}
-              <ModalSection title="Informacion general" meta={dateUtils.formatDateTime(detailRow.createdAt)}>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Stand</span>
-                    <span className="font-mono text-xs font-semibold text-foreground">{standTitulo(detailRow)}</span>
+              <ModalSection title="Resumen de la solicitud">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Stand</span>
+                    <span className="mt-0.5 block font-mono text-sm font-semibold text-foreground">{standTitulo(detailRow)}</span>
                   </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>
-                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "-"}</span>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Tipo</span>
+                    <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{detailRow.tipoStand ?? "-"}</span>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Empresa</span>
+                    <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{detailRow.empresa ?? "-"}</span>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Precio</span>
+                    <span className="mt-0.5 block text-xs font-semibold text-foreground">
+                      {formatearPrecioSolicitud(detailRow.precio ?? 0, detailRow.moneda, detailRow.tipoCambio)}
+                    </span>
                   </div>
                 </div>
                 {(detailRow.standCodes?.length ?? 0) > 1 && (
@@ -1160,12 +1187,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   )}
                   {/* Single-stand */}
                   {(!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0 && (
-                    <div className="space-y-0.5 rounded-md border p-2">
+                    <div className="space-y-1 rounded-lg border border-border bg-muted/20 p-2">
                       {(detailRow.documentos as string[]).map((url, i) => (
-                        <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs text-primary hover:bg-primary/5 transition-colors">
-                          <FileText className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate flex-1">{stringUtils.nombreArchivo(url)}</span>
-                          <Eye className="h-3 w-3 opacity-50 shrink-0" />
+                        <a key={i} href={url} target="_blank" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-primary transition-colors hover:bg-background">
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate font-medium">{stringUtils.nombreArchivo(url)}</span>
+                          <Eye className="h-3.5 w-3.5 shrink-0 opacity-60" />
                         </a>
                       ))}
                     </div>
@@ -1179,15 +1206,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div className="space-y-2">
                         {adminDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-info/30 bg-info/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-info/25 bg-info/5">
                               {adminDocs.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
-                                  <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                <div key={i} className="flex items-center gap-2 border-t border-info/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-info" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-info hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                 </div>
                               ))}
@@ -1196,29 +1225,32 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         )}
                         {contratoFirmado.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tu contrato firmado ({contratoFirmado.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-gold/30 bg-gold/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tu contrato firmado ({contratoFirmado.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-gold/25 bg-gold/5">
                               {contratoFirmado.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-gold" />
-                                  <a href={doc.url} target="_blank" className="text-amber-800 hover:text-amber-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                <div key={i} className="group flex items-center gap-2 border-t border-gold/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-gold" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-amber-800 hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
                                   )}
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground opacity-100 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                   {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
-                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                    <button className="shrink-0 rounded-md p-1 text-destructive opacity-100 hover:bg-background sm:opacity-0 sm:group-hover:opacity-100"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         setDeleteConfirm(doc.id);
-                                      }}>
-                                      <Trash2 className="h-3 w-3" />
+                                      }}
+                                      aria-label="Eliminar documento">
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
@@ -1228,29 +1260,32 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         )}
                         {anexosCliente.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tus documentos ({anexosCliente.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-success/30 bg-success/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tus documentos ({anexosCliente.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-success/25 bg-success/5">
                               {anexosCliente.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
-                                  <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                <div key={i} className="group flex items-center gap-2 border-t border-success/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-success" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-success hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
                                   )}
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground opacity-100 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                   {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
-                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                    <button className="shrink-0 rounded-md p-1 text-destructive opacity-100 hover:bg-background sm:opacity-0 sm:group-hover:opacity-100"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         setDeleteConfirm(doc.id);
-                                      }}>
-                                      <Trash2 className="h-3 w-3" />
+                                      }}
+                                      aria-label="Eliminar documento">
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
@@ -1361,7 +1396,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
                             {/* Observaciones de anexos del área legal (SGC) por documento */}
               {(esAdmin || !soloLectura) && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
-                <ModalSection title="Acción requerida">
+                <ModalSection title="Documentos observados por el área legal">
                   <div className={`flex flex-col gap-3 rounded-lg border p-3 ${observacionesSgcSubsanadas(detailRow) ? "border-success/30 bg-success/10" : "border-warning/30 bg-warning/10"}`}>
                     <div className="flex items-start gap-3">
                       <Upload className={`mt-0.5 h-4 w-4 shrink-0 ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`} />
@@ -1398,7 +1433,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
               )}
 
               {(esAdmin || !soloLectura) && detailRow && enVentanaSubsanacionSgc(detailRow) && !contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && observacionContratoSgcPendiente(detailRow) && (
-                <ModalSection title="Acción requerida">
+                <ModalSection title="Contrato observado por el área legal">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -1441,14 +1476,6 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
-                      {enVentanaDocumentosSgc(detailRow) && (
-                        <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto"
-                          title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
-                          onClick={() => openClienteUpload(detailRow, "anexos")}>
-                          <Upload className="h-3.5 w-3.5" />
-                          <span>Subir / reemplazar documentos</span>
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </ModalSection>

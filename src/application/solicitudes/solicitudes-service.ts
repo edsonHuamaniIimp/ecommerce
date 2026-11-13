@@ -37,6 +37,39 @@ export class SolicitudesApplicationService {
   }
 
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
+    /* La bandeja del cliente tambien debe reflejar una devolucion nueva del SGC.
+     * Se sincronizan solo sus expedientes no terminales y con TTL; el listado
+     * completo de admin (sin userId) no dispara llamadas masivas. */
+    if (this.sgcIntegracion && params.userId && params.perPage <= 50) {
+      const candidatos = await this.repo.listar({
+        ...params,
+        page: 1,
+        perPage: 100,
+        estado: undefined,
+        observadoPor: undefined,
+        sgc: undefined,
+        docsObservados: false,
+      });
+      const ahora = Date.now();
+      const pendientes = candidatos.data
+        .filter(
+          (r) =>
+            r.sgcEnabled &&
+            r.sgcEstadoEnvio &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.ACTIVE &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.FINALIZED &&
+            (dateUtils.toMs(r.sgcLastSyncedAt ?? null) === null ||
+              ahora - (dateUtils.toMs(r.sgcLastSyncedAt ?? null) ?? 0) >= SGC_SYNC_ON_READ_TTL_MS),
+        )
+        .slice(0, 20);
+      await Promise.all(
+        pendientes.map((r) =>
+          this.sgcIntegracion
+            ?.consultarExpediente(r.id, { regenerarContrato: false })
+            .catch(() => null),
+        ),
+      );
+    }
     return this.repo.listar(params);
   }
 
@@ -51,8 +84,8 @@ export class SolicitudesApplicationService {
       !this.sgcIntegracion ||
       !actual.sgcEnabled ||
       !actual.sgcEstadoEnvio ||
-      (actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.OBSERVED &&
-        actual.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.REJECTED)
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
     ) {
       return actual;
     }
@@ -394,10 +427,16 @@ export class SolicitudesApplicationService {
    * Asociado a pendiente y alerta a los revisores. No elimina nada.
    */
   async reenviarObservacion(solicitudId: string, userSub: string, userEmail: string): Promise<void> {
-    const detalle = await this.repo.detalle(solicitudId);
+    let detalle = await this.repo.detalle(solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     if (detalle.userId !== userSub) {
       throw new DomainError("No puedes reenviar una solicitud ajena", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    /* El cliente pudo llegar con una copia local sin piezas. Antes de validar
+     * el reenvío, refrescamos el expediente para conocer las piezas v11. */
+    if (typeof this.sgcIntegracion?.consultarExpediente === "function") {
+      await this.sgcIntegracion.consultarExpediente(solicitudId).catch(() => null);
+      detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
     }
     if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
@@ -578,6 +617,8 @@ export class SolicitudesApplicationService {
     sgcDocumentId?: string | null;
     /** Titulo exacto de la observacion (anexos arbitrarios). */
     sgcTitle?: string | null;
+    /** Pieza del grupo de adjuntos del SGC que cubre este archivo. */
+    sgcPieceId?: string | null;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
 
@@ -676,6 +717,7 @@ export class SolicitudesApplicationService {
       ? (params.sgcDocumentId?.trim() || null)
       : null;
     const sgcTitle = permiteMetadatosSgc ? (params.sgcTitle?.trim() || null) : null;
+    const sgcPieceId = permiteMetadatosSgc ? (params.sgcPieceId?.trim() || null) : null;
 
     let userId: string | null;
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
@@ -713,7 +755,7 @@ export class SolicitudesApplicationService {
      */
     /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
      * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
-    if (!isAdmin && categoria && !sgcObservationId && !sgcDocumentId) {
+    if (!isAdmin && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
@@ -734,8 +776,8 @@ export class SolicitudesApplicationService {
       }
     }
 
-    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle
-      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle }
+    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle || sgcPieceId
+      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle, pieceId: sgcPieceId }
       : null;
     const doc = sgcMetadata
       ? await this.repo.crearDocumentoAdjunto(

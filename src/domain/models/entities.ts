@@ -20,6 +20,11 @@ export interface SgcObservacionSolicitud {
   requiresDocumentChange?: boolean | null;
   /** true = el faltante exige un archivo nuevo (documentId null). */
   requiresNewDocument?: boolean | null;
+  expectedDocuments?: number | null;
+  expectedDocumentTitles?: string[] | null;
+  pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+  documentsMissing?: number | null;
+  documentIds?: string[] | null;
   resolvedAt?: string | null;
   createdBy?: string | null;
   createdAt?: string | null;
@@ -287,7 +292,7 @@ export interface SolicitudRow {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; origen?: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null; origen?: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
   updatedAt: Date;
   createdAt: Date;
   revisiones: RevisionEntity[];

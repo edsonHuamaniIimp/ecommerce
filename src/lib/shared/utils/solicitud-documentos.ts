@@ -20,6 +20,7 @@ interface DocumentoLike {
   sgcObservationId?: string | null;
   sgcDocumentId?: string | null;
   sgcTitle?: string | null;
+  sgcPieceId?: string | null;
   createdAt?: string | Date | null;
   /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
   estado?: string | null;
@@ -32,6 +33,8 @@ export interface SgcObservacionLike {
   documentoLocalId?: string | null;
   versionNumber?: number | null;
   categoria?: string | null;
+  /** Nombre usado por el contrato v11 (`category`); se acepta junto con `categoria`. */
+  category?: string | null;
   requisito?: string | null;
   nombre?: string | null;
   title?: string | null;
@@ -40,6 +43,12 @@ export interface SgcObservacionLike {
   createdAt?: string | null;
   requiresDocumentChange?: boolean | null;
   requiresNewDocument?: boolean | null;
+  /** Cantidad de archivos que cubren la observacion (default 1). */
+  expectedDocuments?: number | null;
+  expectedDocumentTitles?: string[] | null;
+  pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+  documentsMissing?: number | null;
+  documentIds?: string[] | null;
   resolvedAt?: string | null;
 }
 
@@ -103,10 +112,11 @@ export function sgcObservacionesAbiertas(s: SolicitudDocumentosGate): SgcObserva
 
 /** La observacion apunta al contrato (principal o firmado por el cliente) y no a un anexo. */
 export function esObservacionSgcContrato(o: SgcObservacionLike): boolean {
+  const categoria = o.categoria ?? o.category;
   return (
-    o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO ||
-    o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO ||
-    o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT
+    categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO ||
+    categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO ||
+    categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT
   );
 }
 
@@ -127,6 +137,7 @@ export interface FaltanteCorreccionSgc {
   observationId?: string | null;
   title: string;
   tipo: SgcFaltanteTipo;
+  pieceId?: string | null;
 }
 
 export interface EstadoCorreccionSgc {
@@ -155,50 +166,91 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
    * (datos previos a esta version) se conserva el matching legacy por fecha. */
   const hayVinculosSgc = docs.some((d) => Boolean(d.sgcObservationId));
   const faltantes: FaltanteCorreccionSgc[] = [];
+  let requeridos = 0;
   let cubiertos = 0;
 
   for (const o of observaciones) {
     const obsMs = dateUtils.toMs(o.createdAt ?? null);
     const esNuevo = !o.documentId || o.requiresNewDocument === true;
+    const piezas = o.pieces?.filter((piece) => Boolean(piece?.id && piece?.title)) ?? null;
+    if (piezas && piezas.length > 0) {
+      requeridos += piezas.length;
+      for (const piece of piezas) {
+        if (piece.acceptedDocumentId) {
+          cubiertos += 1;
+          continue;
+        }
+        const local = docs.find((d, i) => {
+          if (d.sgcPieceId !== piece.id || !esCliente(d) || usados.has(claveDoc(d, i))) return false;
+          return obsMs === null || (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs;
+        });
+        if (local) {
+          usados.add(claveDoc(local, docs.indexOf(local)));
+          cubiertos += 1;
+        } else {
+          faltantes.push({
+            observationId: o.observationId ?? null,
+            title: piece.title,
+            tipo: SGC_FALTANTE_TIPOS.NUEVO,
+            pieceId: piece.id,
+          });
+        }
+      }
+      continue;
+    }
+    const esperados = Math.max(1, Math.trunc(o.expectedDocuments ?? 1));
+    const titulosEsperados = o.expectedDocumentTitles ?? [];
     const identificado = (d: DocumentoLike) =>
       Boolean(o.observationId && d.sgcObservationId === o.observationId) ||
       Boolean(o.documentId && d.sgcDocumentId === o.documentId) ||
       Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
       Boolean(o.requisito && d.requisito === o.requisito) ||
       Boolean(o.nombre && d.nombre === o.nombre) ||
-      Boolean(o.title && (d.sgcTitle === o.title || d.nombre === o.title));
+      Boolean(o.title && (d.sgcTitle === o.title || d.nombre === o.title)) ||
+      Boolean(d.sgcTitle && titulosEsperados.includes(d.sgcTitle));
     const sinIdentificador =
       !o.observationId && !o.documentId && !o.documentoLocalId && !o.requisito && !o.nombre && !o.title;
 
-    const indice = obsMs === null
-      ? -1
-      : docs.findIndex((d, i) => {
-          const clave = claveDoc(d, i);
-          if (usados.has(clave) || !esCliente(d)) return false;
-          if ((dateUtils.toMs(d.createdAt ?? null) ?? 0) <= obsMs) return false;
-          if (esObservacionSgcContrato(o)) {
-            if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) return false;
-            return !o.observationId || !d.sgcObservationId
-              ? true
-              : d.sgcObservationId === o.observationId;
+    const seleccionados: number[] = [];
+    if (obsMs !== null) {
+      for (let i = 0; i < docs.length && seleccionados.length < esperados; i += 1) {
+        const d = docs[i]!;
+        const clave = claveDoc(d, i);
+        if (usados.has(clave) || !esCliente(d)) continue;
+        if ((dateUtils.toMs(d.createdAt ?? null) ?? 0) <= obsMs) continue;
+        if (esObservacionSgcContrato(o)) {
+          if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) continue;
+          if (o.observationId && d.sgcObservationId) {
+            if (d.sgcObservationId !== o.observationId) continue;
           }
-          if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.ANEXO) return false;
+        } else {
+          if (d.categoria !== TIPOS_DOCUMENTO_SOLICITUD.ANEXO) continue;
           /* Un vinculo explicito manda: evita que un anexo cualquiera cubra una
            * observacion arbitraria solo por ser posterior a la devolucion. */
           if (o.observationId) {
-            if (d.sgcObservationId) return d.sgcObservationId === o.observationId;
-            /* Compatibilidad con correcciones previas sin vinculo: solo cuenta si
-             * coincide exactamente por requisito/nombre/titulo. */
-            if (hayVinculosSgc && !identificado(d)) return false;
+            if (d.sgcObservationId) {
+              if (d.sgcObservationId !== o.observationId) continue;
+            } else if (hayVinculosSgc && !identificado(d)) {
+              /* Compatibilidad con correcciones previas sin vinculo: solo cuenta
+               * si coincide exactamente por requisito/nombre/titulo. */
+              continue;
+            }
+          } else if (o.documentId && d.sgcDocumentId) {
+            if (d.sgcDocumentId !== o.documentId) continue;
+          } else if (!sinIdentificador && !identificado(d)) {
+            /* Un faltante con titulo/requisito no puede cubrirse con cualquier
+             * anexo nuevo: debe ser ese documento exacto. */
+            continue;
           }
-          if (o.documentId && d.sgcDocumentId) return d.sgcDocumentId === o.documentId;
-          return esNuevo || sinIdentificador || identificado(d);
-        });
+        }
+        seleccionados.push(i);
+      }
+    }
 
-    if (indice >= 0) {
-      usados.add(claveDoc(docs[indice]!, indice));
-      cubiertos += 1;
-    } else {
+    for (const i of seleccionados) usados.add(claveDoc(docs[i]!, i));
+    requeridos += esperados;
+    cubiertos += seleccionados.length;
+    if (seleccionados.length < esperados) {
       faltantes.push({
         observationId: o.observationId ?? null,
         title: o.title ?? o.nombre ?? "Documento",
@@ -207,7 +259,7 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
     }
   }
 
-  return { requeridos: observaciones.length, cubiertos, faltantes };
+  return { requeridos, cubiertos, faltantes };
 }
 
 /**

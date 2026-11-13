@@ -74,7 +74,7 @@ export interface SolicitudDTO {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: string; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: string | null }>;
+    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null; origen?: string | null; createdAt: string; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: string | null }>;
   revisiones: RevisionDTO[];
   reevaluaciones: ReevaluacionDTO[];
   revisionAsociado: RevisionDTO | null;
@@ -112,6 +112,11 @@ export interface SolicitudDTO {
     status?: string | null;
     requiresDocumentChange?: boolean | null;
     requiresNewDocument?: boolean | null;
+    expectedDocuments?: number | null;
+    expectedDocumentTitles?: string[] | null;
+    pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+    documentsMissing?: number | null;
+    documentIds?: string[] | null;
     resolvedAt?: string | null;
     createdBy?: string | null;
     createdAt?: string | null;

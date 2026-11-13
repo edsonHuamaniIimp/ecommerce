@@ -185,6 +185,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       sgcObservationId: d.sgcObservationId,
       sgcDocumentId: d.sgcDocumentId,
       sgcTitle: d.sgcTitle,
+      sgcPieceId: d.sgcPieceId,
       createdAt: d.createdAt,
     }));
 
@@ -199,6 +200,9 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       categoria?: string | null; requisito?: string | null; nombre?: string | null; title?: string | null;
       message: string; severity?: string | null; status?: string | null;
       requiresDocumentChange?: boolean | null; requiresNewDocument?: boolean | null;
+      expectedDocuments?: number | null; expectedDocumentTitles?: string[] | null;
+      pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+      documentsMissing?: number | null; documentIds?: string[] | null;
       resolvedAt?: string | null; createdBy?: string | null; createdAt?: string | null;
     };
     const obsRaw = (row.sgcExpediente?.observaciones as Array<Record<string, unknown>> | null) ?? null;
@@ -243,6 +247,17 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
             status: typeof o.status === "string" ? o.status : null,
             requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
             requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
+            expectedDocuments: typeof o.expectedDocuments === "number" ? o.expectedDocuments : null,
+            expectedDocumentTitles: Array.isArray(o.expectedDocumentTitles)
+              ? o.expectedDocumentTitles.filter((title): title is string => typeof title === "string")
+              : null,
+            pieces: Array.isArray(o.pieces)
+              ? (o.pieces as Array<{ id: string; title: string; acceptedDocumentId?: string | null }>)
+              : null,
+            documentsMissing: typeof o.documentsMissing === "number" ? o.documentsMissing : null,
+            documentIds: Array.isArray(o.documentIds)
+              ? o.documentIds.filter((id): id is string => typeof id === "string")
+              : null,
             resolvedAt: typeof o.resolvedAt === "string" ? o.resolvedAt : null,
             createdBy: typeof o.createdBy === "string" ? o.createdBy : null,
             createdAt: typeof o.createdAt === "string" ? o.createdAt : null,
@@ -1047,7 +1062,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null }): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
       data: {
         solicitudId,
@@ -1061,6 +1076,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         sgcObservationId: sgc?.observationId ?? null,
         sgcDocumentId: sgc?.documentId ?? null,
         sgcTitle: sgc?.title ?? null,
+        sgcPieceId: sgc?.pieceId ?? null,
       },
     });
     return { ...doc };

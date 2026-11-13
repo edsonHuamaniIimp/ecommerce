@@ -17,6 +17,7 @@ import {
   puedeClienteSubirDocumentos,
   requiereDocsReevaluacion,
   estadoCorreccionSgc,
+  esObservacionSgcContrato,
   observacionesSgcSubsanadas,
   sgcObservacionesAbiertas,
   tieneObservacionSgcAnexos,
@@ -574,5 +575,138 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
 
     const conVinculo = { ...devuelto, sgcObservaciones: [observacion], docsAdjuntos: [ajeno, vinculado] };
     expect(observacionesSgcSubsanadas(conVinculo)).toBe(true);
+  });
+
+  it("exige la cantidad de archivos de una observacion agrupada", () => {
+    const agrupada = obs("grupo", {
+      documentId: null,
+      requisito: null,
+      title: "Vigencia y DNI del otro representante",
+      requiresNewDocument: true,
+      expectedDocuments: 2,
+    });
+    const primero = {
+      ...doc("vigencia", "req-x", "2026-11-03T22:10:00.000Z"),
+      sgcObservationId: "grupo",
+    };
+    const segundo = {
+      ...doc("dni", "req-x", "2026-11-03T22:20:00.000Z"),
+      sgcObservationId: "grupo",
+    };
+
+    expect(estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero],
+    })).toMatchObject({ requeridos: 2, cubiertos: 1, faltantes: [{ title: "Vigencia y DNI del otro representante" }] });
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero, segundo],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
+
+  it("reconoce un grupo sin observationId por los titulos esperados", () => {
+    const agrupada = obs("grupo-sin-id", {
+      observationId: null,
+      documentId: null,
+      requisito: null,
+      title: "Documentos adicionales de nuevo representante",
+      requiresNewDocument: true,
+      expectedDocuments: 2,
+      expectedDocumentTitles: ["Vigencia de poder", "DNI del representante"],
+    });
+    const primero = {
+      ...doc("vigencia", "req-x", "2026-11-03T22:10:00.000Z"),
+      sgcTitle: "Vigencia de poder",
+    };
+    const segundo = {
+      ...doc("dni", "req-x", "2026-11-03T22:20:00.000Z"),
+      sgcTitle: "DNI del representante",
+    };
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [primero, segundo],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
+
+  it("valida las piezas aceptadas por el SGC y las pendientes", () => {
+    const agrupada = obs("grupo-v11", {
+      documentId: null,
+      requisito: null,
+      title: "Otro representante",
+      requiresNewDocument: true,
+      pieces: [
+        { id: "piece-vigencia", title: "Vigencia", acceptedDocumentId: "doc-vigencia" },
+        { id: "piece-dni", title: "DNI", acceptedDocumentId: null },
+      ],
+    });
+
+    const parcial = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [agrupada],
+      docsAdjuntos: [],
+    });
+    expect(parcial).toMatchObject({ requeridos: 2, cubiertos: 1, faltantes: [{ title: "DNI", pieceId: "piece-dni" }] });
+
+    const completo = estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [{
+        ...agrupada,
+        pieces: [
+          { id: "piece-vigencia", title: "Vigencia", acceptedDocumentId: "doc-vigencia" },
+          { id: "piece-dni", title: "DNI", acceptedDocumentId: "doc-dni" },
+        ],
+      }],
+      docsAdjuntos: [],
+    });
+    expect(completo.requeridos).toBe(2);
+    expect(completo.cubiertos).toBe(2);
+    expect(completo.faltantes).toHaveLength(0);
+  });
+});
+describe("esObservacionSgcContrato", () => {
+  it("reconoce el contrato tanto con categoria como con category del contrato v11", () => {
+    expect(esObservacionSgcContrato({ categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, message: "x" })).toBe(true);
+    expect(esObservacionSgcContrato({ category: "contract", message: "x" })).toBe(true);
+    expect(esObservacionSgcContrato({ category: "annex", message: "x" })).toBe(false);
+  });
+});
+
+describe("estadoCorreccionSgc en faltantes con titulo", () => {
+  it("no cubre un faltante con un anexo de otro titulo", () => {
+    const obs = {
+      title: "Falta agregar vigencia",
+      message: "Falta agregar vigencia",
+      category: "annex",
+      documentId: null,
+      requiresNewDocument: true,
+      status: "open",
+      createdAt: "2026-11-13T06:41:00.000Z",
+    };
+    const ajeno = {
+      id: "doc-ajeno",
+      nombre: "documento1.pdf",
+      sgcTitle: "documento1",
+      categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      userId: CLIENTE,
+      estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+      createdAt: "2026-11-13T07:00:00.000Z",
+    };
+    expect(estadoCorreccionSgc({ ...devuelto, sgcObservaciones: [obs], docsAdjuntos: [ajeno] }).faltantes).toHaveLength(1);
+    expect(estadoCorreccionSgc({
+      ...devuelto,
+      sgcObservaciones: [obs],
+      docsAdjuntos: [{ ...ajeno, sgcTitle: "Falta agregar vigencia" }],
+    }).faltantes).toHaveLength(0);
   });
 });

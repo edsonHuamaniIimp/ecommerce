@@ -81,6 +81,8 @@ export const uploadDocumentoSchema = z.object({
   sgcDocumentId: z.string().max(64).optional().nullable(),
   /** Titulo exacto de la observacion (anexos arbitrarios). */
   sgcTitle: z.string().trim().max(300).optional().nullable(),
+  /** Pieza del grupo de adjuntos del SGC. */
+  sgcPieceId: z.string().max(64).optional().nullable(),
 });
 
 /** RF-08: imagen del recorte del pabellon (se guarda tras subirla a /api/upload). */

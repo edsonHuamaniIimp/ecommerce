@@ -116,7 +116,7 @@ function clientMock(
   return {
     crearExpediente: vi.fn(),
     actualizarExpediente: vi.fn().mockResolvedValue(undefined),
-    consultarExpediente: vi.fn(),
+    consultarExpediente: vi.fn().mockResolvedValue({ documents: [], missingDocuments: [] }),
     listarExpedientes: vi.fn(),
     reservarSubida: vi
       .fn()
@@ -631,7 +631,132 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
         replacementReason: expect.any(String),
       }),
     );
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.not.objectContaining({ observationId: expect.anything() }),
+    );
   });
+
+  it("envia observationId y pieceId solo cuando la observacion es un grupo v11", async () => {
+    const client = clientMock();
+    const row = detalle({
+      sgcObservaciones: [{
+        observationId: "obs-grupo",
+        documentId: null,
+        title: "Vigencia y DNI adicionales",
+        message: "Falta adjuntar vigencia y DNI adicionales.",
+        pieces: [{ id: "piece-1", title: "Vigencia adicional", acceptedDocumentId: null }],
+        status: "open",
+        createdAt: new Date().toISOString(),
+      }],
+      docsAdjuntos: [{
+        id: "d-pieza",
+        url: "/uploads/vigencia-adicional.pdf",
+        nombre: "vigencia-adicional.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: null,
+        sgcObservationId: "obs-grupo",
+        sgcPieceId: "piece-1",
+        sgcDocumentId: null,
+        sgcTitle: "Vigencia adicional",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [{
+          observationId: "obs-grupo",
+          documentId: null,
+          title: "Vigencia y DNI adicionales",
+          message: "Falta adjuntar vigencia y DNI adicionales.",
+          pieces: [{ id: "piece-1", title: "Vigencia adicional", acceptedDocumentId: null }],
+          status: "open",
+          createdAt: new Date().toISOString(),
+        }],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+        observationId: "obs-grupo",
+        pieceId: "piece-1",
+      }),
+    );
+  });
+
+
+  it("envia observationId para un grupo antiguo sin pieces", async () => {
+    const client = clientMock();
+    const observacion = {
+      observationId: "obs-grupo-antiguo",
+      documentId: null,
+      title: "Documentos adicionales del representante",
+      message: "Falta adjuntar los documentos del representante.",
+      expectedDocuments: 2,
+      expectedDocumentTitles: ["Vigencia de poder", "DNI"],
+      status: "open",
+      createdAt: new Date().toISOString(),
+    };
+    const row = detalle({
+      sgcObservaciones: [observacion],
+      docsAdjuntos: [
+        {
+          id: "d-vigencia",
+          url: "/uploads/vigencia.pdf",
+          nombre: "vigencia.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: null,
+          sgcObservationId: "obs-grupo-antiguo",
+          sgcPieceId: null,
+          sgcDocumentId: null,
+          sgcTitle: "Vigencia de poder",
+          createdAt: new Date(),
+        },
+        {
+          id: "d-dni",
+          url: "/uploads/dni.pdf",
+          nombre: "dni.pdf",
+          userId: "user-1",
+          uploadedBy: null,
+          categoria: "anexo",
+          requisito: null,
+          sgcObservationId: "obs-grupo-antiguo",
+          sgcPieceId: null,
+          sgcDocumentId: null,
+          sgcTitle: "DNI",
+          createdAt: new Date(),
+        },
+      ],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [observacion],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(client.reservarSubida).mock.calls) {
+      expect(call[1]).toEqual(expect.objectContaining({ observationId: "obs-grupo-antiguo" }));
+      expect(call[1]).not.toEqual(expect.objectContaining({ pieceId: expect.anything() }));
+    }
+  });
+
 
   it("reutiliza el documentId legacy al reemplazar un anexo con nombre random", async () => {
     const client = clientMock();
@@ -734,6 +859,57 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       await svc.subirAnexosDeSolicitud("sol-1");
     expect(docs).toHaveLength(1);
   });
+  it("infiere observationId y pieceId desde el titulo cuando el archivo local no los guardo", async () => {
+    const client = clientMock();
+    const observacion = {
+      observationId: "obs-inferida",
+      documentId: null,
+      title: "Representante adicional",
+      message: "Falta adjuntar los documentos del representante.",
+      pieces: [
+        { id: "piece-vigencia", title: "Vigencia de poder", acceptedDocumentId: null },
+        { id: "piece-dni", title: "DNI", acceptedDocumentId: null },
+      ],
+      status: "open",
+      createdAt: new Date().toISOString(),
+    };
+    const row = detalle({
+      sgcObservaciones: [observacion],
+      docsAdjuntos: [{
+        id: "d-inferida",
+        url: "/uploads/vigencia-inferida.pdf",
+        nombre: "vigencia-inferida.pdf",
+        userId: "user-1",
+        uploadedBy: null,
+        categoria: "anexo",
+        requisito: null,
+        sgcObservationId: null,
+        sgcPieceId: null,
+        sgcDocumentId: null,
+        sgcTitle: "Vigencia de poder",
+        createdAt: new Date(),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [observacion],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({
+        observationId: "obs-inferida",
+        pieceId: "piece-vigencia",
+      }),
+    );
+  });
+
   it("deberia excluir el documento del admin (userId null) de los anexos", async () => {
     const client = clientMock();
     const row = detalle({
@@ -926,3 +1102,56 @@ describe("SgcIntegracionApplicationService.subirContratoDeSolicitud", () => {
     );
   });
 });
+
+  it("versiona por titulo aunque el SGC tambien reporte un faltante con el mismo titulo", async () => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({ documents: [] } as never);
+    const titulo = "Falta agregar vigencia de otro representante legal y otra pdf de DNI";
+    const row = detalle({
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "doc-falta",
+        url: "/uploads/falta.pdf",
+        nombre: "falta-agregar-vigencia-519.pdf",
+        userId: "user-1",
+        uploadedBy: "cliente@example.com",
+        categoria: "anexo",
+        requisito: null,
+        sgcTitle: titulo,
+        createdAt: new Date("2026-11-13T07:37:00.000Z"),
+      }],
+    });
+    const svc = build(
+      sgcRepoMock({
+        ...expediente(),
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        observaciones: [
+          {
+            observationId: "obs-version",
+            documentId: "sgc-doc-falta",
+            title: titulo,
+            message: "Corrige el adjunto",
+            status: "open",
+            requiresDocumentChange: true,
+            createdAt: new Date("2026-11-13T06:41:00.000Z").toISOString(),
+          },
+          {
+            title: titulo,
+            documentId: null,
+            message: "Falta adjuntar",
+            status: "open",
+            requiresNewDocument: true,
+            createdAt: new Date("2026-11-13T06:41:00.000Z").toISOString(),
+          },
+        ],
+      }),
+      client,
+      documentoOrigenMock(),
+      solicitudRepoMock(row),
+    );
+    await svc.subirAnexosDeSolicitud("sol-1");
+    expect(client.reservarSubida).toHaveBeenCalledWith(
+      "contract-1",
+      expect.objectContaining({ category: SGC_DOCUMENT_CATEGORIES.ANNEX, documentId: "sgc-doc-falta" }),
+    );
+  });
