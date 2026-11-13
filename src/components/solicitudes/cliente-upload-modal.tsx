@@ -511,7 +511,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             <p className="mt-0.5 text-[11px] text-foreground">{solicitud.revisionAsociado.comentario}</p>
           </div>
         )}
-        {esContrato && observacionContratoSgc && (
+        {esContrato && observacionContratoSgc && !contratoEnRegeneracion && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
               {observacionesSgcCorregidas
@@ -605,7 +605,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             </div>
           </div>
         )}
-        {soloFirmaDigital && (
+        {soloFirmaDigital && !contratoEnRegeneracion && (
           <div className="mt-2 space-y-2 rounded-md border border-border bg-secondary/40 px-2.5 py-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground">
@@ -876,9 +876,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
 
         <div className="space-y-2 rounded-xl border border-border/70 p-3">
           <Label className="text-xs">
-            {esContrato ? (firmadoAnterior ? "Tu firma anterior" : "Tu contrato firmado") : "Otros documentos (opcional)"}
+            {esContrato ? `Tus contratos firmados (${otrosDocs.length})` : "Otros documentos (opcional)"}
           </Label>
-          {esContrato && firmadoAnterior && (
+          {esContrato && firmadoAnterior && !contratoEnRegeneracion && (
             <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
               Firmaste el {dateUtils.formatDateTime(firmadoActivo?.createdAt)}; la version vigente es del{" "}
               {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Vuelve a firmarlo digitalmente con el boton
@@ -887,18 +887,23 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           )}
           {otrosDocs.length > 0 && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
-              {otrosDocs.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
-                  <FileText className="h-3 w-3 text-muted-foreground" />
-                  <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+              {otrosDocs.map((doc, index) => (
+                <div key={doc.id} className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 text-xs transition-colors hover:bg-secondary/60">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <a href={doc.url} target="_blank" className="block truncate font-medium text-primary hover:underline">{doc.nombre}</a>
+                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                  </div>
                   {firmadoAnterior && doc.id === firmadoActivo?.id && (
                     <Badge className="pointer-events-none shrink-0 text-[9px] bg-muted text-muted-foreground border-border">
                       <span>Version anterior</span>
                     </Badge>
                   )}
-                  {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
                   {!modoPrueba && !soloFirmaDigital && puedeEliminarDoc(doc) && (
-                    <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
+                    <button className="shrink-0 text-red-500 opacity-100 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                       onClick={() => setDeleteConfirm(doc.id)}>
                       <Trash2 className="h-3 w-3" />
                     </button>
