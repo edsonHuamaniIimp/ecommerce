@@ -7,7 +7,7 @@ export default function ReservarEmpresaPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Reservar para empresa</h1>
           <p className="text-sm text-muted-foreground">
-            Reserva interna para pabellones internacionales. La solicitud pasa directamente a Pendiente Pago.
+            Reserva interna para pabellones internacionales. El contrato se firma y luego pasa a revision del Asociado antes del pago.
           </p>
         </div>
         <ReservarEmpresaPanel />

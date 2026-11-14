@@ -59,13 +59,13 @@ export const reservaController = {
     return success({ ok: true, message: result.message, solicitudId: result.solicitudId ?? null });
   },
 
-  /** Reserva interna a nombre de una empresa; pasa directo a pendiente de pago. */
+  /** Reserva interna a nombre de una empresa; requiere revision del Asociado antes del pago. */
   async crearAdmin(request: Request): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     const autorizado =
       session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
-      session.permissions.includes(PERMISSIONS.WRITE_RESERVAS);
+      session.permissions.includes(PERMISSIONS.RESERVAS_EMPRESA);
     if (!autorizado) {
       return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para reservar a nombre de empresas", 403);
     }

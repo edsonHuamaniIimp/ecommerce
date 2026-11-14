@@ -46,7 +46,7 @@ const navItems: NavItem[] = [
 
   { href: "/dashboard/mis-solicitudes", label: "Mis reservas", icon: FolderOpen, permission: PERMISSIONS.MIS_RESERVAS_VIEW, section: "Reservas" },
   { href: "/dashboard/reservas", label: "Reservas", icon: ClipboardList, permission: PERMISSIONS.READ_RESERVAS, section: "Reservas" },
-  { href: "/dashboard/reservar-empresa", label: "Reservar para empresa", icon: UserPlus, permission: PERMISSIONS.WRITE_RESERVAS, section: "Reservas" },
+  { href: "/dashboard/reservar-empresa", label: "Reservar para empresa", icon: UserPlus, permission: PERMISSIONS.RESERVAS_EMPRESA, section: "Reservas" },
 
   { href: "/dashboard/auspicios", label: "Auspicios", icon: Gem, permission: PERMISSIONS.AUSPICIOS_VIEW, section: "Auspicios" },
   { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: PERMISSIONS.LABORATORIO_VIEW, section: "Laboratorio 3D" },
