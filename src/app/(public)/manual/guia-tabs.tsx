@@ -1,7 +1,11 @@
-import Link from "next/link";
-import { Receipt, ShieldCheck, Store } from "lucide-react";
+"use client";
 
-export type GuiaManual = "reservas" | "dd" | "facturacion";
+import Link from "next/link";
+import { ClipboardCheck, FileCheck2, Receipt, ShieldCheck, Store } from "lucide-react";
+import { useSesion } from "@/hooks/use-sesion";
+import { PERMISSIONS } from "@/lib/shared/constants";
+
+export type GuiaManual = "reservas" | "dd" | "facturacion" | "subsanacion" | "subsanacionAsociado";
 
 const GUIAS: {
   id: GuiaManual;
@@ -31,6 +35,20 @@ const GUIAS: {
     descripcion: "Requisitos, solicitud y facturas",
     icon: Receipt,
   },
+  {
+    id: "subsanacion",
+    href: "/manual/subsanacion",
+    label: "Subsanación SGC",
+    descripcion: "Observaciones, documentos y firma",
+    icon: FileCheck2,
+  },
+  {
+    id: "subsanacionAsociado",
+    href: "/manual/subsanacion-asociado",
+    label: "Subsanación SGC (Asociados)",
+    descripcion: "Revisión, contrato y reenvío interno",
+    icon: ClipboardCheck,
+  },
 ];
 
 export function GuiaTabs({
@@ -41,6 +59,21 @@ export function GuiaTabs({
   variante?: "hero" | "sidebar";
 }) {
   const compacta = variante === "sidebar";
+  const { session } = useSesion();
+  const permisos = session?.permissions ?? [];
+  const esAdmin = permisos.includes(PERMISSIONS.ADMIN_FULL);
+  const esCliente = esAdmin || permisos.includes(PERMISSIONS.MIS_RESERVAS_VIEW) || permisos.includes(PERMISSIONS.WRITE_RESERVAS);
+  const esStaff = esAdmin ||
+    permisos.includes(PERMISSIONS.SOLICITUDES_VIEW) ||
+    permisos.includes(PERMISSIONS.SOLICITUDES_GESTION) ||
+    permisos.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO) ||
+    permisos.includes(PERMISSIONS.SOLICITUDES_REVIEW_LEGAL) ||
+    permisos.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+  const visibles = GUIAS.filter((g) => {
+    if (g.id === "subsanacion") return esCliente;
+    if (g.id === "subsanacionAsociado") return esStaff;
+    return true;
+  });
 
   return (
     <nav
@@ -51,7 +84,7 @@ export function GuiaTabs({
           : "flex flex-col gap-2 sm:flex-row sm:items-center"
       }
     >
-      {GUIAS.map(({ id, href, label, descripcion, icon: Icon }) => {
+      {visibles.map(({ id, href, label, descripcion, icon: Icon }) => {
         const activaGuia = id === activa;
         return (
           <Link
