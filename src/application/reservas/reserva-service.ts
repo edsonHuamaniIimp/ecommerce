@@ -138,7 +138,8 @@ export class ReservaApplicationService {
 
   /**
    * Reserva administrativa a nombre de una empresa.
-   * No crea revisiones locales ni SGC: queda lista para pago.
+   * Convierte stands disponibles o pre-reservados (incluso de otra empresa);
+   * genera el contrato y, al firmar, la solicitud pasa a revision del Asociado.
    */
   async crearAdministrativa(input: {
     eventoId: string;
@@ -214,6 +215,7 @@ export class ReservaApplicationService {
       tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
       omitirRevisiones: true,
       requerirStandComercial: true,
+      permitirPreReservaAjena: true,
     });
 
     if (!result.ok || !result.solicitudId) return result;
@@ -276,6 +278,8 @@ export class ReservaApplicationService {
     omitirRevisiones?: boolean;
     /** Reserva administrativa: exige bloque 3D y precio comercial explícito. */
     requerirStandComercial?: boolean;
+    /** Reserva administrativa: el admin puede convertir una pre-reserva de otra empresa. */
+    permitirPreReservaAjena?: boolean;
     /** Reserva administrativa: permite un cronograma propio aunque la empresa tenga uno configurado. */
     omitirValidacionCronograma?: boolean;
     /** Actor que ejecuta la operacion (admin), distinto del titular de la solicitud. */
@@ -325,8 +329,9 @@ export class ReservaApplicationService {
         conflicted.push(`${stand.standCode} ya esta en estado ${label}`);
         continue;
       }
-      /* Pre-reserva: solo la empresa dueÃ±a (RUC/SIE/razon social) puede reservarla. */
-      if (stand.estado === ESTADOS_STAND.PRE_RESERVADO && !esEmpresaDuenaPreReserva(stand, viewer)) {
+      /* Pre-reserva: solo la empresa dueña (RUC/SIE/razon social) puede reservarla,
+         salvo que un admin la convierta a nombre de otra empresa. */
+      if (stand.estado === ESTADOS_STAND.PRE_RESERVADO && !request.permitirPreReservaAjena && !esEmpresaDuenaPreReserva(stand, viewer)) {
         conflicted.push(`${stand.standCode} esta pre-reservado para otra empresa`);
         continue;
       }

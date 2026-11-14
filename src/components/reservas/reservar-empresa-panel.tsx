@@ -47,7 +47,7 @@ import { reservasAdminService } from "@/lib/client/api/services/reservas-admin-s
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
+import { ESTADOS_STAND, BADGE_STYLES, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
@@ -72,6 +72,14 @@ const ESTADOS_FILTRO = [
 
 const AYUDA_CRONOGRAMA_RESERVA =
   "Las fechas definen el cronograma del contrato que el cliente firmará. Después de la firma, la solicitud pasa a revisión del Asociado; recién con su aprobación se genera la orden de pago. La primera cuota puede ser hoy; las siguientes deben ser posteriores y en orden ascendente.";
+
+/** En esta bandeja la pre-reserva se muestra con su nombre comercial. */
+function badgeEstadoReservaAdmin(estado: string | null | undefined) {
+  if (estado === ESTADOS_STAND.PRE_RESERVADO) {
+    return { texto: "Pre-reservado", clase: BADGE_STYLES.INFO };
+  }
+  return estadoStandBadge(estado);
+}
 
 function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
   return {
@@ -99,13 +107,15 @@ export function ReservarEmpresaPanel() {
   const [search, setSearch] = useState("");
   const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
   const [tipo, setTipo] = useState<string>(UI_SENTINEL.TODOS);
-  const [estadoFiltro, setEstadoFiltro] = useState<string>(ESTADOS_STAND.DISPONIBLE);
+  const [estadoFiltro, setEstadoFiltro] = useState<string>(ESTADOS_STAND.PRE_RESERVADO);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [moneda, setMoneda] = useState<string>(UI_SENTINEL.SELECCIONAR);
   const [tipoComprobante, setTipoComprobante] = useState<string>(UI_SENTINEL.SELECCIONAR);
   const [tipoCambio, setTipoCambio] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const esStandSeleccionableAdmin = (stand: GessStandDTO): boolean =>
+    stand.estado === ESTADOS_STAND.DISPONIBLE || stand.estado === ESTADOS_STAND.PRE_RESERVADO;
   const [filasCuotas, setFilasCuotas] = useState<CuotaFila[]>(crearCuotaFilaInicial);
   const [guardando, setGuardando] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -235,21 +245,19 @@ export function ReservarEmpresaPanel() {
         .some((value) => String(value).toLowerCase().includes(term));
     });
   }, [estadoFiltro, pabellon, search, stands, tipo]);
-  const disponibles = useMemo(
-    () => stands.filter((stand) => stand.estado === ESTADOS_STAND.DISPONIBLE).length,
-    [stands],
-  );
+  const disponibles = stands.filter((stand) => stand.estado === ESTADOS_STAND.DISPONIBLE).length;
+  const preReservados = stands.filter((stand) => stand.estado === ESTADOS_STAND.PRE_RESERVADO).length;
   const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage));
   const pageActual = Math.min(page, totalPages);
   const visibles = filtrados.slice((pageActual - 1) * perPage, pageActual * perPage);
-  const visiblesDisponibles = visibles.filter((stand) => stand.estado === ESTADOS_STAND.DISPONIBLE);
+  const visiblesSeleccionables = visibles.filter(esStandSeleccionableAdmin);
   const todosPaginaSeleccionados =
-    visiblesDisponibles.length > 0 && visiblesDisponibles.every((stand) => selected.has(stand.id));
+    visiblesSeleccionables.length > 0 && visiblesSeleccionables.every((stand) => selected.has(stand.id));
   const hayFiltros =
     search.trim().length > 0 ||
     pabellon !== UI_SENTINEL.TODOS ||
     tipo !== UI_SENTINEL.TODOS ||
-    estadoFiltro !== ESTADOS_STAND.DISPONIBLE;
+    estadoFiltro !== ESTADOS_STAND.PRE_RESERVADO;
 
   const seleccionados = useMemo(
     () => stands.filter((stand) => selected.has(stand.id)),
@@ -297,8 +305,8 @@ export function ReservarEmpresaPanel() {
   const cuotasValidas = validarFilasCuotas(filasCuotas);
 
   const toggle = (stand: GessStandDTO) => {
-    if (stand.estado !== ESTADOS_STAND.DISPONIBLE) {
-      toast.error("Solo se pueden seleccionar stands disponibles");
+    if (!esStandSeleccionableAdmin(stand)) {
+      toast.error("Solo se pueden seleccionar stands disponibles o pre-reservados");
       return;
     }
     setSelected((prev) => {
@@ -319,14 +327,14 @@ export function ReservarEmpresaPanel() {
   const seleccionarPagina = (checked: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      const seleccionables = visiblesDisponibles.filter((stand) => !next.has(stand.id));
+      const seleccionables = visiblesSeleccionables.filter((stand) => !next.has(stand.id));
       if (checked) {
         for (const stand of seleccionables) {
           if (next.size >= MAX_RESERVA_ADMIN_STANDS) break;
           next.add(stand.id);
         }
       } else {
-        for (const stand of visiblesDisponibles) next.delete(stand.id);
+        for (const stand of visiblesSeleccionables) next.delete(stand.id);
       }
       return next;
     });
@@ -344,7 +352,7 @@ export function ReservarEmpresaPanel() {
     setSearch("");
     setPabellon(UI_SENTINEL.TODOS);
     setTipo(UI_SENTINEL.TODOS);
-    setEstadoFiltro(ESTADOS_STAND.DISPONIBLE);
+    setEstadoFiltro(ESTADOS_STAND.PRE_RESERVADO);
     setPage(1);
   };
 
@@ -592,7 +600,8 @@ export function ReservarEmpresaPanel() {
           <CardHeader className="flex flex-wrap items-start justify-between gap-2 space-y-0">
             <div className="min-w-0">
               <CardTitle><span>Stands del evento</span></CardTitle>
-              <CardDescription><span>{filtrados.length} de {stands.length} stand(s) &middot; {disponibles} disponibles.</span></CardDescription>
+              <CardDescription><span>{filtrados.length} de {stands.length} stand(s) &middot; {disponibles} disponibles &middot; {preReservados} pre-reservados.</span></CardDescription>
+              <p className="text-[10px] text-muted-foreground">Puedes seleccionar stands disponibles o pre-reservados.</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Label className="hidden text-[11px] text-muted-foreground sm:inline"><span>Por pagina</span></Label>
@@ -648,7 +657,7 @@ export function ReservarEmpresaPanel() {
                     <SelectItem value={UI_SENTINEL.TODOS}><span>Todos los estados</span></SelectItem>
                     {ESTADOS_FILTRO.map((item) => (
                       <SelectItem key={item} value={item}>
-                        <span>{estadoStandBadge(item)?.texto ?? item}</span>
+                        <span>{badgeEstadoReservaAdmin(item)?.texto ?? item}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -674,7 +683,7 @@ export function ReservarEmpresaPanel() {
                         <TableHead className="w-10">
                           <Checkbox
                             checked={todosPaginaSeleccionados}
-                            disabled={visiblesDisponibles.length === 0}
+                            disabled={visiblesSeleccionables.length === 0}
                             onCheckedChange={(value) => seleccionarPagina(value === true)}
                           />
                         </TableHead>
@@ -687,19 +696,20 @@ export function ReservarEmpresaPanel() {
                     </TableHeader>
                     <TableBody>
                       {visibles.map((stand) => {
-                        const estado = estadoStandBadge(stand.estado);
+                        const estado = badgeEstadoReservaAdmin(stand.estado);
+                        const seleccionable = esStandSeleccionableAdmin(stand);
                         return (
                           <TableRow
                             key={stand.id}
-                            className={stand.estado !== ESTADOS_STAND.DISPONIBLE ? "opacity-60" : "cursor-pointer hover:bg-muted/40"}
+                            className={seleccionable ? "cursor-pointer hover:bg-muted/40" : "opacity-60"}
                             onClick={() => {
-                              if (stand.estado === ESTADOS_STAND.DISPONIBLE) toggle(stand);
+                              if (seleccionable) toggle(stand);
                             }}
                           >
                             <TableCell onClick={(event) => event.stopPropagation()}>
                               <Checkbox
                                 checked={selected.has(stand.id)}
-                                disabled={stand.estado !== ESTADOS_STAND.DISPONIBLE}
+                                disabled={!seleccionable}
                                 onCheckedChange={() => toggle(stand)}
                               />
                             </TableCell>
@@ -708,6 +718,11 @@ export function ReservarEmpresaPanel() {
                             <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground md:table-cell">{normalizarPabellon(stand.pabellon) ?? "-"}</TableCell>
                             <TableCell>
                               {estado ? <Badge className={`pointer-events-none text-[9px] ${estado.clase}`}><span>{estado.texto}</span></Badge> : "-"}
+                              {stand.estado === ESTADOS_STAND.PRE_RESERVADO && (
+                                <span className="mt-0.5 block max-w-[180px] truncate text-[10px] text-muted-foreground" title={stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? undefined}>
+                                  {stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? "Sin empresa"}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="min-w-[120px] whitespace-nowrap text-right text-xs font-medium">
                               {formatearMonto(convertirNeto(resolverPrecioStand(stand), monedaPago, tipoCambio), monedaPago, { decimales: 2 })}
@@ -764,6 +779,7 @@ export function ReservarEmpresaPanel() {
               seleccion={empresa}
               onSeleccion={(value) => {
                 setEmpresa(value);
+                setSelected(new Set());
                 setTipoComprobante(UI_SENTINEL.SELECCIONAR);
               }}
               fuentes={["local"]}
@@ -1049,6 +1065,12 @@ export function ReservarEmpresaPanel() {
               </div>
             </div>
 
+            {seleccionados.some((stand) => stand.estado === ESTADOS_STAND.PRE_RESERVADO) && (
+              <p className="rounded-md border border-info/30 bg-info/10 px-2 py-1.5 text-[11px] text-info">
+                Los stands pre-reservados se liberarán de la pre-reserva al generar la solicitud y el contrato.
+              </p>
+            )}
+
             <div className="space-y-1 rounded-md bg-secondary/40 p-2">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Neto</span>
@@ -1077,7 +1099,7 @@ export function ReservarEmpresaPanel() {
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              La solicitud quedará <strong className="text-foreground">pendiente de firma</strong>; al firmar pasará a Pendiente Pago.
+              La solicitud quedará <strong className="text-foreground">pendiente de firma</strong>; después pasará a revisión del Asociado y, al aprobarse, a Pendiente Pago.
             </p>
           </div>
         )}
