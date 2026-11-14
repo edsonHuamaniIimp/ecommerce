@@ -20,7 +20,7 @@ import type { ModoNotificacion } from "@/lib/shared/constants";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import { convertirNeto, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, redondear2 } from "@/lib/shared/utils/importes";
 import { planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 
@@ -157,7 +157,12 @@ export class SolicitudesApplicationService {
     }
 
     const plan = detalle.planCuotas;
-    const neto = convertirNeto(detalle.precio ?? 0, params.moneda, tipoCambio);
+    const netoLista = convertirNeto(detalle.precio ?? 0, params.moneda, tipoCambio);
+    const descuentoPorcentaje = plan.descuentoPorcentaje ?? 0;
+    const descuentoMontoGuardado = plan.descuentoMonto ?? 0;
+    const neto = descuentoMontoGuardado > 0
+      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+      : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
     const importes = calcularImportes(neto);
     const nuevoPlan = {
       modalidad: plan.modalidad,
@@ -168,6 +173,14 @@ export class SolicitudesApplicationService {
       ),
       moneda: params.moneda,
       tipoCambio,
+      descuentoPorcentaje,
+      descuentoTipo: plan.descuentoTipo ?? "porcentaje",
+      descuentoValor: plan.descuentoValor ?? descuentoPorcentaje,
+      netoLista,
+      descuentoMonto: redondear2(netoLista - neto),
+      netoDescontado: neto,
+      igv: importes.igv,
+      total: importes.total,
     };
 
     await this.repo.cambiarMonedaSolicitud(params.solicitudId, {

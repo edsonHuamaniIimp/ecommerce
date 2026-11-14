@@ -346,6 +346,22 @@ export interface PlanCuotasSolicitud {
   moneda?: string;
   /** Tipo de cambio aplicado al crear el plan (soles por dolar). */
   tipoCambio?: number | null;
+  /** Snapshot comercial: descuento aplicado al neto, en porcentaje. */
+  descuentoPorcentaje?: number;
+  /** Tipo de descuento aplicado: `porcentaje` o `monto`. */
+  descuentoTipo?: string;
+  /** Valor ingresado del descuento (porcentaje o monto). */
+  descuentoValor?: number;
+  /** Neto de lista antes del descuento. */
+  netoLista?: number;
+  /** Importe descontado. */
+  descuentoMonto?: number;
+  /** Neto después del descuento, antes de IGV. */
+  netoDescontado?: number;
+  /** IGV calculado sobre el neto descontado. */
+  igv?: number;
+  /** Total del contrato (neto descontado + IGV). */
+  total?: number;
 }
 
 /**

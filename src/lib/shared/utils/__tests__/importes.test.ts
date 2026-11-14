@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularImportes, redondear2, sumarMontos } from "../importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2, sumarMontos } from "../importes";
 
 describe("calcularImportes", () => {
   it("agrega IGV 18% al total (precios netos)", () => {
@@ -88,5 +88,35 @@ describe("sumarMontos (suma exacta en centavos)", () => {
     [[0.01, 0.01, 0.01], 0.03],
   ])("suma %j", (montos, esperado) => {
     expect(sumarMontos(montos.map((monto) => ({ monto })))).toBe(esperado);
+  });
+});
+
+describe("descuento porcentual", () => {
+  it("aplica el descuento sobre el neto y redondea a centavos", () => {
+    expect(aplicarDescuentoNeto(16680, 3)).toBe(16179.6);
+    expect(calcularImportes(aplicarDescuentoNeto(42600, 3)).total).toBe(48759.96);
+  });
+
+  it("valida rango y maximo dos decimales", () => {
+    expect(descuentoPorcentajeValido(3)).toBe(true);
+    expect(descuentoPorcentajeValido(3.01)).toBe(true);
+    expect(descuentoPorcentajeValido(3.001)).toBe(false);
+    expect(descuentoPorcentajeValido(-1)).toBe(false);
+    expect(descuentoPorcentajeValido(101)).toBe(false);
+  });
+});
+
+describe("descuento fijo", () => {
+  it("descuenta el monto exacto sobre el neto", () => {
+    expect(aplicarDescuentoMonto(16680, 500.4)).toBe(16179.6);
+    expect(calcularImportes(aplicarDescuentoMonto(16680, 500.4)).total).toBe(19091.93);
+  });
+
+  it("valida monto no negativo, no mayor al neto y maximo dos decimales", () => {
+    expect(descuentoMontoValido(1000, 500.4)).toBe(true);
+    expect(descuentoMontoValido(1000, 0)).toBe(true);
+    expect(descuentoMontoValido(1000, 1000.01)).toBe(false);
+    expect(descuentoMontoValido(1000, -1)).toBe(false);
+    expect(descuentoMontoValido(1000, 10.001)).toBe(false);
   });
 });
