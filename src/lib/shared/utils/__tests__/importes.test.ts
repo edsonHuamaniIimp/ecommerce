@@ -36,6 +36,11 @@ describe("sumarMontos", () => {
   it("devuelve 0 con lista vacia", () => {
     expect(sumarMontos([])).toBe(0);
   });
+
+  it("rechaza montos no finitos o negativos", () => {
+    expect(() => sumarMontos([{ monto: Number.NaN }])).toThrow();
+    expect(() => sumarMontos([{ monto: -0.01 }])).toThrow();
+  });
 });
 
 describe("redondear2 (precision monetaria)", () => {
