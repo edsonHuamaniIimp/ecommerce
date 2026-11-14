@@ -28,6 +28,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     representanteCelular: entity.representanteCelular,
     representanteDireccion: entity.representanteDireccion,
     representanteSieCode: entity.representanteSieCode ?? null,
+    representanteUserId: entity.representanteUserId ?? null,
     partidaElectronica: entity.partidaElectronica,
     nombreFriso: entity.nombreFriso ?? null,
     actividadEconomica: entity.actividadEconomica ?? null,

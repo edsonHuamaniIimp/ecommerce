@@ -23,7 +23,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
@@ -49,6 +49,9 @@ function puedeSolicitarReevaluacion(row: SolicitudRow) {
 function faltanDocumentosMultiStand(row: SolicitudRow) { return requiereDocsReevaluacion(row); }
 /** En ventana de contrato de reserva: faltan anexos obligatorios (Vigencia/DNI). */
 function faltanAnexosReserva(row: SolicitudRow) {
+  /* La reserva administrativa ya valida empresa/representante y no exige los
+     anexos del flujo regular (Vigencia de Poderes / DNI). */
+  if (row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA) return false;
   return enVentanaContratoReserva(row) && anexosBloqueantesFaltantes(row.docsAdjuntos).length > 0;
 }
 
@@ -1790,17 +1793,19 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       {/* RF-08: recorte del pabellon con el stand destacado */}
       {recorteBloque && (
         <Dialog open onOpenChange={() => setRecorteBloque(null)}>
-          <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[92vh] w-[min(1150px,94vw)] flex-col gap-0 overflow-hidden !px-0 !py-0 sm:max-w-[1150px]">
+            <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-4 !pr-12 text-left">
               <DialogTitle>
                 <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
               </DialogTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tu stand está destacado en el pabellón para que ubiques su posición respecto de los demás stands.
+              </p>
             </DialogHeader>
-            <p className="text-xs text-muted-foreground">
-              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
-            </p>
-            <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
-            <DialogFooter>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
+            </div>
+            <DialogFooter className="shrink-0 border-t border-border px-5 py-3">
               <div className="flex w-full flex-wrap items-center justify-between gap-2">
                 {detailRow?.id === recorteBloque.solicitudId && detailRow?.recortePlanoUrl ? (
                   <a href={detailRow.recortePlanoUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">

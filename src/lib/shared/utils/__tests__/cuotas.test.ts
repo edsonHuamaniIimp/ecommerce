@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO } from "../cuotas";
+﻿import { describe, expect, it } from "vitest";
+import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, montoCuotaDesdePorcentaje, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajeCuotaDesdeMonto, porcentajeRestante, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO, sumarPorcentajes } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
 const BASE = new Date("2026-10-03T00:00:00");
@@ -9,6 +9,58 @@ describe("planCuotasConFechas (fechas del cliente)", () => {
     const plan = planCuotasConFechas(2360, [30, 30, 40], ["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.fechaVencimiento)).toEqual(["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.monto)).toEqual([708, 708, 944]);
+  });
+});
+
+describe("conversion entre monto y porcentaje de cuota", () => {
+  it("calcula el monto de una cuota con redondeo monetario", () => {
+    expect(montoCuotaDesdePorcentaje(2360, 30)).toBe(708);
+    expect(montoCuotaDesdePorcentaje(2360, 33.33)).toBe(786.59);
+    expect(montoCuotaDesdePorcentaje(0.03, 33.33)).toBe(0.01);
+    expect(montoCuotaDesdePorcentaje(0.03, 33.34)).toBe(0.01);
+  });
+
+  it("coincide con el plan del servidor en las cuotas no finales", () => {
+    const plan = planCuotasConFechas(
+      2360,
+      [33.33, 33.33, 33.34],
+      ["2026-11-15", "2026-12-20", "2027-01-30"],
+    );
+    expect(plan.map((cuota) => cuota.monto)).toEqual([
+      montoCuotaDesdePorcentaje(2360, 33.33),
+      montoCuotaDesdePorcentaje(2360, 33.33),
+      786.82,
+    ]);
+    expect(plan.reduce((total, cuota) => total + cuota.monto, 0)).toBe(2360);
+  });
+
+  it("calcula el porcentaje de una cuota con dos decimales", () => {
+    expect(porcentajeCuotaDesdeMonto(2360, 944)).toBe(40);
+    expect(porcentajeCuotaDesdeMonto(2360, 786.59)).toBe(33.33);
+    expect(porcentajeCuotaDesdeMonto(0.03, 0.01)).toBe(33.33);
+  });
+
+  it("devuelve cero para totales o valores no positivos", () => {
+    expect(montoCuotaDesdePorcentaje(0, 50)).toBe(0);
+    expect(montoCuotaDesdePorcentaje(-1, 50)).toBe(0);
+    expect(montoCuotaDesdePorcentaje(100, 0)).toBe(0);
+    expect(porcentajeCuotaDesdeMonto(0, 50)).toBe(0);
+    expect(porcentajeCuotaDesdeMonto(100, 0)).toBe(0);
+  });
+
+  it("suma porcentajes con precision de dos decimales", () => {
+    expect(sumarPorcentajes([30, 30])).toBe(60);
+    expect(sumarPorcentajes([33.33, 33.33])).toBe(66.66);
+    expect(sumarPorcentajes([100])).toBe(100);
+    expect(sumarPorcentajes([])).toBe(0);
+  });
+
+  it("calcula el porcentaje restante sin negativos", () => {
+    expect(porcentajeRestante([30, 30])).toBe(40);
+    expect(porcentajeRestante([33.33, 33.33])).toBe(33.34);
+    expect(porcentajeRestante([100])).toBe(0);
+    expect(porcentajeRestante([])).toBe(100);
+    expect(porcentajeRestante([110])).toBe(0);
   });
 });
 

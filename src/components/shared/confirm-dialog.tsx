@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ReactNode } from "react";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
@@ -10,6 +10,8 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   /** Pinta el boton de confirmar como accion destructiva. */
   destructive?: boolean;
+  /** Ancho/clases del contenido (por defecto sm:max-w-sm). */
+  contentClassName?: string;
 }
 
 interface Props extends ConfirmOptions {
@@ -30,19 +32,20 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
   destructive = false,
+  contentClassName = "sm:max-w-sm",
   onConfirm,
   onCancel,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
-      <DialogContent className="rounded-xl border-border sm:max-w-sm">
+      <DialogContent className={`rounded-xl border-border ${contentClassName}`}>
         <DialogHeader>
           <DialogTitle><span>{title}</span></DialogTitle>
         </DialogHeader>
         {description && (
-          <p className="break-words text-sm text-muted-foreground">
+          <div className="break-words text-sm text-muted-foreground">
             {typeof description === "string" ? <span>{description}</span> : description}
-          </p>
+          </div>
         )}
         <DialogFooter className="gap-2 sm:justify-end">
           <Button variant="outline" onClick={onCancel}>

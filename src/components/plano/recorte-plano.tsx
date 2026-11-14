@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
@@ -22,7 +22,7 @@ export interface RecortePlanoHandle {
   exportarPng: () => Promise<Blob | null>;
 }
 
-const ANCHO_PNG = 1600;
+const ANCHO_PNG = 2400;
 
 /**
  * RF-08: recorte del pabellon (vista top-down de TODO el pabellon) con los stands del

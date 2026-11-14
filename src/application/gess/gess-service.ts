@@ -7,7 +7,8 @@ import type { GessStandEntity } from "@/domain/models/entities";
 import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
 import { esStandComercialVinculable, precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
-import { claveTipoStand } from "@/lib/shared/utils/tipo-stand";
+import { normalizarPabellon } from "@/lib/shared/utils/pabellon";
+import { claveTipoStand, normalizarTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 
@@ -311,7 +312,7 @@ export class GessApplicationService {
       const uid = String(r.stand ?? r.uid ?? r.UID ?? r.codigo ?? "");
       if (!uid) continue;
 
-      const tipo = String(r.tipo ?? r.type ?? r.tipo_stand ?? "");
+      const tipo = normalizarTipoStand(String(r.tipo ?? r.type ?? r.tipo_stand ?? "")) ?? "";
       /* Precio real del API (varia por pabellon): se guarda como "precio moneda" en `medidas`. */
       const precio = r.precio !== undefined && r.precio !== null ? String(r.precio).trim() : "";
       const moneda = String(r.moneda ?? "USD").trim() || "USD";
@@ -326,7 +327,7 @@ export class GessApplicationService {
             ? ESTADOS_STAND.RESERVADO
             : estadoApi || null;
 
-      const pabellonApi = String(r.pabellon ?? "").trim();
+      const pabellonApi = normalizarPabellon(String(r.pabellon ?? "")) ?? "";
       const coordenadas = `${String(r.x ?? r.pos_x ?? "")},${String(r.y ?? r.pos_y ?? "")}`;
 
       const exists = await this.repo.findByStandApiId(eventoId, uid);

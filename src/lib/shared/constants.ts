@@ -1225,6 +1225,16 @@ export const MAX_NOMBRE_ARCHIVO_IIMP = 150;
 /** Maximo de stands por operacion de pre-reserva/liberacion en lote. */
 export const MAX_PRE_RESERVA_LOTE = 500;
 
+/** Maximo de stands por reserva administrativa (pabellones internacionales). */
+export const MAX_RESERVA_ADMIN_STANDS = 80;
+
+/** Tipos de solicitud con flujo propio. El flujo regular no persiste tipo. */
+export const TIPOS_SOLICITUD = {
+  RESERVA_EMPRESA: "reserva_empresa",
+} as const;
+
+export type TipoSolicitud = (typeof TIPOS_SOLICITUD)[keyof typeof TIPOS_SOLICITUD];
+
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
  * `key` = clave normalizada que se persiste en `tipo_stand_imagen`; `alias` agrupa
@@ -2587,6 +2597,8 @@ export const VALIDACIONES = {
 export const UI_SENTINEL = {
   SIN_VINCULAR: "__none__",
   TODOS: "__all__",
+  /** Placeholder para selects que exigen una eleccion explicita. */
+  SELECCIONAR: "__select__",
 } as const;
 
 /** Identificadores de los campos del formulario de registro de exhibidor. */

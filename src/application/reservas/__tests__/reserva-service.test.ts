@@ -15,6 +15,8 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
+import { TIPOS_SOLICITUD } from "@/lib/shared/constants";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
 function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null; configCuotas?: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null } | null = null): IAuthRepository {
@@ -36,6 +38,8 @@ function gessRepoCon(
     preReservaRuc?: string | null;
     preReservaSie?: string | null;
     preReservaRazonSocial?: string | null;
+    medidas?: string | null;
+    bloqueId?: string | null;
   }>,
 ) {
   const findById = vi.fn(async (id: string) => {
@@ -47,10 +51,10 @@ function gessRepoCon(
       standApiId: found.id,
       standCode: found.standCode,
       tipoStand: null,
-      medidas: null,
+      medidas: found.medidas ?? null,
       estado: found.estado ?? "disponible",
       empresa: null,
-      bloqueId: null,
+      bloqueId: found.bloqueId ?? null,
       email: null,
       userId: null,
       rawData: null,
@@ -133,7 +137,7 @@ describe("ReservaApplicationService — validacion de evento", () => {
 
   it("notifica a los receptores internos configurados", async () => {
     vi.mocked(enviarEmailPlantilla).mockClear();
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const configuracionRepo = {
       obtenerPortal: vi.fn(async () => ({
         notificacionesSolicitudesEmails: ["analista@iimp.org.pe", "compras@iimp.org.pe"],
@@ -267,7 +271,7 @@ describe("ReservaApplicationService - hold temporal", () => {
 });
 describe("ReservaApplicationService - snapshot de cuotas", () => {
   it("persiste el cronograma del wizard al crear la solicitud", async () => {
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
       crearRevisionInicial: vi.fn(async () => ({})),
@@ -341,7 +345,7 @@ describe("ReservaApplicationService - snapshot de cuotas", () => {
   });
 
   it("guarda la Modalidad 4 cuando el cronograma coincide con la configuracion", async () => {
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
       crearRevisionInicial: vi.fn(async () => ({})),
@@ -381,7 +385,7 @@ describe("ReservaApplicationService - snapshot de cuotas", () => {
 });
 describe("ReservaApplicationService - moneda del contrato", () => {
   it("convierte el precio a soles antes del IGV y guarda el snapshot", async () => {
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1" }]);
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
       crearRevisionInicial: vi.fn(async () => ({})),
@@ -410,10 +414,123 @@ describe("ReservaApplicationService - moneda del contrato", () => {
       null,
       { actor: "user-1", ip: null },
       { moneda: "PEN", tipoCambio: 3.75 },
+      undefined,
     );
     expect(solicitudesRepo.guardarPlanCuotas).toHaveBeenCalledWith(
       "sol-1",
       expect.objectContaining({ moneda: "PEN", tipoCambio: 3.75 }),
     );
+  });
+});
+
+describe("ReservaApplicationService - tipo de solicitud", () => {
+  it("marca como reserva_empresa la solicitud creada desde la reserva administrativa", async () => {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      marcarOrdenPago: vi.fn(async () => undefined),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+      habilitarContrato: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const authRepo = {
+      findPerfilByEmail: vi.fn(async () => null),
+      findByEmail: vi.fn(async () => [{ userId: "user-rep" }]),
+    } as unknown as IAuthRepository;
+    const empresaRepo = {
+      findByRuc: vi.fn(async () => ({
+        ruc: "20123456789",
+        estado: "activa",
+        razonSocial: "Empresa de Prueba S.A.C.",
+        tipoDocumento: "6",
+        tipoComprobante: "01",
+        direccionFiscal: "Av. Prueba 123",
+        telefono: null,
+        emailContacto: "representante@empresa.pe",
+        representanteCorreo: "representante@empresa.pe",
+        representanteLegalNombre: "Representante Legal",
+        representanteLegalDni: "12345678",
+        representanteUserId: "user-rep",
+      })),
+    } as unknown as IEmpresaRepository;
+    const contratoService = {
+      generar: vi.fn(async () => ({ docxUrl: "/contrato.docx", pdfUrl: null, nombre: "contrato" })),
+    };
+    const svc = new ReservaApplicationService(
+      repo,
+      solicitudesRepo,
+      authRepo,
+      undefined,
+      undefined,
+      undefined,
+      empresaRepo,
+      contratoService as never,
+    );
+
+    const res = await svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    });
+
+    expect(res.ok).toBe(true);
+    expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[6]).toBe(
+      TIPOS_SOLICITUD.RESERVA_EMPRESA,
+    );
+    expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[3]).toEqual(
+      expect.objectContaining({ tipoComprobante: "boleta" }),
+    );
+    expect(contratoService.generar).toHaveBeenCalledWith(expect.objectContaining({
+      solicitudId: "sol-1",
+      userEmail: "representante@empresa.pe",
+    }));
+    expect(solicitudesRepo.habilitarContrato).toHaveBeenCalledWith("sol-1");
+    expect(solicitudesRepo.marcarOrdenPago).not.toHaveBeenCalled();
+    expect(res.estado).toBe("pendiente");
+  });
+
+  it("rechaza una empresa sin representante legal con cuenta vinculada", async () => {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      marcarOrdenPago: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const empresaRepo = {
+      findByRuc: vi.fn(async () => ({
+        ruc: "20123456789",
+        estado: "activa",
+        razonSocial: "Empresa sin representante S.A.C.",
+        tipoDocumento: "6",
+        tipoComprobante: "01",
+        emailContacto: "contacto@empresa.pe",
+        representanteCorreo: "representante@empresa.pe",
+        representanteLegalNombre: "Representante Legal",
+        representanteUserId: null,
+      })),
+    } as unknown as IEmpresaRepository;
+    const svc = new ReservaApplicationService(
+      repo,
+      solicitudesRepo,
+      authRepoFalso(),
+      undefined,
+      undefined,
+      undefined,
+      empresaRepo,
+    );
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toMatchObject({ status: 400 });
+
+    expect(solicitudesRepo.crearSolicitud).not.toHaveBeenCalled();
   });
 });

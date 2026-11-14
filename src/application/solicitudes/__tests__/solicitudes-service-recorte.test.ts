@@ -420,6 +420,23 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
   });
 
+  it("pasa a Pendiente Pago al firmar el contrato de una reserva administrativa", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleReserva({ tipo: "reserva_empresa", estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE }),
+    );
+    const service = svc(repo);
+
+    await service.uploadDocumento({
+      ...base,
+      url: "/uploads/firmado-digital.pdf",
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      firmaDigital: true,
+    });
+
+    expect(repo.marcarOrdenPago).toHaveBeenCalledWith(ID);
+  });
+
   it("permite anexos cuando la solicitud fue observada", async () => {
     const repo = repoMock();
     vi.mocked(repo.detalle).mockResolvedValue(

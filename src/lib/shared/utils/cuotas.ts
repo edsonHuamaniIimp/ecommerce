@@ -264,6 +264,43 @@ export function siguienteFechaCuota(fechaPrevia: string | null, hoy: Date = new 
   return sumarDias(new Date(`${fechaPrevia}T00:00:00`), 45);
 }
 
+/**
+ * Monto de una cuota a partir de su porcentaje, redondeado a centavos.
+ * Devuelve 0 para valores invalidos o no positivos; el formulario valida antes
+ * de persistir. La fuente de verdad del plan sigue siendo el porcentaje.
+ */
+export function montoCuotaDesdePorcentaje(montoTotal: number, porcentaje: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(porcentaje) || porcentaje <= 0) return 0;
+  return redondear2(montoTotal * (porcentaje / 100));
+}
+
+/**
+ * Porcentaje de una cuota a partir de su monto, redondeado a dos decimales.
+ * Se usa solo para edicion/previsualizacion; el backend recalcula el monto
+ * definitivo desde el porcentaje y absorbe el redondeo en la ultima cuota.
+ */
+export function porcentajeCuotaDesdeMonto(montoTotal: number, monto: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(monto) || monto <= 0) return 0;
+  return redondear2((monto / montoTotal) * 100);
+}
+
+/** Suma de porcentajes redondeada a dos decimales (paso permitido). */
+export function sumarPorcentajes(porcentajes: number[]): number {
+  return redondear2(
+    porcentajes.reduce(
+      (total, porcentaje) => total + (Number.isFinite(porcentaje) ? porcentaje : 0),
+      0,
+    ),
+  );
+}
+
+/** Porcentaje pendiente de distribuir, sin permitir resultados negativos. */
+export function porcentajeRestante(porcentajes: number[]): number {
+  return Math.max(0, redondear2(100 - sumarPorcentajes(porcentajes)));
+}
+
 /** Montos por cuota: la ultima absorbe el resto para que la suma sea exactamente el total. */
 function montosDeCuotas(montoTotal: number, porcentajes: number[]): number[] {
   const montos: number[] = [];

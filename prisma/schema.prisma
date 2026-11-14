@@ -533,6 +533,8 @@ model Solicitud {
   /// Valor legado `user|<correo>` conservado para rollback de la migracion de identidad.
   initialUserId       String?   @map("initial_user_id") @db.VarChar(100)
   email               String?   @db.VarChar(200)
+  /// Tipo de solicitud. Null = flujo regular; `reserva_empresa` = reserva administrativa.
+  tipo                String?   @db.VarChar(30)
   documentos          Json?     @default("[]")
   /// RF-08: URL de la imagen (PNG) del recorte del pabellon con el stand destacado; se adjunta al contrato.
   recortePlanoUrl     String?   @map("recorte_plano_url") @db.VarChar(500)

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Button, Input, Label, Tabs, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
@@ -13,11 +13,20 @@ export type FuenteEmpresa = "local" | "sie";
 /** Opcion normalizada para pintar el resultado de cualquiera de las fuentes. */
 interface OpcionEmpresa {
   key: string;
+  empresaId: string | null;
   titulo: string;
   sub: string;
   idEmpresa: string;
   nombreEmpresa: string;
   ruc: string | null;
+  tipoComprobante: string | null;
+  representanteUserId: string | null;
+  representanteLegalNombre: string | null;
+  representanteLegalDni: string | null;
+  representanteCorreo: string | null;
+  direccionFiscal: string | null;
+  emailContacto: string | null;
+  emailFacturacion: string | null;
   /** false = empresa local sin codigo SIE (no se puede vincular al acceso). */
   seleccionable: boolean;
 }
@@ -27,12 +36,14 @@ interface OpcionEmpresa {
  * Fuentes: `local` = empresas registradas en el backoffice (/dashboard/empresas),
  * `sie` = catalogo de la API de entidades (codigo SIE compartido).
  */
-export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuentes = ["sie"] }: {
+export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuentes = ["sie"], permitirSinSie = false }: {
   seleccion: EmpresaAccesoDTO | null;
   onSeleccion: (empresa: EmpresaAccesoDTO | null) => void;
   label?: string;
   /** Fuentes habilitadas; la primera es la activa por defecto. */
   fuentes?: FuenteEmpresa[];
+  /** Permite seleccionar empresas locales sin codigo SIE (reserva administrativa). */
+  permitirSinSie?: boolean;
 }) {
   const [fuente, setFuente] = useState<FuenteEmpresa>(fuentes[0] ?? "sie");
   const [q, setQ] = useState("");
@@ -50,12 +61,21 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     const respuesta = await empresasService.listar({ search: termino, perPage: 10 });
     return (respuesta.data ?? []).map((e) => ({
       key: `local-${e.id}`,
+      empresaId: e.id,
       titulo: e.razonSocial,
       sub: `RUC ${e.ruc}${e.sieCode ? ` · ${e.sieCode}` : " · sin codigo SIE"}`,
       idEmpresa: e.sieCode ?? "",
       nombreEmpresa: e.razonSocial,
       ruc: e.ruc,
-      seleccionable: Boolean(e.sieCode),
+      tipoComprobante: e.tipoComprobante ?? null,
+      representanteUserId: e.representanteUserId ?? null,
+      representanteLegalNombre: e.representanteLegalNombre ?? null,
+      representanteLegalDni: e.representanteLegalDni ?? null,
+      representanteCorreo: e.representanteCorreo ?? null,
+      direccionFiscal: e.direccionFiscal ?? null,
+      emailContacto: e.emailContacto ?? null,
+      emailFacturacion: e.emailFacturacion ?? null,
+      seleccionable: Boolean(e.sieCode) || permitirSinSie,
     }));
   };
 
@@ -63,11 +83,20 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     const lista: EmpresaEntidadDTO[] = await entidadesService.buscarEmpresas(termino);
     return lista.map((e) => ({
       key: `sie-${e.idEmpresa || e.razonSocial}`,
+      empresaId: null,
       titulo: e.razonSocial,
       sub: `${e.idEmpresa}${e.documento ? ` · ${e.documento}` : ""}`,
       idEmpresa: e.idEmpresa,
       nombreEmpresa: e.razonSocial,
       ruc: e.documento || null,
+      tipoComprobante: null,
+      representanteUserId: null,
+      representanteLegalNombre: null,
+      representanteLegalDni: null,
+      representanteCorreo: null,
+      direccionFiscal: null,
+      emailContacto: null,
+      emailFacturacion: null,
       seleccionable: true,
     }));
   };
@@ -146,7 +175,20 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
               disabled={!e.seleccionable}
               className="h-auto w-full justify-start px-2 py-1 text-left disabled:opacity-60"
               onClick={() => {
-                onSeleccion({ idEmpresa: e.idEmpresa, nombreEmpresa: e.nombreEmpresa, ruc: e.ruc });
+                onSeleccion({
+                  empresaId: e.empresaId,
+                  idEmpresa: e.idEmpresa,
+                  nombreEmpresa: e.nombreEmpresa,
+                  ruc: e.ruc,
+                  tipoComprobante: e.tipoComprobante,
+                  representanteUserId: e.representanteUserId,
+                  representanteLegalNombre: e.representanteLegalNombre,
+                  representanteLegalDni: e.representanteLegalDni,
+                  representanteCorreo: e.representanteCorreo,
+                  direccionFiscal: e.direccionFiscal,
+                  emailContacto: e.emailContacto,
+                  emailFacturacion: e.emailFacturacion,
+                });
                 setResultados(null);
               }}
             >

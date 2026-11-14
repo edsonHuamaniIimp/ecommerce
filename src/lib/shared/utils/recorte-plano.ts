@@ -23,6 +23,8 @@ const OBJETIVO_HALO = "#fbbf24";
 const OBJETIVO_LINEA = "#b45309";
 const OBJETIVO_TEXTO = "#92400e";
 const OBJETIVO_CONTORNO = "#ffffff";
+/** Resolucion base del SVG (y del PNG del contrato). */
+const ANCHO_SVG = 2400;
 
 /** ViewBox del pabellon completo + margen porcentual. */
 export function viewBoxConMargen(bounds: PlanoBounds, margenPct = 0.06): { x: number; y: number; w: number; h: number } {
@@ -45,21 +47,37 @@ export function construirSvgRecorte(
 ): { svg: string; encontrado: boolean } {
   const objetivos = items.filter((it) => objetivoIds.includes(it.id));
   const encontrado = objetivos.length > 0;
-  const vb = viewBoxConMargen(computeBounds(items));
-  const refUnit = Math.max(vb.w, vb.h);
+  const baseVb = viewBoxConMargen(computeBounds(items));
+  const refUnit = Math.max(baseVb.w, baseVb.h);
   const multiple = objetivos.length > 1;
 
-  /* Bloques uniformes; los objetivos se resaltan (ambar + halo) y ademas llevan flecha. */
+  /*
+   * La leyenda se reserva en una banda superior fuera del area de stands: antes se
+   * dibujaba encima del plano y tapaba los stands del encabezado (contrato incluido).
+   */
+  const filas = opciones.sinLeyenda ? [] : filasLeyenda(items, opciones.etiquetas ?? {});
+  const fuenteLeyenda = limitar(refUnit * 0.016, 0.9, 1.8);
+  const anchoLeyenda = filas.length > 0 ? anchoDeLeyenda(filas, fuenteLeyenda) : 0;
+  const altoLeyenda = filas.length > 0 ? filas.length * fuenteLeyenda * 2.2 + fuenteLeyenda * 1.2 : 0;
+  const vb = {
+    x: baseVb.x,
+    y: baseVb.y - altoLeyenda,
+    w: Math.max(baseVb.w, anchoLeyenda + fuenteLeyenda * 2),
+    h: baseVb.h + altoLeyenda,
+  };
+
+  /* Bloques uniformes; los objetivos se resaltan (ambar + halo). */
   const bloques = items
     .map((it) => {
       const esObjetivo = objetivoIds.includes(it.id);
       const { w, d, color } = it.dim;
       const rot = it.rotY ?? 0;
+      /* El 3D usa el eje Y hacia arriba; en el SVG (y hacia abajo) el giro se aplica invertido. */
       const halo = esObjetivo
         ? `<rect x="${fmt(it.x - w / 2 - refUnit * 0.008)}" y="${fmt(it.z - d / 2 - refUnit * 0.008)}" width="${fmt(w + refUnit * 0.016)}" height="${fmt(d + refUnit * 0.016)}" rx="${fmt(refUnit * 0.006)}" fill="${OBJETIVO_HALO}" opacity="0.35"/>`
         : "";
       return (
-        `<g transform="rotate(${fmt(rot)} ${fmt(it.x)} ${fmt(it.z)})">` +
+        `<g transform="rotate(${fmt(-rot)} ${fmt(it.x)} ${fmt(it.z)})">` +
         halo +
         `<rect x="${fmt(it.x - w / 2)}" y="${fmt(it.z - d / 2)}" width="${fmt(w)}" height="${fmt(d)}" rx="${fmt(Math.min(w, d) * 0.05)}" ` +
         `fill="${esObjetivo ? OBJETIVO_FILL : color}" opacity="${esObjetivo ? "1" : "0.45"}" ` +
@@ -69,18 +87,21 @@ export function construirSvgRecorte(
     .join("");
 
   /*
-   * Anotaciones de los stands objetivo: flecha (linea + punta, con contorno blanco
-   * para contraste en el contrato) que entra desde el lado con mas espacio libre y
-   * apunta al stand; etiqueta en la cola ("TU STAND" + codigo, o numero en multiple).
+   * Anotaciones de los stands objetivo: en reserva multiple el numero va DENTRO
+   * del stand (sin flechas que tapen otros bloques); en stand unico se conserva la
+   * flecha con "TU STAND" y su codigo.
    */
   const anotaciones = objetivos
-    .map((it, i) => anotarObjetivo(it, items, vb, refUnit, i, multiple, opciones.codigos ?? {}))
+    .map((it, i) => anotarObjetivo(it, items, baseVb, refUnit, i, multiple, opciones.codigos ?? {}))
     .join("");
 
-  const leyenda = opciones.sinLeyenda ? "" : construirLeyenda(items, vb, refUnit, opciones.etiquetas ?? {});
+  const leyenda = filas.length > 0
+    ? construirLeyenda(filas, vb.x + fuenteLeyenda * 0.8, vb.y + fuenteLeyenda, fuenteLeyenda)
+    : "";
 
+  const altoSalida = Math.round((ANCHO_SVG * vb.h) / vb.w);
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.w)} ${fmt(vb.h)}" width="${fmt(vb.w * 32)}" height="${fmt(vb.h * 32)}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.w)} ${fmt(vb.h)}" width="${ANCHO_SVG}" height="${altoSalida}">` +
     `<rect x="${fmt(vb.x)}" y="${fmt(vb.y)}" width="${fmt(vb.w)}" height="${fmt(vb.h)}" fill="#f8fafc"/>` +
     bloques +
     anotaciones +
@@ -157,24 +178,34 @@ function anotarObjetivo(
   multiple: boolean,
   codigos: Record<string, string>,
 ): string {
+  if (multiple) {
+    /* El numero va dentro del stand: no hay flechas ni etiquetas que tapen otros bloques. */
+    const radio = Math.min(it.dim.w, it.dim.d) * 0.3;
+    return (
+      `<circle cx="${fmt(it.x)}" cy="${fmt(it.z)}" r="${fmt(radio)}" fill="${OBJETIVO_LINEA}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(radio * 0.16)}"/>` +
+      `<text x="${fmt(it.x)}" y="${fmt(it.z + radio * 0.36)}" text-anchor="middle" font-size="${fmt(radio * 1.1)}" font-weight="700" fill="#ffffff">${indice + 1}</text>`
+    );
+  }
+
+  const u = limitar(refUnit * 0.018, 0.9, 1.8);
   const margen = refUnit * 0.02;
   const holguraAncho = refUnit * 0.06;
   const dir = direccionLibre(it, items, vb, margen, refUnit);
   const horizontal = dir === "izq" || dir === "der";
   const signo = dir === "arriba" || dir === "izq" ? -1 : 1;
-  const gap = refUnit * 0.012;
-  const headL = refUnit * 0.030;
-  const headW = refUnit * 0.024;
+  const gap = u * 0.5;
+  const headL = u * 1.2;
+  const headW = u * 1.0;
   const espacio = Math.min(espacioLibre(it, items, dir, holguraAncho), espacioHaciaBorde(it, vb, dir, margen));
   /* Deja libre la huella de la etiqueta mas un margen de seguridad. */
-  const largo = Math.min(refUnit * 0.12, Math.max(refUnit * 0.03, espacio - huellaEtiqueta(dir, refUnit) - refUnit * 0.015));
+  const largo = Math.min(u * 5, Math.max(u * 1.5, espacio - huellaEtiqueta(dir, refUnit) - u));
 
   const borde = horizontal ? it.x + (signo * it.dim.w) / 2 : it.z + (signo * it.dim.d) / 2;
   const punta = borde + signo * gap;
   const base = punta + signo * headL;
   /* Sin clamp invertido: si el borde del encuadre aprieta, la cola se acorta pero nunca cruza la punta. */
   const colaLibre = base + signo * largo;
-  const colaFinal = signo * (colaLibre - base) > 0 ? colaLibre : base + signo * refUnit * 0.02;
+  const colaFinal = signo * (colaLibre - base) > 0 ? colaLibre : base + signo * u;
   const baseFinal = base;
 
   const eje = (valor: number) => (horizontal ? { x: valor, y: it.z } : { x: it.x, y: valor });
@@ -184,42 +215,34 @@ function anotarObjetivo(
   const esquinaA = horizontal ? { x: baseFinal, y: it.z - headW / 2 } : { x: it.x - headW / 2, y: baseFinal };
   const esquinaB = horizontal ? { x: baseFinal, y: it.z + headW / 2 } : { x: it.x + headW / 2, y: baseFinal };
 
-  const casing = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.012)}" stroke-linecap="round"/>`;
-  const linea = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_LINEA}" stroke-width="${fmt(refUnit * 0.005)}" stroke-linecap="round"/>`;
+  const casing = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(u * 0.16)}" stroke-linecap="round"/>`;
+  const linea = `<line x1="${fmt(inicio.x)}" y1="${fmt(inicio.y)}" x2="${fmt(fin.x)}" y2="${fmt(fin.y)}" stroke="${OBJETIVO_LINEA}" stroke-width="${fmt(u * 0.07)}" stroke-linecap="round"/>`;
   const puntaContorno = `<polygon points="${fmt(puntaPt.x)},${fmt(puntaPt.y)} ${fmt(esquinaA.x)},${fmt(esquinaA.y)} ${fmt(esquinaB.x)},${fmt(esquinaB.y)}" fill="${OBJETIVO_CONTORNO}"/>`;
   const puntaSvg = `<polygon points="${fmt(puntaPt.x)},${fmt(puntaPt.y)} ${fmt(esquinaA.x)},${fmt(esquinaA.y)} ${fmt(esquinaB.x)},${fmt(esquinaB.y)}" fill="${OBJETIVO_LINEA}"/>`;
   const flecha = casing + linea + puntaContorno + puntaSvg;
 
-  if (multiple) {
-    return (
-      flecha +
-      `<circle cx="${fmt(inicio.x)}" cy="${fmt(inicio.y)}" r="${fmt(refUnit * 0.019)}" fill="${OBJETIVO_LINEA}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.004)}"/>` +
-      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + refUnit * 0.0075)}" text-anchor="middle" font-size="${fmt(refUnit * 0.023)}" font-weight="700" fill="#ffffff">${indice + 1}</text>`
-    );
-  }
-
-  const estiloTitulo = `font-size="${fmt(refUnit * 0.028)}" font-weight="700" fill="${OBJETIVO_TEXTO}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.006)}" paint-order="stroke"`;
-  const estiloCodigo = `font-size="${fmt(refUnit * 0.024)}" font-weight="600" fill="#1f2937" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(refUnit * 0.005)}" paint-order="stroke"`;
+  const estiloTitulo = `font-size="${fmt(u * 1.1)}" font-weight="700" fill="${OBJETIVO_TEXTO}" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(u * 0.22)}" paint-order="stroke"`;
+  const estiloCodigo = `font-size="${fmt(u * 0.95)}" font-weight="600" fill="#1f2937" stroke="${OBJETIVO_CONTORNO}" stroke-width="${fmt(u * 0.18)}" paint-order="stroke"`;
   const titulo = "TU STAND";
   const codigo = esc(codigoComercialStand(codigos[it.id] ?? it.id));
-  const aire = refUnit * 0.018;
+  const aire = u * 0.8;
   let etiqueta: string;
   if (dir === "arriba") {
     etiqueta =
-      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y - aire - refUnit * 0.020)}" text-anchor="middle" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y - aire - u * 0.8)}" text-anchor="middle" ${estiloTitulo}>${titulo}</text>` +
       `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y - aire)}" text-anchor="middle" ${estiloCodigo}>${codigo}</text>`;
   } else if (dir === "abajo") {
     etiqueta =
       `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + aire)}" text-anchor="middle" ${estiloTitulo}>${titulo}</text>` +
-      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + aire + refUnit * 0.026)}" text-anchor="middle" ${estiloCodigo}>${codigo}</text>`;
+      `<text x="${fmt(inicio.x)}" y="${fmt(inicio.y + aire + u * 1.1)}" text-anchor="middle" ${estiloCodigo}>${codigo}</text>`;
   } else if (dir === "izq") {
     etiqueta =
-      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y - refUnit * 0.002)}" text-anchor="end" ${estiloTitulo}>${titulo}</text>` +
-      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y + refUnit * 0.024)}" text-anchor="end" ${estiloCodigo}>${codigo}</text>`;
+      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y - u * 0.1)}" text-anchor="end" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x - aire)}" y="${fmt(inicio.y + u * 1.0)}" text-anchor="end" ${estiloCodigo}>${codigo}</text>`;
   } else {
     etiqueta =
-      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y - refUnit * 0.002)}" text-anchor="start" ${estiloTitulo}>${titulo}</text>` +
-      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y + refUnit * 0.024)}" text-anchor="start" ${estiloCodigo}>${codigo}</text>`;
+      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y - u * 0.1)}" text-anchor="start" ${estiloTitulo}>${titulo}</text>` +
+      `<text x="${fmt(inicio.x + aire)}" y="${fmt(inicio.y + u * 1.0)}" text-anchor="start" ${estiloCodigo}>${codigo}</text>`;
   }
   return flecha + etiqueta;
 }
@@ -239,39 +262,52 @@ function computeBounds(items: PlanoItem[]): PlanoBounds {
   return { minX, maxX, minZ, maxZ };
 }
 
-function construirLeyenda(
-  items: PlanoItem[],
-  vb: { x: number; y: number; w: number; h: number },
-  refUnit: number,
-  etiquetas: Record<string, string>,
-): string {
+interface FilaLeyenda {
+  label: string;
+  color: string;
+}
+
+function filasLeyenda(items: PlanoItem[], etiquetas: Record<string, string>): FilaLeyenda[] {
   const tipos: string[] = [];
   for (const it of items) {
     if (!tipos.includes(it.type)) tipos.push(it.type);
   }
-  const filas = tipos.slice(0, 6).map((type) => {
+  return tipos.slice(0, 6).map((type) => {
     const item = items.find((i) => i.type === type);
     return { label: etiquetas[type] ?? type, color: item?.dim.color ?? "#94a3b8" };
   });
-  if (filas.length === 0) return "";
-  const rowH = refUnit * 0.042;
-  const box = refUnit * 0.03;
-  const fs = refUnit * 0.026;
-  const x0 = vb.x + refUnit * 0.02;
-  const y0 = vb.y + refUnit * 0.02;
-  const ancho = Math.max(...filas.map((l) => l.label.length)) * fs * 0.55 + box + fs * 1.4;
+}
+
+/** Ancho de la caja de leyenda en unidades del plano (sin contar el padding exterior). */
+function anchoDeLeyenda(filas: FilaLeyenda[], fs: number): number {
+  const texto = Math.max(...filas.map((l) => l.label.length), 1) * fs * 0.58;
+  return texto + fs * 1.15 + fs * 2.4;
+}
+
+function construirLeyenda(filas: FilaLeyenda[], x: number, y: number, fs: number): string {
+  const rowH = fs * 2.2;
+  const box = fs * 1.15;
+  const ancho = anchoDeLeyenda(filas, fs);
+  const alto = filas.length * rowH + fs * 0.6;
   return (
     `<g>` +
-    `<rect x="${fmt(x0 - fs * 0.5)}" y="${fmt(y0 - fs)}" width="${fmt(ancho)}" height="${fmt(filas.length * rowH + fs)}" rx="${fmt(fs * 0.4)}" fill="#ffffff" opacity="0.88" stroke="#e2e8f0" stroke-width="${fmt(refUnit * 0.0015)}"/>` +
+    `<rect x="${fmt(x - fs * 0.2)}" y="${fmt(y - fs * 0.55)}" width="${fmt(ancho)}" height="${fmt(alto)}" rx="${fmt(fs * 0.35)}" fill="#ffffff" opacity="0.92" stroke="#e2e8f0" stroke-width="${fmt(fs * 0.06)}"/>` +
     filas
-      .map(
-        (l, i) =>
-          `<rect x="${fmt(x0)}" y="${fmt(y0 + i * rowH)}" width="${fmt(box)}" height="${fmt(box)}" rx="${fmt(box * 0.2)}" fill="${l.color}" opacity="0.85" stroke="#94a3b8" stroke-width="${fmt(refUnit * 0.001)}"/>` +
-          `<text x="${fmt(x0 + box + fs * 0.4)}" y="${fmt(y0 + i * rowH + box * 0.85)}" font-size="${fmt(fs)}" fill="#334155">${esc(l.label)}</text>`,
-      )
+      .map((l, i) => {
+        const top = y + i * rowH;
+        const centro = top + rowH / 2;
+        return (
+          `<rect x="${fmt(x)}" y="${fmt(centro - box / 2)}" width="${fmt(box)}" height="${fmt(box)}" rx="${fmt(box * 0.2)}" fill="${l.color}" opacity="0.85" stroke="#94a3b8" stroke-width="${fmt(fs * 0.045)}"/>` +
+          `<text x="${fmt(x + box + fs * 0.5)}" y="${fmt(centro + fs * 0.38)}" font-size="${fmt(fs)}" fill="#334155">${esc(l.label)}</text>`
+        );
+      })
       .join("") +
     `</g>`
   );
+}
+
+function limitar(valor: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, valor));
 }
 
 function fmt(valor: number): string {
