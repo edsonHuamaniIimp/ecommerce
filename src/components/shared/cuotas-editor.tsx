@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { useEffect } from "react";
 import { Button, Input, Label, Popover, PopoverContent, PopoverTrigger } from "@nrivera-iimp/ui-kit-iimp";
 import { CircleHelp, Plus, Trash2 } from "lucide-react";
 import { CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOTAL, MAX_CUOTAS_PERSONALIZADAS } from "@/lib/shared/constants";
@@ -72,6 +73,17 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
   );
   const porcentajesOk = porcentajesCompletos && porcentajesValidos(porcentajes, filas.length);
   const formularioValido = validarFilasCuotas(filas);
+
+  /* Recalcula los montos cuando cambia el total (p. ej. al elegir stands). */
+  useEffect(() => {
+    const actualizadas = filas.map((fila) => ({
+      ...fila,
+      monto: montoTotal > 0 && fila.porcentaje.trim() !== "" ? montoEditable(montoTotal, Number(fila.porcentaje)) : "",
+    }));
+    if (actualizadas.some((fila, index) => fila.monto !== filas[index]?.monto)) {
+      onChange(actualizadas);
+    }
+  }, [montoTotal, filas, onChange]);
 
   const actualizarPorcentaje = (index: number, valor: string) => {
     const next: CuotaFila[] = filas.map((fila, i) =>

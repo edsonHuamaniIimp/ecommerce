@@ -14,6 +14,7 @@ import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-dilig
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { requestMetadata } from "@/lib/server/request-metadata";
+import { sumarMontos } from "@/lib/shared/utils/importes";
 import { auditarVerComo } from "@/lib/server/ver-como-audit";
 import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
 
@@ -536,7 +537,20 @@ export const solicitudesController = {
     const raw = await request.json() as { solicitudId: string };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
     await services.solicitudes.repo.marcarOrdenPago(raw.solicitudId);
-    await auditarOperacion(request, session, "orden-pago", raw.solicitudId, "Se generó la orden de pago");
+    const detalle = await services.solicitudes.repo.detalle(raw.solicitudId);
+    const plan = detalle?.planCuotas ?? null;
+    const cuotas = plan?.cuotas ?? [];
+    await auditarOperacion(request, session, "orden-pago", raw.solicitudId, "Se generó la orden de pago", {
+      montoTotal: cuotas.length > 0 ? sumarMontos(cuotas) : null,
+      moneda: plan?.moneda ?? detalle?.moneda ?? null,
+      tipoCambio: plan?.tipoCambio ?? detalle?.tipoCambio ?? null,
+      cuotas: cuotas.map((cuota) => ({
+        numero: cuota.numero,
+        porcentaje: cuota.porcentaje,
+        monto: cuota.monto,
+        fechaVencimiento: cuota.fechaVencimiento,
+      })),
+    });
     return success({ ok: true });
   },
 

@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, montoCuotaDesdePorcentaje, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajeCuotaDesdeMonto, porcentajeRestante, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO, sumarPorcentajes } from "../cuotas";
+import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, montoCuotaDesdePorcentaje, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajeCuotaDesdeMonto, porcentajeRestante, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO, sumarPorcentajes, validarPlanFacturacion } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
 const BASE = new Date("2026-10-03T00:00:00");
@@ -9,6 +9,14 @@ describe("planCuotasConFechas (fechas del cliente)", () => {
     const plan = planCuotasConFechas(2360, [30, 30, 40], ["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.fechaVencimiento)).toEqual(["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.monto)).toEqual([708, 708, 944]);
+  });
+
+  it("valida el plan de facturacion y devuelve su total exacto", () => {
+    const cuotas = planCuotasConFechas(2360, [30, 30, 40], ["2026-11-15", "2026-12-20", "2027-01-30"]);
+    expect(validarPlanFacturacion({ cuotas, moneda: "USD" })).toBe(2360);
+    expect(() => validarPlanFacturacion({ cuotas: cuotas.map((c, i) => i === 1 ? { ...c, monto: c.monto + 0.01 } : c) })).toThrow();
+    expect(() => validarPlanFacturacion({ cuotas: cuotas.map((c, i) => i === 0 ? { ...c, monto: 0.001 } : c) })).toThrow();
+    expect(() => validarPlanFacturacion({ cuotas: [] })).toThrow();
   });
 });
 

@@ -11,6 +11,7 @@ import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
+import { validarPlanFacturacion } from "@/lib/shared/utils/cuotas";
 import { convertirNeto, simboloMoneda } from "@/lib/shared/utils/moneda";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
@@ -911,65 +912,86 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   }
 
   async marcarOrdenPago(solicitudId: string): Promise<void> {
-    await prisma.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
+    await prisma.$transaction(async (tx) => {
+      const sol = await tx.solicitud.findUnique({
+        where: { id: solicitudId },
+        select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true },
+      });
+      if (!sol) throw new Error("Solicitud no encontrada");
 
-    const sol = await prisma.solicitud.findUnique({
-      where: { id: solicitudId },
-      select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true },
-    });
-    const stands = sol?.gessStandId
-      ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
-      : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
-    /*
-     * RF-10: el plan de pagos lo definio el cliente en el contrato (`solicitud.plan_cuotas`)
-     * y es la fuente de verdad de Facturacion. Sus montos YA incluyen IGV: el total a facturar
-     * debe ser la SUMA DE CUOTAS (el precio base del stand es neto). Sin plan (legacy/manual)
-     * se mantiene el comportamiento anterior (precio base del stand).
-     */
-    const plan = sol?.planCuotas as
-      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }>; moneda?: string; tipoCambio?: number | null }
-      | null;
-    const cuotasPlan = plan?.cuotas ?? [];
-    const moneda = plan?.moneda ?? sol?.moneda ?? MONEDAS.USD;
-    const tipoCambio = plan?.tipoCambio ?? sol?.tipoCambio ?? 1;
-    const montoBaseUsd = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
-    const montoTotal = cuotasPlan.length > 0
-      ? sumarMontos(cuotasPlan)
-      : convertirNeto(montoBaseUsd, moneda, tipoCambio);
+      const stands = sol.gessStandId
+        ? await tx.gessStand.findMany({ where: { id: sol.gessStandId } })
+        : await tx.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then((rows) => rows.map((row) => row.gessStand));
 
-    const monedaFacturacion = simboloMoneda(moneda);
-    const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
-    const facturacion = existing
-      ? await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal, moneda: monedaFacturacion } })
-      : await prisma.facturacion.create({
-          data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: monedaFacturacion },
-        });
+      /*
+       * RF-10: el plan de pagos es la fuente de verdad de Facturacion. Sus montos
+       * YA incluyen IGV; se valida contra sus porcentajes antes de emitir la orden.
+       * Sin plan (legacy/manual) se calcula el total con IGV desde los stands.
+       */
+      const plan = sol.planCuotas as
+        | { modalidad?: string; cuotas?: Array<{ numero: number; porcentaje?: number; monto: number; fechaVencimiento: string | null }>; moneda?: string; tipoCambio?: number | null }
+        | null;
+      const cuotasPlan = plan?.cuotas ?? [];
+      const moneda = plan?.moneda ?? sol.moneda ?? MONEDAS.USD;
+      const tipoCambio = plan?.tipoCambio ?? sol.tipoCambio ?? 1;
+      const montoBaseUsd = sumarMontos(stands.map((stand) => ({ monto: resolverPrecioStand(stand) })));
+      const montoTotal = cuotasPlan.length > 0
+        ? validarPlanFacturacion(plan)
+        : convertirNeto(montoBaseUsd, moneda, tipoCambio);
 
-    /*
-     * Las cuotas ya pagadas no se tocan; las pendientes se alinean al plan.
-     */
-    if (cuotasPlan.length > 0) {
-      const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
-      await prisma.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
-      for (const cuota of cuotasPlan) {
-        const fecha = cuota.fechaVencimiento ? dateUtils.toDate(cuota.fechaVencimiento) : null;
-        const existente = await prisma.facturacionCuota.findFirst({
-          where: { facturacionId: facturacion.id, numero: cuota.numero },
-        });
-        if (existente) {
-          if (existente.estado === ESTADOS_CUOTA.PENDIENTE) {
-            await prisma.facturacionCuota.update({
-              where: { id: existente.id },
-              data: { monto: cuota.monto, fechaVencimiento: fecha },
+      const monedaFacturacion = simboloMoneda(moneda);
+      await tx.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
+
+      const existing = await tx.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
+      const facturacion = existing
+        ? await tx.facturacion.update({ where: { id: existing.id }, data: { montoTotal, moneda: monedaFacturacion } })
+        : await tx.facturacion.create({
+            data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: monedaFacturacion },
+          });
+
+      /*
+       * Las cuotas pagadas se conservan; se exige que coincidan con el plan.
+       * Las pendientes se alinean y se verifica que la suma final sea exacta.
+       */
+      if (cuotasPlan.length > 0) {
+        const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
+        await tx.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
+
+        const existentes = await tx.facturacionCuota.findMany({ where: { facturacionId: facturacion.id } });
+        const numerosPlan = new Set(cuotasPlan.map((cuota) => cuota.numero));
+        if (existentes.some((cuota) => !numerosPlan.has(cuota.numero))) {
+          throw new Error("La facturacion tiene cuotas que no pertenecen al plan del contrato");
+        }
+
+        for (const cuota of cuotasPlan) {
+          const fecha = cuota.fechaVencimiento ? dateUtils.toDate(cuota.fechaVencimiento) : null;
+          const existente = existentes.find((item) => item.numero === cuota.numero);
+          if (existente) {
+            if (existente.estado === ESTADOS_CUOTA.PAGADO && Math.abs(Number(existente.monto) - cuota.monto) > 0.005) {
+              throw new Error(`La cuota pagada ${cuota.numero} no coincide con el plan del contrato`);
+            }
+            if (existente.estado === ESTADOS_CUOTA.PENDIENTE) {
+              await tx.facturacionCuota.update({
+                where: { id: existente.id },
+                data: { monto: cuota.monto, fechaVencimiento: fecha },
+              });
+            }
+          } else {
+            await tx.facturacionCuota.create({
+              data: { facturacionId: facturacion.id, numero: cuota.numero, monto: cuota.monto, fechaVencimiento: fecha },
             });
           }
-        } else {
-          await prisma.facturacionCuota.create({
-            data: { facturacionId: facturacion.id, numero: cuota.numero, monto: cuota.monto, fechaVencimiento: fecha },
-          });
+        }
+
+        const finales = await tx.facturacionCuota.findMany({ where: { facturacionId: facturacion.id } });
+        if (finales.length !== cuotasPlan.length) {
+          throw new Error("La facturacion no tiene exactamente las cuotas del plan");
+        }
+        if (Math.abs(sumarMontos(finales.map((cuota) => ({ monto: Number(cuota.monto) }))) - montoTotal) > 0.005) {
+          throw new Error("La suma de cuotas de la facturacion no coincide con el total del contrato");
         }
       }
-    }
+    });
   }
 
   async obtenerHistorial(solicitudId: string): Promise<{

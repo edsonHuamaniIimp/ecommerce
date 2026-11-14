@@ -1,6 +1,6 @@
 import { CUOTAS_DIAS_MIN_ENTRE, CUOTAS_FECHA_MAXIMA, CUOTAS_MESES_MAX_POR_CUOTA, CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOLERANCIA, HITOS_CUOTAS, MAX_CUOTAS_PERSONALIZADAS, MODALIDADES_CUOTAS, MODOS_PAGO, PORCENTAJES_POR_MODALIDAD, type ModalidadCuotas } from "@/lib/shared/constants";
 import { dateUtils } from "./date";
-import { redondear2 } from "./importes";
+import { redondear2, sumarMontos } from "./importes";
 
 /** Cuota del cronograma del contrato (Anexo 2). */
 export interface CuotaPlan {
@@ -9,6 +9,69 @@ export interface CuotaPlan {
   monto: number;
   /** Fecha de vencimiento ISO (yyyy-mm-dd) o null si no aplica. */
   fechaVencimiento: string | null;
+}
+
+/**
+ * Valida un plan antes de usarlo como fuente de Facturacion. Devuelve el total
+ * exacto (suma de cuotas) o lanza un error si los montos no son coherentes.
+ */
+export interface PlanFacturacionValidable {
+  cuotas?: Array<{ numero?: number; porcentaje?: number; monto: number }>;
+  moneda?: string;
+  tipoCambio?: number | null;
+}
+
+export function validarPlanFacturacion(plan: PlanFacturacionValidable | null | undefined): number {
+  const cuotas = plan?.cuotas;
+  if (!Array.isArray(cuotas) || cuotas.length === 0) {
+    throw new Error("El plan de facturacion no tiene cuotas");
+  }
+
+  const tienePorcentajes = cuotas.every(
+    (cuota) => typeof cuota.porcentaje === "number" && Number.isFinite(cuota.porcentaje),
+  );
+  cuotas.forEach((cuota, index) => {
+    if (!Number.isFinite(cuota.monto) || cuota.monto < 0) {
+      throw new Error(`La cuota ${index + 1} tiene un monto invalido`);
+    }
+    if (Math.abs(cuota.monto - redondear2(cuota.monto)) > 1e-9) {
+      throw new Error(`La cuota ${index + 1} no esta redondeada a centavos`);
+    }
+    if (cuota.numero !== undefined && cuota.numero !== index + 1) {
+      throw new Error("Las cuotas no estan numeradas de forma consecutiva");
+    }
+  });
+
+  if (tienePorcentajes) {
+    const porcentajes = cuotas.map((cuota) => Number(cuota.porcentaje));
+    if (porcentajes.some((porcentaje) => porcentaje <= 0)) {
+      throw new Error("Cada cuota debe tener un porcentaje mayor a cero");
+    }
+    if (Math.abs(porcentajes.reduce((total, porcentaje) => total + porcentaje, 0) - 100) >= CUOTAS_PORCENTAJE_TOLERANCIA) {
+      throw new Error("Los porcentajes del plan no suman 100%");
+    }
+  }
+
+  const total = sumarMontos(cuotas);
+  if (total <= 0) {
+    throw new Error("El total del plan de facturacion debe ser mayor a cero");
+  }
+
+  if (tienePorcentajes) {
+    let acumulado = 0;
+    cuotas.forEach((cuota, index) => {
+      const esUltima = index === cuotas.length - 1;
+      const esperado = esUltima
+        ? redondear2(total - acumulado)
+        : redondear2(total * (Number(cuota.porcentaje) / 100));
+      if (Math.abs(cuota.monto - esperado) > 0.005) {
+        throw new Error(`El monto de la cuota ${index + 1} no coincide con su porcentaje`);
+      }
+      acumulado = redondear2(acumulado + cuota.monto);
+    });
+  }
+
+  return total;
 }
 
 /** Cuota minima que necesitan los validadores (sin monto). */

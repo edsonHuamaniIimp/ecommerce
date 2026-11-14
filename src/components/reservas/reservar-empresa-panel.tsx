@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, ChevronRight, Loader2, Pencil, RotateCcw, Search, UserRound, ZoomIn, ZoomOut } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2, Pencil, RotateCcw, Search, UserRound, X, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CuotasEditor, crearCuotaFilaInicial, validarFilasCuotas, type CuotaFila } from "@/components/shared/cuotas-editor";
@@ -119,6 +119,7 @@ export function ReservarEmpresaPanel() {
   const [filasCuotas, setFilasCuotas] = useState<CuotaFila[]>(crearCuotaFilaInicial);
   const [guardando, setGuardando] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [carritoAbierto, setCarritoAbierto] = useState(false);
   const [confirmarOpen, setConfirmarOpen] = useState(false);
   const [creandoContratoOpen, setCreandoContratoOpen] = useState(false);
   const [resultado, setResultado] = useState<ReservaAdminResponseDTO | null>(null);
@@ -444,6 +445,7 @@ export function ReservarEmpresaPanel() {
   };
 
   const abrirModal = () => {
+    setCarritoAbierto(false);
     setFilasCuotas(crearCuotaFilaInicial(total));
     setModalOpen(true);
   };
@@ -749,18 +751,63 @@ export function ReservarEmpresaPanel() {
       </div>
 
       {selected.size > 0 ? (
-        <div className="fixed bottom-4 left-4 right-4 z-40 sm:left-auto sm:right-6">
+        <div className="fixed bottom-4 left-4 right-4 z-40 flex flex-col items-stretch gap-2 sm:left-auto sm:right-6 sm:items-end">
+          {carritoAbierto && (
+            <div className="w-full overflow-hidden rounded-xl border border-border bg-card shadow-xl sm:w-[380px]">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <p className="text-xs font-semibold text-foreground">Stands seleccionados ({seleccionados.length})</p>
+                <div className="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground">
+                  <span>Neto: {formatearMonto(neto, monedaPago, { decimales: 2 })}</span>
+                  <span>IGV: {formatearMonto(igv, monedaPago, { decimales: 2 })}</span>
+                  <span className="text-xs font-semibold text-foreground">Total con IGV: {formatearMonto(total, monedaPago, { decimales: 2 })}</span>
+                </div>
+              </div>
+              <div className="max-h-[45vh] overflow-y-auto p-1.5">
+                {seleccionados.map((stand) => (
+                  <div key={stand.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-secondary/60">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs font-semibold text-foreground">{stand.standCode}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {normalizarTipoStand(stand.tipoStand) ?? "-"} · {normalizarPabellon(stand.pabellon) ?? "-"}
+                      </p>
+                    </div>
+                    <span className="text-xs font-medium text-foreground">
+                      {formatearMonto(convertirNeto(resolverPrecioStand(stand), monedaPago, tipoCambio), monedaPago, { decimales: 2 })}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      title={`Quitar ${stand.standCode}`}
+                      aria-label={`Quitar stand ${stand.standCode}`}
+                      onClick={() => toggle(stand)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-border p-2">
+                <Button type="button" className="w-full justify-between gap-2" onClick={abrirModal}>
+                  <span>Continuar con la reserva</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
           <Button
             type="button"
             size="lg"
             className="h-11 w-full justify-between gap-3 px-5 shadow-lg sm:w-auto"
-            onClick={abrirModal}
+            aria-expanded={carritoAbierto}
+            onClick={() => setCarritoAbierto((abierto) => !abierto)}
           >
             <span className="flex items-center gap-2">
               <span className="font-semibold">{selected.size} stand(s)</span>
-              <span className="text-xs font-normal opacity-80">{formatearMonto(total, monedaPago, { decimales: 2 })}</span>
+              <span className="text-xs font-normal opacity-80">Total con IGV {formatearMonto(total, monedaPago, { decimales: 2 })}</span>
             </span>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className={`h-4 w-4 transition-transform ${carritoAbierto ? "rotate-90" : ""}`} />
           </Button>
         </div>
       ) : null}
@@ -779,7 +826,6 @@ export function ReservarEmpresaPanel() {
               seleccion={empresa}
               onSeleccion={(value) => {
                 setEmpresa(value);
-                setSelected(new Set());
                 setTipoComprobante(UI_SENTINEL.SELECCIONAR);
               }}
               fuentes={["local"]}

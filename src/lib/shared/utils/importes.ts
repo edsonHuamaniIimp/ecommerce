@@ -62,7 +62,9 @@ export function calcularImportes(neto: number): ImportesContrato {
 export function sumarMontos(cuotas: Array<{ monto: number }>): number {
   let totalCents = 0;
   for (const cuota of cuotas) {
-    if (!Number.isFinite(cuota.monto)) continue;
+    if (!Number.isFinite(cuota.monto) || cuota.monto < 0) {
+      throw new TypeError("Monto de cuota invalido");
+    }
     totalCents += aCentavos(cuota.monto);
     if (!Number.isSafeInteger(totalCents)) {
       throw new RangeError("Suma de cuotas fuera del rango seguro");
