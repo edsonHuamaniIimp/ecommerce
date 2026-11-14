@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { configCuotasFijaPorcentajes, configCuotasValida, cronogramaPredeterminado, cronogramaValido, cuotasCoincidenConfig, cuotasPersonalizadasIniciales, cuotasPredeterminadas, fechasCuotasEnRango, fechasCuotasValidas, fechaMaximaCuota, modalidadDeCuotas, montoCuotaDesdePorcentaje, planCuotas, planCuotasConFechas, planCuotasPorModalidad, planPagoPredeterminado, porcentajeCuotaDesdeMonto, porcentajeRestante, porcentajesEquitativos, porcentajesValidos, siguienteFechaCuota, sumarMesesISO, sumarPorcentajes, validarPlanFacturacion } from "../cuotas";
 import { MODOS_PAGO } from "@/lib/shared/constants";
 
@@ -9,6 +9,16 @@ describe("planCuotasConFechas (fechas del cliente)", () => {
     const plan = planCuotasConFechas(2360, [30, 30, 40], ["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.fechaVencimiento)).toEqual(["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(plan.map((c) => c.monto)).toEqual([708, 708, 944]);
+  });
+
+  it("la ultima cuota absorbe el centavo del plan BPA 20/40/40", () => {
+    const plan = planCuotasConFechas(
+      48759.96,
+      [20, 40, 40],
+      ["2026-12-31", "2027-05-31", "2027-06-30"],
+    );
+    expect(plan.map((c) => c.monto)).toEqual([9751.99, 19503.98, 19503.99]);
+    expect(plan.reduce((total, cuota) => total + cuota.monto, 0)).toBeCloseTo(48759.96, 2);
   });
 
   it("valida el plan de facturacion y devuelve su total exacto", () => {

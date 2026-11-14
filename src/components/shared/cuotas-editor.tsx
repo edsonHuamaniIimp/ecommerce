@@ -8,6 +8,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import {
   configCuotasValida,
   montoCuotaDesdePorcentaje,
+  planCuotasConFechas,
   porcentajeCuotaDesdeMonto,
   porcentajeRestante,
   porcentajesValidos,
@@ -76,9 +77,16 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
 
   /* Recalcula los montos cuando cambia el total (p. ej. al elegir stands). */
   useEffect(() => {
-    const actualizadas = filas.map((fila) => ({
+    const montos = planCuotasConFechas(
+      montoTotal,
+      filas.map((fila) => Number(fila.porcentaje)),
+      filas.map((fila) => fila.fecha || null),
+    ).map((cuota) => cuota.monto);
+    const actualizadas = filas.map((fila, index) => ({
       ...fila,
-      monto: montoTotal > 0 && fila.porcentaje.trim() !== "" ? montoEditable(montoTotal, Number(fila.porcentaje)) : "",
+      monto: montoTotal > 0 && fila.porcentaje.trim() !== "" && montos[index] !== undefined
+        ? montos[index].toFixed(2)
+        : "",
     }));
     if (actualizadas.some((fila, index) => fila.monto !== filas[index]?.monto)) {
       onChange(actualizadas);
