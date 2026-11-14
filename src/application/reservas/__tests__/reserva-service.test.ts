@@ -425,7 +425,7 @@ describe("ReservaApplicationService - moneda del contrato", () => {
 
 describe("ReservaApplicationService - tipo de solicitud", () => {
   it("marca como reserva_empresa la solicitud creada desde la reserva administrativa", async () => {
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789", preReservaRazonSocial: "Empresa de Prueba S.A.C.", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
       marcarOrdenPago: vi.fn(async () => undefined),
@@ -435,7 +435,7 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
       habilitarContrato: vi.fn(async () => undefined),
     } as unknown as ISolicitudesRepository;
     const authRepo = {
-      findPerfilByEmail: vi.fn(async () => null),
+      findPerfilByEmail: vi.fn(async () => ({ empresa: { ruc: "20123456789", razonSocial: "Empresa de Prueba S.A.C." } })),
       findByEmail: vi.fn(async () => [{ userId: "user-rep" }]),
     } as unknown as IAuthRepository;
     const empresaRepo = {
