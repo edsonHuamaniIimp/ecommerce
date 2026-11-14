@@ -118,6 +118,24 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     }
   };
 
+  const seleccionar = (empresa: OpcionEmpresa) => {
+    onSeleccion({
+      empresaId: empresa.empresaId,
+      idEmpresa: empresa.idEmpresa,
+      nombreEmpresa: empresa.nombreEmpresa,
+      ruc: empresa.ruc,
+      tipoComprobante: empresa.tipoComprobante,
+      representanteUserId: empresa.representanteUserId,
+      representanteLegalNombre: empresa.representanteLegalNombre,
+      representanteLegalDni: empresa.representanteLegalDni,
+      representanteCorreo: empresa.representanteCorreo,
+      direccionFiscal: empresa.direccionFiscal,
+      emailContacto: empresa.emailContacto,
+      emailFacturacion: empresa.emailFacturacion,
+    });
+    setResultados(null);
+  };
+
   if (seleccion) {
     return (
       <div className="space-y-1">
@@ -168,35 +186,25 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       {resultados && resultados.length > 0 && (
         <div className="max-h-[180px] space-y-0.5 overflow-y-auto rounded-lg border border-border p-1">
           {resultados.map((e) => (
-            <Button
+            <div
               key={e.key}
-              type="button"
-              variant="ghost"
-              disabled={!e.seleccionable}
-              className="h-auto w-full justify-start px-2 py-1 text-left disabled:opacity-60"
-              onClick={() => {
-                onSeleccion({
-                  empresaId: e.empresaId,
-                  idEmpresa: e.idEmpresa,
-                  nombreEmpresa: e.nombreEmpresa,
-                  ruc: e.ruc,
-                  tipoComprobante: e.tipoComprobante,
-                  representanteUserId: e.representanteUserId,
-                  representanteLegalNombre: e.representanteLegalNombre,
-                  representanteLegalDni: e.representanteLegalDni,
-                  representanteCorreo: e.representanteCorreo,
-                  direccionFiscal: e.direccionFiscal,
-                  emailContacto: e.emailContacto,
-                  emailFacturacion: e.emailFacturacion,
-                });
-                setResultados(null);
-              }}
+              className="flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-secondary/60"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium">{e.titulo}</span>
                 <span className="block font-mono text-[10px] text-muted-foreground">{e.sub}</span>
               </span>
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                disabled={!e.seleccionable}
+                onClick={() => seleccionar(e)}
+              >
+                <span>Seleccionar</span>
+              </Button>
+            </div>
           ))}
         </div>
       )}

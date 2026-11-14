@@ -599,7 +599,7 @@ export class EmpresaApplicationService {
     await this.obtener(id);
     if (config !== null && !configCuotasValida(config)) {
       throw new DomainError(
-        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas futuras, validas y en orden ascendente; los porcentajes deben sumar 100%.",
+        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas posteriores a hoy, validas y en orden ascendente; los porcentajes deben sumar 100%.",
         API_ERROR_CODES.VALIDATION,
         400,
       );

@@ -70,6 +70,9 @@ const ESTADOS_FILTRO = [
   ESTADOS_STAND.EN_PROCESO,
 ] as const;
 
+const AYUDA_CRONOGRAMA_RESERVA =
+  "Las fechas definen el cronograma del contrato que el cliente firmará. Después de la firma, la solicitud pasa a revisión del Asociado; recién con su aprobación se genera la orden de pago. La primera cuota puede ser hoy; las siguientes deben ser posteriores y en orden ascendente.";
+
 function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
   return {
     empresaId: empresa.id,
@@ -467,7 +470,7 @@ export function ReservarEmpresaPanel() {
       return;
     }
     if (!cuotasValidas) {
-      toast.error("Completa el cronograma de cuotas: fechas futuras y porcentajes que sumen 100%");
+      toast.error("Revisa el cronograma: primera cuota desde hoy, siguientes en orden ascendente y porcentajes que sumen 100%");
       return;
     }
     setCreandoContratoOpen(true);
@@ -907,6 +910,7 @@ export function ReservarEmpresaPanel() {
               montoTotal={total}
               moneda={monedaPago}
               disabled={guardando}
+              ayuda={AYUDA_CRONOGRAMA_RESERVA}
             />
 
             <div className="rounded-lg border border-border bg-secondary/30 p-3 text-xs">

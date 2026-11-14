@@ -256,6 +256,8 @@ describe("configuracion personalizada de cuotas por empresa", () => {
     expect(configCuotasValida({ maxCuotas: 2, fechas: ["2026-11-15"] }, "2026-10-19")).toBe(false);
     expect(configCuotasValida({ maxCuotas: 2, fechas: ["2026-11-15", "2026-11-14"] }, "2026-10-19")).toBe(false);
     expect(configCuotasValida({ maxCuotas: 1, fechas: ["2026-10-19"] }, "2026-10-19")).toBe(false);
+    expect(configCuotasValida({ maxCuotas: 1, fechas: ["2026-10-19"] }, "2026-10-19", true)).toBe(true);
+    expect(configCuotasValida({ maxCuotas: 2, fechas: ["2026-10-19", "2026-10-19"] }, "2026-10-19", true)).toBe(false);
   });
 
   it("genera porcentajes equitativos y acepta cualquier distribucion valida", () => {

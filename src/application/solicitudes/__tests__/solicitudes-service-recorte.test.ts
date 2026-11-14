@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import { SolicitudesApplicationService } from "../solicitudes-service";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow } from "@/domain/models/entities";
-import { ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, PERMISSIONS, RESULTADOS_APROBACION, REVISION_AREAS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, PERMISSIONS, RESULTADOS_APROBACION, REVISION_AREAS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
@@ -43,7 +43,7 @@ function repoMock(): ISolicitudesRepository {
     marcarDocumentosReemplazados: vi.fn(),
     marcarDocumentosReemplazadosPorIds: vi.fn(),
     eliminarDocumento: vi.fn(),
-    crearAlertaRevision: vi.fn(),
+    crearAlertaRevision: vi.fn().mockResolvedValue(undefined),
     crearAlertaRol: vi.fn(),
     findNombreUsuario: vi.fn().mockResolvedValue(null),
     guardarRecortePlano: vi.fn(),
@@ -299,6 +299,7 @@ describe("SolicitudesApplicationService.reenviarObservacion", () => {
 describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)", () => {
   function detalleReserva(overrides: Record<string, unknown> = {}) {
     return {
+      id: ID,
       userId: "user-1",
       email: "cliente@example.com",
       standCode: "106",
@@ -420,10 +421,10 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
   });
 
-  it("pasa a Pendiente Pago al firmar el contrato de una reserva administrativa", async () => {
+  it("al firmar una reserva administrativa la envia a revision del Asociado sin generar orden de pago", async () => {
     const repo = repoMock();
     vi.mocked(repo.detalle).mockResolvedValue(
-      detalleReserva({ tipo: "reserva_empresa", estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE }),
+      detalleReserva({ tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA, estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE }),
     );
     const service = svc(repo);
 
@@ -434,7 +435,11 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
       firmaDigital: true,
     });
 
-    expect(repo.marcarOrdenPago).toHaveBeenCalledWith(ID);
+    expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
+    expect(repo.crearRevisionInicial).toHaveBeenCalledWith(ID, REVISION_AREAS.ASOCIADO);
+    expect(repo.crearAlertaRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ solicitudId: ID, rol: expect.any(String) }),
+    );
   });
 
   it("permite anexos cuando la solicitud fue observada", async () => {
@@ -518,6 +523,114 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
       }),
     ).resolves.toBeUndefined();
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
+  });
+});
+
+describe("SolicitudesApplicationService.revisar (reserva administrativa)", () => {
+  const adminDoc = {
+    id: "contrato-admin",
+    nombre: "Contrato.pdf",
+    url: "/uploads/contrato.pdf",
+    userId: null,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: "2026-10-18T10:00:00.000Z",
+  };
+  const firmado = {
+    id: "contrato-firmado",
+    nombre: "Contrato firmado.pdf",
+    url: "/uploads/contrato-firmado.pdf",
+    userId: "user-1",
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: "2026-10-18T11:00:00.000Z",
+  };
+  const revisionAprobada = {
+    id: "rev-1",
+    solicitudId: ID,
+    area: REVISION_AREAS.ASOCIADO,
+    estado: RESULTADOS_APROBACION.APROBADO,
+    comentario: null,
+    createdBy: "rev@iimp.org",
+    updatedBy: "rev@iimp.org",
+    createdAt: new Date("2026-10-18T12:00:00.000Z"),
+    updatedAt: new Date("2026-10-18T12:00:00.000Z"),
+    estadoAnterior: RESULTADOS_APROBACION.PENDIENTE,
+    fuePrimeraRevision: true,
+  };
+
+  function detalleAdmin(docsAdjuntos: unknown[] = [adminDoc, firmado]) {
+    return {
+      id: ID,
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      userId: "user-1",
+      email: "cliente@example.com",
+      standCode: "106",
+      standCodes: ["106"],
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      docsAdjuntos,
+      revisiones: [],
+      sgcEnabled: true,
+      sgcStage: null,
+      sgcLifecycleStatus: null,
+    } as unknown as SolicitudRow;
+  }
+
+  it("al aprobar el Asociado valida el contrato firmado y genera la orden de pago", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleAdmin());
+    vi.mocked(repo.crearOActualizarRevision).mockResolvedValue(revisionAprobada as never);
+    const service = svc(repo);
+
+    await service.revisar({
+      solicitudId: ID,
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      reviewerEmail: "rev@iimp.org",
+    });
+
+    expect(repo.marcarOrdenPago).toHaveBeenCalledWith(ID);
+  });
+
+  it("no aprueba ni genera orden si falta el contrato firmado", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleAdmin([adminDoc]));
+    const service = svc(repo);
+
+    await expect(
+      service.revisar({
+        solicitudId: ID,
+        area: REVISION_AREAS.ASOCIADO,
+        estado: RESULTADOS_APROBACION.APROBADO,
+        reviewerEmail: "rev@iimp.org",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.crearOActualizarRevision).not.toHaveBeenCalled();
+    expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
+  });
+
+  it("no aprueba si la firma es anterior al contrato vigente", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(
+      detalleAdmin([
+        adminDoc,
+        { ...firmado, createdAt: "2026-10-18T09:00:00.000Z" },
+      ]),
+    );
+    const service = svc(repo);
+
+    await expect(
+      service.revisar({
+        solicitudId: ID,
+        area: REVISION_AREAS.ASOCIADO,
+        estado: RESULTADOS_APROBACION.APROBADO,
+        reviewerEmail: "rev@iimp.org",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.crearOActualizarRevision).not.toHaveBeenCalled();
+    expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
   });
 });
 

@@ -2,7 +2,7 @@
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, ROLES_REVISION_ASOCIADO, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -269,6 +269,14 @@ export class SolicitudesApplicationService {
         409,
       );
     }
+    const esReservaEmpresa = detalleActual?.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+    const aprobacionAsociadoReservaEmpresa =
+      esReservaEmpresa &&
+      data.area === REVISION_AREAS.ASOCIADO &&
+      data.estado === RESULTADOS_APROBACION.APROBADO;
+    if (aprobacionAsociadoReservaEmpresa && detalleActual) {
+      this.validarContratoFirmadoReservaEmpresa(detalleActual);
+    }
 
     /*
      * Observacion de documentos (solo Asociado): exige justificacion y al menos un
@@ -351,6 +359,17 @@ export class SolicitudesApplicationService {
 
     const revision = await this.repo.crearOActualizarRevision(data);
 
+    /*
+     * Reserva administrativa: la aprobacion del Asociado es la validacion final.
+     * No se envia al SGC; se genera la orden de pago con el contrato ya firmado.
+     */
+    if (aprobacionAsociadoReservaEmpresa) {
+      if (detalleActual?.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO) {
+        await this.repo.marcarOrdenPago(data.solicitudId);
+      }
+      return revision;
+    }
+
     const sgcHabilitado = isSgcEnabled();
     const aprobacionNueva =
       data.area === SGC_TRIGGER_REVISION_AREA &&
@@ -396,6 +415,64 @@ export class SolicitudesApplicationService {
   async inicializarRevisiones(solicitudId: string): Promise<void> {
     for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
       await this.repo.crearRevisionInicial(solicitudId, area);
+    }
+  }
+
+  /**
+   * La reserva administrativa no crea revisiones al reservar: al firmar el
+   * contrato se encola en la revision local del Asociado, igual que el flujo
+   * regular, para que el contrato se valide antes de generar la orden de pago.
+   */
+  private async encolarRevisionReservaEmpresa(detalle: SolicitudRow): Promise<void> {
+    if (detalle.revisiones.some((revision) => revision.area === REVISION_AREAS.ASOCIADO)) return;
+    await this.repo.crearRevisionInicial(detalle.id, REVISION_AREAS.ASOCIADO);
+    for (const rol of ROLES_REVISION_ASOCIADO) {
+      await this.repo
+        .crearAlertaRevision({
+          rol,
+          solicitudId: detalle.id,
+          clave: ALERTA_CLAVES.NUEVA_SOLICITUD_REVISION,
+          datos: { stands: detalle.standCode },
+        })
+        .catch(() => {});
+    }
+  }
+
+  /** Antes de generar la orden de pago, exige el contrato firmado vigente de esta solicitud. */
+  private validarContratoFirmadoReservaEmpresa(detalle: SolicitudRow): void {
+    const documentos = detalle.docsAdjuntos ?? [];
+    const vigente = (documento: (typeof documentos)[number]) =>
+      !documento.estado || documento.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+    const porFechaDesc = (a: (typeof documentos)[number], b: (typeof documentos)[number]) =>
+      (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0);
+
+    const contrato = documentos
+      .filter((documento) => documento.userId === null && documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO && vigente(documento))
+      .sort(porFechaDesc)[0];
+    const firmado = documentos
+      .filter((documento) => documento.userId !== null && documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && vigente(documento))
+      .sort(porFechaDesc)[0];
+
+    if (!contrato) {
+      throw new DomainError(
+        "No hay un contrato vigente para esta reserva. Regenera el contrato antes de aprobar.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!firmado) {
+      throw new DomainError(
+        "El cliente aun no tiene un contrato firmado vigente para esta reserva.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if ((dateUtils.toMs(firmado.createdAt) ?? 0) < (dateUtils.toMs(contrato.createdAt) ?? 0)) {
+      throw new DomainError(
+        "El contrato firmado no corresponde a la version vigente. Solicita una nueva firma.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
     }
   }
 
@@ -799,17 +876,17 @@ export class SolicitudesApplicationService {
         );
 
     /*
-     * Avance del flujo: cuando el cliente sube el contrato firmado, se avisa al
-     * admin para que proceda con la revision de las areas. Best-effort: un fallo
-     * de la alerta no revierte la subida.
+     * Avance del flujo: al firmar se avisa al admin y, en la reserva
+     * administrativa, se encola en la revision del Asociado. No se genera la
+     * orden de pago hasta que el Asociado valide el contrato.
      */
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
       const detalle = await this.repo.detalle(params.solicitudId);
       if (
         detalle?.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
-        detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO
+        detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE
       ) {
-        await this.repo.marcarOrdenPago(params.solicitudId);
+        await this.encolarRevisionReservaEmpresa(detalle);
       }
       try {
         if (detalle) {

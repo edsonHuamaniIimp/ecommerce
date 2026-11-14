@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { Button, Input, Label } from "@nrivera-iimp/ui-kit-iimp";
-import { Plus, Trash2 } from "lucide-react";
+import { Button, Input, Label, Popover, PopoverContent, PopoverTrigger } from "@nrivera-iimp/ui-kit-iimp";
+import { CircleHelp, Plus, Trash2 } from "lucide-react";
 import { CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOTAL, MAX_CUOTAS_PERSONALIZADAS } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import {
@@ -47,25 +47,29 @@ export function validarFilasCuotas(filas: CuotaFila[]): boolean {
   return configCuotasValida(
     { maxCuotas: filas.length, fechas, porcentajes },
     dateUtils.todayLimaInputValue(),
+    true,
   );
 }
 
-export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disabled = false }: {
+export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disabled = false, ayuda }: {
   filas: CuotaFila[];
   onChange: (filas: CuotaFila[]) => void;
   montoTotal: number;
   moneda?: string;
   disabled?: boolean;
+  /** Texto de ayuda opcional que se muestra al pulsar el icono "?". */
+  ayuda?: string;
 }) {
   const hoy = dateUtils.todayLimaInputValue();
-  const manana = dateUtils.inputValue(dateUtils.addDays(dateUtils.toDate(hoy) ?? new Date(), 1));
   const fechas = filas.map((fila) => fila.fecha);
   const porcentajes = filas.map((fila) => Number(fila.porcentaje));
   const suma = sumarPorcentajes(porcentajes);
   const sumaMontos = sumarMontos(filas.map((fila) => ({ monto: Number(fila.monto) || 0 })));
   const fechasCompletas = filas.every((fila) => fila.fecha.trim() !== "");
   const porcentajesCompletos = filas.every((fila) => fila.porcentaje.trim() !== "");
-  const fechasOk = fechasCompletas && fechas.every((fecha, index) => fecha > hoy && (index === 0 || fecha > (fechas[index - 1] ?? "")));
+  const fechasOk = fechasCompletas && fechas.every((fecha, index) =>
+    index === 0 ? fecha >= hoy : fecha > (fechas[index - 1] ?? ""),
+  );
   const porcentajesOk = porcentajesCompletos && porcentajesValidos(porcentajes, filas.length);
   const formularioValido = validarFilasCuotas(filas);
 
@@ -136,9 +140,31 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Label className="text-xs">
-          <span>Cuotas: <strong>{filas.length}</strong></span>
-        </Label>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs">
+            <span>Cuotas: <strong>{filas.length}</strong></span>
+          </Label>
+          {ayuda ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-full text-muted-foreground hover:text-foreground"
+                  aria-label="Ayuda sobre el cronograma"
+                  title="Ayuda sobre el cronograma"
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" side="bottom" className="w-80 p-3 text-xs leading-relaxed">
+                <p className="mb-1 font-semibold text-foreground">Ten en cuenta el flujo de firma</p>
+                <p className="text-muted-foreground">{ayuda}</p>
+              </PopoverContent>
+            </Popover>
+          ) : null}
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -166,7 +192,7 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
                 <Input
                   id={`reserva-fecha-${index}`}
                   type="date"
-                  min={manana}
+                  min={index === 0 ? hoy : (filas[index - 1]?.fecha || hoy)}
                   value={fila.fecha}
                   onChange={(event) => actualizarFila(index, { fecha: event.target.value })}
                   className="h-8 text-xs"
@@ -232,12 +258,12 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
                 : "Porcentajes incompletos"}
             </span>
           </span>
-          {!formularioValido ? <span className="text-warning">Completa todos los campos.</span> : null}
+          {(!fechasCompletas || !porcentajesCompletos) ? <span className="text-warning">Completa todos los campos.</span> : null}
         </div>
         <div className={Math.abs(sumaMontos - montoTotal) < 0.01 ? "text-muted-foreground" : "text-warning"}>
           <span>Suma de montos: {formatearMonto(sumaMontos, moneda, { decimales: 2 })} de {formatearMonto(montoTotal, moneda, { decimales: 2 })}</span>
         </div>
-        {!fechasOk ? <p className="text-warning">Usa fechas futuras y en orden ascendente.</p> : null}
+        {!fechasOk ? <p className="text-warning">La primera cuota puede ser hoy; las siguientes deben ir en orden ascendente.</p> : null}
         {!porcentajesOk ? <p className="text-warning">Cada porcentaje debe ser mayor a 0 y sumar 100%.</p> : null}
       </div>
     </div>

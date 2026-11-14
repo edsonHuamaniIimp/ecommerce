@@ -48,6 +48,8 @@ export function configCuotasFijaPorcentajes(config: ConfigCuotasEmpresa | null |
 export function configCuotasValida(
   config: ConfigCuotasEmpresa | null | undefined,
   hoyISO: string = dateUtils.todayLimaInputValue(),
+  /** Permite que la primera cuota venza hoy (reserva administrativa). */
+  permitirHoy = false,
 ): boolean {
   if (!config) return false;
   if (!Number.isInteger(config.maxCuotas) || config.maxCuotas < 1 || config.maxCuotas > MAX_CUOTAS_PERSONALIZADAS) return false;
@@ -55,7 +57,11 @@ export function configCuotasValida(
   const fechas = config.fechas;
   const fechasValidas = fechas.every((fecha, i) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
-    if (fecha <= hoyISO) return false;
+    if (permitirHoy && i === 0) {
+      if (fecha < hoyISO) return false;
+    } else if (fecha <= hoyISO) {
+      return false;
+    }
     return i === 0 || fecha > (fechas[i - 1] ?? "");
   });
   if (!fechasValidas) return false;

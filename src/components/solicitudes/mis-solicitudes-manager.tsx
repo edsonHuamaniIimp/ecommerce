@@ -55,6 +55,16 @@ function faltanAnexosReserva(row: SolicitudRow) {
   return enVentanaContratoReserva(row) && anexosBloqueantesFaltantes(row.docsAdjuntos).length > 0;
 }
 
+/** La reserva administrativa ya fue firmada y espera la aprobacion del Asociado. */
+function contratoFirmadoReservaPendienteAprobacion(row: SolicitudRow) {
+  if (row.tipo !== TIPOS_SOLICITUD.RESERVA_EMPRESA || row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) return false;
+  return (row.docsAdjuntos ?? []).some(
+    (documento) =>
+      documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+      (!documento.estado || documento.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+  );
+}
+
 /** Estado de la subsanacion local: que falta reemplazar/firmar y si ya se puede reenviar. */
 /** Solo se puede eliminar lo subido en la iteracion actual (posterior a la ultima revision). */
 function puedeEliminarDocumentoActual(row: SolicitudRow, doc: SolicitudRow["docsAdjuntos"][number]) {
@@ -647,6 +657,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </p>
                       )}
 
+                      {contratoFirmadoReservaPendienteAprobacion(row) && (
+                        <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
+                          <span className="font-semibold">Contrato firmado: </span>
+                          pendiente de aprobación del Asociado antes de pasar a pago.
+                        </p>
+                      )}
+
                       {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                         const a = accionesObservacion(row);
                         const obsSgc = sgcObservacionesAbiertas(row);
@@ -755,6 +772,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           )}
                           {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
+                            const reenvioBloqueado = soloLectura || reenviandoObservacion || (
+                              enVentanaDocumentosSgc(row)
+                                ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row)
+                                : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato
+                            );
+                            const reenvioListo = !reenvioBloqueado && a.anexosPendientes === 0;
                             return (
                               <>
                                 {a.contratoCorregidoPendienteFirma && (
@@ -779,9 +802,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
                                     (anexos corregidos + contrato si corresponde + /resend). */}
-                                <Button size="sm" variant="outline"
-                                  className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                <Button size="sm"
+                                  variant={reenvioListo ? "default" : "outline"}
+                                  className={`w-full justify-center gap-1.5 sm:w-auto ${reenvioListo ? "bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90 motion-safe:animate-pulse" : ""}`}
+                                  disabled={reenvioBloqueado}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -795,7 +819,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
                                             ? "Falta firmar contrato"
-                                            : "Reenviar a revision"}
+                                            : "Reenviar a revisión"}
                                   </span>
                                 </Button>
                               </>
@@ -907,6 +931,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             )}
                           {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
+                            const reenvioBloqueado = soloLectura || reenviandoObservacion || (
+                              enVentanaDocumentosSgc(row)
+                                ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row)
+                                : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato
+                            );
+                            const reenvioListo = !reenvioBloqueado && a.anexosPendientes === 0;
                             return (
                               <>
                                 {a.contratoCorregidoPendienteFirma && (
@@ -931,9 +961,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
                                     (anexos corregidos + contrato si corresponde + /resend). */}
-                                <Button size="sm" variant="outline"
-                                  className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                <Button size="sm"
+                                  variant={reenvioListo ? "default" : "outline"}
+                                  className={`w-full justify-center gap-1.5 sm:w-auto ${reenvioListo ? "bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90 motion-safe:animate-pulse" : ""}`}
+                                  disabled={reenvioBloqueado}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -947,7 +978,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
                                             ? "Falta firmar contrato"
-                                            : "Reenviar a revision"}
+                                            : "Reenviar a revisión"}
                                   </span>
                                 </Button>
                               </>
