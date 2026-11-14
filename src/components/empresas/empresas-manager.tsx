@@ -222,7 +222,7 @@ export function EmpresasManager() {
               {pagination.total}
             </span>
               <span className="text-[11px] text-muted-foreground">
-                La llave crea la cuenta de acceso (usuario = RUC/RUT) en empresas sin representante legal. No se envian correos: los datos se completan en el primer ingreso.
+                La llave crea la cuenta de acceso (usuario = RUC/RUT) cuando la empresa aun no tiene cuenta. No se envian correos: los datos se completan en el primer ingreso.
               </span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -396,21 +396,19 @@ export function EmpresasManager() {
                             <TooltipContent side="top"><span>Ver información validada</span></TooltipContent>
                           </Tooltip>
                           {!empresa.cuentaCreada ? (
-                            !empresa.representanteLegalNombre?.trim() ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 w-7 p-0 text-primary hover:text-primary"
-                                    onClick={() => { void crearCuenta(empresa); }}
-                                  >
-                                    <KeyRound className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC/RUT)</span></TooltipContent>
-                              </Tooltip>
-                            ) : null
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-primary hover:text-primary"
+                                  onClick={() => { void crearCuenta(empresa); }}
+                                >
+                                  <KeyRound className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top"><span>Crear cuenta de acceso (usuario = RUC/RUT)</span></TooltipContent>
+                            </Tooltip>
                           ) : (
                             <>
                               {!empresa.representanteLegalNombre?.trim() && empresa.cuentaEmail && !esEmailProvisional(empresa.cuentaEmail) ? (
