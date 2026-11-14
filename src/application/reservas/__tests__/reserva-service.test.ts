@@ -424,6 +424,52 @@ describe("ReservaApplicationService - moneda del contrato", () => {
 });
 
 describe("ReservaApplicationService - tipo de solicitud", () => {
+  function crearServicioAdmin() {
+    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789", preReservaRazonSocial: "Empresa de Prueba S.A.C.", medidas: "7440.00 USD", bloqueId: "B-1" }]);
+    const solicitudesRepo = {
+      crearSolicitud: vi.fn(async () => "sol-1"),
+      marcarOrdenPago: vi.fn(async () => undefined),
+      guardarPlanCuotas: vi.fn(async () => undefined),
+      crearAlertaRevision: vi.fn(async () => undefined),
+      crearAlertaReserva: vi.fn(async () => undefined),
+      habilitarContrato: vi.fn(async () => undefined),
+    } as unknown as ISolicitudesRepository;
+    const authRepo = {
+      findPerfilByEmail: vi.fn(async () => ({ empresa: { ruc: "20123456789", razonSocial: "Empresa de Prueba S.A.C." } })),
+      findByEmail: vi.fn(async () => [{ userId: "user-rep" }]),
+    } as unknown as IAuthRepository;
+    const empresaRepo = {
+      findByRuc: vi.fn(async () => ({
+        ruc: "20123456789",
+        estado: "activa",
+        razonSocial: "Empresa de Prueba S.A.C.",
+        tipoDocumento: "6",
+        tipoComprobante: "01",
+        direccionFiscal: "Av. Prueba 123",
+        telefono: null,
+        emailContacto: "representante@empresa.pe",
+        representanteCorreo: "representante@empresa.pe",
+        representanteLegalNombre: "Representante Legal",
+        representanteLegalDni: "12345678",
+        representanteUserId: "user-rep",
+      })),
+    } as unknown as IEmpresaRepository;
+    const contratoService = {
+      generar: vi.fn(async () => ({ docxUrl: "/contrato.docx", pdfUrl: null, nombre: "contrato" })),
+    };
+    const svc = new ReservaApplicationService(
+      repo,
+      solicitudesRepo,
+      authRepo,
+      undefined,
+      undefined,
+      undefined,
+      empresaRepo,
+      contratoService as never,
+    );
+    return { svc, solicitudesRepo, contratoService };
+  }
+
   it("marca como reserva_empresa la solicitud creada desde la reserva administrativa", async () => {
     const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789", preReservaRazonSocial: "Empresa de Prueba S.A.C.", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
@@ -474,11 +520,21 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
       standIds: ["g1"],
       moneda: "USD",
       tipoComprobante: "boleta",
+      descuentoPorcentaje: 3,
       cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
       actorEmail: "admin@iimp.org.pe",
     });
 
     expect(res.ok).toBe(true);
+    expect(vi.mocked(solicitudesRepo.guardarPlanCuotas)).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({
+        descuentoPorcentaje: 3,
+        netoLista: 7440,
+        netoDescontado: 7216.8,
+        total: 8515.82,
+      }),
+    );
     expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[6]).toBe(
       TIPOS_SOLICITUD.RESERVA_EMPRESA,
     );
@@ -492,6 +548,67 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     expect(solicitudesRepo.habilitarContrato).toHaveBeenCalledWith("sol-1");
     expect(solicitudesRepo.marcarOrdenPago).not.toHaveBeenCalled();
     expect(res.estado).toBe("pendiente");
+  });
+
+  it("aplica descuento fijo exacto y lo guarda en el snapshot", async () => {
+    const { svc, solicitudesRepo } = crearServicioAdmin();
+
+    const res = await svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentoMonto: 500.4,
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    });
+
+    expect(res.ok).toBe(true);
+    expect(vi.mocked(solicitudesRepo.guardarPlanCuotas)).toHaveBeenCalledWith(
+      "sol-1",
+      expect.objectContaining({
+        descuentoPorcentaje: 0,
+        descuentoTipo: "monto",
+        descuentoValor: 500.4,
+        netoLista: 7440,
+        descuentoMonto: 500.4,
+        netoDescontado: 6939.6,
+        igv: 1249.13,
+        total: 8188.73,
+      }),
+    );
+  });
+
+  it("rechaza aplicar porcentaje y monto fijo al mismo tiempo", async () => {
+    const { svc } = crearServicioAdmin();
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentoPorcentaje: 3,
+      descuentoMonto: 500.4,
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toThrow(/un solo tipo de descuento/i);
+  });
+
+  it("rechaza un descuento fijo mayor al neto", async () => {
+    const { svc } = crearServicioAdmin();
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentoMonto: 8000,
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toThrow(/no superar el neto/i);
   });
 
   it("rechaza una empresa sin representante legal con cuenta vinculada", async () => {

@@ -47,8 +47,8 @@ import { reservasAdminService } from "@/lib/client/api/services/reservas-admin-s
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, BADGE_STYLES, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
 import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -111,6 +111,10 @@ export function ReservarEmpresaPanel() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
   const [moneda, setMoneda] = useState<string>(UI_SENTINEL.SELECCIONAR);
+  const [aplicarDescuento, setAplicarDescuento] = useState(false);
+  const [tipoDescuento, setTipoDescuento] = useState<"porcentaje" | "monto">("porcentaje");
+  const [descuentoPorcentaje, setDescuentoPorcentaje] = useState("0");
+  const [descuentoMontoInput, setDescuentoMontoInput] = useState("0");
   const [tipoComprobante, setTipoComprobante] = useState<string>(UI_SENTINEL.SELECCIONAR);
   const [tipoCambio, setTipoCambio] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -295,7 +299,24 @@ export function ReservarEmpresaPanel() {
     () => seleccionados.reduce((total, stand) => total + resolverPrecioStand(stand), 0),
     [seleccionados],
   );
-  const neto = convertirNeto(netoUsd, monedaPago, tipoCambio);
+  const netoLista = convertirNeto(netoUsd, monedaPago, tipoCambio);
+  const descuentoNumero = aplicarDescuento
+    ? (tipoDescuento === "porcentaje" ? Number(descuentoPorcentaje || 0) : Number(descuentoMontoInput || 0))
+    : 0;
+  const descuentoValido = !aplicarDescuento || (
+    tipoDescuento === "porcentaje"
+      ? descuentoPorcentaje.trim() !== "" && descuentoPorcentajeValido(descuentoNumero)
+      : descuentoMontoInput.trim() !== "" && descuentoMontoValido(netoLista, descuentoNumero)
+  );
+  const neto = !descuentoValido
+    ? netoLista
+    : tipoDescuento === "porcentaje"
+      ? aplicarDescuentoNeto(netoLista, descuentoNumero)
+      : aplicarDescuentoMonto(netoLista, descuentoNumero);
+  const descuentoMonto = redondear2(netoLista - neto);
+  const etiquetaDescuento = tipoDescuento === "porcentaje"
+    ? `Descuento (${descuentoNumero}%)`
+    : "Descuento fijo";
   const importes = calcularImportes(neto);
   const total = importes.total;
   const igv = importes.igv;
@@ -493,6 +514,8 @@ export function ReservarEmpresaPanel() {
         standIds: [...selected],
         moneda: monedaSeleccionada ? monedaPago : undefined,
         tipoComprobante: comprobanteSeleccionado ? (tipoComprobante as TipoComprobante) : undefined,
+        descuentoPorcentaje: aplicarDescuento && tipoDescuento === "porcentaje" ? descuentoNumero : 0,
+        descuentoMonto: aplicarDescuento && tipoDescuento === "monto" ? descuentoNumero : 0,
         cuotas,
       });
       setResultado(response);
@@ -500,6 +523,10 @@ export function ReservarEmpresaPanel() {
       toast.success("Reserva creada. Contrato generado; pendiente de firma.");
       setSelected(new Set());
       setEmpresa(null);
+      setAplicarDescuento(false);
+      setDescuentoPorcentaje("0");
+      setDescuentoMontoInput("0");
+      setTipoDescuento("porcentaje");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo crear la reserva");
     } finally {
@@ -757,6 +784,8 @@ export function ReservarEmpresaPanel() {
               <div className="flex items-center justify-between border-b border-border px-3 py-2">
                 <p className="text-xs font-semibold text-foreground">Stands seleccionados ({seleccionados.length})</p>
                 <div className="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground">
+                  <span>Neto lista: {formatearMonto(netoLista, monedaPago, { decimales: 2 })}</span>
+                  {descuentoMonto > 0 && <span className="text-success">{etiquetaDescuento}: -{formatearMonto(descuentoMonto, monedaPago, { decimales: 2 })}</span>}
                   <span>Neto: {formatearMonto(neto, monedaPago, { decimales: 2 })}</span>
                   <span>IGV: {formatearMonto(igv, monedaPago, { decimales: 2 })}</span>
                   <span className="text-xs font-semibold text-foreground">Total con IGV: {formatearMonto(total, monedaPago, { decimales: 2 })}</span>
@@ -913,7 +942,7 @@ export function ReservarEmpresaPanel() {
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="reserva-comprobante">Tipo de facturación</Label>
               <Select
@@ -964,6 +993,82 @@ export function ReservarEmpresaPanel() {
                   : "El evento no tiene tipo de cambio configurado; solo se permite USD."}
               </p>
             </div>
+            <div className="space-y-1">
+              <div className="flex h-5 items-center gap-2">
+                <Checkbox
+                  id="reserva-aplicar-descuento"
+                  checked={aplicarDescuento}
+                  onCheckedChange={(value) => {
+                    const activo = value === true;
+                    setAplicarDescuento(activo);
+                    if (!activo) {
+                      setDescuentoPorcentaje("0");
+                      setDescuentoMontoInput("0");
+                    }
+                  }}
+                  disabled={guardando}
+                />
+                <Label htmlFor="reserva-aplicar-descuento">Aplicar descuento</Label>
+              </div>
+              {aplicarDescuento ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={tipoDescuento === "porcentaje" ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setTipoDescuento("porcentaje");
+                        setDescuentoPorcentaje("0");
+                        setDescuentoMontoInput("0");
+                      }}
+                      disabled={guardando}
+                    >
+                      Porcentaje
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={tipoDescuento === "monto" ? "default" : "outline"}
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setTipoDescuento("monto");
+                        setDescuentoPorcentaje("0");
+                        setDescuentoMontoInput("0");
+                      }}
+                      disabled={guardando}
+                    >
+                      Monto fijo
+                    </Button>
+                  </div>
+                  <Input
+                    id="reserva-descuento"
+                    aria-label={tipoDescuento === "porcentaje" ? "Descuento (%)" : "Descuento (monto)"}
+                    type="number"
+                    min={tipoDescuento === "porcentaje" ? DESCUENTO_PORCENTAJE_MIN : 0}
+                    max={tipoDescuento === "porcentaje" ? DESCUENTO_PORCENTAJE_MAX : undefined}
+                    step={DESCUENTO_PORCENTAJE_PASO}
+                    value={tipoDescuento === "porcentaje" ? descuentoPorcentaje : descuentoMontoInput}
+                    onChange={(event) => {
+                      if (tipoDescuento === "porcentaje") setDescuentoPorcentaje(event.target.value);
+                      else setDescuentoMontoInput(event.target.value);
+                    }}
+                    className="h-10 text-xs"
+                    disabled={guardando}
+                  />
+                </div>
+              ) : null}
+              <p className={`text-[11px] ${aplicarDescuento && !descuentoValido ? "text-destructive" : "text-muted-foreground"}`}>
+                {aplicarDescuento
+                  ? descuentoValido
+                    ? "Se aplica al neto antes de IGV y afecta todas las cuotas."
+                    : tipoDescuento === "monto"
+                      ? "El monto debe ser mayor a 0, tener maximo 2 decimales y no superar el neto."
+                      : "El porcentaje debe estar entre 0 y 100 y tener maximo 2 decimales."
+                  : "Activa el descuento para elegir porcentaje o monto fijo."}
+              </p>
+            </div>
             </div>
 
             <CuotasEditor
@@ -981,8 +1086,22 @@ export function ReservarEmpresaPanel() {
                 <span className="font-medium">{selected.size}</span>
               </div>
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-muted-foreground">Neto</span>
+                <span className="text-muted-foreground">Neto lista</span>
+                <span>{formatearMonto(netoLista, monedaPago, { decimales: 2 })}</span>
+              </div>
+              {descuentoMonto > 0 && (
+                <div className="mt-1 flex items-center justify-between text-success">
+                  <span>{etiquetaDescuento}</span>
+                  <span>-{formatearMonto(descuentoMonto, monedaPago, { decimales: 2 })}</span>
+                </div>
+              )}
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted-foreground">Neto con descuento</span>
                 <span>{formatearMonto(neto, monedaPago, { decimales: 2 })}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted-foreground">IGV</span>
+                <span>{formatearMonto(igv, monedaPago, { decimales: 2 })}</span>
               </div>
               <div className="mt-1 flex items-center justify-between font-semibold">
                 <span>Total con IGV</span>
@@ -1018,7 +1137,8 @@ export function ReservarEmpresaPanel() {
                 !comprobanteSeleccionado ||
                 !monedaSeleccionada ||
                 selected.size === 0 ||
-                !cuotasValidas
+                !cuotasValidas ||
+                !descuentoValido
               }
             >
               <span>Revisar y crear reserva</span>
@@ -1119,7 +1239,17 @@ export function ReservarEmpresaPanel() {
 
             <div className="space-y-1 rounded-md bg-secondary/40 p-2">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Neto</span>
+                <span className="text-muted-foreground">Neto lista</span>
+                <span className="text-foreground">{formatearMonto(netoLista, monedaPago, { decimales: 2 })}</span>
+              </div>
+              {descuentoMonto > 0 && (
+                <div className="flex items-center justify-between text-success">
+                  <span>{etiquetaDescuento}</span>
+                  <span>-{formatearMonto(descuentoMonto, monedaPago, { decimales: 2 })}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Neto con descuento</span>
                 <span className="text-foreground">{formatearMonto(neto, monedaPago, { decimales: 2 })}</span>
               </div>
               <div className="flex items-center justify-between">

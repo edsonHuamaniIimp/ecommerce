@@ -26,7 +26,7 @@ import {
 } from "@/lib/shared/constants";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { anexosBloqueantesFaltantes, contratoFirmadoPendienteReemplazo, esObservacionSgcContrato, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, esObservacionSgcContrato, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -140,6 +140,7 @@ export function SolicitudReview({
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
   const esReservaEmpresa = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+  const contratoPendienteFirma = esReservaEmpresa && contratoClientePendienteFirma(row);
   const areas = esReservaEmpresa
     ? [REVISION_AREAS.ASOCIADO]
     : areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
@@ -454,6 +455,7 @@ export function SolicitudReview({
   /** Se puede observar mientras el paso Asociado esta editable. */
   const puedeObservar =
     !ddAccionesBloqueadas &&
+    !contratoPendienteFirma &&
     !sgcEnLegal &&
     currentArea === REVISION_AREAS.ASOCIADO &&
     (!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) &&
@@ -922,6 +924,12 @@ export function SolicitudReview({
           </Badge>
         </div>
 
+        {contratoPendienteFirma && (
+          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+            El cliente aun no firmo el contrato. La revision del Asociado se habilita cuando suba el contrato firmado.
+          </p>
+        )}
+
         {sgcEnLegal && (
           <p className="rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
             El expediente está en revisión Legal (SGC). Los cambios de estado están inhabilitados
@@ -1010,8 +1018,8 @@ export function SolicitudReview({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
-                title={docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
+                disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
+                title={contratoPendienteFirma ? "El cliente aun no firmo el contrato" : docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
                 className="gap-1.5 border-destructive/40 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive disabled:border-border disabled:text-muted-foreground"
                 onClick={handleRechazar}
               >
@@ -1033,7 +1041,7 @@ export function SolicitudReview({
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={ddAccionesBloqueadas || !!submitting}
+                    disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting}
                     className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
                     onClick={handleObservar}
                   >
@@ -1043,8 +1051,8 @@ export function SolicitudReview({
                 )}
                 <Button
                   size="sm"
-                  disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
-                  title={docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
+                  disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
+                  title={contratoPendienteFirma ? "El cliente aun no firmo el contrato" : docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
                   className="gap-1.5 text-xs font-semibold"
                   onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
                 >

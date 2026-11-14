@@ -1,4 +1,4 @@
-﻿import { IGV_PORCENTAJE } from "@/lib/shared/constants";
+﻿import { DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, IGV_PORCENTAJE } from "@/lib/shared/constants";
 
 /** Desglose de importes del contrato (Anexo 2). */
 export interface ImportesContrato {
@@ -32,6 +32,35 @@ function desdeCentavos(centavos: number): number {
 /** Redondeo monetario a 2 decimales (centavos), con correccion de binario. */
 export function redondear2(valor: number): number {
   return desdeCentavos(aCentavos(valor));
+}
+
+/** Porcentaje de descuento valido: rango permitido y hasta 2 decimales. */
+export function descuentoPorcentajeValido(porcentaje: number | null | undefined): porcentaje is number {
+  if (typeof porcentaje !== "number" || !Number.isFinite(porcentaje)) return false;
+  if (porcentaje < DESCUENTO_PORCENTAJE_MIN || porcentaje > DESCUENTO_PORCENTAJE_MAX) return false;
+  const pasos = porcentaje / DESCUENTO_PORCENTAJE_PASO;
+  return Math.abs(pasos - Math.round(pasos)) < 1e-9;
+}
+
+/** Monto fijo de descuento valido: no negativo, en centavos y no mayor al neto. */
+export function descuentoMontoValido(neto: number, monto: number | null | undefined): monto is number {
+  if (typeof monto !== "number" || !Number.isFinite(monto) || monto < 0) return false;
+  if (!Number.isFinite(neto) || neto < 0 || monto > neto) return false;
+  return Math.abs(monto - redondear2(monto)) < 1e-9;
+}
+
+/** Aplica el descuento sobre el neto y redondea una sola vez a centavos. */
+export function aplicarDescuentoNeto(neto: number, porcentaje: number): number {
+  if (!Number.isFinite(neto) || neto < 0) throw new TypeError("Neto monetario invalido");
+  if (!descuentoPorcentajeValido(porcentaje)) throw new TypeError("Porcentaje de descuento invalido");
+  return redondear2(neto * (1 - porcentaje / 100));
+}
+
+/** Aplica un descuento fijo al neto, validando que no supere el importe. */
+export function aplicarDescuentoMonto(neto: number, monto: number): number {
+  if (!Number.isFinite(neto) || neto < 0) throw new TypeError("Neto monetario invalido");
+  if (!descuentoMontoValido(neto, monto)) throw new TypeError("Monto de descuento invalido");
+  return redondear2(neto - monto);
 }
 
 /**

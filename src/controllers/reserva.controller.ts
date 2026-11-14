@@ -77,6 +77,8 @@ export const reservaController = {
       standIds: body.standIds,
       moneda: body.moneda,
       tipoComprobante: body.tipoComprobante,
+      descuentoPorcentaje: body.descuentoPorcentaje,
+      descuentoMonto: body.descuentoMonto,
       cuotas: body.cuotas,
       actorEmail: session.email,
     });

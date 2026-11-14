@@ -1130,6 +1130,11 @@ export const HITOS_CUOTAS = {
 /** Porcentaje de IGV aplicado a las facturas (18%). */
 export const IGV_PORCENTAJE = 0.18;
 
+/** Descuento comercial permitido sobre el neto (0% a 100%, paso de 0.01%). */
+export const DESCUENTO_PORCENTAJE_MIN = 0;
+export const DESCUENTO_PORCENTAJE_MAX = 100;
+export const DESCUENTO_PORCENTAJE_PASO = 0.01;
+
 /** Maximo de cuotas del plan contractual (1..3). */
 export const MAX_CUOTAS_PAGO = 3;
 

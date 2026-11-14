@@ -1,4 +1,4 @@
-﻿import type { IGessRepository } from "@/domain/ports/gess-repository";
+import type { IGessRepository } from "@/domain/ports/gess-repository";
 import { randomUUID } from "node:crypto";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
@@ -12,7 +12,7 @@ import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { configCuotasValida, cuotasCoincidenConfig, modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
@@ -148,6 +148,10 @@ export class ReservaApplicationService {
     moneda?: string;
     /** Comprobante elegido para la solicitud; si falta se usa el de la empresa. */
     tipoComprobante?: string;
+    /** Descuento comercial sobre el neto (0..100, hasta 2 decimales). */
+    descuentoPorcentaje?: number;
+    /** Descuento fijo sobre el neto, en la moneda del contrato. */
+    descuentoMonto?: number;
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     actorEmail: string;
   }): Promise<{ ok: boolean; message: string; solicitudId?: string; estado?: string }> {
@@ -174,6 +178,20 @@ export class ReservaApplicationService {
     }
 
     const tipoComprobante = input.tipoComprobante ?? empresa.tipoComprobante;
+    const descuentoPorcentaje = input.descuentoPorcentaje ?? 0;
+    const descuentoMonto = input.descuentoMonto ?? 0;
+    if (
+      !descuentoPorcentajeValido(descuentoPorcentaje) ||
+      !Number.isFinite(descuentoMonto) ||
+      descuentoMonto < 0 ||
+      (descuentoPorcentaje > 0 && descuentoMonto > 0)
+    ) {
+      throw new DomainError(
+        "Indica un solo tipo de descuento: porcentaje entre 0 y 100 con maximo 2 decimales, o monto fijo no negativo.",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
     const readiness = validarEmpresaReservaAdministrativa(empresa, tipoComprobante, input.moneda ?? "");
     if (!readiness.ok) {
       throw new DomainError(
@@ -212,6 +230,8 @@ export class ReservaApplicationService {
       },
       moneda: input.moneda,
       cuotas: input.cuotas,
+      descuentoPorcentaje,
+      descuentoMonto,
       tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
       omitirRevisiones: true,
       requerirStandComercial: true,
@@ -282,6 +302,10 @@ export class ReservaApplicationService {
     permitirPreReservaAjena?: boolean;
     /** Reserva administrativa: permite un cronograma propio aunque la empresa tenga uno configurado. */
     omitirValidacionCronograma?: boolean;
+    /** Descuento comercial sobre el neto; solo aplica a la reserva administrativa. */
+    descuentoPorcentaje?: number;
+    /** Descuento fijo sobre el neto; excluyente con el porcentaje. */
+    descuentoMonto?: number;
     /** Actor que ejecuta la operacion (admin), distinto del titular de la solicitud. */
     actorEmail?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
@@ -454,7 +478,26 @@ export class ReservaApplicationService {
         /* Snapshot del cronograma elegido: el contrato se genera al final. */
         if (request.cuotas && request.cuotas.length > 0) {
           const netoUsd = validos.reduce((total, stand) => total + stand.precio, 0);
-          const neto = convertirNeto(netoUsd, moneda, tipoCambio);
+          const netoLista = convertirNeto(netoUsd, moneda, tipoCambio);
+          const descuentoPorcentaje = request.descuentoPorcentaje ?? 0;
+          const descuentoMontoSolicitado = request.descuentoMonto ?? 0;
+          if (descuentoPorcentaje > 0 && descuentoMontoSolicitado > 0) {
+            throw new DomainError(
+              "Indica un solo tipo de descuento: porcentaje o monto fijo.",
+              API_ERROR_CODES.VALIDATION,
+              400,
+            );
+          }
+          if (descuentoMontoSolicitado > 0 && !descuentoMontoValido(netoLista, descuentoMontoSolicitado)) {
+            throw new DomainError(
+              "El descuento fijo debe ser mayor a 0, tener maximo 2 decimales y no superar el neto.",
+              API_ERROR_CODES.VALIDATION,
+              400,
+            );
+          }
+          const neto = descuentoMontoSolicitado > 0
+            ? aplicarDescuentoMonto(netoLista, descuentoMontoSolicitado)
+            : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
           const importes = calcularImportes(neto);
           const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
           const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
@@ -465,6 +508,14 @@ export class ReservaApplicationService {
             cuotas: planCuotasConFechas(importes.total, porcentajes, fechas),
             moneda,
             tipoCambio,
+            descuentoPorcentaje,
+            descuentoTipo: descuentoMontoSolicitado > 0 ? "monto" : "porcentaje",
+            descuentoValor: descuentoMontoSolicitado > 0 ? descuentoMontoSolicitado : descuentoPorcentaje,
+            netoLista,
+            descuentoMonto: redondear2(netoLista - neto),
+            netoDescontado: neto,
+            igv: importes.igv,
+            total: importes.total,
           });
         }
 
@@ -501,6 +552,9 @@ export class ReservaApplicationService {
         // No ocultar el fallo: si no se crea la solicitud, los stands no deben
         // quedar bloqueados en un estado sin expediente.
         console.error("[reserva] Error al crear solicitud/revisiones iniciales:", err);
+        if (err instanceof DomainError && err.status < 500) {
+          throw err;
+        }
         if (!solicitudId) {
           for (const dbId of createdStandIds) {
             await this.gessRepo.update(dbId, {

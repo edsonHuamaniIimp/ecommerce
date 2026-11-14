@@ -28,7 +28,7 @@ import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, redondear2 } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCambioValido, CUENTAS_CONTRATO, MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
@@ -227,7 +227,7 @@ export class ContratoApplicationService {
       }
     }
 
-    /* Datos de la empresa del cliente (cuenta → empresa del Portal). */
+    /* Datos de la empresa del cliente (cuenta â†’ empresa del Portal). */
     /* Datos de la empresa del cliente (cuenta -> empresa del Portal). Se usa el correo
      * de la sesion: el correo de contacto de la solicitud puede ser distinto. */
     /* Al generar para el cliente, usar los datos de la solicitud, no la cuenta
@@ -271,7 +271,12 @@ export class ContratoApplicationService {
     if (moneda === MONEDAS_CONTRATO.PEN && !tipoCambioValido(tipoCambio)) {
       throw new DomainError("La solicitud no tiene un tipo de cambio valido para soles.", API_ERROR_CODES.CONFLICT, 409);
     }
-    const neto = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
+    const netoLista = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
+    const descuentoPorcentaje = detalle.planCuotas?.descuentoPorcentaje ?? 0;
+    const descuentoMontoGuardado = detalle.planCuotas?.descuentoMonto ?? 0;
+    const neto = descuentoMontoGuardado > 0
+      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+      : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
       neto,
       cuotasSolicitadas,
@@ -283,7 +288,20 @@ export class ContratoApplicationService {
     );
 
     /* Snapshot del plan: fuente de verdad para regenerar el contrato y para Facturacion. */
-    await this.solicitudes.guardarPlanCuotas(input.solicitudId, { modalidad, cuotas: plan, moneda, tipoCambio });
+    await this.solicitudes.guardarPlanCuotas(input.solicitudId, {
+      modalidad,
+      cuotas: plan,
+      moneda,
+      tipoCambio,
+      descuentoPorcentaje,
+      descuentoTipo: detalle.planCuotas?.descuentoTipo ?? "porcentaje",
+      descuentoValor: detalle.planCuotas?.descuentoValor ?? descuentoPorcentaje,
+      netoLista,
+      descuentoMonto: redondear2(netoLista - neto),
+      netoDescontado: neto,
+      igv: importes.igv,
+      total: importes.total,
+    });
 
     const base = `contrato-${(detalle.standCode || input.solicitudId.slice(0, 8)).replace(/[^A-Za-z0-9_-]/g, "")}-${Date.now()}`;
     const generado = await this.renderContrato({
