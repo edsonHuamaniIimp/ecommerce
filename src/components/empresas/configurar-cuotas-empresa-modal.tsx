@@ -69,7 +69,7 @@ export function ConfigurarCuotasEmpresaModal({ empresa, onClose, onSaved }: Prop
 
   const guardar = async (config: ConfigCuotasEmpresa | null) => {
     if (config && !configCuotasValida(config, hoy)) {
-      setError("Completa las cuotas con fechas futuras, válidas, en orden ascendente y porcentajes que sumen 100%.");
+      setError("Completa las cuotas con fechas posteriores a hoy, válidas, en orden ascendente y porcentajes que sumen 100%.");
       return;
     }
     setGuardando(true);
@@ -177,7 +177,7 @@ export function ConfigurarCuotasEmpresaModal({ empresa, onClose, onSaved }: Prop
               </span>
               {!formularioValido && <span className="text-warning">Completa todos los campos para guardar.</span>}
             </div>
-            {!fechasOk && <p className="text-warning">Completa una fecha futura y en orden ascendente para cada cuota.</p>}
+            {!fechasOk && <p className="text-warning">Completa una fecha posterior a hoy y en orden ascendente para cada cuota.</p>}
             {!porcentajesOk && <p className="text-warning">Completa un porcentaje mayor a 0 para cada cuota; la suma debe ser 100%.</p>}
           </div>
 

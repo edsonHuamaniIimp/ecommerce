@@ -12,6 +12,7 @@ import {
   BADGE_STYLES,
   PERMISSIONS,
   TIPOS_DOCUMENTO_SOLICITUD,
+  TIPOS_SOLICITUD,
   CATEGORIAS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
   SGC_SUBSANACION_MODOS,
@@ -138,10 +139,13 @@ export function SolicitudReview({
   const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
-  const areas = areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
+  const esReservaEmpresa = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+  const areas = esReservaEmpresa
+    ? [REVISION_AREAS.ASOCIADO]
+    : areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
   const legalDelegada = legalDelegadaAlSgc(row.revisiones);
-  const mostrarSgc = row.sgcEnabled && legalDelegada;
+  const mostrarSgc = !esReservaEmpresa && row.sgcEnabled && legalDelegada;
   const sgcStepIndex = areas.length;
   const stepAreas: Record<number, string> = {
     ...Object.fromEntries(areas.map((area, idx) => [idx, area])),
@@ -435,7 +439,7 @@ export function SolicitudReview({
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
   // Con el contrato ya enviado al SGC no se ofrece reemplazarlo hasta que lo devuelva/rechace.
   const puedeReemplazarContrato = !row.sgcDocumentosEnviados || sgcSubsanable;
-  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
+  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {

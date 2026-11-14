@@ -4,6 +4,8 @@ import {
   ArrowRight,
   BookOpen,
   ChevronRight,
+  ClipboardCheck,
+  FileCheck2,
   LifeBuoy,
   Receipt,
   ShieldCheck,
@@ -46,12 +48,26 @@ const GUIAS = {
     href: "/manual/facturacion",
     icon: Receipt,
   },
+  subsanacion: {
+    nombre: "Subsanación SGC",
+    detalle: "Observaciones, documentos y firma",
+    href: "/manual/subsanacion",
+    icon: FileCheck2,
+  },
+  subsanacionAsociado: {
+    nombre: "Subsanación SGC (Asociados)",
+    detalle: "Revisión, contrato y reenvío interno",
+    href: "/manual/subsanacion-asociado",
+    icon: ClipboardCheck,
+  },
 } as const;
 
 const GUIA_SIGUIENTE: Record<GuiaManual, keyof typeof GUIAS> = {
   reservas: "dd",
   dd: "facturacion",
-  facturacion: "reservas",
+  facturacion: "subsanacion",
+  subsanacion: "reservas",
+  subsanacionAsociado: "reservas",
 };
 
 export function ManualShell({

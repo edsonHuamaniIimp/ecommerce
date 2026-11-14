@@ -64,4 +64,10 @@ describe("construirSvgRecorte (RF-08)", () => {
     expect(svg).toContain(">774</text>");
     expect(svg).not.toContain("BLOQUE-774");
   });
+
+  it("aplica la rotacion invertida respecto al 3D (eje Y hacia abajo en el SVG)", () => {
+    const { svg } = construirSvgRecorte([{ ...item("DIAG-1", 0, 0), rotY: 1.134464 }], ["DIAG-1"]);
+    expect(svg).toContain("rotate(-1.134");
+    expect(svg).not.toContain("rotate(1.134");
+  });
 });

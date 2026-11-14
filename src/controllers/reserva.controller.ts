@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
-import { reservaRequestSchema } from "@/validators/reserva.validator";
+import { API_ERROR_CODES, ESTADOS_SOLICITUD, PERMISSIONS } from "@/lib/shared/constants";
+import { reservaAdminSchema, reservaRequestSchema } from "@/validators/reserva.validator";
 import { getSession } from "@/lib/server/auth";
 import { requestMetadata } from "@/lib/server/request-metadata";
 
@@ -57,5 +57,37 @@ export const reservaController = {
       }).catch(() => {});
     }
     return success({ ok: true, message: result.message, solicitudId: result.solicitudId ?? null });
+  },
+
+  /** Reserva interna a nombre de una empresa; pasa directo a pendiente de pago. */
+  async crearAdmin(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const autorizado =
+      session.permissions.includes(PERMISSIONS.ADMIN_FULL) ||
+      session.permissions.includes(PERMISSIONS.WRITE_RESERVAS);
+    if (!autorizado) {
+      return error(API_ERROR_CODES.FORBIDDEN, "Sin permiso para reservar a nombre de empresas", 403);
+    }
+
+    const body = reservaAdminSchema.parse(await request.json());
+    const result = await services.reservas.crearAdministrativa({
+      eventoId: body.eventoId,
+      empresaRuc: body.empresaRuc,
+      standIds: body.standIds,
+      moneda: body.moneda,
+      tipoComprobante: body.tipoComprobante,
+      cuotas: body.cuotas,
+      actorEmail: session.email,
+    });
+    if (!result.ok || !result.solicitudId) {
+      return error(API_ERROR_CODES.CONFLICT, result.message || "No se pudo crear la reserva", 409);
+    }
+    return success({
+      ok: true,
+      message: result.message,
+      solicitudId: result.solicitudId,
+      estado: result.estado ?? ESTADOS_SOLICITUD.PENDIENTE,
+    }, { status: 201 });
   },
 };

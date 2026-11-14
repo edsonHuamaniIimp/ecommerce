@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
@@ -20,7 +20,7 @@ export default function MisPagosPage() {
 
   return (
     <main className="flex-1 py-6">
-      <div className="mx-auto w-full max-w-7xl space-y-4">
+      <div className="mx-auto w-full max-w-none space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Mis documentos</h1>
@@ -38,7 +38,7 @@ export default function MisPagosPage() {
             {empresaVerComo && (
               <Badge className="gap-1.5 bg-info/10 text-[11px] font-semibold text-info">
                 <Eye className="h-3 w-3" />
-                <span>Viendo como {empresaVerComo.razonSocial} · Solo lectura</span>
+                <span>Viendo como {empresaVerComo.razonSocial} Â· Solo lectura</span>
               </Badge>
             )}
           </div>

@@ -47,6 +47,8 @@ export interface SolicitudDTO {
   pais?: string | null;
   email: string | null;
   userId: string | null;
+  /** Tipo de solicitud (`reserva_empresa`); null para el flujo regular. */
+  tipo?: string | null;
   /** Nombre del usuario solicitante (user_role.nombre + apellidos). */
   nombreUsuario?: string | null;
   bloqueId: string | null;

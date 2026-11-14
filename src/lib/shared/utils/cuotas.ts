@@ -48,6 +48,8 @@ export function configCuotasFijaPorcentajes(config: ConfigCuotasEmpresa | null |
 export function configCuotasValida(
   config: ConfigCuotasEmpresa | null | undefined,
   hoyISO: string = dateUtils.todayLimaInputValue(),
+  /** Permite que la primera cuota venza hoy (reserva administrativa). */
+  permitirHoy = false,
 ): boolean {
   if (!config) return false;
   if (!Number.isInteger(config.maxCuotas) || config.maxCuotas < 1 || config.maxCuotas > MAX_CUOTAS_PERSONALIZADAS) return false;
@@ -55,7 +57,11 @@ export function configCuotasValida(
   const fechas = config.fechas;
   const fechasValidas = fechas.every((fecha, i) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
-    if (fecha <= hoyISO) return false;
+    if (permitirHoy && i === 0) {
+      if (fecha < hoyISO) return false;
+    } else if (fecha <= hoyISO) {
+      return false;
+    }
     return i === 0 || fecha > (fechas[i - 1] ?? "");
   });
   if (!fechasValidas) return false;
@@ -262,6 +268,43 @@ export function fechasCuotasEnRango(fechas: Array<string | null>, hoy: Date = ne
 export function siguienteFechaCuota(fechaPrevia: string | null, hoy: Date = new Date()): string {
   if (!fechaPrevia) return sumarDias(hoy, 30);
   return sumarDias(new Date(`${fechaPrevia}T00:00:00`), 45);
+}
+
+/**
+ * Monto de una cuota a partir de su porcentaje, redondeado a centavos.
+ * Devuelve 0 para valores invalidos o no positivos; el formulario valida antes
+ * de persistir. La fuente de verdad del plan sigue siendo el porcentaje.
+ */
+export function montoCuotaDesdePorcentaje(montoTotal: number, porcentaje: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(porcentaje) || porcentaje <= 0) return 0;
+  return redondear2(montoTotal * (porcentaje / 100));
+}
+
+/**
+ * Porcentaje de una cuota a partir de su monto, redondeado a dos decimales.
+ * Se usa solo para edicion/previsualizacion; el backend recalcula el monto
+ * definitivo desde el porcentaje y absorbe el redondeo en la ultima cuota.
+ */
+export function porcentajeCuotaDesdeMonto(montoTotal: number, monto: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(monto) || monto <= 0) return 0;
+  return redondear2((monto / montoTotal) * 100);
+}
+
+/** Suma de porcentajes redondeada a dos decimales (paso permitido). */
+export function sumarPorcentajes(porcentajes: number[]): number {
+  return redondear2(
+    porcentajes.reduce(
+      (total, porcentaje) => total + (Number.isFinite(porcentaje) ? porcentaje : 0),
+      0,
+    ),
+  );
+}
+
+/** Porcentaje pendiente de distribuir, sin permitir resultados negativos. */
+export function porcentajeRestante(porcentajes: number[]): number {
+  return Math.max(0, redondear2(100 - sumarPorcentajes(porcentajes)));
 }
 
 /** Montos por cuota: la ultima absorbe el resto para que la suma sea exactamente el total. */

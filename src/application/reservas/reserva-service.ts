@@ -1,11 +1,13 @@
-import type { IGessRepository } from "@/domain/ports/gess-repository";
+﻿import type { IGessRepository } from "@/domain/ports/gess-repository";
 import { randomUUID } from "node:crypto";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
+import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
-import { ADMIN_USER_ID, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MODOS_PAGO, MONEDAS, ROLES_REVISION_ASOCIADO } from "@/lib/shared/constants";
+import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
+import { ADMIN_USER_ID, API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MAX_RESERVA_ADMIN_STANDS, MODOS_PAGO, MONEDAS, PERMISSIONS, ROLES_REVISION_ASOCIADO, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
@@ -13,7 +15,8 @@ import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { configCuotasValida, cuotasCoincidenConfig, modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
-import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import { validarEmpresaReservaAdministrativa } from "@/lib/shared/utils/reserva-admin-readiness";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
@@ -31,6 +34,8 @@ export class ReservaApplicationService {
     private readonly standEvents?: StandEventPublisher,
     private readonly configuracionRepo?: IConfiguracionRepository,
     private readonly eventoRepo?: IEventoRepository,
+    private readonly empresaRepo?: IEmpresaRepository,
+    private readonly contratoService?: Pick<ContratoApplicationService, "generar">,
   ) {}
 
   /** Duracion configurada del hold; 25 minutos si no hay configuracion. */
@@ -131,6 +136,115 @@ export class ReservaApplicationService {
     return stands.length;
   }
 
+  /**
+   * Reserva administrativa a nombre de una empresa.
+   * No crea revisiones locales ni SGC: queda lista para pago.
+   */
+  async crearAdministrativa(input: {
+    eventoId: string;
+    empresaRuc: string;
+    standIds: string[];
+    moneda?: string;
+    /** Comprobante elegido para la solicitud; si falta se usa el de la empresa. */
+    tipoComprobante?: string;
+    cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
+    actorEmail: string;
+  }): Promise<{ ok: boolean; message: string; solicitudId?: string; estado?: string }> {
+    if (!this.empresaRepo) {
+      throw new DomainError("No esta configurado el repositorio de empresas", API_ERROR_CODES.INTERNAL, 500);
+    }
+    if (!this.solicitudesRepo) {
+      throw new DomainError("No esta configurado el repositorio de solicitudes", API_ERROR_CODES.INTERNAL, 500);
+    }
+    if (input.standIds.length > MAX_RESERVA_ADMIN_STANDS) {
+      throw new DomainError(
+        `Maximo ${MAX_RESERVA_ADMIN_STANDS} stands por reserva administrativa`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+
+    const empresa = await this.empresaRepo.findByRuc(input.empresaRuc.trim());
+    if (!empresa) {
+      throw new DomainError("Empresa no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+    if (empresa.estado !== ESTADOS_EMPRESA.ACTIVA) {
+      throw new DomainError("La empresa no esta activa", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const tipoComprobante = input.tipoComprobante ?? empresa.tipoComprobante;
+    const readiness = validarEmpresaReservaAdministrativa(empresa, tipoComprobante, input.moneda ?? "");
+    if (!readiness.ok) {
+      throw new DomainError(
+        `Faltan datos para crear el contrato y la factura: ${readiness.faltantes.join(", ")}`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const contactEmail =
+      empresa.representanteCorreo ??
+      empresa.emailContacto ??
+      empresa.emailFacturacion ??
+      undefined;
+    const esBoleta = tipoComprobante === TIPOS_COMPROBANTE.BOLETA;
+    const representanteDni = String(empresa.representanteLegalDni ?? "").replace(/\D/g, "");
+    const userSub = empresa.representanteUserId ?? undefined;
+
+    const result = await this.crear({
+      standIds: input.standIds,
+      eventoId: input.eventoId,
+      userSub,
+      userEmail: contactEmail,
+      actorEmail: input.actorEmail,
+      omitirValidacionCronograma: true,
+      datos: {
+        razonSocial: esBoleta
+          ? (empresa.representanteLegalNombre ?? empresa.razonSocial)
+          : empresa.razonSocial,
+        tipoDocumento: esBoleta ? TIPOS_DOCUMENTO_PERSONA.DNI : empresa.tipoDocumento,
+        numeroDocumento: esBoleta ? representanteDni : empresa.ruc,
+        email: contactEmail ?? "",
+        tipoComprobante,
+        direccion: empresa.direccionFiscal ?? undefined,
+        telefono: empresa.telefono ?? undefined,
+        contacto: empresa.representanteLegalNombre ?? undefined,
+      },
+      moneda: input.moneda,
+      cuotas: input.cuotas,
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      omitirRevisiones: true,
+      requerirStandComercial: true,
+    });
+
+    if (!result.ok || !result.solicitudId) return result;
+    if (!this.contratoService) {
+      throw new DomainError("No esta configurado el servicio de contratos", API_ERROR_CODES.INTERNAL, 500);
+    }
+
+    /*
+     * La reserva administrativa no pasa por revision del Asociado: se genera el
+     * contrato de inmediato y se habilita la firma. El paso a Pendiente Pago
+     * ocurre recien cuando el cliente firma el contrato.
+     */
+    await this.contratoService.generar({
+      solicitudId: result.solicitudId,
+      userSub: userSub ?? "system",
+      userEmail: contactEmail,
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+      cuotas: input.cuotas,
+    });
+    await this.solicitudesRepo.habilitarContrato(result.solicitudId);
+
+    for (const standId of input.standIds) {
+      await this.gessRepo.update(standId, { estado: ESTADOS_STAND.RESERVADO } as never);
+    }
+
+    return {
+      ...result,
+      estado: ESTADOS_SOLICITUD.PENDIENTE,
+    };
+  }
+
   async crear(request: {
     standIds: string[];
     documentos?: string[];
@@ -150,12 +264,22 @@ export class ReservaApplicationService {
     userSub?: string;
     /** Moneda elegida para el contrato (USD | PEN). Default USD. */
     moneda?: string;
+    /** Tipo de solicitud con flujo propio. Null/undefined = flujo regular. */
+    tipo?: string | null;
     /** Evento de la sesion: los stands deben pertenecer a el. */
     eventoId?: string;
     /** Hold creado al abrir el wizard; se convierte en reserva. */
     holdId?: string;
     /** IP del request para auditoria. */
     ip?: string | null;
+    /** Reserva administrativa: no crea revisiones locales ni SGC. */
+    omitirRevisiones?: boolean;
+    /** Reserva administrativa: exige bloque 3D y precio comercial explícito. */
+    requerirStandComercial?: boolean;
+    /** Reserva administrativa: permite un cronograma propio aunque la empresa tenga uno configurado. */
+    omitirValidacionCronograma?: boolean;
+    /** Actor que ejecuta la operacion (admin), distinto del titular de la solicitud. */
+    actorEmail?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
     const conflicted: string[] = [];
     const standCodes: string[] = [];
@@ -166,7 +290,7 @@ export class ReservaApplicationService {
     const validos: Array<{ dbId: string; standCode: string; precio: number }> = [];
     let eventoComun: string | null = request.eventoId ?? null;
 
-    /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueño). */
+    /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueÃ±o). */
     const perfil = request.userEmail
       ? await this.authRepo.findPerfilByEmail(request.userEmail).catch(() => null)
       : null;
@@ -201,9 +325,13 @@ export class ReservaApplicationService {
         conflicted.push(`${stand.standCode} ya esta en estado ${label}`);
         continue;
       }
-      /* Pre-reserva: solo la empresa dueña (RUC/SIE/razon social) puede reservarla. */
+      /* Pre-reserva: solo la empresa dueÃ±a (RUC/SIE/razon social) puede reservarla. */
       if (stand.estado === ESTADOS_STAND.PRE_RESERVADO && !esEmpresaDuenaPreReserva(stand, viewer)) {
         conflicted.push(`${stand.standCode} esta pre-reservado para otra empresa`);
+        continue;
+      }
+      if (request.requerirStandComercial && !esStandComercialReservable(stand)) {
+        conflicted.push(`${stand.standCode} no tiene precio comercial o bloque 3D`);
         continue;
       }
       validos.push({ dbId: stand.id, standCode: stand.standCode, precio: resolverPrecioStand(stand) });
@@ -218,7 +346,7 @@ export class ReservaApplicationService {
      * mutar los stands: si el cliente manipula cuotas/fechas o la configuracion
      * cambio mientras el wizard estaba abierto, no debe quedar una solicitud
      * huerfana con el stand bloqueado. */
-    if (configCuotasValida(configCuotas)) {
+    if (!request.omitirValidacionCronograma && configCuotasValida(configCuotas)) {
       const cuotasSolicitadas = (request.cuotas ?? []).map((cuota) => ({
         porcentaje: cuota.porcentaje,
         fechaVencimiento: cuota.fechaVencimiento,
@@ -263,7 +391,10 @@ export class ReservaApplicationService {
       }
     }
     const createdStandIds: string[] = [];
+    const estadosPrevios = new Map<string, string | null>();
     for (const { dbId } of validos) {
+      const stand = await this.gessRepo.findById(dbId);
+      estadosPrevios.set(dbId, stand?.estado ?? null);
       await this.gessRepo.update(dbId, {
         estado: ESTADOS_STAND.EN_EVALUACION,
         email: contactEmail ?? null,
@@ -305,11 +436,14 @@ export class ReservaApplicationService {
           request.userSub,
           contactEmail ?? undefined,
           snapshot,
-          { actor: request.userSub ?? null, ip: request.ip ?? null },
+          { actor: request.actorEmail ?? request.userSub ?? null, ip: request.ip ?? null },
           { moneda, tipoCambio },
+          request.tipo,
         );
-        for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
-          await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
+        if (!request.omitirRevisiones) {
+          for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {
+            await this.solicitudesRepo.crearRevisionInicial(solicitudId, area);
+          }
         }
 
         /* Snapshot del cronograma elegido: el contrato se genera al final. */
@@ -320,7 +454,9 @@ export class ReservaApplicationService {
           const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
           const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
           await this.solicitudesRepo.guardarPlanCuotas(solicitudId, {
-            modalidad: configCuotasValida(configCuotas) ? MODOS_PAGO.PERSONALIZADO : modalidadDeCuotas(porcentajes),
+            modalidad: request.omitirValidacionCronograma || configCuotasValida(configCuotas)
+              ? MODOS_PAGO.PERSONALIZADO
+              : modalidadDeCuotas(porcentajes),
             cuotas: planCuotasConFechas(importes.total, porcentajes, fechas),
             moneda,
             tipoCambio,
@@ -357,9 +493,21 @@ export class ReservaApplicationService {
           } catch { /* ok */ }
         }
       } catch (err) {
-        // No ocultar el fallo: si la solicitud/revisiones no se crean, el flujo de
-        // revision no arranca aunque el stand ya quedo en_evaluacion.
+        // No ocultar el fallo: si no se crea la solicitud, los stands no deben
+        // quedar bloqueados en un estado sin expediente.
         console.error("[reserva] Error al crear solicitud/revisiones iniciales:", err);
+        if (!solicitudId) {
+          for (const dbId of createdStandIds) {
+            await this.gessRepo.update(dbId, {
+              estado: estadosPrevios.get(dbId) ?? ESTADOS_STAND.DISPONIBLE,
+            } as never).catch(() => {});
+          }
+        }
+        throw new DomainError(
+          "No se pudo crear la solicitud. Intenta nuevamente o revisa el registro del servidor.",
+          API_ERROR_CODES.INTERNAL,
+          500,
+        );
       }
     }
 
