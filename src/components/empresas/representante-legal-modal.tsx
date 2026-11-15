@@ -66,6 +66,7 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
   const [origen, setOrigen] = useState<OrigenDatos | null>(null);
   const [consultado, setConsultado] = useState(false);
   const editedRef = useRef(inicial.dni.trim().length > 0);
+  const consultaRef = useRef(0);
   const fotoRef = useRef<HTMLInputElement>(null);
   const esDni = tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI;
 
@@ -104,6 +105,7 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
 
   /** Consulta RENIEC solo para DNI; el padrón interno se consulta siempre. */
   const consultarPersona = useCallback(async (documento: string, tipo: string) => {
+    const consultaId = ++consultaRef.current;
     setConsultando(true);
     setConsultado(false);
     setReniec(null);
@@ -115,10 +117,15 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
         : Promise.resolve(null),
       empresasService.buscarPersonaFuente(tipo, documento),
     ]);
+    if (consultaId !== consultaRef.current) return;
     const r = ren.status === "fulfilled" && ren.value && !ren.value.error && ren.value.nombreCompleto
       ? ren.value
       : null;
-    const p = pad.status === "fulfilled" ? pad.value : null;
+    const padronCrudo = pad.status === "fulfilled" ? pad.value : null;
+    /* El padrón debe corresponder al tipo consultado; evita mezclar DNI con CE/pasaporte. */
+    const p = padronCrudo && (!padronCrudo.tipoDocumento || padronCrudo.tipoDocumento === tipo)
+      ? padronCrudo
+      : null;
     setReniec(r);
     setPadron(p);
     /* Si solo hay una fuente, se usa automáticamente. Si hay dos, decide el usuario. */
@@ -173,6 +180,8 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
             <Select
               value={tipoDocumento}
               onValueChange={(value) => {
+                consultaRef.current += 1;
+                setConsultando(false);
                 setTipoDocumento(value);
                 setOrigen(null);
                 setReniec(null);
@@ -215,6 +224,8 @@ export function RepresentanteLegalModal({ inicial, onGuardar, onClose }: Props) 
             <Input
               value={dni}
               onChange={(e) => {
+                consultaRef.current += 1;
+                setConsultando(false);
                 editedRef.current = true;
                 setOrigen(null);
                 setReniec(null);
