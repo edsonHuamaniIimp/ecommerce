@@ -1200,6 +1200,66 @@ describe("EmpresaApplicationService.sincronizarRepresentante", () => {
     await expect(service.sincronizarRepresentante(creada.id)).rejects.toMatchObject({ status: 502 });
     expect(personas.crearPersona).not.toHaveBeenCalled();
   });
+
+  it("sincroniza un carné existente sin consultar RENIEC", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ...empresaRep,
+      representanteLegalNombre: "GRONDEL, HUGO",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+      representanteLegalDni: "06422025",
+    });
+    const personas = fakePersonaClient({
+      existente: {
+        sie_code: "P0000256555",
+        id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+        documento: "06422025",
+        nombre_completo: "GRONDEL, HUGO",
+      },
+    });
+    const consulta = fakeConsultaDocumento();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient(), consulta);
+
+    const empresa = await service.sincronizarRepresentante(creada.id);
+
+    expect(empresa.representanteSieCode).toBe("P0000256555");
+    expect(consulta.consultarDni).not.toHaveBeenCalled();
+  });
+
+  it("rechaza vincular un documento que existe con otro tipo", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ...empresaRep,
+      representanteLegalNombre: "GRONDEL, HUGO",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+      representanteLegalDni: "06422025",
+    });
+    const personas = fakePersonaClient({
+      existente: {
+        sie_code: "P0000256555",
+        id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.DNI,
+        documento: "06422025",
+        nombre_completo: "BUSTOS SULLCAPUMA, CARMEN",
+      },
+    });
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient());
+
+    await expect(service.sincronizarRepresentante(creada.id)).rejects.toMatchObject({ status: 409 });
+    expect(personas.actualizarPersona).not.toHaveBeenCalled();
+  });
+
+  it("limpia el SIE al cambiar manualmente la identidad del representante", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ...empresaRep,
+      representanteSieCode: "P0000012345",
+    });
+    const service = crearServicio(repo);
+
+    const empresa = await service.actualizar(creada.id, { representanteLegalNombre: "Otro Nombre" });
+
+    expect(empresa.representanteSieCode).toBeNull();
+  });
 });
 
 describe("EmpresaApplicationService (primer ingreso del Portal)", () => {
