@@ -8,7 +8,7 @@ import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { entidadesService, type EmpresaEntidadDTO } from "@/lib/client/api/services/entidades-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
-import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
 import { etiquetaTipoDocumentoEmpresa, normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
 import { PaisSelect } from "@/components/shared/pais-select";
@@ -32,6 +32,7 @@ interface FormState {
   emailContacto: string;
   emailFacturacion: string;
   representanteLegalNombre: string;
+  representanteLegalTipoDocumento: string;
   representanteLegalDni: string;
   partidaElectronica: string;
   representanteDireccion: string;
@@ -54,6 +55,7 @@ function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
     emailContacto: empresa?.emailContacto ?? "",
     emailFacturacion: empresa?.emailFacturacion ?? "",
     representanteLegalNombre: empresa?.representanteLegalNombre ?? "",
+    representanteLegalTipoDocumento: empresa?.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
     representanteLegalDni: empresa?.representanteLegalDni ?? "",
     partidaElectronica: empresa?.partidaElectronica ?? "",
     representanteDireccion: "",
@@ -346,6 +348,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         emailContacto: form.emailContacto.trim() || null,
         emailFacturacion: form.emailFacturacion.trim() || null,
         representanteLegalNombre: form.representanteLegalNombre.trim() || null,
+        representanteLegalTipoDocumento: form.representanteLegalTipoDocumento,
         representanteLegalDni: form.representanteLegalDni.trim() || null,
         partidaElectronica: form.partidaElectronica.trim() || null,
         representanteDireccion: form.representanteDireccion.trim() || null,
@@ -378,8 +381,8 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <p className="text-xs font-semibold text-foreground">Representante legal</p>
           <p className="truncate text-[11px] text-muted-foreground">
             {form.representanteLegalNombre || form.representanteLegalDni
-              ? `${form.representanteLegalNombre || "—"} · DNI ${form.representanteLegalDni || "—"}${form.representanteCorreo ? ` · ${form.representanteCorreo}` : ""}${form.partidaElectronica ? ` · Partida ${form.partidaElectronica}` : ""}`
-              : "Se usa en el contrato; con el DNI (8 digitos) se obtiene de RENIEC."}
+              ? `${form.representanteLegalNombre || "—"} · ${TIPOS_DOCUMENTO_PERSONA_LABELS[form.representanteLegalTipoDocumento] ?? form.representanteLegalTipoDocumento} ${form.representanteLegalDni || "—"}${form.representanteCorreo ? ` · ${form.representanteCorreo}` : ""}${form.partidaElectronica ? ` · Partida ${form.partidaElectronica}` : ""}`
+              : "Se usa en el contrato. Con DNI se consulta RENIEC; con carné o pasaporte se usa el padrón interno."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -397,6 +400,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
                 setForm((prev) => ({
                   ...prev,
                   representanteLegalNombre: "",
+                  representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
                   representanteLegalDni: "",
                   partidaElectronica: "",
                   representanteDireccion: "",
@@ -622,6 +626,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           <RepresentanteLegalModal
             inicial={{
               nombre: form.representanteLegalNombre,
+              tipoDocumento: form.representanteLegalTipoDocumento,
               dni: form.representanteLegalDni,
               partida: form.partidaElectronica,
               direccion: form.representanteDireccion,

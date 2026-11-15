@@ -47,7 +47,7 @@ import { reservasAdminService } from "@/lib/client/api/services/reservas-admin-s
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
+import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
@@ -447,6 +447,7 @@ export function ReservarEmpresaPanel() {
 
   const guardarRepresentante = async (datos: {
     representanteLegalNombre: string;
+    representanteLegalTipoDocumento: string;
     representanteLegalDni: string;
     partidaElectronica: string;
     representanteDireccion: string;
@@ -1162,6 +1163,7 @@ export function ReservarEmpresaPanel() {
         <RepresentanteLegalModal
           inicial={{
             nombre: empresaDetalle.representanteLegalNombre ?? "",
+            tipoDocumento: empresaDetalle.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI,
             dni: empresaDetalle.representanteLegalDni ?? "",
             partida: empresaDetalle.partidaElectronica ?? "",
             direccion: empresaDetalle.representanteDireccion ?? "",
