@@ -376,7 +376,9 @@ function montosDeCuotas(montoTotal: number, porcentajes: number[]): number[] {
   let acumulado = 0;
   porcentajes.forEach((porcentaje, i) => {
     const esUltima = i === porcentajes.length - 1;
-    const monto = esUltima ? redondear2(montoTotal - acumulado) : redondear2(montoTotal * (porcentaje / 100));
+    const monto = esUltima
+      ? Math.max(0, redondear2(montoTotal - acumulado))
+      : redondear2(montoTotal * (porcentaje / 100));
     acumulado = redondear2(acumulado + monto);
     montos.push(monto);
   });

@@ -21,6 +21,16 @@ describe("planCuotasConFechas (fechas del cliente)", () => {
     expect(plan.reduce((total, cuota) => total + cuota.monto, 0)).toBeCloseTo(48759.96, 2);
   });
 
+  it("no genera montos negativos cuando los porcentajes exceden 100", () => {
+    const plan = planCuotasConFechas(
+      17207.23,
+      [116.21, 0],
+      ["2026-12-15", null],
+    );
+    expect(plan.every((cuota) => cuota.monto >= 0)).toBe(true);
+    expect(plan[1]?.monto).toBe(0);
+  });
+
   it("valida el plan de facturacion y devuelve su total exacto", () => {
     const cuotas = planCuotasConFechas(2360, [30, 30, 40], ["2026-11-15", "2026-12-20", "2027-01-30"]);
     expect(validarPlanFacturacion({ cuotas, moneda: "USD" })).toBe(2360);
