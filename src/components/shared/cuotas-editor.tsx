@@ -66,7 +66,10 @@ export function CuotasEditor({ filas, onChange, montoTotal, moneda = "USD", disa
   const fechas = filas.map((fila) => fila.fecha);
   const porcentajes = filas.map((fila) => Number(fila.porcentaje));
   const suma = sumarPorcentajes(porcentajes);
-  const sumaMontos = sumarMontos(filas.map((fila) => ({ monto: Number(fila.monto) || 0 })));
+  const sumaMontos = sumarMontos(filas.map((fila) => {
+    const monto = Number(fila.monto);
+    return { monto: Number.isFinite(monto) && monto > 0 ? monto : 0 };
+  }));
   const fechasCompletas = filas.every((fila) => fila.fecha.trim() !== "");
   const porcentajesCompletos = filas.every((fila) => fila.porcentaje.trim() !== "");
   const fechasOk = fechasCompletas && fechas.every((fecha, index) =>
