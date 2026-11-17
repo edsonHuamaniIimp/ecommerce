@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, MONEDAS, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, MONEDAS, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_TIPO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
@@ -19,6 +19,7 @@ export const solicitudesListarSchema = z.object({
     contrato: z.enum(Object.values(SOLICITUDES_FILTRO_CONTRATO) as [string, ...string[]]).optional(),
     docsObservados: z.enum(["true", "false"]).optional(),
   observadoPor: z.enum(["asociado", "legal"]).optional(),
+  tipo: z.enum(Object.values(SOLICITUDES_FILTRO_TIPO) as [string, ...string[]]).optional(),
   desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   orden: z.enum(Object.values(SOLICITUDES_ORDEN) as [string, ...string[]]).default(SOLICITUDES_ORDEN.RECIENTES),

@@ -5,6 +5,7 @@ import type { SolicitudesPaginatedDTO, SolicitudDTO } from "@/types/dto/solicitu
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import type { SgcUrlDescargaDTO } from "@/types/dto/sgc/url-descarga.dto";
 import type { MonedaContrato } from "@/lib/shared/utils/moneda";
+import type { SolicitudesFiltroTipo } from "@/lib/shared/constants";
 
 interface RevisionSalidaDTO {
   id: string;
@@ -37,6 +38,7 @@ export interface SolicitudesListFiltros {
   contrato?: string;
   docsObservados?: boolean;
   observadoPor?: "asociado" | "legal";
+  tipo?: SolicitudesFiltroTipo;
   desde?: string;
   hasta?: string;
   orden?: string;
@@ -66,6 +68,7 @@ export const solicitudesService = {
       if (filtros.contrato) qs.set("contrato", filtros.contrato);
       if (filtros.docsObservados) qs.set("docsObservados", "true");
       if (filtros.observadoPor) qs.set("observadoPor", filtros.observadoPor);
+      if (filtros.tipo) qs.set("tipo", filtros.tipo);
       if (filtros.desde) qs.set("desde", filtros.desde);
       if (filtros.hasta) qs.set("hasta", filtros.hasta);
       if (filtros.orden) qs.set("orden", filtros.orden);

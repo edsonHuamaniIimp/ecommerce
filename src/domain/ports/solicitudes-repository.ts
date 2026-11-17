@@ -1,5 +1,6 @@
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "../models/entities";
 import type { AlertaClave, AlertaDatos } from "@/lib/shared/alert-templates";
+import type { SolicitudesFiltroTipo } from "@/lib/shared/constants";
 
 export interface PaisConteo {
   /** Pais ISO alpha-2; null cuando la empresa no tiene pais. */
@@ -33,6 +34,8 @@ export interface SolicitudesListParams {
   docsObservados?: boolean;
   /** Origen de la observacion cuando el estado es OBSERVADO. */
   observadoPor?: "asociado" | "legal";
+  /** Origen de la solicitud: regular (tipo nulo) o reserva administrativa. */
+  tipo?: SolicitudesFiltroTipo;
   /** Rango por fecha de creacion (YYYY-MM-DD, hora Lima). */
   desde?: string;
   hasta?: string;
