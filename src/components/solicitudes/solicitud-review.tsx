@@ -135,11 +135,11 @@ export function SolicitudReview({
   const ddBloqueado = !ddCargando && (!ddEstado || !ddEstado.aptoParaContratar);
   const ddPendienteDeclaracion = ddEstado?.requiereDeclaracionVigencia === true;
   const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
-  /* Bypass exclusivo de administradores: sin DD APTA pueden revisar y decidir igualmente. */
-  const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
+  const esReservaEmpresa = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+  /* La reserva administrativa no pasa por Debida Diligencia: el admin ya valido la empresa. */
+  const ddAccionesBloqueadas = !esReservaEmpresa && (ddCargando || (ddBloqueado && !isAdmin));
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
-  const esReservaEmpresa = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
   const contratoPendienteFirma = esReservaEmpresa && contratoClientePendienteFirma(row);
   const areas = esReservaEmpresa
     ? [REVISION_AREAS.ASOCIADO]
@@ -517,7 +517,7 @@ export function SolicitudReview({
 
       {/* ===== BODY ===== */}
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {!ddCargando && ddBloqueado && (
+        {!esReservaEmpresa && !ddCargando && ddBloqueado && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -963,7 +963,7 @@ export function SolicitudReview({
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap">{currentRev.comentario}</p>
               </div>
             )}
-            {canReview && (!ddBloqueado || isAdmin) && (
+            {canReview && (!ddBloqueado || isAdmin || esReservaEmpresa) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -985,7 +985,7 @@ export function SolicitudReview({
         )}
 
         {/* Pending or editing — show form */}
-        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin) && !sgcEnLegal && (
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin || esReservaEmpresa) && !sgcEnLegal && (
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Comentario / Justificacion</Label>

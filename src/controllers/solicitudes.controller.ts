@@ -2,12 +2,12 @@ import { NextResponse, after } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
-import type { SolicitudesFiltroContrato, SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
+import type { SolicitudesFiltroContrato, SolicitudesFiltroSgc, SolicitudesFiltroTipo, SolicitudesOrden } from "@/lib/shared/constants";
 import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
 import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesCambiarMonedaSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_DD, TIPOS_SOLICITUD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
@@ -191,6 +191,7 @@ export const solicitudesController = {
       contrato: parsed.contrato as SolicitudesFiltroContrato | undefined,
       docsObservados: parsed.docsObservados === "true",
       observadoPor: parsed.observadoPor,
+      tipo: parsed.tipo as SolicitudesFiltroTipo | undefined,
       desde: parsed.desde,
       hasta: parsed.hasta,
       orden: parsed.orden as SolicitudesOrden,
@@ -358,7 +359,8 @@ export const solicitudesController = {
     );
     /* Bypass exclusivo de administradores (admin:full): pueden revisar sin DD APTA. */
     const ddBypassAdmin = !evaluacionDd.aptoParaContratar && session.permissions.includes(PERMISSIONS.ADMIN_FULL);
-    if (!evaluacionDd.aptoParaContratar && !ddBypassAdmin) {
+    const esReservaEmpresa = solicitud.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+    if (!esReservaEmpresa && !evaluacionDd.aptoParaContratar && !ddBypassAdmin) {
       return error(
         API_ERROR_CODES.CONFLICT,
         evaluacionDd.mensaje ?? "La empresa no cuenta con una Debida Diligencia APTA y vigente",

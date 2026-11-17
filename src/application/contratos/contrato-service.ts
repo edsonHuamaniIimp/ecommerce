@@ -28,7 +28,7 @@ import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, redondear2 } from "@/lib/shared/utils/importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCambioValido, CUENTAS_CONTRATO, MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
@@ -106,6 +106,9 @@ export interface GenerarContratoInput {
   moneda?: MonedaContrato;
   /** Cuotas configuradas por el cliente (1..3); si falta usa el plan persistido. */
   cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
+  /** Descuento comercial administrado desde la bandeja (solo admin). */
+  descuentoTipo?: "porcentaje" | "monto";
+  descuentoValor?: number;
   /** Idioma del documento (es|en); si falta se resuelve el del cliente. */
   idioma?: Idioma;
   /** Firma digital del cliente (imagen base64) para estamparla en el contrato. */
@@ -272,10 +275,21 @@ export class ContratoApplicationService {
       throw new DomainError("La solicitud no tiene un tipo de cambio valido para soles.", API_ERROR_CODES.CONFLICT, 409);
     }
     const netoLista = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
-    const descuentoPorcentaje = detalle.planCuotas?.descuentoPorcentaje ?? 0;
-    const descuentoMontoGuardado = detalle.planCuotas?.descuentoMonto ?? 0;
-    const neto = descuentoMontoGuardado > 0
-      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+    const planPersistido = detalle.planCuotas;
+    const descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? "porcentaje";
+    const descuentoValor = input.descuentoValor ?? planPersistido?.descuentoValor ?? planPersistido?.descuentoPorcentaje ?? 0;
+    if ((input.descuentoTipo !== undefined || input.descuentoValor !== undefined) && !isAdmin) {
+      throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    if (descuentoTipo === "porcentaje" && !descuentoPorcentajeValido(descuentoValor)) {
+      throw new DomainError("El porcentaje de descuento es invalido.", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (descuentoTipo === "monto" && !descuentoMontoValido(netoLista, descuentoValor)) {
+      throw new DomainError("El monto de descuento es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const descuentoPorcentaje = descuentoTipo === "porcentaje" ? descuentoValor : 0;
+    const neto = descuentoTipo === "monto"
+      ? aplicarDescuentoMonto(netoLista, descuentoValor)
       : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
       neto,
@@ -294,8 +308,8 @@ export class ContratoApplicationService {
       moneda,
       tipoCambio,
       descuentoPorcentaje,
-      descuentoTipo: detalle.planCuotas?.descuentoTipo ?? "porcentaje",
-      descuentoValor: detalle.planCuotas?.descuentoValor ?? descuentoPorcentaje,
+      descuentoTipo,
+      descuentoValor,
       netoLista,
       descuentoMonto: redondear2(netoLista - neto),
       netoDescontado: neto,

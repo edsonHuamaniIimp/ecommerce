@@ -54,6 +54,9 @@ export const generarContratoSchema = z.object({
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   /** Cuotas del plan; si faltan (p.ej. admin regenerando en una correccion SGC) se usa el plan persistido. */
   cuotas: cuotasContratoSchema.optional(),
+  /** Descuento comercial administrado desde la bandeja (solo admin). */
+  descuentoTipo: z.enum(["porcentaje", "monto"]).optional(),
+  descuentoValor: z.number().min(0).optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
 });

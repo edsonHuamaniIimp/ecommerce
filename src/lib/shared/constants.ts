@@ -898,6 +898,19 @@ export const SOLICITUDES_FILTRO_DD = {
   NO_APTAS: "no_aptas",
 } as const;
 
+/** Filtro por origen de la solicitud en la bandeja administrativa. */
+export const SOLICITUDES_FILTRO_TIPO = {
+  REGULAR: "regular",
+  RESERVA_EMPRESA: "reserva_empresa",
+} as const;
+
+export type SolicitudesFiltroTipo = (typeof SOLICITUDES_FILTRO_TIPO)[keyof typeof SOLICITUDES_FILTRO_TIPO];
+
+export const SOLICITUDES_FILTRO_TIPO_LABELS: Record<SolicitudesFiltroTipo, string> = {
+  [SOLICITUDES_FILTRO_TIPO.REGULAR]: "Alquiler regular",
+  [SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA]: "Reserva administrativa",
+};
+
 export type SolicitudesFiltroDd = (typeof SOLICITUDES_FILTRO_DD)[keyof typeof SOLICITUDES_FILTRO_DD];
 
 export type SolicitudesFiltroSgc = (typeof SOLICITUDES_FILTRO_SGC)[keyof typeof SOLICITUDES_FILTRO_SGC];

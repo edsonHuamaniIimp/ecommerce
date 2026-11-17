@@ -4,19 +4,20 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_CONTRATO_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_CONTRATO_LABELS, SOLICITUDES_FILTRO_TIPO, SOLICITUDES_FILTRO_TIPO_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc, origenesObservacion } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import type { SolicitudesListFiltros } from "@/lib/client/api/services/solicitudes-service";
+import type { SolicitudesFiltroTipo } from "@/lib/shared/constants";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { DdEstadoBadge } from "@/components/debida-diligencia/dd-estado-badge";
@@ -27,6 +28,7 @@ import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
+import { EditarPlanSolicitudModal } from "./editar-plan-solicitud-modal";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { useSearchParams } from "next/navigation";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -39,6 +41,14 @@ function estaPendientePago(row: SolicitudRow) { return row.estadoSolicitud === E
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
 /** Flujo homologado: individual y multiple usan la misma accion de revision. */
 function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row); }
+/** Edicion del plan: solo reservas administrativas, sin cobranza y sin contrato firmado. */
+function puedeEditarPlan(row: SolicitudRow) {
+  return row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
+    !row.tieneFacturacion &&
+    row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO &&
+    row.estadoSolicitud !== ESTADOS_SOLICITUD.PAGADO &&
+    !row.docsAdjuntos?.some((doc) => doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
+}
 function tieneReevaluacionPendiente(row: SolicitudRow) { return row.reevaluaciones?.some((r) => r.estado === ESTADOS_REEVALUACION.PENDIENTE) ?? false; }
 function ddPendienteValidacion(row: SolicitudRow) { return row.ddEstado?.requiereDeclaracionVigencia === true; }
 function ddApta(row: SolicitudRow) { return row.ddEstado?.aptoParaContratar === true; }
@@ -175,6 +185,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null);
   const [bajaRow, setBajaRow] = useState<SolicitudRow | null>(null);
   const [bajaOpen, setBajaOpen] = useState(false);
+  const [editarPlanRow, setEditarPlanRow] = useState<SolicitudRow | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [hasViewPerm, setHasViewPerm] = useState(false);
   const [solicitudEstadoLabels, setSolicitudEstadoLabels] = useState<Record<string, string>>({});
@@ -385,6 +396,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
     filters.contrato,
     filters.docsObservados ? "observados" : undefined,
     filters.observadoPor,
+    filters.tipo,
     filters.desde,
     filters.hasta,
     filters.orden && filters.orden !== SOLICITUDES_ORDEN.RECIENTES ? filters.orden : undefined,
@@ -684,6 +696,24 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                 </Select>
               </div>
               <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-tipo">Tipo de solicitud</label>
+                <Select
+                  value={filters.tipo ?? "todos"}
+                  onValueChange={(v) => aplicarFiltros({
+                    ...filters,
+                    tipo: v === "todos" ? undefined : v as SolicitudesFiltroTipo,
+                  })}
+                >
+                  <SelectTrigger id="filtro-tipo" className="h-8 border-border text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos"><span>Todos los tipos</span></SelectItem>
+                    {Object.values(SOLICITUDES_FILTRO_TIPO).map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{SOLICITUDES_FILTRO_TIPO_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="filtro-observado-por">Observado por</label>
                 <Select
                   value={filters.observadoPor ?? "todos"}
@@ -944,8 +974,19 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                     <Eye className="h-3.5 w-3.5" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top"><span>Ver detalle</span></TooltipContent>
+                              <TooltipContent side="top"><span>Ver detalle</span></TooltipContent>
+                            </Tooltip>
+                            {userPermissions.includes(PERMISSIONS.ADMIN_FULL) && puedeEditarPlan(row) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 w-7 p-0"
+                                    onClick={() => setEditarPlanRow(row)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top"><span>Editar plan y montos</span></TooltipContent>
                               </Tooltip>
+                            )}
                               {hasViewPerm &&
                                 puedeRevisar(row) &&
                                 (!row.ddEstado?.requiereDeclaracionVigencia ||
@@ -1424,6 +1465,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           {historialStandId && <HistorialModal solicitudId={historialStandId} />}
         </DialogContent>
       </Dialog>
+
+      {editarPlanRow && (
+        <EditarPlanSolicitudModal
+          solicitud={editarPlanRow}
+          onClose={() => setEditarPlanRow(null)}
+          onSaved={() => { void load(); }}
+        />
+      )}
 
       {imgCarousel && (
         <Dialog open={true} onOpenChange={() => setImgCarousel(null)}>

@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { observadaPorArea } from "@/lib/shared/utils/revision-areas";
@@ -438,6 +438,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     }
     if (params.userId) {
       and.push({ userId: params.userId });
+    }
+    if (params.tipo === SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA) {
+      and.push({ tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA });
+    } else if (params.tipo === SOLICITUDES_FILTRO_TIPO.REGULAR) {
+      and.push({ tipo: null });
     }
     if (params.empresaId) {
       /* "Ver como": incluye a todos los usuarios vinculados a la empresa. */

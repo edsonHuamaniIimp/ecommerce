@@ -13,6 +13,9 @@ export const contratosService = {
     moneda?: "USD" | "PEN";
     /** Cuotas configuradas (1..3): porcentaje + fecha de pago (yyyy-mm-dd). Si faltan (admin regenerando) se usa el plan persistido. */
     cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
+    /** Descuento administrado desde la bandeja. */
+    descuentoTipo?: "porcentaje" | "monto";
+    descuentoValor?: number;
     /** Idioma del contrato (F3): el que ve el usuario en la UI. */
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
