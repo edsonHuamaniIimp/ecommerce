@@ -528,7 +528,7 @@ export default function FacturacionPage() {
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="h-9 pl-8 text-xs"
-                placeholder="Buscar stand, correo, RUC o contrato IIMP"
+                placeholder="Buscar stand, razón social, RUC, correo o contrato IIMP"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />

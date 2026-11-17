@@ -182,13 +182,18 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     }
     const busqueda = params.search?.trim();
     if (busqueda) {
-      /* RUC de la empresa: cuentas de usuario cuyo RUC coincide (empresa vinculada). */
+      /* Cuentas cuya empresa/RUC coincide: cubre razon social y RUC del portal. */
       const cuentas = await prisma.userRole.findMany({
-        where: { ruc: { contains: busqueda, mode: "insensitive" } },
+        where: {
+          OR: [
+            { ruc: { contains: busqueda, mode: "insensitive" } },
+            { nombreEmpresa: { contains: busqueda, mode: "insensitive" } },
+          ],
+        },
         select: { email: true },
-        take: 200,
+        take: 500,
       });
-      const emailsPorRuc = cuentas.map((c) => c.email).filter((e): e is string => Boolean(e));
+      const emailsPorEmpresa = cuentas.map((c) => c.email).filter((e): e is string => Boolean(e));
 
       condicionesSolicitud.push({
         OR: [
@@ -196,9 +201,13 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
           { iimpContrato: { contains: busqueda, mode: "insensitive" } },
           { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } },
           { stands: { some: { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } } } },
+          /* La empresa puede venir del catalogo GESS o del snapshot de facturacion. */
+          { gessStand: { empresa: { contains: busqueda, mode: "insensitive" } } },
+          { stands: { some: { gessStand: { empresa: { contains: busqueda, mode: "insensitive" } } } } },
+          { datosFacturacion: { path: ["razonSocial"], string_contains: busqueda } },
           /* RUC/DNI capturado en el snapshot de facturacion de la reserva. */
           { datosFacturacion: { path: ["numeroDocumento"], string_contains: busqueda } },
-          ...(emailsPorRuc.length > 0 ? [{ email: { in: emailsPorRuc } }] : []),
+          ...(emailsPorEmpresa.length > 0 ? [{ email: { in: emailsPorEmpresa } }] : []),
         ],
       });
     }
