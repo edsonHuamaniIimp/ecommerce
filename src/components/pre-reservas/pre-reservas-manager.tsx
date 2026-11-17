@@ -589,7 +589,12 @@ export function PreReservasManager({ eventoId, tipoEvento, codigoEvento }: Props
               </TabsList>
             </Tabs>
             {modo === "empresa" ? (
-              <EmpresaPicker seleccion={empresa} onSeleccion={setEmpresa} />
+              <EmpresaPicker
+                seleccion={empresa}
+                onSeleccion={setEmpresa}
+                fuentes={["local", "sie"]}
+                permitirSinSie
+              />
             ) : (
               <div className="space-y-1.5">
                 <Label htmlFor="pre-reserva-titulo">Titulo</Label>

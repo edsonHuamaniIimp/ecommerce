@@ -39,7 +39,7 @@ export const empresaController = {
   /** Bandeja paginada de empresas (busqueda por razon social o RUC). */
   async listar(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
-    services.empresas.autorizarLectura(session.permissions);
+    services.empresas.autorizarLectura(session.permissions, { permitirPreReserva: true });
 
     const params = new URL(request.url).searchParams;
     const page = Math.max(1, Number(params.get("page") ?? 1) || 1);

@@ -586,8 +586,16 @@ export class EmpresaApplicationService {
    * Autorizacion (la decide la capa de aplicacion, no el controlador):
    * lectura de empresas (empresas:view).
    */
-  autorizarLectura(userPermissions: string[]): void {
-    if (!userPermissions.includes(PERMISSIONS.ADMIN_FULL) && !userPermissions.includes(PERMISSIONS.EMPRESAS_VIEW)) {
+  autorizarLectura(userPermissions: string[], opciones?: { permitirPreReserva?: boolean }): void {
+    const puedePreReservar = Boolean(
+      opciones?.permitirPreReserva
+      && (userPermissions.includes(PERMISSIONS.STANDS_PRE_RESERVAR) || userPermissions.includes(PERMISSIONS.STANDS_MANAGE)),
+    );
+    if (
+      !userPermissions.includes(PERMISSIONS.ADMIN_FULL)
+      && !userPermissions.includes(PERMISSIONS.EMPRESAS_VIEW)
+      && !puedePreReservar
+    ) {
       throw new DomainError("Sin permiso para ver empresas", API_ERROR_CODES.FORBIDDEN, 403);
     }
   }
