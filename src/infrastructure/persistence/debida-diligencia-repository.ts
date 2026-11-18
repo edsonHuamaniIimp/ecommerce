@@ -638,20 +638,47 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         },
       });
 
-      await tx.debidaDiligenciaBeneficiario.deleteMany({ where: { expedienteId: id } });
-      if (data.beneficiarios.length > 0) {
-        await tx.debidaDiligenciaBeneficiario.createMany({
-          data: data.beneficiarios.map((b, indice) => ({
-            expedienteId: id,
-            orden: b.orden ?? indice,
-            nombre: b.nombre,
-            documento: b.documento,
-            nacionalidad: b.nacionalidad,
-            porcentaje: b.porcentaje,
-                  tipoVinculoPersona: b.tipoVinculoPersona ?? null,
-          })),
-        });
+      const beneficiariosActuales = await tx.debidaDiligenciaBeneficiario.findMany({
+        where: { expedienteId: id },
+        select: { id: true, documento: true },
+      });
+      const beneficiariosPorDocumento = new Map(
+        beneficiariosActuales.map((beneficiario) => [
+          beneficiario.documento.trim().toUpperCase(),
+          beneficiario.id,
+        ]),
+      );
+      const beneficiariosConservados = new Set<string>();
+      for (const [indice, b] of data.beneficiarios.entries()) {
+        const datos = {
+          orden: b.orden ?? indice,
+          nombre: b.nombre,
+          documento: b.documento,
+          nacionalidad: b.nacionalidad,
+          porcentaje: b.porcentaje,
+          tipoVinculoPersona: b.tipoVinculoPersona ?? null,
+        };
+        const existenteId = beneficiariosPorDocumento.get(b.documento.trim().toUpperCase());
+        if (existenteId) {
+          await tx.debidaDiligenciaBeneficiario.update({
+            where: { id: existenteId },
+            data: datos,
+          });
+          beneficiariosConservados.add(existenteId);
+        } else {
+          await tx.debidaDiligenciaBeneficiario.create({
+            data: { expedienteId: id, ...datos },
+          });
+        }
       }
+      await tx.debidaDiligenciaBeneficiario.deleteMany({
+        where: {
+          expedienteId: id,
+          ...(beneficiariosConservados.size > 0
+            ? { id: { notIn: [...beneficiariosConservados] } }
+            : {}),
+        },
+      });
 
       for (const documento of data.documentos) {
         const where = { expedienteId_tipo: { expedienteId: id, tipo: documento.tipo } };
@@ -904,6 +931,13 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
   }
 
   async actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity> {
+    const anterior = await prisma.debidaDiligencia.findUnique({
+      where: { id },
+      select: { estado: true },
+    });
+    const reenvio =
+      data.estado === DD_ESTADOS.EN_REVISION &&
+      (anterior?.estado === DD_ESTADOS.OBSERVADA || anterior?.estado === DD_ESTADOS.EN_LEGAL);
     const row = await prisma.debidaDiligencia.update({
       where: { id },
       data: {
@@ -928,6 +962,17 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       },
       include: expedienteInclude,
     });
+    if (reenvio) {
+      await prisma.ddMatrizVinculo.updateMany({
+        where: { expedienteId: id, tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA },
+        data: {
+          resultadoFinal: null,
+          finalFecha: null,
+          finalPor: null,
+          finalComentario: null,
+        },
+      });
+    }
     return mapExpediente(row);
   }
 
