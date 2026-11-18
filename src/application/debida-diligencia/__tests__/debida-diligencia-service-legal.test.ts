@@ -154,6 +154,37 @@ describe("revisar - aprobación de Logística", () => {
   });
 });
 
+describe("aprobarDesdeMatriz", () => {
+  it("transiciona el expediente a aprobada sin exigir casos legacy de Comunicaciones", async () => {
+    const { servicio, repo } = crearServicio();
+    (repo.findExpedientePorId as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.EN_REVISION,
+      reputacion: [],
+    });
+    (repo.actualizarEstado as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.APROBADA,
+      fechaVencimiento: new Date("2027-04-18"),
+    });
+
+    await servicio.aprobarDesdeMatriz("exp-1", {
+      email: "logistica@iimp.org.pe",
+      roles: [],
+      permissions: [PERMISSIONS.DD_REVISION],
+    });
+
+    expect(repo.actualizarEstado).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ estado: DD_ESTADOS.APROBADA }),
+    );
+    expect(repo.registrarHistorial).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.APROBACION }),
+    );
+  });
+});
+
 describe("resolverLegal", () => {
   it("rechaza y notifica recién con la decisión de Legal", async () => {
     const { servicio, repo, notificaciones } = crearServicio();
