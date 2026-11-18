@@ -20,6 +20,7 @@ import {
   SGC_APPROVAL_RESULT,
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
+  SGC_CONTRACT_TYPE_BY_SOLICITUD,
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_RESEND_PREFIX,
   SGC_IDEMPOTENCY_RETRY_PREFIX,
@@ -124,8 +125,20 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.solicitudRepo.detalle(solicitudId);
       if (!detalle) return existente;
 
-      const input = await this.conCamposDelTipo(mapSolicitudToExpediente(detalle, this.config), detalle.standCodes.join(", "));
-      const registro = existente ?? (await this.crearRegistroConCodigoUnico(solicitudId, input.code));
+      const areaCode = this.config.areaCode;
+      const contractTypeCode =
+        SGC_CONTRACT_TYPE_BY_SOLICITUD[detalle.tipo ?? ""] ?? this.config.contractTypeCode;
+      const input = await this.conCamposDelTipo(
+        mapSolicitudToExpediente(detalle, { areaCode, contractTypeCode }),
+        detalle.standCodes.join(", "),
+        contractTypeCode,
+      );
+      const registro = existente ?? (await this.crearRegistroConCodigoUnico(
+        solicitudId,
+        input.code,
+        areaCode,
+        contractTypeCode,
+      ));
       /* Formato de codigo vigente (guia v5): si el registro local quedo con un codigo de una
        * version anterior (p.ej. solo el numero de stand), se regenera preservando la unicidad
        * local (P2002 -> sufijo con el id de la solicitud). */
@@ -163,6 +176,8 @@ export class SgcIntegracionApplicationService {
         }
         return await this.repo.actualizarExpediente(registro.id, {
           contractId: resultado.contractId,
+          areaCode,
+          contractTypeCode,
           estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
           lastSyncedAt: new Date(),
           lastError: null,
@@ -219,13 +234,18 @@ export class SgcIntegracionApplicationService {
    * stand se alquila en otra solicitud; ante la colision (P2002) se usa un sufijo con el id de
    * la solicitud para garantizar unicidad, y ese mismo `code` se envia al SGC.
    */
-  private async crearRegistroConCodigoUnico(solicitudId: string, code: string): Promise<SgcExpedienteEntity> {
+  private async crearRegistroConCodigoUnico(
+    solicitudId: string,
+    code: string,
+    areaCode: string,
+    contractTypeCode: string,
+  ): Promise<SgcExpedienteEntity> {
     const crear = (codigo: string) =>
       this.repo.crearExpediente({
         solicitudId,
         code: codigo,
-        areaCode: this.config.areaCode,
-        contractTypeCode: this.config.contractTypeCode,
+        areaCode,
+        contractTypeCode,
       });
     try {
       return await crear(code);
@@ -240,10 +260,14 @@ export class SgcIntegracionApplicationService {
    * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
    * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
    */
-  private async conCamposDelTipo(input: SgcCrearExpedienteInput, numeroStand: string): Promise<SgcCrearExpedienteInput> {
+  private async conCamposDelTipo(
+    input: SgcCrearExpedienteInput,
+    numeroStand: string,
+    contractTypeCode: string,
+  ): Promise<SgcCrearExpedienteInput> {
     try {
       const catalogo = await this.client.listarTiposContrato();
-      const tipo = catalogo.items.find((t) => t.code === this.config.contractTypeCode);
+      const tipo = catalogo.items.find((t) => t.code === contractTypeCode);
       const requeridos = (tipo?.fields ?? []).filter((f) => f.required && f.apiSupported);
       if (requeridos.length === 0) return input;
       const fields: Record<string, string | number | boolean> = {};

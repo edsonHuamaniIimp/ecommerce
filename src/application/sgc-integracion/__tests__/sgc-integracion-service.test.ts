@@ -16,6 +16,8 @@ import {
   SGC_LIFECYCLE_STATUSES,
   SGC_OBSERVACION_ESTADOS,
   TIPOS_DOCUMENTO_SOLICITUD,
+  TIPOS_SOLICITUD,
+  SGC_CONTRACT_TYPE_CODES,
 } from "@/lib/shared/constants";
 const CONFIG: SgcIntegracionConfig = {
   enabled: true,
@@ -206,6 +208,52 @@ describe("SgcIntegracionApplicationService.crearExpedienteDesdeSolicitud", () =>
     );
     expect(result?.contractId).toBe("contract-1");
   });
+
+  it("usa PABELLONES_INTERNACIONALES para solicitudes de reservar-empresa", async () => {
+    const repo = sgcRepoMock(null);
+    const client = clientMock();
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle({ tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA })),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
+
+    await svc.crearExpedienteDesdeSolicitud("sol-1");
+
+    expect(client.crearExpediente).toHaveBeenCalledWith(
+      expect.objectContaining({
+        areaCode: "EVENTOS",
+        contractTypeCode: SGC_CONTRACT_TYPE_CODES.RESERVA_EMPRESA,
+      }),
+      expect.any(String),
+    );
+    expect(repo.crearExpediente).toHaveBeenCalledWith(expect.objectContaining({
+      areaCode: "EVENTOS",
+      contractTypeCode: SGC_CONTRACT_TYPE_CODES.RESERVA_EMPRESA,
+    }));
+  });
+
+  it("mantiene el tipo de contrato configurado para una solicitud regular", async () => {
+    const repo = sgcRepoMock(null);
+    const client = clientMock();
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
+
+    await svc.crearExpedienteDesdeSolicitud("sol-1");
+
+    expect(client.crearExpediente).toHaveBeenCalledWith(
+      expect.objectContaining({ contractTypeCode: CONFIG.contractTypeCode }),
+      expect.any(String),
+    );
+  });
+
   it("deberia ser idempotente si el expediente ya fue creado", async () => {
     const repo = sgcRepoMock(
       expediente({

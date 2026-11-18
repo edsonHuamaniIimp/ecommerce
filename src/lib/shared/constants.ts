@@ -3183,6 +3183,15 @@ export const CRON_SECRET_HEADER = "x-cron-secret";
  */
 export const SGC_TRIGGER_REVISION_AREA = REVISION_AREAS.ASOCIADO;
 export const SGC_PROCESS_ORIGIN = "ContratosStands";
+/** Codigos de tipo de contrato del SGC por flujo local. */
+export const SGC_CONTRACT_TYPE_CODES = {
+  RESERVA_EMPRESA: "PABELLONES_INTERNACIONALES",
+} as const;
+
+/** Mapa extensible de tipo de solicitud -> contractTypeCode del SGC. */
+export const SGC_CONTRACT_TYPE_BY_SOLICITUD: Record<string, string> = {
+  [TIPOS_SOLICITUD.RESERVA_EMPRESA]: SGC_CONTRACT_TYPE_CODES.RESERVA_EMPRESA,
+};
 export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
 /**
  * Motivo obligatorio en la reserva de subida. El SGC exige `replacementReason` no

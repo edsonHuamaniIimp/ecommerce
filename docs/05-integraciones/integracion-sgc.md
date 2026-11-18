@@ -753,3 +753,16 @@ Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fe
   como anexos; el contrato observado requiere firma válida del cliente.
 - Procedimiento completo:
   [`docs/06-operacion/procedimiento-correccion-excepcional-sgc.md`](../06-operacion/procedimiento-correccion-excepcional-sgc.md).
+
+## Actualización 18-nov-2026: código de contrato por flujo
+
+- `areaCode` se mantiene desde `SGC_AREA_CODE`; en producción es `EVENTOS`.
+- Solicitudes regulares: se mantiene `contractTypeCode` configurado en
+  `SGC_CONTRACT_TYPE_CODE` (producción: `AUSPICIO`).
+- Solicitudes creadas desde `/dashboard/reservar-empresa` (`tipo = reserva_empresa`):
+  se envía `contractTypeCode = PABELLONES_INTERNACIONALES`.
+- El tipo efectivo se usa tanto en `POST /contracts` como al consultar los `fields`
+  obligatorios en `GET /contract-types`.
+- El código queda persistido en `sgc_expediente.area_code` y
+  `sgc_expediente.contract_type_code` para auditoría.
+- Las claves de API, Idempotency-Key y webhooks no cambian.

@@ -34,6 +34,9 @@ export interface CrearSgcExpedienteData {
 export interface ActualizarSgcExpedienteData {
   /** Codigo de negocio del expediente (se ajusta con sufijo si el SGC reporta colision global). */
   code?: string;
+  /** Codigo de area y tipo de contrato usados en el SGC (se actualizan al recrear). */
+  areaCode?: string;
+  contractTypeCode?: string;
   contractId?: string | null;
   estadoEnvio?: SgcEstadoEnvio;
   stage?: SgcStage | null;
