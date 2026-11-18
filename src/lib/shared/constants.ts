@@ -2478,7 +2478,7 @@ export type TipoDocumentoPersona = (typeof TIPOS_DOCUMENTO_PERSONA)[keyof typeof
 
 export const TIPOS_DOCUMENTO_PERSONA_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_PERSONA.DNI]: "DNI",
-  [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: "Carne de extranjeria",
+  [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: "Carné de Extranjería",
   [TIPOS_DOCUMENTO_PERSONA.PASAPORTE]: "Pasaporte",
 };
 

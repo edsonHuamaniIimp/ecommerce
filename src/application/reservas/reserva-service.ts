@@ -250,6 +250,7 @@ export class ReservaApplicationService {
         direccion: empresa.direccionFiscal ?? undefined,
         telefono: empresa.telefono ?? undefined,
         contacto: empresa.representanteLegalNombre ?? undefined,
+        representanteTipoDocumento: empresa.representanteLegalTipoDocumento ?? undefined,
       },
       moneda: input.moneda,
       cuotas: input.cuotas,
@@ -283,6 +284,7 @@ export class ReservaApplicationService {
         ruc: empresa.ruc,
         direccion: empresa.direccionFiscal ?? undefined,
         representante: empresa.representanteLegalNombre ?? undefined,
+        tipoDocumentoRepresentante: empresa.representanteLegalTipoDocumento ?? undefined,
         representanteDni: empresa.representanteLegalDni ?? undefined,
         partidaElectronica: empresa.partidaElectronica ?? undefined,
       },
@@ -313,6 +315,7 @@ export class ReservaApplicationService {
       direccion?: string;
       telefono?: string;
       contacto?: string;
+      representanteTipoDocumento?: string;
     };
     userEmail?: string;
     userSub?: string;
@@ -491,6 +494,7 @@ export class ReservaApplicationService {
               direccion: request.datos.direccion ?? null,
               telefono: request.datos.telefono ?? null,
               contacto: request.datos.contacto ?? null,
+              representanteTipoDocumento: request.datos.representanteTipoDocumento ?? null,
               email: request.datos.email,
             }
           : null;
