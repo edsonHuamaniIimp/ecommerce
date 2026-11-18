@@ -11,6 +11,11 @@ export interface DdReputacionRowDTO {
   expedienteId: string;
   codigo: string;
   empresa: DdReputacionEmpresaDTO;
+  /** Vinculo de matriz; null en casos legacy. */
+  vinculoId?: string | null;
+  vinculoTipo?: string | null;
+  vinculoNombre?: string | null;
+  vinculoDocumento?: string | null;
   nombreARevisar: string;
   /** Rol o cargo del nombre dentro del expediente. */
   cargo: string | null;
@@ -37,6 +42,11 @@ export interface DdReputacionGrupoDTO {
   pendientes: number;
   cerrados: number;
   fechaDerivacion: string;
+}
+
+export interface DdReputacionIniciarResponseDTO {
+  estado: string;
+  vinculoId: string | null;
 }
 
 export interface DdReputacionResponseDTO {

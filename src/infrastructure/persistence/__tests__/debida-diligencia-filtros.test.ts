@@ -10,6 +10,12 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     count: vi.fn(),
   },
+  debidaDiligenciaReputacion: {
+    findMany: vi.fn(),
+  },
+  ddMatrizVinculo: {
+    findMany: vi.fn(),
+  },
   solicitud: {
     findMany: vi.fn(),
   },
@@ -107,6 +113,8 @@ beforeEach(() => {
   prismaMock.empresa.findMany.mockResolvedValue([]);
   prismaMock.empresa.count.mockResolvedValue(0);
   prismaMock.solicitud.findMany.mockResolvedValue([]);
+  prismaMock.debidaDiligenciaReputacion.findMany.mockResolvedValue([]);
+  prismaMock.ddMatrizVinculo.findMany.mockResolvedValue([]);
   prismaMock.$queryRaw.mockResolvedValue([]);
 });
 
@@ -376,5 +384,24 @@ describe("filtros de matriz del panel", () => {
   it("filtrar por reputacion pendiente no interpreta una DD aprobada como pendiente", async () => {
     expect(DD_REPUTACION_ESTADOS.POR_REVISAR).not.toBe(DD_ESTADOS.APROBADA);
     expect(DD_REPUTACION_ESTADOS.EN_ANALISIS).not.toBe(DD_ESTADOS.APROBADA);
+  });
+});
+describe("derivacion reputacional", () => {
+  it("considera como derivados los vinculos con estado reputacional en la matriz", async () => {
+    prismaMock.debidaDiligenciaReputacion.findMany.mockResolvedValue([
+      { vinculoId: "v-caso", nombreARevisar: "YURA S.A." },
+      { vinculoId: null, nombreARevisar: "GPR INVESTIGATION S.A.C." },
+    ]);
+    prismaMock.ddMatrizVinculo.findMany.mockResolvedValue([
+      { id: "v-caso", nombre: "YURA S.A.", repResultado: null, repConclusion: null, repObservaciones: null },
+      { id: "v-legacy", nombre: "GPR INVESTIGATION S.A.C.", repResultado: null, repConclusion: null, repObservaciones: null },
+      { id: "v-otro", nombre: "OTRO PROVEEDOR", repResultado: null, repConclusion: null, repObservaciones: null },
+    ]);
+    const repo = new DebidaDiligenciaPrismaRepository();
+
+    await expect(repo.listarVinculosConCasoReputacion("exp-1")).resolves.toEqual([
+      "v-caso",
+      "v-legacy",
+    ]);
   });
 });

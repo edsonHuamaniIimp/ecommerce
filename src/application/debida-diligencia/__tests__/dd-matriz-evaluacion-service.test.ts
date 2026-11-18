@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 import { DdMatrizEvaluacionApplicationService } from "../dd-matriz-evaluacion-service";
 import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/models/dd-matriz-evaluacion";
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
@@ -17,6 +17,11 @@ import {
 } from "@/lib/shared/constants";
 
 const BLOQUE_VACIO = { fecha: null, responsable: null, resultado: null, observaciones: null, conclusion: null };
+const REPUTACIONAL_APROBADO = {
+  ...BLOQUE_VACIO,
+  resultado: DD_MATRIZ_RESULTADOS.ACEPTADO,
+  conclusion: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+};
 
 function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoEntity {
   return {
@@ -100,6 +105,7 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
     resumen: vi.fn(),
     findVinculo: vi.fn().mockResolvedValue(v),
     findVinculoEmpresa: vi.fn().mockResolvedValue(null),
+    listarVinculosExpediente: vi.fn().mockResolvedValue([]),
     findEventoIdDeExpediente: vi.fn().mockResolvedValue("evento-1"),
     existeExpedienteEnEvento: vi.fn().mockResolvedValue(true),
     actualizarVinculo: vi.fn().mockImplementation(async (_id: string, cambios: Record<string, unknown>) => ({ ...v, ...cambios, sig: { ...v.sig, ...(cambios.sig as object) } })),
@@ -193,20 +199,35 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     expect(repo.actualizarVinculo.mock.calls[0]?.[1].compliance?.conclusion).toBe("aceptado_con_observaciones");
   });
 
-  it("SIG solo puede ajustar la conclusion reputacional, no el resultado", async () => {
+  it("SIG puede importar evidencia de Compliance aunque la evaluacion siga bloqueada", async () => {
+    const { servicio } = crear(vinculo());
+    await expect(
+      servicio.autorizarAdjunto(
+        sesion([PERMISSIONS.DD_REVISION]),
+        "v-1",
+        DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO,
+      ),
+    ).resolves.toMatchObject({ id: "v-1" });
+  });
+
+  it("SIG define el resultado y la conclusion reputacional", async () => {
     const { servicio, repo } = crear(
-      vinculo({ reputacional: { ...BLOQUE_VACIO, resultado: DD_MATRIZ_RESULTADOS.ACEPTADO, conclusion: DD_MATRIZ_CONCLUSIONES.EN_REVISION } }),
+      vinculo({ reputacional: { ...BLOQUE_VACIO, resultado: null, conclusion: null } }),
     );
     await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
       id: "v-1",
-      reputacional: { conclusion: "SIN OBSERVACIONES" },
+      reputacional: { resultado: "SIN OBSERVACIONES" },
     });
-    expect(repo.actualizarVinculo.mock.calls[0]?.[1].reputacional).toEqual({
-      conclusion: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+    expect(repo.actualizarVinculo.mock.calls[0]?.[1].reputacional).toMatchObject({
+      resultado: "sin_observaciones",
+      conclusion: "sin_observaciones",
     });
 
     await expect(
-      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", reputacional: { resultado: "OBSERVADO" } }),
+      servicio.guardar(sesion([PERMISSIONS.DD_REPUTACION]), {
+        id: "v-1",
+        reputacional: { resultado: "OBSERVADO", observaciones: "Hallazgo" },
+      }),
     ).rejects.toMatchObject({ status: 403 });
   });
 
@@ -281,7 +302,7 @@ describe("DdMatrizEvaluacionApplicationService", () => {
   });
 
   it("resultado final: quien registra y fecha escritos a mano prevalecen", async () => {
-    const { servicio, repo } = crear(vinculo());
+    const { servicio, repo } = crear(vinculo({ reputacional: REPUTACIONAL_APROBADO }));
     await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
       id: "v-1",
       resultadoFinal: "APTO",
@@ -479,6 +500,103 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     await expect(servicio.resumen({ email: "x", roles: [], permissions: [], eventoId: "e" })).rejects.toMatchObject({ status: 403 });
   });
 
+  it("bloquea APTO si Comunicaciones no tiene veredicto sin hallazgos", async () => {
+    const { servicio } = crear(vinculo());
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: "APTO",
+        finalComentario: "Intento de cierre sin Comunicaciones.",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("cierra la empresa como APTO cuando el ultimo vinculo tambien queda APTO", async () => {
+    const empresa = vinculo({
+      id: "v-empresa",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
+      resultadoFinal: null,
+      sig: {
+        ...BLOQUE_VACIO,
+        resultado: DD_MATRIZ_RESULTADOS.ACEPTADO,
+        conclusion: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+      },
+      reputacional: REPUTACIONAL_APROBADO,
+    });
+    const representante = vinculo({
+      id: "v-rep",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE,
+      resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO,
+      reputacional: REPUTACIONAL_APROBADO,
+    });
+    const beneficiario = vinculo({
+      id: "v-ben",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
+      resultadoFinal: null,
+      reputacional: REPUTACIONAL_APROBADO,
+    });
+    const { servicio, repo } = crear(beneficiario);
+    repo.findVinculoEmpresa.mockResolvedValue(empresa);
+    repo.listarVinculosExpediente.mockResolvedValue([
+      empresa,
+      representante,
+      { ...beneficiario, resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO },
+    ]);
+
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-ben",
+      resultadoFinal: "APTO",
+      finalComentario: "Cierre del ultimo vinculo.",
+    });
+
+    const cierre = repo.actualizarVinculo.mock.calls.find(([id]) => id === "v-empresa")?.[1];
+    expect(cierre).toMatchObject({
+      resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO,
+      finalPor: "usuario@iimp.org.pe",
+      finalComentario: "Cierre automático: todos los vínculos quedaron APTO.",
+    });
+    expect(repo.registrarAuditoria).toHaveBeenCalledWith(
+      "matriz_cierre_automatico",
+      "DD-2026-0001",
+      "usuario@iimp.org.pe",
+      expect.any(String),
+    );
+  });
+
+  it("no cierra la empresa automaticamente si algun vinculo no es APTO", async () => {
+    const empresa = vinculo({
+      id: "v-empresa",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
+      resultadoFinal: null,
+    });
+    const representante = vinculo({
+      id: "v-rep",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE,
+      resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES,
+    });
+    const beneficiario = vinculo({
+      id: "v-ben",
+      tipo: DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
+      resultadoFinal: null,
+      reputacional: REPUTACIONAL_APROBADO,
+    });
+    const { servicio, repo } = crear(beneficiario);
+    repo.findVinculoEmpresa.mockResolvedValue(empresa);
+    repo.listarVinculosExpediente.mockResolvedValue([
+      empresa,
+      representante,
+      { ...beneficiario, resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO },
+    ]);
+
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-ben",
+      resultadoFinal: "APTO",
+      finalComentario: "Cierre del ultimo vinculo.",
+    });
+
+    expect(repo.actualizarVinculo.mock.calls.some(([id]) => id === "v-empresa")).toBe(false);
+  });
+
   it("administrador accede a todo sin permisos explicitos", async () => {
     const { servicio } = crear(vinculo());
     const detalle = await servicio.detalle(
@@ -489,3 +607,8 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     expect(detalle.permisos.editarCompliance).toBe(false);
   });
 });
+
+
+
+
+

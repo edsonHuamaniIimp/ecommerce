@@ -46,4 +46,8 @@ export interface DdMatrizEvaluacionGuardarRequestDTO {
   finalPor?: string | null;
   /** Comentario interno de la conclusion final; no se muestra al cliente. */
   finalComentario?: string | null;
+  /** Comentario que recibe el cliente cuando la conclusión es DOCUMENTACIÓN OBSERVADA. */
+  clienteComentario?: string | null;
+  /** Documentos que el cliente debe subsanar. */
+  documentosObservados?: string[];
 }

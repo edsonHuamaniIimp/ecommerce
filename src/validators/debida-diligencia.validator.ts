@@ -15,6 +15,7 @@ import {
   DD_MAX_OBSERVACIONES,
   DD_PER_PAGE_DEFAULT,
   DD_PORCENTAJE_MAX,
+  DD_REPUTACION_ORDEN,
   DD_REPUTACION_RESULTADOS,
   DD_TIPOS_VINCULO_PERSONA,
   DD_VINCULOS,
@@ -161,6 +162,13 @@ export const ddRevisarSchema = z
 /** Derivacion manual de nombres a revision reputacional (Comunicaciones). */
 export const ddDerivarComunicacionesSchema = z.object({
   expedienteId: z.string().min(1, "expedienteId requerido"),
+  vinculoIds: z.array(z.string().min(1)).max(500).optional(),
+});
+
+/** Declaracion de SIG: todos los vinculos de la solicitud estan revisados y completos. */
+export const ddDeclararVinculosCompletosSchema = z.object({
+  expedienteId: z.string().min(1, "expedienteId requerido"),
+  completos: z.boolean(),
 });
 
 /** Resolucion final de Legal con informe adjunto. */
@@ -206,6 +214,50 @@ export const ddLegalResolverSchema = z
     }
   });
 
+/** Inicio de revision de un caso reputacional. */
+export const ddReputacionIniciarSchema = z.object({
+  id: z.string().trim().min(1, "id requerido"),
+});
+
+/** Observacion de Comunicaciones; no incluye dictamen. */
+export const ddReputacionObservarSchema = z
+  .object({
+    id: z.string().trim().min(1, "id requerido"),
+    resultado: z
+      .enum([
+        DD_REPUTACION_RESULTADOS.ACEPTADO,
+        DD_REPUTACION_RESULTADOS.OBSERVADO,
+      ])
+      .nullable()
+      .default(null),
+    comentario: textoNullable(1500),
+    linkHallazgos: z
+      .union([z.literal(""), z.string().trim().url("Ingrese un link válido").max(500)])
+      .nullable()
+      .default(null),
+    cerrar: z.boolean().default(false),
+    notificar: z.boolean().default(true),
+  })
+  .superRefine((valor, ctx) => {
+    if (valor.cerrar && !valor.resultado) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["resultado"],
+        message: "Selecciona el resultado de Comunicaciones para cerrar la revisión",
+      });
+    }
+    if (
+      valor.resultado === DD_REPUTACION_RESULTADOS.OBSERVADO &&
+      !valor.linkHallazgos?.trim()
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["linkHallazgos"],
+        message: "La fuente es obligatoria cuando el resultado es OBSERVADO",
+      });
+    }
+  });
+
 /** Resolucion de un caso reputacional. */
 export const ddReputacionResolverSchema = z
   .object({
@@ -217,7 +269,11 @@ export const ddReputacionResolverSchema = z
     notificar: z.boolean().default(true),
   })
   .superRefine((valor, ctx) => {
-    if (valor.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS && !valor.linkHallazgos?.trim()) {
+    const requiereFuente =
+      valor.resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+      valor.resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA ||
+      valor.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS;
+    if (requiereFuente && !valor.linkHallazgos?.trim()) {
       ctx.addIssue({
         code: "custom",
         path: ["linkHallazgos"],
@@ -241,6 +297,32 @@ export const ddPaginacionSchema = z.object({
   multiples: z.string().trim().max(20).optional(),
   orden: z.string().trim().max(30).optional(),
 });
+
+const ddFechaFiltroSchema = z.preprocess(
+  (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+  z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe tener formato YYYY-MM-DD")
+    .optional(),
+);
+
+/** Paginacion y filtros de la bandeja reputacional. */
+export const ddReputacionQuerySchema = ddPaginacionSchema
+  .extend({
+    desde: ddFechaFiltroSchema,
+    hasta: ddFechaFiltroSchema,
+    orden: z.enum(valores(DD_REPUTACION_ORDEN)).optional(),
+  })
+  .superRefine((valor, ctx) => {
+    if (valor.desde && valor.hasta && valor.desde > valor.hasta) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["hasta"],
+        message: "La fecha hasta no puede ser menor que la fecha desde",
+      });
+    }
+  });
 
 /** Paginacion y filtros de la matriz del panel. */
 export const ddMatrizQuerySchema = z.object({
@@ -274,5 +356,6 @@ export const ddClientesQuerySchema = z.object({
   resultado: z.enum(valores(DD_RESULTADOS)).optional(),
   estadoEvaluacion: z.enum(valores(DD_ESTADOS_EVALUACION)).optional(),
 });
+
 
 

@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DebidaDiligenciaApplicationService } from "../debida-diligencia-service";
 import type { DdExpedienteEntity } from "@/domain/models/debida-diligencia";
 import type { IDebidaDiligenciaRepository } from "@/domain/ports/debida-diligencia-repository";
@@ -11,6 +11,10 @@ import {
   DD_ESTADOS,
   DD_DOCUMENTOS,
   DD_HISTORIAL_TIPOS,
+  DD_REPUTACION_ESTADOS,
+  DD_REPUTACION_RESULTADOS,
+  DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
+  DD_MATRIZ_RESULTADOS_FINALES,
   PERMISSIONS,
 } from "@/lib/shared/constants";
 
@@ -36,6 +40,7 @@ function crearServicio() {
     crearObservaciones: vi.fn(),
     listarObservaciones: vi.fn().mockResolvedValue([]),
     actualizarEstado: vi.fn(),
+    actualizarLegalMatriz: vi.fn(),
     registrarAuditoria: vi.fn(),
     registrarHistorial: vi.fn().mockResolvedValue(undefined),
     listarHistorial: vi.fn().mockResolvedValue([]),
@@ -76,6 +81,13 @@ describe("revisar - aprobación de Logística", () => {
     (repo.findExpedientePorId as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...EXPEDIENTE,
       estado: DD_ESTADOS.EN_REVISION,
+      reputacion: [
+        {
+          nombreARevisar: "YURA S.A.",
+          estado: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS,
+          resultado: DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS,
+        },
+      ],
     });
     (repo.actualizarEstado as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...EXPEDIENTE,
@@ -107,6 +119,39 @@ describe("revisar - aprobación de Logística", () => {
       expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.APROBACION }),
     );
   });
+
+  it("bloquea la aprobación si Comunicaciones sigue pendiente", async () => {
+    const { servicio, repo } = crearServicio();
+    (repo.findExpedientePorId as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      estado: DD_ESTADOS.EN_REVISION,
+      reputacion: [
+        {
+          nombreARevisar: "YURA S.A.",
+          estado: DD_REPUTACION_ESTADOS.POR_REVISAR,
+          resultado: null,
+        },
+      ],
+    });
+
+    await expect(
+      servicio.revisar(
+        {
+          expedienteId: "exp-1",
+          accion: DD_ACCIONES_REVISION.APROBAR,
+          motivo: null,
+          documentosObservados: [],
+          observaciones: [],
+          derivarComunicaciones: false,
+        },
+        {
+          email: "logistica@iimp.org.pe",
+          roles: [],
+          permissions: [PERMISSIONS.DD_REVISION],
+        },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
 });
 
 describe("resolverLegal", () => {
@@ -135,6 +180,16 @@ describe("resolverLegal", () => {
     expect(notificaciones.expedienteRechazado).toHaveBeenCalledWith(
       expect.objectContaining({ motivo: "Informe legal" }),
     );
+    expect(repo.actualizarLegalMatriz).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        resultado: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO,
+        conclusion: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO,
+        cierreFinal: expect.objectContaining({
+          resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+        }),
+      }),
+    );
     expect(repo.registrarHistorial).toHaveBeenCalledWith(
       "exp-1",
       expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.LEGAL_RECHAZO }),
@@ -162,6 +217,17 @@ describe("resolverLegal", () => {
       }),
     );
     expect(notificaciones.expedienteAprobado).not.toHaveBeenCalled();
+    expect(repo.actualizarLegalMatriz).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        resultado: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO,
+        conclusion: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO,
+      }),
+    );
+    expect(repo.actualizarLegalMatriz).not.toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ cierreFinal: expect.anything() }),
+    );
     expect(repo.registrarHistorial).toHaveBeenCalledWith(
       "exp-1",
       expect.objectContaining({ tipo: DD_HISTORIAL_TIPOS.LEGAL_APROBACION }),
@@ -262,6 +328,13 @@ describe("resolverLegal", () => {
     );
     expect(notificaciones.expedienteObservado).toHaveBeenCalledWith(
       expect.objectContaining({ codigo: "DD-2026-0001" }),
+    );
+    expect(repo.actualizarLegalMatriz).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({
+        resultado: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES,
+        conclusion: DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES,
+      }),
     );
   });
 

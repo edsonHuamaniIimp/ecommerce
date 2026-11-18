@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import { TIPOLOGIAS_STAND, TIPOS_PLANO } from "../src/lib/shared/constants";
 import { hashPassword } from "../src/lib/server/utils/password";
 import { ROLES_SEED, USUARIOS_SEED } from "./seed-data";
+import { DD_MAESTRA_SEED } from "./dd-maestra-seed";
 
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV ?? "local";
 if (APP_ENV === "production" && process.env.SEED_ALLOW_PROD !== "1") {
@@ -126,6 +127,27 @@ async function seedMaestra() {
   console.log("Maestra seeded");
 }
 
+async function seedDdMaestra() {
+  for (const item of DD_MAESTRA_SEED) {
+    const data = {
+      nombre: item.nombre,
+      descripcion: item.descripcion,
+      orden: item.orden,
+      activo: item.activo,
+    };
+    await prisma.ddMaestra.upsert({
+      where: { tipo_codigo: { tipo: item.tipo, codigo: item.codigo } },
+      update: data,
+      create: {
+        tipo: item.tipo,
+        codigo: item.codigo,
+        ...data,
+      },
+    });
+  }
+  console.log("DD maestra seeded");
+}
+
 /* ---------- Plano GESS → BD (Laboratorio 3D) ---------- */
 async function seedPlanoGess() {
   const { buildItems, buildFurniture } = await import("../src/lib/shared/planos/gess/construccion");
@@ -213,6 +235,7 @@ async function seedPlanoMacroPerumin() {
 
 main()
   .then(() => seedMaestra())
+  .then(() => seedDdMaestra())
   .then(() => seedPlanoGess())
   .then(() => seedPlanoMacroPerumin())
   .catch((e) => {

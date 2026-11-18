@@ -23,6 +23,7 @@ import {
   DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
+  DD_REPUTACION_RESULTADOS,
   DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPOS_VINCULO,
 } from "@/lib/shared/constants";
@@ -64,7 +65,9 @@ describe("mapper de valores (negocio y desarrollo)", () => {
     expect(normalizarConclusion("EN REVISIÓN")).toBe(DD_MATRIZ_CONCLUSIONES.EN_REVISION);
     expect(normalizarConclusion("EN REVISION")).toBe(DD_MATRIZ_CONCLUSIONES.EN_REVISION);
     expect(normalizarConclusion("en_revision")).toBe(DD_MATRIZ_CONCLUSIONES.EN_REVISION);
-    expect(normalizarConclusion("REQUIERE DEBIDA DILIGENCIA")).toBe(DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA);
+    expect(normalizarConclusion("REQUIERE DEBIDA DILIGENCIA")).toBe(
+      DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA,
+    );
     expect(normalizarConclusion("REQUIERE DEBIDA DILIGENCIA REFORZADA")).toBe(
       DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
     );
@@ -235,6 +238,35 @@ describe("evaluarBloqueArea (reglas del proceso)", () => {
       conclusion: "RECHAZADO",
     });
     expect(r.errores.length).toBeGreaterThan(0);
+  });
+
+  it("Reputacional usa los cuatro términos del Excel en resultado y conclusión", () => {
+    const sinObservaciones = evaluarBloqueArea(DD_MATRIZ_AREAS.REPUTACIONAL, {
+      resultado: "SIN OBSERVACIONES",
+    });
+    expect(sinObservaciones.errores).toEqual([]);
+    expect(sinObservaciones.valor.resultado).toBe(
+      DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES,
+    );
+    expect(sinObservaciones.valor.conclusion).toBe(
+      DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES,
+    );
+
+    const observado = evaluarBloqueArea(DD_MATRIZ_AREAS.REPUTACIONAL, {
+      resultado: "OBSERVADO",
+      observaciones: "Antecedente registrado",
+    });
+    expect(observado.errores).toEqual([]);
+    expect(observado.valor.conclusion).toBe(DD_REPUTACION_RESULTADOS.OBSERVADO);
+
+    const requiere = evaluarBloqueArea(DD_MATRIZ_AREAS.REPUTACIONAL, {
+      resultado: "REQUIERE DEBIDA DILIGENCIA",
+      observaciones: "Requiere revisión adicional",
+    });
+    expect(requiere.errores).toEqual([]);
+    expect(requiere.valor.conclusion).toBe(
+      DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
+    );
   });
 });
 

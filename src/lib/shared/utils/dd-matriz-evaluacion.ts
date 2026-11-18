@@ -18,6 +18,8 @@ import {
   DD_MATRIZ_SI_NO_NA_ALIAS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_REPUTACION_RESULTADO_LABELS,
+  DD_REPUTACION_RESULTADOS,
   type DdMatrizAmbito,
   type DdMatrizArea,
   type DdMatrizConclusion,
@@ -62,6 +64,17 @@ export const normalizarSiNoNa = (valor: unknown): DdMatrizSiNoNa | null =>
 
 export const normalizarResultado = (valor: unknown): DdMatrizResultado | null =>
   normalizarValorMatriz(valor, DD_MATRIZ_RESULTADO_LABELS, DD_MATRIZ_RESULTADO_ALIAS);
+
+const REPUTACIONAL_RESULTADO_ALIAS: Record<string, string> = {
+  ACEPTADO: DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES,
+  "SIN OBSERVACIONES": DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES,
+  "REQUIERE DEBIDA DILIGENCIA": DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
+  OBSERVADO: DD_REPUTACION_RESULTADOS.OBSERVADO,
+  "EN REVISION": DD_REPUTACION_RESULTADOS.EN_REVISION,
+};
+
+export const normalizarResultadoReputacional = (valor: unknown): string | null =>
+  normalizarValorMatriz(valor, DD_REPUTACION_RESULTADO_LABELS, REPUTACIONAL_RESULTADO_ALIAS);
 
 export const normalizarConclusion = (valor: unknown): DdMatrizConclusion | null =>
   normalizarValorMatriz(valor, DD_MATRIZ_CONCLUSION_LABELS, DD_MATRIZ_CONCLUSION_ALIAS);
@@ -154,7 +167,7 @@ export interface BloqueAreaEntrada {
 }
 
 export interface BloqueAreaValor {
-  resultado: DdMatrizResultado | null;
+  resultado: string | null;
   observaciones: string | null;
   conclusion: string | null;
 }
@@ -175,10 +188,15 @@ export interface BloqueAreaEvaluado {
 export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada): BloqueAreaEvaluado {
   const errores: string[] = [];
   const esCompliance = area === DD_MATRIZ_AREAS.COMPLIANCE;
+  const esReputacional = area === DD_MATRIZ_AREAS.REPUTACIONAL;
   const observaciones = entrada.observaciones?.trim() || null;
 
   const resultadoVacio = normalizarTextoMatriz(entrada.resultado) === "";
-  const resultado = resultadoVacio ? null : normalizarResultado(entrada.resultado);
+  const resultado = resultadoVacio
+    ? null
+    : esReputacional
+      ? normalizarResultadoReputacional(entrada.resultado)
+      : normalizarResultado(entrada.resultado);
   if (!resultadoVacio && !resultado) errores.push("Resultado de la evaluación no reconocido");
 
   const conclusionVacia = normalizarTextoMatriz(entrada.conclusion) === "";
@@ -186,10 +204,24 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
     ? null
     : esCompliance
       ? normalizarConclusionCompliance(entrada.conclusion)
-      : normalizarConclusion(entrada.conclusion);
+      : esReputacional
+        ? normalizarResultadoReputacional(entrada.conclusion)
+        : normalizarConclusion(entrada.conclusion);
   if (!conclusionVacia && !conclusion) errores.push("Conclusión no reconocida");
 
   let conclusionFinal = conclusion;
+
+  if (esReputacional) {
+    if (resultado && !conclusionFinal) conclusionFinal = resultado;
+    if (
+      (resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+        resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA) &&
+      !observaciones
+    ) {
+      errores.push("El resultado reputacional seleccionado exige registrar la observación");
+    }
+    return { valor: { resultado, observaciones, conclusion: conclusionFinal }, errores };
+  }
 
   if (resultado === DD_MATRIZ_RESULTADOS.ACEPTADO && !conclusionFinal) {
     conclusionFinal = esCompliance
@@ -215,4 +247,16 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
  */
 export function complianceDesbloqueado(conclusionSig: string | null | undefined, informesSig: number): boolean {
   return conclusionSig === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA && informesSig > 0;
+}
+
+/** Comunicaciones aprobo el vinculo sin hallazgos. */
+export function comunicacionesAprobadas(
+  resultado: string | null | undefined,
+  conclusion: string | null | undefined,
+): boolean {
+  return (
+    (resultado === DD_MATRIZ_RESULTADOS.ACEPTADO ||
+      resultado === DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES) &&
+    conclusion === DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES
+  );
 }

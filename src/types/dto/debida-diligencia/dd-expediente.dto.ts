@@ -113,6 +113,10 @@ export interface DdExpedienteDTO {
   aceptaDatos: boolean;
   aceptaVerificacion: boolean;
   declaraVerdad: boolean;
+  /** SIG declaro que reviso y que estan todos los vinculos de la solicitud. */
+  vinculosCompletos?: boolean;
+  vinculosCompletosPor?: string | null;
+  vinculosCompletosEn?: string | null;
   representanteNombre: string | null;
   representanteTipoDocumento: string | null;
   representanteDocumento: string | null;

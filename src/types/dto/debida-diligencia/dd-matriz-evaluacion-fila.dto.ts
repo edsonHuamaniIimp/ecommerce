@@ -22,15 +22,21 @@ export interface DdMatrizEvaluacionFilaDTO {
   pais: string | null;
   sigResultado: string | null;
   sigConclusion: string | null;
+  sigFecha: string | null;
   repResultado: string | null;
   repConclusion: string | null;
+  repFecha: string | null;
   cmpResultado: string | null;
   cmpConclusion: string | null;
+  cmpFecha: string | null;
   resultadoFinal: string | null;
+  finalFecha: string | null;
   /** Casos reputacionales creados por la derivación a Comunicaciones. */
   reputacionCasos: number;
   /** Casos aún pendientes o en análisis en Comunicaciones. */
   reputacionPendientes: number;
+  /** Casos que Comunicaciones marcó como En revisión. */
+  reputacionEnAnalisis: number;
   /** Casos con hallazgos registrados por Comunicaciones. */
   reputacionConHallazgos: number;
   updatedAt: string;

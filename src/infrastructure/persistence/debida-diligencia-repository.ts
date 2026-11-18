@@ -18,6 +18,7 @@ import type {
   DdGuardarData,
   DdHistorialCreacion,
   DdHistorialEventoEntity,
+  DdMaestraItem,
   DdMatrizParams,
   DdMatrizResult,
   DdMatrizRow,
@@ -30,9 +31,11 @@ import type {
   DdReputacionActualizacion,
   DdReputacionCasoEntity,
   DdReputacionCreacion,
+  DdReputacionObservacionActualizacion,
   DdReputacionGrupo,
   DdReputacionParams,
   DdReputacionResult,
+  DdVinculoReputacionInput,
 } from "@/domain/models/debida-diligencia";
 import type {
   DdEstadoExpedienteData,
@@ -62,11 +65,13 @@ import {
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_TIPOS_VINCULO,
   DD_ESTADOS_PENDIENTES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
   DD_ORIGENES,
   DD_REPUTACION_ESTADOS,
+  DD_REPUTACION_ORDEN,
   DD_RESULTADOS,
   DD_VIGENCIA_MESES,
   DD_VINCULOS,
@@ -79,6 +84,7 @@ import {
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 
 const empresaSelect = {
   id: true,
@@ -109,12 +115,16 @@ const expedienteInclude = {
     include: { versiones: { orderBy: { version: "asc" } } },
   },
   observaciones: { orderBy: { createdAt: "asc" } },
-  reputacion: { orderBy: { fechaDerivacion: "asc" } },
+  reputacion: {
+    orderBy: { fechaDerivacion: "asc" },
+    include: { vinculo: { select: { id: true, tipo: true, nombre: true, tipoDocumento: true, documento: true } } },
+  },
 } satisfies Prisma.DebidaDiligenciaInclude;
 
 type ExpedienteRow = Prisma.DebidaDiligenciaGetPayload<{ include: typeof expedienteInclude }>;
 
 const reputacionInclude = {
+  vinculo: { select: { id: true, tipo: true, nombre: true, tipoDocumento: true, documento: true } },
   expediente: {
     select: {
       codigo: true,
@@ -167,6 +177,9 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     aceptaDatos: row.aceptaDatos,
     aceptaVerificacion: row.aceptaVerificacion,
     declaraVerdad: row.declaraVerdad,
+    vinculosCompletos: row.vinculosCompletos,
+    vinculosCompletosPor: row.vinculosCompletosPor ?? null,
+    vinculosCompletosEn: row.vinculosCompletosEn ?? null,
     representanteNombre: row.representanteNombre ?? null,
     representanteTipoDocumento: row.representanteTipoDocumento ?? null,
     representanteDocumento: row.representanteDocumento ?? null,
@@ -235,6 +248,10 @@ function mapExpediente(row: ExpedienteRow): DdExpedienteEntity {
     })),
     reputacion: row.reputacion.map((r) => ({
       id: r.id,
+      vinculoId: r.vinculoId ?? null,
+      vinculoTipo: r.vinculo?.tipo ?? null,
+      vinculoNombre: r.vinculo?.nombre ?? null,
+      vinculoDocumento: r.vinculo?.documento ?? null,
       nombreARevisar: r.nombreARevisar,
       cargo: cargoNombreARevisar(row, r.nombreARevisar),
       nacionalidad: ddUtils.nacionalidadNombreARevisar(row, r.nombreARevisar),
@@ -269,6 +286,10 @@ function mapReputacion(row: ReputacionRow): DdReputacionGrupo["casos"][number] {
     expedienteId: row.expedienteId,
     codigo: row.expediente.codigo,
     empresa: mapEmpresa(row.expediente.empresa),
+    vinculoId: row.vinculoId ?? null,
+    vinculoTipo: row.vinculo?.tipo ?? null,
+    vinculoNombre: row.vinculo?.nombre ?? null,
+    vinculoDocumento: row.vinculo?.documento ?? null,
     nombreARevisar: row.nombreARevisar,
     cargo: cargoNombreARevisar(row.expediente, row.nombreARevisar),
     nacionalidad: ddUtils.nacionalidadNombreARevisar(row.expediente, row.nombreARevisar),
@@ -472,15 +493,6 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       select: { nombreARevisar: true },
     });
     return [...new Set(filas.map((fila) => fila.nombreARevisar.trim()).filter(Boolean))];
-  }
-
-  async listarVinculosSinEvaluar(expedienteId: string): Promise<string[]> {
-    const filas = await prisma.ddMatrizVinculo.findMany({
-      where: { expedienteId, sigResultado: null },
-      select: { nombre: true },
-      orderBy: { createdAt: "asc" },
-    });
-    return [...new Set(filas.map((fila) => fila.nombre.trim()).filter(Boolean))];
   }
 
   async siguienteCodigo(anio: string): Promise<string> {
@@ -917,6 +929,56 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       include: expedienteInclude,
     });
     return mapExpediente(row);
+  }
+
+  async actualizarLegalMatriz(
+    expedienteId: string,
+    data: {
+      resultado: string;
+      conclusion: string;
+      observaciones: string | null;
+      responsable: string;
+      fecha: Date;
+      cierreFinal?: {
+        resultadoFinal: string;
+        comentario: string | null;
+      };
+    },
+  ): Promise<void> {
+    await prisma.ddMatrizVinculo.updateMany({
+      where: { expedienteId, tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA },
+      data: {
+        cmpResultado: data.resultado,
+        cmpConclusion: data.conclusion,
+        cmpObservaciones: data.observaciones,
+        cmpResponsable: data.responsable,
+        cmpFecha: data.fecha,
+        ...(data.cierreFinal
+          ? {
+              resultadoFinal: data.cierreFinal.resultadoFinal,
+              finalFecha: data.fecha,
+              finalPor: data.responsable,
+              finalComentario: data.cierreFinal.comentario,
+            }
+          : {}),
+      },
+    });
+  }
+
+  async marcarVinculosCompletos(
+    expedienteId: string,
+    completos: boolean,
+    usuario: string,
+  ): Promise<void> {
+    await prisma.debidaDiligencia.update({
+      where: { id: expedienteId },
+      data: {
+        vinculosCompletos: completos,
+        vinculosCompletosPor: completos ? usuario : null,
+        vinculosCompletosEn: completos ? new Date() : null,
+        actualizadoPor: usuario,
+      },
+    });
   }
 
   async listarBandeja(params: DdBandejaParams): Promise<DdBandejaResult> {
@@ -1793,6 +1855,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     await prisma.debidaDiligenciaReputacion.createMany({
       data: casos.map((caso) => ({
         expedienteId,
+        vinculoId: caso.vinculoId,
         nombreARevisar: caso.nombreARevisar,
         sitioWeb: caso.sitioWeb,
         derivadoPor: caso.derivadoPor,
@@ -1801,31 +1864,176 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     });
   }
 
+  async listarMaestraDd(tipos?: string[]): Promise<DdMaestraItem[]> {
+    return prisma.ddMaestra.findMany({
+      where: {
+        activo: true,
+        ...(tipos && tipos.length > 0 ? { tipo: { in: tipos } } : {}),
+      },
+      select: {
+        tipo: true,
+        codigo: true,
+        nombre: true,
+        descripcion: true,
+        orden: true,
+      },
+      orderBy: [{ tipo: "asc" }, { orden: "asc" }],
+    });
+  }
+
+  async listarVinculosReputacion(expedienteId: string): Promise<DdVinculoReputacionInput[]> {
+    return prisma.ddMatrizVinculo.findMany({
+      where: { expedienteId },
+      select: {
+        id: true,
+        nombre: true,
+        tipo: true,
+        tipoDocumento: true,
+        documento: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async listarVinculosConCasoReputacion(expedienteId: string): Promise<string[]> {
+    const [casos, vinculos] = await Promise.all([
+      prisma.debidaDiligenciaReputacion.findMany({
+        where: { expedienteId },
+        select: { vinculoId: true, nombreARevisar: true },
+      }),
+      prisma.ddMatrizVinculo.findMany({
+        where: { expedienteId },
+        select: {
+          id: true,
+          nombre: true,
+          repResultado: true,
+          repConclusion: true,
+          repObservaciones: true,
+        },
+      }),
+    ]);
+    const vinculados = new Set(
+      casos.map((row) => row.vinculoId).filter((id): id is string => Boolean(id)),
+    );
+    const legacyPorNombre = new Set(
+      casos
+        .filter((row) => !row.vinculoId)
+        .map((row) => normalizarTexto(row.nombreARevisar)),
+    );
+    return vinculos
+      .filter(
+        (row) =>
+          vinculados.has(row.id) ||
+          legacyPorNombre.has(normalizarTexto(row.nombre)) ||
+          Boolean(row.repResultado ?? row.repConclusion ?? row.repObservaciones),
+      )
+      .map((row) => row.id);
+  }
+
+  async actualizarObservacionMatriz(
+    vinculoId: string,
+    data: { resultado: string; observaciones: string | null; responsable: string; fecha: Date },
+  ): Promise<void> {
+    await prisma.ddMatrizVinculo.update({
+      where: { id: vinculoId },
+      data: {
+        repResultado: data.resultado,
+        repObservaciones: data.observaciones,
+        repResponsable: data.responsable,
+        repFecha: data.fecha,
+      },
+    });
+  }
+
+  async actualizarDictamenMatriz(
+    vinculoId: string,
+    data: {
+      resultado: string;
+      conclusion: string;
+      observaciones: string | null;
+      responsable: string;
+      fecha: Date;
+    },
+  ): Promise<void> {
+    await prisma.ddMatrizVinculo.update({
+      where: { id: vinculoId },
+      data: {
+        repResultado: data.resultado,
+        repConclusion: data.conclusion,
+        repObservaciones: data.observaciones,
+        repResponsable: data.responsable,
+        repFecha: data.fecha,
+      },
+    });
+  }
+
   async listarReputacion(params: DdReputacionParams): Promise<DdReputacionResult> {
     const where: Prisma.DebidaDiligenciaReputacionWhereInput = {
       expediente: { eventoId: params.eventoId },
     };
     if (params.estado && params.estado !== DD_FILTRO_TODAS) {
-      where.estado = params.estado;
+      where.estado =
+        params.estado === DD_REPUTACION_ESTADOS.POR_REVISAR
+          ? { in: [DD_REPUTACION_ESTADOS.POR_REVISAR, DD_REPUTACION_ESTADOS.EN_ANALISIS] }
+          : params.estado;
     }
     if (params.search?.trim()) {
       const q = params.search.trim();
       where.OR = [
         { nombreARevisar: { contains: q, mode: "insensitive" } },
+        { vinculo: { nombre: { contains: q, mode: "insensitive" } } },
+        { vinculo: { documento: { contains: q, mode: "insensitive" } } },
         { expediente: { codigo: { contains: q, mode: "insensitive" } } },
         { expediente: { empresa: { razonSocial: { contains: q, mode: "insensitive" } } } },
       ];
     }
+    if (params.desde || params.hasta) {
+      where.fechaDerivacion = {
+        ...(params.desde ? { gte: new Date(`${params.desde}T00:00:00-05:00`) } : {}),
+        ...(params.hasta ? { lte: new Date(`${params.hasta}T23:59:59.999-05:00`) } : {}),
+      };
+    }
 
-    const rows = await prisma.debidaDiligenciaReputacion.findMany({
-      where,
-      orderBy: { fechaDerivacion: "desc" },
-      include: reputacionInclude,
-    });
+    const orden: Prisma.SortOrder =
+      params.orden === DD_REPUTACION_ORDEN.ANTIGUOS ? "asc" : "desc";
+    const [rows, legacyResueltos] = await Promise.all([
+      prisma.debidaDiligenciaReputacion.findMany({
+        where,
+        orderBy: { fechaDerivacion: orden },
+        include: reputacionInclude,
+      }),
+      prisma.debidaDiligenciaReputacion.findMany({
+        where: {
+          expediente: { eventoId: params.eventoId },
+          vinculoId: null,
+          OR: [
+            { resultado: { not: null } },
+            { estado: DD_REPUTACION_ESTADOS.CERRADA },
+          ],
+        },
+        select: { expedienteId: true, nombreARevisar: true },
+      }),
+    ]);
     const casos = rows.map(mapReputacion);
+    const claveCaso = (expedienteId: string, nombre: string) =>
+      `${expedienteId}:${normalizarTexto(nombre)}`;
+    const casosVinculados = new Set(
+      casos
+        .filter((caso) => caso.vinculoId)
+        .map((caso) => claveCaso(caso.expedienteId, caso.nombreARevisar)),
+    );
+    const legacyResueltoKeys = new Set(
+      legacyResueltos.map((caso) => claveCaso(caso.expedienteId, caso.nombreARevisar)),
+    );
+    const casosVisibles = casos.filter((caso) => {
+      const clave = claveCaso(caso.expedienteId, caso.nombreARevisar);
+      return caso.vinculoId
+        ? !legacyResueltoKeys.has(clave)
+        : legacyResueltoKeys.has(clave) || !casosVinculados.has(clave);
+    });
     const grupos = new Map<string, DdReputacionGrupo>();
 
-    for (const caso of casos) {
+    for (const caso of casosVisibles) {
       let grupo = grupos.get(caso.expedienteId);
       if (!grupo) {
         grupo = {
@@ -1849,8 +2057,10 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       }
     }
 
-    const agrupados = [...grupos.values()].sort(
-      (a, b) => b.fechaDerivacion.getTime() - a.fechaDerivacion.getTime(),
+    const agrupados = [...grupos.values()].sort((a, b) =>
+      orden === "asc"
+        ? a.fechaDerivacion.getTime() - b.fechaDerivacion.getTime()
+        : b.fechaDerivacion.getTime() - a.fechaDerivacion.getTime(),
     );
     const total = agrupados.length;
     const data = agrupados.slice((params.page - 1) * params.perPage, params.page * params.perPage);
@@ -1864,7 +2074,30 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     };
   }
 
-  async actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string }> {
+  async iniciarReputacion(
+    id: string,
+    revisor: string,
+  ): Promise<{ estado: string; vinculoId: string | null } | null> {
+    const actual = await prisma.debidaDiligenciaReputacion.findUnique({
+      where: { id },
+      select: { estado: true, resultado: true, vinculoId: true },
+    });
+    if (!actual) return null;
+    if (actual.resultado || actual.estado !== DD_REPUTACION_ESTADOS.POR_REVISAR) {
+      return { estado: actual.estado, vinculoId: actual.vinculoId };
+    }
+    const actualizado = await prisma.debidaDiligenciaReputacion.update({
+      where: { id },
+      data: { estado: DD_REPUTACION_ESTADOS.EN_ANALISIS, revisor },
+      select: { estado: true, vinculoId: true },
+    });
+    return actualizado;
+  }
+
+  async actualizarObservacionReputacion(
+    id: string,
+    data: DdReputacionObservacionActualizacion,
+  ): Promise<{ derivadoPor: string; vinculoId: string | null }> {
     return prisma.debidaDiligenciaReputacion.update({
       where: { id },
       data: {
@@ -1875,7 +2108,22 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         revisor: data.revisor,
         fechaCierre: data.cerrar ? dateUtils.now() : null,
       },
-      select: { derivadoPor: true },
+      select: { derivadoPor: true, vinculoId: true },
+    });
+  }
+
+  async actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string; vinculoId: string | null }> {
+    return prisma.debidaDiligenciaReputacion.update({
+      where: { id },
+      data: {
+        estado: data.estado,
+        resultado: data.resultado,
+        comentario: data.comentario,
+        linkHallazgos: data.linkHallazgos,
+        revisor: data.revisor,
+        fechaCierre: data.cerrar ? dateUtils.now() : null,
+      },
+      select: { derivadoPor: true, vinculoId: true },
     });
   }
 
@@ -1913,3 +2161,9 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     });
   }
 }
+
+
+
+
+
+

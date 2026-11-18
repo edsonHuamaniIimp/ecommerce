@@ -1,6 +1,8 @@
 /** Filtros de la lista de la Matriz de evaluacion DD. */
 export interface DdMatrizEvaluacionQueryDTO {
   eventoId?: string;
+  /** Filtra una sola DD; usado por el resumen por vínculo del modal de revisión. */
+  expedienteId?: string;
   page?: number;
   perPage?: number;
   search?: string;

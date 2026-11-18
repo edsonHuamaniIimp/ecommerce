@@ -2,14 +2,25 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, DD_MATRIZ_CRITERIO_PREFIJO, DD_MATRIZ_LISTA_URLS, DD_MATRIZ_LISTAS, type DdMatrizAdjuntoCategoria } from "@/lib/shared/constants";
+import {
+  API_ERROR_CODES,
+  DD_MATRIZ_CRITERIO_PREFIJO,
+  DD_MATRIZ_LISTA_URLS,
+  DD_MATRIZ_LISTAS,
+  DD_MATRIZ_RESULTADOS_FINALES,
+  type DdMatrizAdjuntoCategoria,
+} from "@/lib/shared/constants";
 import { DomainError } from "@/domain/errors/domain-error";
 import { getSession } from "@/lib/server/auth";
 import { getStorage } from "@/lib/server/storage";
 import type { DdMatrizEvaluacionResumenDTO } from "@/types/dto/debida-diligencia";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
 import { capturarEvidenciaPdf } from "@/infrastructure/browser/dd-evidencia-captura";
-import { fuenteAutomatizable, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import {
+  fuenteAutomatizable,
+  normalizarResultadoFinal,
+  urlFuenteLista,
+} from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { ddArchivoUtils } from "@/lib/shared/utils/debida-diligencia-archivo";
 import {
   mapDdMatrizAdjuntoToDTO,
@@ -158,6 +169,22 @@ export const ddMatrizEvaluacionController = {
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues[0]?.message ?? "Datos inválidos", 400);
     }
+
+    const esDocumentacionObservada =
+      normalizarResultadoFinal(parsed.data.resultadoFinal) ===
+      DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+    if (esDocumentacionObservada) {
+      const previo = await services.ddMatrizEvaluacion.detalle(session, parsed.data.id);
+      await services.debidaDiligencia.observarDocumentacionFinal(
+        {
+          expedienteId: previo.vinculo.expediente.expedienteId,
+          motivo: parsed.data.clienteComentario ?? null,
+          documentosObservados: parsed.data.documentosObservados,
+        },
+        session,
+      );
+    }
+
     const detalle = await services.ddMatrizEvaluacion.guardar(session, parsed.data);
     return success(mapDdMatrizEvaluacionDetalleToDTO(detalle));
   },

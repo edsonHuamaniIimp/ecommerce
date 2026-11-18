@@ -1,4 +1,4 @@
-import { DomainError } from "@/domain/errors/domain-error";
+﻿import { DomainError } from "@/domain/errors/domain-error";
 import type {
   DdMatrizAdjuntoEntity,
   DdMatrizBloque,
@@ -27,6 +27,9 @@ import {
   DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
+  DD_MATRIZ_RESULTADOS,
+  DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
   PERMISSIONS,
   ROLES,
@@ -35,6 +38,7 @@ import {
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import {
+  comunicacionesAprobadas,
   complianceDesbloqueado,
   derivarAmbito,
   evaluarBloqueArea,
@@ -134,8 +138,8 @@ export class DdMatrizEvaluacionApplicationService {
       editarGenerales: sig && vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
       editarListas: sig,
       editarSig: sig,
-      editarReputacional: reputacion,
-      /* Regla 3: SIG puede ajustar la conclusion reputacional segun las evidencias. */
+      editarReputacional: sig,
+      /* SIG define el resultado y la conclusion reputacional; Comunicaciones solo observa. */
       editarConclusionReputacional: sig && !reputacion,
       editarCompliance: legal && desbloqueado,
       editarFinal: sig || legal,
@@ -183,6 +187,7 @@ export class DdMatrizEvaluacionApplicationService {
     const perPage = query.perPage ?? DD_MATRIZ_PER_PAGE_DEFAULT;
     const resultado = await this.repo.listar({
       eventoId,
+      expedienteId: query.expedienteId,
       page,
       perPage,
       search: query.search,
@@ -430,6 +435,17 @@ export class DdMatrizEvaluacionApplicationService {
           400,
         );
       }
+      if (
+        dto.resultadoFinal !== undefined &&
+        finalEfectivo === DD_MATRIZ_RESULTADOS_FINALES.APTO
+      ) {
+        await this.validarComunicacionesParaApto({
+          ...vinculo,
+          reputacional: cambios.reputacional
+            ? { ...vinculo.reputacional, ...cambios.reputacional }
+            : vinculo.reputacional,
+        });
+      }
     }
 
     let actualizado = await this.repo.actualizarVinculo(dto.id, cambios);
@@ -444,16 +460,91 @@ export class DdMatrizEvaluacionApplicationService {
       `Matriz DD: se actualizó ${vinculo.nombre} (${Object.keys(dto).filter((k) => k !== "id").join(", ") || "sin cambios"})`,
     );
 
+    await this.cerrarEmpresaSiTodosAptos(actualizado, session);
+
     const empresa =
       actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
-        ? actualizado
+        ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
         : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
+    const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+      ? (empresa ?? actualizado)
+      : actualizado;
     return {
-      vinculo: actualizado,
+      vinculo: vinculoFinal,
       empresa,
       adjuntos,
-      permisos: this.calcularPermisos(session, actualizado, adjuntos),
+      permisos: this.calcularPermisos(session, vinculoFinal, adjuntos),
     };
+  }
+
+  /**
+   * Bloquea el APTO si Comunicaciones no cerró sin hallazgos.
+   * En la fila de empresa se exige el veredicto de todos los vínculos.
+   */
+  private async validarComunicacionesParaApto(vinculo: DdMatrizVinculoEntity): Promise<void> {
+    const vinculos =
+      vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+        ? await this.repo.listarVinculosExpediente(vinculo.expediente.expedienteId)
+        : [vinculo];
+    const pendientes = vinculos.filter((item) => !comunicacionesAprobadas(item.reputacional.resultado, item.reputacional.conclusion));
+    if (pendientes.length === 0) return;
+
+    const detalle = pendientes
+      .map((item) => {
+        const tipo =
+          DD_MATRIZ_TIPO_VINCULO_LABELS[
+            item.tipo as keyof typeof DD_MATRIZ_TIPO_VINCULO_LABELS
+          ] ?? item.tipo;
+        return `${item.nombre} (${tipo})`;
+      })
+      .join(", ");
+    throw new DomainError(
+      `No se puede declarar APTO: Comunicaciones no tiene un veredicto sin hallazgos para: ${detalle}`,
+      API_ERROR_CODES.CONFLICT,
+      409,
+    );
+  }
+
+  /**
+   * Si el ultimo vínculo evaluado completa el expediente y todos quedaron APTO,
+   * registra automaticamente la conclusión final APTO en la fila de la empresa.
+   * Un final manual distinto se conserva.
+   */
+  private async cerrarEmpresaSiTodosAptos(
+    actualizado: DdMatrizVinculoEntity,
+    session: DdSession,
+  ): Promise<void> {
+    if (actualizado.resultadoFinal !== DD_MATRIZ_RESULTADOS_FINALES.APTO) return;
+
+    const vinculos = await this.repo.listarVinculosExpediente(actualizado.expediente.expedienteId);
+    if (vinculos.length === 0) return;
+
+    const empresa = vinculos.find((item) => item.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA);
+    if (!empresa) return;
+    if (empresa.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO) return;
+    if (empresa.resultadoFinal && empresa.resultadoFinal !== DD_MATRIZ_RESULTADOS_FINALES.APTO) return;
+
+    const esApto = (item: DdMatrizVinculoEntity): boolean =>
+      item.resultadoFinal
+        ? item.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO
+        : item.sig.resultado === DD_MATRIZ_RESULTADOS.ACEPTADO;
+    const todosAptos = vinculos.every(esApto);
+    if (!todosAptos) return;
+    if (!vinculos.every((item) => comunicacionesAprobadas(item.reputacional.resultado, item.reputacional.conclusion))) return;
+
+    await this.repo.actualizarVinculo(empresa.id, {
+      actualizadoPor: session.email,
+      resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO,
+      finalFecha: new Date(),
+      finalPor: session.email,
+      finalComentario: "Cierre automático: todos los vínculos quedaron APTO.",
+    });
+    await this.repo.registrarAuditoria(
+      "matriz_cierre_automatico",
+      actualizado.expediente.codigo,
+      session.email,
+      "Matriz DD: la empresa quedó APTO automáticamente porque todos sus vínculos están APTO.",
+    );
   }
 
   /** Agrega a mano una persona/empresa vinculada a un expediente del evento. */
@@ -579,7 +670,7 @@ export class DdMatrizEvaluacionApplicationService {
       categoria === DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO
         ? permisos.editarReputacional || permisos.editarConclusionReputacional
         : categoria === DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO
-          ? permisos.editarCompliance
+          ? permisos.editarCompliance || permisos.editarSig
           : permisos.editarSig;
     if (!permitido) this.prohibido("Sin permiso para gestionar este adjunto");
   }
@@ -657,3 +748,4 @@ export class DdMatrizEvaluacionApplicationService {
     return resultado;
   }
 }
+

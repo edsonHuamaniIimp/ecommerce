@@ -18,6 +18,7 @@ import {
 } from "@/lib/shared/mappers/debida-diligencia";
 import {
   ddClientesQuerySchema,
+  ddDeclararVinculosCompletosSchema,
   ddDerivarComunicacionesSchema,
   ddEmpresasQuerySchema,
   ddGuardarSchema,
@@ -25,6 +26,9 @@ import {
   ddMatrizQuerySchema,
   ddPaginacionSchema,
   ddRegularizarVigenciaSchema,
+  ddReputacionIniciarSchema,
+  ddReputacionObservarSchema,
+  ddReputacionQuerySchema,
   ddReputacionResolverSchema,
   ddRevisarSchema,
 } from "@/validators/debida-diligencia.validator";
@@ -288,6 +292,20 @@ export const debidaDiligenciaController = {
     return success(await services.debidaDiligencia.derivarComunicaciones(parsed.data, session));
   },
 
+  /** SIG declara revisados y completos todos los vinculos antes de derivar. */
+  async declararVinculosCompletos(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddDeclararVinculosCompletosSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const expediente = await services.debidaDiligencia.declararVinculosCompletos(
+      parsed.data,
+      session,
+    );
+    return success(mapDdExpedienteToDTO(expediente, session.eventoId));
+  },
+
   /** Panel del modulo: KPIs, vigencias y matriz. */
   async panel(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
@@ -316,21 +334,62 @@ export const debidaDiligenciaController = {
     return success(mapDdMatrizToDTO(resultado));
   },
 
+  /** Catalogo maestro DD para etiquetas y orden de estados. */
+  async maestraDd(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const params = new URL(request.url).searchParams;
+    const tipos = params
+      .getAll("tipo")
+      .map((tipo) => tipo.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+    const data = await services.debidaDiligencia.maestraDdListar(
+      tipos.length > 0 ? tipos : undefined,
+      session,
+    );
+    return success({ data });
+  },
+
   /** Bandeja de revision reputacional. */
   async reputacionListar(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();
     const params = new URL(request.url).searchParams;
-    const parsed = ddPaginacionSchema.safeParse({
+    const parsed = ddReputacionQuerySchema.safeParse({
       page: params.get("page") ?? undefined,
       perPage: params.get("perPage") ?? undefined,
       search: params.get("search") ?? undefined,
       estado: params.get("estado") ?? undefined,
+      desde: params.get("desde") ?? undefined,
+      hasta: params.get("hasta") ?? undefined,
+      orden: params.get("orden") ?? undefined,
     });
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const resultado = await services.debidaDiligencia.reputacionListar(parsed.data, session);
     return success(mapDdReputacionToDTO(resultado));
+  },
+
+  /** Inicio de revision de un caso reputacional. */
+  async reputacionIniciar(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddReputacionIniciarSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    const resultado = await services.debidaDiligencia.iniciarReputacion(parsed.data.id, session);
+    return success(resultado);
+  },
+
+  /** Observaciones de Comunicaciones; el dictamen queda para SIG. */
+  async reputacionObservar(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddReputacionObservarSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+    await services.debidaDiligencia.reputacionObservar(parsed.data, session);
+    return success({ ok: true });
   },
 
   /** Resolucion de un caso reputacional. */

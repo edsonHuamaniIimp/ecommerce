@@ -12,6 +12,7 @@ import type {
   DdGuardarData,
   DdHistorialCreacion,
   DdHistorialEventoEntity,
+  DdMaestraItem,
   DdMatrizParams,
   DdMatrizResult,
   DdMisExpedientesParams,
@@ -22,9 +23,11 @@ import type {
   DdPanelVinculo,
   DdReputacionActualizacion,
   DdReputacionCreacion,
+  DdReputacionObservacionActualizacion,
   DdReputacionParams,
   DdReputacionResult,
   DdRevisionData,
+  DdVinculoReputacionInput,
 } from "@/domain/models/debida-diligencia";
 import type { DdDocumentoEstado, DdDocumentoTipo, DdEstado } from "@/lib/shared/constants";
 
@@ -160,6 +163,23 @@ export interface IDebidaDiligenciaRepository {
   listarHistorial(expedienteId: string): Promise<DdHistorialEventoEntity[]>;
   /** Actualiza el estado del expediente y sus fechas de workflow. */
   actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity>;
+  /** Refleja la decisión legal en la fila de empresa de la matriz. */
+  actualizarLegalMatriz(
+    expedienteId: string,
+    data: {
+      resultado: string;
+      conclusion: string;
+      observaciones: string | null;
+      responsable: string;
+      fecha: Date;
+      cierreFinal?: {
+        resultadoFinal: string;
+        comentario: string | null;
+      };
+    },
+  ): Promise<void>;
+  /** Registra si SIG declaro revisados y completos todos los vinculos. */
+  marcarVinculosCompletos(expedienteId: string, completos: boolean, usuario: string): Promise<void>;
   /** Bandeja paginada de Logistica. */
   listarBandeja(params: DdBandejaParams): Promise<DdBandejaResult>;
   /** KPIs del panel del modulo para el evento. */
@@ -176,10 +196,42 @@ export interface IDebidaDiligenciaRepository {
   upsertEmpresasEstados(rows: DdEmpresaEstadoImportData[]): Promise<{ importados: number; actualizados: number }>;
   /** Crea los casos reputacionales que aun no existan. */
   crearCasosReputacion(expedienteId: string, casos: DdReputacionCreacion[]): Promise<void>;
+  /** Catalogo maestro DD, opcionalmente filtrado por tipo. */
+  listarMaestraDd(tipos?: string[]): Promise<DdMaestraItem[]>;
+  /** Vinculos de matriz del expediente que pueden tener dictamen reputacional. */
+  listarVinculosReputacion(expedienteId: string): Promise<DdVinculoReputacionInput[]>;
+  /** IDs de vinculos que ya tienen un caso reputacional. */
+  listarVinculosConCasoReputacion(expedienteId: string): Promise<string[]>;
   /** Bandeja paginada de revision reputacional. */
   listarReputacion(params: DdReputacionParams): Promise<DdReputacionResult>;
+  /** Marca un caso reputacional como en revision si aun no tiene dictamen. */
+  iniciarReputacion(
+    id: string,
+    revisor: string,
+  ): Promise<{ estado: string; vinculoId: string | null } | null>;
+  /** Guarda la observacion de Comunicaciones sin escribir el dictamen de matriz. */
+  actualizarObservacionReputacion(
+    id: string,
+    data: DdReputacionObservacionActualizacion,
+  ): Promise<{ derivadoPor: string; vinculoId: string | null }>;
   /** Actualiza un caso reputacional. */
-  actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string }>;
+  actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string; vinculoId: string | null }>;
+  /** Refleja solo las observaciones de Comunicaciones en la fila de matriz. */
+  actualizarObservacionMatriz(
+    vinculoId: string,
+    data: { resultado: string; observaciones: string | null; responsable: string; fecha: Date },
+  ): Promise<void>;
+  /** Refleja el dictamen de Comunicaciones en la fila de matriz. */
+  actualizarDictamenMatriz(
+    vinculoId: string,
+    data: {
+      resultado: string;
+      conclusion: string;
+      observaciones: string | null;
+      responsable: string;
+      fecha: Date;
+    },
+  ): Promise<void>;
   /** Indica si la empresa tiene al menos un vinculo con resultado final NO APTO. */
   tieneVinculoNoApto(empresaId: string): Promise<boolean>;
   /** Igual que tieneVinculoNoApto, buscando por RUC/documento de la empresa. */
@@ -188,8 +240,6 @@ export interface IDebidaDiligenciaRepository {
   listarNombresMatriz(expedienteId: string): Promise<string[]>;
   /** Nombres que ya tienen un caso reputacional en el expediente. */
   listarNombresReputacion(expedienteId: string): Promise<string[]>;
-  /** Vinculos del expediente que aun no tienen resultado SIG. */
-  listarVinculosSinEvaluar(expedienteId: string): Promise<string[]>;
   /** Revisa si el expediente ya tiene casos reputacionales. */
   tieneCasosReputacion(expedienteId: string): Promise<boolean>;
   /** Registra en auditoria una accion del modulo. */
@@ -197,3 +247,4 @@ export interface IDebidaDiligenciaRepository {
 }
 
 export type { DdRevisionData };
+

@@ -92,8 +92,11 @@ export function mapDdExpedienteToDTO(
     emailRepresentante: expediente.emailRepresentante,
     aceptaDatos: expediente.aceptaDatos,
     aceptaVerificacion: expediente.aceptaVerificacion,
-    declaraVerdad: expediente.declaraVerdad,
-    representanteNombre: expediente.representanteNombre,
+      declaraVerdad: expediente.declaraVerdad,
+      vinculosCompletos: expediente.vinculosCompletos,
+      vinculosCompletosPor: expediente.vinculosCompletosPor,
+      vinculosCompletosEn: fecha(expediente.vinculosCompletosEn),
+      representanteNombre: expediente.representanteNombre,
     representanteTipoDocumento: expediente.representanteTipoDocumento,
     representanteDocumento: expediente.representanteDocumento,
     representanteNacionalidad: expediente.representanteNacionalidad,
@@ -449,9 +452,13 @@ export function mapDdReputacionRowToDTO(row: DdReputacionGrupo["casos"][number])
   return {
     id: row.id,
     expedienteId: row.expedienteId,
-    codigo: row.codigo,
-    empresa: { razonSocial: row.empresa.razonSocial, ruc: row.empresa.ruc },
-    nombreARevisar: row.nombreARevisar,
+      codigo: row.codigo,
+      empresa: { razonSocial: row.empresa.razonSocial, ruc: row.empresa.ruc },
+      vinculoId: row.vinculoId,
+      vinculoTipo: row.vinculoTipo,
+      vinculoNombre: row.vinculoNombre,
+      vinculoDocumento: row.vinculoDocumento,
+      nombreARevisar: row.nombreARevisar,
     cargo: row.cargo,
     nacionalidad: row.nacionalidad,
     sitioWeb: row.sitioWeb,
@@ -489,5 +496,6 @@ export function mapDdReputacionToDTO(resultado: DdReputacionResult): DdReputacio
     totalPages: resultado.totalPages,
   };
 }
+
 
 

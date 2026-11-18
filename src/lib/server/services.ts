@@ -59,6 +59,7 @@ import { DdMatrizEvaluacionPrismaRepository } from "@/infrastructure/persistence
 import { DdMatrizEvaluacionApplicationService } from "@/application/debida-diligencia/dd-matriz-evaluacion-service";
 import { DdClasificarArchivosApplicationService } from "@/application/debida-diligencia/dd-clasificar-archivos-service";
 import { OpenAiClasificadorArchivosClient } from "@/infrastructure/external/openai-clasificador-archivos-client";
+import { GeminiClasificadorArchivosClient } from "@/infrastructure/external/gemini-clasificador-archivos-client";
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
@@ -130,9 +131,14 @@ export const services = {
   configuracion: new ConfiguracionApplicationService(configuracionRepo),
   auditoria,
   ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
-  ddClasificarArchivos: new DdClasificarArchivosApplicationService(new OpenAiClasificadorArchivosClient()),
+  ddClasificarArchivos: new DdClasificarArchivosApplicationService(
+    process.env.GEMINI_API_KEY?.trim()
+      ? new GeminiClasificadorArchivosClient()
+      : new OpenAiClasificadorArchivosClient(),
+  ),
   debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator, ddConfiguracionRepo),
   ddConfiguracion: new DdConfiguracionApplicationService(ddConfiguracionRepo),
   gessRepo,
   roleRepo,
 };
+

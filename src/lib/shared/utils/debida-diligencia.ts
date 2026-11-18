@@ -17,6 +17,7 @@
   DD_REPUTACION_ESTADO_LABELS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_TIPOS,
+  DD_REPUTACION_RESULTADOS,
   DD_REPUTACION_RESULTADO_A_ESTADO,
   DD_VIGENCIA_MESES,
   DD_VINCULO_LABELS,
@@ -495,6 +496,31 @@ export const ddUtils = {
       expediente.beneficiarios.find((beneficiario) => beneficiario.nombre.trim() === buscado)
         ?.nacionalidad.trim() || null
     );
+  },
+
+  /** Normaliza resultados legacy de Comunicaciones a los terminos de la matriz. */
+  normalizarResultadoReputacion(
+    resultado: string | null | undefined,
+  ): DdReputacionResultado | null {
+    if (!resultado) return null;
+    if (
+      resultado === DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS ||
+      resultado === DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES
+    ) {
+      return DD_REPUTACION_RESULTADOS.ACEPTADO;
+    }
+    if (
+      resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ||
+      resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA
+    ) {
+      return DD_REPUTACION_RESULTADOS.OBSERVADO;
+    }
+    if (resultado === DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION) {
+      return DD_REPUTACION_RESULTADOS.EN_REVISION;
+    }
+    return Object.values(DD_REPUTACION_RESULTADOS).includes(resultado as DdReputacionResultado)
+      ? (resultado as DdReputacionResultado)
+      : null;
   },
 
   /** Estado persistido de un caso reputacional segun el resultado elegido. */

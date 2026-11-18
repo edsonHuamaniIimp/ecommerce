@@ -108,13 +108,18 @@ export interface DdMatrizFilaEntity {
   cargo: string | null;
   sigResultado: string | null;
   sigConclusion: string | null;
+  sigFecha: Date | null;
   repResultado: string | null;
   repConclusion: string | null;
+  repFecha: Date | null;
   cmpResultado: string | null;
   cmpConclusion: string | null;
+  cmpFecha: Date | null;
   resultadoFinal: string | null;
+  finalFecha: Date | null;
   reputacionCasos: number;
   reputacionPendientes: number;
+  reputacionEnAnalisis: number;
   reputacionConHallazgos: number;
   updatedAt: Date;
   expediente: Pick<
@@ -134,6 +139,8 @@ export interface DdMatrizFilaEntity {
 
 export interface DdMatrizListarParams {
   eventoId?: string;
+  /** Filtra una sola DD; se usa en el resumen por vínculo del modal de revisión. */
+  expedienteId?: string;
   page: number;
   perPage: number;
   search?: string;

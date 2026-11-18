@@ -1823,14 +1823,19 @@ export type DdReputacionEstado = (typeof DD_REPUTACION_ESTADOS)[keyof typeof DD_
 
 export const DD_REPUTACION_ESTADO_LABELS: Record<string, string> = {
   [DD_REPUTACION_ESTADOS.POR_REVISAR]: "Por revisar",
-  [DD_REPUTACION_ESTADOS.EN_ANALISIS]: "En análisis",
-  [DD_REPUTACION_ESTADOS.SIN_HALLAZGOS]: "Sin hallazgos",
-  [DD_REPUTACION_ESTADOS.CON_HALLAZGOS]: "Con hallazgos",
-  [DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION]: "Requiere información",
+  [DD_REPUTACION_ESTADOS.EN_ANALISIS]: "En revisión",
+  [DD_REPUTACION_ESTADOS.SIN_HALLAZGOS]: "Sin observaciones",
+  [DD_REPUTACION_ESTADOS.CON_HALLAZGOS]: "Observado",
+  [DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION]: "Requiere DD",
   [DD_REPUTACION_ESTADOS.CERRADA]: "Cerrada",
 };
 
 export const DD_REPUTACION_RESULTADOS = {
+  ACEPTADO: "aceptado",
+  SIN_OBSERVACIONES: "sin_observaciones",
+  REQUIERE_DEBIDA_DILIGENCIA: "requiere_debida_diligencia",
+  OBSERVADO: "observado",
+  EN_REVISION: "en_revision",
   SIN_HALLAZGOS: "sin_hallazgos",
   CON_HALLAZGOS: "con_hallazgos",
   REQUIERE_INFORMACION: "requiere_informacion",
@@ -1839,10 +1844,21 @@ export const DD_REPUTACION_RESULTADOS = {
 export type DdReputacionResultado =
   (typeof DD_REPUTACION_RESULTADOS)[keyof typeof DD_REPUTACION_RESULTADOS];
 
+/** Resultado que registra Comunicaciones por cada vínculo. */
+export const DD_REPUTACION_RESULTADOS_OPCIONES = [
+  DD_REPUTACION_RESULTADOS.ACEPTADO,
+  DD_REPUTACION_RESULTADOS.OBSERVADO,
+] as const satisfies readonly DdReputacionResultado[];
+
 export const DD_REPUTACION_RESULTADO_LABELS: Record<string, string> = {
-  [DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS]: "Sin hallazgos",
-  [DD_REPUTACION_RESULTADOS.CON_HALLAZGOS]: "Con hallazgos",
-  [DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION]: "Requiere información adicional",
+  [DD_REPUTACION_RESULTADOS.ACEPTADO]: "ACEPTADO",
+  [DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES]: "SIN OBSERVACIONES",
+  [DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA]: "REQUIERE DEBIDA DILIGENCIA",
+  [DD_REPUTACION_RESULTADOS.OBSERVADO]: "OBSERVADO",
+  [DD_REPUTACION_RESULTADOS.EN_REVISION]: "EN REVISIÓN",
+  [DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS]: "SIN OBSERVACIONES",
+  [DD_REPUTACION_RESULTADOS.CON_HALLAZGOS]: "OBSERVADO",
+  [DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION]: "EN REVISIÓN",
 };
 
 /** Origen del nombre derivado a revision reputacional. */
@@ -1864,6 +1880,11 @@ export const DD_REPUTACION_TIPO_LABELS: Record<DdReputacionTipo, string> = {
 
 /** Mapeo unico resultado -> estado persistido del caso reputacional. */
 export const DD_REPUTACION_RESULTADO_A_ESTADO: Record<DdReputacionResultado, DdReputacionEstado> = {
+  [DD_REPUTACION_RESULTADOS.ACEPTADO]: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS,
+  [DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES]: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS,
+  [DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA]: DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION,
+  [DD_REPUTACION_RESULTADOS.OBSERVADO]: DD_REPUTACION_ESTADOS.CON_HALLAZGOS,
+  [DD_REPUTACION_RESULTADOS.EN_REVISION]: DD_REPUTACION_ESTADOS.EN_ANALISIS,
   [DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS]: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS,
   [DD_REPUTACION_RESULTADOS.CON_HALLAZGOS]: DD_REPUTACION_ESTADOS.CON_HALLAZGOS,
   [DD_REPUTACION_RESULTADOS.REQUIERE_INFORMACION]: DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION,
@@ -1873,11 +1894,25 @@ export const DD_REPUTACION_RESULTADO_A_ESTADO: Record<DdReputacionResultado, DdR
 export const DD_REPUTACION_FILTROS: { value: string; label: string }[] = [
   { value: DD_FILTRO_TODAS, label: "Todas" },
   { value: DD_REPUTACION_ESTADOS.POR_REVISAR, label: "Por revisar" },
-  { value: DD_REPUTACION_ESTADOS.EN_ANALISIS, label: "En análisis" },
-  { value: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, label: "Sin hallazgos" },
-  { value: DD_REPUTACION_ESTADOS.CON_HALLAZGOS, label: "Con hallazgos" },
+  { value: DD_REPUTACION_ESTADOS.EN_ANALISIS, label: "En revisión" },
+  { value: DD_REPUTACION_ESTADOS.SIN_HALLAZGOS, label: "Sin observaciones" },
+  { value: DD_REPUTACION_ESTADOS.CON_HALLAZGOS, label: "Observado" },
+  { value: DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION, label: "Requiere DD" },
   { value: DD_REPUTACION_ESTADOS.CERRADA, label: "Cerradas" },
 ];
+
+/** Orden de la bandeja reputacional por fecha de envio del SIG. */
+export const DD_REPUTACION_ORDEN = {
+  RECIENTES: "recientes",
+  ANTIGUOS: "antiguos",
+} as const;
+
+export type DdReputacionOrden = (typeof DD_REPUTACION_ORDEN)[keyof typeof DD_REPUTACION_ORDEN];
+
+export const DD_REPUTACION_ORDEN_LABELS: Record<DdReputacionOrden, string> = {
+  [DD_REPUTACION_ORDEN.RECIENTES]: "Envío más reciente",
+  [DD_REPUTACION_ORDEN.ANTIGUOS]: "Envío más antiguo",
+};
 
 /** Tipo de evento de auditoria del modulo Debida Diligencia (`audit_log.tipo`). */
 export const DD_AUDITORIA_TIPO = "debida_diligencia";
@@ -1984,6 +2019,8 @@ export const DD_MATRIZ_CONCLUSIONES = {
   SIN_OBSERVACIONES: "sin_observaciones",
   REQUIERE_DD_REFORZADA: "requiere_dd_reforzada",
   EN_REVISION: "en_revision",
+  OBSERVADO: "observado",
+  REQUIERE_DEBIDA_DILIGENCIA: "requiere_debida_diligencia",
 } as const;
 export type DdMatrizConclusion = (typeof DD_MATRIZ_CONCLUSIONES)[keyof typeof DD_MATRIZ_CONCLUSIONES];
 
@@ -1991,11 +2028,14 @@ export const DD_MATRIZ_CONCLUSION_LABELS: Record<DdMatrizConclusion, string> = {
   [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES]: "SIN OBSERVACIONES",
   [DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]: "REQUIERE DEBIDA DILIGENCIA REFORZADA",
   [DD_MATRIZ_CONCLUSIONES.EN_REVISION]: "EN REVISIÓN",
+  [DD_MATRIZ_CONCLUSIONES.OBSERVADO]: "OBSERVADO",
+  [DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA]: "REQUIERE DEBIDA DILIGENCIA",
 };
 
 export const DD_MATRIZ_CONCLUSION_ALIAS: Record<string, DdMatrizConclusion> = {
-  "REQUIERE DEBIDA DILIGENCIA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
+  "REQUIERE DEBIDA DILIGENCIA REFORZADA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
   "REQUIERE DD REFORZADA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
+  "REQUIERE DEBIDA DILIGENCIA": DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA,
   "SIN OBSERVACION": DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
   NINGUNA: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
 };
@@ -2286,6 +2326,22 @@ export const DD_REPOSITORIO_IMPORT_CATEGORIAS = [
     label: `Criterio: ${lista.label}`,
   })),
 ] as const;
+
+/** Ayuda para que el clasificador distinga sustentos generales de criterios. */
+export const DD_REPOSITORIO_IMPORT_CATEGORIA_AYUDAS: Record<string, string> = {
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME]:
+    "Informe consolidado de la evaluacion SIG, no una consulta individual de lista.",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO]:
+    "Sustento general de SIG sin una lista restrictiva identificable en el nombre.",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO]:
+    "Publicaciones de prensa, portales periodisticos, noticias, web o antecedentes reputacionales.",
+  [DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO]:
+    "Documentos legales o societarios: certificado de existencia, ficha RUC, SUNAT, poderes, DNI, pasaporte, representante legal o documento de identidad.",
+  [`${DD_MATRIZ_CRITERIO_PREFIJO}central_riesgo_empresa`]:
+    "Reporte de central de riesgo o Sentinell correspondiente a la empresa nacional.",
+  [`${DD_MATRIZ_CRITERIO_PREFIJO}central_riesgo_persona`]:
+    "Reporte de central de riesgo o Sentinell correspondiente a una persona nacional (representante o beneficiario).",
+};
 
 /** Porcentaje minimo de participacion para declarar un beneficiario final. */
 export const DD_PORCENTAJE_PARTICIPACION_MIN = 10;

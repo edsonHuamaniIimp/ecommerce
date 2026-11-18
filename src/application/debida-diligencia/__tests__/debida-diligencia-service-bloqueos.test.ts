@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 import { DebidaDiligenciaApplicationService } from "../debida-diligencia-service";
 import type {
   DdEmpresaEstadoEntity,
@@ -39,6 +39,7 @@ const EXPEDIENTE = {
   estado: DD_ESTADOS.APROBADA,
   origen: DD_ORIGENES.FLUJO_REGULAR,
   declaraVerdad: true,
+  vinculosCompletos: true,
   fechaAprobacion: new Date("2026-01-01"),
   fechaVencimiento: new Date("2099-01-01"),
   empresa: EMPRESA,
@@ -72,8 +73,8 @@ function crearRepo(): IDebidaDiligenciaRepository {
     tieneVinculoNoApto: vi.fn().mockResolvedValue(false),
     tieneVinculoNoAptoPorDocumento: vi.fn().mockResolvedValue(false),
     listarNombresMatriz: vi.fn().mockResolvedValue([]),
+    marcarVinculosCompletos: vi.fn().mockResolvedValue(undefined),
     listarNombresReputacion: vi.fn().mockResolvedValue([]),
-    listarVinculosSinEvaluar: vi.fn().mockResolvedValue([]),
     findExpedientePorId: vi.fn().mockResolvedValue(EXPEDIENTE),
     listarEmpresasEstados: vi.fn().mockResolvedValue({
       data: [],
@@ -92,6 +93,9 @@ function crearRepo(): IDebidaDiligenciaRepository {
       },
     }),
     crearCasosReputacion: vi.fn().mockResolvedValue(undefined),
+    listarVinculosReputacion: vi.fn().mockResolvedValue([]),
+    listarVinculosConCasoReputacion: vi.fn().mockResolvedValue([]),
+    actualizarDictamenMatriz: vi.fn().mockResolvedValue(undefined),
     registrarAuditoria: vi.fn().mockResolvedValue(undefined),
     registrarHistorial: vi.fn().mockResolvedValue(undefined),
   } as unknown as IDebidaDiligenciaRepository;
@@ -189,12 +193,115 @@ describe("bloqueo por NO APTO de la matriz", () => {
   });
 });
 
+describe("declaración de vínculos completos", () => {
+  it("guarda la declaración de SIG cuando están todos los vínculos", async () => {
+    const repo = crearRepo();
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue([
+      "YURA S.A.",
+      "Ana Pérez",
+    ]);
+    const servicio = servicioCon(repo);
+
+    await servicio.declararVinculosCompletos(
+      { expedienteId: EXPEDIENTE.id, completos: true },
+      SESION,
+    );
+
+    expect(repo.marcarVinculosCompletos).toHaveBeenCalledWith(
+      EXPEDIENTE.id,
+      true,
+      SESION.email,
+    );
+  });
+
+  it("no permite declarar completos si falta un vínculo en la matriz", async () => {
+    const repo = crearRepo();
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue(["YURA S.A."]);
+    const servicio = servicioCon(repo);
+
+    await expect(
+      servicio.declararVinculosCompletos(
+        { expedienteId: EXPEDIENTE.id, completos: true },
+        SESION,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.marcarVinculosCompletos).not.toHaveBeenCalled();
+  });
+});
+
 describe("derivación incremental a Comunicaciones", () => {
+  it("bloquea la derivación mientras no se haya declarado vínculos completos", async () => {
+    const repo = crearRepo();
+    (repo.findExpedientePorId as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...EXPEDIENTE,
+      vinculosCompletos: false,
+    });
+    const servicio = servicioCon(repo);
+
+    await expect(
+      servicio.derivarComunicaciones({ expedienteId: EXPEDIENTE.id }, SESION),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(repo.crearCasosReputacion).not.toHaveBeenCalled();
+  });
+
+  it("deriva solo los vínculos seleccionados y conserva vinculoId", async () => {
+    const repo = crearRepo();
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue([
+      "YURA S.A.",
+      "Ana Pérez",
+    ]);
+    (repo.listarVinculosReputacion as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "v-empresa", nombre: "YURA S.A.", tipo: "empresa", tipoDocumento: "RUC", documento: "20312372895" },
+      { id: "v-rep", nombre: "Ana Pérez", tipo: "representante", tipoDocumento: "DNI", documento: "12345678" },
+    ]);
+    const servicio = servicioCon(repo);
+
+    await servicio.derivarComunicaciones(
+      { expedienteId: EXPEDIENTE.id, vinculoIds: ["v-rep"] },
+      SESION,
+    );
+
+    expect(repo.crearCasosReputacion).toHaveBeenCalledWith(
+      EXPEDIENTE.id,
+      [
+        {
+          vinculoId: "v-rep",
+          nombreARevisar: "Ana Pérez",
+          sitioWeb: EXPEDIENTE.sitioWeb,
+          derivadoPor: SESION.email,
+        },
+      ],
+    );
+  });
+
+  it("no duplica un vínculo que ya tiene caso reputacional", async () => {
+    const repo = crearRepo();
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue([
+      "YURA S.A.",
+      "Ana Pérez",
+    ]);
+    (repo.listarVinculosReputacion as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "v-empresa", nombre: "YURA S.A.", tipo: "empresa", tipoDocumento: "RUC", documento: "20312372895" },
+      { id: "v-rep", nombre: "Ana Pérez", tipo: "representante", tipoDocumento: "DNI", documento: "12345678" },
+    ]);
+    (repo.listarVinculosConCasoReputacion as ReturnType<typeof vi.fn>).mockResolvedValue(["v-rep"]);
+    const servicio = servicioCon(repo);
+
+    const resultado = await servicio.derivarComunicaciones(
+      { expedienteId: EXPEDIENTE.id, vinculoIds: ["v-rep"] },
+      SESION,
+    );
+
+    expect(resultado).toEqual({ derivados: 0, existentes: 1, total: 1 });
+    expect(repo.crearCasosReputacion).not.toHaveBeenCalled();
+  });
+
   it("solo crea casos nuevos e incluye vínculos manuales de la matriz", async () => {
     const repo = crearRepo();
     (repo.listarNombresReputacion as ReturnType<typeof vi.fn>).mockResolvedValue(["YURA S.A."]);
     (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue([
       "YURA S.A.",
+      "Ana Pérez",
       "Proveedor Nuevo S.A.C.",
       "Proveedor Nuevo S.A.C.",
     ]);
@@ -211,6 +318,10 @@ describe("derivación incremental a Comunicaciones", () => {
 
   it("no falla si todos los nombres ya fueron derivados", async () => {
     const repo = crearRepo();
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue([
+      "YURA S.A.",
+      "Ana Pérez",
+    ]);
     (repo.listarNombresReputacion as ReturnType<typeof vi.fn>).mockResolvedValue([
       "YURA S.A.",
       "Ana Pérez",
@@ -223,16 +334,17 @@ describe("derivación incremental a Comunicaciones", () => {
     expect(repo.crearCasosReputacion).not.toHaveBeenCalled();
   });
 
-  it("exige que todos los vínculos tengan evaluación SIG antes de derivar", async () => {
+  it("bloquea si la matriz no tiene todos los vínculos de la solicitud", async () => {
     const repo = crearRepo();
-    (repo.listarVinculosSinEvaluar as ReturnType<typeof vi.fn>).mockResolvedValue([
-      "Proveedor Nuevo S.A.C.",
-    ]);
+    (repo.listarNombresMatriz as ReturnType<typeof vi.fn>).mockResolvedValue(["YURA S.A."]);
     const servicio = servicioCon(repo);
 
     await expect(
       servicio.derivarComunicaciones({ expedienteId: EXPEDIENTE.id }, SESION),
-    ).rejects.toMatchObject({ status: 409 });
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining("Ana") });
     expect(repo.crearCasosReputacion).not.toHaveBeenCalled();
   });
 });
+
+
+

@@ -59,6 +59,7 @@ export interface DdMatrizPermisosDTO {
 
 export interface DdMatrizExpedienteDTO {
   expedienteId: string;
+  eventoId: string;
   codigo: string;
   estado: string;
   empresaRazonSocial: string;

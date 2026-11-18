@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   DdAccionRevision,
   DdDocumentoEstado,
   DdAccionLegal,
@@ -8,6 +8,7 @@
   DdHistorialTipo,
   DdObservacionArea,
   DdReputacionEstado,
+  DdReputacionOrden,
   DdReputacionResultado,
   DdResultado,
   DdTipoDocumentoEmpresa,
@@ -149,6 +150,10 @@ export interface DdExpedienteEntity {
   aceptaDatos: boolean;
   aceptaVerificacion: boolean;
   declaraVerdad: boolean;
+  /** SIG declaro que reviso y que estan todos los vinculos de la solicitud. */
+  vinculosCompletos: boolean;
+  vinculosCompletosPor: string | null;
+  vinculosCompletosEn: Date | null;
   representanteNombre: string | null;
   representanteTipoDocumento: string | null;
   representanteDocumento: string | null;
@@ -199,6 +204,11 @@ export interface DdEvaluacionEmpresa {
 
 export interface DdReputacionCasoEntity {
   id: string;
+  /** Vinculo de matriz; null en casos legacy derivados por expediente. */
+  vinculoId: string | null;
+  vinculoTipo: string | null;
+  vinculoNombre: string | null;
+  vinculoDocumento: string | null;
   nombreARevisar: string;
   /** Rol o cargo del nombre dentro del expediente. */
   cargo: string | null;
@@ -354,12 +364,26 @@ export interface DdMatrizResult {
   totalPages: number;
 }
 
+/** Item del catalogo maestro administrable de Debida Diligencia. */
+export interface DdMaestraItem {
+  tipo: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+}
+
 /** Caso de revision reputacional con datos del expediente. */
 export interface DdReputacionRow {
   id: string;
   expedienteId: string;
   codigo: string;
   empresa: DdEmpresaResumen;
+  /** Vinculo de matriz; null en casos legacy. */
+  vinculoId: string | null;
+  vinculoTipo: string | null;
+  vinculoNombre: string | null;
+  vinculoDocumento: string | null;
   nombreARevisar: string;
   /** Rol o cargo del nombre dentro del expediente. */
   cargo: string | null;
@@ -383,6 +407,11 @@ export interface DdReputacionParams {
   perPage: number;
   search?: string;
   estado?: string;
+  /** Fecha de envio del SIG (YYYY-MM-DD), inclusive. */
+  desde?: string;
+  /** Fecha de envio del SIG (YYYY-MM-DD), inclusive. */
+  hasta?: string;
+  orden?: DdReputacionOrden;
 }
 
 export interface DdReputacionGrupo {
@@ -586,8 +615,18 @@ export interface DdObservacionCreacion {
   texto: string;
 }
 
+/** Vinculo de matriz que puede derivarse a Comunicaciones. */
+export interface DdVinculoReputacionInput {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tipoDocumento: string | null;
+  documento: string | null;
+}
+
 /** Datos para crear un caso reputacional derivado por Logistica. */
 export interface DdReputacionCreacion {
+  vinculoId: string | null;
   nombreARevisar: string;
   sitioWeb: string | null;
   derivadoPor: string;
@@ -601,6 +640,18 @@ export interface DdReputacionActualizacion {
   revisor: string;
   cerrar: boolean;
 }
+
+/** Observacion de Comunicaciones; no define el dictamen de la matriz. */
+export interface DdReputacionObservacionActualizacion {
+  estado: DdReputacionEstado;
+  /** Nulo cuando Comunicaciones solo guarda un borrador. */
+  resultado: DdReputacionResultado | null;
+  comentario: string | null;
+  linkHallazgos: string | null;
+  revisor: string;
+  cerrar: boolean;
+}
+
 
 
 

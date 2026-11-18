@@ -7,11 +7,13 @@ import type {
   DdDocumentoUploadResponseDTO,
   DdEmpresasImportResponseDTO,
   DdEmpresasResponseDTO,
+  DdDeclararVinculosCompletosRequestDTO,
   DdExpedienteDTO,
   DdGuardarRequestDTO,
   DdHistorialResponseDTO,
   DdInformeLegalUploadResponseDTO,
   DdLegalResolverRequestDTO,
+  DdMaestraResponseDTO,
   DdMatrizQueryDTO,
   DdMatrizResponseDTO,
   DdMiExpedienteDTO,
@@ -19,6 +21,8 @@ import type {
   DdMisExpedientesResponseDTO,
   DdPanelDTO,
   DdRegularizarVigenciaRequestDTO,
+  DdReputacionIniciarResponseDTO,
+  DdReputacionObservarRequestDTO,
   DdReputacionQueryDTO,
   DdReputacionResponseDTO,
   DdReputacionResolverRequestDTO,
@@ -137,8 +141,18 @@ export const debidaDiligenciaService = {
   },
 
   /** Deriva manualmente empresa, representante y beneficiarios a Comunicaciones. */
-  derivarComunicaciones(expedienteId: string) {
-    return internalApi.post<{ derivados: number; existentes: number; total: number }>("/api/debida-diligencia/derivar-comunicaciones", { expedienteId });
+  derivarComunicaciones(expedienteId: string, vinculoIds?: string[]) {
+    return internalApi.post<{ derivados: number; existentes: number; total: number }>(
+      "/api/debida-diligencia/derivar-comunicaciones",
+      { expedienteId, vinculoIds },
+    );
+  },
+
+  declararVinculosCompletos(body: DdDeclararVinculosCompletosRequestDTO) {
+    return internalApi.post<DdExpedienteDTO>(
+      "/api/debida-diligencia/vinculos-completos",
+      body,
+    );
   },
 
   bandejaLegal(params: DdBandejaQueryDTO = {}) {
@@ -183,12 +197,36 @@ export const debidaDiligenciaService = {
     return internalApi.get<DdMatrizResponseDTO>(`/api/debida-diligencia/matriz${sufijo}`);
   },
 
+  maestra(tipos?: string[]) {
+    const qs = new URLSearchParams();
+    for (const tipo of tipos ?? []) qs.append("tipo", tipo);
+    const sufijo = qs.toString() ? `?${qs.toString()}` : "";
+    return internalApi.get<DdMaestraResponseDTO>(`/api/debida-diligencia/maestra${sufijo}`);
+  },
+
+  reputacionIniciar(id: string) {
+    return internalApi.post<DdReputacionIniciarResponseDTO>(
+      "/api/debida-diligencia/reputacion/iniciar",
+      { id },
+    );
+  },
+
+  reputacionObservar(body: DdReputacionObservarRequestDTO) {
+    return internalApi.post<{ ok: boolean }>(
+      "/api/debida-diligencia/reputacion/observar",
+      body,
+    );
+  },
+
   reputacionListar(params: DdReputacionQueryDTO = {}) {
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
     if (params.estado) qs.set("estado", params.estado);
+    if (params.desde) qs.set("desde", params.desde);
+    if (params.hasta) qs.set("hasta", params.hasta);
+    if (params.orden) qs.set("orden", params.orden);
     const sufijo = qs.toString() ? `?${qs.toString()}` : "";
     return internalApi.get<DdReputacionResponseDTO>(`/api/debida-diligencia/reputacion/listar${sufijo}`);
   },

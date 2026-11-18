@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { DomainError } from "@/domain/errors/domain-error";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
@@ -18,6 +18,7 @@ import type {
   DdHistorialCreacion,
   DdHistorialEventoEntity,
   DdLegalResolucionData,
+  DdMaestraItem,
   DdMatrizParams,
   DdMatrizResult,
   DdMisExpedientesParams,
@@ -34,6 +35,7 @@ import type { IDdConfiguracionRepository } from "@/domain/ports/dd-configuracion
 import type {
   DdGuardarRequestDTO,
   DdRegularizarVigenciaRequestDTO,
+  DdReputacionObservarRequestDTO,
   DdReputacionResolverRequestDTO,
   DdRevisarRequestDTO,
 } from "@/types/dto/debida-diligencia";
@@ -52,6 +54,10 @@ import {
   DD_OBSERVACION_ESTADOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_RESULTADOS,
+  DD_MATRIZ_CONCLUSIONES,
+  DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
+  DD_MATRIZ_RESULTADOS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_RESULTADOS,
   DD_MATRIZ_PER_PAGE_MAX,
   DD_DOCUMENTOS,
@@ -67,6 +73,7 @@ import {
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 
 export interface DdSession {
   email: string;
@@ -1503,19 +1510,31 @@ export class DebidaDiligenciaApplicationService {
       );
     }
 
-    if (
-      dto.accion === DD_ACCIONES_REVISION.APROBAR &&
-      (expediente.reputacion ?? []).some(
+    if (dto.accion === DD_ACCIONES_REVISION.APROBAR) {
+      const casos = expediente.reputacion ?? [];
+      const pendientes = casos.filter(
         (caso) =>
-          caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
-          caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
-      )
-    ) {
-      throw new DomainError(
-        "No se puede aprobar la debida diligencia: Comunicaciones registró hallazgos reputacionales.",
-        API_ERROR_CODES.CONFLICT,
-        409,
+          (caso.resultado !== DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS &&
+            caso.resultado !== DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES) ||
+          (caso.estado !== DD_REPUTACION_ESTADOS.SIN_HALLAZGOS &&
+            caso.estado !== DD_REPUTACION_ESTADOS.CERRADA),
       );
+      if (casos.length === 0) {
+        throw new DomainError(
+          "No se puede aprobar la debida diligencia: Comunicaciones aún no tiene casos ni veredicto.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (pendientes.length > 0) {
+        throw new DomainError(
+          `No se puede aprobar la debida diligencia: Comunicaciones no tiene un veredicto sin hallazgos para: ${pendientes
+            .map((caso) => caso.nombreARevisar)
+            .join(", ")}`,
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
     }
 
     const ahora = dateUtils.now();
@@ -1680,50 +1699,245 @@ export class DebidaDiligenciaApplicationService {
   }
 
   /**
-   * Deriva manualmente los nombres del expediente (empresa, representante y
-   * beneficiarios) a la revision reputacional de Comunicaciones.
+   * Registra la conclusión final DOCUMENTACIÓN OBSERVADA desde la matriz
+   * reutilizando el estado existente OBSERVADA (sin crear estados nuevos).
    */
-  async derivarComunicaciones(
-    dto: { expedienteId: string },
+  async observarDocumentacionFinal(
+    dto: {
+      expedienteId: string;
+      motivo: string | null;
+      documentosObservados: DdDocumentoTipo[];
+    },
     session: DdSession,
-  ): Promise<{ derivados: number; existentes: number; total: number }> {
+  ): Promise<DdExpedienteEntity> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
     const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
-    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
-
-    const sinEvaluar = await this.repo.listarVinculosSinEvaluar(expediente.id);
-    if (sinEvaluar.length > 0) {
+    if (!expediente) {
+      throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    }
+    const estadosPermitidos = new Set<string>([
+      DD_ESTADOS.EN_REVISION,
+      DD_ESTADOS.OBSERVADA,
+      DD_ESTADOS.APROBADA,
+    ]);
+    if (!estadosPermitidos.has(expediente.estado)) {
       throw new DomainError(
-        `Completa la evaluación SIG de todos los vínculos antes de derivar: ${sinEvaluar.join(", ")}`,
+        "El expediente no admite una observación de documentación en su estado actual",
         API_ERROR_CODES.CONFLICT,
         409,
       );
     }
 
-    const nombres = [
-      ...new Set([
-        ...ddUtils.nombresARevisar(expediente),
-        ...(await this.repo.listarNombresMatriz(expediente.id)),
-      ]),
-    ];
-    if (nombres.length === 0) {
-      throw new DomainError("El expediente no tiene nombres para derivar", API_ERROR_CODES.VALIDATION, 400);
+    const motivo = dto.motivo?.trim() || null;
+    if (!motivo && dto.documentosObservados.length === 0) {
+      throw new DomainError(
+        "Registra el comentario para el cliente o selecciona un documento observado",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
 
-    const existentes = new Set(
-      (await this.repo.listarNombresReputacion(expediente.id)).map((nombre) =>
-        nombre.toLocaleLowerCase(),
-      ),
+    const observaciones = dto.documentosObservados.length > 0
+      ? dto.documentosObservados.map((documentoTipo) => ({
+          documentoTipo,
+          texto: motivo || "El documento requiere una nueva versión.",
+        }))
+      : [{ documentoTipo: null, texto: motivo as string }];
+
+    const ahora = dateUtils.now();
+    await this.repo.crearObservaciones(
+      expediente.id,
+      observaciones.map((observacion) => ({
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        documentoTipo: observacion.documentoTipo,
+        texto: observacion.texto,
+      })),
+      session.email,
     );
-    const nuevos = nombres.filter((nombre) => !existentes.has(nombre.toLocaleLowerCase()));
+    if (dto.documentosObservados.length > 0) {
+      await this.repo.resolverDocumentos(
+        expediente.id,
+        dto.documentosObservados,
+        motivo,
+      );
+    }
+
+    const actualizado = await this.repo.actualizarEstado(expediente.id, {
+      estado: DD_ESTADOS.OBSERVADA,
+      fechaRevision: ahora,
+      revisadoPor: session.email,
+      actualizadoPor: session.email,
+    });
+
+    await this.registrarHistorial(actualizado.id, {
+      tipo: DD_HISTORIAL_TIPOS.OBSERVACION,
+      area: DD_OBSERVACION_AREAS.LOGISTICA,
+      estado: actualizado.estado,
+      titulo: "Documentación observada",
+      detalle: motivo || "Se solicitaron correcciones de documentación.",
+      actor: session.email,
+    });
+
+    const destino =
+      actualizado.emailRepresentante ??
+      actualizado.empresa.representanteCorreo ??
+      actualizado.empresa.emailContacto;
+    if (destino) {
+      const observacionesAbiertas = await this.repo.listarObservaciones(actualizado.id);
+      await this.notificaciones.expedienteObservado({
+        to: destino,
+        codigo: actualizado.codigo,
+        razonSocial: actualizado.empresa.razonSocial,
+        observaciones: observacionesAbiertas
+          .filter((observacion) => observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA)
+          .map((observacion) => observacion.texto),
+      });
+    }
+
+    await this.repo.registrarAuditoria(
+      "revision:documentacion-observada",
+      `debida_diligencia:${actualizado.codigo}`,
+      session.email,
+      `Logística registró DOCUMENTACIÓN OBSERVADA desde la matriz: ${motivo ?? "sin comentario"}`,
+    );
+
+    return actualizado;
+  }
+
+  /** Compara los vínculos declarados en la solicitud con los existentes en la matriz. */
+  private async vinculosFaltantesEnMatriz(expediente: DdExpedienteEntity): Promise<{
+    nombresExpediente: string[];
+    nombresMatriz: string[];
+    faltantes: string[];
+  }> {
+    const nombresExpediente = ddUtils.nombresARevisar(expediente);
+    const nombresMatriz = await this.repo.listarNombresMatriz(expediente.id);
+    const matrizNormalizada = new Set(nombresMatriz.map((nombre) => normalizarTexto(nombre)));
+    return {
+      nombresExpediente,
+      nombresMatriz,
+      faltantes: nombresExpediente.filter(
+        (nombre) => !matrizNormalizada.has(normalizarTexto(nombre)),
+      ),
+    };
+  }
+
+  /** SIG declara que revisó y que están todos los vínculos de la solicitud. */
+  async declararVinculosCompletos(
+    dto: { expedienteId: string; completos: boolean },
+    session: DdSession,
+  ): Promise<DdExpedienteEntity> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
+    const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
+    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+
+    if (dto.completos) {
+      const { faltantes } = await this.vinculosFaltantesEnMatriz(expediente);
+      if (faltantes.length > 0) {
+        throw new DomainError(
+          `No se puede declarar completos los vínculos. Faltan en la matriz: ${faltantes.join(", ")}`,
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
+
+    await this.repo.marcarVinculosCompletos(expediente.id, dto.completos, session.email);
+    await this.repo.registrarAuditoria(
+      "vinculos-completos:declarar",
+      `debida_diligencia:${expediente.codigo}`,
+      session.email,
+      dto.completos
+        ? "SIG declaró revisados y completos todos los vínculos de la solicitud."
+        : "SIG retiró la declaración de vínculos completos.",
+    );
+    return (await this.repo.findExpedientePorId(expediente.id)) ?? expediente;
+  }
+
+  /**
+   * Deriva manualmente los nombres del expediente (empresa, representante y
+   * beneficiarios) a la revision reputacional de Comunicaciones.
+   */
+  async derivarComunicaciones(
+    dto: { expedienteId: string; vinculoIds?: string[] },
+    session: DdSession,
+  ): Promise<{ derivados: number; existentes: number; total: number }> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
+    const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
+    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    if (!expediente.vinculosCompletos) {
+      throw new DomainError(
+        "Aún no se ha declarado que todos los vínculos de la solicitud están registrados y completos.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+
+    const { nombresExpediente, nombresMatriz, faltantes } =
+      await this.vinculosFaltantesEnMatriz(expediente);
+    if (faltantes.length > 0) {
+      throw new DomainError(
+        `La matriz no tiene todos los vínculos de la solicitud. Sincroniza o crea estos vínculos antes de derivar: ${faltantes.join(", ")}`,
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+
+    const vinculos = await this.repo.listarVinculosReputacion(expediente.id);
+    const idsSolicitados = dto.vinculoIds ? [...new Set(dto.vinculoIds)] : null;
+    if (idsSolicitados && idsSolicitados.length === 0) {
+      throw new DomainError("Selecciona al menos un vínculo", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    let nuevos: { vinculoId: string | null; nombreARevisar: string }[] = [];
+    let total = 0;
+    let existentesCount = 0;
+
+    if (vinculos.length > 0) {
+      const seleccionados = idsSolicitados
+        ? vinculos.filter((vinculo) => idsSolicitados.includes(vinculo.id))
+        : vinculos;
+      if (idsSolicitados && seleccionados.length !== idsSolicitados.length) {
+        throw new DomainError(
+          "Uno o más vínculos seleccionados no pertenecen a la solicitud",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+
+      const conCaso = new Set(await this.repo.listarVinculosConCasoReputacion(expediente.id));
+      nuevos = seleccionados
+        .filter((vinculo) => !conCaso.has(vinculo.id))
+        .map((vinculo) => ({ vinculoId: vinculo.id, nombreARevisar: vinculo.nombre }));
+      total = seleccionados.length;
+      existentesCount = total - nuevos.length;
+    } else {
+      /* Compatibilidad con expedientes sin filas de matriz. */
+      const nombres = [...new Set([...nombresExpediente, ...nombresMatriz])];
+      if (nombres.length === 0) {
+        throw new DomainError("El expediente no tiene nombres para derivar", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const existentes = new Set(
+        (await this.repo.listarNombresReputacion(expediente.id)).map((nombre) =>
+          nombre.toLocaleLowerCase(),
+        ),
+      );
+      nuevos = nombres
+        .filter((nombre) => !existentes.has(nombre.toLocaleLowerCase()))
+        .map((nombre) => ({ vinculoId: null, nombreARevisar: nombre }));
+      total = nombres.length;
+      existentesCount = existentes.size;
+    }
+
     if (nuevos.length === 0) {
-      return { derivados: 0, existentes: existentes.size, total: nombres.length };
+      return { derivados: 0, existentes: existentesCount, total };
     }
 
     await this.repo.crearCasosReputacion(
       expediente.id,
-      nuevos.map((nombre) => ({
-        nombreARevisar: nombre,
+      nuevos.map((caso) => ({
+        vinculoId: caso.vinculoId,
+        nombreARevisar: caso.nombreARevisar,
         sitioWeb: expediente.sitioWeb,
         derivadoPor: session.email,
       })),
@@ -1732,18 +1946,18 @@ export class DebidaDiligenciaApplicationService {
       "derivar-comunicaciones",
       `debida_diligencia:${expediente.codigo}`,
       session.email,
-      `Logística derivó ${nuevos.length} nombre(s) a Comunicaciones`,
+      `Logística derivó ${nuevos.length} vínculo(s) a Comunicaciones`,
     );
     await this.registrarHistorial(expediente.id, {
       tipo: DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES,
       area: DD_OBSERVACION_AREAS.COMUNICACION,
       estado: expediente.estado,
       titulo: "Revisión reputacional derivada",
-      detalle: `Logística derivó ${nuevos.length} nombre(s) a Comunicaciones.`,
+      detalle: `Logística derivó ${nuevos.length} vínculo(s) a Comunicaciones.`,
       actor: session.email,
-      metadata: { nombres: nuevos.length, existentes: existentes.size },
+      metadata: { vinculos: nuevos.length, existentes: existentesCount },
     });
-    return { derivados: nuevos.length, existentes: existentes.size, total: nombres.length };
+    return { derivados: nuevos.length, existentes: existentesCount, total };
   }
 
   /** Panel del modulo: KPIs y agregados de vigencia/vinculo. */
@@ -1850,6 +2064,27 @@ export class DebidaDiligenciaApplicationService {
       actualizadoPor: session.email,
     });
 
+    const resultadoLegal = aprobar
+      ? DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO
+      : observar
+        ? DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES
+        : DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO;
+    await this.repo.actualizarLegalMatriz(expediente.id, {
+      resultado: resultadoLegal,
+      conclusion: resultadoLegal,
+      observaciones: dto.motivo?.trim() || null,
+      responsable: session.email,
+      fecha: ahora,
+      ...(aprobar || observar
+        ? {}
+        : {
+            cierreFinal: {
+              resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+              comentario: dto.motivo?.trim() || "Cierre por rechazo legal.",
+            },
+          }),
+    });
+
     await this.repo.registrarAuditoria(
       `legal:${dto.decision}`,
       `debida_diligencia:${actualizado.codigo}`,
@@ -1934,6 +2169,12 @@ export class DebidaDiligenciaApplicationService {
     });
   }
 
+  /** Catalogo maestro administrable: etiquetas, orden y disponibilidad. */
+  async maestraDdListar(tipos: string[] | undefined, session: DdSession): Promise<DdMaestraItem[]> {
+    this.exigirPermiso(session, PERMISSIONS.DD_VER);
+    return this.repo.listarMaestraDd(tipos);
+  }
+
   /** Bandeja de revision reputacional (Comunicaciones). */
   async reputacionListar(
     params: Omit<DdReputacionParams, "eventoId">,
@@ -1947,7 +2188,78 @@ export class DebidaDiligenciaApplicationService {
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
       estado: params.estado,
+      desde: params.desde,
+      hasta: params.hasta,
+      orden: params.orden,
     });
+  }
+
+  /** Marca el inicio de la revision reputacional de un vinculo. */
+  async iniciarReputacion(
+    id: string,
+    session: DdSession,
+  ): Promise<{ estado: string; vinculoId: string | null }> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REPUTACION);
+    const actualizado = await this.repo.iniciarReputacion(id, session.email);
+    if (!actualizado) throw new DomainError("Caso reputacional no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    await this.repo.registrarAuditoria(
+      "reputacion:iniciar",
+      `debida_diligencia_reputacion:${id}`,
+      session.email,
+      "Comunicaciones inició la revisión reputacional del vínculo.",
+    );
+    return actualizado;
+  }
+
+  /** Comunicaciones guarda observaciones y fuentes; SIG define el dictamen. */
+  async reputacionObservar(dto: DdReputacionObservarRequestDTO, session: DdSession): Promise<void> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REPUTACION);
+    if (dto.cerrar && !dto.resultado) {
+      throw new DomainError(
+        "Selecciona el resultado de Comunicaciones para cerrar la revisión",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const estado = dto.cerrar
+      ? DD_REPUTACION_ESTADOS.CERRADA
+      : DD_REPUTACION_ESTADOS.EN_ANALISIS;
+    const comentario = dto.comentario?.trim() || null;
+    const linkHallazgos = dto.linkHallazgos?.trim() || null;
+    const actualizado = await this.repo.actualizarObservacionReputacion(dto.id, {
+      estado,
+      resultado: dto.resultado,
+      comentario,
+      linkHallazgos,
+      revisor: session.email,
+      cerrar: dto.cerrar,
+    });
+    if (dto.cerrar && actualizado.vinculoId && dto.resultado) {
+      const observacionesMatriz = [comentario, linkHallazgos ? `Fuente: ${linkHallazgos}` : null]
+        .filter(Boolean)
+        .join("\n");
+      await this.repo.actualizarObservacionMatriz(actualizado.vinculoId, {
+        resultado: dto.resultado,
+        observaciones: observacionesMatriz || null,
+        responsable: session.email,
+        fecha: dateUtils.now(),
+      });
+    }
+    await this.repo.registrarAuditoria(
+      "reputacion:observar",
+      `debida_diligencia_reputacion:${dto.id}`,
+      session.email,
+      dto.cerrar
+        ? "Comunicaciones cerró su revisión y la envió a SIG."
+        : "Comunicaciones guardó un borrador de la revisión reputacional.",
+    );
+    if (dto.cerrar && dto.notificar) {
+      await this.notificaciones.notificarLogistica(
+        actualizado.derivadoPor,
+        "Comunicaciones cerró la revisión reputacional y la envió a SIG.",
+        DD_RUTAS.MATRIZ,
+      );
+    }
   }
 
   /** Guarda el resultado de la revision reputacional. */
@@ -1957,14 +2269,50 @@ export class DebidaDiligenciaApplicationService {
     const estadoFinal = ddUtils.estadoReputacion(resultado, dto.cerrar);
     if (!estadoFinal) throw new DomainError("Resultado inválido", API_ERROR_CODES.VALIDATION, 400);
 
+    const requiereFuente =
+      resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+      resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA ||
+      resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS;
     const actualizado = await this.repo.actualizarReputacion(dto.id, {
       estado: estadoFinal,
       resultado,
       comentario: dto.comentario?.trim() || null,
-      linkHallazgos: resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ? dto.linkHallazgos?.trim() || null : null,
+      linkHallazgos: requiereFuente ? dto.linkHallazgos?.trim() || null : null,
       revisor: session.email,
       cerrar: dto.cerrar,
     });
+
+    if (actualizado.vinculoId) {
+      const dictamen =
+        resultado === DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES ||
+        resultado === DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS
+          ? {
+              resultado: DD_MATRIZ_RESULTADOS.ACEPTADO,
+              conclusion: DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+            }
+          : resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+              resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS
+            ? {
+                resultado: DD_MATRIZ_RESULTADOS.OBSERVADO,
+                conclusion: DD_MATRIZ_CONCLUSIONES.OBSERVADO,
+              }
+            : resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA
+              ? {
+                  resultado: DD_MATRIZ_RESULTADOS.OBSERVADO,
+                  conclusion: DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA,
+                }
+              : {
+                  resultado: DD_MATRIZ_RESULTADOS.OBSERVADO,
+                  conclusion: DD_MATRIZ_CONCLUSIONES.EN_REVISION,
+                };
+      await this.repo.actualizarDictamenMatriz(actualizado.vinculoId, {
+        ...dictamen,
+        observaciones: dto.comentario?.trim() || null,
+        responsable: session.email,
+        fecha: dateUtils.now(),
+      });
+    }
+
     await this.repo.registrarAuditoria(
       "reputacion:resolver",
       `debida_diligencia_reputacion:${dto.id}`,
@@ -1980,3 +2328,4 @@ export class DebidaDiligenciaApplicationService {
     }
   }
 }
+

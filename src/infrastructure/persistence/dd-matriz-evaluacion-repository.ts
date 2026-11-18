@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/server/db";
 import type { Prisma } from "@prisma/client";
+import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 import type {
   DdMatrizAdjuntoCreacion,
   DdMatrizAdjuntoEntity,
@@ -161,37 +162,125 @@ function mapVinculo(row: VinculoRow): DdMatrizVinculoEntity {
   };
 }
 
+interface CasoReputacionLegacy {
+  nombreARevisar: string;
+  resultado: string | null;
+  fechaCierre: Date | null;
+}
+
+async function casosReputacionLegacy(expedienteId: string): Promise<CasoReputacionLegacy[]> {
+  return prisma.debidaDiligenciaReputacion.findMany({
+    where: { expedienteId, vinculoId: null },
+    select: { nombreARevisar: true, resultado: true, fechaCierre: true },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+function aplicarReputacionLegacy(
+  vinculo: DdMatrizVinculoEntity,
+  casos: CasoReputacionLegacy[],
+): DdMatrizVinculoEntity {
+  if (vinculo.reputacional.resultado) return vinculo;
+  const legacy = casos.find(
+    (caso) =>
+      caso.resultado && normalizarTexto(caso.nombreARevisar) === normalizarTexto(vinculo.nombre),
+  );
+  if (!legacy) return vinculo;
+  return {
+    ...vinculo,
+    reputacional: {
+      ...vinculo.reputacional,
+      resultado: legacy.resultado,
+      fecha: vinculo.reputacional.fecha ?? legacy.fechaCierre,
+    },
+  };
+}
+
 interface ReputacionConteo {
   casos: number;
   pendientes: number;
+  enAnalisis: number;
   conHallazgos: number;
+  resultado: string | null;
+  fecha: Date | null;
 }
 
-const SIN_REPUTACION: ReputacionConteo = { casos: 0, pendientes: 0, conHallazgos: 0 };
+const SIN_REPUTACION: ReputacionConteo = {
+  casos: 0,
+  pendientes: 0,
+  enAnalisis: 0,
+  conHallazgos: 0,
+  resultado: null,
+  fecha: null,
+};
 
-async function contarReputacion(expedienteIds: string[]): Promise<Map<string, ReputacionConteo>> {
+function sumarCaso(
+  conteo: ReputacionConteo,
+  estado: string,
+  resultado: string | null,
+  fecha: Date | null,
+): void {
+  conteo.casos += 1;
+  if (
+    estado === DD_REPUTACION_ESTADOS.POR_REVISAR ||
+    estado === DD_REPUTACION_ESTADOS.EN_ANALISIS
+  ) {
+    conteo.pendientes += 1;
+  }
+  if (estado === DD_REPUTACION_ESTADOS.EN_ANALISIS) conteo.enAnalisis += 1;
+  if (
+    estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
+    estado === DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION
+  ) {
+    conteo.conHallazgos += 1;
+  }
+  if (resultado) conteo.resultado = resultado;
+  if (fecha && (!conteo.fecha || fecha > conteo.fecha)) conteo.fecha = fecha;
+}
+
+async function contarReputacion(
+  filas: { id: string; expedienteId: string; nombre: string }[],
+): Promise<Map<string, ReputacionConteo>> {
   const conteos = new Map<string, ReputacionConteo>();
-  if (expedienteIds.length === 0) return conteos;
+  if (filas.length === 0) return conteos;
+  const expedienteIds = [...new Set(filas.map((fila) => fila.expedienteId))];
 
-  const filas = await prisma.debidaDiligenciaReputacion.groupBy({
-    by: ["expedienteId", "estado"],
-    where: { expedienteId: { in: [...new Set(expedienteIds)] } },
-    _count: { _all: true },
+  const casos = await prisma.debidaDiligenciaReputacion.findMany({
+    where: { expedienteId: { in: expedienteIds } },
+    select: {
+      expedienteId: true,
+      vinculoId: true,
+      nombreARevisar: true,
+      estado: true,
+      resultado: true,
+      fechaCierre: true,
+    },
   });
+  const porVinculo = new Map<string, ReputacionConteo>();
+  const legacyPorNombre = new Map<string, ReputacionConteo>();
+
+  for (const caso of casos) {
+    const clave = caso.vinculoId
+      ? `v:${caso.vinculoId}`
+      : `l:${caso.expedienteId}:${normalizarTexto(caso.nombreARevisar)}`;
+    const destino = caso.vinculoId ? porVinculo : legacyPorNombre;
+    const actual = destino.get(clave) ?? { ...SIN_REPUTACION };
+    sumarCaso(actual, caso.estado, caso.resultado, caso.fechaCierre);
+    destino.set(clave, actual);
+  }
 
   for (const fila of filas) {
-    const actual = conteos.get(fila.expedienteId) ?? { ...SIN_REPUTACION };
-    actual.casos += fila._count._all;
-    if (
-      fila.estado === DD_REPUTACION_ESTADOS.POR_REVISAR ||
-      fila.estado === DD_REPUTACION_ESTADOS.EN_ANALISIS
-    ) {
-      actual.pendientes += fila._count._all;
-    }
-    if (fila.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS) {
-      actual.conHallazgos += fila._count._all;
-    }
-    conteos.set(fila.expedienteId, actual);
+    const directo = porVinculo.get(`v:${fila.id}`);
+    const legacy = legacyPorNombre.get(
+      `l:${fila.expedienteId}:${normalizarTexto(fila.nombre)}`,
+    );
+    const conteo =
+      directo?.resultado
+        ? directo
+        : legacy?.resultado
+          ? legacy
+          : directo ?? legacy ?? { ...SIN_REPUTACION };
+    conteos.set(fila.id, { ...conteo });
   }
   return conteos;
 }
@@ -210,13 +299,18 @@ function mapFila(row: VinculoRow, reputacion: ReputacionConteo = SIN_REPUTACION)
     cargo: row.cargo,
     sigResultado: row.sigResultado,
     sigConclusion: row.sigConclusion,
-    repResultado: row.repResultado,
+    sigFecha: row.sigFecha,
+    repResultado: row.repResultado ?? reputacion.resultado,
     repConclusion: row.repConclusion,
+    repFecha: row.repFecha ?? reputacion.fecha,
     cmpResultado: row.cmpResultado,
     cmpConclusion: row.cmpConclusion,
+    cmpFecha: row.cmpFecha,
     resultadoFinal: row.resultadoFinal,
+    finalFecha: row.finalFecha,
     reputacionCasos: reputacion.casos,
     reputacionPendientes: reputacion.pendientes,
+    reputacionEnAnalisis: reputacion.enAnalisis,
     reputacionConHallazgos: reputacion.conHallazgos,
     updatedAt: row.updatedAt,
     expediente: {
@@ -513,6 +607,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     };
     if (params.eventoId) expediente.eventoId = params.eventoId;
     const and: Prisma.DdMatrizVinculoWhereInput[] = [{ expediente }];
+    if (params.expedienteId) and.push({ expedienteId: params.expedienteId });
     if (params.tipo) and.push({ tipo: params.tipo });
     if (params.ambito) and.push({ ambito: params.ambito });
     if (params.pais) and.push({ pais: params.pais });
@@ -569,9 +664,9 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       const empresas = [...grupos.values()];
       const inicio = (params.page - 1) * params.perPage;
       const pagina = empresas.slice(inicio, inicio + params.perPage).flat();
-      const reputacion = await contarReputacion(pagina.map((row) => row.expedienteId));
+      const reputacion = await contarReputacion(pagina);
       return {
-        data: pagina.map((row) => mapFila(row, reputacion.get(row.expedienteId))),
+        data: pagina.map((row) => mapFila(row, reputacion.get(row.id))),
         total: empresas.length,
         paises: paises.flatMap((p) => (p.pais ? [{ pais: p.pais, total: p._count._all }] : [])),
       };
@@ -588,9 +683,9 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       }),
       paisesPromise,
     ]);
-    const reputacion = await contarReputacion(rows.map((row) => row.expedienteId));
+    const reputacion = await contarReputacion(rows);
     return {
-      data: rows.map((row) => mapFila(row, reputacion.get(row.expedienteId))),
+      data: rows.map((row) => mapFila(row, reputacion.get(row.id))),
       total,
       paises: paises.flatMap((p) => (p.pais ? [{ pais: p.pais, total: p._count._all }] : [])),
     };
@@ -693,7 +788,8 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async findVinculo(id: string): Promise<DdMatrizVinculoEntity | null> {
     const row = await prisma.ddMatrizVinculo.findUnique({ where: { id }, include });
-    return row ? mapVinculo(row) : null;
+    if (!row) return null;
+    return aplicarReputacionLegacy(mapVinculo(row), await casosReputacionLegacy(row.expedienteId));
   }
 
   async findVinculoEmpresa(expedienteId: string): Promise<DdMatrizVinculoEntity | null> {
@@ -707,7 +803,20 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       },
       include,
     });
-    return row ? mapVinculo(row) : null;
+    if (!row) return null;
+    return aplicarReputacionLegacy(mapVinculo(row), await casosReputacionLegacy(expedienteId));
+  }
+
+  async listarVinculosExpediente(expedienteId: string): Promise<DdMatrizVinculoEntity[]> {
+    const [rows, legacy] = await Promise.all([
+      prisma.ddMatrizVinculo.findMany({
+        where: { expedienteId },
+        include,
+        orderBy: { createdAt: "asc" },
+      }),
+      casosReputacionLegacy(expedienteId),
+    ]);
+    return rows.map((row) => aplicarReputacionLegacy(mapVinculo(row), legacy));
   }
 
   async findEventoIdDeExpediente(expedienteId: string): Promise<string | null> {

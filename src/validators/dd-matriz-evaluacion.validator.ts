@@ -1,4 +1,5 @@
-﻿import { z } from "zod";
+import { z } from "zod";
+import { normalizarResultadoFinal } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_AMBITOS,
@@ -7,6 +8,8 @@ import {
   DD_MATRIZ_EXPORT_MAX,
   DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_LISTAS,
+  DD_MATRIZ_RESULTADOS_FINALES,
+  DD_DOCUMENTOS,
   DD_MATRIZ_OBSERVACION_MAX,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -45,6 +48,7 @@ const bloqueSchema = z
 /** Consulta de la lista de la matriz. */
 export const ddMatrizEvaluacionQuerySchema = z.object({
   eventoId: z.string().trim().max(64).optional(),
+  expedienteId: z.string().trim().max(64).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(DD_MATRIZ_EVAL_PER_PAGE_MAX).default(DD_MATRIZ_PER_PAGE_DEFAULT),
   search: z.string().trim().max(200).optional(),
@@ -134,6 +138,19 @@ export const ddMatrizEvaluacionGuardarSchema = z.object({
   finalFecha: fechaNullable,
   finalPor: textoNullable(200),
   finalComentario: textoNullable(DD_MATRIZ_FINAL_COMENTARIO_MAX),
+  clienteComentario: textoNullable(1000),
+  documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).default([]),
+}).superRefine((valor, ctx) => {
+  const esDocumentacionObservada =
+    normalizarResultadoFinal(valor.resultadoFinal) ===
+    DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+  if (esDocumentacionObservada && !valor.clienteComentario?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["clienteComentario"],
+      message: "El comentario para el cliente es obligatorio para DOCUMENTACIÓN OBSERVADA",
+    });
+  }
 });
 
 /** Alta manual de un vinculo (persona o empresa vinculada). */

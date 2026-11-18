@@ -21,6 +21,7 @@ export const ddMatrizEvaluacionService = {
   listar(params: DdMatrizEvaluacionQueryDTO = {}) {
     const qs = new URLSearchParams();
     if (params.eventoId) qs.set("eventoId", params.eventoId);
+    if (params.expedienteId) qs.set("expedienteId", params.expedienteId);
     if (params.page) qs.set("page", String(params.page));
     if (params.perPage) qs.set("perPage", String(params.perPage));
     if (params.search) qs.set("search", params.search);
