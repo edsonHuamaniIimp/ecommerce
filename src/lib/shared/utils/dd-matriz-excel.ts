@@ -64,8 +64,9 @@ function celdaLista(
   listas: Record<string, string>,
   tipo: DdMatrizTipoVinculo,
   ambito: DdMatrizAmbito,
+  tipoDocumento?: string | null,
 ): string {
-  const aplica = listasAplicables(tipo, ambito).some((l) => l.codigo === codigo);
+  const aplica = listasAplicables(tipo, ambito, tipoDocumento).some((l) => l.codigo === codigo);
   if (!aplica) return NO_APLICA;
   return etiqueta(DD_MATRIZ_SI_NO_NA_LABELS, listas[codigo]);
 }
@@ -90,7 +91,13 @@ function columnasLista(
     valor: (fila) =>
       origen === "empresa"
         ? celdaLista(codigo, fila.empresa.listas, DD_MATRIZ_TIPOS_VINCULO.EMPRESA, fila.empresa.ambito as DdMatrizAmbito)
-        : celdaLista(codigo, fila.vinculo.listas, fila.vinculo.tipo as DdMatrizTipoVinculo, fila.vinculo.ambito as DdMatrizAmbito),
+        : celdaLista(
+            codigo,
+            fila.vinculo.listas,
+            fila.vinculo.tipo as DdMatrizTipoVinculo,
+            fila.vinculo.ambito as DdMatrizAmbito,
+            fila.vinculo.tipoDocumento,
+          ),
   }));
 }
 

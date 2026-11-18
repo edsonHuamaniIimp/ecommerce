@@ -30,9 +30,12 @@ import {
   DD_MATRIZ_TIPOS_VINCULO,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_REPUTACION_ESTADOS,
+  DD_TIPOS_DOCUMENTO_REPRESENTANTE,
   DD_TIPOS_VINCULO_PERSONA,
   DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_VINCULO_LABELS,
+  DD_VINCULOS_PERSONA_CON_PORCENTAJE,
+  TIPOS_DOCUMENTO,
   TIPOS_EVENTO_LABELS,
   type DdMatrizAdjuntoCategoria,
   type DdMatrizAmbito,
@@ -89,6 +92,16 @@ interface FilaDeseada {
   actividadEconomica: string | null;
   motivo: string | null;
   eventoProyecto: string | null;
+}
+
+/** Tipo de documento declarado por el beneficiario, segun su numero. */
+function tipoDocumentoBeneficiario(documento: string): string | null {
+  const valor = documento.trim();
+  if (/^\d{11}$/.test(valor)) return TIPOS_DOCUMENTO.RUC;
+  if (/^\d{8}$/.test(valor)) return TIPOS_DOCUMENTO.DNI;
+  if (/^CE/i.test(valor)) return DD_TIPOS_DOCUMENTO_REPRESENTANTE.CARNE_EXTRANJERIA;
+  if (/^PAS/i.test(valor)) return DD_TIPOS_DOCUMENTO_REPRESENTANTE.PASAPORTE;
+  return null;
 }
 
 function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto {
@@ -440,17 +453,27 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       for (const b of exp.beneficiarios) {
         const pais = resolverPais({ nacionalidad: b.nacionalidad });
         const rol = b.tipoVinculoPersona ?? DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL;
+        const tipoDocumento = tipoDocumentoBeneficiario(b.documento);
+        const empresaVinculada = rol === DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
+        const porcentajeAplica =
+          DD_VINCULOS_PERSONA_CON_PORCENTAJE.includes(rol as (typeof DD_VINCULOS_PERSONA_CON_PORCENTAJE)[number]) &&
+          Number(b.porcentaje) > 0;
+        const cargoBase =
+          DD_TIPO_VINCULO_PERSONA_LABELS[rol as keyof typeof DD_TIPO_VINCULO_PERSONA_LABELS] ??
+          DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO];
         deseadas.push({
           expedienteId: exp.id,
-          tipo: DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
+          tipo: empresaVinculada
+            ? DD_MATRIZ_TIPOS_VINCULO.VINCULADO
+            : DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO,
           refKey: b.id,
           nombre: b.nombre,
-          tipoDocumento: null,
+          tipoDocumento,
           documento: b.documento,
           nacionalidad: b.nacionalidad,
-          cargo: `${DD_TIPO_VINCULO_PERSONA_LABELS[rol as keyof typeof DD_TIPO_VINCULO_PERSONA_LABELS] ?? DD_MATRIZ_TIPO_VINCULO_LABELS[DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO]} (${b.porcentaje.toString()}%)`,
+          cargo: porcentajeAplica ? `${cargoBase} (${Number(b.porcentaje).toString()}%)` : cargoBase,
           pais,
-          ambito: derivarAmbito({ paisIso: pais }),
+          ambito: derivarAmbito({ paisIso: pais, tipoDocumento }),
           direccionLegal: null,
           estadoContribuyente: null,
           actividadEconomica: null,
@@ -490,10 +513,17 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       },
     });
     const clave = (expedienteId: string, tipo: string, refKey: string) => `${expedienteId}|${tipo}|${refKey}`;
+    const claveRef = (expedienteId: string, refKey: string) => `${expedienteId}|${refKey}`;
     const porClave = new Map(existentes.map((e) => [clave(e.expedienteId, e.tipo, e.refKey), e]));
+    const porRef = new Map(existentes.map((e) => [claveRef(e.expedienteId, e.refKey), e]));
     const clavesDeseadas = new Set(deseadas.map((d) => clave(d.expedienteId, d.tipo, d.refKey)));
+    const refsDeseadas = new Set(deseadas.map((d) => claveRef(d.expedienteId, d.refKey)));
 
-    const nuevas = deseadas.filter((d) => !porClave.has(clave(d.expedienteId, d.tipo, d.refKey)));
+    const nuevas = deseadas.filter(
+      (d) =>
+        !porClave.has(clave(d.expedienteId, d.tipo, d.refKey)) &&
+        !porRef.has(claveRef(d.expedienteId, d.refKey)),
+    );
     const base = Date.now();
     let creadas = 0;
     for (let i = 0; i < nuevas.length; i += LOTE_CREACION) {
@@ -528,7 +558,9 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     /* Refresca las filas existentes. Lo corregido a mano por SIG (pais / ambito) se respeta;
      * direccion legal y estado de contribuyente solo se completan si siguen vacios. */
     const cambios = deseadas.flatMap((d) => {
-      const actual = porClave.get(clave(d.expedienteId, d.tipo, d.refKey));
+      const actual =
+        porClave.get(clave(d.expedienteId, d.tipo, d.refKey)) ??
+        porRef.get(claveRef(d.expedienteId, d.refKey));
       if (!actual) return [];
       /* La identidad corregida por SIG se conserva; el resto se refresca desde el expediente. */
       const identidad = actual.identidadEditada
@@ -561,6 +593,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         eventoProyecto: actual.eventoProyecto ?? d.eventoProyecto,
       };
       const igual =
+        actual.tipo === d.tipo &&
         actual.nombre === identidad.nombre &&
         actual.tipoDocumento === identidad.tipoDocumento &&
         actual.documento === identidad.documento &&
@@ -575,7 +608,18 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         actual.eventoProyecto === completados.eventoProyecto;
       return igual
         ? []
-        : [prisma.ddMatrizVinculo.update({ where: { id: actual.id }, data: { ...identidad, ambito, pais, ...completados } })];
+        : [
+            prisma.ddMatrizVinculo.update({
+              where: { id: actual.id },
+              data: {
+                ...(actual.tipo !== d.tipo ? { tipo: d.tipo } : {}),
+                ...identidad,
+                ambito,
+                pais,
+                ...completados,
+              },
+            }),
+          ];
     });
     if (cambios.length > 0) await prisma.$transaction(cambios);
 
@@ -583,6 +627,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
      * solo si nadie registro evaluacion en ellas. */
     const obsoletas = existentes
       .filter((e) => !clavesDeseadas.has(clave(e.expedienteId, e.tipo, e.refKey)))
+      .filter((e) => !refsDeseadas.has(claveRef(e.expedienteId, e.refKey)))
       .filter((e) => !e.sigResultado && !e.repResultado && !e.cmpResultado && !e.resultadoFinal)
       .map((e) => e.id);
     if (obsoletas.length > 0) await prisma.ddMatrizVinculo.deleteMany({ where: { id: { in: obsoletas } } });

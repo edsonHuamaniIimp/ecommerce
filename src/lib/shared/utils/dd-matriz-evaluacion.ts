@@ -191,8 +191,15 @@ export function urlFuenteLista(
 }
 
 /** Listas restrictivas que aplican a un vinculo segun su tipo y ambito. */
-export function listasAplicables(tipo: DdMatrizTipoVinculo, ambito: DdMatrizAmbito): DdMatrizListaDef[] {
-  const esEmpresa = tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA;
+export function listasAplicables(
+  tipo: DdMatrizTipoVinculo,
+  ambito: DdMatrizAmbito,
+  tipoDocumento?: string | null,
+): DdMatrizListaDef[] {
+  const esEmpresa =
+    tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA ||
+    (tipo === DD_MATRIZ_TIPOS_VINCULO.VINCULADO &&
+      normalizarTexto(tipoDocumento) === normalizarTexto("RUC"));
   if (ambito === DD_MATRIZ_AMBITOS.EXTRANJERO) {
     return DD_MATRIZ_LISTAS.filter(
       (l) =>

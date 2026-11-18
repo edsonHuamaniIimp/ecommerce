@@ -189,6 +189,27 @@ describe("listasAplicables", () => {
     expect(persona.map((x) => x.codigo)).toContain("conflicto_interes");
   });
 
+  it("empresa vinculada con RUC usa listas de empresa", () => {
+    const l = listasAplicables(
+      DD_MATRIZ_TIPOS_VINCULO.VINCULADO,
+      DD_MATRIZ_AMBITOS.NACIONAL,
+      "RUC",
+    );
+    expect(l).toHaveLength(6);
+    expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL)).toBe(true);
+    expect(l.map((x) => x.codigo)).not.toContain("conflicto_interes");
+  });
+
+  it("persona vinculada con DNI conserva listas de persona", () => {
+    const l = listasAplicables(
+      DD_MATRIZ_TIPOS_VINCULO.VINCULADO,
+      DD_MATRIZ_AMBITOS.NACIONAL,
+      "DNI",
+    );
+    expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA)).toBe(true);
+    expect(l.map((x) => x.codigo)).toContain("conflicto_interes");
+  });
+
   it("todas las fuentes configuradas son HTTPS y pertenecen a un criterio existente", () => {
     for (const [codigo, fuente] of Object.entries(DD_MATRIZ_LISTA_URLS)) {
       expect(fuente.url).toMatch(/^https:\/\//);

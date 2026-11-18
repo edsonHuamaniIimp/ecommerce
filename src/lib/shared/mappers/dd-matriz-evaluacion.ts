@@ -105,7 +105,11 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     historialIimp: generalesOrigen.historialIimp,
     beneficioMutuo: generalesOrigen.beneficioMutuo,
   };
-  const listas: DdMatrizListaDTO[] = listasAplicables(vinculo.tipo, vinculo.ambito).map((lista) => ({
+  const listas: DdMatrizListaDTO[] = listasAplicables(
+    vinculo.tipo,
+    vinculo.ambito,
+    vinculo.tipoDocumento,
+  ).map((lista) => ({
     codigo: lista.codigo,
     label: lista.label,
     color: lista.color,

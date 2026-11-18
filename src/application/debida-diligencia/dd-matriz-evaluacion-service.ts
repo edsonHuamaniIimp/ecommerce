@@ -470,16 +470,23 @@ export class DdMatrizEvaluacionApplicationService {
 
     await this.cerrarEmpresaSiTodosAptos(actualizado, session);
 
-      const empresa =
+    let empresa =
+      actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+        ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
+        : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
+    if (empresa?.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO) {
+      await this.aprobarExpediente?.(actualizado.expediente.expedienteId, session);
+      /* El puente cambia el estado del expediente: refrescar para no devolver
+       * una respuesta con el estado anterior al APTO. */
+      actualizado = (await this.repo.findVinculo(actualizado.id)) ?? actualizado;
+      empresa =
         actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
           ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
           : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
-      if (empresa?.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO) {
-        await this.aprobarExpediente?.(actualizado.expediente.expedienteId, session);
-      }
-      const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
-        ? (empresa ?? actualizado)
-        : actualizado;
+    }
+    const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+      ? (empresa ?? actualizado)
+      : actualizado;
     return {
       vinculo: vinculoFinal,
       empresa,
@@ -740,7 +747,9 @@ export class DdMatrizEvaluacionApplicationService {
     vinculo: DdMatrizVinculoEntity,
     ambito: DdMatrizAmbito,
   ): DdMatrizListasValor {
-    const aplicables = new Set(listasAplicables(vinculo.tipo, ambito).map((l) => l.codigo));
+    const aplicables = new Set(
+      listasAplicables(vinculo.tipo, ambito, vinculo.tipoDocumento).map((l) => l.codigo),
+    );
     const resultado: DdMatrizListasValor = { ...vinculo.listas };
     for (const [codigo, valor] of Object.entries(entrada)) {
       if (!aplicables.has(codigo)) {
