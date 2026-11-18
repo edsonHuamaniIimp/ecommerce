@@ -30,6 +30,7 @@ import {
   SGC_RECONCILIAR_TIME_BUDGET_MS,
   SGC_SUBSANACION_MOTIVO,
   SGC_TITULOS_DOCUMENTO,
+  SGC_STAGES,
   SGC_LIFECYCLE_STATUSES,
   CATEGORIAS_DOCUMENTO,
   ESTADOS_DOCUMENTO_SOLICITUD,
@@ -215,7 +216,27 @@ export class SgcIntegracionApplicationService {
     const pasos: Array<[string, () => Promise<unknown>]> = [
       ["contrato", () => this.subirContratoDeSolicitud(solicitudId)],
       ["anexos", () => this.subirAnexosDeSolicitud(solicitudId)],
-      ["reenvio", () => this.reenviarCorreccionAlSgc(solicitudId, reenviadoPor)],
+      [
+        "reenvio",
+        async () => {
+          const actual = await this.client.consultarExpediente(expediente.contractId!);
+          /* Un expediente recien creado queda en draft/drafting y no tiene ronda.
+           * Ese estado SI necesita el resend inicial; el early-return de
+           * reenviarCorreccionAlSgc solo aplica a una revision ya abierta. */
+          const esDraft =
+            actual.lifecycleStatus === SGC_LIFECYCLE_STATUSES.DRAFT &&
+            actual.stage === SGC_STAGES.DRAFTING;
+          if (esDraft) {
+            await this.client.reabrirExpediente(
+              expediente.contractId!,
+              `${SGC_IDEMPOTENCY_RESEND_PREFIX}/${solicitudId}/inicial-v${actual.version ?? 1}`,
+            );
+            await this.consultarExpediente(solicitudId).catch(() => null);
+            return;
+          }
+          await this.reenviarCorreccionAlSgc(solicitudId, reenviadoPor);
+        },
+      ],
     ];
     for (const [paso, ejecutar] of pasos) {
       try {
@@ -408,6 +429,18 @@ export class SgcIntegracionApplicationService {
       if (!expediente.contractId) continue;
       try {
         const detalle = await this.client.consultarExpediente(expediente.contractId);
+        /* Recupera expedientes que quedaron creados pero nunca iniciaron ronda
+         * (regresion de `2bb2459`): crear/subir no inicia el workflow; hace falta
+         * el resend inicial. */
+        if (
+          expediente.estadoEnvio === SGC_ESTADO_ENVIO.CREADO &&
+          detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.DRAFT &&
+          detalle.stage === SGC_STAGES.DRAFTING
+        ) {
+          await this.enviarExpedienteAlSgc(expediente.solicitudId, "cron");
+          sincronizados += 1;
+          continue;
+        }
         const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones);
         const devuelto =
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
