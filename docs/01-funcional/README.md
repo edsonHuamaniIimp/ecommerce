@@ -30,6 +30,7 @@ endpoints, flujos, estados, reglas de negocio y limitaciones observadas.
 | 9.4 | Debida Diligencia — decisión UI de la matriz | [18-debida-diligencia-v2-matriz-ui.md](./18-debida-diligencia-v2-matriz-ui.md) | Matriz tipo Excel 54 columnas | `dd:matriz` |
 | 9.5 | Debida Diligencia - flujo de revisión y estados | [19-debida-diligencia-v2-flujo-estados.md](./19-debida-diligencia-v2-flujo-estados.md) | Matriz, áreas y decisión final | `dd:*` |
 | 9.6 | Debida Diligencia - bitácora técnica y decisiones | [23-dd-bitacora.md](./23-dd-bitacora.md) | Incidentes, migraciones y runbook | `dd:*` |
+| 9.7 | Debida Diligencia - pruebas de integración QA | [24-dd-pruebas-integracion-qa.md](./24-dd-pruebas-integracion-qa.md) | Casos E2E, defectos y verificaciones | `dd:*` |
 
 > **Novedades de esta iteración:** `/presala` muestra **solo la selección de eventos**; el
 > protocolo de reserva y la asistencia al exhibidor pasaron a un **modal informativo
