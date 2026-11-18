@@ -1185,8 +1185,8 @@ export class ContratoApplicationService {
     const rutaRespaldo = path.join(process.cwd(), ...plantillas[IDIOMAS.ES]);
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);
     const zip = new PizZip(plantilla);
-    const ANCHO_MAX_PLANO_CONTRATO = 560;
-    const ALTO_MAX_PLANO_CONTRATO = 420;
+    const ANCHO_MAX_PLANO_CONTRATO = 700;
+    const ALTO_MAX_PLANO_CONTRATO = 460;
     const imageModule = new ImageModule({
       centered: false,
       fileType: "docx",
