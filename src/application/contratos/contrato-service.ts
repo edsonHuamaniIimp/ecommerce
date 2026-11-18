@@ -21,11 +21,11 @@ import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
 import type { EmpresaRepresentanteAdicionalEntity } from "@/domain/models/empresa";
-import type { DatosContrato } from "@/domain/models/entities";
+import type { DatosContrato, PlanCuotasSolicitud } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, type Idioma, type TipoDescuentoGlobal } from "@/lib/shared/constants";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
@@ -33,8 +33,10 @@ import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCam
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
-import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
+import { ANCHO_SALIDA_OPERADOR, renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { nombrePais } from "@/lib/shared/utils/pais";
+import { labelTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
@@ -69,10 +71,36 @@ function liberarTurnoConversion(): void {
   esperaTurnoPdf.shift()?.();
 }
 
+/** Fila del Anexo 1 economico por stand (solo contrato de Pabellones Internacionales). */
+interface TablaEconomicaFila {
+  numero: string;
+  modulo: string;
+  tipo: string;
+  precio: string;
+  descuento_porcentaje: string;
+  descuento_monto: string;
+  neto: string;
+  final: string;
+}
+
+interface TablaEconomicaData {
+  filas: TablaEconomicaFila[];
+  total_precio: string;
+  total_descuento: string;
+  total_neto: string;
+  total_final: string;
+}
+
 /** Plantillas DOCX etiquetadas por idioma (F3: contrato en el idioma del cliente). */
 export const PLANTILLAS_CONTRATO: Record<Idioma, string[]> = {
   [IDIOMAS.ES]: ["plantillas", "contrato-perumin38-tags.docx"],
   [IDIOMAS.EN]: ["plantillas", "contrato-perumin38-tags-en.docx"],
+};
+
+/** Plantilla oficial del contrato de participacion del Operador Internacional (P38). */
+export const PLANTILLAS_CONTRATO_RESERVA_EMPRESA: Record<Idioma, string[]> = {
+  [IDIOMAS.ES]: ["plantillas", "contrato-p38-operador-tags.docx"],
+  [IDIOMAS.EN]: ["plantillas", "contrato-p38-operador-tags.docx"],
 };
 
 /**
@@ -107,7 +135,7 @@ export interface GenerarContratoInput {
   /** Cuotas configuradas por el cliente (1..3); si falta usa el plan persistido. */
   cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
   /** Descuento comercial administrado desde la bandeja (solo admin). */
-  descuentoTipo?: "porcentaje" | "monto";
+  descuentoTipo?: TipoDescuentoGlobal;
   descuentoValor?: number;
   /** Idioma del documento (es|en); si falta se resuelve el del cliente. */
   idioma?: Idioma;
@@ -230,7 +258,7 @@ export class ContratoApplicationService {
       }
     }
 
-    /* Datos de la empresa del cliente (cuenta â†’ empresa del Portal). */
+    /* Datos de la empresa del cliente (cuenta → empresa del Portal). */
     /* Datos de la empresa del cliente (cuenta -> empresa del Portal). Se usa el correo
      * de la sesion: el correo de contacto de la solicitud puede ser distinto. */
     /* Al generar para el cliente, usar los datos de la solicitud, no la cuenta
@@ -276,21 +304,31 @@ export class ContratoApplicationService {
     }
     const netoLista = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
     const planPersistido = detalle.planCuotas;
-    const descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? "porcentaje";
+    const descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE;
     const descuentoValor = input.descuentoValor ?? planPersistido?.descuentoValor ?? planPersistido?.descuentoPorcentaje ?? 0;
     if ((input.descuentoTipo !== undefined || input.descuentoValor !== undefined) && !isAdmin) {
       throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
     }
-    if (descuentoTipo === "porcentaje" && !descuentoPorcentajeValido(descuentoValor)) {
+    if (descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE && !descuentoPorcentajeValido(descuentoValor)) {
       throw new DomainError("El porcentaje de descuento es invalido.", API_ERROR_CODES.VALIDATION, 400);
     }
-    if (descuentoTipo === "monto" && !descuentoMontoValido(netoLista, descuentoValor)) {
+    if (descuentoTipo === TIPOS_DESCUENTO.MONTO && !descuentoMontoValido(netoLista, descuentoValor)) {
       throw new DomainError("El monto de descuento es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
     }
-    const descuentoPorcentaje = descuentoTipo === "porcentaje" ? descuentoValor : 0;
-    const neto = descuentoTipo === "monto"
-      ? aplicarDescuentoMonto(netoLista, descuentoValor)
-      : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+    const descuentoPorStandSinInput =
+      descuentoTipo === TIPOS_DESCUENTO.POR_STAND &&
+      input.descuentoTipo === undefined &&
+      input.descuentoValor === undefined;
+    const descuentoMontoGuardado = planPersistido?.descuentoMonto ?? 0;
+    if (descuentoPorStandSinInput && !descuentoMontoValido(netoLista, descuentoMontoGuardado)) {
+      throw new DomainError("El descuento por stand del plan es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const descuentoPorcentaje = descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE ? descuentoValor : 0;
+    const neto = descuentoPorStandSinInput
+      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+      : descuentoTipo === TIPOS_DESCUENTO.MONTO
+        ? aplicarDescuentoMonto(netoLista, descuentoValor)
+        : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
       neto,
       cuotasSolicitadas,
@@ -300,6 +338,20 @@ export class ContratoApplicationService {
         modalidadPersistida: usandoPlanPersistido ? detalle.planCuotas?.modalidad : undefined,
       },
     );
+    const tablaEconomica = detalle.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
+      ? this.construirTablaEconomica({
+          stands: detalle.standsDetalle,
+          plan: detalle.planCuotas,
+          moneda,
+          tipoCambio,
+          netoLista,
+          neto,
+          igv: importes.igv,
+          total: importes.total,
+          descuentoTipo,
+          descuentoValor,
+        })
+      : undefined;
 
     /* Snapshot del plan: fuente de verdad para regenerar el contrato y para Facturacion. */
     await this.solicitudes.guardarPlanCuotas(input.solicitudId, {
@@ -310,6 +362,7 @@ export class ContratoApplicationService {
       descuentoPorcentaje,
       descuentoTipo,
       descuentoValor,
+      ...(descuentoTipo === TIPOS_DESCUENTO.POR_STAND && planPersistido?.descuentosPorStand ? { descuentosPorStand: planPersistido.descuentosPorStand } : {}),
       netoLista,
       descuentoMonto: redondear2(netoLista - neto),
       netoDescontado: neto,
@@ -329,6 +382,10 @@ export class ContratoApplicationService {
       porcentajes,
       modalidad,
       moneda,
+      tipoSolicitud: detalle.tipo ?? null,
+      pais: detalle.pais ?? null,
+      tablaEconomica,
+      esFirma: input.esFirma === true,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
       sellosFirmantes: input.sellosFirmantes,
@@ -574,6 +631,94 @@ export class ContratoApplicationService {
     return { importes, plan, porcentajes, modalidad };
   }
 
+  /** Detalle economico por stand para el Anexo 1 de Pabellones Internacionales. */
+  private construirTablaEconomica(params: {
+    stands: Array<{ standCode: string; tipoStand?: string | null; precio?: number }> | undefined;
+    plan?: PlanCuotasSolicitud | null;
+    moneda: MonedaContrato;
+    tipoCambio: number;
+    netoLista: number;
+    neto: number;
+    igv: number;
+    total: number;
+    descuentoTipo: string;
+    descuentoValor: number;
+  }): TablaEconomicaData {
+    const stands = params.stands ?? [];
+    const aCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+    const monto = (valor: number) => numberUtils.numero(redondear2(valor), { decimales: 2 });
+    const filasBase = stands.map((stand) => ({
+      standCode: stand.standCode,
+      tipo: labelTipoStand(stand.tipoStand) ?? "Stand",
+      precioCents: aCentavos(convertirNeto(stand.precio ?? 0, params.moneda, params.tipoCambio)),
+    }));
+    const totalPrecioCents = filasBase.reduce((total, fila) => total + fila.precioCents, 0);
+    const totalDescuentoCents = Math.max(0, aCentavos(redondear2(params.netoLista - params.neto)));
+    const detallePorStand = new Map(
+      (params.plan?.descuentosPorStand ?? [])
+        .filter((detalle) => Boolean(detalle.standCode))
+        .map((detalle) => [detalle.standCode as string, detalle]),
+    );
+    const descuentos = filasBase.map((fila) => {
+      const detalle = detallePorStand.get(fila.standCode);
+      if (detalle) return Math.min(fila.precioCents, Math.max(0, aCentavos(detalle.descuentoMonto)));
+      if (totalDescuentoCents === 0 || totalPrecioCents === 0) return 0;
+      return Math.min(fila.precioCents, Math.round((fila.precioCents * totalDescuentoCents) / totalPrecioCents));
+    });
+    const ajustarDescuentos = (delta: number) => {
+      for (let index = descuentos.length - 1; index >= 0 && delta !== 0; index -= 1) {
+        const precio = filasBase[index]?.precioCents ?? 0;
+        const actual = descuentos[index] ?? 0;
+        const capacidad = delta > 0 ? precio - actual : actual;
+        const movimiento = Math.min(capacidad, Math.abs(delta));
+        if (movimiento <= 0) continue;
+        descuentos[index] = actual + (delta > 0 ? movimiento : -movimiento);
+        delta += delta > 0 ? -movimiento : movimiento;
+      }
+    };
+    ajustarDescuentos(totalDescuentoCents - descuentos.reduce((total, valor) => total + valor, 0));
+    const netos = filasBase.map((fila, index) => Math.max(0, fila.precioCents - (descuentos[index] ?? 0)));
+    const totalNetoCents = netos.reduce((total, valor) => total + valor, 0);
+    const igvCents = aCentavos(params.igv);
+    const igvPorFila = netos.map((neto) =>
+      totalNetoCents > 0 ? Math.round((neto * igvCents) / totalNetoCents) : 0,
+    );
+    const ajusteIgv = igvCents - igvPorFila.reduce((total, valor) => total + valor, 0);
+    if (igvPorFila.length > 0) {
+      igvPorFila[igvPorFila.length - 1] = Math.max(0, (igvPorFila.at(-1) ?? 0) + ajusteIgv);
+    }
+    const filas = filasBase.map((fila, index) => {
+      const detalle = detallePorStand.get(fila.standCode);
+      const descuento = descuentos[index] ?? 0;
+      const neto = netos[index] ?? 0;
+      const final = neto + (igvPorFila[index] ?? 0);
+      const porcentaje = detalle
+        ? detalle.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? `${numberUtils.numero(detalle.porcentaje, { decimales: 2 })}%`
+          : "-"
+        : params.descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? `${numberUtils.numero(params.descuentoValor, { decimales: 2 })}%`
+          : "-";
+      return {
+        numero: String(index + 1),
+        modulo: fila.standCode,
+        tipo: fila.tipo,
+        precio: monto(fila.precioCents / 100),
+        descuento_porcentaje: porcentaje,
+        descuento_monto: monto(descuento / 100),
+        neto: monto(neto / 100),
+        final: monto(final / 100),
+      };
+    });
+    return {
+      filas,
+      total_precio: monto(params.netoLista),
+      total_descuento: monto(totalDescuentoCents / 100),
+      total_neto: monto(params.neto),
+      total_final: monto(params.total),
+    };
+  }
+
   /** Modulos del Anexo 1 + grupos por pabellon (items del plano para el recorte). */
   private async construirModulos(
     refs: Array<{ bloqueId: string; codigoComercial?: string | null; tipoStand: string | null; pabellon: string | null }>,
@@ -639,6 +784,14 @@ export class ContratoApplicationService {
     porcentajes: number[];
     modalidad: string;
     moneda: MonedaContrato;
+    /** `reserva_empresa` usa la plantilla oficial del Operador Internacional. */
+    tipoSolicitud?: string | null;
+    /** Pais ISO alpha-2 del operador (clausulas y Anexo 3-A). */
+    pais?: string | null;
+    /** Detalle economico por stand (Anexo 1 de Pabellones Internacionales). */
+    tablaEconomica?: TablaEconomicaData;
+    /** true = el documento se genera para la firma, no como contrato previo. */
+    esFirma?: boolean;
     firmaExhibidorBase64?: string;
     /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
     contrato?: DatosContrato | null;
@@ -649,6 +802,7 @@ export class ContratoApplicationService {
     base: string;
   }): Promise<ContratoGenerado> {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
+    const esContratoOperador = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
     const esTresCuotas = params.modalidad === MODOS_PAGO.TRES_CUOTAS;
@@ -665,6 +819,11 @@ export class ContratoApplicationService {
     const fechaFirmaTexto = esContratoEn
       ? `${String(hoy.getDate()).padStart(2, "0")} ${mesesEn[hoy.getMonth()]} ${hoy.getFullYear()}`
       : `${String(hoy.getDate()).padStart(2, "0")} de ${mesesEs[hoy.getMonth()]} de ${hoy.getFullYear()}`;
+    const fechaLarga = (iso: string | null) => {
+      if (!iso) return "";
+      const [anio, mes, dia] = iso.split("-").map(Number);
+      return `${String(dia).padStart(2, "0")} de ${mesesEs[(mes ?? 0) - 1] ?? ""} de ${anio}`;
+    };
     const textoUbicacionGeneral = esContratoEn ? "General location - Pavilions map" : "Ubicacion general - Mapa de pabellones";
     const textoObjetoSocial = esContratoEn ? "activities related to its line of business" : "actividades propias de su giro comercial";
     const textoActividad = esContratoEn ? "exhibition of products and services" : "exhibicion de productos y servicios";
@@ -674,17 +833,31 @@ export class ContratoApplicationService {
      * Imagenes del Anexo 1: una por pabellon, generadas en el SERVIDOR con los mismos
      * datos del plano (util compartida con el portal) y rasterizadas con sharp.
      */
-    const planosData: Array<{ imagen_plano: string; pabellon: string; version: string; fecha: string }> = [];
+    const planosData: Array<{
+      imagen_plano: string;
+      pabellon: string;
+      version: string;
+      fecha: string;
+      ancho: number;
+      alto: number;
+    }> = [];
     for (const grupo of gruposPabellon.values()) {
       try {
-        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, { etiquetas: grupo.etiquetas, codigos: grupo.codigos });
+        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, {
+          etiquetas: grupo.etiquetas,
+          codigos: grupo.codigos,
+          ...(esContratoOperador ? { anchoSalida: ANCHO_SALIDA_OPERADOR } : {}),
+        });
         if (!encontrado) continue;
         const png = await sharp(Buffer.from(svg)).png().toBuffer();
+        const meta = await sharp(png).metadata();
         planosData.push({
           imagen_plano: png.toString("base64"),
           pabellon: grupo.nombre,
           version: "1",
           fecha: fechaFirma,
+          ancho: meta.width ?? 0,
+          alto: meta.height ?? 0,
         });
       } catch { /* imagen omitida: el contrato sigue siendo valido */ }
     }
@@ -706,13 +879,20 @@ export class ContratoApplicationService {
       for (const { macroId, planosHijoIds } of hijosPorMacro.values()) {
         const macro = await this.planos.detalle(macroId);
         if (!macro) continue;
-        const jpg = await renderizarMacroConSecciones(macro, planosHijoIds);
+        const jpg = await renderizarMacroConSecciones(
+          macro,
+          planosHijoIds,
+          esContratoOperador ? { anchoSalida: ANCHO_SALIDA_OPERADOR } : undefined,
+        );
         if (!jpg) continue;
+        const meta = await sharp(jpg).metadata();
         planosData.unshift({
           imagen_plano: jpg.toString("base64"),
           pabellon: textoUbicacionGeneral,
           version: "1",
           fecha: fechaFirma,
+          ancho: meta.width ?? 0,
+          alto: meta.height ?? 0,
         });
       }
     } catch { /* imagen de ubicacion omitida: el contrato sigue siendo valido */ }
@@ -817,6 +997,26 @@ export class ContratoApplicationService {
       },
     );
 
+    const metrajeTotal = redondear2(
+      modulos.reduce((total, modulo) => total + (Number.parseFloat(modulo.metraje) || 0), 0),
+    );
+    const pabellonesModulos = [...new Set(modulos.map((modulo) => modulo.zona.trim()).filter(Boolean))].join(", ");
+    const tiposModulos = (() => {
+      const conteo = new Map<string, number>();
+      for (const modulo of modulos) {
+        const tipo = labelTipoStand(modulo.tipo) ?? "Stand";
+        const etiqueta = tipo.toLowerCase() === "preferencial"
+          ? "Preferenciales"
+          : tipo.toLowerCase() === "estandar" ? "standard" : tipo;
+        conteo.set(etiqueta, (conteo.get(etiqueta) ?? 0) + 1);
+      }
+      return [...conteo.entries()].map(([tipo, cantidad]) => `${cantidad} stands ${tipo}`).join(" y ");
+    })();
+    const metrajeTexto = numberUtils.numero(metrajeTotal, { decimales: Number.isInteger(metrajeTotal) ? 0 : 2 });
+    const paisOperador = nombrePais(params.pais) || params.pais || "-";
+    const cuotaMonto = (indice: number) => plan[indice] ? monto(plan[indice].monto) : "";
+    const cuotaFecha = (indice: number) => plan[indice] ? fechaLarga(plan[indice].fechaVencimiento) : "";
+
     const data = {
       razon_social: razonSocial,
       ruc,
@@ -833,6 +1033,11 @@ export class ContratoApplicationService {
       actividad: textoActividad,
       modulos,
       planos: planosData,
+      tabla_economica: params.tablaEconomica?.filas ?? [],
+      total_precio: params.tablaEconomica?.total_precio ?? "",
+      total_descuento: params.tablaEconomica?.total_descuento ?? "",
+      total_neto: params.tablaEconomica?.total_neto ?? "",
+      total_final: params.tablaEconomica?.total_final ?? "",
       moneda: params.moneda,
       simbolo_moneda: simboloMoneda(params.moneda),
       moneda_codigo: etiquetaMoneda(params.moneda),
@@ -864,22 +1069,61 @@ export class ContratoApplicationService {
       ].filter(Boolean).join("; "),
       /** Codigos comerciales de los stands (Anexo 4: asunto de zona maquinaria). */
       codigos_stands: modulos.map((m) => m.modulo).join(", "),
+      /* Anexo 3-A: se completa desde la generacion para que el firmante revise los datos antes de firmar. */
+      anexo3a_pais: paisOperador,
+      anexo3a_modulos: modulos.map((m) => m.modulo).join(", "),
+      anexo3a_empresa: razonSocial,
+      anexo3a_empresa_firma: razonSocial,
+      anexo3a_representante: representanteLegal,
+      anexo3a_fecha: fechaFirmaTexto,
+      es_firma: params.esFirma === true,
       firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
       firmante_fecha: fechaFirmaTexto,
+      pais_operador: paisOperador,
+      area_total: metrajeTexto,
+      metraje_total: metrajeTexto,
+      cantidad_modulos: String(modulos.length),
+      pabellones_modulos: pabellonesModulos || "-",
+      tipos_modulos: tiposModulos || "-",
+      cuota_1_monto: cuotaMonto(0),
+      cuota_2_monto: cuotaMonto(1),
+      cuota_3_monto: cuotaMonto(2),
+      fecha_cuota_1: cuotaFecha(0),
+      fecha_cuota_2: cuotaFecha(1),
+      fecha_cuota_3: cuotaFecha(2),
     };
 
     /* Render DOCX en el idioma resuelto (respaldo al español si falta la plantilla). */
-    const rutaPlantilla = path.join(process.cwd(), ...PLANTILLAS_CONTRATO[idioma]);
-    const rutaRespaldo = path.join(process.cwd(), ...PLANTILLAS_CONTRATO[IDIOMAS.ES]);
+    const plantillas = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA
+      ? PLANTILLAS_CONTRATO_RESERVA_EMPRESA
+      : PLANTILLAS_CONTRATO;
+    const rutaPlantilla = path.join(process.cwd(), ...plantillas[idioma]);
+    const rutaRespaldo = path.join(process.cwd(), ...plantillas[IDIOMAS.ES]);
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);
     const zip = new PizZip(plantilla);
+    const ANCHO_MAX_PLANO_CONTRATO = 900;
+    const ALTO_MAX_PLANO_CONTRATO = 480;
     const imageModule = new ImageModule({
       centered: false,
       fileType: "docx",
       getImage: (valor: unknown) => Buffer.from(String(valor), "base64"),
-      getSize: (_img: Buffer, _valor: unknown, tagName: string) =>
-        (["firma_exhibidor", "firma_representante", "firma_iimp", "firma_1", "firma_2"].includes(tagName) ? [150, 55] : [520, 320]),
+      getSize: (_img: Buffer, valor: unknown, tagName: string) => {
+        if (["firma_exhibidor", "firma_representante", "firma_iimp", "firma_1", "firma_2"].includes(tagName)) {
+          return [150, 55];
+        }
+        if (tagName === "imagen_plano" && esContratoOperador) {
+          const plan = valor as { ancho?: unknown; alto?: unknown } | null;
+          const ancho = Number(plan?.ancho ?? 0);
+          const alto = Number(plan?.alto ?? 0);
+          if (ancho > 0 && alto > 0) {
+            const escala = Math.min(ANCHO_MAX_PLANO_CONTRATO / ancho, ALTO_MAX_PLANO_CONTRATO / alto);
+            return [Math.round(ancho * escala), Math.round(alto * escala)];
+          }
+          return [ANCHO_MAX_PLANO_CONTRATO, ALTO_MAX_PLANO_CONTRATO];
+        }
+        return [520, 320];
+      },
     });
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, modules: [imageModule] });
     doc.render(data);
@@ -1217,7 +1461,8 @@ export class ContratoApplicationService {
   /** Fallback en Windows: convierte con Microsoft Word (COM, preserva el formato del DOCX). */
   private convertirConWord(inPath: string): Promise<Buffer | null> {
     return new Promise((resolve) => {
-      const outPath = `${inPath}.pdf`;
+      /* Ruta .pdf limpia: Word no siempre exporta bien a un archivo ".docx.pdf". */
+      const outPath = path.join(os.tmpdir(), `contrato-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`);
       const scriptPath = path.join(os.tmpdir(), `word-pdf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ps1`);
       const script = [
         "param([string]$inPath, [string]$outPath)",
@@ -1227,11 +1472,13 @@ export class ContratoApplicationService {
         "$word.DisplayAlerts = 0",
         "try {",
         "  $doc = $word.Documents.Open($inPath, $false, $true)",
-        "  $doc.SaveAs2($outPath, 17)",
+        "  try { $doc.ExportAsFixedFormat($outPath, 17) }",
+        "  catch { $doc.SaveAs2($outPath, 17) }",
         "  $doc.Close($false)",
         "} finally { $word.Quit() }",
       ].join("\n");
       fs.writeFileSync(scriptPath, script, "utf8");
+      let stderr = "";
       const terminar = (buf: Buffer | null) => {
         fs.rmSync(scriptPath, { force: true });
         fs.rmSync(outPath, { force: true });
@@ -1240,13 +1487,27 @@ export class ContratoApplicationService {
       const proc = spawn(
         "powershell.exe",
         ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-inPath", inPath, "-outPath", outPath],
-        { stdio: "ignore", windowsHide: true },
+        { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
       );
-      const timeout = setTimeout(() => { proc.kill(); terminar(null); }, CONVERSION_PDF_TIMEOUT_MS);
-      proc.on("error", () => { clearTimeout(timeout); terminar(null); });
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        stderr = `${stderr}${chunk.toString("utf8")}`.slice(-2000);
+      });
+      const timeout = setTimeout(() => {
+        console.warn(`[contratos] Word no termino la conversion PDF en ${CONVERSION_PDF_TIMEOUT_MS} ms.`);
+        proc.kill();
+        terminar(null);
+      }, CONVERSION_PDF_TIMEOUT_MS);
+      proc.on("error", (error) => {
+        clearTimeout(timeout);
+        console.warn(`[contratos] No se pudo ejecutar PowerShell/Word: ${error.message}`);
+        terminar(null);
+      });
       proc.on("close", (code) => {
         clearTimeout(timeout);
         const buf = code === 0 && fs.existsSync(outPath) ? fs.readFileSync(outPath) : null;
+        if (!buf && stderr.trim()) {
+          console.warn(`[contratos] Word no genero el PDF (codigo ${code}): ${stderr.trim()}`);
+        }
         terminar(buf);
       });
     });

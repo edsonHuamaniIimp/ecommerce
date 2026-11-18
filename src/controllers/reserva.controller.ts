@@ -79,6 +79,7 @@ export const reservaController = {
       tipoComprobante: body.tipoComprobante,
       descuentoPorcentaje: body.descuentoPorcentaje,
       descuentoMonto: body.descuentoMonto,
+      descuentosPorStand: body.descuentosPorStand,
       cuotas: body.cuotas,
       actorEmail: session.email,
     });

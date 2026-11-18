@@ -1,4 +1,4 @@
-import type { Rol } from "@/lib/shared/constants";
+import type { Rol, TipoDescuento, TipoDescuentoGlobal } from "@/lib/shared/constants";
 
 /** Observacion del SGC sobre un documento (campo OPCIONAL de la integracion; puede no venir). */
 export interface SgcObservacionSolicitud {
@@ -243,7 +243,16 @@ export interface SolicitudRow {
   standCode: string;
   standCodes: string[];
   /** Stands de la solicitud con su bloque y pabellon de plano (para ubicacion agrupada). */
-  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
+  standsDetalle?: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    /** Precio comercial unitario en USD. */
+    precio?: number;
+    tipoStand?: string | null;
+  }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
@@ -348,10 +357,21 @@ export interface PlanCuotasSolicitud {
   tipoCambio?: number | null;
   /** Snapshot comercial: descuento aplicado al neto, en porcentaje. */
   descuentoPorcentaje?: number;
-  /** Tipo de descuento aplicado: `porcentaje` o `monto`. */
-  descuentoTipo?: string;
+  /** Tipo de descuento aplicado: `porcentaje`, `monto` o `por_stand`. */
+  descuentoTipo?: TipoDescuento;
   /** Valor ingresado del descuento (porcentaje o monto). */
   descuentoValor?: number;
+  /** Descuento aplicado por stand (modo unitario). */
+  descuentosPorStand?: Array<{
+    standId: string;
+    standCode?: string;
+    precio: number;
+    tipo?: TipoDescuentoGlobal;
+    valor?: number;
+    porcentaje: number;
+    descuentoMonto: number;
+    neto: number;
+  }>;
   /** Neto de lista antes del descuento. */
   netoLista?: number;
   /** Importe descontado. */

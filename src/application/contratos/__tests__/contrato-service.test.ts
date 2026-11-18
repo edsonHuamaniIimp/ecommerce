@@ -226,6 +226,47 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("360.00");
   });
 
+  it("usa la plantilla oficial del Operador Internacional para reserva_empresa", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "CH",
+        tipoStand: "Preferencial",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(3),
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("OPERADOR INTERNACIONAL");
+    expect(texto).toContain("Suiza");
+    expect(texto).toContain("2,360.00");
+    expect(texto).toContain("9 m²");
+    expect(texto).toContain("1 stands Preferencial");
+    expect(texto).toContain("Detalle económico por stand");
+    expect(texto).toContain("2,000.00");
+    expect(texto).toContain("2,360.00");
+    expect(texto).toContain("JORGE QUISPE RAMOS");
+    expect(texto).toContain("MINERA CORDILLERA S.A.C.");
+    expect(texto).not.toContain("XX m²");
+    expect(texto).not.toContain("XXXXXXXXX");
+  });
+
   it("con la modalidad de tres cuotas marca la Modalidad 3 e imprime el cronograma 40/30/30", async () => {
     const { svc, storage } = build();
 

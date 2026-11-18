@@ -67,6 +67,8 @@ interface Props {
   onClose: () => void;
 }
 
+type TipoFirmaSlot = "contrato" | "declaracion" | "declaracion_exhibidor";
+
 interface FirmaSlot {
   pageNumber: number;
   x: number;
@@ -74,8 +76,15 @@ interface FirmaSlot {
   w: number;
   h: number;
   signerIndex: number;
-  tipo: "contrato" | "declaracion";
+  tipo: TipoFirmaSlot;
 }
+
+const TIPOS_FIRMA_SLOT: TipoFirmaSlot[] = ["contrato", "declaracion", "declaracion_exhibidor"];
+const ETIQUETAS_FIRMA_SLOT: Record<TipoFirmaSlot, string> = {
+  contrato: "Contrato",
+  declaracion: "Declaración",
+  declaracion_exhibidor: "Anexo 3-A",
+};
 
 const PAGE_ANCHO_A4 = 595.28;
 const PAGE_ALTO_A4 = 841.89;
@@ -105,11 +114,36 @@ function slotDesdeImagen(
   };
 }
 
+/** Zona de firma sobre la línea "Firma: __________" de una declaración. */
+function slotDesdeLinea(
+  pageNumber: number,
+  pageWidth: number,
+  pageHeight: number,
+  item: { str: string; transform: number[]; width?: number },
+  signerIndex: number,
+  tipo: FirmaSlot["tipo"],
+): FirmaSlot {
+  const etiqueta = 34;
+  const x = (item.transform[4] ?? 0) + etiqueta;
+  const w = Math.max(80, (item.width ?? 180) - etiqueta);
+  const h = 40;
+  const y = (item.transform[5] ?? 0) + 4 - h / 2;
+  return {
+    pageNumber,
+    x: x / pageWidth,
+    y: (pageHeight - y - h) / pageHeight,
+    w: w / pageWidth,
+    h: h / pageHeight,
+    signerIndex,
+    tipo,
+  };
+}
+
 interface PaginaPdfTexto {
   pageNumber: number;
   width: number;
   height: number;
-  items: Array<{ str: string; transform: number[] }>;
+  items: Array<{ str: string; transform: number[]; width?: number }>;
   imagenes: Array<{ x: number; y: number; w: number; h: number }>;
 }
 
@@ -135,7 +169,12 @@ function slotRespaldo(
 }
 
 async function detectarFirmas(doc: PDFDocumentProxy, cantidadFirmantes: number): Promise<{ pages: number[]; slots: FirmaSlot[] }> {
-  const maxPages = Math.min(doc.numPages, 30);
+  /*
+   * El Anexo 3-A puede desplazarse varias páginas cuando el contrato incluye
+   * varios módulos o textos largos. Se revisa el PDF completo para no perder
+   * la tercera sección de firma.
+   */
+  const maxPages = doc.numPages;
   const paginas: PaginaPdfTexto[] = [];
 
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
@@ -145,8 +184,8 @@ async function detectarFirmas(doc: PDFDocumentProxy, cantidadFirmantes: number):
     const items = text.items
       .filter((item) => "str" in item)
       .map((item) => {
-        const textItem = item as { str: string; transform: number[] };
-        return { str: textItem.str.trim(), transform: textItem.transform };
+        const textItem = item as { str: string; transform: number[]; width?: number };
+        return { str: textItem.str.trim(), transform: textItem.transform, width: textItem.width };
       });
     const ops = await page.getOperatorList();
     const imagenes: Array<{ x: number; y: number; w: number; h: number }> = [];
@@ -164,31 +203,59 @@ async function detectarFirmas(doc: PDFDocumentProxy, cantidadFirmantes: number):
   }
 
   const textoDe = (p: PaginaPdfTexto) => p.items.map((item) => item.str).join(" ");
+  /*
+   * En el contrato estándar la firma del IIMP está a la izquierda (x ≈ 76).
+   * No debe considerarse una zona del cliente: el cliente firma desde x ≈ 226.
+   * En Pabellones Internacionales la única imagen de firma es la del operador.
+   */
+  const imagenesFirmaContrato = (p: PaginaPdfTexto) =>
+    p.imagenes
+      .filter((imagen) => imagen.x >= 100 && imagen.w >= 80 && imagen.w <= 260 && imagen.h >= 24 && imagen.h <= 90)
+      .sort((a, b) => b.y - a.y || a.x - b.x);
+  const imagenesFirmaDeclaracion = (p: PaginaPdfTexto) =>
+    p.imagenes
+      .filter((imagen) => imagen.w >= 80 && imagen.w <= 260 && imagen.h >= 24 && imagen.h <= 90)
+      .sort((a, b) => b.y - a.y || a.x - b.x);
 
   /*
-   * Página del contrato: la tabla de firmas del contrato va justo después
-   * de "Lima, {fecha}" y contiene al Gerente General del IIMP.
-   * Página de la declaración: contiene "Nombre y cargo".
+   * Página del contrato: standard trae "Lima, fecha"; Pabellones Internacionales
+   * no tiene esa línea, pero sí la imagen de firma junto a "Gerente General".
+   * Página de la declaración: contiene "Nombre y cargo" y, en la plantilla de
+   * Pabellones Internacionales, la línea "Firma: __________" sin imagen.
    */
+  /*
+   * La página 1 contiene el sello institucional del encabezado, no una zona de
+   * firma. Excluirla evita que un contrato ya firmado vuelva a colocar el sello
+   * del cliente sobre ese sello (efecto de doble sello).
+   */
+  const paginasContrato = paginas.filter((p) => p.pageNumber > 1);
   const contrato =
-    paginas.find((p) => p.items.some((item) => /^lima,?\s+\d/i.test(item.str)))
-    ?? paginas.find((p) => /de vinatea/i.test(textoDe(p)))
-    ?? paginas.find((p) => p.imagenes.some((imagen) => imagen.x >= 100 && imagen.w < 300 && imagen.h < 120))
-    ?? paginas[Math.min(paginas.length - 1, 1)];
+    paginasContrato.find((p) => p.items.some((item) => /^lima,?\s+\d/i.test(item.str)) && imagenesFirmaContrato(p).length > 0)
+    ?? [...paginasContrato].reverse().find((p) => /gerente general/i.test(textoDe(p)) && imagenesFirmaContrato(p).length > 0)
+    ?? paginasContrato.find((p) => /de vinatea/i.test(textoDe(p)) && imagenesFirmaContrato(p).length > 0)
+    ?? paginasContrato.find((p) => imagenesFirmaContrato(p).length > 0)
+    ?? paginasContrato[Math.min(paginasContrato.length - 1, 1)];
+  const declaraciones = paginas.filter((p) => /nombre y cargo|name and position/i.test(textoDe(p)));
+  const paginasAnexo3A = paginas.filter((p) =>
+    /anexo\s*3\s*-\s*a|declaraci[oó]n de cumplimiento del exhibidor/i.test(textoDe(p)),
+  );
   const declaracion =
-    paginas.find((p) => /nombre y cargo|name and position/i.test(textoDe(p)))
+    declaraciones[0]
     ?? paginas.find((p) => /declaraci[oó]n de cumplimiento/i.test(textoDe(p)))
     ?? paginas[Math.min(paginas.length - 1, 15)];
+  const declaracionExhibidor =
+    declaraciones.find((p) => paginasAnexo3A.some((anexo) => anexo.pageNumber === p.pageNumber))
+    ?? declaraciones[1]
+    ?? null;
 
   const pageContrato = contrato?.pageNumber ?? Math.min(doc.numPages, 2);
   const pageDeclaracion = declaracion?.pageNumber ?? Math.min(doc.numPages, 16);
-
-  const imagenesContrato = (contrato?.imagenes ?? [])
-    .filter((imagen) => imagen.x >= 100 && imagen.w < 300 && imagen.h < 120)
-    .sort((a, b) => b.y - a.y || a.x - b.x);
-  const imagenesDeclaracion = (declaracion?.imagenes ?? [])
-    .filter((imagen) => imagen.w < 300 && imagen.h < 120)
-    .sort((a, b) => b.y - a.y || a.x - b.x);
+  const pageDeclaracionExhibidor = declaracionExhibidor?.pageNumber ?? null;
+  const imagenesContrato = contrato ? imagenesFirmaContrato(contrato) : [];
+  const imagenesDeclaracion = declaracion ? imagenesFirmaDeclaracion(declaracion) : [];
+  const imagenesDeclaracionExhibidor = declaracionExhibidor ? imagenesFirmaDeclaracion(declaracionExhibidor) : [];
+  const lineaDeclaracion = declaracion?.items.find((item) => /^firma\s*:/i.test(item.str));
+  const lineaDeclaracionExhibidor = declaracionExhibidor?.items.find((item) => /^firma\s*:/i.test(item.str));
 
   const slots: FirmaSlot[] = [];
   for (let index = 0; index < cantidadFirmantes; index += 1) {
@@ -202,8 +269,21 @@ async function detectarFirmas(doc: PDFDocumentProxy, cantidadFirmantes: number):
     const imagenDeclaracion = imagenesDeclaracion[index] ?? imagenesDeclaracion[imagenesDeclaracion.length - 1];
     if (imagenDeclaracion && declaracion) {
       slots.push(slotDesdeImagen(pageDeclaracion, declaracion.width, declaracion.height, imagenDeclaracion, index, "declaracion"));
+    } else if (lineaDeclaracion && declaracion) {
+      slots.push(slotDesdeLinea(pageDeclaracion, declaracion.width, declaracion.height, lineaDeclaracion, index, "declaracion"));
     } else {
       slots.push(slotRespaldo(pageDeclaracion, index, "declaracion"));
+    }
+
+    if (declaracionExhibidor && pageDeclaracionExhibidor !== null) {
+      const imagenExhibidor = imagenesDeclaracionExhibidor[index] ?? imagenesDeclaracionExhibidor[imagenesDeclaracionExhibidor.length - 1];
+      if (imagenExhibidor) {
+        slots.push(slotDesdeImagen(pageDeclaracionExhibidor, declaracionExhibidor.width, declaracionExhibidor.height, imagenExhibidor, index, "declaracion_exhibidor"));
+      } else if (lineaDeclaracionExhibidor) {
+        slots.push(slotDesdeLinea(pageDeclaracionExhibidor, declaracionExhibidor.width, declaracionExhibidor.height, lineaDeclaracionExhibidor, index, "declaracion_exhibidor"));
+      } else {
+        slots.push(slotRespaldo(pageDeclaracionExhibidor, index, "declaracion_exhibidor"));
+      }
     }
   }
 
@@ -378,12 +458,12 @@ function PaginaPdf({
               event.dataTransfer.dropEffect = "copy";
             }}
             onDrop={soltar}
-            className={`absolute flex flex-col items-center justify-center overflow-hidden rounded-sm border-2 px-1 text-center transition-colors ${
+            className={`absolute flex flex-col items-center justify-center overflow-hidden rounded-sm border-4 border-dashed px-1 text-center transition-colors ${
               arrastrando || esSiguiente
-                ? "border-solid border-primary bg-primary/10"
+                ? "border-primary bg-primary/10"
                 : activo
-                  ? "border-dashed border-primary/80 bg-primary/5"
-                  : "border-dashed border-sky-500/50 bg-transparent"
+                  ? "border-primary/80 bg-primary/5"
+                  : "border-sky-600/70 bg-transparent"
             } ${esSiguiente ? "animate-pulse" : ""}`}
             style={{
               left: `${slot.x * 100}%`,
@@ -392,7 +472,7 @@ function PaginaPdf({
               height: `${slot.h * 100}%`,
             }}
           >
-            <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">Firma {slot.signerIndex + 1} · {slot.tipo === "declaracion" ? "Declaración" : "Contrato"}</span>
+            <span className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">Firma {slot.signerIndex + 1} · {ETIQUETAS_FIRMA_SLOT[slot.tipo]}</span>
             <span className="line-clamp-1 text-[7px] font-medium leading-tight text-muted-foreground">{firmante.nombre}</span>
             <span className={`mt-0.5 rounded-full px-1 text-[7px] font-bold uppercase tracking-wide ${esSiguiente ? "bg-primary/15 text-primary" : "bg-sky-100/90 text-sky-800"}`}>
               {esSiguiente ? "Firma esta sección" : "Suelta aquí"}
@@ -568,14 +648,19 @@ export function FirmaContratoWorkspace({
 
   const claveSlot = (index: number, tipo: FirmaSlot["tipo"]) => `${index}:${tipo}`;
   const firmaSlotDe = (index: number, tipo: FirmaSlot["tipo"]) => firmasSlots[claveSlot(index, tipo)] ?? null;
+  const tiposSlotsDe = (index: number) =>
+    pdf
+      ? [...new Set(pdf.slots.filter((slot) => slot.signerIndex === index).map((slot) => slot.tipo))]
+      : TIPOS_FIRMA_SLOT.slice(0, 2);
   const slotsDeFirmante = (index: number) =>
-    (firmaSlotDe(index, "contrato") ? 1 : 0) + (firmaSlotDe(index, "declaracion") ? 1 : 0);
-  const firmanteCompleto = (index: number) => slotsDeFirmante(index) === 2;
+    tiposSlotsDe(index).filter((tipo) => Boolean(firmaSlotDe(index, tipo))).length;
+  const slotsEsperados = (index: number) => Math.max(1, tiposSlotsDe(index).length);
+  const firmanteCompleto = (index: number) => slotsDeFirmante(index) === slotsEsperados(index);
   const slotsFirmados = firmantes.reduce(
     (acc, _f, index) => acc + slotsDeFirmante(index),
     0,
   );
-  const slotsTotales = firmantes.length * 2;
+  const slotsTotales = pdf?.slots.length ?? firmantes.length * 2;
   const firmanteKeyEfectiva = firmanteKey && firmantes.some((f) => f.key === firmanteKey)
     ? firmanteKey
     : firmantes.find((_f, index) => !firmanteCompleto(index))?.key ?? firmantes[0]?.key ?? null;
@@ -586,8 +671,8 @@ export function FirmaContratoWorkspace({
   const siguienteSlot = (() => {
     const indice = firmanteIndex >= 0 ? firmanteIndex : firmantes.findIndex((_f, i) => !firmanteCompleto(i));
     if (indice < 0) return null;
-    if (!firmaSlotDe(indice, "contrato")) return claveSlot(indice, "contrato");
-    if (!firmaSlotDe(indice, "declaracion")) return claveSlot(indice, "declaracion");
+    const pendiente = tiposSlotsDe(indice).find((tipo) => !firmaSlotDe(indice, tipo));
+    if (pendiente) return claveSlot(indice, pendiente);
     const siguiente = firmantes.findIndex((_f, i) => i !== indice && !firmanteCompleto(i));
     return siguiente >= 0 ? claveSlot(siguiente, "contrato") : null;
   })();
@@ -661,7 +746,9 @@ export function FirmaContratoWorkspace({
     }
   };
 
-  const etiquetaSlot = (tipo: FirmaSlot["tipo"]) => (tipo === "declaracion" ? "Declaración" : "Contrato");
+  const etiquetaSlot = (tipo: FirmaSlot["tipo"]) => ETIQUETAS_FIRMA_SLOT[tipo];
+  const siguienteTipoFirma = (index: number) =>
+    tiposSlotsDe(index).find((tipo) => !firmaSlotDe(index, tipo)) ?? null;
 
   const guardarFirmaPara = async (
     target: FirmanteFirma,
@@ -684,7 +771,7 @@ export function FirmaContratoWorkspace({
       setFirmasSlots(actualizado);
       setSelloPorFirmante((prev) => ({ ...prev, [target.key]: metodo === "sello" }));
       toast.success(`Firma de ${target.nombre} registrada (${etiquetaSlot(tipoSlot)}).`);
-      const completo = Boolean(actualizado[claveSlot(indice, "contrato")] && actualizado[claveSlot(indice, "declaracion")]);
+      const completo = tiposSlotsDe(indice).every((tipo) => Boolean(actualizado[claveSlot(indice, tipo)]));
       if (completo) seleccionarSiguientePendiente(target.key);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar la firma.");
@@ -756,9 +843,9 @@ export function FirmaContratoWorkspace({
   const aplicarFirma = async () => {
     if (!firmante) return;
     const indice = firmantes.findIndex((f) => f.key === firmante.key);
-    const pendientes = (["contrato", "declaracion"] as const).filter((tipo) => !firmaSlotDe(indice, tipo));
+    const pendientes = tiposSlotsDe(indice).filter((tipo) => !firmaSlotDe(indice, tipo));
     if (pendientes.length === 0) {
-      setError(`${firmante.nombre} ya firmó sus dos secciones.`);
+      setError(`${firmante.nombre} ya firmó todas sus secciones.`);
       return;
     }
     const dataUrl = metodo === "cursor" ? lienzo.dataUrl : selloUrl;
@@ -978,7 +1065,13 @@ export function FirmaContratoWorkspace({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !guardando && !finalizando) onClose(); }}>
-      <DialogContent className="flex h-[96vh] max-h-[96vh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-hidden !p-0 sm:max-w-[98vw]">
+      <DialogContent className="isolate flex h-[96vh] max-h-[96vh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-hidden !p-0 sm:max-w-[98vw]">
+        {modoElegido === null && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-30 bg-black/65"
+          />
+        )}
         <DialogHeader className="shrink-0 border-b border-border px-5 py-3 text-left">
           <div className={`flex items-start justify-between gap-4 pr-8 ${modoElegido === null ? "pointer-events-none opacity-40" : ""}`}>
             <div>
@@ -1000,8 +1093,9 @@ export function FirmaContratoWorkspace({
         </DialogHeader>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[4fr_1fr]">
-          <div className={`min-h-0 overflow-y-auto border-b border-border bg-secondary/30 p-4 lg:border-b-0 lg:border-r ${modoElegido === null ? "pointer-events-none opacity-30" : ""}`}>
-            {cargandoPdf ? (
+          <div className="relative min-h-0 border-b border-border bg-secondary/30 lg:border-b-0 lg:border-r">
+            <div className={`h-full overflow-y-auto p-4 ${modoElegido === null ? "pointer-events-none opacity-30" : ""}`}>
+              {cargandoPdf ? (
               <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Cargando contrato...</span>
@@ -1030,7 +1124,8 @@ export function FirmaContratoWorkspace({
                   />
                 ))}
               </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
           <aside className="min-h-0 overflow-y-auto bg-background p-4">
@@ -1054,7 +1149,7 @@ export function FirmaContratoWorkspace({
                         <span className="block truncate text-[11px] font-semibold text-foreground">{f.nombre}</span>
                         <span className="block truncate text-[9px] text-muted-foreground">{f.rol}</span>
                       </span>
-                      <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">{slotsDeFirmante(index)}/2</span>
+                      <span className="shrink-0 text-[9px] font-semibold text-muted-foreground">{slotsDeFirmante(index)}/{slotsEsperados(index)}</span>
                     </button>
                   ))}
                 </div>
@@ -1075,16 +1170,16 @@ export function FirmaContratoWorkspace({
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Firma seleccionada</p>
                     <p className="mt-1 text-xs font-semibold text-foreground">{firmante.nombre}</p>
                     <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      Secciones firmadas: {slotsDeFirmante(firmanteIndex)}/2
+                      Secciones firmadas: {slotsDeFirmante(firmanteIndex)}/{slotsEsperados(firmanteIndex)}
                     </p>
                     {slotSiguienteInfo && (
                       <p className="mt-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-medium text-primary">
-                        Siguiente: Firma {slotSiguienteInfo.signerIndex + 1} · {slotSiguienteInfo.tipo === "declaracion" ? "Declaración" : "Contrato"} (página {slotSiguienteInfo.pageNumber})
+                        Siguiente: Firma {slotSiguienteInfo.signerIndex + 1} · {ETIQUETAS_FIRMA_SLOT[slotSiguienteInfo.tipo]} (página {slotSiguienteInfo.pageNumber})
                       </p>
                     )}
-                    {(firmaSlotDe(firmanteIndex, "contrato") ?? firmaSlotDe(firmanteIndex, "declaracion")) && (
+                    {(firmaSlotDe(firmanteIndex, "contrato") ?? firmaSlotDe(firmanteIndex, "declaracion") ?? firmaSlotDe(firmanteIndex, "declaracion_exhibidor")) && (
                       <img
-                        src={firmaSlotDe(firmanteIndex, "contrato") ?? firmaSlotDe(firmanteIndex, "declaracion") ?? ""}
+                        src={firmaSlotDe(firmanteIndex, "contrato") ?? firmaSlotDe(firmanteIndex, "declaracion") ?? firmaSlotDe(firmanteIndex, "declaracion_exhibidor") ?? ""}
                         alt={`Firma de ${firmante.nombre}`}
                         className="mt-2 h-12 w-full rounded border border-border bg-white object-contain"
                       />
@@ -1092,7 +1187,7 @@ export function FirmaContratoWorkspace({
                   </div>
 
                   {modoElegido === null ? (
-                    <div className="space-y-1.5 rounded-lg border border-primary/40 bg-primary/5 p-2 ring-2 ring-primary/40">
+                    <div className="relative z-50 space-y-1.5 rounded-lg border border-primary/60 bg-background p-2.5 shadow-xl ring-2 ring-primary/50">
                       <p className="pb-0.5 text-center text-[9px] font-bold uppercase tracking-wide text-primary">
                         Paso 1: elige el tipo de firmado
                       </p>
@@ -1215,11 +1310,9 @@ export function FirmaContratoWorkspace({
                         <span>
                           {guardando
                             ? "Guardando..."
-                            : !firmaSlotDe(firmanteIndex, "contrato")
-                              ? "Usar esta firma en: Contrato"
-                              : !firmaSlotDe(firmanteIndex, "declaracion")
-                                ? "Usar esta firma en: Declaración"
-                                : "Usar esta firma"}
+                            : siguienteTipoFirma(firmanteIndex)
+                              ? `Usar esta firma en: ${etiquetaSlot(siguienteTipoFirma(firmanteIndex)!)}`
+                              : "Usar esta firma"}
                         </span>
                       </Button>
                     </>
@@ -1270,6 +1363,24 @@ export function FirmaContratoWorkspace({
             Cerrar
           </Button>
         </DialogFooter>
+
+        {finalizando && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute inset-0 z-[120] flex items-center justify-center bg-black/65 p-4"
+          >
+            <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl bg-background px-6 py-5 text-center shadow-xl">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <p className="text-sm font-semibold text-foreground">
+                {modoElegido === "automatico" ? "Firmando automáticamente..." : "Firmando contrato..."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Estamos estampando las firmas y preparando el documento. No cierres esta ventana.
+              </p>
+            </div>
+          </div>
+        )}
       </DialogContent>
 
       <Dialog

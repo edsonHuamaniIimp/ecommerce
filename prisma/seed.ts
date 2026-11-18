@@ -59,6 +59,7 @@ async function seedMaestra() {
     { id: 9, tabla: "facturacion_tipo", nombre: "Tipos de facturacion", orden: 9 },
     { id: 10, tabla: "cuota_estado", nombre: "Estados de cuota", orden: 10 },
     { id: 11, tabla: "stand_tipologia", nombre: "Tipologias de stand", orden: 11 },
+    { id: 12, tabla: "descuento_tipo", nombre: "Tipos de descuento", orden: 12 },
   ];
   for (const p of padres) {
     const updated = await prisma.maestra.updateMany({
@@ -110,6 +111,10 @@ async function seedMaestra() {
     { id: 110, padre: 11, itemId: 1, nombre: "Complejo", descripcion: "2 niveles o >2.5m de altura", orden: 1 },
     { id: 111, padre: 11, itemId: 2, nombre: "Simple", descripcion: "1 nivel", orden: 2 },
     { id: 112, padre: 11, itemId: 3, nombre: "Octanorm simple", descripcion: "Solo viniles", orden: 3 },
+    { id: 120, padre: 12, itemId: 1, nombre: "Porcentaje sobre el total del contrato", descripcion: "Descuento porcentual aplicado al neto total", orden: 1 },
+    { id: 121, padre: 12, itemId: 2, nombre: "Monto fijo sobre el total del contrato", descripcion: "Descuento de importe fijo aplicado al neto total", orden: 2 },
+    { id: 122, padre: 12, itemId: 3, nombre: "Porcentaje por cada stand", descripcion: "Descuento porcentual distinto por stand", orden: 3 },
+    { id: 123, padre: 12, itemId: 4, nombre: "Monto fijo por cada stand", descripcion: "Descuento de importe fijo distinto por stand", orden: 4 },
   ];
   for (const h of hijos) {
     const padre = padres.find((p) => p.id === h.padre);

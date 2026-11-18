@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
@@ -605,30 +605,75 @@ export function SolicitudReview({
 
           if (unique.length === 0) return null;
 
-          const accionesDoc = (doc: (typeof unique)[number]) => (
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                title="Vista previa"
-                onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Descargar" asChild>
-                <a href={doc.url} download={doc.nombre}>
-                  <Download className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Abrir en otra pestana" asChild>
-                <a href={doc.url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-            </div>
-          );
+          /** El DOCX se sube con la misma base que el PDF del contrato. */
+          const urlWordDesdePdf = (url: string): string | null => {
+            const coincidencia = url.match(/^(.*)\.pdf(\?.*)?$/i);
+            return coincidencia ? `${coincidencia[1]}.docx${coincidencia[2] ?? ""}` : null;
+          };
+          const nombreWord = (nombre: string) => nombre.replace(/\.pdf$/i, ".docx");
+
+          const accionesDoc = (doc: (typeof unique)[number], grupoKey?: string) => {
+            const esContratoAdmin = grupoKey === "contrato-admin";
+            const wordUrl = esContratoAdmin ? urlWordDesdePdf(doc.url) : null;
+            return (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                  title="Vista previa"
+                  onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+                {esContratoAdmin ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                        title="Descargar contrato (PDF o Word)"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      {/\.pdf(\?.*)?$/i.test(doc.url) && (
+                        <DropdownMenuItem asChild>
+                          <a href={doc.url} download={doc.nombre} className="cursor-pointer gap-2 text-xs">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>PDF</span>
+                          </a>
+                        </DropdownMenuItem>
+                      )}
+                      {wordUrl && (
+                        <DropdownMenuItem asChild>
+                          <a href={wordUrl} download={nombreWord(doc.nombre)} className="cursor-pointer gap-2 text-xs">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>Word (.docx)</span>
+                          </a>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Descargar" asChild>
+                    <a href={doc.url} download={doc.nombre}>
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Abrir en otra pestana" asChild>
+                  <a href={doc.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </div>
+            );
+          };
 
           return (
             <div className="border-t border-border pt-3">
@@ -739,7 +784,7 @@ export function SolicitudReview({
                           </label>
                         )}
                         <span className="shrink-0 text-[10px] text-muted-foreground">{actual.fecha ? dateUtils.formatDateTime(actual.fecha) : "-"}</span>
-                        {accionesDoc(actual)}
+                        {accionesDoc(actual, grupo.key)}
                       </div>
                       {grupo.anteriores.length > 0 && (
                         <>
@@ -773,7 +818,7 @@ export function SolicitudReview({
                                     </Badge>
                                   )}
                                   <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "-"}</span>
-                                  {accionesDoc(doc)}
+                                  {accionesDoc(doc, grupo.key)}
                                 </div>
                               ))}
                             </div>

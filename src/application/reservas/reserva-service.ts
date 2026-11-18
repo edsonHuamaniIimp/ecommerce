@@ -7,14 +7,14 @@ import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
-import { ADMIN_USER_ID, API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MAX_RESERVA_ADMIN_STANDS, MODOS_PAGO, MONEDAS, PERMISSIONS, ROLES_REVISION_ASOCIADO, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { ADMIN_USER_ID, API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MAX_CUOTAS_PERSONALIZADAS, MAX_RESERVA_ADMIN_STANDS, MODOS_PAGO, MONEDAS, PERMISSIONS, ROLES_REVISION_ASOCIADO, TIPOS_COMPROBANTE, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_SOLICITUD, type TipoDescuento, type TipoDescuentoGlobal } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
 import type { EmpresaViewer } from "@/lib/shared/utils/estado-stand";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
-import { configCuotasValida, cuotasCoincidenConfig, modalidadDeCuotas, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { configCuotasValida, cuotasCoincidenConfig, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, porcentajesValidos, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { validarEmpresaReservaAdministrativa } from "@/lib/shared/utils/reserva-admin-readiness";
 import { getAppUrl } from "@/lib/server/app-url";
@@ -152,6 +152,8 @@ export class ReservaApplicationService {
     descuentoPorcentaje?: number;
     /** Descuento fijo sobre el neto, en la moneda del contrato. */
     descuentoMonto?: number;
+    /** Descuento porcentual por stand; excluyente con el descuento global. */
+    descuentosPorStand?: Array<{ standId: string; tipo: TipoDescuentoGlobal; valor: number }>;
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     actorEmail: string;
   }): Promise<{ ok: boolean; message: string; solicitudId?: string; estado?: string }> {
@@ -180,14 +182,35 @@ export class ReservaApplicationService {
     const tipoComprobante = input.tipoComprobante ?? empresa.tipoComprobante;
     const descuentoPorcentaje = input.descuentoPorcentaje ?? 0;
     const descuentoMonto = input.descuentoMonto ?? 0;
+    const descuentosPorStand = input.descuentosPorStand ?? [];
+    const idsDescuentoStand = new Set(descuentosPorStand.map((item) => item.standId));
     if (
       !descuentoPorcentajeValido(descuentoPorcentaje) ||
       !Number.isFinite(descuentoMonto) ||
       descuentoMonto < 0 ||
-      (descuentoPorcentaje > 0 && descuentoMonto > 0)
+      (descuentoPorcentaje > 0 && descuentoMonto > 0) ||
+      (descuentosPorStand.length > 0 && (descuentoPorcentaje > 0 || descuentoMonto > 0)) ||
+      descuentosPorStand.some((item) =>
+        item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? !descuentoPorcentajeValido(item.valor)
+          : !Number.isFinite(item.valor) || item.valor < 0,
+      ) ||
+      idsDescuentoStand.size !== descuentosPorStand.length
     ) {
       throw new DomainError(
-        "Indica un solo tipo de descuento: porcentaje entre 0 y 100 con maximo 2 decimales, o monto fijo no negativo.",
+        "Indica un solo tipo de descuento valido: global o porcentaje por stand, con maximo 2 decimales.",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const porcentajesCuotas = input.cuotas.map((cuota) => cuota.porcentaje);
+    const fechasCuotas = input.cuotas.map((cuota) => cuota.fechaVencimiento);
+    if (
+      !porcentajesValidos(porcentajesCuotas, MAX_CUOTAS_PERSONALIZADAS) ||
+      !fechasCuotasEstructuralmenteValidas(fechasCuotas)
+    ) {
+      throw new DomainError(
+        "El cronograma debe tener cuotas que sumen 100% y fechas válidas en orden.",
         API_ERROR_CODES.VALIDATION,
         400,
       );
@@ -232,6 +255,7 @@ export class ReservaApplicationService {
       cuotas: input.cuotas,
       descuentoPorcentaje,
       descuentoMonto,
+      descuentosPorStand,
       tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
       omitirRevisiones: true,
       requerirStandComercial: true,
@@ -306,6 +330,8 @@ export class ReservaApplicationService {
     descuentoPorcentaje?: number;
     /** Descuento fijo sobre el neto; excluyente con el porcentaje. */
     descuentoMonto?: number;
+    /** Descuento porcentual por stand; excluyente con el descuento global. */
+    descuentosPorStand?: Array<{ standId: string; tipo: TipoDescuentoGlobal; valor: number }>;
     /** Actor que ejecuta la operacion (admin), distinto del titular de la solicitud. */
     actorEmail?: string;
   }): Promise<{ ok: boolean; message: string; conflicted?: string[]; solicitudId?: string }> {
@@ -495,10 +521,84 @@ export class ReservaApplicationService {
               400,
             );
           }
-          const neto = descuentoMontoSolicitado > 0
-            ? aplicarDescuentoMonto(netoLista, descuentoMontoSolicitado)
-            : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+          const descuentosSolicitados = request.descuentosPorStand ?? [];
+          let neto: number;
+          let descuentoTipoSnapshot: TipoDescuento;
+          let descuentoValorSnapshot: number;
+          let descuentosDetalle: Array<{
+            standId: string;
+            standCode: string;
+            precio: number;
+            tipo: TipoDescuentoGlobal;
+            valor: number;
+            porcentaje: number;
+            descuentoMonto: number;
+            neto: number;
+          }> | undefined;
+
+          if (descuentosSolicitados.length > 0) {
+            const idsValidos = new Set(validos.map((stand) => stand.dbId));
+            const mapaDescuentos = new Map<string, { tipo: TipoDescuentoGlobal; valor: number }>();
+            for (const item of descuentosSolicitados) {
+              if (!idsValidos.has(item.standId)) {
+                throw new DomainError(
+                  "Un descuento por stand referencia un stand que no pertenece a la solicitud.",
+                  API_ERROR_CODES.VALIDATION,
+                  400,
+                );
+              }
+              if (mapaDescuentos.has(item.standId)) {
+                throw new DomainError("Hay descuentos duplicados para el mismo stand.", API_ERROR_CODES.VALIDATION, 400);
+              }
+              mapaDescuentos.set(item.standId, { tipo: item.tipo, valor: item.valor });
+            }
+            descuentosDetalle = validos.map((stand) => {
+              const descuento = mapaDescuentos.get(stand.dbId);
+              const precio = convertirNeto(stand.precio, moneda, tipoCambio);
+              if (
+                descuento?.tipo === TIPOS_DESCUENTO.MONTO &&
+                !descuentoMontoValido(precio, descuento.valor)
+              ) {
+                throw new DomainError(
+                  `El descuento fijo del stand ${stand.standCode} no puede superar su precio neto.`,
+                  API_ERROR_CODES.VALIDATION,
+                  400,
+                );
+              }
+              const netoStand = !descuento
+                ? precio
+                : descuento.tipo === TIPOS_DESCUENTO.MONTO
+                  ? aplicarDescuentoMonto(precio, descuento.valor)
+                  : aplicarDescuentoNeto(precio, descuento.valor);
+              return {
+                standId: stand.dbId,
+                standCode: stand.standCode,
+                precio,
+                tipo: descuento?.tipo ?? TIPOS_DESCUENTO.PORCENTAJE,
+                valor: descuento?.valor ?? 0,
+                porcentaje: descuento?.tipo === TIPOS_DESCUENTO.PORCENTAJE ? descuento.valor : 0,
+                descuentoMonto: redondear2(precio - netoStand),
+                neto: netoStand,
+              };
+            });
+            neto = redondear2(descuentosDetalle.reduce((total, item) => total + item.neto, 0));
+            descuentoTipoSnapshot = TIPOS_DESCUENTO.POR_STAND;
+            descuentoValorSnapshot = 0;
+          } else {
+            neto = descuentoMontoSolicitado > 0
+              ? aplicarDescuentoMonto(netoLista, descuentoMontoSolicitado)
+              : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+            descuentoTipoSnapshot = descuentoMontoSolicitado > 0 ? TIPOS_DESCUENTO.MONTO : TIPOS_DESCUENTO.PORCENTAJE;
+            descuentoValorSnapshot = descuentoMontoSolicitado > 0 ? descuentoMontoSolicitado : descuentoPorcentaje;
+          }
           const importes = calcularImportes(neto);
+          if (!(neto > 0)) {
+            throw new DomainError(
+              "El descuento no puede dejar el total del contrato en cero.",
+              API_ERROR_CODES.VALIDATION,
+              400,
+            );
+          }
           const porcentajes = request.cuotas.map((cuota) => cuota.porcentaje);
           const fechas = request.cuotas.map((cuota) => cuota.fechaVencimiento);
           await this.solicitudesRepo.guardarPlanCuotas(solicitudId, {
@@ -509,8 +609,9 @@ export class ReservaApplicationService {
             moneda,
             tipoCambio,
             descuentoPorcentaje,
-            descuentoTipo: descuentoMontoSolicitado > 0 ? "monto" : "porcentaje",
-            descuentoValor: descuentoMontoSolicitado > 0 ? descuentoMontoSolicitado : descuentoPorcentaje,
+            descuentoTipo: descuentoTipoSnapshot,
+            descuentoValor: descuentoValorSnapshot,
+            ...(descuentosDetalle ? { descuentosPorStand: descuentosDetalle } : {}),
             netoLista,
             descuentoMonto: redondear2(netoLista - neto),
             netoDescontado: neto,

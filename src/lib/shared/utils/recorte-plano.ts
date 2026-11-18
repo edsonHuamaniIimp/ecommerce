@@ -15,6 +15,8 @@ export interface RecorteSvgOpciones {
   codigos?: Record<string, string>;
   /** Oculta la leyenda de tipos. */
   sinLeyenda?: boolean;
+  /** Ancho del SVG en px (default: resolucion base del portal). */
+  anchoSalida?: number;
 }
 
 const OBJETIVO_FILL = "#f59e0b";
@@ -99,9 +101,10 @@ export function construirSvgRecorte(
     ? construirLeyenda(filas, vb.x + fuenteLeyenda * 0.8, vb.y + fuenteLeyenda, fuenteLeyenda)
     : "";
 
-  const altoSalida = Math.round((ANCHO_SVG * vb.h) / vb.w);
+  const anchoSalida = Math.max(1200, Math.min(6000, Math.round(opciones.anchoSalida ?? ANCHO_SVG)));
+  const altoSalida = Math.round((anchoSalida * vb.h) / vb.w);
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.w)} ${fmt(vb.h)}" width="${ANCHO_SVG}" height="${altoSalida}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(vb.x)} ${fmt(vb.y)} ${fmt(vb.w)} ${fmt(vb.h)}" width="${anchoSalida}" height="${altoSalida}">` +
     `<rect x="${fmt(vb.x)}" y="${fmt(vb.y)}" width="${fmt(vb.w)}" height="${fmt(vb.h)}" fill="#f8fafc"/>` +
     bloques +
     anotaciones +
