@@ -315,6 +315,44 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).not.toContain("XXXXXXXXX");
   });
 
+  it("genera el cronograma P38 con cuotas configurables, no solo tres", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "CH",
+        tipoStand: "Preferencial",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: [
+        { porcentaje: 25, fechaVencimiento: "2026-11-20" },
+        { porcentaje: 25, fechaVencimiento: "2026-12-20" },
+        { porcentaje: 25, fechaVencimiento: "2027-01-20" },
+        { porcentaje: 25, fechaVencimiento: "2027-04-30" },
+      ],
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("correspondiente a su cuota 1.");
+    expect(texto).toContain("correspondiente a su cuota 4.");
+    expect(texto).toContain("30/04/2027");
+    expect(texto).not.toContain("correspondiente a su cuota 5.");
+  });
+
   it("usa el tipo de documento real del representante legal en la plantilla", async () => {
     const { svc, storage } = build({
       detalle: {
