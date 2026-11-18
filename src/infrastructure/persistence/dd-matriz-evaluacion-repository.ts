@@ -39,7 +39,12 @@ import {
   type DdMatrizOrigen,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
-import { derivarAmbito, resolverPais } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import {
+  derivarAmbito,
+  estadoExpedienteDeResultadoFinal,
+  resultadoFinalEfectivo,
+  resolverPais,
+} from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { esPaisNacional, paisDeTexto } from "@/lib/shared/utils/pais";
 
 /** Tamano de lote al crear filas automaticas. */
@@ -612,8 +617,26 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     if (params.ambito) and.push({ ambito: params.ambito });
     if (params.pais) and.push({ pais: params.pais });
     if (params.sinPais) and.push({ pais: null });
-    if (params.resultadoFinal) and.push({ resultadoFinal: params.resultadoFinal });
-    if (params.sinEvaluar) and.push({ resultadoFinal: null });
+    if (params.resultadoFinal) {
+      const estadoLegacy = estadoExpedienteDeResultadoFinal(params.resultadoFinal);
+      and.push({
+        OR: [
+          { resultadoFinal: params.resultadoFinal },
+          ...(estadoLegacy
+            ? [{ resultadoFinal: null, expediente: { ...expediente, estado: estadoLegacy } }]
+            : []),
+        ],
+      });
+    }
+    if (params.sinEvaluar) {
+      and.push({
+        resultadoFinal: null,
+        expediente: {
+          ...expediente,
+          estado: { notIn: [DD_ESTADOS.APROBADA, DD_ESTADOS.OBSERVADA, DD_ESTADOS.RECHAZADA] },
+        },
+      });
+    }
     const texto = params.search?.trim();
     if (texto) {
       and.push({
@@ -708,6 +731,22 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       return filas.map((f) => ({ valor: (f as Record<string, unknown>)[campo] as string | null, total: f._count._all }));
     };
 
+    const contarResultadoFinalEfectivo = async (): Promise<DdMatrizConteo[]> => {
+      const filas = await prisma.ddMatrizVinculo.findMany({
+        where: enEvento,
+        select: {
+          resultadoFinal: true,
+          expediente: { select: { estado: true } },
+        },
+      });
+      const conteo = new Map<string | null, number>();
+      for (const fila of filas) {
+        const valor = resultadoFinalEfectivo(fila.resultadoFinal, fila.expediente.estado);
+        conteo.set(valor, (conteo.get(valor) ?? 0) + 1);
+      }
+      return [...conteo.entries()].map(([valor, total]) => ({ valor, total }));
+    };
+
     const [empresas, total, resultadoFinal, ambito, tipo, sig, reputacional, compliance, paises, requierenReforzada, pendientesCompliance, enRevision] =
       await Promise.all([
         prisma.ddMatrizVinculo.groupBy({
@@ -716,7 +755,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           _count: { _all: true },
         }),
         prisma.ddMatrizVinculo.count({ where: enEvento }),
-        agrupar("resultadoFinal"),
+        contarResultadoFinalEfectivo(),
         agrupar("ambito"),
         agrupar("tipo"),
         agrupar("sigResultado"),

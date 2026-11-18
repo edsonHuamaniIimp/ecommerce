@@ -98,6 +98,7 @@ import {
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
@@ -1083,7 +1084,7 @@ export function DdMatrizBandeja() {
 
                             <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
                               <span className="text-[10px] text-muted-foreground">Resultado final</span>
-                              <ResultadoFinalStitch valor={fila.resultadoFinal} />
+                              <ResultadoFinalStitch valor={resultadoFinalEfectivo(fila.resultadoFinal, fila.expedienteEstado)} />
                             </div>
                           </div>
                         ))}
@@ -1255,7 +1256,7 @@ export function DdMatrizBandeja() {
                             <TableCell className="hidden border-l border-border bg-violet-50/20 align-top xl:table-cell">
                               <EstadoArea resultado={fila.cmpResultado} conclusion={fila.cmpConclusion} compliance variant="dot" />
                             </TableCell>
-                            <TableCell className="align-top"><ResultadoFinalStitch valor={fila.resultadoFinal} /></TableCell>
+                            <TableCell className="align-top"><ResultadoFinalStitch valor={resultadoFinalEfectivo(fila.resultadoFinal, fila.expedienteEstado)} /></TableCell>
                             <TableCell className="text-right align-top">
                               <Button asChild variant="outline" size="sm" className="h-7 w-7 p-0" title="Abrir detalle del sujeto evaluado">
                                 <Link href={`${DD_RUTAS.MATRIZ}/${fila.id}`} aria-label={`Abrir ${fila.nombre}`}>

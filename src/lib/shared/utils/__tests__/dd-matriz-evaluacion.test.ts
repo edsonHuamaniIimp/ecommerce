@@ -11,9 +11,12 @@ import {
   normalizarSiNoNa,
   normalizarTextoMatriz,
   resolverPais,
+  resultadoFinalEfectivo,
+  estadoExpedienteDeResultadoFinal,
   urlFuenteLista,
 } from "../dd-matriz-evaluacion";
 import {
+  DD_ESTADOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_AREAS,
   DD_MATRIZ_CONCLUSIONES,
@@ -84,6 +87,40 @@ describe("mapper de valores (negocio y desarrollo)", () => {
     expect(normalizarResultadoFinal("PENDIENTE")).toBe(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION);
     expect(normalizarResultadoFinal("SIN RESPUESTA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
     expect(normalizarResultadoFinal("SIN RESPUESTA DE LA EMPRESA")).toBe(DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
+  });
+});
+
+describe("resultado final efectivo legacy", () => {
+  it("usa el resultado guardado cuando existe", () => {
+    expect(
+      resultadoFinalEfectivo(DD_MATRIZ_RESULTADOS_FINALES.APTO, DD_ESTADOS.RECHAZADA),
+    ).toBe(DD_MATRIZ_RESULTADOS_FINALES.APTO);
+  });
+
+  it("deriva el resultado desde el estado del expediente sin modificar la matriz", () => {
+    expect(resultadoFinalEfectivo(null, DD_ESTADOS.APROBADA)).toBe(
+      DD_MATRIZ_RESULTADOS_FINALES.APTO,
+    );
+    expect(resultadoFinalEfectivo(null, DD_ESTADOS.OBSERVADA)).toBe(
+      DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+    );
+    expect(resultadoFinalEfectivo(null, DD_ESTADOS.RECHAZADA)).toBe(
+      DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+    );
+    expect(resultadoFinalEfectivo(null, DD_ESTADOS.EN_REVISION)).toBe(
+      DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
+    );
+    expect(resultadoFinalEfectivo(null, DD_ESTADOS.BORRADOR)).toBeNull();
+  });
+
+  it("invierte el mapeo para filtros legacy", () => {
+    expect(estadoExpedienteDeResultadoFinal(DD_MATRIZ_RESULTADOS_FINALES.APTO)).toBe(
+      DD_ESTADOS.APROBADA,
+    );
+    expect(estadoExpedienteDeResultadoFinal(DD_MATRIZ_RESULTADOS_FINALES.NO_APTO)).toBe(
+      DD_ESTADOS.RECHAZADA,
+    );
+    expect(estadoExpedienteDeResultadoFinal(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION)).toBeNull();
   });
 });
 

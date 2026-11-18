@@ -1,4 +1,5 @@
 import {
+  DD_ESTADOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_AREAS,
   DD_MATRIZ_CONCLUSION_ALIAS,
@@ -15,6 +16,7 @@ import {
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_RESULTADOS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_SI_NO_NA_ALIAS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -84,6 +86,48 @@ export const normalizarConclusionCompliance = (valor: unknown): DdMatrizConclusi
 
 export const normalizarResultadoFinal = (valor: unknown): DdMatrizResultadoFinal | null =>
   normalizarValorMatriz(valor, DD_MATRIZ_RESULTADO_FINAL_LABELS, DD_MATRIZ_RESULTADO_FINAL_ALIAS);
+
+/**
+ * Resultado final visible para expedientes legacy que aun no tienen backfill en
+ * `dd_matriz_vinculo.resultado_final`. No persiste ni modifica el estado.
+ */
+export function resultadoFinalEfectivo(
+  resultadoFinal: string | null | undefined,
+  estadoExpediente: string | null | undefined,
+): DdMatrizResultadoFinal | null {
+  const guardado = normalizarResultadoFinal(resultadoFinal);
+  if (guardado) return guardado;
+
+  const estado = normalizarTextoMatriz(estadoExpediente);
+  if (estado === normalizarTextoMatriz(DD_ESTADOS.APROBADA)) return DD_MATRIZ_RESULTADOS_FINALES.APTO;
+  if (estado === normalizarTextoMatriz(DD_ESTADOS.OBSERVADA)) {
+    return DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+  }
+  if (estado === normalizarTextoMatriz(DD_ESTADOS.RECHAZADA)) return DD_MATRIZ_RESULTADOS_FINALES.NO_APTO;
+  if (
+    estado === normalizarTextoMatriz(DD_ESTADOS.EN_LEGAL) ||
+    estado === normalizarTextoMatriz(DD_ESTADOS.EN_REVISION)
+  ) {
+    return DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION;
+  }
+  return null;
+}
+
+/** Estados legacy que representan un resultado final cuando la matriz no lo tiene. */
+export function estadoExpedienteDeResultadoFinal(
+  resultadoFinal: string | null | undefined,
+): string | null {
+  switch (normalizarResultadoFinal(resultadoFinal)) {
+    case DD_MATRIZ_RESULTADOS_FINALES.APTO:
+      return DD_ESTADOS.APROBADA;
+    case DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA:
+      return DD_ESTADOS.OBSERVADA;
+    case DD_MATRIZ_RESULTADOS_FINALES.NO_APTO:
+      return DD_ESTADOS.RECHAZADA;
+    default:
+      return null;
+  }
+}
 
 /**
  * Tipos de documento que implican persona extranjera: texto del expediente DD
