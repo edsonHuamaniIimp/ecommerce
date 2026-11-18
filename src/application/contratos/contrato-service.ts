@@ -25,7 +25,7 @@ import type { DatosContrato, PlanCuotasSolicitud } from "@/domain/models/entitie
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, type Idioma, type TipoDescuentoGlobal } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, type Idioma, type TipoDescuentoGlobal } from "@/lib/shared/constants";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
@@ -270,6 +270,22 @@ export class ContratoApplicationService {
       : (input.userEmail ?? detalle.email);
     const empresaId = emailPropietario ? await this.auth.findEmpresaIdDeUsuario(emailPropietario) : null;
     const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    const datosReserva = typeof this.solicitudes.datosReservaIImp === "function"
+      ? await this.solicitudes.datosReservaIImp(input.solicitudId).catch(() => null)
+      : null;
+    const snapshotFacturacion = datosReserva?.datosFacturacion ?? null;
+    const contratoSnapshot: DatosContrato | null = snapshotFacturacion
+      ? {
+          razonSocial: snapshotFacturacion.razonSocial,
+          ruc: snapshotFacturacion.numeroDocumento,
+          direccion: snapshotFacturacion.direccion ?? undefined,
+          representante: snapshotFacturacion.contacto ?? undefined,
+          representanteDni: snapshotFacturacion.tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
+            ? snapshotFacturacion.numeroDocumento
+            : undefined,
+          partidaElectronica: empresa?.partidaElectronica ?? undefined,
+        }
+      : null;
 
     /* Idioma del contrato: el elegido por quien lo genera (UI) o el del cliente (perfil/cookie). */
     const idioma: Idioma = input.idioma ?? (await resolverIdiomaDestinatario(this.auth, emailPropietario ?? null));
@@ -446,11 +462,11 @@ export class ContratoApplicationService {
       modalidad,
       moneda,
       tipoSolicitud: detalle.tipo ?? null,
+      contrato: input.contrato ?? contratoSnapshot,
       pais: detalle.pais ?? null,
       tablaEconomica,
       esFirma: input.esFirma === true,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
-      contrato: input.contrato,
       sellosFirmantes: input.sellosFirmantes,
       estamparFirmas: input.estamparFirmas,
       base,

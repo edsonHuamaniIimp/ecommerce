@@ -278,6 +278,14 @@ export class ReservaApplicationService {
       userEmail: contactEmail,
       userPermissions: [PERMISSIONS.ADMIN_FULL],
       cuotas: input.cuotas,
+      contrato: {
+        razonSocial: empresa.razonSocial,
+        ruc: empresa.ruc,
+        direccion: empresa.direccionFiscal ?? undefined,
+        representante: empresa.representanteLegalNombre ?? undefined,
+        representanteDni: empresa.representanteLegalDni ?? undefined,
+        partidaElectronica: empresa.partidaElectronica ?? undefined,
+      },
     });
     await this.solicitudesRepo.habilitarContrato(result.solicitudId);
 
