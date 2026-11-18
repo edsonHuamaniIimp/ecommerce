@@ -3029,6 +3029,7 @@ export const SGC_STAGES = {
 export type SgcStage = (typeof SGC_STAGES)[keyof typeof SGC_STAGES];
 
 export const SGC_LIFECYCLE_STATUSES = {
+  DRAFT: "draft",
   ACTIVE: "active",
   FINALIZED: "finalized",
   OBSERVED: "observed",
@@ -3392,6 +3393,7 @@ export const SGC_APPROVAL_MARK_LABELS: Record<string, string> = {
 };
 
 export const SGC_LIFECYCLE_LABELS: Record<string, string> = {
+  [SGC_LIFECYCLE_STATUSES.DRAFT]: "Borrador",
   [SGC_LIFECYCLE_STATUSES.ACTIVE]: "Vigente",
   [SGC_LIFECYCLE_STATUSES.FINALIZED]: "Cerrado",
   [SGC_LIFECYCLE_STATUSES.OBSERVED]: "Observado",
