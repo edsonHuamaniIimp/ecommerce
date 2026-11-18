@@ -1305,6 +1305,11 @@ model DebidaDiligencia {
   /// Declaracion jurada de veracidad y compromiso de actualizacion.
   declaraVerdad      Boolean @default(false) @map("declara_verdad")
 
+  /// SIG declaro que reviso y que estan todos los vinculos de la solicitud.
+  vinculosCompletos    Boolean   @default(false) @map("vinculos_completos")
+  vinculosCompletosPor String?   @map("vinculos_completos_por") @db.VarChar(200)
+  vinculosCompletosEn  DateTime? @map("vinculos_completos_en")
+
   representanteNombre        String? @map("representante_nombre") @db.VarChar(200)
   representanteTipoDocumento String? @map("representante_tipo_documento") @db.VarChar(30)
   representanteDocumento     String? @map("representante_documento") @db.VarChar(20)
@@ -1376,6 +1381,30 @@ model DdConfiguracion {
   updatedAt                  DateTime @updatedAt @map("updated_at")
 
   @@map("dd_configuracion")
+}
+
+/// Catalogo maestro de Debida Diligencia: etiquetas, orden y disponibilidad
+/// de los estados y resultados usados por el modulo.
+model DdMaestra {
+  id          Int     @id @default(autoincrement())
+  /// Grupo del catalogo: expediente_estado, reputacion_resultado, etc.
+  tipo        String  @db.VarChar(50)
+  /// Codigo canonico que persisten las entidades DD.
+  codigo      String  @db.VarChar(60)
+  /// Etiqueta visible para el usuario.
+  nombre      String  @db.VarChar(150)
+  descripcion String? @db.VarChar(500)
+  orden       Int     @default(0)
+  activo      Boolean @default(true)
+  /// Datos auxiliares del catalogo (color, comportamiento futuro, etc.).
+  metadata    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tipo, codigo])
+  @@index([tipo, activo, orden])
+  @@map("dd_maestra")
 }
 
 /// Beneficiario final con 10% o mas de participacion.
@@ -1491,6 +1520,8 @@ model DebidaDiligenciaHistorial {
 model DebidaDiligenciaReputacion {
   id              String    @id @default(uuid())
   expedienteId    String    @map("expediente_id")
+  /// Vinculo de matriz evaluado. Null en casos legacy derivados por expediente.
+  vinculoId       String?   @map("vinculo_id")
   /// Nombre o razon social a evaluar (empresa, representante o beneficiario).
   nombreARevisar  String    @map("nombre_a_revisar") @db.VarChar(200)
   sitioWeb        String?   @map("sitio_web") @db.VarChar(200)
@@ -1510,9 +1541,11 @@ model DebidaDiligenciaReputacion {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  vinculo    DdMatrizVinculo? @relation(fields: [vinculoId], references: [id], onDelete: SetNull)
 
-  @@unique([expedienteId, nombreARevisar])
+  @@unique([expedienteId, vinculoId])
   @@index([expedienteId])
+  @@index([vinculoId])
   @@index([estado])
   @@map("debida_diligencia_reputacion")
 }
@@ -1636,8 +1669,9 @@ model DdMatrizVinculo {
 
   expediente DebidaDiligencia   @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
   relacionComercial DdRelacionComercial? @relation(fields: [relacionComercialId], references: [id], onDelete: SetNull)
-  adjuntos   DdMatrizAdjunto[]
-  evidencias DdEvidencia[]
+  adjuntos        DdMatrizAdjunto[]
+  evidencias      DdEvidencia[]
+  reputacionCasos DebidaDiligenciaReputacion[]
 
   @@unique([expedienteId, tipo, refKey])
   @@index([expedienteId])
@@ -1654,7 +1688,7 @@ model DdMatrizAdjunto {
   id         String   @id @default(uuid())
   vinculoId  String   @map("vinculo_id")
   /// Categoria del adjunto; `sig_informe` habilita la seccion de Compliance.
-  categoria  String   @db.VarChar(30)
+  categoria  String   @db.VarChar(60)
   nombre     String   @db.VarChar(250)
   url        String   @db.VarChar(500)
   mimeType   String   @map("mime_type") @db.VarChar(100)
