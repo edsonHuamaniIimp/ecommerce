@@ -208,6 +208,51 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     );
   });
 
+  it("usa el snapshot de facturacion cuando la empresa no tiene cuenta vinculada", async () => {
+    const { svc, auth, solicitudes, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "NL",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+    vi.mocked(auth.findEmpresaIdDeUsuario).mockResolvedValue(null);
+    (solicitudes as unknown as { datosReservaIImp: ReturnType<typeof vi.fn> }).datosReservaIImp = vi.fn(async () => ({
+      datosFacturacion: {
+        razonSocial: "EMBAJADA REAL DE LOS PAISES BAJOS",
+        tipoDocumento: "1",
+        numeroDocumento: "08223908",
+        direccion: "Calle de la Embajada 123",
+        contacto: "GRONDEL HUGO JOHAN FREDERIK",
+        email: "hugo.grondel@minbuza.nl",
+        telefono: null,
+        tipoComprobante: "01",
+      },
+    }));
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "admin",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("EMBAJADA REAL DE LOS PAISES BAJOS");
+    expect(texto).toContain("08223908");
+    expect(texto).toContain("GRONDEL HUGO JOHAN FREDERIK");
+    expect(texto).toContain("Calle de la Embajada 123");
+  });
+
   it("agrega IGV 18% siempre (tambien en boleta) y con pago completo marca la Modalidad 1", async () => {
     const { svc, storage } = build();
 
