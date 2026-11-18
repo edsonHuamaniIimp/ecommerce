@@ -21,7 +21,7 @@ export default function DashboardLayout({
         onClose={() => setSidebarOpen(false)}
       />
       <div className="flex flex-1 flex-col min-w-0">
-        <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-card px-4 sm:px-6 lg:px-10">
+        <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-card px-4 sm:px-6 lg:px-10 print:hidden">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0 lg:hidden" onClick={() => setSidebarOpen((p) => !p)}>
             <Menu className="h-4 w-4" />
           </Button>
@@ -30,7 +30,7 @@ export default function DashboardLayout({
           </Button>
           <DashboardHeader />
         </header>
-        <div className="flex-1 min-w-0 px-3 sm:px-6 lg:px-10 py-4 sm:py-6">{children}</div>
+        <div className="flex-1 min-w-0 px-3 sm:px-6 lg:px-10 py-4 sm:py-6 print:p-0">{children}</div>
       </div>
       <RepresentanteGate />
     </div>

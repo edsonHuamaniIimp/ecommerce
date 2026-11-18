@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
@@ -185,14 +185,14 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
     <>
       {/* Desktop: permanent */}
       <aside className={cn(
-        "hidden shrink-0 flex-col border-r border-border bg-card transition-all duration-300 lg:flex",
+        "hidden shrink-0 flex-col border-r border-border bg-card transition-all duration-300 lg:flex print:hidden",
         collapsed ? "w-[56px]" : "w-56"
       )}>
         {content}
       </aside>
 
       {/* Mobile: overlay */}
-      <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${open ? "visible" : "invisible"}`}>
+      <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 print:hidden ${open ? "visible" : "invisible"}`}>
         <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
         <aside className={`absolute top-0 bottom-0 left-0 z-10 flex w-64 flex-col bg-card shadow-xl transition-transform duration-300 ease-out ${open ? "translate-x-0" : "-translate-x-full"}`}>
           {content}

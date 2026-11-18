@@ -236,3 +236,85 @@ body {
   background: transparent !important;
   box-shadow: none !important;
 }
+/* Informe DD: impresión institucional A4 */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 14mm 10mm;
+
+    @bottom-right {
+      content: "Página " counter(page) " de " counter(pages);
+      font-size: 8pt;
+      color: #475569;
+    }
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  .print-report {
+    color: #0f172a;
+  }
+
+  .print-report > :not(.informe-pdf) {
+    display: none !important;
+  }
+
+  .print-report .informe-pdf {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+
+  .informe-pdf .pdf-keep {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .informe-pdf .pdf-section {
+    background: #1f3864 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .informe-pdf .pdf-subsection {
+    background: #8ea9db !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .informe-pdf .pdf-detail {
+    background: #7f7f7f !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-report .break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  .print-report .break-before-page {
+    break-before: page;
+  }
+
+  .print-report table {
+    page-break-inside: auto;
+  }
+
+  .print-report tr {
+    break-inside: avoid;
+  }
+
+  .print-report a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

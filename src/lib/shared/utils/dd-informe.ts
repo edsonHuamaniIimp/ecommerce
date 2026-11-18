@@ -47,7 +47,9 @@ function tieneObservacion(fila: DdMatrizEvaluacionFilaDTO): boolean {
     fila.repResultado === DD_MATRIZ_RESULTADOS.OBSERVADO ||
     fila.cmpResultado === DD_MATRIZ_RESULTADOS.OBSERVADO ||
     fila.sigConclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA ||
-    fila.repConclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA
+    fila.repConclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA ||
+    fila.repConclusion === DD_MATRIZ_CONCLUSIONES.OBSERVADO ||
+    fila.repConclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA
   );
 }
 

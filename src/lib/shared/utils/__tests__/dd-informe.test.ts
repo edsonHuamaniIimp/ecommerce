@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
@@ -30,13 +30,18 @@ function fila(cambios: Partial<DdMatrizEvaluacionFilaDTO>): DdMatrizEvaluacionFi
     pais: "PE",
     sigResultado: null,
     sigConclusion: null,
+    sigFecha: null,
     repResultado: null,
     repConclusion: null,
+    repFecha: null,
     cmpResultado: null,
     cmpConclusion: null,
+    cmpFecha: null,
     resultadoFinal: null,
+    finalFecha: null,
     reputacionCasos: 0,
     reputacionPendientes: 0,
+    reputacionEnAnalisis: 0,
     reputacionConHallazgos: 0,
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...cambios,
