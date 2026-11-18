@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useRef, useState } from "react";
 import {
@@ -9,11 +9,20 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -22,7 +31,9 @@ import {
 } from "@nrivera-iimp/ui-kit-iimp";
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  ChevronsUpDown,
   CloudUpload,
   FileArchive,
   FileSpreadsheet,
@@ -38,6 +49,7 @@ import { toast } from "sonner";
 import {
   BADGE_STYLES,
   DD_MATRIZ_ADJUNTO_EXTENSIONES,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
@@ -69,6 +81,7 @@ interface Props {
   empresa: ImportacionEmpresa;
   vinculos: ImportacionVinculo[];
   onImported: () => void;
+  soloBoton?: boolean;
 }
 
 interface Sugerencia {
@@ -108,9 +121,134 @@ function etiquetaVinculo(vinculo: ImportacionVinculo): string {
   return `${tipo}: ${vinculo.nombre}`;
 }
 
+const CATEGORIAS_SUSTENTO = DD_REPOSITORIO_IMPORT_CATEGORIAS.filter(
+  (categoria) => !categoria.value.startsWith(DD_MATRIZ_CRITERIO_PREFIJO),
+);
+const CATEGORIAS_CRITERIO = DD_REPOSITORIO_IMPORT_CATEGORIAS.filter(
+  (categoria) => categoria.value.startsWith(DD_MATRIZ_CRITERIO_PREFIJO),
+);
+
+function CategoriaSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const seleccionada = DD_REPOSITORIO_IMPORT_CATEGORIAS.find((categoria) => categoria.value === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Campo / categoría"
+          disabled={disabled}
+          className="h-8 w-full justify-between px-2.5 text-[11px] font-normal"
+        >
+          <span className="truncate">{seleccionada?.label ?? "Selecciona una categoría"}</span>
+          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[380px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar categoría o criterio..." />
+          <CommandList className="max-h-72">
+            <CommandEmpty>Sin categorías.</CommandEmpty>
+            <CommandGroup heading="Sustentos">
+              {CATEGORIAS_SUSTENTO.map((categoria) => (
+                <CommandItem
+                  key={categoria.value}
+                  value={`${categoria.value} ${categoria.label}`}
+                  keywords={[categoria.label]}
+                  onSelect={() => {
+                    onChange(categoria.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${value === categoria.value ? "opacity-100" : "opacity-0"}`} />
+                  <span>{categoria.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandGroup heading="Criterios de listas restrictivas">
+              {CATEGORIAS_CRITERIO.map((categoria) => (
+                <CommandItem
+                  key={categoria.value}
+                  value={`${categoria.value} ${categoria.label}`}
+                  keywords={[categoria.label]}
+                  onSelect={() => {
+                    onChange(categoria.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${value === categoria.value ? "opacity-100" : "opacity-0"}`} />
+                  <span>{categoria.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function formatoArchivoValido(nombre: string): boolean {
   const extension = archivoUtils.extensionDeArchivo(nombre);
   return (DD_MATRIZ_ADJUNTO_EXTENSIONES as readonly string[]).includes(extension);
+}
+
+interface EntradaArchivoSistema {
+  isFile: boolean;
+  isDirectory: boolean;
+  file?: (success: (file: File) => void, error?: (error: DOMException) => void) => void;
+  createReader?: () => {
+    readEntries: (
+      success: (entries: EntradaArchivoSistema[]) => void,
+      error?: (error: DOMException) => void,
+    ) => void;
+  };
+}
+
+async function archivosDeEntrada(entrada: EntradaArchivoSistema): Promise<File[]> {
+  if (entrada.isFile && entrada.file) {
+    return new Promise((resolve) => entrada.file?.((file) => resolve([file]), () => resolve([])));
+  }
+  if (!entrada.isDirectory || !entrada.createReader) return [];
+
+  const reader = entrada.createReader();
+  const hijos: EntradaArchivoSistema[] = [];
+  let lote: EntradaArchivoSistema[] = [];
+  do {
+    lote = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+    hijos.push(...lote);
+  } while (lote.length > 0);
+
+  const grupos = await Promise.all(hijos.map(archivosDeEntrada));
+  return grupos.flat();
+}
+
+async function archivosDesdeDataTransfer(dataTransfer: DataTransfer): Promise<File[]> {
+  const items = Array.from(dataTransfer.items ?? []);
+  const entradas = items.map((item) => {
+    const obtenerEntrada = (item as unknown as { webkitGetAsEntry?: () => EntradaArchivoSistema | null })
+      .webkitGetAsEntry;
+    return obtenerEntrada ? obtenerEntrada.call(item) : null;
+  });
+  const conEntradas = entradas.some((entrada) => entrada !== null);
+  if (!conEntradas) return Array.from(dataTransfer.files);
+
+  const grupos = await Promise.all(
+    entradas.map((entrada) => (entrada ? archivosDeEntrada(entrada) : Promise.resolve([]))),
+  );
+  return grupos.flat();
 }
 
 function crearArchivos(lista: File[], vinculos: ImportacionVinculo[]): ArchivoImportar[] {
@@ -135,7 +273,7 @@ function crearArchivos(lista: File[], vinculos: ImportacionVinculo[]): ArchivoIm
   });
 }
 
-export function DdImportarCarpeta({ empresa, vinculos, onImported }: Props) {
+export function DdImportarCarpeta({ empresa, vinculos, onImported, soloBoton = false }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [iniciales, setIniciales] = useState<File[]>([]);
   const [arrastrandoPanel, setArrastrandoPanel] = useState(false);
@@ -149,8 +287,29 @@ export function DdImportarCarpeta({ empresa, vinculos, onImported }: Props) {
     setAbierto(true);
   };
 
+  const abrirDesdeDrop = async (dataTransfer: DataTransfer) => {
+    const files = await archivosDesdeDataTransfer(dataTransfer);
+    if (files.length === 0) {
+      toast.info("No se encontraron archivos en la carpeta arrastrada. Usa Abrir importación.");
+      return;
+    }
+    abrirImportacion(files);
+  };
+
   return (
     <>
+      {soloBoton ? (
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => abrirImportacion()}
+          disabled={vinculos.length === 0}
+        >
+          <CloudUpload className="h-3.5 w-3.5" />
+          <span>Importar carpeta</span>
+        </Button>
+      ) : (
       <Card className="h-fit">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
@@ -175,7 +334,7 @@ export function DdImportarCarpeta({ empresa, vinculos, onImported }: Props) {
             onDrop={(evento) => {
               evento.preventDefault();
               setArrastrandoPanel(false);
-              abrirImportacion(Array.from(evento.dataTransfer.files));
+              void abrirDesdeDrop(evento.dataTransfer);
             }}
             className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition ${arrastrandoPanel ? "border-primary bg-primary/5" : "border-border bg-secondary/20 hover:border-primary hover:bg-primary/5"}`}
           >
@@ -210,6 +369,7 @@ export function DdImportarCarpeta({ empresa, vinculos, onImported }: Props) {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={abierto} onOpenChange={setAbierto}>
         <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden p-0 sm:max-w-5xl">
@@ -264,12 +424,21 @@ function ContenidoImportacion({
     input.click();
   };
 
-  const seleccionar = (lista: FileList | null) => {
+  const seleccionar = (lista: FileList | File[] | null) => {
     if (!lista || lista.length === 0) return;
     const nuevos = crearArchivos(Array.from(lista), vinculos);
     setArchivos(nuevos);
     setAceptoClasificacion(false);
     toast.info(`${nuevos.length} archivo(s) cargados para revisar.`);
+  };
+
+  const seleccionarDesdeDrop = async (dataTransfer: DataTransfer) => {
+    const files = await archivosDesdeDataTransfer(dataTransfer);
+    if (files.length === 0) {
+      toast.info("No se encontraron archivos en la carpeta arrastrada. Usa el selector.");
+      return;
+    }
+    seleccionar(files);
   };
 
   const actualizar = (id: string, cambios: Partial<ArchivoImportar>) => {
@@ -400,7 +569,7 @@ function ContenidoImportacion({
                     onKeyDown={(evento) => { if (evento.key === "Enter" || evento.key === " ") abrirSelector(); }}
                     onDragOver={(evento) => { evento.preventDefault(); setArrastrando(true); }}
                     onDragLeave={() => setArrastrando(false)}
-                    onDrop={(evento) => { evento.preventDefault(); setArrastrando(false); seleccionar(evento.dataTransfer.files); }}
+                    onDrop={(evento) => { evento.preventDefault(); setArrastrando(false); void seleccionarDesdeDrop(evento.dataTransfer); }}
                     className={`cursor-pointer rounded-lg border-2 border-dashed p-4 text-center transition ${arrastrando ? "border-primary bg-primary/5" : "border-border bg-secondary/20 hover:border-primary hover:bg-primary/5"}`}
                   >
                     <CloudUpload className="mx-auto mb-1.5 h-5 w-5 text-primary" />
@@ -533,14 +702,11 @@ function ContenidoImportacion({
                     </div>
                     <div className="space-y-1">
                       <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Campo / categoría</p>
-                      <Select value={archivo.categoria} onValueChange={(value) => actualizar(archivo.id, { categoria: value })} disabled={importando || archivo.estado === "ok"}>
-                        <SelectTrigger className="h-8 text-[11px]"><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
-                        <SelectContent>
-                          {DD_REPOSITORIO_IMPORT_CATEGORIAS.map((categoria) => (
-                            <SelectItem key={categoria.value} value={categoria.value}><span>{categoria.label}</span></SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <CategoriaSelect
+                        value={archivo.categoria}
+                        onChange={(value) => actualizar(archivo.id, { categoria: value })}
+                        disabled={importando || archivo.estado === "ok"}
+                      />
                     </div>
                   </div>
 

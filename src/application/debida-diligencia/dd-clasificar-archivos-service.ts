@@ -8,6 +8,7 @@ import {
   PERMISSIONS,
 } from "@/lib/shared/constants";
 import { clasificarNombreArchivo } from "@/lib/shared/utils/dd-repositorio-import";
+import { tienePermiso } from "@/lib/shared/utils/permisos";
 
 /** Sugiere vínculo/categoría para archivos usando solo sus nombres. */
 export class DdClasificarArchivosApplicationService {
@@ -17,7 +18,7 @@ export class DdClasificarArchivosApplicationService {
     dto: DdClasificarArchivosRequestDTO,
     session: DdSession,
   ): Promise<DdClasificarArchivosResponseDTO> {
-    if (!session.permissions.includes(PERMISSIONS.DD_MATRIZ)) {
+    if (!tienePermiso(session, PERMISSIONS.DD_MATRIZ)) {
       throw new DomainError("No autorizado para clasificar evidencias", API_ERROR_CODES.FORBIDDEN, 403);
     }
 

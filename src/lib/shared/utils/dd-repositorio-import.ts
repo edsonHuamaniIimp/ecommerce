@@ -1,5 +1,6 @@
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_TIPOS_VINCULO,
 } from "@/lib/shared/constants";
 import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
@@ -24,22 +25,71 @@ export interface ClasificacionNombre {
 const PREFIJO_NUMERICO = /^\d{2}\s*[.\-]\s*/;
 const IDENTIFICADOR = /\b(?:\d{8,11}|[A-Z]{1,4}\d{5,}[A-Z0-9]*)\b/i;
 
+const categoriaCriterio = (codigo: string) => `${DD_MATRIZ_CRITERIO_PREFIJO}${codigo}`;
+
+const CATEGORIAS_PERSONA_POR_EMPRESA: Record<string, string> = {
+  [categoriaCriterio("central_riesgo_empresa")]: categoriaCriterio("central_riesgo_persona"),
+  [categoriaCriterio("peps_prp_empresa")]: categoriaCriterio("peps_prp_persona"),
+  [categoriaCriterio("corrupcion_empresa")]: categoriaCriterio("corrupcion_persona"),
+  [categoriaCriterio("bancarizado_empresa")]: categoriaCriterio("bancarizado_persona"),
+};
+
 const CATEGORIA_POR_PALABRA: { claves: string[]; categoria: string }[] = [
+  {
+    claves: ["indecopi"],
+    categoria: categoriaCriterio("indecopi"),
+  },
+  {
+    claves: ["oefa"],
+    categoria: categoriaCriterio("oefa"),
+  },
+  {
+    claves: ["ofac"],
+    categoria: categoriaCriterio("ofac"),
+  },
+  {
+    claves: ["onu", "naciones unidas"],
+    categoria: categoriaCriterio("naciones_unidas"),
+  },
+  {
+    claves: ["opensanctions"],
+    categoria: categoriaCriterio("opensanctions"),
+  },
+  {
+    claves: ["sentinel", "sentinell", "central de riesgo"],
+    categoria: categoriaCriterio("central_riesgo_empresa"),
+  },
+  {
+    claves: ["pep", "pep's", "prp"],
+    categoria: categoriaCriterio("peps_prp_empresa"),
+  },
+  {
+    claves: ["conflicto"],
+    categoria: categoriaCriterio("conflicto_interes"),
+  },
+  {
+    claves: ["corrupcion", "soborno", "lavado"],
+    categoria: categoriaCriterio("corrupcion_empresa"),
+  },
+  {
+    claves: ["bancarizado"],
+    categoria: categoriaCriterio("bancarizado_empresa"),
+  },
+  {
+    claves: ["reputacion", "reputacional", "prensa", "medio", "medios", "web", "internet", "noticia", "publicacion", "portal", "periodistico"],
+    categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO,
+  },
+  {
+    claves: ["legal", "compliance", "poder", "poderes", "representante", "dni", "identidad", "ficha", "ruc", "sunat", "existencia", "certificado", "constancia", "pasaporte", "carnet"],
+    categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO,
+  },
   {
     claves: ["informe", "reporte", "report"],
     categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME,
   },
   {
-    claves: ["ofac", "onu", "sentinel", "indecopi", "corrupcion", "soborno", "lavado", "pep", "pep's", "oefa", "sancion", "restrictiva"],
+    claves: ["osce", "sancion", "restrictiva"],
     categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO,
-  },
-  {
-    claves: ["reputacion", "reputacional", "prensa", "medio", "medios", "web", "internet", "noticia"],
-    categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO,
-  },
-  {
-    claves: ["legal", "compliance", "poder", "poderes", "representante", "dni", "identidad", "ficha", "ruc", "sunat"],
-    categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO,
   },
 ];
 
@@ -86,9 +136,16 @@ export function clasificarNombreArchivo(
   });
   const tipo = TIPO_POR_PALABRA.find((regla) => regla.claves.some((clave) => texto.includes(normalizarTexto(clave))))?.tipo;
   const vinculo = vinculoPorNombre ?? (tipo ? vinculos.find((item) => item.tipo === tipo) : undefined);
-  const categoria =
+  const categoriaBase =
     CATEGORIA_POR_PALABRA.find((regla) => regla.claves.some((clave) => texto.includes(normalizarTexto(clave))))?.categoria ??
-    DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO;
+    (vinculo?.tipo === DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE ||
+    vinculo?.tipo === DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO
+      ? DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO
+      : DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO);
+  const categoria =
+    vinculo && vinculo.tipo !== DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+      ? (CATEGORIAS_PERSONA_POR_EMPRESA[categoriaBase] ?? categoriaBase)
+      : categoriaBase;
 
   return {
     vinculoId: vinculo?.id ?? vinculos[0]?.id ?? null,

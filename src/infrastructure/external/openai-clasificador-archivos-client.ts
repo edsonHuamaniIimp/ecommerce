@@ -2,7 +2,10 @@ import type {
   DdClasificadorSugerencia,
   IDdClasificadorArchivosClient,
 } from "@/domain/ports/dd-clasificador-archivos-client";
-import { DD_REPOSITORIO_IMPORT_CATEGORIAS } from "@/lib/shared/constants";
+import {
+  DD_CLASIFICADOR_ARCHIVOS_INSTRUCCIONES,
+  categoriasClasificadorArchivos,
+} from "@/lib/shared/utils/dd-clasificador-archivos";
 
 interface RespuestaOpenAI {
   choices?: { message?: { content?: string } }[];
@@ -31,10 +34,7 @@ export class OpenAiClasificadorArchivosClient implements IDdClasificadorArchivos
   }): Promise<DdClasificadorSugerencia[] | null> {
     if (!this.apiKey) return null;
 
-    const categorias = DD_REPOSITORIO_IMPORT_CATEGORIAS.map((item) => ({
-      value: item.value,
-      label: item.label,
-    }));
+    const categorias = categoriasClasificadorArchivos();
 
     const respuesta = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -49,11 +49,7 @@ export class OpenAiClasificadorArchivosClient implements IDdClasificadorArchivos
         messages: [
           {
             role: "system",
-            content:
-              "Eres un asistente de clasificación documental. Recibirás SOLO nombres de archivos, nunca su contenido. " +
-              "Asigna cada archivo a uno de los vínculos y categorías permitidas. " +
-              "No inventes IDs. Devuelve JSON con la forma {\"sugerencias\":[{\"indice\":0,\"vinculoId\":\"...\",\"categoria\":\"...\",\"confianza\":0.0,\"motivo\":\"...\"}]}. " +
-              "La confianza debe estar entre 0 y 1. Si no estás seguro, usa el primer vínculo y confianza baja.",
+            content: `${DD_CLASIFICADOR_ARCHIVOS_INSTRUCCIONES} La confianza debe estar entre 0 y 1.`,
           },
           {
             role: "user",
