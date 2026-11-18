@@ -16,11 +16,12 @@ import type { PlanoEntity } from "@/domain/models/plano-entities";
  * macro+updatedAt; las composiciones se serializan (una a la vez) y el render del
  * fondo tiene timeout: si excede, el contrato se genera sin la imagen (nunca 504).
  */
-const ANCHO_SALIDA = 2200;
+const ANCHO_SALIDA_DEFAULT = 2200;
+export const ANCHO_SALIDA_OPERADOR = 3200;
 const MAX_FONDOS_CACHE = 3;
 const TIMEOUT_FONDO_MS = 35_000;
-/* Cache del fondo por macro+updatedAt: persiste via el storage (S3 en prod; EFS/filesystem en local). */
-const CACHE_PREFIJO = "cache-macro";
+/* v2: invalida fondos cacheados a 2200 px para no reutilizar imagenes borrosas. */
+const CACHE_PREFIJO = "cache-macro-v2";
 
 const fondosCache = new Map<string, { usado: number; base: Buffer }>();
 
@@ -63,10 +64,10 @@ async function leerArchivo(url: string): Promise<Buffer> {
   return await fs.promises.readFile(path.join(process.cwd(), "public", url.replace(/^\//, "")));
 }
 
-async function pdfAPng(pdf: Buffer): Promise<Buffer> {
+async function pdfAPng(pdf: Buffer, anchoSalida: number): Promise<Buffer> {
   /*
    * Carga diferida: si el binario nativo no esta disponible, el error se captura
-   * arriba y la imagen del macro se omite — ninguna otra ruta se ve afectada.
+   * arriba y la imagen del macro se omite â€” ninguna otra ruta se ve afectada.
    */
   const { createCanvas } = await import("@napi-rs/canvas");
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -74,7 +75,7 @@ async function pdfAPng(pdf: Buffer): Promise<Buffer> {
   const page = await doc.getPage(1);
   /* Render directo al ancho de salida: evita ~2.4x de pixeles frente a escala fija. */
   const anchoPagina = page.getViewport({ scale: 1 }).width;
-  const escala = Math.min(1, ANCHO_SALIDA / anchoPagina);
+  const escala = Math.min(1, anchoSalida / anchoPagina);
   const viewport = page.getViewport({ scale: escala });
   const canvas = createCanvas(viewport.width, viewport.height);
   const ctx = canvas.getContext("2d");
@@ -128,9 +129,9 @@ function conTimeout<T>(promesa: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
-async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
+async function fondoDelMacro(macro: PlanoEntity, anchoSalida: number): Promise<Buffer | null> {
   if (!macro.imagenFondo) return null;
-  const key = `${macro.id}:${macro.updatedAt.getTime()}`;
+  const key = `${macro.id}:${macro.updatedAt.getTime()}:${anchoSalida}`;
   const cacheado = fondosCache.get(key);
   if (cacheado) {
     cacheado.usado = Date.now();
@@ -142,20 +143,25 @@ async function fondoDelMacro(macro: PlanoEntity): Promise<Buffer | null> {
     return enDisco;
   }
   const crudo = await leerArchivo(macro.imagenFondo);
-  const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo) : crudo;
-  const base = await sharp(png).resize({ width: ANCHO_SALIDA, withoutEnlargement: true }).png().toBuffer();
+  const png = esPdf(macro.imagenFondo) ? await pdfAPng(crudo, anchoSalida) : crudo;
+  const base = await sharp(png).resize({ width: anchoSalida, withoutEnlargement: true }).png().toBuffer();
   guardarEnMemoria(key, base);
   await guardarEnCache(key, base);
   return base;
 }
 
 /** Imagen del macro con las secciones de los planos hijos indicados resaltadas; null si no aplica. */
-export async function renderizarMacroConSecciones(macro: PlanoEntity, planosHijoIds: string[]): Promise<Buffer | null> {
+export async function renderizarMacroConSecciones(
+  macro: PlanoEntity,
+  planosHijoIds: string[],
+  opciones?: { anchoSalida?: number },
+): Promise<Buffer | null> {
   const secciones = macro.secciones.filter((s) => s.planoHijoId && planosHijoIds.includes(s.planoHijoId));
   if (secciones.length === 0) return null;
+  const anchoSalida = opciones?.anchoSalida ?? ANCHO_SALIDA_DEFAULT;
   await adquirirTurno();
   try {
-    const base = await conTimeout(fondoDelMacro(macro), TIMEOUT_FONDO_MS);
+    const base = await conTimeout(fondoDelMacro(macro, anchoSalida), TIMEOUT_FONDO_MS);
     if (!base) return null;
     const meta = await sharp(base).metadata();
     const ancho = meta.width ?? 0;
@@ -168,7 +174,7 @@ export async function renderizarMacroConSecciones(macro: PlanoEntity, planosHijo
         secciones.map((s) => ({ nombre: s.nombre, x: s.x, y: s.y, w: s.w, h: s.h, puntos: s.puntos ?? null })),
       ),
     );
-    return await sharp(base).composite([{ input: svg, top: 0, left: 0 }]).jpeg({ quality: 86 }).toBuffer();
+    return await sharp(base).composite([{ input: svg, top: 0, left: 0 }]).jpeg({ quality: 92 }).toBuffer();
   } catch {
     return null;
   } finally {
@@ -177,10 +183,11 @@ export async function renderizarMacroConSecciones(macro: PlanoEntity, planosHijo
 }
 
 /** Precalienta (y persiste en EFS) el fondo del macro sin componer secciones; para usar tras un deploy. */
-export async function precalentarMacro(macro: PlanoEntity): Promise<boolean> {
+export async function precalentarMacro(macro: PlanoEntity, opciones?: { anchoSalida?: number }): Promise<boolean> {
+  const anchoSalida = opciones?.anchoSalida ?? ANCHO_SALIDA_DEFAULT;
   await adquirirTurno();
   try {
-    return (await conTimeout(fondoDelMacro(macro), TIMEOUT_FONDO_MS)) !== null;
+    return (await conTimeout(fondoDelMacro(macro, anchoSalida), TIMEOUT_FONDO_MS)) !== null;
   } finally {
     liberarTurno();
   }

@@ -59,6 +59,12 @@ describe("construirSvgRecorte (RF-08)", () => {
     expect(svg).toContain("&lt;b&gt;&amp;");
   });
 
+  it("permite elevar el ancho de salida para contratos sin afectar el default del portal", () => {
+    const { svg } = construirSvgRecorte(ITEMS, ["EXT-01"], { anchoSalida: 3200 });
+    expect(svg).toContain('width="3200"');
+    expect(construirSvgRecorte(ITEMS, ["EXT-01"]).svg).toContain('width="2400"');
+  });
+
   it("usa el codigo comercial del objetivo cuando se provee (en vez del id del bloque)", () => {
     const { svg } = construirSvgRecorte([item("BLOQUE-774", 0, 0)], ["BLOQUE-774"], { codigos: { "BLOQUE-774": "774" } });
     expect(svg).toContain(">774</text>");

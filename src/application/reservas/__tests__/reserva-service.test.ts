@@ -424,8 +424,8 @@ describe("ReservaApplicationService - moneda del contrato", () => {
 });
 
 describe("ReservaApplicationService - tipo de solicitud", () => {
-  function crearServicioAdmin() {
-    const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789", preReservaRazonSocial: "Empresa de Prueba S.A.C.", medidas: "7440.00 USD", bloqueId: "B-1" }]);
+  function crearServicioAdmin(stands?: Parameters<typeof gessRepoCon>[0]) {
+    const { repo } = gessRepoCon(stands ?? [{ id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "pre_reservado", preReservaRuc: "20123456789", preReservaRazonSocial: "Empresa de Prueba S.A.C.", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
       marcarOrdenPago: vi.fn(async () => undefined),
@@ -578,6 +578,127 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
         total: 8188.73,
       }),
     );
+  });
+
+  it("aplica descuentos porcentuales por stand y suma antes de IGV", async () => {
+    const { svc, solicitudesRepo } = crearServicioAdmin([
+      { id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "disponible", medidas: "7440.00 USD", bloqueId: "B-1" },
+      { id: "g2", standCode: "A-2", eventoId: "evt-1", estado: "disponible", medidas: "9240.00 USD", bloqueId: "B-1" },
+    ]);
+
+    const res = await svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1", "g2"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentosPorStand: [
+        { standId: "g1", tipo: "porcentaje", valor: 3 },
+        { standId: "g2", tipo: "porcentaje", valor: 5 },
+      ],
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    });
+
+    expect(res.ok).toBe(true);
+    const plan = vi.mocked(solicitudesRepo.guardarPlanCuotas).mock.calls[0]?.[1];
+    expect(plan).toEqual(expect.objectContaining({
+      descuentoTipo: "por_stand",
+      descuentoMonto: 685.2,
+      netoLista: 16680,
+      netoDescontado: 15994.8,
+      igv: 2879.06,
+      total: 18873.86,
+    }));
+    expect(plan?.descuentosPorStand).toEqual([
+      expect.objectContaining({ standId: "g1", porcentaje: 3, neto: 7216.8 }),
+      expect.objectContaining({ standId: "g2", porcentaje: 5, neto: 8778 }),
+    ]);
+  });
+
+  it("aplica descuentos fijos por stand y suma antes de IGV", async () => {
+    const { svc, solicitudesRepo } = crearServicioAdmin([
+      { id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "disponible", medidas: "7440.00 USD", bloqueId: "B-1" },
+      { id: "g2", standCode: "A-2", eventoId: "evt-1", estado: "disponible", medidas: "9240.00 USD", bloqueId: "B-1" },
+    ]);
+
+    const res = await svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1", "g2"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentosPorStand: [
+        { standId: "g1", tipo: "monto", valor: 300 },
+        { standId: "g2", tipo: "monto", valor: 500 },
+      ],
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    });
+
+    expect(res.ok).toBe(true);
+    const plan = vi.mocked(solicitudesRepo.guardarPlanCuotas).mock.calls[0]?.[1];
+    expect(plan).toEqual(expect.objectContaining({
+      descuentoTipo: "por_stand",
+      descuentoMonto: 800,
+      netoLista: 16680,
+      netoDescontado: 15880,
+      igv: 2858.4,
+      total: 18738.4,
+    }));
+    expect(plan?.descuentosPorStand).toEqual([
+      expect.objectContaining({ standId: "g1", tipo: "monto", valor: 300, neto: 7140 }),
+      expect.objectContaining({ standId: "g2", tipo: "monto", valor: 500, neto: 8740 }),
+    ]);
+  });
+
+  it("rechaza un descuento fijo por stand mayor al precio del stand", async () => {
+    const { svc } = crearServicioAdmin([
+      { id: "g1", standCode: "A-1", eventoId: "evt-1", estado: "disponible", medidas: "7440.00 USD", bloqueId: "B-1" },
+    ]);
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentosPorStand: [{ standId: "g1", tipo: "monto", valor: 8000 }],
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rechaza un cronograma cuyos porcentajes superan 100%", async () => {
+    const { svc } = crearServicioAdmin();
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      cuotas: [
+        { porcentaje: 100, fechaVencimiento: "2026-11-15" },
+        { porcentaje: 20, fechaVencimiento: "2026-12-15" },
+      ],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rechaza un porcentaje por stand mayor a 100%", async () => {
+    const { svc } = crearServicioAdmin();
+
+    await expect(svc.crearAdministrativa({
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "boleta",
+      descuentosPorStand: [{ standId: "g1", tipo: "porcentaje", valor: 120 }],
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    })).rejects.toMatchObject({ status: 400 });
   });
 
   it("rechaza aplicar porcentaje y monto fijo al mismo tiempo", async () => {

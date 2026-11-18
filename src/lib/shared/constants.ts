@@ -1148,6 +1148,24 @@ export const DESCUENTO_PORCENTAJE_MIN = 0;
 export const DESCUENTO_PORCENTAJE_MAX = 100;
 export const DESCUENTO_PORCENTAJE_PASO = 0.01;
 
+/** Tipos de descuento persistidos en el snapshot del plan. */
+export const TIPOS_DESCUENTO = {
+  PORCENTAJE: "porcentaje",
+  MONTO: "monto",
+  POR_STAND: "por_stand",
+} as const;
+
+export type TipoDescuento = (typeof TIPOS_DESCUENTO)[keyof typeof TIPOS_DESCUENTO];
+export type TipoDescuentoGlobal = Exclude<TipoDescuento, typeof TIPOS_DESCUENTO.POR_STAND>;
+
+/** Modos de captura del descuento en la reserva administrativa. */
+export const MODOS_DESCUENTO = {
+  GRUPAL: "grupal",
+  POR_STAND: "por_stand",
+} as const;
+
+export type ModoDescuento = (typeof MODOS_DESCUENTO)[keyof typeof MODOS_DESCUENTO];
+
 /** Maximo de cuotas del plan contractual (1..3). */
 export const MAX_CUOTAS_PAGO = 3;
 
@@ -2498,6 +2516,7 @@ export const MAESTRA_TABLAS = {
   FACTURACION_TIPO: "facturacion_tipo",
   CUOTA_ESTADO: "cuota_estado",
   DOCUMENTO_ESTADO: "documento_estado",
+  DESCUENTO_TIPO: "descuento_tipo",
 } as const;
 
 export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
@@ -2976,10 +2995,11 @@ export const TIPOS_DOCUMENTO_SOLICITUD_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_SOLICITUD.ANEXO]: "Anexo",
 };
 
-/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano. */
+/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano | `subido_asociado` = equivalente firmado cargado por el Asociado. */
 export const ORIGENES_DOCUMENTO = {
   GENERADO: "generado",
   PERSONALIZADO: "personalizado",
+  SUBIDO_ASOCIADO: "subido_asociado",
 } as const;
 export type OrigenDocumento = (typeof ORIGENES_DOCUMENTO)[keyof typeof ORIGENES_DOCUMENTO];
 

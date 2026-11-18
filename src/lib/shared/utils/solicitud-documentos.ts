@@ -1,4 +1,4 @@
-import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_FALTANTE_TIPOS, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD, type SgcFaltanteTipo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, ORIGENES_DOCUMENTO, SGC_DOCUMENT_CATEGORIES, SGC_FALTANTE_TIPOS, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD, type SgcFaltanteTipo } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 import { dateUtils } from "./date";
 
@@ -21,6 +21,10 @@ interface DocumentoLike {
   sgcDocumentId?: string | null;
   sgcTitle?: string | null;
   sgcPieceId?: string | null;
+  /** Correo del usuario que cargo el archivo (auditoria). */
+  uploadedBy?: string | null;
+  /** Origen del documento (ver ORIGENES_DOCUMENTO). */
+  origen?: string | null;
   createdAt?: string | Date | null;
   /** Estado logico (ESTADOS_DOCUMENTO_SOLICITUD); ausente/activo = vigente. */
   estado?: string | null;
@@ -567,6 +571,19 @@ export function contratoHabilitadoPendienteFirma(s: SolicitudDocumentosGate): bo
   if (!contratoAdmin) return !firmado;
   if (!firmado) return true;
   return (dateUtils.toMs(firmado.createdAt) ?? 0) < (dateUtils.toMs(contratoAdmin.createdAt) ?? 0);
+}
+
+/**
+ * True si el contrato firmado vigente fue cargado por el Asociado como
+ * equivalente a la firma del cliente (no por la firma digital del cliente).
+ * Ese caso debe seguir el flujo regular por SGC antes de facturar.
+ */
+export function contratoFirmadoSubidoPorAsociado(s: { docsAdjuntos?: DocumentoLike[] | null }): boolean {
+  return (s.docsAdjuntos ?? []).some((d) =>
+    d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+    (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
+    d.origen === ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO,
+  );
 }
 
 /** El cliente solo puede firmar cuando el revisor habilito la firma. */

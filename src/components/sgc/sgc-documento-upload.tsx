@@ -5,7 +5,7 @@ import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
-import { SGC_UPLOAD_ALLOWED_EXTENSIONS, SGC_UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
+import { CONTRATO_FIRMADO_EXTENSIONES, SGC_UPLOAD_ALLOWED_EXTENSIONS, SGC_UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
 import type { TipoDocumentoSolicitud } from "@/lib/shared/constants";
 
 /**
@@ -24,6 +24,8 @@ export function SgcDocumentoUpload({
   vacioTexto,
   varios = true,
   onAttached,
+  confirmarSubida,
+  subirFirmaAsociado = false,
 }: {
   solicitudId: string;
   tipo: TipoDocumentoSolicitud;
@@ -35,16 +37,24 @@ export function SgcDocumentoUpload({
   vacioTexto: string;
   varios?: boolean;
   onAttached: () => void;
+  /** Confirma la carga antes de subir; false cancela. */
+  confirmarSubida?: (archivos: File[]) => Promise<boolean>;
+  /** Marca la carga como contrato firmado subido por el Asociado. */
+  subirFirmaAsociado?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
+    const seleccionados = Array.from(files);
     setSubiendo(true);
     try {
-      const formatos = SGC_UPLOAD_ALLOWED_EXTENSIONS as readonly string[];
-      for (const file of Array.from(files)) {
+      if (confirmarSubida && !(await confirmarSubida(seleccionados))) return;
+      const formatos: readonly string[] = subirFirmaAsociado
+        ? CONTRATO_FIRMADO_EXTENSIONES
+        : SGC_UPLOAD_ALLOWED_EXTENSIONS;
+      for (const file of seleccionados) {
         const ext = (file.name.split(".").pop() ?? "").toLowerCase();
         if (!formatos.includes(ext)) {
           toast.error(`Formato no permitido (.${ext || "?"}). Admitidos: ${formatos.join(", ")}.`);
@@ -55,7 +65,7 @@ export function SgcDocumentoUpload({
           continue;
         }
         const url = await solicitudesService.subirArchivo(file);
-        await solicitudesService.uploadDocumento({ solicitudId, url, nombre: file.name, tipo });
+        await solicitudesService.uploadDocumento({ solicitudId, url, nombre: file.name, tipo, subirFirmaAsociado });
       }
       toast.success("Documento(s) adjuntado(s) a la solicitud");
       onAttached();
@@ -103,6 +113,9 @@ export function SgcDocumentoUpload({
         ref={inputRef}
         type="file"
         multiple={varios}
+        accept={(subirFirmaAsociado ? CONTRATO_FIRMADO_EXTENSIONES : SGC_UPLOAD_ALLOWED_EXTENSIONS)
+          .map((ext) => `.${ext}`)
+          .join(",")}
         className="hidden"
         onChange={(e) => onFiles(e.target.files)}
       />

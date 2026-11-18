@@ -85,7 +85,15 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
   let eventoId: string | null = null;
   let standCode = "";
   let standCodes: string[] = [];
-  let standsDetalle: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }> = [];
+  let standsDetalle: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    precio?: number;
+    tipoStand?: string | null;
+  }> = [];
   let tipoStand: string | null = null;
   let medidas: string | null = null;
   let empresa: string | null = null;
@@ -109,7 +117,15 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       eventoId = stand.eventoId ?? null;
       standCode = codigoComercialStand(stand.standCode);
       standCodes = [standCode];
-      standsDetalle = [{ standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
+      standsDetalle = [{
+        standCode,
+        bloqueId: stand.bloqueId,
+        planoId: null,
+        planoCodigo: null,
+        planoNombre: null,
+        precio: resolverPrecioStand(stand),
+        tipoStand: stand.tipoStand,
+      }];
       standApiId = stand.standApiId;
       empresaMontajistaId = stand.montajistaId;
       empresaMontajistaNombre = stand.montajistaNombre;
@@ -131,7 +147,15 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       include: { gessStand: true },
     });
     standCodes = stands.map((s) => codigoComercialStand(s.gessStand.standCode));
-    standsDetalle = stands.map((s) => ({ standCode: codigoComercialStand(s.gessStand.standCode), bloqueId: s.gessStand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }));
+    standsDetalle = stands.map((s) => ({
+      standCode: codigoComercialStand(s.gessStand.standCode),
+      bloqueId: s.gessStand.bloqueId,
+      planoId: null,
+      planoCodigo: null,
+      planoNombre: null,
+      precio: resolverPrecioStand(s.gessStand),
+      tipoStand: s.gessStand.tipoStand,
+    }));
     /* Plano (pabellon) de cada bloque, para agrupar ubicaciones por pabellon. */
     const bloquesReserva = standsDetalle.map((s) => s.bloqueId).filter((v): v is string => Boolean(v));
     if (bloquesReserva.length > 0) {
@@ -1092,7 +1116,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }, origen?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
       data: {
         solicitudId,
@@ -1103,6 +1127,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         categoria: categoria ?? null,
         requisito: requisito ?? null,
         sha256: sha256 ?? null,
+        origen: origen ?? null,
         sgcObservationId: sgc?.observationId ?? null,
         sgcDocumentId: sgc?.documentId ?? null,
         sgcTitle: sgc?.title ?? null,

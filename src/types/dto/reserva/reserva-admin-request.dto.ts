@@ -1,4 +1,4 @@
-﻿import type { TipoComprobante } from "@/lib/shared/constants";
+﻿import type { TipoComprobante, TipoDescuentoGlobal } from "@/lib/shared/constants";
 
 export interface ReservaAdminRequestDTO {
   eventoId: string;
@@ -10,6 +10,12 @@ export interface ReservaAdminRequestDTO {
   /** Descuento comercial sobre el neto (0..100, maximo 2 decimales). */
   descuentoPorcentaje?: number;
   descuentoMonto?: number;
+  /** Descuentos por stand; excluyente con el descuento global. */
+  descuentosPorStand?: Array<{
+    standId: string;
+    tipo: TipoDescuentoGlobal;
+    valor: number;
+  }>;
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
 }
 

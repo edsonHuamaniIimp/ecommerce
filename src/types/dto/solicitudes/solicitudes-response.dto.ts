@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/lib/server/api-response";
+import type { TipoDescuento, TipoDescuentoGlobal } from "@/lib/shared/constants";
 import type { SolicitudDdEstadoDTO } from "./solicitud-dd-estado.dto";
 
 interface ReevaluacionDTO {
@@ -31,7 +32,16 @@ export interface SolicitudDTO {
   standCode: string;
   standCodes: string[];
   /** Stands de la solicitud con su bloque y pabellon de plano (ubicacion agrupada). */
-  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
+  standsDetalle?: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    /** Precio comercial unitario en USD. */
+    precio?: number;
+    tipoStand?: string | null;
+  }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
@@ -54,13 +64,23 @@ export interface SolicitudDTO {
     modalidad?: string;
     moneda?: string;
     netoLista?: number;
-    descuentoTipo?: string;
+    descuentoTipo?: TipoDescuento;
     descuentoValor?: number;
     descuentoPorcentaje?: number;
     descuentoMonto?: number;
     netoDescontado?: number;
     igv?: number;
     total?: number;
+    descuentosPorStand?: Array<{
+      standId: string;
+      standCode?: string;
+      precio: number;
+      tipo?: TipoDescuentoGlobal;
+      valor?: number;
+      porcentaje: number;
+      descuentoMonto: number;
+      neto: number;
+    }>;
     cuotas?: Array<{
       numero: number;
       porcentaje: number;

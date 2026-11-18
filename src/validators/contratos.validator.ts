@@ -57,6 +57,15 @@ export const generarContratoSchema = z.object({
   /** Descuento comercial administrado desde la bandeja (solo admin). */
   descuentoTipo: z.enum(["porcentaje", "monto"]).optional(),
   descuentoValor: z.number().min(0).optional(),
+  /** Descuento individual por stand; excluyente con el descuento global. */
+  descuentosPorStand: z
+    .array(z.object({
+      standCode: z.string().trim().min(1).max(30),
+      tipo: z.enum(["porcentaje", "monto"]),
+      valor: z.number().min(0),
+    }))
+    .max(50)
+    .optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
 });

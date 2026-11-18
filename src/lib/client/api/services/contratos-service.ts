@@ -16,6 +16,8 @@ export const contratosService = {
     /** Descuento administrado desde la bandeja. */
     descuentoTipo?: "porcentaje" | "monto";
     descuentoValor?: number;
+    /** Descuento individual por stand (solo admin). */
+    descuentosPorStand?: Array<{ standCode: string; tipo: "porcentaje" | "monto"; valor: number }>;
     /** Idioma del contrato (F3): el que ve el usuario en la UI. */
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */

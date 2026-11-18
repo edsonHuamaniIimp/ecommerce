@@ -10,6 +10,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import { CuotasEditor, type CuotaFila } from "@/components/shared/cuotas-editor";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido } from "@/lib/shared/utils/importes";
 import { formatearMonto } from "@/lib/shared/utils/moneda";
+import { TIPOS_DESCUENTO, type TipoDescuentoGlobal } from "@/lib/shared/constants";
 import { porcentajesValidos, sumarPorcentajes } from "@/lib/shared/utils/cuotas";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
@@ -19,7 +20,7 @@ interface Props {
   onSaved: () => void;
 }
 
-type TipoDescuento = "porcentaje" | "monto";
+
 
 function filasDesdePlan(plan: NonNullable<SolicitudDTO["planCuotas"]>): CuotaFila[] {
   return (plan.cuotas ?? []).map((cuota) => ({
@@ -39,8 +40,8 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
   const [aplicarDescuento, setAplicarDescuento] = useState(
     Number(solicitud.planCuotas?.descuentoMonto ?? 0) > 0,
   );
-  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuento>(
-    solicitud.planCuotas?.descuentoTipo === "monto" ? "monto" : "porcentaje",
+  const [tipoDescuento, setTipoDescuento] = useState<TipoDescuentoGlobal>(
+    solicitud.planCuotas?.descuentoTipo === TIPOS_DESCUENTO.MONTO ? TIPOS_DESCUENTO.MONTO : TIPOS_DESCUENTO.PORCENTAJE,
   );
   const [descuentoValor, setDescuentoValor] = useState(
     String(solicitud.planCuotas?.descuentoValor ?? solicitud.planCuotas?.descuentoPorcentaje ?? 0),
@@ -55,7 +56,7 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
         setPlan(detalle.planCuotas ?? null);
         setFilas(detalle.planCuotas?.cuotas ? filasDesdePlan(detalle.planCuotas) : []);
         setAplicarDescuento(Number(detalle.planCuotas?.descuentoMonto ?? 0) > 0);
-        setTipoDescuento(detalle.planCuotas?.descuentoTipo === "monto" ? "monto" : "porcentaje");
+        setTipoDescuento(detalle.planCuotas?.descuentoTipo === TIPOS_DESCUENTO.MONTO ? TIPOS_DESCUENTO.MONTO : TIPOS_DESCUENTO.PORCENTAJE);
         setDescuentoValor(String(detalle.planCuotas?.descuentoValor ?? detalle.planCuotas?.descuentoPorcentaje ?? 0));
       })
       .catch(() => toast.error("No se pudo cargar el plan de la solicitud"))
@@ -65,17 +66,20 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
 
   const moneda = plan?.moneda ?? solicitud.moneda ?? "USD";
   const netoLista = Number(plan?.netoLista ?? 0);
+  const planPorStand = plan?.descuentoTipo === TIPOS_DESCUENTO.POR_STAND;
   const valorDescuento = aplicarDescuento ? Number(descuentoValor || 0) : 0;
-  const descuentoValido = !aplicarDescuento || (
-    tipoDescuento === "porcentaje"
+  const descuentoValido = planPorStand || !aplicarDescuento || (
+    tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE
       ? descuentoPorcentajeValido(valorDescuento)
       : descuentoMontoValido(netoLista, valorDescuento)
   );
-  const neto = !descuentoValido || netoLista <= 0
-    ? netoLista
-    : tipoDescuento === "monto"
-      ? aplicarDescuentoMonto(netoLista, valorDescuento)
-      : aplicarDescuentoNeto(netoLista, valorDescuento);
+  const neto = planPorStand
+    ? Number(plan?.netoDescontado ?? netoLista)
+    : !descuentoValido || netoLista <= 0
+      ? netoLista
+      : tipoDescuento === TIPOS_DESCUENTO.MONTO
+        ? aplicarDescuentoMonto(netoLista, valorDescuento)
+        : aplicarDescuentoNeto(netoLista, valorDescuento);
   const total = calcularImportes(neto).total;
   const porcentajes = filas.map((fila) => Number(fila.porcentaje) || 0);
   const cuotasValidas = filas.length > 0 &&
@@ -101,8 +105,8 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
           porcentaje: Number(fila.porcentaje),
           fechaVencimiento: fila.fecha,
         })),
-        descuentoTipo: aplicarDescuento ? tipoDescuento : "porcentaje",
-        descuentoValor: aplicarDescuento ? valorDescuento : 0,
+        descuentoTipo: planPorStand ? undefined : aplicarDescuento ? tipoDescuento : TIPOS_DESCUENTO.PORCENTAJE,
+        descuentoValor: planPorStand ? undefined : aplicarDescuento ? valorDescuento : 0,
       });
       toast.success("Plan actualizado y contrato regenerado");
       onSaved();
@@ -131,6 +135,11 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
           </div>
         ) : (
           <div className="space-y-4 py-2">
+            {planPorStand ? (
+              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+                Esta solicitud usa descuento por stand. Aquí puedes ajustar los porcentajes y fechas de las cuotas; el descuento por stand se conserva.
+              </p>
+            ) : (
             <div className="rounded-lg border border-border bg-secondary/30 p-3">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs">Aplicar descuento</Label>
@@ -146,11 +155,11 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
               </div>
               {aplicarDescuento && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Select value={tipoDescuento} onValueChange={(value) => { setTipoDescuento(value as TipoDescuento); setDescuentoValor("0"); }} disabled={guardando}>
+                  <Select value={tipoDescuento} onValueChange={(value) => { setTipoDescuento(value as TipoDescuentoGlobal); setDescuentoValor("0"); }} disabled={guardando}>
                     <SelectTrigger className="h-9 w-[135px] text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="porcentaje">Porcentaje</SelectItem>
-                      <SelectItem value="monto">Monto fijo</SelectItem>
+                      <SelectItem value={TIPOS_DESCUENTO.PORCENTAJE}>Porcentaje</SelectItem>
+                      <SelectItem value={TIPOS_DESCUENTO.MONTO}>Monto fijo</SelectItem>
                     </SelectContent>
                   </Select>
                   <Input
@@ -160,20 +169,21 @@ export function EditarPlanSolicitudModal({ solicitud, onClose, onSaved }: Props)
                     value={descuentoValor}
                     onChange={(event) => setDescuentoValor(event.target.value)}
                     className="h-9 max-w-[160px] text-xs"
-                    aria-label={tipoDescuento === "porcentaje" ? "Descuento en porcentaje" : "Descuento en monto"}
+                    aria-label={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "Descuento en porcentaje" : "Descuento en monto"}
                     disabled={guardando}
                   />
-                  <span className="text-xs text-muted-foreground">{tipoDescuento === "porcentaje" ? "%" : moneda}</span>
+                  <span className="text-xs text-muted-foreground">{tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "%" : moneda}</span>
                 </div>
               )}
               {!descuentoValido && (
                 <p className="mt-1 text-[11px] text-destructive">
-                  {tipoDescuento === "monto"
+                  {tipoDescuento === TIPOS_DESCUENTO.MONTO
                     ? "El monto debe ser mayor a 0, con 2 decimales y no superar el neto."
                     : "El porcentaje debe estar entre 0 y 100 con máximo 2 decimales."}
                 </p>
               )}
             </div>
+            )}
 
             <div className="grid gap-2 rounded-lg border border-border p-3 text-xs sm:grid-cols-3">
               <div>

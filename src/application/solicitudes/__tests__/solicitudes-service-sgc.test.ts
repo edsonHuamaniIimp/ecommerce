@@ -5,7 +5,7 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_LIFECYCLE_STATUSES, SGC_STAGES, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, PERMISSIONS, ESTADOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
 
 vi.mock("@/lib/server/router", () => ({
@@ -517,5 +517,254 @@ describe("SolicitudesApplicationService.detalle con SGC", () => {
     await svc.detalle("sol-1");
 
     expect(consultarExpediente).not.toHaveBeenCalled();
+  });
+});
+
+describe("SolicitudesApplicationService - firma subida por Asociado", () => {
+  const baseDetalle = () =>
+    detalleMultistand({
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      contratoHabilitado: true,
+      sgcEnabled: true,
+      docsAdjuntosCount: 0,
+      clienteDocsAdjuntosCount: 0,
+      docsAdminCount: 0,
+      docsAdjuntos: [],
+    });
+
+  it("registra el PDF con auditoria del Asociado y userId del cliente", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/contrato-firmado.pdf",
+      nombre: "contrato-firmado.pdf",
+      userSub: "asociado-1",
+      userEmail: "asociado@iimp.org.pe",
+      userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      subirFirmaAsociado: true,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
+      "sol-1",
+      "/uploads/contrato-firmado.pdf",
+      "contrato-firmado.pdf",
+      "user-1",
+      "asociado@iimp.org.pe",
+      TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      null,
+      null,
+      undefined,
+      ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO,
+    );
+  });
+
+  it("rechaza la carga en nombre del cliente si no es Asociado", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/contrato-firmado.pdf",
+        nombre: "contrato-firmado.pdf",
+        userSub: "user-1",
+        userEmail: "cliente@iimp.org.pe",
+        userPermissions: [],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        subirFirmaAsociado: true,
+      }),
+    ).rejects.toThrow(/Solo el Asociado/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("exige PDF para el contrato firmado subido por el Asociado", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/contrato-firmado.docx",
+        nombre: "contrato-firmado.docx",
+        userSub: "asociado-1",
+        userEmail: "asociado@iimp.org.pe",
+        userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        subirFirmaAsociado: true,
+      }),
+    ).rejects.toThrow(/PDF/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la carga si no esta en la ventana de firma", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue({
+      ...baseDetalle(),
+      contratoHabilitado: false,
+    });
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/contrato-firmado.pdf",
+        nombre: "contrato-firmado.pdf",
+        userSub: "asociado-1",
+        userEmail: "asociado@iimp.org.pe",
+        userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        subirFirmaAsociado: true,
+      }),
+    ).rejects.toThrow(/firma inicial|ventana de firma|observado/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("rechaza la carga si el contrato vigente no esta observado", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue({
+      ...baseDetalle(),
+      docsAdjuntos: [
+        {
+          id: "firmado-1",
+          url: "/uploads/firmado.pdf",
+          nombre: "firmado.pdf",
+          userId: "user-1",
+          uploadedBy: "cliente@iimp.org.pe",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: new Date("2026-09-21T10:00:00.000Z"),
+        },
+      ],
+    });
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(
+      svc.uploadDocumento({
+        solicitudId: "sol-1",
+        url: "/uploads/contrato-firmado.pdf",
+        nombre: "contrato-firmado.pdf",
+        userSub: "asociado-1",
+        userEmail: "asociado@iimp.org.pe",
+        userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+        tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+        subirFirmaAsociado: true,
+      }),
+    ).rejects.toThrow(/firma inicial|observado/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("permite reemplazar el contrato firmado cuando esta observado", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.OBSERVADO);
+    repo.detalle = vi.fn().mockResolvedValue({
+      ...baseDetalle(),
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      docsAdjuntos: [
+        {
+          id: "firmado-1",
+          url: "/uploads/firmado.pdf",
+          nombre: "firmado.pdf",
+          userId: "user-1",
+          uploadedBy: "cliente@iimp.org.pe",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
+          createdAt: new Date("2026-09-21T10:00:00.000Z"),
+        },
+      ],
+    });
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/contrato-firmado.pdf",
+      nombre: "contrato-firmado.pdf",
+      userSub: "asociado-1",
+      userEmail: "asociado@iimp.org.pe",
+      userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+      subirFirmaAsociado: true,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
+    expect(repo.marcarDocumentosReemplazadosPorIds).not.toHaveBeenCalled();
+  });
+
+  function detalleConFirma(origen: string | null): SolicitudRow {
+    const contrato = new Date("2026-09-20T10:00:00.000Z");
+    const firmado = new Date("2026-09-21T10:00:00.000Z");
+    return detalleMultistand({
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      estadoSolicitud: ESTADOS_SOLICITUD.PENDIENTE,
+      sgcEnabled: true,
+      sgcEstadoEnvio: null,
+      docsAdjuntos: [
+        {
+          id: "contrato-1",
+          url: "/uploads/contrato.pdf",
+          nombre: "contrato.pdf",
+          userId: null,
+          uploadedBy: "sistema",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: contrato,
+        },
+        {
+          id: "firmado-1",
+          url: "/uploads/contrato-firmado.pdf",
+          nombre: "contrato-firmado.pdf",
+          userId: "user-1",
+          uploadedBy: "asociado@iimp.org.pe",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+          requisito: null,
+          origen,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: firmado,
+        },
+      ],
+    });
+  }
+
+  it("al aprobar Asociado envia al SGC y no genera orden de pago", async () => {
+    const sgc = sgcMock();
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.detalle = vi.fn().mockResolvedValue(detalleConFirma(ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO));
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.revisar({
+      solicitudId: "sol-1",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      reviewerEmail: "asociado@iimp.org.pe",
+    });
+
+    expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
+    expect(sgc.enviarExpedienteAlSgc).toHaveBeenCalledWith("sol-1", "asociado@iimp.org.pe");
+    expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
+  });
+
+  it("mantiene el pase directo a pago cuando la firma fue digital del cliente", async () => {
+    const sgc = sgcMock();
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    repo.detalle = vi.fn().mockResolvedValue(detalleConFirma(ORIGENES_DOCUMENTO.PERSONALIZADO));
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.revisar({
+      solicitudId: "sol-1",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      reviewerEmail: "asociado@iimp.org.pe",
+    });
+
+    expect(repo.marcarOrdenPago).toHaveBeenCalledWith("sol-1");
+    expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
   });
 });
