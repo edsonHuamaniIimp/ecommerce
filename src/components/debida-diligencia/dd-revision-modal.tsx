@@ -61,6 +61,7 @@ import {
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { paisDeTexto } from "@/lib/shared/utils/pais";
 import type {
   DdBandejaRowDTO,
@@ -136,6 +137,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const [guardandoFinal, setGuardandoFinal] = useState<DdMatrizResultadoFinal | null>(null);
   const [resultadoFinalSeleccionado, setResultadoFinalSeleccionado] =
     useState<DdMatrizResultadoFinal | null>(null);
+  const [finalLegacy, setFinalLegacy] = useState(false);
   const [comentarioFinal, setComentarioFinal] = useState("");
   const [comentarioClienteFinal, setComentarioClienteFinal] = useState("");
   const [documentosObservadosFinal, setDocumentosObservadosFinal] = useState<DdDocumentoTipo[]>([]);
@@ -194,9 +196,21 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       })
       .then((respuesta) => {
         if (!activo || !respuesta) return null;
+        const finalEfectivo = resultadoFinalEfectivo(
+          respuesta.resultadoFinal,
+          respuesta.expediente.estado,
+        );
+        const legacy =
+          !respuesta.resultadoFinal &&
+          finalEfectivo !== null &&
+          finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION;
         setMatriz(respuesta);
-        setResultadoFinalSeleccionado(respuesta.resultadoFinal as DdMatrizResultadoFinal | null);
-        setComentarioFinal(respuesta.finalComentario ?? "");
+        setFinalLegacy(legacy);
+        setResultadoFinalSeleccionado(finalEfectivo);
+        setComentarioFinal(
+          respuesta.finalComentario ??
+            (legacy ? "Resultado heredado del expediente legacy." : ""),
+        );
         return ddMatrizEvaluacionService.listar({
           expedienteId: fila.id,
           eventoId: respuesta.expediente.eventoId,
@@ -1136,6 +1150,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                     <p className="text-[10px] leading-snug text-muted-foreground">
                       Registra la conclusión final del vínculo. Los estados automáticos también se pueden registrar manualmente.
                     </p>
+                    {finalLegacy ? (
+                      <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[10px] leading-snug text-amber-900">
+                        Caso legacy: el resultado final se hereda del estado del expediente. No es
+                        necesario volver a registrarlo.
+                      </p>
+                    ) : null}
                     <div className="grid gap-1.5">
                       {FINALES.map((opcion) => (
                         <button
@@ -1147,7 +1167,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                               : "border-border bg-card"
                           }`}
                           disabled={guardandoFinal !== null}
-                          onClick={() => setResultadoFinalSeleccionado(opcion.value)}
+                          onClick={() => {
+                            setResultadoFinalSeleccionado(opcion.value);
+                            setFinalLegacy(false);
+                          }}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-semibold text-foreground">
