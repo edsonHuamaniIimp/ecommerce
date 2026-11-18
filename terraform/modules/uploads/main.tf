@@ -117,6 +117,11 @@ output "file_system_id" {
   value       = aws_efs_file_system.uploads.id
 }
 
+output "file_system_arn" {
+  description = "ARN del file system EFS (seleccion de AWS Backup)"
+  value       = aws_efs_file_system.uploads.arn
+}
+
 output "access_point_id" {
   description = "ID del access point (volumen de la task definition)"
   value       = aws_efs_access_point.uploads.id

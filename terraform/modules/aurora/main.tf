@@ -122,6 +122,9 @@ resource "aws_rds_cluster" "main" {
   storage_encrypted = true
   apply_immediately = true
 
+  # R1/backups: impide el borrado accidental del cluster en prod
+  deletion_protection = var.environment == "prod"
+
   backup_retention_period   = var.backup_retention_period
   skip_final_snapshot       = var.environment != "prod"
   final_snapshot_identifier = var.environment == "prod" ? "${local.name}-aurora-final" : null

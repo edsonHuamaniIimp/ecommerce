@@ -120,3 +120,6 @@ docs/05-integraciones/postman-sgc.json
 
 # Backups de datos de produccion (solo locales)
 backups/
+
+# EXCEPCION: el modulo Terraform de backups es CODIGO, no data de backup
+!terraform/modules/backups/
