@@ -399,6 +399,8 @@ export interface DatosFacturacionSolicitud {
   telefono: string | null;
   contacto: string | null;
   email: string;
+  /** Tipo de documento del representante legal (opcional; snapshot nuevo). */
+  representanteTipoDocumento?: string | null;
 }
 
 /** Datos del exhibidor que van al cuerpo del contrato (paso Cuotas del wizard). */
@@ -411,6 +413,8 @@ export interface DatosContrato {
   direccion?: string;
   /** Representante legal (nombre completo). */
   representante?: string;
+  /** Tipo de documento del representante (TIPOS_DOCUMENTO_PERSONA). */
+  tipoDocumentoRepresentante?: string;
   /** DNI/ID Card/Pasaporte del representante. */
   representanteDni?: string;
   /** Partida electronica de poderes (opcional). */

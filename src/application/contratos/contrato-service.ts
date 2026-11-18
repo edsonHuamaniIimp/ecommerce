@@ -280,6 +280,8 @@ export class ContratoApplicationService {
           ruc: snapshotFacturacion.numeroDocumento,
           direccion: snapshotFacturacion.direccion ?? undefined,
           representante: snapshotFacturacion.contacto ?? undefined,
+          tipoDocumentoRepresentante:
+            snapshotFacturacion.representanteTipoDocumento ?? empresa?.representanteLegalTipoDocumento ?? undefined,
           representanteDni: snapshotFacturacion.tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
             ? snapshotFacturacion.numeroDocumento
             : undefined,
@@ -984,6 +986,12 @@ export class ContratoApplicationService {
     const ruc = c?.ruc?.trim() || empresa?.ruc || "-";
     const domicilioFiscal = c?.direccion?.trim() || empresa?.direccionFiscal || "-";
     const representanteLegal = c?.representante?.trim() || empresa?.representanteLegalNombre || "-";
+    const tipoDocumentoRepresentanteCode =
+      c?.tipoDocumentoRepresentante?.trim() ||
+      empresa?.representanteLegalTipoDocumento ||
+      TIPOS_DOCUMENTO_PERSONA.DNI;
+    const tipoDocumentoRepresentante =
+      TIPOS_DOCUMENTO_PERSONA_LABELS[tipoDocumentoRepresentanteCode] ?? tipoDocumentoRepresentanteCode;
     const dniRepresentante = c?.representanteDni?.trim() || empresa?.representanteLegalDni || "-";
     const partidaElectronica = c?.partidaElectronica?.trim() || empresa?.partidaElectronica || "";
     const representantesAdicionales = (empresa?.representantesAdicionales ?? []).map((rep) => ({
@@ -999,8 +1007,8 @@ export class ContratoApplicationService {
      */
     const clausulaRepresentantes = (() => {
       const identificacionPrincipal = esContratoEn
-        ? `${representanteLegal}, identified with DNI/ identification card/ ID Card/Passport or other equivalent No. ${dniRepresentante}`
-        : `${representanteLegal}, identificado con DNI/ c\u00f3dula de identificaci\u00f3n/ ID Card/Pasaporte u otro equivalente N.\u00b0 ${dniRepresentante}`;
+        ? `${representanteLegal}, identified with ${tipoDocumentoRepresentante} No. ${dniRepresentante}`
+        : `${representanteLegal}, identificado con ${tipoDocumentoRepresentante} N.\u00b0 ${dniRepresentante}`;
       const identificaciones = [
         identificacionPrincipal,
         ...representantesAdicionales.map(
@@ -1101,6 +1109,7 @@ export class ContratoApplicationService {
       ruc,
       domicilio_fiscal: domicilioFiscal,
       representante_legal: representanteLegal,
+      tipo_documento_representante: tipoDocumentoRepresentante,
       dni_representante: dniRepresentante,
       partida_electronica: partidaElectronica,
       representantes_adicionales: representantesAdicionales,

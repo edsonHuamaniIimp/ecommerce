@@ -312,6 +312,41 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).not.toContain("XXXXXXXXX");
   });
 
+  it("usa el tipo de documento real del representante legal en la plantilla", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "NL",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+      empresa: {
+        representanteLegalNombre: "GRONDEL HUGO JOHAN FREDERIK",
+        representanteLegalTipoDocumento: "4",
+        representanteLegalDni: "06422025",
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("GRONDEL HUGO JOHAN FREDERIK");
+    expect(texto).toContain("Carné de Extranjería N° 06422025");
+  });
+
   it("con la modalidad de tres cuotas marca la Modalidad 3 e imprime el cronograma 40/30/30", async () => {
     const { svc, storage } = build();
 
