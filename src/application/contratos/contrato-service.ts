@@ -882,7 +882,7 @@ export class ContratoApplicationService {
     estamparFirmas?: boolean;
     base: string;
   }): Promise<ContratoGenerado> {
-    const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
+    const { idioma, empresa, modulos, gruposPabellon, importes, plan, porcentajes, firmaExhibidorBase64, base } = params;
     const esContratoOperador = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
@@ -1103,6 +1103,12 @@ export class ContratoApplicationService {
     const paisOperador = nombrePais(params.pais) || params.pais || "-";
     const cuotaMonto = (indice: number) => plan[indice] ? monto(plan[indice].monto) : "";
     const cuotaFecha = (indice: number) => plan[indice] ? fechaLarga(plan[indice].fechaVencimiento) : "";
+    const cuotaPorcentaje = (indice: number) => {
+      const porcentaje = porcentajes[indice];
+      return porcentaje === undefined
+        ? ""
+        : `${numberUtils.numero(porcentaje, { decimales: Number.isInteger(porcentaje) ? 0 : 2 })}%`;
+    };
 
     const data = {
       razon_social: razonSocial,
@@ -1177,6 +1183,9 @@ export class ContratoApplicationService {
       cuota_1_monto: cuotaMonto(0),
       cuota_2_monto: cuotaMonto(1),
       cuota_3_monto: cuotaMonto(2),
+      cuota_1_porcentaje: cuotaPorcentaje(0),
+      cuota_2_porcentaje: cuotaPorcentaje(1),
+      cuota_3_porcentaje: cuotaPorcentaje(2),
       fecha_cuota_1: cuotaFecha(0),
       fecha_cuota_2: cuotaFecha(1),
       fecha_cuota_3: cuotaFecha(2),

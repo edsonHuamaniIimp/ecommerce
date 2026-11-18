@@ -303,6 +303,9 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("2,360.00");
     expect(texto).toContain("9 m²");
     expect(texto).toContain("1 stands Preferencial");
+    expect(texto).toContain("40% del costo total");
+    expect(texto).toContain("30% del costo total");
+    expect(texto).not.toContain("33% del costo total");
     expect(texto).toContain("Detalle económico por stand");
     expect(texto).toContain("2,000.00");
     expect(texto).toContain("2,360.00");
