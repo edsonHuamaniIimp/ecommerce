@@ -269,11 +269,19 @@ export class ContratoApplicationService {
       ? (detalle.email ?? input.userEmail)
       : (input.userEmail ?? detalle.email);
     const empresaId = emailPropietario ? await this.auth.findEmpresaIdDeUsuario(emailPropietario) : null;
-    const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    let empresa = empresaId ? await this.empresas.findById(empresaId) : null;
     const datosReserva = typeof this.solicitudes.datosReservaIImp === "function"
       ? await this.solicitudes.datosReservaIImp(input.solicitudId).catch(() => null)
       : null;
     const snapshotFacturacion = datosReserva?.datosFacturacion ?? null;
+    /*
+     * Las reservas administrativas pueden tener el email de contacto sin vincular
+     * a la cuenta de la empresa. En ese caso se recupera la ficha por el documento
+     * fiscal del snapshot para no perder los datos contractuales del representante.
+     */
+    if (!empresa && snapshotFacturacion?.numeroDocumento) {
+      empresa = await this.empresas.findByRuc(snapshotFacturacion.numeroDocumento).catch(() => null);
+    }
     const contratoSnapshot: DatosContrato | null = snapshotFacturacion
       ? {
           razonSocial: snapshotFacturacion.razonSocial,
@@ -1178,7 +1186,7 @@ export class ContratoApplicationService {
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);
     const zip = new PizZip(plantilla);
     const ANCHO_MAX_PLANO_CONTRATO = 560;
-    const ALTO_MAX_PLANO_CONTRATO = 620;
+    const ALTO_MAX_PLANO_CONTRATO = 500;
     const imageModule = new ImageModule({
       centered: false,
       fileType: "docx",
