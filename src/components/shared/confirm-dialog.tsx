@@ -40,9 +40,9 @@ export function ConfirmDialog({
           <DialogTitle><span>{title}</span></DialogTitle>
         </DialogHeader>
         {description && (
-          <p className="break-words text-sm text-muted-foreground">
-            {typeof description === "string" ? <span>{description}</span> : description}
-          </p>
+          <div className="break-words text-sm text-muted-foreground">
+            {typeof description === "string" ? <p>{description}</p> : description}
+          </div>
         )}
         <DialogFooter className="gap-2 sm:justify-end">
           <Button variant="outline" onClick={onCancel}>

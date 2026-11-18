@@ -20,7 +20,7 @@ import {
   TabsTrigger,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertCircle, CheckCircle2, Eye, FileText, Loader2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
@@ -66,6 +66,7 @@ import type {
   DdBandejaRowDTO,
   DdExpedienteDTO,
   DdMatrizEvaluacionDetalleDTO,
+  DdMatrizEvaluacionFilaDTO,
 } from "@/types/dto/debida-diligencia";
 
 function DatoResumen({ label, children }: { label: string; children: ReactNode }) {
@@ -86,7 +87,14 @@ interface Props {
   puedeMatriz: boolean;
   onClose: () => void;
   onDone: () => void;
-  onResultadoFinal?: (resultado: DdMatrizResultadoFinal, comentario?: string) => Promise<void> | void;
+  onResultadoFinal?: (
+    resultado: DdMatrizResultadoFinal,
+    comentario?: string,
+    cierre?: {
+      clienteComentario?: string | null;
+      documentosObservados?: DdDocumentoTipo[];
+    },
+  ) => Promise<void> | void;
 }
 
 const ACCIONES = [
@@ -114,6 +122,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const { confirm, confirmDialog } = useConfirm();
   const [detalle, setDetalle] = useState<DdExpedienteDTO | null>(null);
   const [matriz, setMatriz] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
+  const [matrizVinculos, setMatrizVinculos] = useState<DdMatrizEvaluacionFilaDTO[]>([]);
   const [matrizId, setMatrizId] = useState<string | null>(null);
   const [matrizLoading, setMatrizLoading] = useState(true);
   const [matrizError, setMatrizError] = useState<string | null>(null);
@@ -128,10 +137,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const [resultadoFinalSeleccionado, setResultadoFinalSeleccionado] =
     useState<DdMatrizResultadoFinal | null>(null);
   const [comentarioFinal, setComentarioFinal] = useState("");
+  const [comentarioClienteFinal, setComentarioClienteFinal] = useState("");
+  const [documentosObservadosFinal, setDocumentosObservadosFinal] = useState<DdDocumentoTipo[]>([]);
   const [revalidacionGuardando, setRevalidacionGuardando] = useState(false);
   const [textoRevalidacion, setTextoRevalidacion] = useState("");
   const [revalidacionError, setRevalidacionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [vinculosCompletos, setVinculosCompletos] = useState(false);
+  const [guardandoDeclaracion, setGuardandoDeclaracion] = useState(false);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
 
   useEffect(() => {
@@ -141,6 +154,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       .then((r) => {
         if (!activo) return;
         setDetalle(r);
+        setVinculosCompletos(Boolean(r.vinculosCompletos));
         const derivable =
           r.estado === DD_ESTADOS.APROBADA ||
           (r.estado === DD_ESTADOS.RECHAZADA && !r.decisionLegal);
@@ -152,7 +166,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
           r.reputacion.some(
             (caso) =>
               caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
-              caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+              caso.estado === DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION ||
+              caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ||
+              caso.resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+              caso.resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
           )
         ) {
           setAccion(DD_ACCIONES_REVISION.OBSERVAR);
@@ -176,11 +193,19 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
         return ddMatrizEvaluacionService.detalle(id);
       })
       .then((respuesta) => {
-        if (activo && respuesta) {
-          setMatriz(respuesta);
-          setResultadoFinalSeleccionado(respuesta.resultadoFinal as DdMatrizResultadoFinal | null);
-          setComentarioFinal(respuesta.finalComentario ?? "");
-        }
+        if (!activo || !respuesta) return null;
+        setMatriz(respuesta);
+        setResultadoFinalSeleccionado(respuesta.resultadoFinal as DdMatrizResultadoFinal | null);
+        setComentarioFinal(respuesta.finalComentario ?? "");
+        return ddMatrizEvaluacionService.listar({
+          expedienteId: fila.id,
+          eventoId: respuesta.expediente.eventoId,
+          porEmpresa: true,
+          perPage: 100,
+        });
+      })
+      .then((vinculos) => {
+        if (activo && vinculos) setMatrizVinculos(vinculos.data);
       })
       .catch((e) => {
         if (activo) setMatrizError(e instanceof Error ? e.message : "No se pudo cargar la matriz");
@@ -222,7 +247,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const reputacionConHallazgos = reputacion.some(
     (caso) =>
       caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
-      caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+      caso.estado === DD_REPUTACION_ESTADOS.REQUIERE_INFORMACION ||
+      caso.resultado === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS ||
+      caso.resultado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+      caso.resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
   );
   const esAprobada = detalle?.estado === DD_ESTADOS.APROBADA;
   const enLegal = detalle?.estado === DD_ESTADOS.EN_LEGAL;
@@ -244,14 +272,50 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     declaracionVigencia?.estado === DD_DOCUMENTO_ESTADOS.CARGADO;
   const etiquetaRevalidacion =
     REVALIDACION_ESTADO_LABELS[declaracionVigenciaEstado ?? ""] ?? "No cargada";
-  const acciones = esAprobada
-    ? ACCIONES.filter((opcion) => opcion.value === DD_ACCIONES_REVISION.RECHAZAR)
-    : ACCIONES;
+  /* La derivación a Legal se realiza únicamente desde la matriz. */
+  const acciones = ACCIONES.filter(
+    (opcion) => opcion.value !== DD_ACCIONES_REVISION.RECHAZAR,
+  );
   const sinDecision = enLegal || rechazadaCerrada;
   const accionPermitida =
     !sinDecision &&
     (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
     !(reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR);
+
+  const cambiarDeclaracionVinculos = async (valor: boolean) => {
+    if (guardandoDeclaracion) return;
+    if (valor) {
+      const ok = await confirm({
+        title: "Declarar vínculos completos",
+        description:
+          "Confirmas que revisaste la solicitud y que todos sus vínculos están registrados y completos. La declaración quedará auditada con tu usuario y la fecha.",
+        confirmLabel: "Declarar",
+      });
+      if (!ok) return;
+    }
+    setGuardandoDeclaracion(true);
+    setError(null);
+    try {
+      const actualizado = await debidaDiligenciaService.declararVinculosCompletos({
+        expedienteId: fila.id,
+        completos: valor,
+      });
+      setDetalle(actualizado);
+      setVinculosCompletos(Boolean(actualizado.vinculosCompletos));
+      toast.success(
+        valor
+          ? "Declaración registrada: vínculos revisados y completos"
+          : "Declaración de vínculos completos retirada",
+      );
+      onDone();
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : "No se pudo guardar la declaración";
+      setError(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoDeclaracion(false);
+    }
+  };
 
   /** Deriva explicitamente los nombres a Comunicaciones (accion independiente de la decision). */
   const derivarNombresAComunicaciones = async () => {
@@ -362,16 +426,27 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       setError("Escribe el comentario interno antes de registrar la conclusión final");
       return;
     }
+    const esDocumentacionObservada =
+      resultado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+    if (esDocumentacionObservada && !comentarioClienteFinal.trim()) {
+      setError("Escribe el comentario para el cliente antes de registrar la conclusión final");
+      return;
+    }
     const ok = await confirm({
       title: `Registrar ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`,
-      description: "Se actualizará el resultado final del vínculo de empresa en la matriz.",
+      description: esDocumentacionObservada
+        ? "Se registrará la documentación observada, se notificará al cliente y podrá corregir la información."
+        : "Se actualizará el resultado final del vínculo de empresa en la matriz.",
       confirmLabel: "Registrar resultado",
     });
     if (!ok) return;
     setGuardandoFinal(resultado);
     setError(null);
     try {
-      await onResultadoFinal(resultado, comentarioFinal.trim() || undefined);
+      await onResultadoFinal(resultado, comentarioFinal.trim() || undefined, {
+        clienteComentario: comentarioClienteFinal.trim() || null,
+        documentosObservados: documentosObservadosFinal,
+      });
       toast.success(`Resultado final: ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`);
       onDone();
     } catch (e) {
@@ -988,6 +1063,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                 <TabsContent value="matriz" className="mt-0">
                   <DdRevisionMatrizTab
                     detalle={matriz}
+                    vinculos={matrizVinculos}
                     loading={matrizLoading}
                     error={matrizError}
                     matrizId={matrizId}
@@ -1025,14 +1101,13 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                   ) : null}
                   {reputacionConHallazgos && !sinDecision ? (
                     <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[10px] font-medium text-destructive">
-                      No se puede aprobar: Comunicaciones registró hallazgos reputacionales. Solicita correcciones o deriva a Legal.
+                      No se puede aprobar: Comunicaciones registró hallazgos reputacionales. Solicita correcciones o deriva a Legal desde la matriz.
                     </p>
                   ) : null}
                   <RadioGroup value={accion} onValueChange={cambiarAccion} className="space-y-2">
                     {acciones.map((opcion) => {
                       const permitida =
                         !sinDecision &&
-                        (!puedeDerivar || opcion.value === DD_ACCIONES_REVISION.RECHAZAR) &&
                         !(reputacionConHallazgos && opcion.value === DD_ACCIONES_REVISION.APROBAR);
                       return (
                       <label
@@ -1043,7 +1118,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                           <RadioGroupItem value={opcion.value} disabled={!permitida} className="peer sr-only" />
                           <DdRadioIndicator selected={accion === opcion.value} className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
                           <span className="text-xs font-semibold text-foreground">
-                            {opcion.value === DD_ACCIONES_REVISION.APROBAR ? <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 text-success" /> : opcion.value === DD_ACCIONES_REVISION.RECHAZAR ? <XCircle className="mr-1 inline h-3.5 w-3.5 text-destructive" /> : <AlertCircle className="mr-1 inline h-3.5 w-3.5 text-warning" />}
+                            {opcion.value === DD_ACCIONES_REVISION.APROBAR ? <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 text-success" /> : <AlertCircle className="mr-1 inline h-3.5 w-3.5 text-warning" />}
                             {opcion.label}
                           </span>
                         </div>
@@ -1104,11 +1179,76 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         Obligatorio para cualquier estado final. Solo visible para el equipo interno.
                       </p>
                     </div>
+
+                    {resultadoFinalSeleccionado ===
+                    DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA ? (
+                      <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/50 p-3">
+                        <div className="space-y-1">
+                          <Label
+                            htmlFor="final-comentario-cliente"
+                            className="text-[10px] font-medium uppercase text-muted-foreground"
+                          >
+                            <span>Comentario para el cliente</span>
+                          </Label>
+                          <Textarea
+                            id="final-comentario-cliente"
+                            className="min-h-20 bg-card text-xs"
+                            maxLength={1000}
+                            disabled={guardandoFinal !== null}
+                            value={comentarioClienteFinal}
+                            onChange={(event) => {
+                              setComentarioClienteFinal(event.target.value);
+                              setError(null);
+                            }}
+                            placeholder="Indica qué documentación debe subsanar el cliente."
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Obligatorio. Este texto sí se envía al cliente.
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-medium uppercase text-muted-foreground">
+                            Documentos a subsanar
+                          </p>
+                          <div className="grid gap-1.5">
+                            {documentosAdicionales.map((documento) => (
+                              <label
+                                key={documento.tipo}
+                                className="flex items-start gap-2 text-[11px] text-foreground"
+                              >
+                                <Checkbox
+                                  className="mt-0.5"
+                                  checked={documentosObservadosFinal.includes(documento.tipo)}
+                                  onCheckedChange={(valor) => {
+                                    setDocumentosObservadosFinal((previos) =>
+                                      valor === true
+                                        ? [...new Set([...previos, documento.tipo])]
+                                        : previos.filter((tipo) => tipo !== documento.tipo),
+                                    );
+                                    setError(null);
+                                  }}
+                                  disabled={guardandoFinal !== null}
+                                />
+                                <span>{documento.titulo}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <Button
                       type="button"
                       size="sm"
                       className="w-full gap-1.5 text-xs"
-                      disabled={!resultadoFinalSeleccionado || !comentarioFinal.trim() || guardandoFinal !== null}
+                      disabled={
+                        !resultadoFinalSeleccionado ||
+                        !comentarioFinal.trim() ||
+                        (resultadoFinalSeleccionado ===
+                          DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA &&
+                          !comentarioClienteFinal.trim()) ||
+                        guardandoFinal !== null
+                      }
                       onClick={() => {
                         if (resultadoFinalSeleccionado) {
                           void registrarResultadoFinal(resultadoFinalSeleccionado);
@@ -1154,10 +1294,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                 </>
                 ) : null}
 
-                <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
+                <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+                  <div className="min-w-0 w-full">
                     <p className="text-xs font-semibold text-foreground">Revisión reputacional</p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="mt-0.5 whitespace-normal break-words text-[11px] leading-relaxed text-muted-foreground">
                       Deriva los nombres de empresa, representante y beneficiarios a Comunicaciones.
                       Es independiente de la decisión.
                     </p>
@@ -1166,13 +1306,40 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="shrink-0 gap-1.5 text-xs"
-                    disabled={derivando || sinDecision}
+                    className="w-full gap-1.5 text-xs sm:w-auto"
+                    disabled={derivando || sinDecision || !vinculosCompletos || guardandoDeclaracion}
                     onClick={() => { void derivarNombresAComunicaciones(); }}
                   >
                     {derivando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                     <span>{reputacion.length > 0 ? "Enviar nuevos a Comunicaciones" : "Derivar a Comunicaciones"}</span>
                   </Button>
+                  <label className="flex items-start gap-2 border-t border-border pt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    <Checkbox
+                      checked={vinculosCompletos}
+                      onCheckedChange={(valor) => { void cambiarDeclaracionVinculos(valor === true); }}
+                      disabled={guardandoDeclaracion || sinDecision}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      He revisado que <strong className="text-foreground">todos los vínculos de la solicitud están registrados y completos</strong>.
+                      Esta declaración es obligatoria para enviar nombres a Comunicaciones.
+                    </span>
+                  </label>
+                  <p className="pl-6 text-[10px] text-muted-foreground">
+                    {vinculosCompletos ? (
+                      <>
+                        Declarado por{" "}
+                        <span className="font-medium text-foreground">
+                          {detalle?.vinculosCompletosPor ?? "usuario no registrado"}
+                        </span>
+                        {detalle?.vinculosCompletosEn
+                          ? ` el ${dateUtils.formatDateTime(detalle.vinculosCompletosEn)}`
+                          : ""}
+                      </>
+                    ) : (
+                      "Sin declaración de vínculos completos."
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -1210,3 +1377,4 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     </Dialog>
   );
 }
+

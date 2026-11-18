@@ -3,31 +3,29 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
-import { ExternalLink, FileText, Paperclip } from "lucide-react";
-import type { DdMatrizBloqueDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
+import { ExternalLink } from "lucide-react";
+import type {
+  DdMatrizEvaluacionDetalleDTO,
+  DdMatrizEvaluacionFilaDTO,
+} from "@/types/dto/debida-diligencia";
 import {
   BADGE_STYLES,
-  DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS,
-  DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_RUTAS,
-  type DdMatrizAdjuntoCategoria,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
 import {
   DdMatrizAmbitoBadge,
   DdMatrizConclusionBadge,
-  DdMatrizConclusionComplianceBadge,
   DdMatrizResultadoBadge,
-  DdMatrizResultadoFinalBadge,
   DdMatrizSiNoNaBadge,
 } from "./dd-matriz-badges";
 
 interface Props {
   detalle: DdMatrizEvaluacionDetalleDTO | null;
+  vinculos: DdMatrizEvaluacionFilaDTO[];
   loading: boolean;
   error: string | null;
   matrizId: string | null;
@@ -67,86 +65,117 @@ function valorSiNoNa(valor: string | null): React.ReactNode {
   return <DdMatrizSiNoNaBadge valor={valor} />;
 }
 
-function AdjuntosMatriz({
-  adjuntos,
-  categorias,
+function EstadoVinculo({
+  titulo,
+  resultado,
+  conclusion,
+  fecha,
 }: {
-  adjuntos: DdMatrizEvaluacionDetalleDTO["adjuntos"];
-  categorias: DdMatrizAdjuntoCategoria[];
+  titulo: string;
+  resultado: string | null;
+  conclusion: string | null;
+  fecha: string | null;
 }) {
-  const visibles = adjuntos.filter((adjunto) => categorias.includes(adjunto.categoria as DdMatrizAdjuntoCategoria));
-  if (visibles.length === 0) {
-    return <p className="text-[11px] text-muted-foreground">Sin adjuntos en la matriz.</p>;
-  }
+  const pendiente = !resultado && !conclusion;
   return (
-    <ul className="space-y-1.5">
-      {visibles.map((adjunto) => (
-        <li key={adjunto.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2">
-          <a
-            href={adjunto.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-w-0 items-center gap-2 text-[11px] font-medium text-primary hover:underline"
-          >
-            <FileText className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{adjunto.nombre}</span>
-          </a>
-          <div className="flex shrink-0 items-center gap-2">
-            <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
-              <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[adjunto.categoria as DdMatrizAdjuntoCategoria] ?? adjunto.categoria}</span>
-            </Badge>
-            <DdEvidenciaPreviewButton url={adjunto.url} nombre={adjunto.nombre} mimeType={adjunto.mimeType} />
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div className="flex min-w-0 flex-col rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</p>
+        <p className="shrink-0 text-[10px] text-muted-foreground">
+          {fecha ? dateUtils.format(fecha) : "Sin fecha"}
+        </p>
+      </div>
+
+      {pendiente ? (
+        <p className="mt-3 text-[11px] text-muted-foreground">Pendiente</p>
+      ) : (
+        <div className="mt-3 space-y-2.5">
+          {resultado ? (
+            <div className="space-y-1">
+              <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                Resultado
+              </p>
+              <div className="flex flex-wrap gap-1">
+                <DdMatrizResultadoBadge valor={resultado} />
+              </div>
+            </div>
+          ) : null}
+          {conclusion ? (
+            <div className="space-y-1">
+              <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                Conclusión
+              </p>
+              <div className="flex flex-wrap gap-1">
+                <DdMatrizConclusionBadge valor={conclusion} />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 
-function BloqueMatriz({
-  titulo,
-  descripcion,
-  bloque,
-  compliance = false,
-  adjuntos,
-  categorias,
+function VinculosMatriz({
+  vinculos,
+  returnTo,
 }: {
-  titulo: string;
-  descripcion: string;
-  bloque: DdMatrizBloqueDTO;
-  compliance?: boolean;
-  adjuntos: DdMatrizEvaluacionDetalleDTO["adjuntos"];
-  categorias: DdMatrizAdjuntoCategoria[];
+  vinculos: DdMatrizEvaluacionFilaDTO[];
+  returnTo: string;
 }) {
+  if (vinculos.length === 0) return null;
   return (
-    <SeccionMatriz titulo={titulo} descripcion={descripcion}>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <DdMatrizResultadoBadge valor={bloque.resultado} />
-          {compliance ? (
-            <DdMatrizConclusionComplianceBadge valor={bloque.conclusion} />
-          ) : (
-            <DdMatrizConclusionBadge valor={bloque.conclusion} />
-          )}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DatoMatriz etiqueta="Observaciones">{bloque.observaciones ?? null}</DatoMatriz>
-          <DatoMatriz etiqueta="Responsable">{bloque.responsable ?? null}</DatoMatriz>
-          <DatoMatriz etiqueta="Fecha">{dateUtils.format(bloque.fecha)}</DatoMatriz>
-        </div>
-        <div className="space-y-1.5">
-          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
-            <Paperclip className="h-3 w-3" />
-            <span>Adjuntos</span>
-          </p>
-          <AdjuntosMatriz adjuntos={adjuntos} categorias={categorias} />
-        </div>
+    <SeccionMatriz
+      titulo={`Vínculos de la matriz (${vinculos.length})`}
+      descripcion="Cada sujeto evaluado tiene su propio estado y fecha. Abre el vínculo para ver el detalle completo."
+    >
+      <div className="space-y-2">
+        {vinculos.map((vinculo) => (
+          <div key={vinculo.id} className="rounded-lg border border-border bg-secondary/20 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-foreground">{vinculo.nombre}</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  {DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo}
+                  {vinculo.cargo ? ` · ${vinculo.cargo}` : ""}
+                  {vinculo.documento ? ` · ${vinculo.documento}` : ""}
+                </p>
+              </div>
+              <Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[10px]">
+                <Link href={`${DD_RUTAS.MATRIZ}/${vinculo.id}?returnTo=${encodeURIComponent(returnTo)}`}>
+                  <ExternalLink className="h-3 w-3" />
+                  <span>Abrir</span>
+                </Link>
+              </Button>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <EstadoVinculo
+                titulo="SIG"
+                resultado={vinculo.sigResultado}
+                conclusion={vinculo.sigConclusion}
+                fecha={vinculo.sigFecha}
+              />
+              <EstadoVinculo
+                titulo="Comunicaciones"
+                resultado={vinculo.repResultado}
+                conclusion={vinculo.repConclusion}
+                fecha={vinculo.repFecha}
+              />
+              <EstadoVinculo
+                titulo="Legal"
+                resultado={vinculo.cmpResultado}
+                conclusion={vinculo.cmpConclusion}
+                fecha={vinculo.cmpFecha}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </SeccionMatriz>
   );
 }
 
-export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props) {
+export function DdRevisionMatrizTab({ detalle, vinculos, loading, error, matrizId }: Props) {
   const [returnTo] = useState<string>(() => {
     if (typeof window === "undefined") return DD_RUTAS.MATRIZ;
     return `${window.location.pathname}${window.location.search}`;
@@ -208,6 +237,8 @@ export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props
         </Button>
       </div>
 
+      <VinculosMatriz vinculos={vinculos} returnTo={returnTo} />
+
       <SeccionMatriz titulo="Datos de la matriz" descripcion="Información registrada en la matriz que no forma parte del resumen del expediente.">
         <div className="grid gap-3 sm:grid-cols-2">
           <DatoMatriz etiqueta="Fecha de inicio de actividades">{dateUtils.format(detalle.generales.fechaInicioActividades)}</DatoMatriz>
@@ -232,42 +263,7 @@ export function DdRevisionMatrizTab({ detalle, loading, error, matrizId }: Props
         )}
       </SeccionMatriz>
 
-      <BloqueMatriz
-        titulo="Conclusiones SIG"
-        descripcion="Evaluación de SIG registrada en la matriz."
-        bloque={detalle.sig}
-        adjuntos={detalle.adjuntos}
-        categorias={[DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME, DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_SUSTENTO]}
-      />
-
-      <BloqueMatriz
-        titulo="Conclusiones reputacional"
-        descripcion="Evaluación reputacional registrada en la matriz."
-        bloque={detalle.reputacional}
-        adjuntos={detalle.adjuntos}
-        categorias={[DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO]}
-      />
-
-      <BloqueMatriz
-        titulo="Conclusiones Compliance"
-        descripcion="Evaluación de Compliance registrada en la matriz."
-        bloque={detalle.compliance}
-        compliance
-        adjuntos={detalle.adjuntos}
-        categorias={[DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO]}
-      />
-
-      <SeccionMatriz titulo="Conclusión final" descripcion="Resultado final registrado en la matriz. No modifica el estado del expediente.">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <DatoMatriz etiqueta="Resultado">
-            <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} />
-          </DatoMatriz>
-          <DatoMatriz etiqueta="Registrado por">{detalle.finalPor ?? null}</DatoMatriz>
-          <DatoMatriz etiqueta="Fecha">{dateUtils.format(detalle.finalFecha)}</DatoMatriz>
-          <DatoMatriz etiqueta="Comentario interno">{detalle.finalComentario ?? null}</DatoMatriz>
-        </div>
-      </SeccionMatriz>
-
     </div>
   );
 }
+

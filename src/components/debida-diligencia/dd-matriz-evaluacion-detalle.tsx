@@ -753,7 +753,13 @@ export function DdMatrizEvaluacionDetalle({
         titulo="Conclusiones SIG (Logística)"
         descripcion="Resultado de la evaluación por SIG. Si queda OBSERVADO, indica la observación y si requiere debida diligencia reforzada."
         bloque={detalle.sig}
-        conclusionLabels={DD_MATRIZ_CONCLUSION_LABELS}
+        conclusionLabels={Object.fromEntries(
+          Object.entries(DD_MATRIZ_CONCLUSION_LABELS).filter(
+            ([codigo]) =>
+              codigo !== DD_MATRIZ_CONCLUSIONES.OBSERVADO &&
+              codigo !== DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA,
+          ),
+        )}
         puedeEditar={permisos.editarSig}
         guardando={guardando === "sig"}
         fechaDefecto={detalle.expediente.fechaRevision}

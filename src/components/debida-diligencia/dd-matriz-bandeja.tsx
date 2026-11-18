@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import {
   Badge,
@@ -78,6 +78,8 @@ import {
   DD_EVENTO_TODOS,
   DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
   DD_MATRIZ_CONCLUSION_LABELS,
+  DD_MATRIZ_CONCLUSIONES,
+  DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
   DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
@@ -86,12 +88,16 @@ import {
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_REPUTACION_RESULTADO_LABELS,
+  DD_REPUTACION_RESULTADOS,
   DD_RUTAS,
   PER_PAGE_OPCIONES,
   REGEX_PAIS,
+  type DdDocumentoTipo,
   type DdMatrizResultadoFinal,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
@@ -127,6 +133,7 @@ interface GrupoEmpresa {
   codigo: string;
   motivo: string | null;
   eventoProyecto: string | null;
+  fechaIngreso: string;
   filas: DdMatrizEvaluacionFilaDTO[];
 }
 
@@ -169,18 +176,29 @@ function EstadoArea({
   resultado,
   conclusion,
   compliance = false,
+  reputacional = false,
   variant = "pill",
 }: {
   resultado: string | null;
   conclusion: string | null;
   compliance?: boolean;
+  reputacional?: boolean;
   variant?: "pill" | "dot";
 }) {
-  const catalogoResultado: Record<string, string> = DD_MATRIZ_RESULTADO_LABELS;
+  const catalogoResultado: Record<string, string> = compliance
+    ? DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS
+    : reputacional
+      ? DD_REPUTACION_RESULTADO_LABELS
+      : DD_MATRIZ_RESULTADO_LABELS;
   const catalogoConclusion: Record<string, string> = compliance
     ? DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS
     : DD_MATRIZ_CONCLUSION_LABELS;
-  const etiquetaResultado = resultado ? (catalogoResultado[resultado] ?? resultado) : null;
+  const resultadoNormalizado = reputacional
+    ? ddUtils.normalizarResultadoReputacion(resultado)
+    : resultado;
+  const etiquetaResultado = resultadoNormalizado
+    ? (catalogoResultado[resultadoNormalizado] ?? resultadoNormalizado)
+    : null;
   const etiquetaConclusion = conclusion ? (catalogoConclusion[conclusion] ?? conclusion) : null;
 
   if (!etiquetaResultado && !etiquetaConclusion) {
@@ -192,43 +210,104 @@ function EstadoArea({
     );
   }
 
-  const observado = resultado === DD_MATRIZ_RESULTADOS.OBSERVADO;
-  const aceptado = resultado === DD_MATRIZ_RESULTADOS.ACEPTADO;
-  const enRevision = !resultado && Boolean(etiquetaConclusion);
-  const color = observado
-    ? "border-amber-300 bg-amber-50 text-amber-900"
-    : aceptado
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : enRevision
-        ? "border-blue-200 bg-blue-50 text-blue-800"
-        : "border-slate-200 bg-slate-50 text-slate-600";
-  const textColor = observado ? "text-amber-800" : aceptado ? "text-emerald-800" : enRevision ? "text-blue-800" : "text-slate-600";
-  const dotColor = observado ? "bg-amber-600" : aceptado ? "bg-emerald-600" : enRevision ? "bg-blue-600" : "bg-slate-400";
-  const Icono = observado ? AlertTriangle : aceptado ? CheckCircle2 : Clock3;
+  const observado =
+    resultadoNormalizado === DD_MATRIZ_RESULTADOS.OBSERVADO ||
+    resultadoNormalizado === DD_REPUTACION_RESULTADOS.OBSERVADO ||
+    resultadoNormalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES ||
+    conclusion === DD_MATRIZ_CONCLUSIONES.OBSERVADO ||
+    conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA ||
+    conclusion === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES;
+  const aceptado =
+    resultadoNormalizado === DD_MATRIZ_RESULTADOS.ACEPTADO ||
+    resultadoNormalizado === DD_REPUTACION_RESULTADOS.ACEPTADO ||
+    resultadoNormalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO;
+  const rechazado =
+    resultadoNormalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO ||
+    conclusion === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO;
+  const enRevision =
+    !observado &&
+    !rechazado &&
+    (!resultadoNormalizado ||
+      resultadoNormalizado === DD_REPUTACION_RESULTADOS.EN_REVISION ||
+      conclusion === DD_MATRIZ_CONCLUSIONES.EN_REVISION);
+  const color = rechazado
+    ? "border-red-300 bg-red-50 text-red-900"
+    : observado
+      ? "border-amber-300 bg-amber-50 text-amber-900"
+      : aceptado
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+        : enRevision
+          ? "border-blue-200 bg-blue-50 text-blue-800"
+          : "border-slate-200 bg-slate-50 text-slate-600";
+  const textColor = rechazado
+    ? "text-red-800"
+    : observado
+      ? "text-amber-800"
+      : aceptado
+        ? "text-emerald-800"
+        : enRevision
+          ? "text-blue-800"
+          : "text-slate-600";
+  const dotColor = rechazado
+    ? "bg-red-600"
+    : observado
+      ? "bg-amber-600"
+      : aceptado
+        ? "bg-emerald-600"
+        : enRevision
+          ? "bg-blue-600"
+          : "bg-slate-400";
+  const conclusionDotColor = rechazado
+    ? "bg-red-600"
+    : conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA ||
+        conclusion === DD_MATRIZ_CONCLUSIONES.OBSERVADO ||
+        conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA ||
+        conclusion === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES
+      ? "bg-amber-600"
+      : conclusion === DD_MATRIZ_CONCLUSIONES.EN_REVISION
+        ? "bg-blue-600"
+        : conclusion
+          ? "bg-emerald-600"
+          : "bg-slate-400";
+  const Icono = rechazado ? XCircle : observado ? AlertTriangle : aceptado ? CheckCircle2 : Clock3;
 
   return (
     <div className="space-y-1">
-      {variant === "dot" ? (
-        <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${textColor}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
-          {etiquetaResultado ?? etiquetaConclusion ?? "En revisión"}
-        </span>
-      ) : (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${color}`}>
-          <Icono className="h-3 w-3" />
-          {etiquetaResultado ?? "En revisión"}
-        </span>
-      )}
+      {etiquetaResultado ? (
+        <div className="space-y-0.5">
+          <p className="text-[8px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Resultado
+          </p>
+          {variant === "dot" ? (
+            <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${textColor}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+              {etiquetaResultado}
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${color}`}>
+              <Icono className="h-3 w-3" />
+              {etiquetaResultado}
+            </span>
+          )}
+        </div>
+      ) : null}
       {etiquetaConclusion ? (
-        <p className="max-w-[150px] truncate text-[9px] leading-tight text-muted-foreground" title={etiquetaConclusion}>
-          {etiquetaConclusion}
+        <p
+          className="flex max-w-[170px] items-start gap-1.5 text-[9px] leading-tight text-muted-foreground"
+          title={etiquetaConclusion}
+        >
+          <span className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${conclusionDotColor}`} />
+          <span>
+            <span className="font-semibold uppercase tracking-wide">Conclusión: </span>
+            {etiquetaConclusion}
+          </span>
         </p>
       ) : null}
     </div>
   );
 }
 
-/** Estado de la derivación a Comunicaciones (independiente del resultado por área). */
+/** Estado lineal de Comunicaciones: solo muestra la etapa actual. */
 function EstadoComunicaciones({ fila }: { fila: DdMatrizEvaluacionFilaDTO }) {
   if (fila.reputacionCasos === 0) {
     return (
@@ -237,22 +316,53 @@ function EstadoComunicaciones({ fila }: { fila: DdMatrizEvaluacionFilaDTO }) {
       </span>
     );
   }
-  return (
-    <div className="space-y-0.5">
-      <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-semibold text-emerald-800">
+
+  if (fila.repResultado || fila.repConclusion) {
+    return (
+      <div className="space-y-1">
+        <EstadoArea
+          resultado={fila.repResultado}
+          conclusion={fila.repConclusion}
+          reputacional
+        />
+        {!fila.repConclusion ? (
+          <p className="flex items-start gap-1.5 text-[9px] leading-tight text-muted-foreground">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+            <span>
+              <span className="font-semibold uppercase tracking-wide">Conclusión: </span>
+              Pendiente dictamen SIG
+            </span>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (fila.reputacionEnAnalisis > 0) {
+    return (
+      <div className="space-y-0.5">
+        <span className="inline-flex rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-800">
+          En revisión
+        </span>
+        <p className="text-[9px] text-muted-foreground">
+          {fila.reputacionEnAnalisis} caso(s) en revisión
+        </p>
+      </div>
+    );
+  }
+
+  if (fila.reputacionPendientes > 0) {
+    return (
+      <span className="inline-flex rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[9px] font-semibold text-sky-800">
         Derivado
       </span>
-      <p className="text-[9px] text-muted-foreground">
-        {fila.reputacionPendientes > 0
-          ? `${fila.reputacionPendientes} pendiente(s)`
-          : "Comunicaciones completo"}
-      </p>
-      {fila.reputacionConHallazgos > 0 ? (
-        <p className="text-[9px] font-medium text-destructive">
-          {fila.reputacionConHallazgos} con hallazgo(s)
-        </p>
-      ) : null}
-    </div>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-[9px] font-semibold text-violet-800">
+      Pendiente dictamen SIG
+    </span>
   );
 }
 
@@ -348,6 +458,12 @@ export function DdMatrizBandeja() {
       return siguiente;
     });
 
+  const alternarFila = (event: ReactMouseEvent<HTMLElement>, id: string) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("a,button,input,[role='checkbox']")) return;
+    alternar(id, !seleccion.has(id));
+  };
+
   const alternarPagina = (marcado: boolean) =>
     setSeleccion((previa) => {
       const siguiente = new Set(previa);
@@ -397,6 +513,7 @@ export function DdMatrizBandeja() {
         codigo: fila.codigo,
         motivo: fila.motivo,
         eventoProyecto: fila.eventoProyecto,
+        fechaIngreso: fila.fechaIngreso,
         filas: [fila],
       });
     }
@@ -470,35 +587,77 @@ export function DdMatrizBandeja() {
     }
   };
 
-  const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal, comentario?: string) => {
+  const registrarResultadoFinal = async (
+    resultado: DdMatrizResultadoFinal,
+    comentario?: string,
+    cierre?: {
+      clienteComentario?: string | null;
+      documentosObservados?: DdDocumentoTipo[];
+    },
+  ) => {
     if (!revisionFila) return;
     const { id } = await ddMatrizEvaluacionService.abrir(revisionFila.id);
     await ddMatrizEvaluacionService.guardar({
       id,
       resultadoFinal: resultado,
       finalComentario: comentario?.trim() || null,
+      clienteComentario: cierre?.clienteComentario ?? null,
+      documentosObservados: cierre?.documentosObservados ?? [],
     });
   };
 
   const enviarComunicaciones = async () => {
-    if (expedientesParaComunicaciones.length === 0) return;
+    if (filasSeleccionadas.length === 0) return;
+    const vinculosPorExpediente = new Map<string, string[]>();
+    for (const fila of filasSeleccionadas) {
+      const actuales = vinculosPorExpediente.get(fila.expedienteId) ?? [];
+      actuales.push(fila.id);
+      vinculosPorExpediente.set(fila.expedienteId, actuales);
+    }
+
+    const expedienteIds = [...vinculosPorExpediente.keys()];
+    let detalles: Awaited<ReturnType<typeof debidaDiligenciaService.detalle>>[];
+    try {
+      detalles = await Promise.all(
+        expedienteIds.map((id) => debidaDiligenciaService.detalle(id)),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo validar la declaración de vínculos");
+      return;
+    }
+    const sinDeclarar = detalles.filter((detalle) => !detalle.vinculosCompletos);
+    if (sinDeclarar.length > 0) {
+      await confirm({
+        title: "Vínculos no declarados",
+        description: `Aún no se ha declarado que todos los vínculos estén registrados y completos para: ${sinDeclarar
+          .map((detalle) => detalle.codigo)
+          .join(", ")}. Abre “Revisar expediente”, marca la declaración y vuelve a intentar.`,
+        confirmLabel: "Entendido",
+        cancelLabel: "Cerrar",
+      });
+      return;
+    }
+
     const ok = await confirm({
       title: "Enviar a Comunicaciones",
-      description: `Se derivarán los nombres de ${expedientesParaComunicaciones.length} expediente(s) a Comunicaciones.`,
+      description: `Se derivarán ${filasSeleccionadas.length} vínculo(s) de ${vinculosPorExpediente.size} expediente(s) a Comunicaciones.`,
       confirmLabel: "Enviar a Comunicaciones",
     });
     if (!ok) return;
     setProcesando("comunicaciones");
     try {
       let derivados = 0;
-      for (const expedienteId of expedientesParaComunicaciones) {
-        const respuesta = await debidaDiligenciaService.derivarComunicaciones(expedienteId);
+      for (const [expedienteId, vinculoIds] of vinculosPorExpediente) {
+        const respuesta = await debidaDiligenciaService.derivarComunicaciones(
+          expedienteId,
+          vinculoIds,
+        );
         derivados += respuesta.derivados;
       }
       if (derivados === 0) {
-        toast.info("No hay nombres nuevos para Comunicaciones");
+        toast.info("No hay vínculos nuevos para Comunicaciones");
       } else {
-        toast.success(`${derivados} nombre(s) nuevo(s) derivado(s) a Comunicaciones`);
+        toast.success(`${derivados} vínculo(s) nuevo(s) derivado(s) a Comunicaciones`);
       }
       setSeleccion(new Set());
       await cargar(undefined, true);
@@ -852,13 +1011,20 @@ export function DdMatrizBandeja() {
                       <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.INFO}`}>
                         <span>{grupo.eventoLabel}</span>
                       </Badge>
+                      <span className="shrink-0 text-[9px] text-muted-foreground">
+                        Enviado {dateUtils.format(grupo.fechaIngreso)}
+                      </span>
                       <span className="shrink-0 text-[9px] text-muted-foreground">{grupo.filas.length} vínculo(s)</span>
                     </button>
                     <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${abiertos.has(grupo.expedienteId) ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                       <div className={`overflow-hidden ${abiertos.has(grupo.expedienteId) ? "" : "pointer-events-none"}`}>
                       <div className="divide-y divide-border">
                         {grupo.filas.map((fila) => (
-                          <div key={`mobile-${fila.id}`} className="space-y-3 p-3">
+                          <div
+                            key={`mobile-${fila.id}`}
+                            className="cursor-pointer space-y-3 p-3 transition-colors hover:bg-secondary/20"
+                            onClick={(event) => alternarFila(event, fila.id)}
+                          >
                             <div className="flex items-start gap-2">
                               <Checkbox
                                 checked={seleccion.has(fila.id)}
@@ -907,10 +1073,7 @@ export function DdMatrizBandeja() {
                               </div>
                               <div className="rounded-md bg-secondary/30 p-2">
                                 <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Comunicaciones</p>
-                                <EstadoArea resultado={fila.repResultado} conclusion={fila.repConclusion} variant="dot" />
-                                <div className="mt-1.5">
-                                  <EstadoComunicaciones fila={fila} />
-                                </div>
+                                <EstadoComunicaciones fila={fila} />
                               </div>
                               <div className="rounded-md bg-secondary/30 p-2">
                                 <p className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Legal</p>
@@ -999,6 +1162,9 @@ export function DdMatrizBandeja() {
                               <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
                                 <span>{grupo.codigo}</span>
                               </Badge>
+                              <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                                Enviado {dateUtils.format(grupo.fechaIngreso)}
+                              </span>
                               {grupo.motivo ? (
                                 <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}>
                                   <span>{grupo.motivo}</span>
@@ -1027,7 +1193,12 @@ export function DdMatrizBandeja() {
                           </TableCell>
                         </TableRow>
                         {abiertos.has(grupo.expedienteId) ? grupo.filas.map((fila) => (
-                          <TableRow key={fila.id} className="animate-dd-row-in" data-state={seleccion.has(fila.id) ? "selected" : undefined}>
+                          <TableRow
+                            key={fila.id}
+                            className="animate-dd-row-in cursor-pointer transition-colors hover:bg-secondary/20"
+                            data-state={seleccion.has(fila.id) ? "selected" : undefined}
+                            onClick={(event) => alternarFila(event, fila.id)}
+                          >
                             <TableCell className="w-8 align-top">
                               <Checkbox
                                 checked={seleccion.has(fila.id)}
@@ -1079,10 +1250,7 @@ export function DdMatrizBandeja() {
                               <EstadoArea resultado={fila.sigResultado} conclusion={fila.sigConclusion} />
                             </TableCell>
                             <TableCell className="hidden border-l border-border bg-sky-50/20 align-top xl:table-cell">
-                              <EstadoArea resultado={fila.repResultado} conclusion={fila.repConclusion} variant="dot" />
-                              <div className="mt-1.5">
-                                <EstadoComunicaciones fila={fila} />
-                              </div>
+                              <EstadoComunicaciones fila={fila} />
                             </TableCell>
                             <TableCell className="hidden border-l border-border bg-violet-50/20 align-top xl:table-cell">
                               <EstadoArea resultado={fila.cmpResultado} conclusion={fila.cmpConclusion} compliance variant="dot" />
@@ -1275,6 +1443,7 @@ export function DdMatrizBandeja() {
     </section>
   );
 }
+
 
 
 

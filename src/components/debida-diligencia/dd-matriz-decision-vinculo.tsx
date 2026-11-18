@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -22,7 +22,6 @@ import {
   FileText,
   Loader2,
   Send,
-  ShieldAlert,
   Sparkles,
   Upload,
   UserRound,
@@ -39,21 +38,22 @@ import { fuenteAutomatizable, urlFuenteLista } from "@/lib/shared/utils/dd-matri
 import {
   DD_MATRIZ_ADJUNTO_ACCEPT,
   DD_MATRIZ_AMBITO_LABELS,
+  DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CRITERIO_PREFIJO,
-  DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADOS,
-  DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
+  DD_REPUTACION_RESULTADO_LABELS,
   DD_RUTAS,
-  type DdMatrizResultadoFinal,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 
 type DecisionCriterio = "si" | "no" | "na";
-type Veredicto = "aceptado" | "observado" | "elevar";
+type ResultadoSig = "aceptado" | "observado";
 
 interface Props {
   id: string;
@@ -66,27 +66,26 @@ const OPCIONES: { valor: DecisionCriterio; label: string; clase: string }[] = [
   { valor: "na", label: DD_MATRIZ_SI_NO_NA_LABELS.na, clase: "border-slate-200 bg-slate-50 text-slate-600" },
 ];
 
-const VEREDICTOS: { valor: Veredicto; titulo: string; detalle: string; icono: React.ReactNode; clase: string }[] = [
+const RESULTADOS_SIG: {
+  valor: ResultadoSig;
+  titulo: string;
+  detalle: string;
+  icono: React.ReactNode;
+  clase: string;
+}[] = [
   {
     valor: "aceptado",
-    titulo: "APTO",
-    detalle: "Habilitado para relacionamiento comercial e institucional.",
+    titulo: "ACEPTADO",
+    detalle: "El vínculo no presenta observaciones para SIG.",
     icono: <CheckCircle2 className="h-4 w-4" />,
     clase: "border-emerald-200 bg-emerald-50",
   },
   {
     valor: "observado",
-    titulo: "APTO CON OBSERVACIONES",
-    detalle: "Requiere subsanación o seguimiento del área.",
+    titulo: "OBSERVADO",
+    detalle: "El vínculo requiere observación y conclusión.",
     icono: <AlertTriangle className="h-4 w-4" />,
     clase: "border-amber-200 bg-amber-50",
-  },
-  {
-    valor: "elevar",
-    titulo: "REQUIERE DEBIDA DILIGENCIA REFORZADA",
-    detalle: "Envía el vínculo a revisión legal / Compliance.",
-    icono: <ShieldAlert className="h-4 w-4" />,
-    clase: "border-violet-200 bg-violet-50",
   },
 ];
 
@@ -101,15 +100,16 @@ function valorMatriz(decision: DecisionCriterio | null): string | null {
   return decision;
 }
 
-/** Edición de decisions del vínculo: criterios, observación y veredicto. No gestiona archivos. */
+/** Edición de decisiones del vínculo: criterios, resultado y conclusión SIG. */
 export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   const [detalle, setDetalle] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [decisiones, setDecisiones] = useState<Record<string, DecisionCriterio | null>>({});
-  const [veredicto, setVeredicto] = useState<Veredicto>("aceptado");
+  const [resultadoSig, setResultadoSig] = useState<ResultadoSig | null>(null);
+  const [conclusionSig, setConclusionSig] = useState<string | null>(null);
+  const [conclusionReputacional, setConclusionReputacional] = useState<string | null>(null);
   const [observaciones, setObservaciones] = useState("");
-  const [comentarioFinal, setComentarioFinal] = useState("");
   const [subiendoCriterio, setSubiendoCriterio] = useState<string | null>(null);
   const [automatizandoCriterio, setAutomatizandoCriterio] = useState<string | null>(null);
   const [revisionAbierta, setRevisionAbierta] = useState(false);
@@ -119,13 +119,26 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     setDetalle(data);
     setDecisiones(Object.fromEntries(data.listas.map((lista) => [lista.codigo, decisionInicial(lista.valor)])));
     setObservaciones(data.sig.observaciones ?? "");
-    setComentarioFinal(data.finalComentario ?? "");
-    setVeredicto(
-      data.sig.conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA
-        ? "elevar"
-        : data.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO
-          ? "observado"
-          : "aceptado",
+    const resultadoReputacional = ddUtils.normalizarResultadoReputacion(
+      data.reputacional.resultado,
+    );
+    setConclusionReputacional(
+      data.reputacional.conclusion ??
+        (resultadoReputacional === DD_MATRIZ_RESULTADOS.ACEPTADO
+          ? DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES
+          : null),
+    );
+    const resultadoInicial: ResultadoSig | null =
+      data.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO
+        ? "observado"
+        : data.sig.resultado === DD_MATRIZ_RESULTADOS.ACEPTADO
+          ? "aceptado"
+          : null;
+    setResultadoSig(resultadoInicial);
+    setConclusionSig(
+      resultadoInicial === "aceptado"
+        ? DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES
+        : data.sig.conclusion ?? null,
     );
   }, []);
 
@@ -175,20 +188,50 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       setAutomatizandoCriterio(null);
     }
   };
+  const cambiarResultadoSig = async (nuevo: ResultadoSig) => {
+    if (!detalle || nuevo === resultadoSig) return;
+    if (resultadoSig) {
+      const ok = await confirm({
+        title: "Cambiar resultado SIG",
+        description:
+          "El resultado actual se reemplazará. Después deberás confirmar la conclusión SIG.",
+        confirmLabel: "Cambiar resultado",
+        cancelLabel: "Cancelar",
+      });
+      if (!ok) return;
+    }
+    setResultadoSig(nuevo);
+    setConclusionSig(
+      nuevo === "aceptado" ? DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES : null,
+    );
+  };
   const guardarDecision = async () => {
     if (!detalle) return;
-    if (veredicto !== "aceptado" && !observaciones.trim()) {
+    if (!resultadoSig) {
+      toast.error("Selecciona el resultado SIG del vínculo antes de guardar.");
+      return;
+    }
+    if (!conclusionSig) {
+      toast.error("Selecciona la conclusión SIG del vínculo antes de guardar.");
+      return;
+    }
+    const conclusionesValidas =
+      resultadoSig === "observado"
+        ? [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES, DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]
+        : [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES];
+    if (!conclusionesValidas.includes(conclusionSig as (typeof conclusionesValidas)[number])) {
+      toast.error("La conclusión SIG no corresponde al resultado seleccionado.");
+      return;
+    }
+    if (resultadoSig === "observado" && !observaciones.trim()) {
       toast.error("Registra la observación del vínculo antes de guardar.");
       return;
     }
-    if (!comentarioFinal.trim()) {
-      toast.error("Escribe el comentario interno antes de registrar la conclusión final.");
-      return;
-    }
+
     const ok = await confirm({
-      title: "Guardar decisión",
-      description: "Se guardarán los criterios, la observación y el veredicto del vínculo.",
-      confirmLabel: "Guardar decisión",
+      title: "Guardar evaluación del vínculo",
+      description: "Se guardarán los criterios, la observación, el resultado y la conclusión SIG del vínculo.",
+      confirmLabel: "Guardar evaluación",
     });
     if (!ok) return;
     setGuardando(true);
@@ -196,41 +239,53 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       const listas = Object.fromEntries(
         Object.entries(decisiones).map(([codigo, decision]) => [codigo, valorMatriz(decision)]),
       );
-      const resultado: DdMatrizResultadoFinal =
-        veredicto === "aceptado"
-          ? DD_MATRIZ_RESULTADOS_FINALES.APTO
-          : veredicto === "observado"
-            ? DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES
-            : DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION;
       const actualizado = await ddMatrizEvaluacionService.guardar({
         id,
         listas,
         sig: {
-          resultado: veredicto === "aceptado" ? DD_MATRIZ_RESULTADOS.ACEPTADO : DD_MATRIZ_RESULTADOS.OBSERVADO,
+          resultado: resultadoSig === "aceptado" ? DD_MATRIZ_RESULTADOS.ACEPTADO : DD_MATRIZ_RESULTADOS.OBSERVADO,
           observaciones: observaciones.trim() || null,
-          conclusion:
-            veredicto === "elevar"
-              ? DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA
-              : DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES,
+          conclusion: conclusionSig,
         },
-        resultadoFinal: resultado,
-        finalComentario: comentarioFinal.trim(),
+        ...(detalle.reputacional.resultado && conclusionReputacional
+          ? {
+              reputacional: {
+                resultado: detalle.reputacional.resultado,
+                conclusion: conclusionReputacional,
+              },
+            }
+          : {}),
       });
       aplicar(actualizado);
-      toast.success("Decisión del vínculo guardada");
+      toast.success("Evaluación del vínculo guardada");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo guardar la decisión");
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar la evaluación");
     } finally {
       setGuardando(false);
     }
   };
-
   const enviarComunicaciones = async () => {
     if (!detalle) return;
     setGuardando(true);
     try {
-      const respuesta = await debidaDiligenciaService.derivarComunicaciones(detalle.expediente.expedienteId);
-      toast.success(`${respuesta.derivados} nombre(s) derivado(s) a Comunicaciones`);
+      const respuesta = await debidaDiligenciaService.derivarComunicaciones(
+        detalle.expediente.expedienteId,
+        [detalle.id],
+      );
+      if (respuesta.derivados === 0) {
+        if (respuesta.existentes > 0) {
+          await confirm({
+            title: "Vínculo ya derivado",
+            description: `El vínculo "${detalle.nombre}" ya tiene un caso enviado a Comunicaciones. No se creó un duplicado.`,
+            confirmLabel: "Entendido",
+            cancelLabel: "Cerrar",
+          });
+        } else {
+          toast.info("No se pudo crear un caso nuevo para este vínculo");
+        }
+        return;
+      }
+      toast.success("Vínculo derivado a Comunicaciones");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo derivar a Comunicaciones");
     } finally {
@@ -250,6 +305,9 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   const tipo = DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo;
   const hayObservados = Object.values(decisiones).some((decision) => decision === "si");
   const puedeEditar = detalle.permisos.editarSig || detalle.permisos.editarListas || detalle.permisos.editarFinal;
+  const resultadoComunicaciones = ddUtils.normalizarResultadoReputacion(
+    detalle.reputacional.resultado,
+  );
 
   return (
     <div className="space-y-4">
@@ -299,7 +357,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
               Criterios de evaluación
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Registra el veredicto de cada criterio y adjunta la evidencia correspondiente.
+              Registra el resultado de cada criterio y adjunta la evidencia correspondiente.
             </p>
           </CardHeader>
           <CardContent className="p-0">
@@ -441,29 +499,10 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                   Hay criterios observados: registra el sustento antes de guardar.
                 </p>
               ) : null}
-              <Label htmlFor="decision-final-comentario" className="text-[10px] font-semibold uppercase text-muted-foreground">
-                Comentario interno de la conclusión final
-              </Label>
-              <Textarea
-                id="decision-final-comentario"
-                value={comentarioFinal}
-                onChange={(evento) => setComentarioFinal(evento.target.value)}
-                placeholder="Sustento interno de la conclusión final. No se muestra al cliente."
-                className="min-h-24 text-xs"
-                maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
-                disabled={!puedeEditar}
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Obligatorio para cualquier estado final. Solo visible para el equipo interno.
-              </p>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!puedeEditar || guardando || !comentarioFinal.trim()} onClick={() => { void guardarDecision(); }}>
-                  {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  <span>Guardar decisión</span>
-                </Button>
                 <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={guardando} onClick={() => { void enviarComunicaciones(); }}>
                   <Send className="h-3.5 w-3.5" />
-                  <span>Enviar a Comunicaciones</span>
+                  <span>Enviar vínculo a Comunicaciones</span>
                 </Button>
               </div>
             </CardContent>
@@ -471,24 +510,141 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
 
           <Card>
             <CardHeader className="border-b border-border pb-3">
-              <CardTitle className="text-sm font-bold">Veredicto del vínculo</CardTitle>
+              <CardTitle className="text-sm font-bold">Evaluación reputacional (SIG)</CardTitle>
+              <p className="text-[10px] text-muted-foreground">
+                Comunicaciones registra observaciones y fuentes. SIG define el resultado y la
+                conclusión reputacional del vínculo.
+              </p>
             </CardHeader>
-            <CardContent className="space-y-2 pt-4">
-              {VEREDICTOS.map((opcion) => (
-                <button
-                  key={opcion.valor}
-                  type="button"
-                  disabled={!puedeEditar}
-                  onClick={() => setVeredicto(opcion.valor)}
-                  className={`flex w-full items-start gap-2 rounded-lg border p-3 text-left transition ${veredicto === opcion.valor ? opcion.clase : "border-border bg-card hover:bg-secondary/40"}`}
-                >
-                  <span className="mt-0.5 shrink-0">{opcion.icono}</span>
-                  <span>
-                    <span className="block text-xs font-bold text-foreground">{opcion.titulo}</span>
-                    <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">{opcion.detalle}</span>
-                  </span>
-                </button>
-              ))}
+            <CardContent className="space-y-3 pt-4">
+              <div className="rounded-lg border border-border bg-secondary/30 p-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Observaciones de Comunicaciones
+                </p>
+                <p className="mt-1 text-[11px] text-foreground">
+                  {detalle.reputacional.observaciones?.trim() || "Sin observaciones registradas."}
+                </p>
+              </div>
+              <div className="space-y-1 rounded-lg border border-border bg-card p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Resultado de Comunicaciones
+                </p>
+                <p className="text-[11px] font-semibold text-foreground">
+                  {resultadoComunicaciones
+                    ? DD_REPUTACION_RESULTADO_LABELS[resultadoComunicaciones] ??
+                      DD_MATRIZ_RESULTADO_LABELS[
+                        resultadoComunicaciones as keyof typeof DD_MATRIZ_RESULTADO_LABELS
+                      ] ??
+                      resultadoComunicaciones
+                    : "Pendiente"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Conclusión reputacional (SIG)
+                </p>
+                {!resultadoComunicaciones ? (
+                  <p className="rounded-lg border border-dashed border-border bg-secondary/30 p-3 text-[11px] text-muted-foreground">
+                    Comunicaciones aún no registró el resultado de este vínculo.
+                  </p>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {(resultadoComunicaciones === DD_MATRIZ_RESULTADOS.OBSERVADO
+                      ? [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES, DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]
+                      : [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES]
+                    ).map((opcion) => (
+                      <button
+                        key={opcion}
+                        type="button"
+                        disabled={!detalle.permisos.editarReputacional}
+                        onClick={() => setConclusionReputacional(opcion)}
+                        className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${
+                          conclusionReputacional === opcion
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+                        }`}
+                      >
+                        <span>{DD_MATRIZ_CONCLUSION_LABELS[opcion] ?? opcion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b border-border pb-3">
+              <CardTitle className="text-sm font-bold">Evaluación SIG del vínculo</CardTitle>
+              <p className="text-[10px] text-muted-foreground">
+                Primero define el resultado. La conclusión SIG se habilita después.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  1. Resultado SIG
+                </p>
+                {RESULTADOS_SIG.map((opcion) => (
+                  <button
+                    key={opcion.valor}
+                    type="button"
+                    disabled={!puedeEditar}
+                    onClick={() => { void cambiarResultadoSig(opcion.valor); }}
+                    className={`flex w-full items-start gap-2 rounded-lg border p-3 text-left transition ${resultadoSig === opcion.valor ? opcion.clase : "border-border bg-card hover:bg-secondary/40"}`}
+                  >
+                    <span className="mt-0.5 shrink-0">{opcion.icono}</span>
+                    <span>
+                      <span className="block text-xs font-bold text-foreground">{opcion.titulo}</span>
+                      <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">{opcion.detalle}</span>
+                    </span>
+                  </button>
+                ))}
+                <p className="text-[10px] text-muted-foreground">
+                  Seleccionar no guarda el cambio; se confirma con Guardar evaluación.
+                </p>
+              </div>
+
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  2. Conclusión SIG
+                </p>
+                {!resultadoSig ? (
+                  <p className="rounded-lg border border-dashed border-border bg-secondary/30 p-3 text-[11px] text-muted-foreground">
+                    Selecciona un resultado para habilitar la conclusión.
+                  </p>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {(resultadoSig === "observado"
+                      ? [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES, DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA]
+                      : [DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES]
+                    ).map((opcion) => (
+                      <button
+                        key={opcion}
+                        type="button"
+                        disabled={!puedeEditar}
+                        onClick={() => setConclusionSig(opcion)}
+                        className={`rounded-lg border px-3 py-2 text-left text-[11px] font-semibold transition ${
+                          conclusionSig === opcion
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
+                        }`}
+                      >
+                        <span>{DD_MATRIZ_CONCLUSION_LABELS[opcion] ?? opcion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+                <p className="max-w-[220px] text-[10px] text-muted-foreground">
+                  La conclusión final del expediente se registra en Revisar expediente.
+                </p>
+                <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!puedeEditar || guardando || !resultadoSig || !conclusionSig} onClick={() => { void guardarDecision(); }}>
+                  {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  <span>Guardar evaluación</span>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -515,6 +671,8 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     </div>
   );
 }
+
+
 
 
 

@@ -27,6 +27,16 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Valida que una URL sea absoluta y use http o https. */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** Valida que el numero de documento cumpla con la longitud minima segun tipo. */
 export function isValidDocumento(numeroDocumento: string, isFactura: boolean): boolean {
   const minLength = isFactura ? 11 : 8;

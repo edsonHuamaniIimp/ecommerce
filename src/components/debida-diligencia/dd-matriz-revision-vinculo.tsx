@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -9,19 +9,15 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Label,
   Skeleton,
-  Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
 import {
   ArrowLeft,
   BriefcaseBusiness,
-  CheckCircle2,
   ClipboardList,
   ExternalLink,
   FileText,
   Globe2,
-  Loader2,
   Pencil,
 
   UserRound,
@@ -33,22 +29,17 @@ import type {
 } from "@/types/dto/debida-diligencia";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { DdRevisionModal } from "./dd-revision-modal";
-import { useConfirm } from "@/hooks/use-confirm";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   DD_MATRIZ_AMBITO_LABELS,
   DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
   DD_MATRIZ_CONCLUSION_LABELS,
-  DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_ORIGENES,
-  DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADO_LABELS,
-  DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_RUTAS,
-  type DdMatrizResultadoFinal,
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
@@ -148,18 +139,12 @@ function cajaConclusion(
 export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
   const [detalle, setDetalle] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
   const [loading, setLoading] = useState(true);
-  const [procesando, setProcesando] = useState<string | null>(null);
-  const [finalSeleccionado, setFinalSeleccionado] = useState<DdMatrizResultadoFinal | null>(null);
-  const [finalComentario, setFinalComentario] = useState("");
   const [revisionAbierta, setRevisionAbierta] = useState(false);
-  const { confirm, confirmDialog } = useConfirm();
 
   const cargar = useCallback(async () => {
     try {
       const actualizado = await ddMatrizEvaluacionService.detalle(id);
       setDetalle(actualizado);
-      setFinalSeleccionado(actualizado.resultadoFinal as DdMatrizResultadoFinal | null);
-      setFinalComentario(actualizado.finalComentario ?? "");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar el vínculo");
     } finally {
@@ -171,47 +156,6 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar();
   }, [cargar]);
-
-  const decidir = async (resultadoFinal: DdMatrizResultadoFinal, titulo: string, etiqueta: string) => {
-    if (!detalle || !detalle.permisos.editarFinal) return;
-    if (!finalComentario.trim()) {
-      toast.error("Escribe el comentario interno antes de registrar la conclusión final");
-      return;
-    }
-    const ok = await confirm({
-      title: titulo,
-      description: `El resultado final de "${detalle.nombre}" quedará como ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultadoFinal]}.`,
-      confirmLabel: etiqueta,
-    });
-    if (!ok) return;
-    setProcesando(resultadoFinal);
-    try {
-      const actualizado = await ddMatrizEvaluacionService.guardar({
-        id,
-        resultadoFinal,
-        finalComentario: finalComentario.trim() || null,
-      });
-      setDetalle(actualizado);
-      setFinalSeleccionado(actualizado.resultadoFinal as DdMatrizResultadoFinal | null);
-      setFinalComentario(actualizado.finalComentario ?? "");
-      toast.success(`${titulo} registrado`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo registrar la decisión");
-    } finally {
-      setProcesando(null);
-    }
-  };
-
-  const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal, comentario?: string) => {
-    const actualizado = await ddMatrizEvaluacionService.guardar({
-      id,
-      resultadoFinal: resultado,
-      finalComentario: comentario?.trim() || null,
-    });
-    setDetalle(actualizado);
-    setFinalSeleccionado(actualizado.resultadoFinal as DdMatrizResultadoFinal | null);
-    setFinalComentario(actualizado.finalComentario ?? "");
-  };
 
   if (loading || !detalle) {
     return (
@@ -229,15 +173,6 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
 
   const tipo = DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo;
   const esEmpresa = detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA;
-  const finalLabel = detalle.resultadoFinal
-    ? (DD_MATRIZ_RESULTADO_FINAL_LABELS[detalle.resultadoFinal as DdMatrizResultadoFinal] ?? detalle.resultadoFinal)
-    : "EN REVISIÓN";
-  const finalEsAprobado = detalle.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO;
-  const evento = detalle.generales.eventoProyecto ?? detalle.expediente.eventoProyecto;
-  const finalConclusion = finalEsAprobado
-    ? `APTO PARA PARTICIPAR${evento ? ` EN ${evento}` : ""}`
-    : finalLabel;
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -265,9 +200,6 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge className={`pointer-events-none text-[10px] font-bold ${finalEsAprobado ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-              <span>{finalLabel}</span>
-            </Badge>
             <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setRevisionAbierta(true)}>
               <FileText className="h-3.5 w-3.5" /><span>Revisar expediente</span>
             </Button>
@@ -389,78 +321,8 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
             {cajaConclusion("Conclusiones SIG (Logística)", detalle.sig, DD_MATRIZ_CONCLUSION_LABELS)}
             {cajaConclusion("Conclusiones reputacional (Comunicaciones)", detalle.reputacional, DD_MATRIZ_CONCLUSION_LABELS)}
             {cajaConclusion("Conclusiones Compliance (Legal)", detalle.compliance, DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS)}
-            <div className={`rounded-lg border p-3 ${finalEsAprobado ? "border-emerald-200 bg-emerald-50/60" : "border-primary/20 bg-primary/5"}`}>
-              <p className="text-xs font-semibold text-muted-foreground">Conclusión final del expediente</p>
-              <p className={`mt-1 text-sm font-bold ${finalEsAprobado ? "text-emerald-800" : "text-primary"}`}>{finalConclusion}</p>
-              {detalle.finalComentario ? (
-                <p className="mt-2 rounded-md border border-border bg-card p-2 text-[10px] leading-relaxed text-muted-foreground">
-                  <span className="font-semibold text-foreground">Comentario interno: </span>
-                  {detalle.finalComentario}
-                </p>
-              ) : null}
-              {!finalEsAprobado ? (
-                <p className="mt-1 text-[10px] text-muted-foreground">Pendiente de decisión final o en revisión.</p>
-              ) : null}
-            </div>
           </div>
 
-          <div className="space-y-1 border-t border-border pt-3">
-            <Label htmlFor="final-comentario" className="text-[10px] font-medium uppercase text-muted-foreground">
-              <span>Comentario interno</span>
-            </Label>
-            <Textarea
-              id="final-comentario"
-              className="min-h-20 text-xs"
-              maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
-              disabled={!detalle.permisos.editarFinal || !finalSeleccionado}
-              placeholder={
-                finalSeleccionado
-                  ? "Sustento interno de la conclusión final. No se muestra al cliente."
-                  : "Selecciona un estado final para habilitar el comentario."
-              }
-              value={finalComentario}
-              onChange={(event) => setFinalComentario(event.target.value)}
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Obligatorio para cualquier estado final. Solo visible para el equipo interno.
-            </p>
-          </div>
-
-          <div className="grid gap-1.5 border-t border-border pt-3 sm:grid-cols-2">
-            {Object.entries(DD_MATRIZ_RESULTADO_FINAL_LABELS).map(([valor, label]) => (
-              <Button
-                key={valor}
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!detalle.permisos.editarFinal || procesando !== null}
-                className={`h-auto min-h-8 justify-start gap-1.5 px-2.5 py-1.5 text-[11px] ${finalSeleccionado === valor ? "border-primary bg-primary/10" : ""}`}
-                onClick={() => setFinalSeleccionado(valor as DdMatrizResultadoFinal)}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span className="text-left">{label}</span>
-              </Button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-            <p className="text-[10px] text-muted-foreground">
-              Selecciona un estado y registra el comentario interno obligatorio.
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              disabled={!detalle.permisos.editarFinal || !finalSeleccionado || !finalComentario.trim() || procesando !== null}
-              onClick={() => {
-                if (!finalSeleccionado) return;
-                const label = DD_MATRIZ_RESULTADO_FINAL_LABELS[finalSeleccionado];
-                void decidir(finalSeleccionado, `Registrar ${label}`, `Registrar ${label}`);
-              }}
-            >
-              {procesando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              <span>Registrar conclusión final</span>
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -478,11 +340,9 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
           puedeMatriz
           onClose={() => setRevisionAbierta(false)}
           onDone={() => { void cargar(); }}
-          onResultadoFinal={registrarResultadoFinal}
         />
       ) : null}
 
-      {confirmDialog}
     </div>
   );
 }

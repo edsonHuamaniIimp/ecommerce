@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   Badge,
   Button,
@@ -22,8 +23,10 @@ import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
 import { DdRadioIndicator } from "./dd-radio-indicator";
 import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
+import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   BADGE_STYLES,
+  DD_RUTAS,
   DD_ACCIONES_LEGAL,
   DD_DOCUMENTO_ADICIONAL,
   DD_DOCUMENTO_VIGENCIA,
@@ -47,6 +50,7 @@ interface Props {
 export function DdLegalModal({ fila, onClose, onDone }: Props) {
   const { confirm, confirmDialog } = useConfirm();
   const [detalle, setDetalle] = useState<DdExpedienteDTO | null>(null);
+  const [matrizId, setMatrizId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [decision, setDecision] = useState<DdAccionLegal>(DD_ACCIONES_LEGAL.APROBAR);
   const [documentosObservados, setDocumentosObservados] = useState<DdDocumentoTipo[]>([]);
@@ -73,6 +77,19 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
       .finally(() => {
         if (activo) setLoading(false);
       });
+    return () => {
+      activo = false;
+    };
+  }, [fila.id]);
+
+  useEffect(() => {
+    let activo = true;
+    ddMatrizEvaluacionService
+      .abrir(fila.id)
+      .then(({ id }) => {
+        if (activo) setMatrizId(id);
+      })
+      .catch(() => undefined);
     return () => {
       activo = false;
     };
@@ -199,6 +216,24 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
           <p className="text-[11px] text-muted-foreground">
             {fila.empresa.razonSocial} · RUC {fila.empresa.ruc} · {fila.codigo}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button asChild type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Link
+                href={matrizId ? `${DD_RUTAS.MATRIZ}/${matrizId}` : DD_RUTAS.MATRIZ}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>Ver expediente en matriz</span>
+              </Link>
+            </Button>
+            <Button asChild type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+              <Link href={DD_RUTAS.REPOSITORIO} target="_blank" rel="noreferrer">
+                <Eye className="h-3.5 w-3.5" />
+                <span>Centro documental</span>
+              </Link>
+            </Button>
+          </div>
         </DialogHeader>
 
         {loading ? (
@@ -252,6 +287,57 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                     <Dato label="Documento">{detalle.representanteDocumento ?? "—"}</Dato>
                     <Dato label="Correo">{detalle.emailRepresentante ?? "—"}</Dato>
                     <Dato label="Sitio web">{detalle.sitioWeb ?? "—"}</Dato>
+                  </div>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Vínculos del expediente
+                  </h3>
+                  <div className="divide-y divide-border rounded-lg border border-border">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">{detalle.empresa.razonSocial}</p>
+                        <p className="text-[10px] text-muted-foreground">Empresa · RUC {detalle.empresa.ruc}</p>
+                      </div>
+                      <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INFO}`}>
+                        <span>Empresa</span>
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">
+                          {detalle.representanteNombre ?? "Representante no registrado"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Representante legal
+                          {detalle.representanteDocumento
+                            ? ` · ${detalle.representanteTipoDocumento ?? "Documento"} ${detalle.representanteDocumento}`
+                            : ""}
+                        </p>
+                      </div>
+                      <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}>
+                        <span>Representante</span>
+                      </Badge>
+                    </div>
+                    {detalle.beneficiarios.map((beneficiario) => (
+                      <div
+                        key={beneficiario.id}
+                        className="flex flex-wrap items-center justify-between gap-2 p-3"
+                      >
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">{beneficiario.nombre}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {beneficiario.tipoVinculoPersona ?? "Beneficiario"} ·{" "}
+                            {beneficiario.porcentaje.toFixed(2)}%
+                            {beneficiario.documento ? ` · ${beneficiario.documento}` : ""}
+                          </p>
+                        </div>
+                        <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
+                          <span>Beneficiario / socio</span>
+                        </Badge>
+                      </div>
+                    ))}
                   </div>
                 </section>
 
@@ -366,6 +452,34 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                       </div>
                     ) : null}
                   </div>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Observaciones del expediente
+                  </h3>
+                  {detalle.observaciones.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+                      Sin observaciones registradas.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {detalle.observaciones.map((observacion) => (
+                        <div key={observacion.id} className="rounded-lg border border-border p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {observacion.area}
+                              {observacion.documentoTipo ? ` · ${observacion.documentoTipo}` : ""}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {dateUtils.formatDateTime(observacion.createdAt)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-foreground">{observacion.texto}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 <section className="space-y-2">

@@ -14,6 +14,8 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_SI_NO_NA_LABELS,
+  DD_REPUTACION_RESULTADO_LABELS,
+  DD_REPUTACION_RESULTADOS,
   type DdMatrizAmbito,
   type DdMatrizConclusion,
   type DdMatrizConclusionCompliance,
@@ -50,14 +52,41 @@ export function DdMatrizResultadoFinalBadge({ valor }: { valor: string | null })
 /** Resultado de un area (ACEPTADO / OBSERVADO / NO APLICA). */
 export function DdMatrizResultadoBadge({ valor }: { valor: string | null }) {
   if (!valor) return SIN_DATO;
-  const codigo = valor as DdMatrizResultado;
+  const normalizado =
+    valor === DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES ||
+    valor === DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS
+      ? DD_REPUTACION_RESULTADOS.ACEPTADO
+      : valor === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA ||
+          valor === DD_REPUTACION_RESULTADOS.CON_HALLAZGOS
+        ? DD_REPUTACION_RESULTADOS.OBSERVADO
+        : valor;
+  const codigoResultado = normalizado as DdMatrizResultado;
   const estilo =
-    codigo === DD_MATRIZ_RESULTADOS.ACEPTADO
-      ? BADGE_STYLES.SUCCESS
-      : codigo === DD_MATRIZ_RESULTADOS.OBSERVADO
+    normalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.RECHAZADO
+      ? BADGE_STYLES.DESTRUCTIVE
+      : normalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO_CON_OBSERVACIONES
         ? BADGE_STYLES.WARNING
-        : BADGE_STYLES.NEUTRAL;
-  return <Etiqueta texto={DD_MATRIZ_RESULTADO_LABELS[codigo] ?? valor} estilo={estilo} />;
+        : normalizado === DD_MATRIZ_RESULTADOS.ACEPTADO ||
+            normalizado === DD_REPUTACION_RESULTADOS.ACEPTADO ||
+            normalizado === DD_MATRIZ_CONCLUSIONES_COMPLIANCE.ACEPTADO
+          ? BADGE_STYLES.SUCCESS
+          : normalizado === DD_MATRIZ_RESULTADOS.OBSERVADO ||
+              normalizado === DD_REPUTACION_RESULTADOS.OBSERVADO
+            ? BADGE_STYLES.WARNING
+            : BADGE_STYLES.NEUTRAL;
+  return (
+    <Etiqueta
+      texto={
+        DD_MATRIZ_RESULTADO_LABELS[codigoResultado] ??
+        DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS[
+          normalizado as keyof typeof DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS
+        ] ??
+        DD_REPUTACION_RESULTADO_LABELS[normalizado] ??
+        normalizado
+      }
+      estilo={estilo}
+    />
+  );
 }
 
 /** Conclusion de SIG o Reputacional. */
@@ -67,9 +96,12 @@ export function DdMatrizConclusionBadge({ valor }: { valor: string | null }) {
   const estilo =
     codigo === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA
       ? BADGE_STYLES.DESTRUCTIVE
-      : codigo === DD_MATRIZ_CONCLUSIONES.EN_REVISION
-        ? BADGE_STYLES.INFO
-        : BADGE_STYLES.SUCCESS;
+      : codigo === DD_MATRIZ_CONCLUSIONES.OBSERVADO ||
+          codigo === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA
+        ? BADGE_STYLES.WARNING
+        : codigo === DD_MATRIZ_CONCLUSIONES.EN_REVISION
+          ? BADGE_STYLES.INFO
+          : BADGE_STYLES.SUCCESS;
   return <Etiqueta texto={DD_MATRIZ_CONCLUSION_LABELS[codigo] ?? valor} estilo={estilo} />;
 }
 
