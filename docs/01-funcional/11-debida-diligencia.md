@@ -137,10 +137,10 @@ Legal ve **Revision legal**. Comunicaciones ve **Revision reputacional**.
 1. Recibe los nombres derivados por Logistica.
 2. Evalua unicamente el nombre y el sitio web remitidos. No accede a la ficha
    completa del cliente.
-3. Registra uno de estos resultados: sin hallazgos, con hallazgos o requiere
-   informacion adicional.
-4. Puede guardar el resultado o cerrar el caso. Al notificar, Logistica recibe una
-   alerta en la campana del sistema.
+3. Registra el resultado (`ACEPTADO` u `OBSERVADO`), las observaciones y las fuentes.
+   No define la conclusión reputacional.
+4. Puede guardar su revisión o cerrarla. SIG define la conclusión reputacional en
+   la matriz. Al notificar, Logística recibe una alerta.
 
 ### 4.4 Legal
 

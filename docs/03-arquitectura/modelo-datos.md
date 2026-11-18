@@ -576,6 +576,20 @@ mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` �
 - Migración aditiva: `20261106120000_dd_v2_relacion_comercial`.
 - Ver `docs/01-funcional/14-debida-diligencia-v2-alcance.md`.
 
+### Catálogo maestro DD (`dd_maestra`)
+
+- **`dd_maestra`** - catálogo administrable de estados, resultados y tipos del módulo
+  DD. Campos: `tipo` (grupo del catálogo), `codigo` (valor canónico persistido),
+  `nombre` (etiqueta visible), `descripcion`, `orden`, `activo` y `metadata`.
+- Unicidad por `(tipo, codigo)` e índice por `(tipo, activo, orden)`.
+- Los **códigos canónicos siguen definidos en `src/lib/shared/constants.ts`** para
+  que las reglas de negocio, validaciones y tipos compartidos sean compile-time.
+  `dd_maestra` administra etiquetas, orden, disponibilidad y metadatos; no reemplaza
+  las constantes de lógica.
+- Seed: `prisma/dd-maestra-seed.ts`, ejecutado por `prisma/seed.ts`. Incluye
+  expediente, reputación, matriz, documento, evaluación y relación.
+- Migración: `20261115200000_add_dd_maestra`.
+
 ## 6. Pendientes (PC)
 
 - ~~Confirmar **motor de BD** (relacional vs. documental) y ORM.~~ → **PostgreSQL + Prisma v7**.

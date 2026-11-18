@@ -102,9 +102,10 @@ Comunicaciones
   Revisión reputacional
     -> casos agrupados por expediente
     -> detalle lateral: nombre, nacionalidad, sitio web, derivado por, fecha
-    -> Sin hallazgos / Con hallazgos / Requiere información adicional
-    -> Link de sustento obligatorio si hay hallazgos
+    -> Observaciones y fuentes; no define el dictamen reputacional
+    -> Link de sustento opcional
     -> Notificar a Logística
+    -> El resultado/conclusión reputacional lo define SIG en la matriz
 
 Legal / Compliance
   Revisión legal
@@ -165,9 +166,11 @@ La V2 agrega el estado de cierre por plazo:
 ### 5.4 Resultados de matriz
 
 - Listas y campos: `SI / NO / N.A.`
-- Resultado por área: `ACEPTADO / OBSERVADO`; Compliance agrega `NO APLICA`.
-- Conclusión SIG y reputacional: `SIN OBSERVACIONES /
-  REQUIERE DEBIDA DILIGENCIA REFORZADA / EN REVISION`.
+- Resultado SIG: `ACEPTADO / OBSERVADO`; Compliance agrega `NO APLICA`.
+- Resultado y conclusión reputacional (SIG): `SIN OBSERVACIONES /
+  REQUIERE DEBIDA DILIGENCIA / OBSERVADO / EN REVISIÓN`.
+- Conclusión SIG: `SIN OBSERVACIONES / REQUIERE DEBIDA DILIGENCIA REFORZADA /
+  EN REVISIÓN`.
 - Conclusión Compliance: `ACEPTADO / ACEPTADO CON OBSERVACIONES / RECHAZADO`.
 - Resultado final: `APTO / APTO CON OBSERVACIONES / NO APTO /
   DOCUMENTACION OBSERVADA / EN REVISIÓN`.

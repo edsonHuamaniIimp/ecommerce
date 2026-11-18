@@ -2169,6 +2169,7 @@ paths:
       parameters:
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
         - { name: perPage, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: expedienteId, in: query, description: Filtra todos los vinculos de una sola DD, schema: { type: string } }
         - { name: search, in: query, schema: { type: string } }
         - { name: tipo, in: query, schema: { type: string, enum: [empresa, representante, beneficiario, vinculado] } }
         - { name: ambito, in: query, schema: { type: string, enum: [nacional, extranjero] } }
@@ -2396,6 +2397,48 @@ paths:
       responses:
         "200":
           description: OK
+  /debida-diligencia/maestra:
+    get:
+      tags: [DebidaDiligencia]
+      summary: Catalogo maestro administrable de Debida Diligencia
+      parameters:
+        - name: tipo
+          in: query
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+          description: Tipos de catalogo, por ejemplo reputacion_estado o reputacion_resultado.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            tipo:
+                              type: string
+                            codigo:
+                              type: string
+                            nombre:
+                              type: string
+                            descripcion:
+                              type: string
+                              nullable: true
+                            orden:
+                              type: integer
   /debida-diligencia/reputacion/listar:
     get:
       tags: [DebidaDiligencia]
@@ -2420,6 +2463,24 @@ paths:
           in: query
           schema:
             type: string
+        - name: desde
+          in: query
+          description: Fecha de envio del SIG (inclusive), formato YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+        - name: hasta
+          in: query
+          description: Fecha de envio del SIG (inclusive), formato YYYY-MM-DD.
+          schema:
+            type: string
+            format: date
+        - name: orden
+          in: query
+          description: Orden por fecha de envio del SIG.
+          schema:
+            type: string
+            enum: [recientes, antiguos]
       responses:
         "200":
           description: OK
@@ -2427,6 +2488,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DdReputacionResponse"
+  /debida-diligencia/reputacion/iniciar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Marca un vínculo reputacional como En revisión
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      estado:
+                        type: string
+                      vinculoId:
+                        type: string
+                        nullable: true
+  /debida-diligencia/reputacion/observar:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Guarda un borrador o cierra la revisión de Comunicaciones
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                resultado:
+                  type: string
+                  nullable: true
+                  enum: [aceptado, observado]
+                  description: Obligatorio cuando `cerrar` es true.
+                comentario:
+                  type: string
+                  nullable: true
+                linkHallazgos:
+                  type: string
+                  nullable: true
+                cerrar:
+                  type: boolean
+                  default: false
+                  description: true cierra la revisión y la envía a SIG.
+                notificar:
+                  type: boolean
+                  default: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
   /debida-diligencia/reputacion/resolver:
     post:
       tags: [DebidaDiligencia]
@@ -3434,11 +3574,15 @@ components:
         pais: { type: string, nullable: true, description: ISO 3166-1 alpha-2; null muestra "?" }
         sigResultado: { type: string, nullable: true, enum: [aceptado, observado, no_aplica] }
         sigConclusion: { type: string, nullable: true, enum: [sin_observaciones, requiere_dd_reforzada, en_revision] }
+        sigFecha: { type: string, format: date-time, nullable: true }
         repResultado: { type: string, nullable: true }
         repConclusion: { type: string, nullable: true }
+        repFecha: { type: string, format: date-time, nullable: true }
         cmpResultado: { type: string, nullable: true }
         cmpConclusion: { type: string, nullable: true, enum: [aceptado, aceptado_con_observaciones, rechazado] }
+        cmpFecha: { type: string, format: date-time, nullable: true }
         resultadoFinal: { type: string, nullable: true, enum: [apto, apto_con_observaciones, no_apto, documentacion_observada, en_revision] }
+        finalFecha: { type: string, format: date-time, nullable: true }
     DdMatrizEvaluacionResponse:
       type: object
       properties:
@@ -3543,6 +3687,17 @@ components:
         resultadoFinal: { type: string, nullable: true }
         finalFecha: { type: string, format: date, nullable: true, description: Si no se envia se registra la de hoy }
         finalPor: { type: string, nullable: true, description: Si no se envia se registra el usuario que guarda }
+        finalComentario: { type: string, nullable: true, description: Comentario interno; no se muestra al cliente }
+        clienteComentario:
+          type: string
+          nullable: true
+          description: Obligatorio para DOCUMENTACIÓN OBSERVADA; sí se muestra al cliente
+        documentosObservados:
+          type: array
+          description: Documentos a subsanar cuando la conclusión es DOCUMENTACIÓN OBSERVADA
+          items:
+            type: string
+            enum: [ficha_ruc, poderes, identidad_representante, declaracion_jurada, declaracion_vigencia, documento_adicional]
     DdMatrizBloqueRequest:
       type: object
       properties:
@@ -3672,10 +3827,23 @@ components:
           type: string
         resultado:
           type: string
-          enum: [sin_hallazgos, con_hallazgos, requiere_informacion]
+          enum:
+            [
+              sin_observaciones,
+              requiere_debida_diligencia,
+              observado,
+              en_revision,
+              sin_hallazgos,
+              con_hallazgos,
+              requiere_informacion,
+            ]
         comentario:
           type: string
           nullable: true
+        linkHallazgos:
+          type: string
+          nullable: true
+          description: Obligatorio para OBSERVADO, REQUIERE DEBIDA DILIGENCIA y con_hallazgos.
         cerrar:
           type: boolean
         notificar:
